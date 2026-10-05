@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -244,13 +245,7 @@ public class CreateIndexLimitIT extends AbstractStatelessPluginIntegTestCase {
                 IndexLimitExceededException.class,
                 prepareCreate(indexPattern + suffix)
             );
-            assertThat(
-                e.getMessage(),
-                containsString(
-                    "see https://www.elastic.co/docs/deploy-manage/deploy/"
-                        + "elastic-cloud/differences-from-other-elasticsearch-offerings.md?version=master#index-and-resource-limits"
-                )
-            );
+            assertThat(e.getMessage(), containsString("see " + ReferenceDocs.MAX_INDICES_PER_PROJECT));
         }
     }
 
@@ -299,7 +294,7 @@ public class CreateIndexLimitIT extends AbstractStatelessPluginIntegTestCase {
         }
         systemIndicesCounter.addAndGet(systemIndices);
         collectMetrics();
-        List<Measurement> measurements = getClusterMeasurements(InstrumentType.LONG_GAUGE, USER_INDEX_TOTAL_METRIC_NAME);
+        List<Measurement> measurements = getClusterMeasurements(InstrumentType.LONG_ASYNC_GAUGE, USER_INDEX_TOTAL_METRIC_NAME);
 
         // All system indices, no user indices
         assertThat(measurements, hasSize(1));
@@ -315,7 +310,7 @@ public class CreateIndexLimitIT extends AbstractStatelessPluginIntegTestCase {
         }
 
         collectMetrics();
-        measurements = getClusterMeasurements(InstrumentType.LONG_GAUGE, USER_INDEX_TOTAL_METRIC_NAME);
+        measurements = getClusterMeasurements(InstrumentType.LONG_ASYNC_GAUGE, USER_INDEX_TOTAL_METRIC_NAME);
         List<Long> metrics = measurements.stream().map(Measurement::getLong).toList();
         assertThat(metrics, hasSize(1));
         assertThat(metrics.get(0), equalTo((long) userIndicesLimit));

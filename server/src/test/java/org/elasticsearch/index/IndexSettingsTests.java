@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -268,6 +269,7 @@ public class IndexSettingsTests extends ESTestCase {
                     "index",
                     Settings.builder()
                         .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+                        .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
                         .put(IndexSettings.SLICE_ENABLED.getKey(), true)
                         .build()
                 ),
@@ -925,6 +927,7 @@ public class IndexSettingsTests extends ESTestCase {
         IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(
             Settings.EMPTY,
             null,
+            null,
             xContentRegistry(),
             new MapperRegistry(
                 Collections.emptyMap(),
@@ -1126,7 +1129,7 @@ public class IndexSettingsTests extends ESTestCase {
             IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
             IndexVersion.current()
         );
-        IndexMode badMode = randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.values()));
+        IndexMode badMode = randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.availableModes()));
         String codec = CodecService.DEFAULT_CODEC;
 
         Settings settings = Settings.builder()
@@ -1202,7 +1205,9 @@ public class IndexSettingsTests extends ESTestCase {
     public void testDisableSequenceNumbersRequiresDocValuesOnlyForNonStandardModes() {
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
 
-        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.LOGSDB);
+        List<IndexMode> modes = new ArrayList<>(List.of(IndexMode.TIME_SERIES, IndexMode.LOGSDB));
+        modes.addAll(List.of(IndexMode.LOGSDB_COLUMNAR, IndexMode.COLUMNAR));
+        IndexMode mode = randomFrom(modes);
         Settings.Builder builder = Settings.builder()
             .put(IndexSettings.MODE.getKey(), mode.getName())
             .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES)
@@ -1245,6 +1250,98 @@ public class IndexSettingsTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    public void testDisableSequenceNumbersDefaultForColumnarModes() {
+        // BWC: below the gate, columnar modes disable sequence numbers by default.
+        IndexVersion beforeGate = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.DISABLE_SEQUENCE_NUMBERS,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY)
+        );
+        for (IndexMode columnarMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), columnarMode.getName()).build();
+            IndexSettings indexSettings = new IndexSettings(
+                newIndexMeta(columnarMode.getName() + "-index", settings, beforeGate),
+                Settings.EMPTY
+            );
+            assertThat(columnarMode + " disables sequence numbers below the gate", indexSettings.sequenceNumbersDisabled(), is(true));
+        }
+
+        // From the gate, columnar modes keep sequence numbers by default; only data-stream backing indices disable them (set at creation).
+        IndexVersion fromGate = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY,
+            IndexVersion.current()
+        );
+        for (IndexMode columnarMode : Arrays.stream(IndexMode.availableModes()).filter(IndexMode::isStrictColumnar).toList()) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), columnarMode.getName()).build();
+            IndexSettings indexSettings = new IndexSettings(
+                newIndexMeta(columnarMode.getName() + "-index", settings, fromGate),
+                Settings.EMPTY
+            );
+            assertThat(columnarMode + " keeps sequence numbers from the gate", indexSettings.sequenceNumbersDisabled(), is(false));
+        }
+
+        // STANDARD mode never disables sequence numbers by default.
+        Settings standardSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.getName()).build();
+        IndexSettings standardIndexSettings = new IndexSettings(newIndexMeta("standard-index", standardSettings, fromGate), Settings.EMPTY);
+        assertThat(standardIndexSettings.sequenceNumbersDisabled(), is(false));
+    }
+
+    public void testDynamicStringsAutoTextDefaultByIndexMode() {
+        // General columnar modes default to false (keyword, high-cardinality).
+        for (IndexMode columnarMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), columnarMode.getName()).build();
+            IndexSettings indexSettings = new IndexSettings(newIndexMeta(columnarMode.getName() + "-index", settings), Settings.EMPTY);
+            assertFalse(
+                "dynamic_strings.auto_text should default to false for " + columnarMode.getName() + " mode",
+                indexSettings.getDynamicStringsAutoText()
+            );
+        }
+
+        // All other modes, including vector columnar, default to true (text).
+        for (IndexMode otherMode : Arrays.stream(IndexMode.availableModes())
+            .filter(m -> m != IndexMode.COLUMNAR && m != IndexMode.LOGSDB_COLUMNAR)
+            .toList()) {
+            Settings.Builder builder = Settings.builder().put(IndexSettings.MODE.getKey(), otherMode.getName());
+            if (otherMode == IndexMode.TIME_SERIES) {
+                builder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo");
+            }
+            IndexSettings indexSettings = new IndexSettings(newIndexMeta(otherMode.getName() + "-index", builder.build()), Settings.EMPTY);
+            assertTrue(
+                "dynamic_strings.auto_text should default to true for " + otherMode.getName() + " mode",
+                indexSettings.getDynamicStringsAutoText()
+            );
+        }
+    }
+
+    public void testDynamicStringsAutoKeywordSubfieldDefaultByIndexMode() {
+        // Strict columnar modes already store every field in a doc-values column, so they do not add the keyword multi-field.
+        for (IndexMode columnarMode : Arrays.stream(IndexMode.availableModes()).filter(IndexMode::isStrictColumnar).toList()) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), columnarMode.getName()).build();
+            IndexSettings indexSettings = new IndexSettings(newIndexMeta(columnarMode.getName() + "-index", settings), Settings.EMPTY);
+            assertFalse(
+                "dynamic_strings.auto_keyword_subfield should default to false for " + columnarMode.getName() + " mode",
+                indexSettings.getDynamicStringsAutoKeywordSubfield()
+            );
+        }
+
+        for (IndexMode otherMode : List.of(
+            IndexMode.STANDARD,
+            IndexMode.LOGSDB,
+            IndexMode.TIME_SERIES,
+            IndexMode.LOOKUP,
+            IndexMode.VECTORDB_DOCUMENT
+        )) {
+            Settings.Builder builder = Settings.builder().put(IndexSettings.MODE.getKey(), otherMode.getName());
+            if (otherMode == IndexMode.TIME_SERIES) {
+                builder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo");
+            }
+            IndexSettings indexSettings = new IndexSettings(newIndexMeta(otherMode.getName() + "-index", builder.build()), Settings.EMPTY);
+            assertTrue(
+                "dynamic_strings.auto_keyword_subfield should default to true for " + otherMode.getName() + " mode",
+                indexSettings.getDynamicStringsAutoKeywordSubfield()
+            );
+        }
     }
 
     public void testBloomFilterSettingsFromScopedSettings() {

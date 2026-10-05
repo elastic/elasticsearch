@@ -9,6 +9,7 @@
 
 package org.elasticsearch.test.rest.yaml;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
@@ -101,8 +102,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         // geohex_grid requires gold license
         .setting("xpack.license.self_generated.type", "trial")
         .feature(FeatureFlag.TIME_SERIES_MODE)
-        .feature(FeatureFlag.SYNTHETIC_VECTORS)
-        .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS);
+        .feature(FeatureFlag.SYNTHETIC_VECTORS);
 
     private static ElasticsearchCluster remoteCluster = ElasticsearchCluster.local()
         .name(REMOTE_CLUSTER_NAME)
@@ -197,7 +197,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         searchYamlTestClient.setTestCandidate(getTestCandidate());
     }
 
-    public CcsCommonYamlTestSuiteIT(ClientYamlTestCandidate testCandidate) throws IOException {
+    public CcsCommonYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) throws IOException {
         super(rewrite(testCandidate));
     }
 
@@ -367,11 +367,23 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     }
 
     @AfterClass
-    public static void closeSearchClients() throws IOException {
+    public static void resetSearchClientState() throws IOException {
         try {
             IOUtils.close(searchClient, adminSearchClient);
         } finally {
+            // These clients and their connection state are static and shared by every suite that extends this base class.
+            // Reset them all so that a sibling suite running later in the same JVM re-initializes against its own freshly
+            // started cluster, rather than reusing these now-closed clients (or stale flags) via the searchClient == null
+            // guard in initSearchClient().
+            searchClient = null;
+            adminSearchClient = null;
+            searchYamlTestClient = null;
             clusterHosts = null;
+            isRemoteConfigured.set(false);
+            isCombinedComputed.set(false);
+            combinedTestFeatureServiceRef.set(null);
+            combinedOsSetRef.set(null);
+            combinedNodeVersionsRef.set(null);
         }
     }
 
@@ -444,6 +456,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             if (apiName.equals("search") || apiName.equals("msearch") || apiName.equals("async_search.submit")) {
                 final String testCandidateTestPath = testCandidate.getTestPath();
                 if (testCandidateTestPath.startsWith("search/350_point_in_time")
+                    || testCandidateTestPath.startsWith("search/351_point_in_time_slice")
                     || testCandidateTestPath.equals("async_search/20-with-poin-in-time/Async search with point in time")) {
                     return false;
                 }

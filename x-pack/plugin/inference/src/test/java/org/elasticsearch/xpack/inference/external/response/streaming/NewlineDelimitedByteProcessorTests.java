@@ -32,8 +32,7 @@ public class NewlineDelimitedByteProcessorTests extends ESTestCase {
     private NewlineDelimitedByteProcessor processor;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createProcessor() throws Exception {
         upstream = mock();
         downstream = mock();
         processor = new NewlineDelimitedByteProcessor();

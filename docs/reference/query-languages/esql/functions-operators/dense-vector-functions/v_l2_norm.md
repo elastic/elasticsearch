@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `V_L2_NORM` function [esql-v_l2_norm]
 
-:::{include} ../../_snippets/functions/layout/v_l2_norm.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/v_l2_norm.md
 :::

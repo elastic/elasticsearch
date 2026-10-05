@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.SortPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
@@ -65,8 +66,13 @@ public final class WarnLostSortOrder extends Rule<LogicalPlan, LogicalPlan> {
         // We do not warn for SortPreserving joins such as InlineStats
         boolean newSeenJoin = seenJoin || (plan instanceof Join && plan instanceof SortPreserving == false);
 
-        for (LogicalPlan child : plan.children()) {
-            warnLostSorts(child, newSeenJoin);
+        if (plan instanceof AbstractSubqueryJoin subqueryJoin) {
+            // The right side is an independent subquery; do not traverse into it.
+            warnLostSorts(subqueryJoin.left(), newSeenJoin);
+        } else {
+            for (LogicalPlan child : plan.children()) {
+                warnLostSorts(child, newSeenJoin);
+            }
         }
     }
 }

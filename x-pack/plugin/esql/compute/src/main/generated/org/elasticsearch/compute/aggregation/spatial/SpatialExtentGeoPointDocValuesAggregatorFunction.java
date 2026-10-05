@@ -13,12 +13,15 @@ import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ConstantLongVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.LongArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -112,6 +115,30 @@ public final class SpatialExtentGeoPointDocValuesAggregatorFunction implements A
   }
 
   private void addRawVector(LongVector encodedVector) {
+    if (encodedVector.getClass() == LongArrayVector.class) {
+      LongArrayVector specialized = (LongArrayVector) encodedVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        long encodedValue = specialized.getLong(valuesPosition);
+        SpatialExtentGeoPointDocValuesAggregator.combine(state, encodedValue);
+      }
+      return;
+    }
+    if (encodedVector.getClass() == LongArrowBufVector.class) {
+      LongArrowBufVector specialized = (LongArrowBufVector) encodedVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        long encodedValue = specialized.getLong(valuesPosition);
+        SpatialExtentGeoPointDocValuesAggregator.combine(state, encodedValue);
+      }
+      return;
+    }
+    if (encodedVector.getClass() == ConstantLongVector.class) {
+      ConstantLongVector specialized = (ConstantLongVector) encodedVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        long encodedValue = specialized.getLong(valuesPosition);
+        SpatialExtentGeoPointDocValuesAggregator.combine(state, encodedValue);
+      }
+      return;
+    }
     for (int valuesPosition = 0; valuesPosition < encodedVector.getPositionCount(); valuesPosition++) {
       long encodedValue = encodedVector.getLong(valuesPosition);
       SpatialExtentGeoPointDocValuesAggregator.combine(state, encodedValue);
@@ -119,6 +146,39 @@ public final class SpatialExtentGeoPointDocValuesAggregatorFunction implements A
   }
 
   private void addRawVector(LongVector encodedVector, BooleanVector mask) {
+    if (encodedVector.getClass() == LongArrayVector.class) {
+      LongArrayVector specialized = (LongArrayVector) encodedVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        long encodedValue = specialized.getLong(valuesPosition);
+        SpatialExtentGeoPointDocValuesAggregator.combine(state, encodedValue);
+      }
+      return;
+    }
+    if (encodedVector.getClass() == LongArrowBufVector.class) {
+      LongArrowBufVector specialized = (LongArrowBufVector) encodedVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        long encodedValue = specialized.getLong(valuesPosition);
+        SpatialExtentGeoPointDocValuesAggregator.combine(state, encodedValue);
+      }
+      return;
+    }
+    if (encodedVector.getClass() == ConstantLongVector.class) {
+      ConstantLongVector specialized = (ConstantLongVector) encodedVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        long encodedValue = specialized.getLong(valuesPosition);
+        SpatialExtentGeoPointDocValuesAggregator.combine(state, encodedValue);
+      }
+      return;
+    }
     for (int valuesPosition = 0; valuesPosition < encodedVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {
         continue;

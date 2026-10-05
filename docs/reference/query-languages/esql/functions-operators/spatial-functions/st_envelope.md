@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `ST_ENVELOPE` function [esql-st_envelope]
 
-:::{include} ../../_snippets/functions/layout/st_envelope.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/st_envelope.md
 :::

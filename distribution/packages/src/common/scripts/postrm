@@ -78,9 +78,9 @@ if [ "$REMOVE_DIRS" = "true" ]; then
         echo " OK"
     fi
 
-    if [ -d /var/run/elasticsearch ]; then
+    if [ -d /run/elasticsearch ]; then
         echo -n "Deleting PID directory..."
-        rm -rf /var/run/elasticsearch
+        rm -rf /run/elasticsearch
         echo " OK"
     fi
 

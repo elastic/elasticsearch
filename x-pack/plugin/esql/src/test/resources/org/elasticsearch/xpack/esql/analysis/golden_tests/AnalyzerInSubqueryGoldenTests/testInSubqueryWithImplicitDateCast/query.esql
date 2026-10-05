@@ -1,0 +1,7 @@
+FROM employees
+| WHERE emp_no IN (
+    FROM employees
+    | WHERE hire_date >= "1989-01-01T00:00:00.000Z"
+    | KEEP emp_no
+  )
+| KEEP emp_no

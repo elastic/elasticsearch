@@ -24,7 +24,9 @@ import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.sql.plan.logical.With;
+import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
 
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -33,10 +35,10 @@ import java.util.StringJoiner;
 import static java.util.Collections.nCopies;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.startsWith;
 
 public class SqlParserTests extends ESTestCase {
 
@@ -309,10 +311,7 @@ public class SqlParserTests extends ESTestCase {
             ParsingException.class,
             () -> new SqlParser().createExpression(join(" OR ", nCopies(10000, "a = b")))
         );
-        assertThat(
-            e.getMessage(),
-            startsWith("line -1:0: SQL statement is too large, causing stack overflow when generating the parsing tree: [")
-        );
+        assertThat(e.getMessage(), containsString("causing stack overflow"));
     }
 
     public void testLimitToPreventStackOverflowFromLargeUnaryArithmeticExpression() {
@@ -321,14 +320,34 @@ public class SqlParserTests extends ESTestCase {
         // 200 elements is ok
         new SqlParser().createExpression(join("", nCopies(200, "abs(")).concat("i").concat(join("", nCopies(200, ")"))));
 
-        // 5000 elements cause stack overflow
+        // 5000 elements are caught by the pre-scan depth check before ANTLR parses
         ParsingException e = expectThrows(
             ParsingException.class,
             () -> new SqlParser().createExpression(join("", nCopies(5000, "abs(")).concat("i").concat(join("", nCopies(5000, ")"))))
         );
         assertThat(
             e.getMessage(),
-            startsWith("line -1:0: SQL statement is too large, causing stack overflow when generating the parsing tree: [")
+            containsString("SQL statement exceeded the maximum expression depth allowed (" + SqlParser.MAX_EXPRESSION_DEPTH + ")")
+        );
+    }
+
+    public void testTooBigQuery() {
+        var maxLength = frequently() ? 1024 : SqlPlugin.DEFAULT_MAX_QUERY_LENGTH;
+        StringBuilder query = new StringBuilder("SELECT bar FROM foo");
+        while (query.length() < SqlPlugin.DEFAULT_MAX_QUERY_LENGTH) {
+            query.append(", bar");
+        }
+        final String sql = query.toString();
+        expectThrows(
+            ParsingException.class,
+            equalTo(
+                "line -1:0: SQL statement is too large ["
+                    + sql.length()
+                    + " characters > "
+                    + maxLength
+                    + "], adjust [xpack.sql.max_query_length] to increase the limit"
+            ),
+            () -> new SqlParser().createStatement(sql, List.of(), ZoneOffset.UTC, maxLength)
         );
     }
 
@@ -340,10 +359,7 @@ public class SqlParserTests extends ESTestCase {
 
         // 10000 elements cause stack overflow
         ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createExpression(join(" + ", nCopies(10000, "a"))));
-        assertThat(
-            e.getMessage(),
-            startsWith("line -1:0: SQL statement is too large, causing stack overflow when generating the parsing tree: [")
-        );
+        assertThat(e.getMessage(), containsString("causing stack overflow"));
     }
 
     public void testLimitToPreventStackOverflowFromLargeSubselectTree() {
@@ -352,7 +368,7 @@ public class SqlParserTests extends ESTestCase {
         // 200 elements is ok
         new SqlParser().createStatement(join(" (", nCopies(200, "SELECT * FROM")).concat("t").concat(join("", nCopies(199, ")"))));
 
-        // 1000 elements cause stack overflow
+        // 1000 elements are caught by the pre-scan depth check before ANTLR parses
         ParsingException e = expectThrows(
             ParsingException.class,
             () -> new SqlParser().createStatement(
@@ -361,7 +377,41 @@ public class SqlParserTests extends ESTestCase {
         );
         assertThat(
             e.getMessage(),
-            startsWith("line -1:0: SQL statement is too large, causing stack overflow when generating the parsing tree: [")
+            containsString("SQL statement exceeded the maximum expression depth allowed (" + SqlParser.MAX_EXPRESSION_DEPTH + ")")
+        );
+    }
+
+    public void testMaxExpressionDepth_nestedFunction_minOverflow() {
+        // MAX_EXPRESSION_DEPTH + 1 nested function calls: LP depth exceeds the pre-scan threshold
+        int depth = SqlParser.MAX_EXPRESSION_DEPTH + 1;
+        ParsingException e = expectThrows(
+            ParsingException.class,
+            () -> new SqlParser().createExpression(join("", nCopies(depth, "abs(")).concat("i").concat(join("", nCopies(depth, ")"))))
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("SQL statement exceeded the maximum expression depth allowed (" + SqlParser.MAX_EXPRESSION_DEPTH + ")")
+        );
+    }
+
+    public void testMaxExpressionDepth_prefixOperators_minOverflow() {
+        // MAX_EXPRESSION_DEPTH + 1 consecutive prefix operators are caught by the pre-scan
+        // prefixChain counter. Hidden-channel tokens (whitespace) between operators are skipped
+        // so the chain accumulates correctly. Note: bare "--" is a SQL line comment, so unary
+        // minus must be separated by spaces.
+        int depth = SqlParser.MAX_EXPRESSION_DEPTH + 1;
+        String notChain = join(" ", nCopies(depth, "NOT")).concat(" TRUE");
+        ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createExpression(notChain));
+        assertThat(
+            e.getMessage(),
+            containsString("SQL statement exceeded the maximum expression depth allowed (" + SqlParser.MAX_EXPRESSION_DEPTH + ")")
+        );
+
+        String minusChain = join(" ", nCopies(depth, "-")).concat(" 1");
+        e = expectThrows(ParsingException.class, () -> new SqlParser().createExpression(minusChain));
+        assertThat(
+            e.getMessage(),
+            containsString("SQL statement exceeded the maximum expression depth allowed (" + SqlParser.MAX_EXPRESSION_DEPTH + ")")
         );
     }
 

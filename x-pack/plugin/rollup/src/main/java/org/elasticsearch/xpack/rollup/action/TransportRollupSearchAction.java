@@ -33,6 +33,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -301,6 +302,9 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
     }
 
     static void validateSearchRequest(SearchRequest request) {
+        if (request.isRoutingFromSlice()) {
+            throw new IllegalArgumentException("Rollup search does not support [" + SliceIndexing.PARAM_NAME + "].");
+        }
         // Rollup does not support hits at the moment
         if (request.source().size() != 0) {
             throw new IllegalArgumentException("Rollup does not support returning search hits, please try again " + "with [size: 0].");

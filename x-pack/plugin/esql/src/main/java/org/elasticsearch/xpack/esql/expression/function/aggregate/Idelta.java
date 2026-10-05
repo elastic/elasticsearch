@@ -14,6 +14,7 @@ import org.elasticsearch.compute.aggregation.IdeltaDoubleAggregatorFunctionSuppl
 import org.elasticsearch.compute.aggregation.IdeltaIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.IdeltaLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -40,13 +41,15 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 
-public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Idelta", Idelta::new);
+public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware, AnyNullIsNull {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Idelta", Idelta::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Idelta.class).ternary(Idelta::new).name("idelta");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .withinSeries(Idelta::new)
         .description("Calculates the difference between the last two samples of each time series in a range vector.")
+        .extendedDescription(PromqlFunctionDefinition.GAUGE_FAMILY_BEHAVIOR)
         .example("idelta(cpu_temp_celsius[5m])")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("idelta");
 
     private final Expression timestamp;
@@ -54,6 +57,7 @@ public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgum
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
+        briefSummary = "Calculates the absolute change between the last two data points of a gauge.",
         description = "Calculates the idelta of a gauge. idelta is the absolute change between the last two data points ("
             + "it ignores all but the last two data points in each time period). "
             + "This function is very similar to delta, but is more responsive to recent changes.",
@@ -77,22 +81,21 @@ public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgum
         ) Expression window,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
+        this(source, field, timestamp, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
     }
 
-    public Idelta(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
-        super(source, field, filter, window, List.of(timestamp));
+    public Idelta(Source source, Expression field, Expression timestamp, Expression filter, Expression window) {
+        super(source, List.of(field, timestamp), filter, window, List.of());
         this.timestamp = timestamp;
     }
 
-    public Idelta(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            readWindow(in),
-            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
-        );
+    private static Idelta readFrom(StreamInput in) throws IOException {
+        Source source = Source.readFrom((PlanStreamInput) in);
+        Expression field = in.readNamedWriteable(Expression.class);
+        Expression filter = in.readNamedWriteable(Expression.class);
+        Expression window = readWindow(in);
+        Expression timestamp = in.readNamedWriteableCollectionAsList(Expression.class).getFirst();
+        return new Idelta(source, field, timestamp, filter, window);
     }
 
     @Override
@@ -102,17 +105,12 @@ public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgum
 
     @Override
     protected NodeInfo<Idelta> info() {
-        return NodeInfo.create(this, Idelta::new, field(), filter(), window(), timestamp);
+        return NodeInfo.create(this, Idelta::new, field(), timestamp, filter(), window());
     }
 
     @Override
     public Idelta replaceChildren(List<Expression> newChildren) {
         return new Idelta(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
-    }
-
-    @Override
-    public Idelta withFilter(Expression filter) {
-        return new Idelta(source(), field(), filter, window(), timestamp);
     }
 
     @Override

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.elasticsearch.compute.data.UninitializedArrays;
+
 /**
  * Reusable scratch buffers for {@link PageColumnReader} batch decoding. Provides a scratch
  * {@code int[]} for type-widening conversions, plus {@link WordMask} instances for null and
@@ -29,9 +31,12 @@ final class DecodeBuffers {
 
     DecodeBuffers() {}
 
+    /**
+     * Returns an unitialized {@code int[]}
+     */
     int[] ints(int minSize) {
         if (intBuf == null || intBuf.length < minSize) {
-            intBuf = new int[minSize];
+            intBuf = UninitializedArrays.newIntArray(minSize);
         }
         return intBuf;
     }

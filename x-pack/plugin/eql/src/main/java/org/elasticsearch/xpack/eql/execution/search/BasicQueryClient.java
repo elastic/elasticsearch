@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.IdsQueryBuilder;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
@@ -33,6 +34,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.multiSearchLogListener;
@@ -43,6 +45,7 @@ public class BasicQueryClient implements QueryClient {
 
     private static final Logger log = RuntimeUtils.QUERY_LOG;
 
+    final Consumer<DirectoryMetrics> directoryMetricsConsumer;
     final EqlConfiguration cfg;
     final Client client;
     final String[] indices;
@@ -50,6 +53,7 @@ public class BasicQueryClient implements QueryClient {
     private final boolean allowPartialSearchResults;
 
     public BasicQueryClient(EqlSession eqlSession) {
+        this.directoryMetricsConsumer = eqlSession::accumulateDirectoryMetrics;
         this.cfg = eqlSession.configuration();
         this.client = eqlSession.client();
         this.indices = cfg.indices();
@@ -80,7 +84,10 @@ public class BasicQueryClient implements QueryClient {
         if (usingPit() == false && cfg.crossProjectEnabled()) {
             search.indicesOptions(CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout(search.indicesOptions()));
         }
-        client.search(search, listener);
+        client.search(search, listener.delegateFailureAndWrap((delegate, response) -> {
+            directoryMetricsConsumer.accept(response.getDirectoryMetrics());
+            delegate.onResponse(response);
+        }));
     }
 
     protected void search(MultiSearchRequest search, boolean allowPartialSearchResults, ActionListener<MultiSearchResponse> listener) {
@@ -100,7 +107,11 @@ public class BasicQueryClient implements QueryClient {
         if (usingPit() == false && cfg.crossProjectEnabled()) {
             search.indicesOptions(CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout(search.indicesOptions()));
         }
-        client.multiSearch(search, multiSearchLogListener(listener, allowPartialSearchResults, log));
+        ActionListener<MultiSearchResponse> downstream = multiSearchLogListener(listener, allowPartialSearchResults, log);
+        client.multiSearch(search, downstream.delegateFailureAndWrap((delegate, response) -> {
+            directoryMetricsConsumer.accept(response.mergeDirectoryMetrics());
+            delegate.onResponse(response);
+        }));
     }
 
     @Override

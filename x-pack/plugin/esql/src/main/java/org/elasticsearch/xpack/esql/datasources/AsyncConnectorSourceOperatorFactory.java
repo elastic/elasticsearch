@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Nullable;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.Split;
 
 import java.io.IOException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Source-operator factory that executes a connector query on a background thread and feeds pages
@@ -32,8 +34,9 @@ import java.util.concurrent.Executor;
  * Two execution modes, selected based on whether a {@link ExternalSliceQueue} is supplied:
  * <ul>
  *   <li><b>Slice-queue mode</b> — iterates each {@link ExternalSplit} pulled from the queue and
- *   executes it via {@link Connector#execute(QueryRequest, ExternalSplit)}, sharing a single row
- *   budget across splits.</li>
+ *   executes it via {@link Connector#execute(QueryRequest, ExternalSplit)}. A pushed LIMIT is not
+ *   reserved here ({@link QueryRequest} stays {@link FormatReader#NO_LIMIT}); the factory may
+ *   observe a downstream {@link Limiter} to stop claiming once that limiter is exhausted.</li>
  *   <li><b>Single-shot mode</b> — executes the request exactly once using {@link Split#SINGLE} via
  *   {@link Connector#execute(QueryRequest, Split)}.</li>
  * </ul>
@@ -50,9 +53,16 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
     private final Connector connector;
     private final QueryRequest baseRequest;
     private final int maxBufferSize;
-    private final int rowLimit;
     private final Executor executor;
     private final ExternalSliceQueue sliceQueue;
+    /**
+     * Downstream {@link org.elasticsearch.compute.operator.LimitOperator} limiter, installed by the
+     * planner when a Filter/Eval/Project chain sits between LIMIT and this source. Read-only stop
+     * signal; connectors do not reserve against it.
+     */
+    @Nullable
+    private volatile Limiter observedLimiter;
+    private final AtomicBoolean started = new AtomicBoolean();
 
     public AsyncConnectorSourceOperatorFactory(
         Connector connector,
@@ -76,9 +86,29 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         this.connector = connector;
         this.baseRequest = baseRequest;
         this.maxBufferSize = maxBufferSize;
-        this.rowLimit = baseRequest.rowLimit();
         this.executor = executor;
         this.sliceQueue = sliceQueue;
+    }
+
+    /**
+     * Installs the downstream {@link org.elasticsearch.compute.operator.LimitOperator} limiter so
+     * this source can stop claiming splits once that limiter is exhausted.
+     */
+    public void setObservedLimiter(Limiter limiter) {
+        if (started.get()) {
+            throw new IllegalStateException("observed limiter must be installed before source operators are created");
+        }
+        this.observedLimiter = limiter;
+    }
+
+    @Nullable
+    public Limiter observedLimiter() {
+        return observedLimiter;
+    }
+
+    private boolean noFurtherCandidates() {
+        Limiter limiter = observedLimiter;
+        return limiter != null && limiter.remaining() == 0;
     }
 
     public AsyncConnectorSourceOperatorFactory(Connector connector, QueryRequest baseRequest, int maxBufferSize, Executor executor) {
@@ -87,6 +117,7 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
 
     @Override
     public SourceOperator get(DriverContext driverContext) {
+        started.set(true);
         QueryRequest request = baseRequest.withBlockFactory(driverContext.blockFactory());
         long maxBufferBytes = (long) maxBufferSize * Operator.TARGET_PAGE_SIZE;
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
@@ -101,19 +132,19 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
             })
         );
 
-        ProducerState state = new ProducerState(request, sliceQueue, buffer, rowLimit);
+        ProducerState state = new ProducerState(request, sliceQueue, buffer);
         try {
             executor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
         } catch (Exception e) {
             completionListener.onFailure(e);
         }
-        return new AsyncExternalSourceOperator(buffer);
+        return new AsyncExternalSourceOperator(buffer, driverContext);
     }
 
     /**
      * Producer-loop state. One instance per {@code get(DriverContext)} call.
      * <p>
-     * Tracks mode (queue vs single-shot), position within the queue, row budget, and the currently
+     * Tracks mode (queue vs single-shot), position within the queue, and the currently
      * open {@link ResultCursor}. Mutated only from the producer executor thread.
      */
     private static final class ProducerState {
@@ -124,13 +155,11 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
 
         /** True iff single-shot mode has already opened its one cursor (subsequent advances return EOF). */
         boolean singleShotStarted;
-        /** Remaining row budget shared across all cursors for this producer. */
-        int rowsRemaining;
         /** Currently active cursor, or {@code null} if between units or before the first open. */
         @Nullable
         ResultCursor cursor;
 
-        ProducerState(QueryRequest request, @Nullable ExternalSliceQueue queue, AsyncExternalSourceBuffer buffer, int rowsRemaining) {
+        ProducerState(QueryRequest request, @Nullable ExternalSliceQueue queue, AsyncExternalSourceBuffer buffer) {
             if (request == null) {
                 throw new IllegalArgumentException("ProducerState requires a non-null request");
             }
@@ -140,7 +169,6 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
             this.request = request;
             this.queue = queue;
             this.buffer = buffer;
-            this.rowsRemaining = rowsRemaining;
         }
     }
 
@@ -201,10 +229,10 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         ResultCursor cursor = state.cursor;
         AsyncExternalSourceBuffer buffer = state.buffer;
         while (true) {
-            if (buffer.noMoreInputs()) {
+            if (noFurtherCandidates()) {
                 return DrainResult.DONE;
             }
-            if (rowLimit != FormatReader.NO_LIMIT && state.rowsRemaining <= 0) {
+            if (buffer.noMoreInputs()) {
                 return DrainResult.DONE;
             }
             if (cursor.hasNext() == false) {
@@ -212,32 +240,56 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
             }
             SubscribableListener<Void> space = buffer.waitForSpace();
             if (space.isDone() == false) {
-                space.addListener(ActionListener.wrap(v -> {
-                    try {
-                        executor.execute(() -> runProducerLoop(state, completionListener));
-                    } catch (Exception e) {
-                        closeCursorQuietly(state.cursor);
-                        state.cursor = null;
-                        completionListener.onFailure(e);
-                    }
-                }, e -> {
-                    closeCursorQuietly(state.cursor);
-                    state.cursor = null;
-                    completionListener.onFailure(e);
-                }));
-                return DrainResult.BLOCKED;
+                return parkUntilReady(space, state, completionListener);
             }
-            if (buffer.noMoreInputs()) {
+            if (buffer.noMoreInputs() || noFurtherCandidates()) {
                 return DrainResult.DONE;
             }
             Page page = cursor.next();
-            int rows = page.getPositionCount();
+            if (buffer.noMoreInputs() || noFurtherCandidates()) {
+                page.releaseBlocks();
+                return DrainResult.DONE;
+            }
             page.allowPassingToDifferentDriver();
             buffer.addPage(page);
-            if (rowLimit != FormatReader.NO_LIMIT) {
-                state.rowsRemaining -= rows;
-            }
         }
+    }
+
+    /**
+     * Register a single listener that resumes the producer loop when {@code signal} fires, and
+     * return synchronously. {@link DrainResult#BLOCKED} is returned immediately after listener
+     * registration; the producer resumes asynchronously when {@code signal} completes.
+     * <p>
+     * Cleanup semantics by branch:
+     * <ul>
+     * <li>Success branch (happy path): re-submits {@link #runProducerLoop} on {@code executor};
+     *     the current cursor stays open across the park. Only if {@code executor.execute()}
+     *     itself throws (e.g. shutting-down pool) is the cursor closed and the failure routed
+     *     through {@code completionListener.onFailure}.</li>
+     * <li>Failure branch: closes the current cursor and routes the signal's failure through
+     *     {@code completionListener.onFailure}.</li>
+     * </ul>
+     * Both cleanup paths match what the surrounding {@link #runProducerLoop} {@code catch} block
+     * does on a synchronous throw.
+     *
+     * @param signal a not-done listener from {@code waitForSpace()}; callers must verify
+     *               {@code signal.isDone() == false} before invoking this helper.
+     */
+    private DrainResult parkUntilReady(SubscribableListener<Void> signal, ProducerState state, ActionListener<Void> completionListener) {
+        signal.addListener(ActionListener.wrap(v -> {
+            try {
+                executor.execute(() -> runProducerLoop(state, completionListener));
+            } catch (Exception e) {
+                closeCursorQuietly(state.cursor);
+                state.cursor = null;
+                completionListener.onFailure(e);
+            }
+        }, e -> {
+            closeCursorQuietly(state.cursor);
+            state.cursor = null;
+            completionListener.onFailure(e);
+        }));
+        return DrainResult.BLOCKED;
     }
 
     /**
@@ -250,7 +302,7 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         if (state.buffer.noMoreInputs()) {
             return false;
         }
-        if (rowLimit != FormatReader.NO_LIMIT && state.rowsRemaining <= 0) {
+        if (noFurtherCandidates()) {
             return false;
         }
         if (state.queue != null) {

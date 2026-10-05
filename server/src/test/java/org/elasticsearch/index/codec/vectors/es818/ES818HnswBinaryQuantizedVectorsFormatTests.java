@@ -92,7 +92,12 @@ public class ES818HnswBinaryQuantizedVectorsFormatTests extends BaseQuantizedHns
         for (VectorSimilarityFunction similarityFunction : VectorSimilarityFunction.values()) {
             try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
                 Document doc = new Document();
-                if (similarityFunction == VectorSimilarityFunction.COSINE) {
+                // DOT_PRODUCT and COSINE scorers clamp the quantized score to [-1, 1] before normalization (following apache/lucene#15411),
+                // VectorSimilarityFunction.{DOT_PRODUCT,COSINE}.compare() performs no such clamp, so for unnormalized inputs with |dot| > 1
+                // the
+                // scorer's output and the reference compare() diverge.
+                // To avoid that, use l2-normalized inputs.
+                if (similarityFunction == VectorSimilarityFunction.COSINE || similarityFunction == VectorSimilarityFunction.DOT_PRODUCT) {
                     VectorUtil.l2normalize(vector);
                 }
                 doc.add(new KnnFloatVectorField("f", vector, similarityFunction));
@@ -107,7 +112,8 @@ public class ES818HnswBinaryQuantizedVectorsFormatTests extends BaseQuantizedHns
                         assertArrayEquals(vector, vectorValues.vectorValue(docIndexIterator.index()), 0.00001f);
                     }
                     float[] randomVector = randomVector(vector.length);
-                    if (similarityFunction == VectorSimilarityFunction.COSINE) {
+                    if (similarityFunction == VectorSimilarityFunction.COSINE
+                        || similarityFunction == VectorSimilarityFunction.DOT_PRODUCT) {
                         VectorUtil.l2normalize(randomVector);
                     }
                     float trueScore = similarityFunction.compare(vector, randomVector);

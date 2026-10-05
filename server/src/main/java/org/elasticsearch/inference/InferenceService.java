@@ -9,17 +9,24 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.Closeable;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.inference.InferenceStringGroup.containsNonTextEntry;
+import static org.elasticsearch.inference.InferenceStringGroup.indexContainingMultipleInferenceStrings;
 
 public interface InferenceService extends Closeable {
 
@@ -63,6 +70,26 @@ public interface InferenceService extends Closeable {
     Model parsePersistedConfig(UnparsedModel unparsedModel);
 
     /**
+     * Override as needed. Services that create the task settings using a parser do not remove entries from the map used to create the
+     * {@link TaskSettings}, which causes the existing validation that there are no unknown values left in the map to fail. Rather than
+     * explicitly checking that the map is empty, these services will throw an exception from the parser.
+     * @return whether this service implements a parser for task settings
+     */
+    default boolean usesParserForTaskSettings() {
+        return false;
+    }
+
+    /**
+     * Override as needed. Services that create the service settings using a parser do not remove entries from the map used to create the
+     * {@link ServiceSettings}, which causes the existing validation that there are no unknown values left in the map to fail. Rather than
+     * explicitly checking that the map is empty, these services will throw an exception from the parser.
+     * @return whether this service implements a parser for service settings
+     */
+    default boolean usesParserForServiceSettings() {
+        return false;
+    }
+
+    /**
      * Create a new model from {@link ModelConfigurations} and {@link ModelSecrets} objects.
      * This method is used for creating updated model instances.
      * @param config The model configurations
@@ -90,24 +117,18 @@ public interface InferenceService extends Closeable {
     /**
      * Perform inference on the model.
      *
-     * @param model           The model
-     * @param query           Inference query, mainly for re-ranking
-     * @param returnDocuments For re-ranking task type, whether to return documents
-     * @param topN            For re-ranking task type, how many docs to return
-     * @param input           Inference input
-     * @param stream          Stream inference results
-     * @param taskSettings    Settings in the request to override the model's defaults
-     * @param inputType       For search, ingest etc
-     * @param timeout         The timeout for the request. Callers should normally pass in a timeout.
-     *                        Passing in null is specifically for query-time inference, when the timeout is managed by the
-     *                        xpack.inference.query_timeout cluster setting.
-     * @param listener        Inference result listener
+     * @param model        The model
+     * @param input        Inference input
+     * @param stream       Stream inference results
+     * @param taskSettings Settings in the request to override the model's defaults
+     * @param inputType    For search, ingest etc
+     * @param timeout      The timeout for the request. Callers should normally pass in a timeout.
+     *                     Passing in null is specifically for query-time inference, when the timeout is managed by the
+     *                     xpack.inference.query_timeout cluster setting.
+     * @param listener     Inference result listener
      */
     void infer(
         Model model,
-        @Nullable String query,
-        @Nullable Boolean returnDocuments,
-        @Nullable Integer topN,
         List<String> input,
         boolean stream,
         Map<String, Object> taskSettings,
@@ -115,6 +136,33 @@ public interface InferenceService extends Closeable {
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     );
+
+    /**
+     * Same as {@link #infer(Model, List, boolean, Map, InputType, TimeValue, ActionListener)}, with the requests sent by the
+     * service registered as children of {@code parentTaskId}.
+     */
+    default void infer(
+        Model model,
+        List<String> input,
+        boolean stream,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        @Nullable TimeValue timeout,
+        TaskId parentTaskId,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        infer(model, input, stream, taskSettings, inputType, timeout, listener);
+    }
+
+    /**
+     * Whether this service supports non-streaming chat completion via the unified API.
+     * Services that return {@code true} here must handle {@link UnifiedCompletionRequest#stream()} being {@code false} in
+     * {@link #unifiedCompletionInfer}.
+     * @return {@code false} by default
+     */
+    default boolean supportsNonStreamingChatCompletion() {
+        return false;
+    }
 
     /**
      * Perform completion inference on the model using the unified schema.
@@ -132,6 +180,20 @@ public interface InferenceService extends Closeable {
     );
 
     /**
+     * Same as {@link #unifiedCompletionInfer(Model, UnifiedCompletionRequest, TimeValue, ActionListener)}, with the requests sent by
+     * the service registered as children of {@code parentTaskId}.
+     */
+    default void unifiedCompletionInfer(
+        Model model,
+        UnifiedCompletionRequest request,
+        TimeValue timeout,
+        TaskId parentTaskId,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        unifiedCompletionInfer(model, request, timeout, listener);
+    }
+
+    /**
      * Perform multimodal embedding inference on the model using the embedding schema.
      *
      * @param model The model
@@ -140,6 +202,28 @@ public interface InferenceService extends Closeable {
      * @param listener Inference result listener
      */
     void embeddingInfer(Model model, EmbeddingRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener);
+
+    /**
+     * Same as {@link #embeddingInfer(Model, EmbeddingRequest, TimeValue, ActionListener)}, with the requests sent by the service
+     * registered as children of {@code parentTaskId}.
+     */
+    default void embeddingInfer(
+        Model model,
+        EmbeddingRequest request,
+        TimeValue timeout,
+        TaskId parentTaskId,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        embeddingInfer(model, request, timeout, listener);
+    }
+
+    /**
+     * Override as necessary for services which support images in embedding inputs
+     * @return true if the service supports images in embedding inputs
+     */
+    default boolean supportsNonTextEmbeddingContent() {
+        return false;
+    }
 
     /**
      * Perform rerank inference on the model.
@@ -152,28 +236,31 @@ public interface InferenceService extends Closeable {
     void rerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener);
 
     /**
-     * Temporary method to allow implementations of this interface to be converted to support the new rerank code path one at a time.
-     * This should be overridden for each service that has been converted to support the new code path.
-     * @return true if the service supports the new rerank code path
+     * Same as {@link #rerankInfer(Model, RerankRequest, TimeValue, ActionListener)}, with the requests sent by the service
+     * registered as children of {@code parentTaskId}.
      */
-    default boolean supportsNewRerankCodePath() {
-        return false;
+    default void rerankInfer(
+        Model model,
+        RerankRequest request,
+        TimeValue timeout,
+        TaskId parentTaskId,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        rerankInfer(model, request, timeout, listener);
     }
 
     /**
      * Chunk long text.
      *
-     * @param model            The model
-     * @param query            Inference query, mainly for re-ranking
-     * @param input            Inference input
-     * @param taskSettings     Settings in the request to override the model's defaults
-     * @param inputType        For search, ingest etc
-     * @param timeout          The timeout for the request
-     * @param listener         Chunked Inference result listener
+     * @param model        The model
+     * @param input        Inference input
+     * @param taskSettings Settings in the request to override the model's defaults
+     * @param inputType    For search, ingest etc
+     * @param timeout      The timeout for the request
+     * @param listener     Chunked Inference result listener
      */
     void chunkedInfer(
         Model model,
-        @Nullable String query,
         List<ChunkInferenceInput> input,
         Map<String, Object> taskSettings,
         InputType inputType,
@@ -181,13 +268,45 @@ public interface InferenceService extends Closeable {
         ActionListener<List<ChunkedInference>> listener
     );
 
+    static void validateChunkedInferInputs(InferenceService service, List<ChunkInferenceInput> input) {
+        var inputsAsInferenceStringGroupList = input.stream().map(ChunkInferenceInput::input).toList();
+        if (service.supportsNonTextEmbeddingContent() == false && containsNonTextEntry(inputsAsInferenceStringGroupList)) {
+            throw new ElasticsearchStatusException(
+                Strings.format("The %s service does not support embedding with non-text inputs", service.name()),
+                RestStatus.BAD_REQUEST
+            );
+        }
+        var index = indexContainingMultipleInferenceStrings(inputsAsInferenceStringGroupList);
+        if (index != null) {
+            throw new ElasticsearchStatusException(
+                Strings.format(
+                    "Field [%1$s] must contain a single item for [%2$s] service. "
+                        + "[%1$s] object with multiple items found at $.%3$s.%1$s[%4$d]",
+                    InferenceStringGroup.CONTENT_FIELD,
+                    service.name(),
+                    EmbeddingRequest.INPUT_FIELD,
+                    index
+                ),
+                RestStatus.BAD_REQUEST
+            );
+        }
+    }
+
+    /**
+     * Override as necessary for services which do not support chunked inference
+     * @return true if the service supports chunked inference
+     */
+    default boolean supportsChunkedInfer() {
+        return true;
+    }
+
     /**
      * Start or prepare the model for use.
      * @param model The model
      * @param timeout Start timeout
      * @param listener The listener
      */
-    void start(Model model, TimeValue timeout, ActionListener<Boolean> listener);
+    void start(Model model, TimeValue timeout, ActionListener<Void> listener);
 
     /**
      * Stop the model deployment.
@@ -197,6 +316,15 @@ public interface InferenceService extends Closeable {
      */
     default void stop(Model model, ActionListener<Boolean> listener) {
         listener.onResponse(true);
+    }
+
+    /**
+     * Called by {@code TransportUpdateInferenceModelAction} after a successful update has been persisted.
+     * Default no-op. Services can override to invalidate any per-model caches (for example,
+     * credential caches) when relevant fields have changed.
+     */
+    default void onModelUpdated(Model oldModel, Model newModel, ActionListener<Void> listener) {
+        listener.onResponse(null);
     }
 
     /**
@@ -233,7 +361,7 @@ public interface InferenceService extends Closeable {
         return supportedStreamingTasks().contains(taskType);
     }
 
-    record DefaultConfigId(String inferenceId, MinimalServiceSettings settings, InferenceService service) {};
+    record DefaultConfigId(String inferenceId, EndpointClusterState settings, InferenceService service) {};
 
     /**
      * Get the Ids and task type of any default configurations provided by this service

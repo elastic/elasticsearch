@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `WEIGHTED_AVG` function [esql-weighted_avg]
 
-:::{include} ../../_snippets/functions/layout/weighted_avg.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/weighted_avg.md
 :::

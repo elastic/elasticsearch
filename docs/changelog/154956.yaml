@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 154871
+pr: 154956
+summary: Reject full-text functions in WHERE clauses that cannot be pushed pas…
+type: bug

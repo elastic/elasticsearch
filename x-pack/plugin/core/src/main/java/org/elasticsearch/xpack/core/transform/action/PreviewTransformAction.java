@@ -19,6 +19,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
@@ -31,6 +34,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -45,6 +49,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.transform.transforms.TransformConfig.TRANSFORM_CLOUD_CREDENTIAL_ON_REQUEST;
 
 public class PreviewTransformAction extends ActionType<PreviewTransformAction.Response> {
 
@@ -57,11 +62,16 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
+    public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject, Releasable {
 
         static final TransportVersion PREVIEW_AS_INDEX_REQUEST = TransportVersion.fromName("transform_preview_as_index_request");
         private final TransformConfig config;
         private final boolean previewAsIndexRequest;
+
+        // Caller's UIAM cloud credential carried on the request so it survives coordinator -> executing-node
+        // transport, where the AUTHENTICATING_CLOUD_TOKEN_THREAD_CONTEXT transient is no longer present.
+        @Nullable
+        private CloudCredential cloudCredential;
 
         public Request(TransformConfig config, TimeValue timeout, boolean previewAsIndexRequest) {
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, timeout);
@@ -73,6 +83,11 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
             super(in);
             this.config = new TransformConfig(in);
             this.previewAsIndexRequest = in.getTransportVersion().supports(PREVIEW_AS_INDEX_REQUEST) ? in.readBoolean() : false;
+            if (in.getTransportVersion().supports(TRANSFORM_CLOUD_CREDENTIAL_ON_REQUEST)) {
+                this.cloudCredential = in.readOptionalWriteable(CloudCredential::new);
+            } else {
+                this.cloudCredential = null;
+            }
         }
 
         public static Request fromXContent(
@@ -136,6 +151,23 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
             return previewAsIndexRequest;
         }
 
+        @Nullable
+        public CloudCredential getCloudCredential() {
+            return cloudCredential;
+        }
+
+        /**
+         * Sets the credential this request carries and hands ownership of the previously-held
+         * credential back to the caller, which is responsible for closing it. Returns {@code null}
+         * when the credential is unchanged.
+         */
+        @Nullable
+        public CloudCredential setCloudCredential(@Nullable CloudCredential cloudCredential) {
+            var previous = this.cloudCredential == cloudCredential ? null : this.cloudCredential;
+            this.cloudCredential = cloudCredential;
+            return previous;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
@@ -150,10 +182,19 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
                     RestStatus.BAD_REQUEST
                 );
             }
+            if (out.getTransportVersion().supports(TRANSFORM_CLOUD_CREDENTIAL_ON_REQUEST)) {
+                out.writeOptionalWriteable(cloudCredential);
+            }
+        }
+
+        @Override
+        public void close() {
+            IOUtils.closeWhileHandlingException(cloudCredential);
         }
 
         @Override
         public int hashCode() {
+            // cloudCredential is intentionally excluded: request-scoped secret carrier, not logical identity.
             return Objects.hash(config, previewAsIndexRequest);
         }
 
@@ -166,6 +207,7 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
                 return false;
             }
             Request other = (Request) obj;
+            // cloudCredential is intentionally excluded: request-scoped secret carrier, not logical identity.
             return Objects.equals(config, other.config) && (previewAsIndexRequest == other.previewAsIndexRequest);
         }
 

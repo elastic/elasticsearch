@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -37,22 +38,27 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 
-public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, VectorFunction {
+public class Magnitude extends UnaryScalarFunction implements AnyNullIsNull, EvaluatorMapper, VectorFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "Magnitude",
         Magnitude::new
     );
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Magnitude.class).unary(Magnitude::new).name("v_magnitude");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Magnitude.class)
+        .unary(Magnitude::new)
+        .capabilities("fix_null")
+        .name("v_magnitude");
     static final ScalarEvaluatorFunction SCALAR_FUNCTION = Magnitude::calculateScalar;
 
     @FunctionInfo(
         returnType = "double",
         preview = true,
+        briefSummary = "Calculates the magnitude of a dense_vector.",
         description = "Calculates the magnitude of a dense_vector.",
         examples = { @Example(file = "vector-magnitude", tag = "vector-magnitude") },
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) }
+        // There is no DEVELOPMENT lifecycle for SNAPSHOT or FeatureFlag functions, place the lifecycle and version we are aiming for next
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") }
     )
     public Magnitude(
         Source source,
@@ -143,24 +149,24 @@ public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, V
                 int dimensions = 0;
                 // Get the first non-empty vector to calculate the dimension
                 for (int p = 0; p < positionCount; p++) {
-                    if (block.getValueCount(p) != 0) {
+                    if (block.isNull(p) == false) {
                         dimensions = block.getValueCount(p);
                         break;
                     }
                 }
                 if (dimensions == 0) {
-                    return blockFactory.newConstantFloatBlockWith(0F, 0);
+                    return blockFactory.newConstantNullBlock(positionCount);
                 }
 
                 float[] scratch = new float[dimensions];
                 try (var builder = blockFactory.newDoubleBlockBuilder(positionCount * dimensions)) {
                     for (int p = 0; p < positionCount; p++) {
-                        int dims = block.getValueCount(p);
-                        if (dims == 0) {
+                        if (block.isNull(p)) {
                             // A null value for the vector, by default append null as result.
                             builder.appendNull();
                             continue;
                         }
+                        int dims = block.getValueCount(p);
                         readFloatArray(block, block.getFirstValueIndex(p), dimensions, scratch);
                         float result = scalarFunction.calculateScalar(scratch);
                         builder.appendDouble(result);

@@ -33,7 +33,6 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -47,6 +46,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -63,11 +63,6 @@ public class ListTasksRelocationIT extends ESIntegTestCase {
     private final int numOfSlices = randomIntBetween(1, 4);
     private final int requestsPerSecond = randomIntBetween(bulkSize * numOfSlices, 20);
     private final int numberOfDocumentsThatTakes60SecondsToIngest = 60 * requestsPerSecond;
-
-    @BeforeClass
-    public static void skipSetupIfReindexResilienceDisabled() {
-        assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -116,7 +111,9 @@ public class ListTasksRelocationIT extends ESIntegTestCase {
 
         if (numOfSlices > 1) {
             final List<TaskInfo> children = allTasks.stream().filter(t -> t.parentTaskId().equals(afterTask.taskId())).toList();
-            assertThat("slice count matches numOfSlices", children, hasSize(numOfSlices));
+            // Some slices may have completed before relocation (not re-created on destination) or
+            // immediately after resumption (e.g. zero-doc slices). Accept any count up to numOfSlices.
+            assertThat("slice count does not exceed numOfSlices", children, hasSize(lessThanOrEqualTo(numOfSlices)));
             for (TaskInfo child : children) {
                 assertThat("child originalTaskId is its own taskId", child.originalTaskId(), equalTo(child.taskId()));
                 assertThat(

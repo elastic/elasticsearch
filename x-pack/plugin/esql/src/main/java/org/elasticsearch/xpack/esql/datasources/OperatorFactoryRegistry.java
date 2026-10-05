@@ -81,6 +81,7 @@ public class OperatorFactoryRegistry {
                 // fall back to the full path string for connectors that don't set it.
                 Object targetObj = context.config().get("target");
                 String target = targetObj != null ? targetObj.toString() : context.path().toString();
+                // QueryRequest carries the still-encrypted config; connectors take secrets from open(), not request.config().
                 QueryRequest request = new QueryRequest(
                     target,
                     projectedColumns,

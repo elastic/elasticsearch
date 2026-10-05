@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `CBRT` function [esql-cbrt]
 
-:::{include} ../../_snippets/functions/layout/cbrt.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/cbrt.md
 :::

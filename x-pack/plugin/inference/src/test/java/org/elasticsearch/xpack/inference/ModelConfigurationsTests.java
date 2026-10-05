@@ -179,12 +179,8 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
         var metadata = instance.getEndpointMetadata();
         if (version.supports(EndpointMetadata.INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED) == false) {
             metadata = null;
-        } else if (metadata != null && version.supports(EndpointMetadata.Display.MODEL_CREATOR_ADDED) == false) {
-            metadata = new EndpointMetadata(
-                metadata.heuristics(),
-                metadata.internal(),
-                new EndpointMetadata.Display(metadata.display().name(), null)
-            );
+        } else if (metadata != null) {
+            metadata = EndpointMetadataTests.doMutateInstanceForVersion(metadata, version);
         }
         return new ModelConfigurations(
             instance.getInferenceEntityId(),
@@ -224,9 +220,12 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
             EmptyTaskSettings.INSTANCE,
             null,
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(List.of("heuristic1", "heuristic2"), StatusHeuristic.BETA, "2025-01-01", "2025-12-31"),
                 new EndpointMetadata.Internal("fingerprint", 1L),
-                new EndpointMetadata.Display("name", "creator")
+                new EndpointMetadata.Display("name", "creator"),
+                List.of(),
+                false
             )
         );
 

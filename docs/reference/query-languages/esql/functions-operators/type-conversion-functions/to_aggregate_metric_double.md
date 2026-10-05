@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `TO_AGGREGATE_METRIC_DOUBLE` function [esql-to_aggregate_metric_double]
 
-:::{include} ../../_snippets/functions/layout/to_aggregate_metric_double.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/to_aggregate_metric_double.md
 :::

@@ -15,6 +15,7 @@ import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.atn.PredictionMode;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -30,30 +31,42 @@ public class KqlParser {
         return invokeParser(kqlQuery, kqlParserContext, KqlBaseParser::topLevelQuery, KqlAstBuilder::toQueryBuilder);
     }
 
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
     private <T> T invokeParser(
         String kqlQuery,
         KqlParsingContext kqlParsingContext,
         Function<KqlBaseParser, ParserRuleContext> parseFunction,
         BiFunction<KqlAstBuilder, ParserRuleContext, T> visitor
     ) {
-        KqlBaseLexer lexer = new KqlBaseLexer(CharStreams.fromString(kqlQuery));
+        try {
+            KqlBaseLexer lexer = new KqlBaseLexer(CharStreams.fromString(kqlQuery));
 
-        lexer.removeErrorListeners();
-        lexer.addErrorListener(ERROR_LISTENER);
+            lexer.removeErrorListeners();
+            lexer.addErrorListener(ERROR_LISTENER);
 
-        CommonTokenStream tokenStream = new CommonTokenStream(lexer);
-        KqlBaseParser parser = new KqlBaseParser(tokenStream);
+            CommonTokenStream tokenStream = new CommonTokenStream(lexer);
+            KqlBaseParser parser = new KqlBaseParser(tokenStream);
 
-        parser.removeErrorListeners();
-        parser.addErrorListener(ERROR_LISTENER);
+            parser.removeErrorListeners();
+            parser.addErrorListener(ERROR_LISTENER);
 
-        parser.getInterpreter().setPredictionMode(PredictionMode.SLL);
+            parser.getInterpreter().setPredictionMode(PredictionMode.SLL);
 
-        ParserRuleContext tree = parseFunction.apply(parser);
+            ParserRuleContext tree = parseFunction.apply(parser);
 
-        log.trace(() -> Strings.format("Parse tree: %s", tree.toStringTree()));
+            log.trace(() -> Strings.format("Parse tree: %s", tree.toStringTree()));
 
-        return visitor.apply(new KqlAstBuilder(kqlParsingContext), tree);
+            return visitor.apply(new KqlAstBuilder(kqlParsingContext), tree);
+        } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
+            // we don't have information where exactly, so just say it's the whole query
+            throw new KqlParsingException(
+                "KQL statement is too large, causing stack overflow when generating the parsing tree: [{}]",
+                e,
+                0,
+                0,
+                kqlQuery
+            );
+        }
     }
 
     private static final BaseErrorListener ERROR_LISTENER = new BaseErrorListener() {

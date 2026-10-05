@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `TOP` function [esql-top]
 
-:::{include} ../../_snippets/functions/layout/top.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/top.md
 :::

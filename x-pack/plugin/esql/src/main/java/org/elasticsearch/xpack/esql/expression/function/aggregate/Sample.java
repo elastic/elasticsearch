@@ -19,6 +19,7 @@ import org.elasticsearch.compute.aggregation.SampleLongAggregatorFunctionSupplie
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -47,9 +48,12 @@ import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionVa
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeLimit;
 
-public class Sample extends AggregateFunction implements ToAggregator, PostOptimizationVerificationAware {
+public class Sample extends UnaryAggregateFunction implements ToAggregator, PostOptimizationVerificationAware, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sample", Sample::new);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Sample.class).binary(Sample::new).name("sample");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Sample.class)
+        .binary(Sample::new)
+        .capabilities("flattened")
+        .name("sample");
 
     @FunctionInfo(
         returnType = {
@@ -59,6 +63,7 @@ public class Sample extends AggregateFunction implements ToAggregator, PostOptim
             "date",
             "date_nanos",
             "double",
+            "flattened",
             "geo_point",
             "geo_shape",
             "geohash",
@@ -70,9 +75,18 @@ public class Sample extends AggregateFunction implements ToAggregator, PostOptim
             "long",
             "unsigned_long",
             "version" },
+        briefSummary = "Collects sample values for a field.",
         description = "Collects sample values for a field.",
         type = FunctionType.AGGREGATE,
-        examples = @Example(file = "stats_sample", tag = "doc"),
+        examples = {
+            @Example(file = "stats_sample", tag = "doc"),
+            @Example(
+                description = "`SAMPLE` returns up to the requested number of values per group. "
+                    + "When a group has fewer values than the limit, all values are returned. "
+                    + "When a group has more, a multivalue array of randomly sampled values is returned. ",
+                file = "stats_sample",
+                tag = "docsSampleByGroup"
+            ) },
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") }
 
     )
@@ -87,6 +101,7 @@ public class Sample extends AggregateFunction implements ToAggregator, PostOptim
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -101,7 +116,12 @@ public class Sample extends AggregateFunction implements ToAggregator, PostOptim
                 "version" },
             description = "The field to collect sample values for."
         ) Expression field,
-        @Param(name = "limit", type = { "integer" }, description = "The maximum number of values to collect.") Expression limit
+        @Param(
+            name = "limit",
+            type = { "integer" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
+            description = "The maximum number of values to collect."
+        ) Expression limit
     ) {
         this(source, field, Literal.TRUE, NO_WINDOW, limit, new Literal(Source.EMPTY, Randomness.get().nextLong(), DataType.LONG));
     }
@@ -167,11 +187,6 @@ public class Sample extends AggregateFunction implements ToAggregator, PostOptim
             case LONG -> new SampleLongAggregatorFunctionSupplier(limitValue());
             default -> throw EsqlIllegalArgumentException.illegalDataType(field().dataType());
         };
-    }
-
-    @Override
-    public Sample withFilter(Expression filter) {
-        return new Sample(source(), field(), filter, window(), limitField(), uuid());
     }
 
     Expression limitField() {

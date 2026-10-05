@@ -19,20 +19,41 @@ import org.elasticsearch.index.mapper.MapperService.MergeReason;
 public final class MapperMergeContext {
 
     private final MapperBuilderContext mapperBuilderContext;
-    private final NewFieldsBudget newFieldsBudget;
+    private final ParseFieldLimits fieldLimits;
 
-    private MapperMergeContext(MapperBuilderContext mapperBuilderContext, NewFieldsBudget newFieldsBudget) {
+    private MapperMergeContext(MapperBuilderContext mapperBuilderContext, ParseFieldLimits fieldLimits) {
         this.mapperBuilderContext = mapperBuilderContext;
-        this.newFieldsBudget = newFieldsBudget;
+        this.fieldLimits = fieldLimits;
     }
 
     /**
      * The root context, to be used when merging a tree of mappers
      */
     public static MapperMergeContext root(boolean isSourceSynthetic, boolean isDataStream, MergeReason mergeReason, long newFieldsBudget) {
+        return root(
+            isSourceSynthetic,
+            isDataStream,
+            mergeReason,
+            ParseFieldLimits.withBudget(NewFieldsBudget.dropping(newFieldsBudget)),
+            false,
+            false
+        );
+    }
+
+    /**
+     * The root context, to be used when merging a tree of mappers in a strict columnar index
+     */
+    public static MapperMergeContext root(
+        boolean isSourceSynthetic,
+        boolean isDataStream,
+        MergeReason mergeReason,
+        ParseFieldLimits fieldLimits,
+        boolean isStrictColumnar,
+        boolean isSourceColumnarStored
+    ) {
         return new MapperMergeContext(
-            MapperBuilderContext.root(isSourceSynthetic, isDataStream, mergeReason),
-            NewFieldsBudget.of(newFieldsBudget)
+            MapperBuilderContext.root(isSourceSynthetic, isDataStream, mergeReason, isStrictColumnar, isSourceColumnarStored),
+            fieldLimits
         );
     }
 
@@ -43,12 +64,12 @@ public final class MapperMergeContext {
      * @return a new {@link MapperMergeContext}, wrapping the provided {@link MapperBuilderContext}
      */
     public static MapperMergeContext from(MapperBuilderContext mapperBuilderContext, long newFieldsBudget) {
-        return new MapperMergeContext(mapperBuilderContext, NewFieldsBudget.of(newFieldsBudget));
+        return new MapperMergeContext(mapperBuilderContext, ParseFieldLimits.withBudget(NewFieldsBudget.dropping(newFieldsBudget)));
     }
 
     /**
      * Creates a new {@link MapperMergeContext} with a child {@link MapperBuilderContext}.
-     * The child {@link MapperMergeContext} context will share the same field limit.
+     * The child {@link MapperMergeContext} context will share the same field limits.
      * @param name the name of the child context
      * @return a new {@link MapperMergeContext} with this context as its parent
      */
@@ -57,13 +78,13 @@ public final class MapperMergeContext {
     }
 
     /**
-     * Creates a new {@link MapperMergeContext} with a given child {@link MapperBuilderContext}
-     * The child {@link MapperMergeContext} context will share the same field limit.
+     * Creates a new {@link MapperMergeContext} with a given child {@link MapperBuilderContext}.
+     * The child shares the same {@link ParseFieldLimits} so counts accumulate across the whole tree.
      * @param childContext the child {@link MapperBuilderContext}
      * @return a new {@link MapperMergeContext}, wrapping the provided {@link MapperBuilderContext}
      */
     MapperMergeContext createChildContext(MapperBuilderContext childContext) {
-        return new MapperMergeContext(childContext, newFieldsBudget);
+        return new MapperMergeContext(childContext, fieldLimits);
     }
 
     public MapperBuilderContext getMapperBuilderContext() {
@@ -71,55 +92,10 @@ public final class MapperMergeContext {
     }
 
     boolean decrementFieldBudgetIfPossible(int fieldSize) {
-        return newFieldsBudget.decrementIfPossible(fieldSize);
+        return fieldLimits.decrementTotalFieldsIfPossible(fieldSize);
     }
 
-    /**
-     * Keeps track of how many new fields can be added during mapper merge.
-     * The field budget is shared across instances of {@link MapperMergeContext} that are created via
-     * {@link MapperMergeContext#createChildContext}.
-     * This ensures that fields that are consumed by one child object mapper also decrement the budget for another child object.
-     * Not thread safe.The same instance may not be modified by multiple threads.
-     */
-    private interface NewFieldsBudget {
-
-        static NewFieldsBudget of(long fieldsBudget) {
-            if (fieldsBudget == Long.MAX_VALUE) {
-                return Unlimited.INSTANCE;
-            }
-            return new Limited(fieldsBudget);
-        }
-
-        boolean decrementIfPossible(long fieldSize);
-
-        final class Unlimited implements NewFieldsBudget {
-
-            private static final Unlimited INSTANCE = new Unlimited();
-
-            private Unlimited() {}
-
-            @Override
-            public boolean decrementIfPossible(long fieldSize) {
-                return true;
-            }
-        }
-
-        final class Limited implements NewFieldsBudget {
-
-            private long fieldsBudget;
-
-            Limited(long fieldsBudget) {
-                this.fieldsBudget = fieldsBudget;
-            }
-
-            @Override
-            public boolean decrementIfPossible(long fieldSize) {
-                if (fieldsBudget >= fieldSize) {
-                    fieldsBudget -= fieldSize;
-                    return true;
-                }
-                return false;
-            }
-        }
+    void checkNestedFieldCount() {
+        fieldLimits.checkNestedFieldCount();
     }
 }

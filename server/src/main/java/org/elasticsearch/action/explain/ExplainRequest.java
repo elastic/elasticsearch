@@ -36,11 +36,13 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class ExplainRequest extends SingleShardRequest<ExplainRequest> implements ToXContentObject, RetryableSplitAwareRequest {
     private static final TransportVersion SPLIT_SHARD_COUNT_SUMMARY = TransportVersion.fromName("explain_split_shard_count_summary");
+    public static final TransportVersion EXPLAIN_SLICE_ROUTING_STATE_VERSION = TransportVersion.fromName("explain_slice_routing_state");
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
 
     private String id;
     private String routing;
+    private boolean routingFromSlice;
     private String preference;
     private QueryBuilder query;
     private String[] storedFields;
@@ -68,6 +70,11 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
         storedFields = in.readOptionalStringArray();
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::readFrom);
         nowInMillis = in.readVLong();
+        if (in.getTransportVersion().supports(EXPLAIN_SLICE_ROUTING_STATE_VERSION)) {
+            routingFromSlice = in.readBoolean();
+        } else {
+            routingFromSlice = false;
+        }
         if (in.getTransportVersion().supports(SPLIT_SHARD_COUNT_SUMMARY)) {
             this.splitShardCountSummary = new SplitShardCountSummary(in);
         }
@@ -89,6 +96,15 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
     public ExplainRequest routing(String routing) {
         this.routing = routing;
         return this;
+    }
+
+    public ExplainRequest setRoutingFromSlice(boolean routingFromSlice) {
+        this.routingFromSlice = routingFromSlice;
+        return this;
+    }
+
+    public boolean isRoutingFromSlice() {
+        return routingFromSlice;
     }
 
     /**
@@ -184,6 +200,9 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
         out.writeOptionalStringArray(storedFields);
         out.writeOptionalWriteable(fetchSourceContext);
         out.writeVLong(nowInMillis);
+        if (out.getTransportVersion().supports(EXPLAIN_SLICE_ROUTING_STATE_VERSION)) {
+            out.writeBoolean(routingFromSlice);
+        }
         if (out.getTransportVersion().supports(SPLIT_SHARD_COUNT_SUMMARY)) {
             splitShardCountSummary.writeTo(out);
         }

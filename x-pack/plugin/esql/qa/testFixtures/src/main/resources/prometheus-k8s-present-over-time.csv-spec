@@ -1,0 +1,143 @@
+// The PromQL tests of `k8s-timeseries-present-over-time.csv-spec` over `index=k8s`, run on `prometheus-k8s`: the same samples in the Prometheus
+// remote-write layout (one document per sample, `labels.*` dimensions including `__name__`, one
+// `metrics.<name>` field per metric). Queries are identical up to the index name; `_timeseries` carries
+// the labels under `labels`, with `__name__` where Prometheus keeps the metric name. Keep in sync with the
+// source file.
+
+// In the remote-write layout a missing sample is no document at all, so windows without samples yield no row, as in Prometheus; the k8s original has documents with a null field and reports 0.
+present_over_time_events_received_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+required_capability: fix_ts_block_loader_passthrough_aliasing
+
+PROMQL index=prometheus-k8s step=2m start="2024-05-10T00:02:00.000Z" end="2024-05-10T00:22:00.000Z" events_received=(max by (pod) (present_over_time(events_received{cluster="prod",pod="two"}[2m])))
+| SORT step;
+
+ignoreOrder:true
+
+events_received:double | step:datetime            | pod:keyword
+1.0                    | 2024-05-10T00:04:00.000Z | two
+1.0                    | 2024-05-10T00:10:00.000Z | two
+1.0                    | 2024-05-10T00:16:00.000Z | two
+1.0                    | 2024-05-10T00:18:00.000Z | two
+1.0                    | 2024-05-10T00:22:00.000Z | two
+;
+
+present_over_time_of_long_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+
+PROMQL index=prometheus-k8s step=10m is_present=(max by (cluster) (present_over_time(network.bytes_in[10m])))
+| SORT cluster, step | LIMIT 10;
+
+is_present:double | step:datetime            | cluster:keyword
+1.0               | 2024-05-10T00:10:00.000Z | prod
+1.0               | 2024-05-10T00:20:00.000Z | prod
+1.0               | 2024-05-10T00:30:00.000Z | prod
+1.0               | 2024-05-10T00:10:00.000Z | qa
+1.0               | 2024-05-10T00:20:00.000Z | qa
+1.0               | 2024-05-10T00:30:00.000Z | qa
+1.0               | 2024-05-10T00:10:00.000Z | staging
+1.0               | 2024-05-10T00:20:00.000Z | staging
+1.0               | 2024-05-10T00:30:00.000Z | staging
+;
+
+present_over_time_of_long_promql_collapsed
+required_capability: promql_command_v0
+required_capability: ts_collapse
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+required_capability: fix_ts_block_loader_passthrough_aliasing
+
+PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:20:00.000Z" is_present=(max by (cluster) (present_over_time(network.bytes_in[10m])))
+| TS_COLLAPSE
+| SORT cluster;
+
+is_present:double  | step:datetime                                                                                  | cluster:keyword
+[1.0, 1.0]         | [2024-05-10T00:10:00.000Z, 2024-05-10T00:20:00.000Z]                                        | prod
+[1.0, 1.0]         | [2024-05-10T00:10:00.000Z, 2024-05-10T00:20:00.000Z]                                        | qa
+[1.0, 1.0]         | [2024-05-10T00:10:00.000Z, 2024-05-10T00:20:00.000Z]                                        | staging
+;
+
+present_over_time_of_integer_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+
+PROMQL index=prometheus-k8s step=10m is_present=(max by (cluster) (present_over_time(network.eth0.currently_connected_clients[10m])))
+| SORT step, cluster | LIMIT 10;
+
+is_present:double | step:datetime            | cluster:keyword
+1.0               | 2024-05-10T00:10:00.000Z | prod
+1.0               | 2024-05-10T00:10:00.000Z | qa
+1.0               | 2024-05-10T00:10:00.000Z | staging
+1.0               | 2024-05-10T00:20:00.000Z | prod
+1.0               | 2024-05-10T00:20:00.000Z | qa
+1.0               | 2024-05-10T00:20:00.000Z | staging
+1.0               | 2024-05-10T00:30:00.000Z | prod
+1.0               | 2024-05-10T00:30:00.000Z | qa
+1.0               | 2024-05-10T00:30:00.000Z | staging
+;
+
+present_over_time_with_filtering_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+
+PROMQL index=prometheus-k8s step=10m is_present=(max by (cluster) (present_over_time(network.bytes_in{pod!="three"}[10m])))
+| SORT step, cluster | LIMIT 10;
+
+is_present:double | step:datetime            | cluster:keyword
+1.0               | 2024-05-10T00:10:00.000Z | prod
+1.0               | 2024-05-10T00:10:00.000Z | qa
+1.0               | 2024-05-10T00:10:00.000Z | staging
+1.0               | 2024-05-10T00:20:00.000Z | prod
+1.0               | 2024-05-10T00:20:00.000Z | qa
+1.0               | 2024-05-10T00:20:00.000Z | staging
+1.0               | 2024-05-10T00:30:00.000Z | prod
+1.0               | 2024-05-10T00:30:00.000Z | qa
+1.0               | 2024-05-10T00:30:00.000Z | staging
+;
+
+eval_on_present_over_time_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+
+PROMQL index=prometheus-k8s step=10m is_present=(max by (pod) (present_over_time(network.bytes_in[10m])))
+| EVAL int = to_integer(is_present)
+| SORT step, pod | LIMIT 10;
+
+is_present:double | step:datetime            | pod:keyword | int:integer
+1.0               | 2024-05-10T00:10:00.000Z | one         | 1
+1.0               | 2024-05-10T00:10:00.000Z | three       | 1
+1.0               | 2024-05-10T00:10:00.000Z | two         | 1
+1.0               | 2024-05-10T00:20:00.000Z | one         | 1
+1.0               | 2024-05-10T00:20:00.000Z | three       | 1
+1.0               | 2024-05-10T00:20:00.000Z | two         | 1
+1.0               | 2024-05-10T00:30:00.000Z | one         | 1
+1.0               | 2024-05-10T00:30:00.000Z | three       | 1
+1.0               | 2024-05-10T00:30:00.000Z | two         | 1
+;
+
+// In the remote-write layout a missing sample is no document at all, so windows without samples yield no row, as in Prometheus; the k8s original has documents with a null field and reports 0.
+present_over_time_events_received_as_integer_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+required_capability: fix_ts_block_loader_passthrough_aliasing
+
+PROMQL index=prometheus-k8s step=2m start="2024-05-10T00:02:00.000Z" end="2024-05-10T00:22:00.000Z" events_received=(max by (pod) (present_over_time(events_received{cluster="prod",pod="two"}[2m])))
+| SORT step;
+
+ignoreOrder:true
+
+events_received:double | step:datetime            | pod:keyword
+1.0                    | 2024-05-10T00:04:00.000Z | two
+1.0                    | 2024-05-10T00:10:00.000Z | two
+1.0                    | 2024-05-10T00:16:00.000Z | two
+1.0                    | 2024-05-10T00:18:00.000Z | two
+1.0                    | 2024-05-10T00:22:00.000Z | two
+;

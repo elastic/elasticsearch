@@ -20,25 +20,19 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
-import org.elasticsearch.search.dfs.DfsKnnResults;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rank.TestRankBuilder;
-import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
-import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.transport.Transport;
@@ -47,17 +41,20 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongConsumer;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.mock;
 
 public class DfsQueryPhaseTests extends ESTestCase {
 
     private static DfsSearchResult newSearchResult(int shardIndex, ShardSearchContextId contextId, SearchShardTarget target) {
-        DfsSearchResult result = new DfsSearchResult(contextId, target, null);
+        DfsSearchResult result = new DfsSearchResult(
+            contextId,
+            target,
+            new ShardSearchRequest(target.getShardId(), System.currentTimeMillis(), AliasFilter.EMPTY)
+        );
         result.setShardIndex(shardIndex);
-        result.setShardSearchRequest(new ShardSearchRequest(target.getShardId(), System.currentTimeMillis(), AliasFilter.EMPTY));
         return result;
     }
 
@@ -81,7 +78,9 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 QuerySearchRequest request,
                 SearchTask task,
-                ActionListener<SearchPhaseResult> listener
+                ActionListener<SearchPhaseResult> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
             ) {
                 if (request.contextId().getId() == 1) {
                     QuerySearchResult queryResult = new QuerySearchResult(
@@ -127,7 +126,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             }
         };
         SearchPhaseController searchPhaseController = searchPhaseController();
-        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
+        MockSearchDfsQueryThenFetchAsyncAction mockSearchPhaseContext = new MockSearchDfsQueryThenFetchAsyncAction(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
         try (
             SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
@@ -179,7 +178,9 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 QuerySearchRequest request,
                 SearchTask task,
-                ActionListener<SearchPhaseResult> listener
+                ActionListener<SearchPhaseResult> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
             ) {
                 if (request.contextId().getId() == 1) {
                     QuerySearchResult queryResult = new QuerySearchResult(
@@ -208,7 +209,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             }
         };
         SearchPhaseController searchPhaseController = searchPhaseController();
-        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
+        MockSearchDfsQueryThenFetchAsyncAction mockSearchPhaseContext = new MockSearchDfsQueryThenFetchAsyncAction(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
         try (
             SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
@@ -262,7 +263,9 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 QuerySearchRequest request,
                 SearchTask task,
-                ActionListener<SearchPhaseResult> listener
+                ActionListener<SearchPhaseResult> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
             ) {
                 if (request.contextId().getId() == 1) {
                     QuerySearchResult queryResult = new QuerySearchResult(
@@ -291,7 +294,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             }
         };
         SearchPhaseController searchPhaseController = searchPhaseController();
-        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
+        MockSearchDfsQueryThenFetchAsyncAction mockSearchPhaseContext = new MockSearchDfsQueryThenFetchAsyncAction(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
         try (
             SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
@@ -317,7 +320,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
     private static DfsQueryPhase makeDfsPhase(
         AtomicArray<DfsSearchResult> results,
         SearchPhaseResults<SearchPhaseResult> consumer,
-        MockSearchPhaseContext mockSearchPhaseContext,
+        MockSearchDfsQueryThenFetchAsyncAction mockSearchPhaseContext,
         AtomicReference<AtomicArray<SearchPhaseResult>> responseRef
     ) {
         int shards = mockSearchPhaseContext.numShards;
@@ -361,7 +364,9 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 QuerySearchRequest request,
                 SearchTask task,
-                ActionListener<SearchPhaseResult> listener
+                ActionListener<SearchPhaseResult> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
             ) {
                 QuerySearchResult queryResult = new QuerySearchResult(
                     request.contextId(),
@@ -381,7 +386,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             }
         };
         SearchPhaseController searchPhaseController = searchPhaseController();
-        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
+        MockSearchDfsQueryThenFetchAsyncAction mockSearchPhaseContext = new MockSearchDfsQueryThenFetchAsyncAction(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
         mockSearchPhaseContext.getRequest()
             .source(
@@ -412,57 +417,6 @@ public class DfsQueryPhaseTests extends ESTestCase {
             assertEquals(2, mockSearchPhaseContext.numSuccess.get());
             mockSearchPhaseContext.results.close();
         }
-    }
-
-    public void testRewriteShardSearchRequestWithRank() {
-        List<DfsKnnResults> dkrs = List.of(
-            new DfsKnnResults(null, new ScoreDoc[] { new ScoreDoc(1, 3.0f, 1), new ScoreDoc(4, 1.5f, 1), new ScoreDoc(7, 0.1f, 2) }),
-            new DfsKnnResults(
-                null,
-                new ScoreDoc[] { new ScoreDoc(2, 1.75f, 2), new ScoreDoc(1, 2.0f, 1), new ScoreDoc(3, 0.25f, 2), new ScoreDoc(6, 2.5f, 2) }
-            )
-        );
-        MockSearchPhaseContext mspc = new MockSearchPhaseContext(2);
-        mspc.searchTransport = new SearchTransportService(null, null, null);
-        DfsQueryPhase dqp = new DfsQueryPhase(mock(QueryPhaseResultConsumer.class), null, mspc);
-
-        QueryBuilder bm25 = new TermQueryBuilder("field", "term");
-        SearchSourceBuilder ssb = new SearchSourceBuilder().query(bm25)
-            .knnSearch(
-                List.of(
-                    new KnnSearchBuilder("vector", new float[] { 0.0f }, 10, 100, 10f, null, null),
-                    new KnnSearchBuilder("vector2", new float[] { 0.0f }, 10, 100, 10f, null, null)
-                )
-            )
-            .rankBuilder(new TestRankBuilder(100));
-        SearchRequest sr = new SearchRequest().allowPartialSearchResults(true).source(ssb);
-        ShardSearchRequest ssr = new ShardSearchRequest(null, sr, new ShardId("test", "testuuid", 1), 1, 1, null, 1.0f, 0, null);
-
-        dqp.rewriteShardSearchRequest(dkrs, ssr);
-
-        KnnScoreDocQueryBuilder ksdqb0 = new KnnScoreDocQueryBuilder(
-            new ScoreDoc[] { new ScoreDoc(1, 3.0f, 1), new ScoreDoc(4, 1.5f, 1) },
-            "vector",
-            VectorData.fromFloats(new float[] { 0.0f }),
-            null,
-            List.of()
-        );
-        KnnScoreDocQueryBuilder ksdqb1 = new KnnScoreDocQueryBuilder(
-            new ScoreDoc[] { new ScoreDoc(1, 2.0f, 1) },
-            "vector2",
-            VectorData.fromFloats(new float[] { 0.0f }),
-            null,
-            List.of()
-        );
-        assertEquals(
-            List.of(bm25, ksdqb0, ksdqb1),
-            List.of(
-                ssr.source().subSearches().get(0).getQueryBuilder(),
-                ssr.source().subSearches().get(1).getQueryBuilder(),
-                ssr.source().subSearches().get(2).getQueryBuilder()
-            )
-        );
-        mspc.results.close();
     }
 
     private SearchPhaseController searchPhaseController() {

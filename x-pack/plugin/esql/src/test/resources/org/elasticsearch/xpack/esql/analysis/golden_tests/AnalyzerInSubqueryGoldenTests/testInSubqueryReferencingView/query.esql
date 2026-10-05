@@ -1,0 +1,2 @@
+FROM employees
+| WHERE emp_no IN (FROM high_earners)

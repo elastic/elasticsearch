@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotReq
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
@@ -33,6 +34,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
@@ -43,6 +45,8 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.ShardGeneration;
+import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -63,6 +67,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
@@ -77,6 +82,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
 
     private ProjectId projectId;
     private String indexName;
+    private Index index;
     private XPackLicenseState licenseState;
     private ThreadPool threadPool;
     private ClusterService clusterService;
@@ -105,6 +111,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         clusterService = createClusterService(threadPool);
         projectId = randomProjectIdOrDefault();
         indexName = randomAlphaOfLength(10);
+        index = new Index(indexName, randomUUID());
         licenseState = new XPackLicenseState(
             System::currentTimeMillis,
             new XPackLicenseStatus(License.OperationMode.ENTERPRISE, true, null)
@@ -179,7 +186,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
     }
 
     private DLMConvertToFrozen createConverter() {
-        return new DLMConvertToFrozen(indexName, projectId, createMockClient(), clusterService, () -> licenseState, clock);
+        return new DLMConvertToFrozen(index, projectId, createMockClient(), clusterService, () -> licenseState, clock);
     }
 
     private CreateSnapshotResponse createSuccessfulSnapshotResponse() {
@@ -214,9 +221,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId)
             .put(
                 IndexMetadata.builder(indexName)
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)
+                    .settings(indexSettings(IndexVersion.current(), index.getUUID(), 1, 0))
                     .putCustom(
                         DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
                         Map.of(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, REPO_NAME)
@@ -267,20 +272,64 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         return createProjectState(snapshotsInProgress);
     }
 
+    /**
+     * Creates a ProjectState with the target index, a configured repository, and a snapshot entry
+     * whose shards have all completed successfully (entry state {@code SUCCESS}), but which has not
+     * yet been finalized and removed from {@link SnapshotsInProgress}. This reproduces the window in
+     * which {@code TransportGetSnapshotsAction} still reports the snapshot as {@code IN_PROGRESS}
+     * even though every shard is done, see #160210.
+     */
+    private ProjectState createProjectStateWithCompletedButNotFinalizedSnapshot(long snapshotStartTime) {
+        String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
+        IndexId indexId = new IndexId(indexName, randomAlphaOfLength(10));
+        ShardId shardId = new ShardId(new Index(indexName, indexId.getId()), 0);
+        SnapshotsInProgress.ShardSnapshotStatus successStatus = SnapshotsInProgress.ShardSnapshotStatus.success(
+            randomAlphaOfLength(10),
+            new ShardSnapshotResult(new ShardGeneration(randomAlphaOfLength(10)), ByteSizeValue.ofBytes(1), 1)
+        );
+        SnapshotsInProgress.Entry entry = SnapshotsInProgress.Entry.snapshot(
+            new Snapshot(projectId, REPO_NAME, new SnapshotId(snapshotName, randomAlphaOfLength(10))),
+            false,
+            false,
+            SnapshotsInProgress.State.SUCCESS,
+            Map.of(indexName, indexId),
+            List.of(),
+            List.of(),
+            snapshotStartTime,
+            randomNonNegativeLong(),
+            Map.of(shardId, successStatus),
+            null,
+            Map.of("dlm-managed", true),
+            IndexVersion.current()
+        );
+        SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.EMPTY.withAddedEntry(entry);
+        return createProjectState(snapshotsInProgress);
+    }
+
     private void setClusterState(ProjectState projectState) {
         setState(clusterService, projectState.cluster());
     }
 
     private SnapshotInfo createSnapshotInfo(SnapshotState state, int failedShards) {
+        int totalShards = Math.max(1, failedShards);
+        return createSnapshotInfo(state, List.of(indexName), totalShards, totalShards - failedShards, failedShards);
+    }
+
+    private SnapshotInfo createSnapshotInfo(
+        SnapshotState state,
+        List<String> indices,
+        int totalShards,
+        int successfulShards,
+        int failedShards
+    ) {
         String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
         List<SnapshotShardFailure> shardFailures = new ArrayList<>();
         for (int i = 0; i < failedShards; i++) {
             shardFailures.add(new SnapshotShardFailure(null, new ShardId(indexName, randomAlphaOfLength(10), i), "test failure"));
         }
-        int totalShards = Math.max(1, failedShards);
         return new SnapshotInfo(
             new Snapshot(projectId, REPO_NAME, new SnapshotId(snapshotName, randomAlphaOfLength(10))),
-            List.of(indexName),
+            indices,
             List.of(),
             List.of(),
             state == SnapshotState.FAILED ? "simulated failure" : null,
@@ -288,7 +337,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
             clock.millis(),
             clock.millis(),
             totalShards,
-            totalShards - failedShards,
+            successfulShards,
             shardFailures,
             false,
             null,
@@ -319,6 +368,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         assertThat(request.indices(), is(new String[] { expectedIndex }));
         assertThat(request.includeGlobalState(), is(false));
         assertThat(request.waitForCompletion(), is(true));
+        assertThat(request.partial(), is(true));
     }
 
     private GetSnapshotsResponse emptyGetSnapshotsResponse() {
@@ -355,6 +405,24 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("FAILED"));
     }
 
+    public void testCheckSnapshotInfoSuccess_failsWhenSnapshotDoesNotContainTargetIndex() {
+        SnapshotInfo info = createSnapshotInfo(SnapshotState.SUCCESS, List.of(randomAlphaOfLength(10)), 1, 1, 0);
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> DLMConvertToFrozen.checkSnapshotInfoSuccess(indexName, "snap", info)
+        );
+        assertThat(e.getMessage(), containsString("indices"));
+    }
+
+    public void testCheckSnapshotInfoSuccess_failsWithoutSuccessfulShards() {
+        SnapshotInfo info = createSnapshotInfo(SnapshotState.SUCCESS, List.of(indexName), 1, 0, 0);
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> DLMConvertToFrozen.checkSnapshotInfoSuccess(indexName, "snap", info)
+        );
+        assertThat(e.getMessage(), containsString("successful shards"));
+    }
+
     public void testCheckSnapshotInfoSuccess_failsWithNull() {
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
@@ -365,7 +433,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
 
     // --- createSnapshot tests ---
 
-    public void testCreateSnapshot_success() {
+    public void testCreateSnapshot_success() throws InterruptedException {
         ProjectState projectState = createProjectState();
         setClusterState(projectState);
         mockCreateSnapshotResponse.set(createSuccessfulSnapshotResponse());
@@ -401,7 +469,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
 
     // --- deleteSnapshotIfExists tests ---
 
-    public void testDeleteSnapshotIfExists_success() {
+    public void testDeleteSnapshotIfExists_success() throws InterruptedException {
         setClusterState(createProjectState());
         mockDeleteSnapshotResponse.set(AcknowledgedResponse.TRUE);
 
@@ -427,7 +495,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         assertDeleteSnapshotRequest(REPO_NAME, snapshotName);
     }
 
-    public void testDeleteSnapshotIfExists_snapshotMissingSilentlySucceeds() {
+    public void testDeleteSnapshotIfExists_snapshotMissingSilentlySucceeds() throws InterruptedException {
         setClusterState(createProjectState());
         mockDeleteSnapshotFailure.set(new SnapshotMissingException(REPO_NAME, "missing"));
 
@@ -458,7 +526,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
 
     // --- getSnapshot tests ---
 
-    public void testGetSnapshot_snapshotMissingReturnsNull() {
+    public void testGetSnapshot_snapshotMissingReturnsNull() throws InterruptedException {
         setClusterState(createProjectState());
         mockGetSnapshotsFailure.set(new SnapshotMissingException(REPO_NAME, "missing"));
 
@@ -488,7 +556,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
 
     // --- deleteAndRestartSnapshot tests ---
 
-    public void testDeleteAndRestartSnapshot_deleteThenCreates() {
+    public void testDeleteAndRestartSnapshot_deleteThenCreates() throws InterruptedException {
         ProjectState projectState = createProjectState();
         setClusterState(projectState);
         mockDeleteSnapshotResponse.set(AcknowledgedResponse.TRUE);
@@ -518,7 +586,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Failed to acknowledge delete"));
     }
 
-    public void testDeleteAndRestartSnapshot_snapshotMissingStillCreates() {
+    public void testDeleteAndRestartSnapshot_snapshotMissingStillCreates() throws InterruptedException {
         ProjectState projectState = createProjectState();
         setClusterState(projectState);
         mockDeleteSnapshotFailure.set(new SnapshotMissingException(REPO_NAME, "missing"));
@@ -535,7 +603,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
 
     // --- checkForOrphanedSnapshotAndStart tests ---
 
-    public void testCheckForOrphanedSnapshot_noExistingSnapshot_createsNew() {
+    public void testCheckForOrphanedSnapshot_noExistingSnapshot_createsNew() throws InterruptedException {
         ProjectState projectState = createProjectState();
         setClusterState(projectState);
         mockGetSnapshotsResponse.set(emptyGetSnapshotsResponse());
@@ -550,7 +618,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         assertThat(capturedDeleteSnapshotRequest.get(), is(nullValue()));
     }
 
-    public void testCheckForOrphanedSnapshot_validOrphaned_skipsCreate() {
+    public void testCheckForOrphanedSnapshot_validOrphaned_skipsCreate() throws InterruptedException {
         ProjectState projectState = createProjectState();
         setClusterState(projectState);
         SnapshotInfo validSnapshot = createSnapshotInfo(SnapshotState.SUCCESS, 0);
@@ -565,7 +633,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         assertThat(capturedCreateSnapshotRequest.get(), is(nullValue()));
     }
 
-    public void testCheckForOrphanedSnapshot_invalidOrphaned_deletesAndRecreates() {
+    public void testCheckForOrphanedSnapshot_invalidOrphaned_deletesAndRecreates() throws InterruptedException {
         ProjectState projectState = createProjectState();
         setClusterState(projectState);
         SnapshotInfo failedSnapshot = createSnapshotInfo(SnapshotState.FAILED, 1);
@@ -582,7 +650,23 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         assertCreateSnapshotRequest(REPO_NAME, snapshotName, indexName);
     }
 
-    public void testCheckForOrphanedSnapshot_snapshotMissing_createsNew() {
+    public void testCheckForOrphanedSnapshot_withoutTargetIndex_deletesAndRecreates() throws InterruptedException {
+        ProjectState projectState = createProjectState();
+        setClusterState(projectState);
+        SnapshotInfo incompleteSnapshot = createSnapshotInfo(SnapshotState.SUCCESS, List.of(randomAlphaOfLength(10)), 1, 1, 0);
+        mockGetSnapshotsResponse.set(getSnapshotsResponseWith(incompleteSnapshot));
+        mockDeleteSnapshotResponse.set(AcknowledgedResponse.TRUE);
+        mockCreateSnapshotResponse.set(createSuccessfulSnapshotResponse());
+
+        DLMConvertToFrozen converter = createConverter();
+        String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
+        converter.checkForOrphanedSnapshotAndStart(indexName, REPO_NAME, snapshotName);
+
+        assertDeleteSnapshotRequest(REPO_NAME, snapshotName);
+        assertCreateSnapshotRequest(REPO_NAME, snapshotName, indexName);
+    }
+
+    public void testCheckForOrphanedSnapshot_snapshotMissing_createsNew() throws InterruptedException {
         ProjectState projectState = createProjectState();
         setClusterState(projectState);
         mockGetSnapshotsFailure.set(new SnapshotMissingException(REPO_NAME, "missing"));
@@ -611,7 +695,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         assertThat(e.getCause().getMessage(), containsString("get failed"));
     }
 
-    public void testHandleInProgressSnapshot_exceededTimeout_deletesAndRestarts() {
+    public void testHandleInProgressSnapshot_exceededTimeout_deletesAndRestarts() throws InterruptedException {
         // Snapshot started longer ago than SNAPSHOT_TIMEOUT (12h)
         long oldStartTime = clock.millis() - TimeValue.timeValueHours(13).millis(); // exceeds 12h SNAPSHOT_TIMEOUT
         ProjectState projectState = createProjectStateWithInProgressSnapshot(oldStartTime);
@@ -628,7 +712,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         assertCreateSnapshotRequest(REPO_NAME, snapshotName, indexName);
     }
 
-    public void testWaitForSnapshotCompletion_snapshotAlreadyComplete_succeeds() {
+    public void testWaitForSnapshotCompletion_snapshotAlreadyComplete_succeeds() throws InterruptedException {
         // Set up cluster state with NO in-progress snapshot so the predicate is immediately true
         ProjectState projectState = createProjectState();
         setClusterState(projectState);
@@ -688,6 +772,56 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         assertGetSnapshotsRequest(REPO_NAME, snapshotName);
     }
 
+    /**
+     * Reproduces #160210: an entry can reach a completed shard-level state ({@code SUCCESS}) in
+     * {@link SnapshotsInProgress} before it is finalized in the repository and removed from cluster
+     * state. {@code waitForSnapshotCompletion} must keep waiting until the entry is removed, not
+     * return as soon as the entry's state is completed, otherwise {@code getSnapshot} can observe
+     * an internally-inconsistent, not-yet-finalized {@code SnapshotInfo} (reported as
+     * {@code IN_PROGRESS} by {@code TransportGetSnapshotsAction}) and fail the transition.
+     */
+    public void testWaitForSnapshotCompletion_entryCompletedButNotFinalized_waitsForRemoval() throws Exception {
+        long snapshotStartTime = clock.millis() - TimeValue.timeValueMinutes(5).millis();
+        ProjectState projectStateWithCompletedEntry = createProjectStateWithCompletedButNotFinalizedSnapshot(snapshotStartTime);
+        setClusterState(projectStateWithCompletedEntry);
+
+        SnapshotInfo successSnapshot = createSnapshotInfo(SnapshotState.SUCCESS, 0);
+        mockGetSnapshotsResponse.set(getSnapshotsResponseWith(successSnapshot));
+
+        DLMConvertToFrozen converter = createConverter();
+        String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
+
+        AtomicReference<Exception> threadException = new AtomicReference<>();
+        Thread waitingThread = new Thread(() -> {
+            try {
+                converter.waitForSnapshotCompletion(indexName, REPO_NAME, snapshotName, snapshotStartTime);
+            } catch (Exception e) {
+                threadException.set(e);
+            }
+        });
+        waitingThread.start();
+        try {
+            // The entry is still present (just not yet removed), so the wait must not have resolved
+            // yet and getSnapshot must not have been called.
+            waitingThread.join(200);
+            assertTrue("waitForSnapshotCompletion must still be waiting while the entry is present", waitingThread.isAlive());
+            assertThat(capturedGetSnapshotsRequest.get(), nullValue());
+
+            // Simulate finalization completing: the entry is removed from cluster state.
+            setClusterState(createProjectState());
+
+            waitingThread.join(TimeValue.timeValueSeconds(30).millis());
+            assertFalse("waitForSnapshotCompletion did not complete after the entry was removed", waitingThread.isAlive());
+        } finally {
+            if (waitingThread.isAlive()) {
+                waitingThread.interrupt();
+            }
+        }
+
+        assertThat(threadException.get(), nullValue());
+        assertGetSnapshotsRequest(REPO_NAME, snapshotName);
+    }
+
     // --- maybeTakeSnapshot tests ---
 
     public void testMaybeTakeSnapshotThrowsWhenYellowStatusTimeoutBreached() {
@@ -698,17 +832,41 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         // No existing snapshot — flow will reach createSnapshot -> waitForIndexYellowStatus
         mockGetSnapshotsResponse.set(emptyGetSnapshotsResponse());
 
-        ClusterHealthResponse timedOut = new ClusterHealthResponse();
-        timedOut.setTimedOut(true);
-        mockHealthResponse.set(timedOut);
-
-        DLMConvertToFrozen converter = createConverter();
+        DLMConvertToFrozen converter = new TestDLMConvertToFrozenWithTimeout(
+            index,
+            projectId,
+            createMockClient(),
+            clusterService,
+            () -> licenseState,
+            clock
+        );
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> converter.maybeTakeSnapshot(indexName));
         assertThat(exception.getMessage(), containsString("timed out"));
         assertThat(exception.getMessage(), containsString(indexName));
         // GetSnapshots was issued but CreateSnapshot was not
         assertThat(capturedGetSnapshotsRequest.get(), is(notNullValue()));
         assertThat(capturedCreateSnapshotRequest.get(), is(nullValue()));
+    }
+
+    // A version of the DLMConvertToFrozen class that always times out when waiting for an index to reach yellow
+    public static class TestDLMConvertToFrozenWithTimeout extends DLMConvertToFrozen {
+
+        TestDLMConvertToFrozenWithTimeout(
+            Index index,
+            ProjectId projectId,
+            Client client,
+            ClusterService clusterService,
+            Supplier<XPackLicenseState> licenseStateSupplier,
+            Clock clock
+        ) {
+            super(index, projectId, client, clusterService, licenseStateSupplier, clock);
+        }
+
+        @Override
+        protected void waitForIndexYellowStatus(String index) {
+            // Immediately time out
+            throw new ElasticsearchException("DLM timed out after [1m] waiting for index [{}] shards to be allocated", index);
+        }
     }
 
     public void testMaybeTakeSnapshot_noInProgress_noExisting_createsNew() throws InterruptedException {

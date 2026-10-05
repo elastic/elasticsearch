@@ -10,7 +10,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,7 +32,7 @@ public class ReindexDataStreamIndexAction extends ActionType<ReindexDataStreamIn
         super(NAME);
     }
 
-    public static class Request extends LegacyActionRequest implements IndicesRequest {
+    public static class Request extends UntypedActionRequest implements IndicesRequest {
 
         private final String sourceIndex;
 

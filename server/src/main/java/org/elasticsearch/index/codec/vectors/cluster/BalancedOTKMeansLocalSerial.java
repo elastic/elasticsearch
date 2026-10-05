@@ -10,17 +10,19 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.hnsw.IntToIntFunction;
 
 import java.io.IOException;
+import java.util.function.IntUnaryOperator;
 
 /**
- * Single threaded implementation of mini-batch optimal transport k-means
+ * Single threaded implementation of mini-batch optimal transport k-means.
+ *
+ * @param <V> the array type for vectors and centroids ({@code float[]} or {@code byte[]})
  */
-class BalancedOTKMeansLocalSerial extends BalancedOTKMeansLocal {
+class BalancedOTKMeansLocalSerial<V> extends BalancedOTKMeansLocal<V> {
 
-    BalancedOTKMeansLocalSerial(int sampleSize, int maxIterations) {
-        super(sampleSize, maxIterations);
+    BalancedOTKMeansLocalSerial(CentroidOps<V> ops, int sampleSize, int maxIterations) {
+        super(ops, sampleSize, maxIterations);
     }
 
     @Override
@@ -30,29 +32,19 @@ class BalancedOTKMeansLocalSerial extends BalancedOTKMeansLocal {
 
     @Override
     protected void assign(
-        ClusteringFloatVectorValues vectors,
-        IntToIntFunction ordTranslator,
-        float[][] centroids,
+        ClusteringVectorValues<V> vectors,
+        IntUnaryOperator ordTranslator,
+        V[] centroids,
         FixedBitSet[] centroidChangedSlices,
         int[] assignments,
         NeighborHood[] neighborHoods
     ) throws IOException {
         assert centroidChangedSlices.length == 1;
-        stepLloydSlice(vectors, ordTranslator, centroids, centroidChangedSlices[0], assignments, neighborHoods, 0, vectors.size());
+        stepLloydSlice(vectors, ops, ordTranslator, centroids, centroidChangedSlices[0], assignments, neighborHoods, 0, vectors.size());
     }
 
     @Override
-    protected void assignSpilled(
-        ClusteringFloatVectorValues vectors,
-        KMeansIntermediate kmeansIntermediate,
-        NeighborHood[] neighborhoods,
-        float soarLambda
-    ) throws IOException {
-        assignSpilledSlice(vectors, kmeansIntermediate, neighborhoods, soarLambda, 0, vectors.size());
-    }
-
-    @Override
-    protected NeighborHood[] computeNeighborhoods(float[][] centroids, int clustersPerNeighborhood) throws IOException {
-        return NeighborHood.computeNeighborhoods(centroids, clustersPerNeighborhood);
+    protected NeighborHood[] computeNeighborhoods(V[] centroids, int clustersPerNeighborhood) throws IOException {
+        return NeighborHood.computeNeighborhoods(ops, centroids, clustersPerNeighborhood);
     }
 }

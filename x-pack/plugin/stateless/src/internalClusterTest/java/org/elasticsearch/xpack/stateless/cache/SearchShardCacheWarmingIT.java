@@ -39,15 +39,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.test.ESIntegTestCase.assertBusy;
-import static org.elasticsearch.test.ESTestCase.assertTrue;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.not;
 
 /**
  * Search-only shard recovery with a 4kb shared-cache region so the compound commit spans many regions. Concurrent searches run while
@@ -149,10 +145,10 @@ public class SearchShardCacheWarmingIT extends AbstractStatelessPluginIntegTestC
             indexName
         );
 
-        assertBusy(() -> {
-            assertThat(internalCluster().nodesInclude(indexName), not(hasItem(nodes.searchNodeA)));
-            assertThat(internalCluster().nodesInclude(indexName), hasItem(nodes.searchNodeB));
-        });
+        internalCluster().awaitNodesInclude(
+            indexName,
+            includedNodes -> includedNodes.contains(nodes.searchNodeA) == false && includedNodes.contains(nodes.searchNodeB)
+        );
 
         ensureGreen(indexName);
 
@@ -169,7 +165,7 @@ public class SearchShardCacheWarmingIT extends AbstractStatelessPluginIntegTestC
     /**
      * One primary and one replica, then {@code number_of_replicas} raised to 2 while clearing allocation exclude so a third copy can
      * allocate on a search node that had no shard. That node is the telemetry target: recovery is not a relocation, but another active
-     * copy exists, so {@link SharedBlobCacheWarmingService#searchRecoveryTimeout} awaits with the non-relocation timeout.
+     * copy exists, so {@link SearchRecoveryTimeoutCalculationService#searchRecoveryTimeout} awaits with the non-relocation timeout.
      */
     public void testConcurrentSearchWhileAddingSecondReplicaDoesNotMissBlobCacheOnTarget() throws Exception {
         TwoSearchNodes nodes = startTwoSearchNodeCluster();
@@ -194,7 +190,7 @@ public class SearchShardCacheWarmingIT extends AbstractStatelessPluginIntegTestC
             indexName
         );
 
-        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), hasItem(nodes.searchNodeB)));
+        internalCluster().awaitNodesInclude(indexName, includedNodes -> includedNodes.contains(nodes.searchNodeB));
 
         ensureGreen(indexName);
 

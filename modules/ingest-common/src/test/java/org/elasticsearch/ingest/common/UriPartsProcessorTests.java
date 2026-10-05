@@ -151,6 +151,15 @@ public class UriPartsProcessorTests extends ESTestCase {
         );
     }
 
+    /**
+     * If this test starts failing, it means that {@link java.net.URI#URI(String)} has started supporting RFC 3986, or we've
+     * moved to an implementation that does. If so, we must update the public documentation for the processor accordingly.
+     */
+    public void testUriWithUnderscoresInDomain() throws Exception {
+        // Note that domain is null, this is because of the unsupported underscores in RFC 2396
+        testUriParsing("https://www.unsupported_by_rfc2396.com/foobar", Map.of("scheme", "https", "path", "/foobar"));
+    }
+
     public void testUrlWithCharactersNotToleratedByUri() throws Exception {
         testUriParsing(
             "http://www.google.com/path with spaces",

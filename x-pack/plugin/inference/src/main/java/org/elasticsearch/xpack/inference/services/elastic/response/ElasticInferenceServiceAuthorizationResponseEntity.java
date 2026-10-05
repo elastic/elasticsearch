@@ -7,12 +7,16 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.response;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.completion.Reasoning;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -48,6 +52,8 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
     implements
         InferenceServiceResults {
 
+    private static final Logger logger = LogManager.getLogger(ElasticInferenceServiceAuthorizationResponseEntity.class);
+
     private static final String INFERENCE_ENDPOINTS = "inference_endpoints";
     private static final String REMOVED_ENDPOINTS = "removed_endpoints";
 
@@ -81,8 +87,45 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
         @Nullable String endOfLifeDate,
         @Nullable Configuration configuration,
         @Nullable EndpointMetadata.Display display,
-        @Nullable String fingerprint
+        @Nullable EndpointMetadata.ModelIdentity modelIdentity,
+        @Nullable String fingerprint,
+        List<EndpointMetadata.EndpointRegion> regions,
+        boolean deniedByRegionPolicy,
+        @Nullable EndpointMetadata.Capabilities capabilities
     ) {
+
+        public AuthorizedEndpoint(
+            String id,
+            String modelName,
+            TaskTypeObject taskType,
+            String status,
+            @Nullable List<String> properties,
+            String releaseDate,
+            @Nullable String endOfLifeDate,
+            @Nullable Configuration configuration,
+            @Nullable EndpointMetadata.Display display,
+            @Nullable EndpointMetadata.ModelIdentity modelIdentity,
+            @Nullable String fingerprint,
+            List<EndpointMetadata.EndpointRegion> regions,
+            boolean deniedByRegionPolicy
+        ) {
+            this(
+                id,
+                modelName,
+                taskType,
+                status,
+                properties,
+                releaseDate,
+                endOfLifeDate,
+                configuration,
+                display,
+                modelIdentity,
+                fingerprint,
+                regions,
+                deniedByRegionPolicy,
+                null
+            );
+        }
 
         public static final String RELEASE_DATE = "release_date";
         public static final String END_OF_LIFE_DATE = "end_of_life_date";
@@ -94,7 +137,11 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
         private static final String PROPERTIES = "properties";
         private static final String CONFIGURATION = "configuration";
         private static final String DISPLAY = "display";
+        private static final String MODEL_IDENTITY = "model_identity";
         private static final String FINGERPRINT = "fingerprint";
+        private static final String REGIONS = "regions";
+        private static final String DENIED_BY_REGION_POLICY = "denied_by_region_policy";
+        private static final String CAPABILITIES = "capabilities";
 
         @SuppressWarnings("unchecked")
         public static ConstructingObjectParser<AuthorizedEndpoint, Void> AUTHORIZED_ENDPOINT_PARSER = new ConstructingObjectParser<>(
@@ -110,7 +157,11 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
                 (String) args[6],
                 (Configuration) args[7],
                 (EndpointMetadata.Display) args[8],
-                (String) args[9]
+                (EndpointMetadata.ModelIdentity) args[9],
+                (String) args[10],
+                args[11] != null ? (List<EndpointMetadata.EndpointRegion>) args[11] : List.of(),
+                args[12] != null && (Boolean) args[12],
+                (EndpointMetadata.Capabilities) args[13]
             )
         );
 
@@ -128,7 +179,23 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
                 (p, c) -> EndpointMetadata.Display.parse(p),
                 new ParseField(DISPLAY)
             );
+            AUTHORIZED_ENDPOINT_PARSER.declareObject(
+                optionalConstructorArg(),
+                (p, c) -> EndpointMetadata.ModelIdentity.parse(p),
+                new ParseField(MODEL_IDENTITY)
+            );
             AUTHORIZED_ENDPOINT_PARSER.declareString(optionalConstructorArg(), new ParseField(FINGERPRINT));
+            AUTHORIZED_ENDPOINT_PARSER.declareObjectArray(
+                optionalConstructorArg(),
+                (p, c) -> EndpointMetadata.EndpointRegion.parse(p),
+                new ParseField(REGIONS)
+            );
+            AUTHORIZED_ENDPOINT_PARSER.declareBoolean(optionalConstructorArg(), new ParseField(DENIED_BY_REGION_POLICY));
+            AUTHORIZED_ENDPOINT_PARSER.declareObject(
+                optionalConstructorArg(),
+                (p, c) -> EndpointMetadata.Capabilities.parse(p),
+                new ParseField(CAPABILITIES)
+            );
         }
     }
 
@@ -153,21 +220,29 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
         @Nullable String similarity,
         @Nullable Integer dimensions,
         @Nullable String elementType,
-        @Nullable Map<String, Object> chunkingSettings
+        @Nullable Map<String, Object> chunkingSettings,
+        @Nullable Reasoning reasoning
     ) {
 
-        public static final Configuration EMPTY = new Configuration(null, null, null, null);
+        public static final Configuration EMPTY = new Configuration(null, null, null, null, null);
 
         public static final String SIMILARITY = "similarity";
         public static final String DIMENSIONS = "dimensions";
         public static final String ELEMENT_TYPE = "element_type";
         public static final String CHUNKING_SETTINGS = "chunking_settings";
+        public static final String REASONING = "reasoning";
 
         @SuppressWarnings("unchecked")
         public static final ConstructingObjectParser<Configuration, Void> PARSER = new ConstructingObjectParser<>(
             Configuration.class.getSimpleName(),
             true,
-            args -> new Configuration((String) args[0], (Integer) args[1], (String) args[2], (Map<String, Object>) args[3])
+            args -> new Configuration(
+                (String) args[0],
+                (Integer) args[1],
+                (String) args[2],
+                (Map<String, Object>) args[3],
+                (Reasoning) args[4]
+            )
         );
 
         static {
@@ -175,6 +250,28 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
             PARSER.declareInt(optionalConstructorArg(), new ParseField(DIMENSIONS));
             PARSER.declareString(optionalConstructorArg(), new ParseField(ELEMENT_TYPE));
             PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapOrdered(), new ParseField(CHUNKING_SETTINGS));
+            // Lenient parser: this is a server-to-server payload, so unknown reasoning fields (or a new
+            // effort/summary enum value) from a newer EIS gateway should be ignored rather than failing the
+            // whole authorization response. Enum-value and validation failures throw only after the reasoning
+            // object is fully consumed, so the outer parser stays correctly positioned; a structural
+            // type-mismatch mid-object is not handled.
+            PARSER.declareObject(optionalConstructorArg(), (p, c) -> parseReasoningLeniently(p), new ParseField(REASONING));
+        }
+
+        private static Reasoning parseReasoningLeniently(XContentParser parser) {
+            try {
+                return Reasoning.LENIENT_PARSER.apply(parser, null);
+            } catch (Exception e) {
+                logger.info(
+                    Strings.format(
+                        "Failed to parse the [%s] configuration from the Elastic Inference Service "
+                            + "authorization response; ignoring it",
+                        REASONING
+                    ),
+                    e
+                );
+                return null;
+            }
         }
     }
 

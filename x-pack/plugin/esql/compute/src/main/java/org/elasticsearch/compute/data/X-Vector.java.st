@@ -96,7 +96,12 @@ $if(BytesRef)$
 
 $endif$
     @Override
-    $Type$Vector filter(boolean mayContainDuplicates, int... positions);
+    $Type$Vector filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    @Override
+    default $Type$Vector filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     @Override
     $Type$Block keepMask(BooleanVector mask);

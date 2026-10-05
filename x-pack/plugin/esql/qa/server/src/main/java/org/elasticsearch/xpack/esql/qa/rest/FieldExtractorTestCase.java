@@ -377,6 +377,20 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         new Test("flattened").test(randomBoolean() ? Map.of() : null, null);
     }
 
+    public void testFlattenedFieldNullValue() throws IOException {
+        assumeFlattenedDatatype();
+        // A null leaf in the flattened object is replaced with the null_value string at index time.
+        // When we read back the document the null leaf should appear as the replacement string.
+        String replacement = randomAlphaOfLength(5);
+        Map<String, Object> input = new TreeMap<>();
+        input.put("present", randomAlphaOfLength(5));
+        input.put("missing", null);
+        Map<String, Object> expected = new TreeMap<>();
+        expected.put("present", input.get("present"));
+        expected.put("missing", replacement);
+        new Test("flattened").nullValue(replacement).test(input, equalTo(expected));
+    }
+
     public void testEmptyMapping() throws IOException {
         createIndex("test", index -> {});
         index("test", """
@@ -1338,7 +1352,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             {"Responses.process": 222,"process.parent.command_line":"run2.bat"}""");
 
         Map<String, Object> result = runEsql("FROM test* | SORT process.parent.command_line");
-        // If we're loading from _source we load the nested field.
+        // Nested pid is hidden from field caps; extraction must be null even for STORED/_source.
         assertResultMap(
             result,
             List.of(
@@ -1537,8 +1551,8 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     protected Matcher<Integer> pidMatcher() {
-        // TODO these should all always return null because the parent is nested
-        return preference == MappedFieldType.FieldExtractPreference.STORED ? equalTo(111) : nullValue(Integer.class);
+        // Nested even under STORED/_source. Mixed-cluster still allows 111 from older nodes.
+        return nullValue(Integer.class);
     }
 
     private void assumeTsIndexOriginalTypesFixed() throws IOException {
@@ -1567,13 +1581,13 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     private void assumeFlattenedDatatype() throws IOException {
-        var capsName = EsqlCapabilities.Cap.FLATTENED_DATATYPE.name().toLowerCase(Locale.ROOT);
+        var capsName = EsqlCapabilities.Cap.FLATTENED_DATATYPE_NULL_VALUE.name().toLowerCase(Locale.ROOT);
         boolean supported = clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false);
         assumeTrue("Requires flattened datatype support", supported);
     }
 
     private void assumeDateRangeFieldTypeSupported() throws IOException {
-        var capsName = EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V3.name().toLowerCase(Locale.ROOT);
+        var capsName = EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.name().toLowerCase(Locale.ROOT);
         boolean requiredClusterCapability = clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false);
         assumeTrue("date_range field type not supported in this version", requiredClusterCapability);
     }
@@ -1696,6 +1710,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         private Double scalingFactor;
         private Integer ignoreAbove;
         private Object value;
+        private String nullValue;
         private boolean createAlias;
 
         Test(String type) {
@@ -1770,6 +1785,11 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
         Test value(Object value) {
             this.value = value;
+            return this;
+        }
+
+        Test nullValue(String nullValue) {
+            this.nullValue = nullValue;
             return this;
         }
 
@@ -1892,6 +1912,9 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             }
             if (value != null) {
                 builder.field("value", value);
+            }
+            if (nullValue != null) {
+                builder.field("null_value", nullValue);
             }
 
             if (subFields.isEmpty() == false) {

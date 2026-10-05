@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `MONTH_NAME` function [esql-month_name]
 
-:::{include} ../../_snippets/functions/layout/month_name.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/month_name.md
 :::

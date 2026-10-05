@@ -67,7 +67,6 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataSourceMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
@@ -607,7 +606,7 @@ public class DataStreamIT extends ESIntegTestCase {
         );
         verifyResolvability(dataStreamName, indicesAdmin().prepareGetFieldMappings(dataStreamName), false);
         verifyResolvability(dataStreamName, indicesAdmin().preparePutMapping(dataStreamName).setSource("""
-            {"_doc":{"properties": {"my_field":{"type":"keyword"}}}}""", XContentType.JSON), false);
+            {"_doc":{"properties": {"my_field":{"type":"keyword"}}}}"""), false);
         verifyResolvability(dataStreamName, indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, dataStreamName), false);
         verifyResolvability(
             dataStreamName,
@@ -654,7 +653,7 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(wildcardExpression, indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, wildcardExpression), false);
         verifyResolvability(wildcardExpression, indicesAdmin().prepareGetFieldMappings(wildcardExpression), false);
         verifyResolvability(wildcardExpression, indicesAdmin().preparePutMapping(wildcardExpression).setSource("""
-            {"_doc":{"properties": {"my_field":{"type":"keyword"}}}}""", XContentType.JSON), false);
+            {"_doc":{"properties": {"my_field":{"type":"keyword"}}}}"""), false);
         verifyResolvability(wildcardExpression, indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, wildcardExpression), false);
         verifyResolvability(wildcardExpression, indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, wildcardExpression), false);
         verifyResolvability(
@@ -1209,9 +1208,7 @@ public class DataStreamIT extends ESIntegTestCase {
             DataStreamTimestampFieldMapper.NAME,
             Map.of("enabled", true)
         );
-        indicesAdmin().preparePutMapping("logs-foobar")
-            .setSource("{\"properties\":{\"my_field\":{\"type\":\"keyword\"}}}", XContentType.JSON)
-            .get();
+        indicesAdmin().preparePutMapping("logs-foobar").setSource("{\"properties\":{\"my_field\":{\"type\":\"keyword\"}}}").get();
         // The mappings of all backing indices should be updated:
         getMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "logs-foobar").get();
         assertThat(getMappingsResponse.getMappings().size(), equalTo(2));
@@ -1856,9 +1853,8 @@ public class DataStreamIT extends ESIntegTestCase {
             IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
             aliasesAddRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).index("logs-es").aliases("logs"));
             var e = expectThrows(InvalidAliasNameException.class, indicesAdmin().aliases(aliasesAddRequest));
-            String expectedLogs = DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
-                ? "Invalid alias name [logs]: an index, data stream, ESQL view, or ESQL dataset exists with the same name as the alias"
-                : "Invalid alias name [logs]: an index, data stream, or ESQL view exists with the same name as the alias";
+            String expectedLogs = "Invalid alias name [logs]: an index, data stream, ESQL view, or ESQL dataset exists "
+                + "with the same name as the alias";
             assertThat(e.getMessage(), equalTo(expectedLogs));
         }
         {
@@ -1878,9 +1874,8 @@ public class DataStreamIT extends ESIntegTestCase {
                     false
                 )
             );
-            String expectedLogs = DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
-                ? "Invalid alias name [logs]: an index, data stream, ESQL view, or ESQL dataset exists with the same name as the alias"
-                : "Invalid alias name [logs]: an index, data stream, or ESQL view exists with the same name as the alias";
+            String expectedLogs = "Invalid alias name [logs]: an index, data stream, ESQL view, or ESQL dataset exists "
+                + "with the same name as the alias";
             assertThat(e.getCause().getMessage(), equalTo(expectedLogs));
         }
     }

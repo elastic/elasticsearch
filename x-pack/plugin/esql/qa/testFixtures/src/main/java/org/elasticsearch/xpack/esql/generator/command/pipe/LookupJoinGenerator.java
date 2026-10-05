@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.generator.command.pipe;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.LookupIdx;
 import org.elasticsearch.xpack.esql.generator.LookupIdxColumn;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 
@@ -34,7 +36,8 @@ public class LookupJoinGenerator implements CommandGenerator {
         List<CommandDescription> previousCommands,
         List<Column> previousOutput,
         QuerySchema schema,
-        QueryExecutor executor
+        QueryExecutor executor,
+        GenerationContext context
     ) {
         if (schema.lookupIndices().isEmpty()) {
             return EMPTY_DESCRIPTION;
@@ -82,7 +85,11 @@ public class LookupJoinGenerator implements CommandGenerator {
             stringBuilder.append(" as ");
             stringBuilder.append(joinName);
         }
-        stringBuilder.append(" | lookup join ").append(lookupIdxName).append(" on ");
+        stringBuilder.append(" | lookup join ");
+        if (randomBoolean()) {
+            stringBuilder.append("_coordinator:");
+        }
+        stringBuilder.append(lookupIdxName).append(" on ");
         for (int i = 0; i < keyNames.size(); i++) {
             String joinName = joinOn.get(i);
             if (EsqlQueryGenerator.needsQuoting(joinName)) {

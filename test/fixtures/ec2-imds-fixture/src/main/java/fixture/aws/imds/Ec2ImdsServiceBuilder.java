@@ -23,6 +23,8 @@ public class Ec2ImdsServiceBuilder {
 
     private final Ec2ImdsVersion ec2ImdsVersion;
     private BiConsumer<String, String> newCredentialsConsumer = Ec2ImdsServiceBuilder::rejectNewCredentials;
+    private Supplier<String> authorizationTokenSupplier = null;
+    private boolean podIdentityCredentialsResponse = false;
     private Collection<String> alternativeCredentialsEndpoints = Set.of();
     private Supplier<String> availabilityZoneSupplier = Ec2ImdsServiceBuilder::rejectAvailabilityZone;
     private ToXContent instanceIdentityDocument = null;
@@ -41,8 +43,18 @@ public class Ec2ImdsServiceBuilder {
         ESTestCase.fail("credentials creation not supported");
     }
 
+    public Ec2ImdsServiceBuilder authorizationTokenSupplier(Supplier<String> authorizationTokenSupplier) {
+        this.authorizationTokenSupplier = authorizationTokenSupplier;
+        return this;
+    }
+
     public Ec2ImdsServiceBuilder alternativeCredentialsEndpoints(Collection<String> alternativeCredentialsEndpoints) {
         this.alternativeCredentialsEndpoints = alternativeCredentialsEndpoints;
+        return this;
+    }
+
+    public Ec2ImdsServiceBuilder podIdentityCredentialsResponse() {
+        this.podIdentityCredentialsResponse = true;
         return this;
     }
 
@@ -64,6 +76,8 @@ public class Ec2ImdsServiceBuilder {
         return new Ec2ImdsHttpHandler(
             ec2ImdsVersion,
             newCredentialsConsumer,
+            authorizationTokenSupplier,
+            podIdentityCredentialsResponse,
             alternativeCredentialsEndpoints,
             availabilityZoneSupplier,
             instanceIdentityDocument,

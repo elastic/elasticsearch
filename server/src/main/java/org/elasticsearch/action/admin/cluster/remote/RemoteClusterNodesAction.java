@@ -13,8 +13,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.RemoteClusterActionType;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
@@ -43,7 +43,7 @@ public class RemoteClusterNodesAction {
     public static final ActionType<Response> TYPE = new ActionType<>(NAME);
     public static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(NAME, Response::new);
 
-    public static class Request extends LegacyActionRequest {
+    public static class Request extends UntypedActionRequest {
         public static final Request ALL_NODES = new Request(false);
         public static final Request REMOTE_CLUSTER_SERVER_NODES = new Request(true);
         private final boolean remoteClusterServer;

@@ -4,8 +4,9 @@ products:
 max_toc_depth: 2
 exclude:
   - README.md
+  - AGENTS.md
   - internal/*
-  - reference/query-languages/esql/kibana/docs/**
+  - reference/query-languages/esql/kibana/**
   - reference/query-languages/esql/README.md
 cross_links:
   - beats

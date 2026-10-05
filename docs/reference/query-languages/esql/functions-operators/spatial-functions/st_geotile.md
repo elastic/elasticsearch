@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `ST_GEOTILE` function [esql-st_geotile]
 
-:::{include} ../../_snippets/functions/layout/st_geotile.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/st_geotile.md
 :::

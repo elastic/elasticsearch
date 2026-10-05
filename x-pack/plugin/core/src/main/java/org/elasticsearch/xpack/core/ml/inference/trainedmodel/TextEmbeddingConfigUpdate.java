@@ -100,6 +100,9 @@ public class TextEmbeddingConfigUpdate extends NlpConfigUpdate implements NamedX
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
+        if (getTokenizationUpdate() instanceof ByteLevelBpeTokenizationUpdate) {
+            return ByteLevelBpeTokenization.ML_BYTE_LEVEL_BPE_TOKENIZATION_ADDED;
+        }
         return TransportVersion.minimumCompatible();
     }
 

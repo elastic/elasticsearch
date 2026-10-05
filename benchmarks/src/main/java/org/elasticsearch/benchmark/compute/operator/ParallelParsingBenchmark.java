@@ -10,7 +10,7 @@
 package org.elasticsearch.benchmark.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
@@ -24,8 +24,13 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -69,7 +74,7 @@ import java.util.concurrent.TimeUnit;
 public class ParallelParsingBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
@@ -132,22 +137,56 @@ public class ParallelParsingBenchmark {
         }
     }
 
-    private static class BenchLineReader implements SegmentableFormatReader {
+    private static class BenchLineReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         @Override
-        public long findNextRecordBoundary(InputStream stream) throws IOException {
-            long consumed = 0;
-            byte[] buf = new byte[8192];
-            int bytesRead;
-            while ((bytesRead = stream.read(buf, 0, buf.length)) > 0) {
-                for (int i = 0; i < bytesRead; i++) {
-                    consumed++;
-                    if (buf[i] == '\n') {
-                        return consumed;
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return new RecordSplitter() {
+                @Override
+                public long findNextRecordBoundary(InputStream stream) throws IOException {
+                    long consumed = 0;
+                    byte[] buf = new byte[8192];
+                    int bytesRead;
+                    while ((bytesRead = stream.read(buf, 0, buf.length)) > 0) {
+                        for (int i = 0; i < bytesRead; i++) {
+                            consumed++;
+                            if (consumed > maxRecordBytes) {
+                                return RECORD_TOO_LARGE;
+                            }
+                            if (buf[i] == '\n') {
+                                return consumed;
+                            }
+                        }
                     }
+                    return -1;
                 }
-            }
-            return -1;
+
+                @Override
+                public int findLastRecordBoundary(byte[] buf, int offset, int length) {
+                    int end = offset + length;
+                    int recordStart = offset;
+                    int lastBoundary = -1;
+                    for (int i = offset; i < end; i++) {
+                        if (buf[i] == '\n') {
+                            if (i - recordStart + 1 > maxRecordBytes) {
+                                return lastBoundary >= 0 ? lastBoundary : (int) RECORD_TOO_LARGE;
+                            }
+                            lastBoundary = i;
+                            recordStart = i + 1;
+                        }
+                    }
+                    return end - recordStart > maxRecordBytes && lastBoundary < 0 ? (int) RECORD_TOO_LARGE : lastBoundary;
+                }
+
+                @Override
+                public int maxRecordBytes() {
+                    return maxRecordBytes;
+                }
+            };
         }
 
         @Override
@@ -271,6 +310,11 @@ public class ParallelParsingBenchmark {
     }
 
     private static class InMemoryStorageObject implements StorageObject {
+        /** One identity for all in-memory fixtures, so footer-cache entries stay keyed by URI alone as before. */
+        private record BenchIdentity() implements StorageIdentity {}
+
+        private static final BenchIdentity BENCH_IDENTITY = new BenchIdentity();
+
         private final byte[] data;
 
         InMemoryStorageObject(byte[] data) {
@@ -311,6 +355,11 @@ public class ParallelParsingBenchmark {
         @Override
         public boolean exists() {
             return true;
+        }
+
+        @Override
+        public StorageIdentity storageIdentity() {
+            return BENCH_IDENTITY;
         }
 
         @Override

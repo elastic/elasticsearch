@@ -8,41 +8,98 @@
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.capabilities.NonFiniteSupport;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
-import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isCounter;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTests {
+
+    public PromqlPlanFunctionCallTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     public void testConstantResults() {
         assertConstantResult("ceil(vector(3.14159))", equalTo(4.0));
         assertConstantResult("pi()", equalTo(Math.PI));
         assertConstantResult("abs(vector(-1))", equalTo(1.0));
         assertConstantResult("quantile(0.5, vector(1))", equalTo(1.0));
+    }
+
+    /**
+     * PromQL {@code quantile} and {@code quantile_over_time} take the quantile φ in the range [0, 1], whereas the
+     * ES|QL {@link Percentile} aggregation they translate into expects a percentile in the range [0, 100]. The
+     * PromQL builders must therefore scale φ by 100. Without this scaling, {@code quantile(1.0, x)} would, for
+     * example, collapse to the 0.01th percentile (≈ the minimum) instead of returning the maximum.
+     */
+    public void testQuantilePhiIsScaledToPercentile() {
+        for (String function : List.of("quantile", "quantile_over_time")) {
+            assertPhiScaledToPercentile(function, 1.0, 100.0);
+            assertPhiScaledToPercentile(function, 0.75, 75.0);
+            assertPhiScaledToPercentile(function, 0.5, 50.0);
+            assertPhiScaledToPercentile(function, 0.25, 25.0);
+        }
+    }
+
+    private void assertPhiScaledToPercentile(String function, double phi, double expectedPercentile) {
+        var ctx = new PromqlFunctionRegistry.PromqlContext(Literal.NULL, Literal.NULL, Literal.NULL, EsqlTestUtils.TEST_CFG);
+        Expression target = Literal.fromDouble(Source.EMPTY, 1.0);
+        Expression built = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
+            function,
+            Source.EMPTY,
+            target,
+            ctx,
+            List.of(Literal.fromDouble(Source.EMPTY, phi))
+        );
+        Percentile percentile = built instanceof PercentileOverTime overTime
+            ? as(overTime.perTimeSeriesAggregation(), Percentile.class)
+            : as(built, Percentile.class);
+        assertThat(
+            function + "(" + phi + ", ...)",
+            as(percentile.percentile().fold(FoldContext.small()), Double.class),
+            equalTo(expectedPercentile)
+        );
     }
 
     public void testRound() {
@@ -54,12 +111,40 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertConstantResult("round(vector(pi()), 0.5)", equalTo(3.0)); // rounds down to nearest
     }
 
+    public void testRoundToNearestMatchesPrometheusFormula() {
+        assertConstantResult("round(vector(0.0215), 0.001)", equalTo(0.022));
+        assertConstantResult("round(vector(11.298657), 0.001)", equalTo(11.299));
+        assertConstantResult("round(vector(15.92077), 0.001)", equalTo(15.921));
+        assertConstantResult("round(vector(1.8376549999999998), 0.001)", equalTo(1.838));
+        assertConstantResult("round(vector(25.832432999999998), 0.001)", equalTo(25.832));
+    }
+
+    /**
+     * Prometheus evaluates {@code round(v, 0)} to {@code NaN}: it computes {@code 1 / to_nearest = +Inf}, so
+     * {@code floor(v * +Inf + 0.5) / +Inf} is {@code NaN} for every input. The PromQL translation builds this chain
+     * with non-finite-preserving arithmetic, so the series is kept as {@code NaN} rather than dropped by the
+     * divide-by-zero guard.
+     */
+    public void testRoundToNearestZeroIsNaN() {
+        assertConstantResult("round(vector(3.7), 0)", equalTo(Double.NaN));
+        assertConstantResult("round(vector(0), 0)", equalTo(Double.NaN)); // exercises the 0 * +Inf = NaN path
+    }
+
+    /**
+     * Prometheus {@code round(NaN)} returns {@code NaN}. The single-argument PromQL {@code round} builds a
+     * non-finite-preserving {@code Round}, so a {@code NaN} input is kept rather than folded to {@code 0} (the value the
+     * strict ES|QL {@code ROUND} produces for {@code NaN}).
+     */
+    public void testRoundOfNaNIsPreserved() {
+        assertConstantResult("round(vector(0 / 0))", equalTo(Double.NaN)); // 0/0 is NaN in PromQL
+    }
+
     public void testYearUsesStepTimestampWhenNoArgument() {
         var ctx = new PromqlFunctionRegistry.PromqlContext(
             Literal.NULL,
             Literal.NULL,
             Literal.dateTime(Source.EMPTY, Instant.parse("2023-12-31T23:30:00Z")),
-            EsqlTestUtils.TEST_CFG.withZoneId(ZoneId.of("Europe/Paris"))
+            EsqlTestUtils.TEST_CFG.withSetting(QuerySettings.TIME_ZONE, ZoneId.of("Europe/Paris"))
         );
 
         var expression = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction("year", Source.EMPTY, null, ctx, List.of());
@@ -116,6 +201,42 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertTimeExtraction(ctxAt("2024-04-01T00:00:00Z"), "days_in_month", 30.0);
     }
 
+    public void testTimestampUsesEvaluationStepForNonSelectorInput() {
+        Instant eval = Instant.parse("2024-05-10T14:30:00Z");
+        var ctx = new PromqlFunctionRegistry.PromqlContext(
+            Literal.NULL,
+            Literal.NULL,
+            Literal.dateTime(Source.EMPTY, eval),
+            EsqlTestUtils.TEST_CFG
+        );
+        // Aggregated / vector() inputs are stamped at evaluation time, matching time().
+        var expression = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
+            "timestamp",
+            Source.EMPTY,
+            Literal.fromDouble(Source.EMPTY, 1.0),
+            ctx,
+            List.of()
+        );
+        assertThat(as(expression.fold(FoldContext.small()), Double.class), equalTo(eval.toEpochMilli() / 1000.0));
+    }
+
+    public void testTimestampRewritesInstantSelectorLastOverTime() {
+        Instant eval = Instant.parse("2024-05-10T14:30:00Z");
+        Expression timestamp = Literal.dateTime(Source.EMPTY, eval);
+        Expression metric = Literal.fromDouble(Source.EMPTY, 42.0);
+        LastOverTime lastOverTime = new LastOverTime(Source.EMPTY, metric, AggregateFunction.NO_WINDOW, timestamp);
+        var ctx = new PromqlFunctionRegistry.PromqlContext(timestamp, Literal.NULL, timestamp, EsqlTestUtils.TEST_CFG);
+
+        Expression built = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction("timestamp", Source.EMPTY, lastOverTime, ctx, List.of());
+        Div div = as(built, Div.class);
+        ToDouble toDouble = as(div.left(), ToDouble.class);
+        LastOverTime sampleTs = as(toDouble.field(), LastOverTime.class);
+        assertThat(sampleTs.field(), equalTo(timestamp));
+        assertThat(sampleTs.timestamp(), equalTo(timestamp));
+        assertThat(sampleTs.hasWindow(), equalTo(false));
+        assertThat(as(sampleTs.filter(), IsNotNull.class).field(), equalTo(metric));
+    }
+
     private PromqlFunctionRegistry.PromqlContext ctxAt(String instant) {
         return new PromqlFunctionRegistry.PromqlContext(
             Literal.NULL,
@@ -138,6 +259,24 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertConstantResult("clamp(vector(10), 0, 10)", equalTo(10.0));
     }
 
+    /**
+     * Prometheus {@code clamp} returns an empty result (drops the series) when {@code max < min}. The PromQL
+     * translation wraps clamp in {@code CASE(max < min, NULL, clamp)} so the value folds to NULL and is later dropped
+     * by the null-output filter. {@code Clamp} is surrogate-only, so substitute it before folding (as the optimizer
+     * pipeline does).
+     */
+    public void testClampWithMaxBelowMinFoldsToNull() {
+        Expression built = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
+            "clamp",
+            Source.EMPTY,
+            Literal.fromDouble(Source.EMPTY, 5.0),
+            ctxAt("2024-01-01T00:00:00Z"),
+            List.of(Literal.fromDouble(Source.EMPTY, 10.0), Literal.fromDouble(Source.EMPTY, 0.0))
+        );
+        Expression evaluable = built.transformUp(Expression.class, SubstituteSurrogateExpressions::rule);
+        assertThat(evaluable.fold(FoldContext.small()), nullValue());
+    }
+
     public void testClampMin() {
         assertConstantResult("clamp_min(vector(5), 0)", equalTo(5.0));
         assertConstantResult("clamp_min(vector(-5), 0)", equalTo(0.0));
@@ -150,39 +289,102 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertConstantResult("clamp_max(vector(10), 10)", equalTo(10.0));
     }
 
+    public void testCounterRequiredFunctionWrapsPlainNumericWithToCounter() {
+        // network.eth0.tx is mapped as a gauge (k8s-mappings.json)
+        Rate rate = rateFromPromql("PROMQL index=k8s step=5m rate=(rate(network.eth0.tx[5m]))");
+
+        ToCounter toCounter = as(rate.field(), ToCounter.class);
+        FieldAttribute field = as(toCounter.field(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("network.eth0.tx"));
+        assertFalse(isCounter(field.dataType()));
+    }
+
+    public void testCounterRequiredFunctionSkipsWrapForCounterInput() {
+        // network.total_bytes_in is mapped as a counter (k8s-mappings.json)
+        Rate rate = rateFromPromql("PROMQL index=k8s step=5m rate=(rate(network.total_bytes_in[5m]))");
+
+        FieldAttribute field = as(rate.field(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("network.total_bytes_in"));
+        assertTrue(isCounter(field.dataType()));
+    }
+
+    private Rate rateFromPromql(String query) {
+        LogicalPlan analyzed = planPromql(query, false);
+        TimeSeriesAggregate tsAggregate = analyzed.collect(TimeSeriesAggregate.class).getFirst();
+        return tsAggregate.aggregates().getFirst().collect(Rate.class).getFirst();
+    }
+
+    public void testGaugeUnsupportedFunctionWrapsCounterWithToGauge() {
+        // network.total_bytes_in is mapped as a counter (k8s-mappings.json)
+        Avg avg = avgOverTimeFromPromql(
+            "PROMQL index=k8s step=10m avg_bytes=(avg by (cluster) (avg_over_time(network.total_bytes_in[10m])))"
+        );
+
+        ToGauge toGauge = as(avg.field(), ToGauge.class);
+        FieldAttribute field = as(toGauge.field(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("network.total_bytes_in"));
+        assertTrue(isCounter(field.dataType()));
+    }
+
+    public void testGaugeUnsupportedFunctionSkipsWrapForPlainNumericInput() {
+        // network.cost is mapped as a plain double (k8s-mappings.json)
+        Avg avg = avgOverTimeFromPromql("PROMQL index=k8s step=5m avg_cost=(avg_over_time(network.cost[5m]))");
+
+        FieldAttribute field = as(avg.field(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("network.cost"));
+        assertFalse(isCounter(field.dataType()));
+    }
+
+    private Avg avgOverTimeFromPromql(String query) {
+        LogicalPlan analyzed = planPromql(query, false);
+        TimeSeriesAggregate tsAggregate = analyzed.collect(TimeSeriesAggregate.class).getFirst();
+        return tsAggregate.aggregates().getFirst().collect(Avg.class).getFirst();
+    }
+
     /**
      * Project[[result, step]]
      * \_Limit
      *   \_Filter[ISNOTNULL(result)]
      *     \_Eval[[CASE(count == 1, TODOUBLE(max), NaN) AS result, TODOUBLE(result) AS result]]
      *       \_Aggregate[[step],[COUNT(result) AS $$COUNT$result$0, MAX(result) AS $$MAX$result$1, step]]
-     *         \_Aggregate[[step, pack_cluster],[SUM(...) AS result, step]]
-     *           \_Eval[[PACKDIMENSION(cluster) AS pack_cluster]]
-     *             \_TimeSeriesAggregate
-     *               \_Eval[[BUCKET(@timestamp, PT1H) AS step]]
-     *                 \_EsRelation[k8s]
+     *         \_UnpackDims[packed, [cluster]]
+     *           \_Aggregate[[step, _$packed_dims AS packed],[SUM(...) AS result, step, packed]]
+     *             \_PackDims[[cluster], _$packed_dims]
+     *               \_TimeSeriesAggregate
+     *                 \_Eval[[BUCKET(@timestamp, PT1H) AS step]]
+     *                   \_EsRelation[k8s]
      */
     public void testScalarInnerAggregate() {
         var plan = planPromql("PROMQL index=k8s step=1h result=(scalar(sum by (cluster) (network.bytes_in)))");
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
 
         var project = as(plan, Project.class);
-        var filter = project.collect(Filter.class).getFirst();
+        var isNotNullFilter = project.collect(Filter.class)
+            .stream()
+            .filter(f -> f.condition() instanceof IsNotNull)
+            .findFirst()
+            .orElseThrow();
 
-        var eval = as(filter.child(), Eval.class);
+        var eval = as(isNotNullFilter.child(), Eval.class);
         assertThat(eval.fields(), hasSize(2));
 
-        var scalarAgg = as(eval.child(), Aggregate.class);
+        var stepRangeFilter = as(eval.child(), Filter.class);
+        var scalarAgg = as(stepRangeFilter.child(), Aggregate.class);
         assertThat(scalarAgg.groupings(), hasSize(1));
         assertThat(Expressions.attribute(scalarAgg.groupings().getFirst()).name(), equalTo("step"));
 
         assertThat(scalarAgg.aggregates(), hasSize(3));
 
-        var sumAgg = as(scalarAgg.child(), Aggregate.class);
+        var unpack = as(scalarAgg.child(), UnpackDims.class);
+        assertThat(unpack.dims(), hasSize(1));
+        assertThat(Expressions.name(unpack.dims().getFirst()), equalTo("cluster"));
+
+        var sumAgg = as(unpack.child(), Aggregate.class);
         assertThat(sumAgg.groupings(), hasSize(2));
         assertThat(sumAgg.aggregates().getFirst().collect(Sum.class), not(empty()));
 
-        var tsAgg = plan.collect(TimeSeriesAggregate.class).getFirst();
+        var tsAgg = packedTimeSeriesAggregate(sumAgg.child(), 1);
+        assertThat(Expressions.names(packedDims(tsAgg.aggregates())), contains("cluster"));
         assertThat(tsAgg.aggregates().getFirst().collect(LastOverTime.class), not(empty()));
     }
 
@@ -201,13 +403,17 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
 
         var project = as(plan, Project.class);
-        var filter = project.collect(Filter.class).getFirst();
-        as(filter.condition(), IsNotNull.class);
+        var isNotNullFilter = project.collect(Filter.class)
+            .stream()
+            .filter(f -> f.condition() instanceof IsNotNull)
+            .findFirst()
+            .orElseThrow();
 
-        var eval = as(filter.child(), Eval.class);
+        var eval = as(isNotNullFilter.child(), Eval.class);
         assertThat(eval.fields(), hasSize(2));
 
-        var scalarAgg = as(eval.child(), Aggregate.class);
+        var stepRangeFilter = as(eval.child(), Filter.class);
+        var scalarAgg = as(stepRangeFilter.child(), Aggregate.class);
         assertThat(scalarAgg.groupings(), hasSize(1));
         assertThat(Expressions.attribute(scalarAgg.groupings().getFirst()).name(), equalTo("step"));
         assertThat(scalarAgg.aggregates(), hasSize(3));
@@ -216,8 +422,77 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertThat(tsAgg.aggregates().getFirst().collect(LastOverTime.class), not(empty()));
 
         var bucketEval = as(tsAgg.child(), Eval.class);
-        var bucketAlias = as(bucketEval.fields().getFirst(), Alias.class);
-        var bucket = as(bucketAlias.child(), Bucket.class);
-        assertThat(bucket.buckets().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
+        assertThat(bucketEval.fields(), hasSize(1));
+        assertThat(tsAgg.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
+    }
+
+    /**
+     * Scope guard for the PromQL-only non-finite-math invariant: expressions that preserve non-finite results
+     * ({@link NonFiniteSupport#allowNonFinite()} is {@code true}) must be produced ONLY by the PromQL translation and
+     * never by natively-parsed ES|QL. A native {@code EVAL} division and a native {@code STATS AVG} stay strict and
+     * introduce no non-finite expression, while the PromQL translation of a division produces the non-finite variant.
+     */
+    public void testNonFiniteMathIsPromqlOnly() {
+        // Native ES|QL EVAL division is strict and introduces no non-finite-preserving expression.
+        LogicalPlan nativeEval = optimizedPlan("FROM test | EVAL x = salary / emp_no");
+        assertThat(nonFiniteExpressions(nativeEval), empty());
+        List<Div> nativeDivs = new ArrayList<>();
+        nativeEval.forEachExpressionDown(Div.class, nativeDivs::add);
+        assertThat(nativeDivs, not(empty()));
+        nativeDivs.forEach(div -> assertFalse("native Div must be strict", div.allowNonFinite()));
+
+        // The PromQL translation of a division produces the non-finite-preserving variant.
+        LogicalPlan promql = planPromql("PROMQL index=k8s step=1h result=(sum by (cluster) (network.cost) / 0)");
+        List<Div> promqlDivs = new ArrayList<>();
+        promql.forEachExpressionDown(Div.class, promqlDivs::add);
+        assertThat(promqlDivs, not(empty()));
+        assertTrue("PromQL Div must allow non-finite results", promqlDivs.stream().anyMatch(NonFiniteSupport::allowNonFinite));
+
+        // Native ES|QL STATS AVG also stays strict: its surrogate division is finite-only.
+        LogicalPlan nativeStats = optimizedPlan("FROM test | STATS a = AVG(salary)");
+        assertThat(nonFiniteExpressions(nativeStats), empty());
+
+        // The PromQL translation of an average also produces a non-finite variant: the non-finite Avg (and/or the
+        // non-finite Div its surrogate builds) preserves non-finite results, whereas native STATS AVG above stays strict.
+        LogicalPlan promqlAvg = planPromql("PROMQL index=k8s step=1h result=(avg(sum by (cluster) (network.cost)))");
+        assertThat(nonFiniteExpressions(promqlAvg), not(empty()));
+
+        // Native ES|QL STATS STD_DEV / VARIANCE stay strict: they introduce no non-finite-preserving expression.
+        assertThat(nonFiniteExpressions(optimizedPlan("FROM test | STATS s = STD_DEV(salary)")), empty());
+        assertThat(nonFiniteExpressions(optimizedPlan("FROM test | STATS v = VARIANCE(salary)")), empty());
+
+        // The PromQL translation of stddev / stdvar produces the non-finite variants.
+        assertThat(
+            nonFiniteExpressions(planPromql("PROMQL index=k8s step=1h result=(stddev(sum by (cluster) (network.cost)))")),
+            not(empty())
+        );
+        assertThat(
+            nonFiniteExpressions(planPromql("PROMQL index=k8s step=1h result=(stdvar(sum by (cluster) (network.cost)))")),
+            not(empty())
+        );
+
+        // Native ES|QL STATS MAX / MIN stay strict: they introduce no non-finite-preserving expression.
+        assertThat(nonFiniteExpressions(optimizedPlan("FROM test | STATS m = MAX(salary)")), empty());
+        assertThat(nonFiniteExpressions(optimizedPlan("FROM test | STATS m = MIN(salary)")), empty());
+
+        // The PromQL translation of max / min produces the non-finite variants.
+        assertThat(
+            nonFiniteExpressions(planPromql("PROMQL index=k8s step=1h result=(max(sum by (cluster) (network.cost)))")),
+            not(empty())
+        );
+        assertThat(
+            nonFiniteExpressions(planPromql("PROMQL index=k8s step=1h result=(min(sum by (cluster) (network.cost)))")),
+            not(empty())
+        );
+    }
+
+    private static List<Expression> nonFiniteExpressions(LogicalPlan plan) {
+        List<Expression> nonFiniteExpressions = new ArrayList<>();
+        plan.forEachExpressionDown(Expression.class, e -> {
+            if (e instanceof NonFiniteSupport nonFinite && nonFinite.allowNonFinite()) {
+                nonFiniteExpressions.add(e);
+            }
+        });
+        return nonFiniteExpressions;
     }
 }

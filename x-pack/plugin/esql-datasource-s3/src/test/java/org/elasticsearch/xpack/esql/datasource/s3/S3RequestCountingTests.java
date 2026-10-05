@@ -18,10 +18,12 @@ import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.Instant;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -47,7 +49,7 @@ public class S3RequestCountingTests extends ESTestCase {
 
     private void stubHeadResponse() {
         when(mockS3.headObject(any(HeadObjectRequest.class))).thenReturn(
-            HeadObjectResponse.builder().contentLength(FILE_SIZE).lastModified(LAST_MODIFIED).build()
+            HeadObjectResponse.builder().contentLength(FILE_SIZE).lastModified(LAST_MODIFIED).eTag("\"gen-1\"").build()
         );
     }
 
@@ -115,6 +117,69 @@ public class S3RequestCountingTests extends ESTestCase {
         assertEquals(FILE_SIZE, length);
         verify(mockS3, never()).headObject(any(HeadObjectRequest.class));
         verify(mockS3, times(1)).getObject(any(GetObjectRequest.class));
+    }
+
+    /**
+     * newStream(pos, length) increments {@link StorageObjectMetrics} request counters. Close with
+     * leftover at or below {@link TransientTypingInputStream#MAX_TRAILING_DRAIN_BYTES} drains the
+     * remainder and books those received bytes.
+     */
+    public void testRangeNewStreamIncrementsMetrics() throws IOException {
+        long rangeBytes = 1024L;
+        GetObjectResponse resp = GetObjectResponse.builder()
+            .contentRange("bytes 0-" + (rangeBytes - 1) + "/" + FILE_SIZE)
+            .contentLength(rangeBytes)
+            .lastModified(LAST_MODIFIED)
+            .build();
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenReturn(
+            new ResponseInputStream<>(resp, AbortableInputStream.create(new ByteArrayInputStream(new byte[(int) rangeBytes])))
+        );
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH, FILE_SIZE);
+
+        assertEquals(0L, obj.metrics().requestCount());
+        obj.newStream(0, rangeBytes).close();
+
+        StorageObjectMetrics metrics = obj.metrics();
+        assertEquals(1L, metrics.requestCount());
+        assertEquals(rangeBytes, metrics.bytesRead());
+        assertTrue("requestNanos should be > 0", metrics.requestNanos() > 0);
+        assertEquals(0L, metrics.retryCount());
+    }
+
+    public void testRangeNewStreamDrainThenAbortCountsReceivedBytes() throws IOException {
+        long rangeBytes = 1024L;
+        int drained = 17;
+        GetObjectResponse resp = GetObjectResponse.builder()
+            .contentRange("bytes 0-" + (rangeBytes - 1) + "/" + FILE_SIZE)
+            .contentLength(rangeBytes)
+            .lastModified(LAST_MODIFIED)
+            .build();
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenReturn(
+            new ResponseInputStream<>(resp, AbortableInputStream.create(new ByteArrayInputStream(new byte[(int) rangeBytes])))
+        );
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH, FILE_SIZE);
+        InputStream stream = obj.newStream(0, rangeBytes);
+        assertEquals(drained, stream.read(new byte[drained]));
+        obj.abortStream(stream);
+
+        StorageObjectMetrics metrics = obj.metrics();
+        assertEquals(1L, metrics.requestCount());
+        assertEquals(drained, metrics.bytesRead());
+    }
+
+    /**
+     * Metadata-probe paths (length(), exists()) are intentionally NOT counted in metrics() —
+     * they're not data reads.
+     */
+    public void testMetadataProbesDoNotCountAsRequests() throws IOException {
+        stubSuffixRangeResponse();
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+
+        obj.length();
+        obj.exists();
+
+        assertEquals(0L, obj.metrics().requestCount());
+        assertEquals(0L, obj.metrics().bytesRead());
     }
 
     /**
@@ -207,7 +272,11 @@ public class S3RequestCountingTests extends ESTestCase {
      * falls back to HEAD for the full metadata.
      */
     public void testMissingContentRangeFallsBackToHead() throws IOException {
-        GetObjectResponse noContentRange = GetObjectResponse.builder().contentLength(1L).lastModified(LAST_MODIFIED).build();
+        GetObjectResponse noContentRange = GetObjectResponse.builder()
+            .contentLength(1L)
+            .lastModified(LAST_MODIFIED)
+            .eTag("\"gen-1\"")
+            .build();
         when(mockS3.getObject(any(GetObjectRequest.class))).thenReturn(
             new ResponseInputStream<>(noContentRange, AbortableInputStream.create(new ByteArrayInputStream(new byte[] { 0 })))
         );

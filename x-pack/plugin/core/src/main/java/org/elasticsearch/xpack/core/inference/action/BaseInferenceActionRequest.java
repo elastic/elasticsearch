@@ -8,23 +8,28 @@
 package org.elasticsearch.xpack.core.inference.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.core.Strings.format;
+
 /**
  * Base class for inference action requests. Tracks request routing state to prevent potential routing loops
  * and supports both streaming and non-streaming inference operations.
  */
-public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
+public abstract class BaseInferenceActionRequest extends UntypedActionRequest {
 
     private static final TransportVersion INFERENCE_CONTEXT = TransportVersion.fromName("inference_context");
     static final TransportVersion INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_REMOVED = TransportVersion.fromName(
@@ -65,7 +70,8 @@ public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
 
     public BaseInferenceActionRequest(InferenceContext context) {
         super();
-        this.context = context;
+        // The context should never be null, but this is just a safeguard in case we missed a place where null could be passed in.
+        this.context = Objects.requireNonNullElse(context, InferenceContext.EMPTY_INSTANCE);
     }
 
     public BaseInferenceActionRequest(StreamInput in) throws IOException {
@@ -116,6 +122,11 @@ public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
     public abstract TaskType getTaskType();
 
     public abstract String getInferenceEntityId();
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, format("inference[%s]", getInferenceEntityId()), parentTaskId, headers);
+    }
 
     public InferenceContext getContext() {
         return context;

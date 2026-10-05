@@ -17,6 +17,7 @@ import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
@@ -26,8 +27,14 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.lucene.search.SharedAutomaton;
+import org.elasticsearch.common.lucene.search.SharedAutomatonQuery;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexMode;
@@ -35,15 +42,17 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.KeywordScriptFieldType;
 import org.elasticsearch.index.mapper.LongScriptFieldType;
@@ -66,7 +75,10 @@ import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TestRuntimeField;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
@@ -100,7 +112,11 @@ import java.util.stream.Collectors;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -298,7 +314,7 @@ public class SearchExecutionContextTests extends ESTestCase {
 
     private static MappingLookup createMappingLookup(List<MappedFieldType> concreteFields, List<RuntimeField> runtimeFields) {
         List<FieldMapper> mappers = concreteFields.stream().<FieldMapper>map(MockFieldMapper::new).toList();
-        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
+        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc");
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
         builder.addRuntimeFields(runtimeFieldTypes);
         Mapping mapping = new Mapping(
@@ -481,7 +497,7 @@ public class SearchExecutionContextTests extends ESTestCase {
             new KeywordFieldMapper.Builder("cat", defaultIndexSettings()).ignoreAbove(100)
         ).build(MapperBuilderContext.root(true, false));
         Mapping mapping = new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());
-        MappingLookup lookup = MappingLookup.fromMapping(mapping, randomFrom(IndexMode.values()));
+        MappingLookup lookup = MappingLookup.fromMapping(mapping, randomFrom(IndexMode.availableModes()));
 
         SearchExecutionContext sec = createSearchExecutionContext("index", "", lookup, Map.of());
         assertTrue(sec.isSourceSynthetic());
@@ -566,6 +582,455 @@ public class SearchExecutionContextTests extends ESTestCase {
         assertThat(getFieldNames(context.getAllFields()), containsInAnyOrder("pig", "cat", "runtimecat", "runtime"));
     }
 
+    public void testDefaultFieldsStandardModeReturnsWildcard() {
+        SearchExecutionContext context = createSearchExecutionContext(
+            "uuid",
+            null,
+            createMappingLookup(List.of(new MockFieldMapper.FakeFieldType("field")), List.of()),
+            Map.of()
+        );
+        assertThat(context.defaultFields(), equalTo(List.of("*")));
+    }
+
+    public void testDefaultFieldsColumnarModeReturnsOnlyIndexedFields() {
+        MappedFieldType indexedField = new MockFieldMapper.FakeFieldType("indexed");
+        MappedFieldType nonIndexedField = new MappedFieldType("non_indexed", IndexType.NONE, false, Collections.emptyMap()) {
+            @Override
+            public String typeName() {
+                return "fake_non_indexed";
+            }
+
+            @Override
+            public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Query termQuery(Object value, SearchExecutionContext context) {
+                throw new UnsupportedOperationException();
+            }
+        };
+
+        List<FieldMapper> mappers = List.of(new MockFieldMapper(indexedField), new MockFieldMapper(nonIndexedField));
+        MappingLookup mappingLookup = MappingLookup.fromMappers(Mapping.EMPTY, mappers, Collections.emptyList(), IndexMode.COLUMNAR);
+
+        SearchExecutionContext context = createSearchExecutionContext(columnarSettings().build(), mappingLookup);
+
+        assertThat(context.defaultFields(), containsInAnyOrder("indexed"));
+    }
+
+    public void testDefaultFieldsColumnarModeWithExplicitDefaultField() {
+        Settings settings = columnarSettings().put(IndexSettings.DEFAULT_FIELD_SETTING.getKey(), "explicit_field").build();
+        SearchExecutionContext context = createSearchExecutionContext(settings, MappingLookup.EMPTY);
+
+        assertThat(context.defaultFields(), equalTo(List.of("explicit_field")));
+    }
+
+    /**
+     * Columnar mode replaces the wildcard in {@link SearchExecutionContext#defaultFields()} with concrete
+     * field names, which is why the wildcard has to be reported from the setting. Query builders force
+     * leniency on all-fields queries, and inferring that from the expanded list turned it off.
+     */
+    public void testColumnarModeStillReportsWildcardDefaultFieldAfterExpansion() {
+        MappingLookup mappingLookup = MappingLookup.fromMappers(
+            Mapping.EMPTY,
+            List.of(new MockFieldMapper(new MockFieldMapper.FakeFieldType("indexed"))),
+            Collections.emptyList(),
+            IndexMode.COLUMNAR
+        );
+        SearchExecutionContext context = createSearchExecutionContext(columnarSettings().build(), mappingLookup);
+
+        assertThat(context.defaultFields(), not(hasItem("*")));
+        assertTrue(context.hasAllFieldsWildcardDefaultField());
+    }
+
+    public void testExplicitDefaultFieldIsNotReportedAsWildcard() {
+        Settings settings = columnarSettings().put(IndexSettings.DEFAULT_FIELD_SETTING.getKey(), "explicit_field").build();
+        SearchExecutionContext context = createSearchExecutionContext(settings, MappingLookup.EMPTY);
+
+        assertFalse(context.hasAllFieldsWildcardDefaultField());
+    }
+
+    public void testStandardModeReportsWildcardDefaultField() {
+        SearchExecutionContext context = createSearchExecutionContext(
+            "uuid",
+            null,
+            createMappingLookup(List.of(new MockFieldMapper.FakeFieldType("field")), List.of()),
+            Map.of()
+        );
+
+        assertTrue(context.hasAllFieldsWildcardDefaultField());
+    }
+
+    private static Settings.Builder columnarSettings() {
+        return indexSettings(IndexVersion.current(), 1, 1).put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName());
+    }
+
+    // ------------------------------------------------------------------
+    // addCircuitBreakerMemory reservation-swap semantics (#147428)
+    // ------------------------------------------------------------------
+
+    public void testAddCircuitBreakerMemorySingleArgChargesAndReleases() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+
+        context.addCircuitBreakerMemory(100L, "label");
+        assertEquals(100L, breaker.used);
+        assertEquals(100L, context.getQueryConstructionMemoryUsed());
+
+        context.releaseQueryConstructionMemory();
+        assertEquals(0L, breaker.used);
+        assertEquals(0L, context.getQueryConstructionMemoryUsed());
+    }
+
+    public void testAddCircuitBreakerMemorySwapsReservationForActual() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+
+        context.addCircuitBreakerMemory(1000L, "wildcard");
+        assertEquals(1000L, breaker.used);
+        assertEquals(1000L, context.getQueryConstructionMemoryUsed());
+
+        context.addCircuitBreakerMemory(0L, 1000L, "wildcard");
+        assertEquals(0L, breaker.used);
+        assertEquals(0L, context.getQueryConstructionMemoryUsed());
+
+        context.addCircuitBreakerMemory(250L, "query");
+        assertEquals(250L, breaker.used);
+        assertEquals(250L, context.getQueryConstructionMemoryUsed());
+
+        context.releaseQueryConstructionMemory();
+        assertEquals(0L, breaker.used);
+    }
+
+    public void testAddCircuitBreakerMemorySwapWhenActualExceedsReservation() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+
+        context.addCircuitBreakerMemory(100L, "wildcard");
+        context.addCircuitBreakerMemory(500L, 100L, "wildcard");
+
+        assertEquals(500L, breaker.used);
+        assertEquals(500L, context.getQueryConstructionMemoryUsed());
+    }
+
+    public void testAddCircuitBreakerMemoryThreeArgWithZeroHeldMatchesSingleArg() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+
+        context.addCircuitBreakerMemory(200L, 0L, "label");
+        assertEquals(200L, breaker.used);
+        assertEquals(200L, context.getQueryConstructionMemoryUsed());
+        assertEquals(0, breaker.refundCalls);
+    }
+
+    public void testAddCircuitBreakerMemoryIgnoresNegativeHeld() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+
+        context.addCircuitBreakerMemory(50L, -1000L, "label");
+        assertEquals(50L, breaker.used);
+        assertEquals(50L, context.getQueryConstructionMemoryUsed());
+        assertEquals("negative held bytes must not trigger a refund", 0, breaker.refundCalls);
+    }
+
+    public void testAddCircuitBreakerMemoryWithNullBreakerIsNoOp() {
+        // The factory wires no circuit breaker by default; the swap must remain a no-op.
+        SearchExecutionContext context = createSearchExecutionContext("uuid", null);
+        assertNull("precondition: context has no circuit breaker", context.getCircuitBreaker());
+
+        context.addCircuitBreakerMemory(123L, "label");
+        context.addCircuitBreakerMemory(456L, 123L, "label");
+        assertEquals(0L, context.getQueryConstructionMemoryUsed());
+        // releaseQueryConstructionMemory must also stay a no-op.
+        context.releaseQueryConstructionMemory();
+        assertEquals(0L, context.getQueryConstructionMemoryUsed());
+    }
+
+    public void testReleaseRefundsResidualReservationAfterConstructionFailure() {
+        // Models the failure path: reservation is charged, then construction throws before the swap runs.
+        // The request-end release must refund the reservation so neither the breaker nor the request
+        // counter leak.
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+
+        context.addCircuitBreakerMemory(1000L, "reservation");
+        // No swap call happens because construction threw.
+        context.releaseQueryConstructionMemory();
+
+        assertEquals(0L, breaker.used);
+        assertEquals(0L, context.getQueryConstructionMemoryUsed());
+    }
+
+    public void testSwapLeavesReservationHeldWhenDeltaChargeTrips() {
+        // Under the delta-based swap, a trip on the net charge (bytes - held) leaves the
+        // previously charged reservation in place on both the breaker and the request counter.
+        // The request-end release is what refunds it.
+        long limit = 500L;
+        TrippingCircuitBreaker breaker = new TrippingCircuitBreaker(limit);
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+
+        context.addCircuitBreakerMemory(400L, "reservation");
+        assertEquals(400L, breaker.used);
+
+        // Actual=600, held=400 → delta=+200; 400+200>limit trips on the delta charge.
+        expectThrows(CircuitBreakingException.class, () -> context.addCircuitBreakerMemory(600L, 400L, "actual"));
+
+        // Reservation residual remains until request-end release.
+        assertEquals("reservation residual must remain on the breaker after a trip", 400L, breaker.used);
+        assertEquals(400L, context.getQueryConstructionMemoryUsed());
+
+        context.releaseQueryConstructionMemory();
+        assertEquals(0L, breaker.used);
+        assertEquals(0L, context.getQueryConstructionMemoryUsed());
+    }
+
+    public void testReleaseDoesNotDriveUsedNegativeAcrossLabels() {
+        Settings breakerSettings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "10mb")
+            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
+            .build();
+        ClusterSettings clusterSettings = new ClusterSettings(breakerSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
+            breakerSettings,
+            Collections.emptyList(),
+            clusterSettings
+        );
+        CircuitBreaker breaker = service.getBreaker(CircuitBreaker.REQUEST);
+        long baseline = breaker.getUsed();
+
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+
+        long reservation = 1_000L;
+        long actual = 500L;
+        context.addCircuitBreakerMemory(reservation, "regexp");
+        context.addCircuitBreakerMemory(0L, reservation, "regexp");
+        context.addCircuitBreakerMemory(actual, "query");
+
+        context.releaseQueryConstructionMemory();
+
+        assertEquals("breaker used must return to baseline after release", baseline, breaker.getUsed());
+        assertEquals("per-request pool must be drained on release", 0L, context.getQueryConstructionMemoryUsed());
+    }
+
+    // ------------------------------------------------------------------
+    // Shared automata across the clauses of one request
+    // ------------------------------------------------------------------
+
+    /**
+     * A {@code query_string} with no explicit field expands one pattern over every mapped field. The automaton
+     * depends on the pattern alone, so those clauses must compile and charge one automaton between them.
+     */
+    public void testSharedAutomatonIsCompiledOncePerPatternAcrossFields() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+
+        Query first = new KeywordFieldMapper.KeywordFieldType("a").wildcardQuery("*passwd*", null, false, context);
+        long afterFirstClause = context.getQueryConstructionMemoryUsed();
+        assertThat(afterFirstClause, greaterThan(0L));
+
+        SharedAutomatonQuery second = (SharedAutomatonQuery) new KeywordFieldMapper.KeywordFieldType("b").wildcardQuery(
+            "*passwd*",
+            null,
+            false,
+            context
+        );
+
+        assertSame(sharedAutomatonOf(first), sharedAutomatonOf(second));
+        assertEquals(
+            "the second clause must charge its own shell only, not a second automaton",
+            afterFirstClause + second.unsharedRamBytesUsed(),
+            context.getQueryConstructionMemoryUsed()
+        );
+        assertThat(second.unsharedRamBytesUsed(), lessThan(sharedAutomatonOf(second).ramBytesUsed()));
+        assertNotEquals("clauses still differ by field", first, second);
+    }
+
+    public void testSharedAutomatonSeparatesPatternsAndCaseSensitivity() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+        MappedFieldType field = new KeywordFieldMapper.KeywordFieldType("a");
+
+        Query sensitive = field.wildcardQuery("*passwd*", null, false, context);
+        Query otherPattern = field.wildcardQuery("*secret*", null, false, context);
+        Query insensitive = field.wildcardQuery("*passwd*", null, true, context);
+
+        assertNotSame(sharedAutomatonOf(sensitive), sharedAutomatonOf(otherPattern));
+        assertNotSame(sharedAutomatonOf(sensitive), sharedAutomatonOf(insensitive));
+    }
+
+    /**
+     * Fields whose normalizers disagree resolve the same input to different patterns, so they must compile separate
+     * automata. This is why the cache is keyed on the pattern after normalization rather than on what the user typed.
+     */
+    public void testSharedAutomatonSeparatesFieldsWithDifferentNormalizers() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+
+        MappedFieldType plain = new KeywordFieldMapper.KeywordFieldType("plain");
+        MappedFieldType lowercasing = new KeywordFieldMapper.KeywordFieldType(
+            "lowercasing",
+            new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())
+        );
+
+        Query onPlain = plain.wildcardQuery("*Passwd*", null, false, context);
+        Query onLowercasing = lowercasing.wildcardQuery("*Passwd*", null, false, context);
+        assertNotSame(
+            "a normalizer that rewrites the pattern must not reuse another field's automaton",
+            sharedAutomatonOf(onPlain),
+            sharedAutomatonOf(onLowercasing)
+        );
+
+        // Once both resolve to the same pattern they share again.
+        Query alreadyLower = plain.wildcardQuery("*passwd*", null, false, context);
+        assertSame(sharedAutomatonOf(onLowercasing), sharedAutomatonOf(alreadyLower));
+    }
+
+    public void testSharedAutomatonSpansIndexedAndDocValuesFields() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+
+        MappedFieldType indexed = new KeywordFieldMapper.KeywordFieldType("indexed");
+        MappedFieldType docValuesOnly = new KeywordFieldMapper.KeywordFieldType("dv", false, true, Map.of());
+
+        Query onIndexed = indexed.wildcardQuery("*passwd*", null, false, context);
+        Query onDocValues = docValuesOnly.wildcardQuery("*passwd*", null, false, context);
+
+        assertSame(sharedAutomatonOf(onIndexed), sharedAutomatonOf(onDocValues));
+        assertEquals(MultiTermQuery.DOC_VALUES_REWRITE, ((SharedAutomatonQuery) onDocValues).getRewriteMethod());
+    }
+
+    public void testSharedAutomatonAppliesToRegexp() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+
+        Query first = new KeywordFieldMapper.KeywordFieldType("a").regexpQuery("foo.*", 0, 0, 10, null, context);
+        Query second = new KeywordFieldMapper.KeywordFieldType("b").regexpQuery("foo.*", 0, 0, 10, null, context);
+        Query differentLimit = new KeywordFieldMapper.KeywordFieldType("a").regexpQuery("foo.*", 0, 0, 20, null, context);
+
+        assertSame(sharedAutomatonOf(first), sharedAutomatonOf(second));
+        assertNotSame(
+            "the determinize work limit changes what may be built, so it has to stay in the key",
+            sharedAutomatonOf(first),
+            sharedAutomatonOf(differentLimit)
+        );
+    }
+
+    public void testReleaseQueryConstructionMemoryDropsSharedAutomata() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+
+        Query before = new KeywordFieldMapper.KeywordFieldType("a").wildcardQuery("*passwd*", null, false, context);
+        context.releaseQueryConstructionMemory();
+        assertEquals(0L, breaker.used);
+
+        Query after = new KeywordFieldMapper.KeywordFieldType("a").wildcardQuery("*passwd*", null, false, context);
+        assertNotSame("automata must not outlive the request that charged them", sharedAutomatonOf(before), sharedAutomatonOf(after));
+        assertThat(breaker.used, greaterThan(0L));
+    }
+
+    /**
+     * Kinds are separate record types rather than one discriminator, so a key carrying the same pattern cannot
+     * collide across kinds and hand a clause the wrong automaton.
+     */
+    public void testAutomatonKeysOfDifferentKindsNeverCollide() {
+        AutomatonKey wildcard = new AutomatonKey.Wildcard("foo", false);
+        AutomatonKey regexp = new AutomatonKey.Regexp("foo", 0, 0, 10);
+
+        assertNotEquals(wildcard, regexp);
+        assertEquals(new AutomatonKey.Wildcard("foo", false), wildcard);
+        assertNotEquals(new AutomatonKey.Wildcard("foo", true), wildcard);
+        assertNotEquals(new AutomatonKey.Regexp("foo", 0, 0, 20), regexp);
+        assertEquals(ChildMemoryCircuitBreaker.CATEGORY_WILDCARD, wildcard.category());
+        assertEquals(ChildMemoryCircuitBreaker.CATEGORY_REGEXP, regexp.category());
+    }
+
+    private static SharedAutomaton sharedAutomatonOf(Query query) {
+        return asInstanceOf(SharedAutomatonQuery.class, query).getSharedAutomaton();
+    }
+
+    /**
+     * Minimal in-process breaker that tracks {@code used} and counts refund calls. Sufficient for
+     * exercising the swap accounting in {@link SearchExecutionContext#addCircuitBreakerMemory(long, long, String)};
+     * not a substitute for {@link org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService} in
+     * integration tests.
+     */
+    private static class TrackingCircuitBreaker implements CircuitBreaker {
+        long used = 0L;
+        int refundCalls = 0;
+
+        @Override
+        public void circuitBreak(String fieldName, long bytesNeeded) {}
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+            used += bytes;
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes) {
+            if (bytes < 0) {
+                refundCalls++;
+            }
+            used += bytes;
+        }
+
+        @Override
+        public long getUsed() {
+            return used;
+        }
+
+        @Override
+        public long getLimit() {
+            return Long.MAX_VALUE;
+        }
+
+        @Override
+        public double getOverhead() {
+            return 1.0;
+        }
+
+        @Override
+        public long getTrippedCount() {
+            return 0;
+        }
+
+        @Override
+        public String getName() {
+            return CircuitBreaker.REQUEST;
+        }
+
+        @Override
+        public Durability getDurability() {
+            return Durability.TRANSIENT;
+        }
+
+        @Override
+        public void setLimitAndOverhead(long limit, double overhead) {}
+    }
+
+    /**
+     * Breaker that trips {@link #addEstimateBytesAndMaybeBreak} when {@code used + bytes} would exceed
+     * {@link #limit}. Used to verify swap accounting when the delta charge trips rather than succeeds.
+     * On a trip the breaker state is left unchanged, matching production breaker semantics.
+     */
+    private static class TrippingCircuitBreaker extends TrackingCircuitBreaker {
+        private final long limit;
+
+        TrippingCircuitBreaker(long limit) {
+            this.limit = limit;
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+            if (used + bytes > limit) {
+                throw new CircuitBreakingException("test trip", bytes, limit, Durability.TRANSIENT);
+            }
+            used += bytes;
+        }
+    }
+
     private static List<String> getFieldNames(Iterable<Map.Entry<String, MappedFieldType>> fields) {
         List<String> fieldNames = new ArrayList<>();
         for (Map.Entry<String, MappedFieldType> field : fields) {
@@ -594,6 +1059,37 @@ public class SearchExecutionContextTests extends ESTestCase {
         Map<String, Object> runtimeMappings
     ) {
         return createSearchExecutionContext(indexUuid, clusterAlias, mappingLookup, runtimeMappings, null);
+    }
+
+    /** For tests that need to control index settings, e.g. the index mode or the default field. */
+    private static SearchExecutionContext createSearchExecutionContext(Settings settings, MappingLookup mappingLookup) {
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        MapperService mapperService = createMapperServiceWithNamespaceValidator(indexSettings, mappingLookup, null);
+        return new SearchExecutionContext(
+            0,
+            0,
+            indexSettings,
+            null,
+            (mappedFieldType, fdc) -> mappedFieldType.fielddataBuilder(fdc).build(null, null),
+            mapperService,
+            mappingLookup,
+            null,
+            null,
+            XContentParserConfiguration.EMPTY,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            null,
+            null,
+            () -> 0L,
+            null,
+            null,
+            () -> true,
+            null,
+            Map.of(),
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
+        );
     }
 
     private static SearchExecutionContext createSearchExecutionContext(
@@ -653,11 +1149,11 @@ public class SearchExecutionContextTests extends ESTestCase {
                 mapperRegistry.getRuntimeFieldParsers()::get,
                 indexSettings.getIndexVersionCreated(),
                 () -> TransportVersion.current(),
+                f -> true,
                 searchExecutionContextSupplier,
                 ScriptCompiler.NONE,
                 indexAnalyzers,
                 indexSettings,
-                indexSettings.getMode().buildIdFieldMapper(() -> true),
                 query -> {
                     throw new UnsupportedOperationException();
                 },
@@ -731,7 +1227,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                             }
 
                             @Override
-                            public SortedBinaryDocValues getBytesValues() {
+                            public SortableBinaryDocValues getBytesValues() {
                                 throw new UnsupportedOperationException();
                             }
 

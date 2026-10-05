@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
@@ -63,6 +64,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -70,6 +72,8 @@ import java.util.TreeSet;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
@@ -230,6 +234,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         this.stateUUID = stateUUID;
         this.clusterName = clusterName;
         this.metadata = metadata;
+        assert assertNoUnknownRecoveryPrioritiesInRoutingTable(routingTable);
         this.routingTable = routingTable;
         this.nodes = nodes;
         this.compatibilityVersions = Map.copyOf(compatibilityVersions);
@@ -243,6 +248,20 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         this.minVersions = blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
             ? new CompatibilityVersions(TransportVersion.minimumCompatible(), Map.of()) // empty map because cluster state is unknown
             : CompatibilityVersions.minimumVersions(compatibilityVersions.values());
+    }
+
+    private boolean assertNoUnknownRecoveryPrioritiesInRoutingTable(GlobalRoutingTable routingTable) {
+        List<ShardRouting> shardRoutingsWithUnknownRecoveryPriority = StreamSupport.stream(routingTable.spliterator(), false)
+            .flatMap(project -> StreamSupport.stream(project.spliterator(), false))
+            .flatMap(IndexRoutingTable::allShards)
+            // Get all shards from the IndexShardRoutingTable, including relocation targets which are included in getAllInitializingShards()
+            // but not in allShards(), deduping because getAllInitializingShards() also includes some shards that _are_ in allShards():
+            .flatMap(shard -> Stream.concat(shard.allShards(), shard.getAllInitializingShards().stream()).distinct())
+            .filter(shard -> shard.recoveryPriority() == ShardRouting.RecoveryPriority.UNKNOWN)
+            .toList();
+        assert shardRoutingsWithUnknownRecoveryPriority.isEmpty()
+            : "Cluster state contained shard routings with UNKNOWN recovery priority [" + shardRoutingsWithUnknownRecoveryPriority + "]";
+        return true;
     }
 
     private static boolean assertConsistentRoutingNodes(

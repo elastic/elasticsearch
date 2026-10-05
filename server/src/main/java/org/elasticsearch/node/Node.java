@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.allocation.RecoveryDirectCancellationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.ReferenceDocs;
@@ -43,8 +44,6 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.Environment;
@@ -59,13 +58,14 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
+import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
+import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.injection.guice.Injector;
 import org.elasticsearch.monitor.fs.FsHealthService;
-import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.monitor.metrics.AnalyzerMetrics;
 import org.elasticsearch.monitor.metrics.IndicesMetrics;
 import org.elasticsearch.monitor.metrics.NodeMetrics;
-import org.elasticsearch.monitor.metrics.SystemMetrics;
 import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.persistent.PersistentTaskLifecycleManager;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
@@ -76,6 +76,7 @@ import org.elasticsearch.plugins.PluginsLoader;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
@@ -91,7 +92,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.BufferedWriter;
 import java.io.Closeable;
-import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -106,7 +106,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import javax.net.ssl.SNIHostName;
@@ -153,8 +152,6 @@ public class Node implements Closeable {
         TimeValue.timeValueSeconds(30),
         Property.NodeScope
     );
-
-    public static final String APM_PROPFILE_REGEX = "^\\.elstcapm\\..*\\.tmp";
 
     private final Lifecycle lifecycle = new Lifecycle();
 
@@ -208,42 +205,6 @@ public class Node implements Closeable {
     }
 
     /**
-     * If the JVM was started with the Elastic APM agent and a config file argument was specified, then
-     * delete the config file. The agent only reads it once, when supplied in this fashion, and it
-     * may contain a secret token.
-     * <p>
-     * Public for testing only
-     */
-    @SuppressForbidden(reason = "Cannot guarantee that the temp config path is relative to the environment")
-    public static void deleteTemporaryApmConfig(JvmInfo jvmInfo, BiConsumer<Exception, Path> errorHandler) {
-        for (String inputArgument : jvmInfo.getInputArguments()) {
-            if (inputArgument.startsWith("-javaagent:")) {
-                final String agentArg = inputArgument.substring(11);
-                final String[] parts = agentArg.split("=", 2);
-                String APM_AGENT_CONFIG_FILE_REGEX = String.join(
-                    "\\" + File.separator,
-                    ".*modules",
-                    "apm",
-                    "elastic-apm-agent-java8-\\d+\\.\\d+\\.\\d+\\.jar"
-                );
-                if (parts[0].matches(APM_AGENT_CONFIG_FILE_REGEX)) {
-                    if (parts.length == 2 && parts[1].startsWith("c=")) {
-                        final Path apmConfig = PathUtils.get(parts[1].substring(2));
-                        if (apmConfig.getFileName().toString().matches(APM_PROPFILE_REGEX)) {
-                            try {
-                                Files.deleteIfExists(apmConfig);
-                            } catch (IOException e) {
-                                errorHandler.accept(e, apmConfig);
-                            }
-                        }
-                    }
-                    return;
-                }
-            }
-        }
-    }
-
-    /**
      * The settings that are used by this node. Contains original settings as well as additional settings provided by plugins.
      */
     public Settings settings() {
@@ -287,13 +248,16 @@ public class Node implements Closeable {
         injector.getInstance(IndicesClusterStateService.class).start();
         injector.getInstance(SnapshotsService.class).start();
         injector.getInstance(SnapshotShardsService.class).start();
+        injector.getInstance(RecoveryDirectCancellationService.class).start();
         injector.getInstance(RepositoriesService.class).start();
         injector.getInstance(SearchService.class).start();
         injector.getInstance(SearchTaskWatchdog.class).start();
         injector.getInstance(FsHealthService.class).start();
         injector.getInstance(NodeMetrics.class).start();
         injector.getInstance(IndicesMetrics.class).start();
-        injector.getInstance(SystemMetrics.class).start();
+        injector.getInstance(AnalyzerMetrics.class).start();
+        injector.getInstance(SnapshotMetrics.class).start();
+        injector.getInstance(RecoveryMetricsCollector.class).start();
         injector.getInstance(HealthPeriodicLogger.class).start();
         injector.getInstance(PersistentTaskLifecycleManager.class).start();
         nodeService.getMonitorService().start();
@@ -316,6 +280,7 @@ public class Node implements Closeable {
         assert localNodeFactory.getNode() != null;
         assert transportService.getLocalNode().equals(localNodeFactory.getNode())
             : "transportService has a different local node than the factory provided";
+        injector.getInstance(ThrottlingRecoveryService.class).start();
         injector.getInstance(PeerRecoverySourceService.class).start();
 
         // Load (and maybe upgrade) the metadata stored on disk
@@ -477,6 +442,7 @@ public class Node implements Closeable {
 
         stopIfStarted(SnapshotsService.class);
         stopIfStarted(SnapshotShardsService.class);
+        stopIfStarted(RecoveryDirectCancellationService.class);
         stopIfStarted(RepositoriesService.class);
         // stop any changes happening as a result of cluster state changes
         stopIfStarted(IndicesClusterStateService.class);
@@ -494,7 +460,9 @@ public class Node implements Closeable {
         stopIfStarted(TransportService.class);
         stopIfStarted(NodeMetrics.class);
         stopIfStarted(IndicesMetrics.class);
-        stopIfStarted(SystemMetrics.class);
+        stopIfStarted(AnalyzerMetrics.class);
+        stopIfStarted(SnapshotMetrics.class);
+        stopIfStarted(RecoveryMetricsCollector.class);
 
         pluginLifecycleComponents.forEach(Node::stopIfStarted);
         // we should stop this last since it waits for resources to get released
@@ -539,6 +507,7 @@ public class Node implements Closeable {
         toClose.add(() -> stopWatch.stop().start("snapshot_service"));
         toClose.add(injector.getInstance(SnapshotsService.class));
         toClose.add(injector.getInstance(SnapshotShardsService.class));
+        toClose.add(injector.getInstance(RecoveryDirectCancellationService.class));
         toClose.add(injector.getInstance(RepositoriesService.class));
         toClose.add(() -> stopWatch.stop().start("indices_cluster"));
         toClose.add(injector.getInstance(IndicesClusterStateService.class));
@@ -546,6 +515,7 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(IndicesService.class));
         // close filter/fielddata caches after indices
         toClose.add(injector.getInstance(IndicesStore.class));
+        toClose.add(injector.getInstance(ThrottlingRecoveryService.class));
         toClose.add(injector.getInstance(PeerRecoverySourceService.class));
         toClose.add(() -> stopWatch.stop().start("cluster"));
         toClose.add(injector.getInstance(ClusterService.class));
@@ -566,7 +536,9 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(TransportService.class));
         toClose.add(injector.getInstance(NodeMetrics.class));
         toClose.add(injector.getInstance(IndicesMetrics.class));
-        toClose.add(injector.getInstance(SystemMetrics.class));
+        toClose.add(injector.getInstance(AnalyzerMetrics.class));
+        toClose.add(injector.getInstance(SnapshotMetrics.class));
+        toClose.add(injector.getInstance(RecoveryMetricsCollector.class));
         if (ReadinessService.enabled(environment)) {
             toClose.add(injector.getInstance(ReadinessService.class));
         }

@@ -13,12 +13,13 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
 import org.elasticsearch.xpack.esql.plan.physical.AbstractPhysicalPlanSerializationTests;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTestUtils.randomReferenceAttribute;
 
 public class CompletionExecSerializationTests extends AbstractPhysicalPlanSerializationTests<CompletionExec> {
     @Override
@@ -67,7 +68,7 @@ public class CompletionExecSerializationTests extends AbstractPhysicalPlanSerial
     }
 
     private Attribute randomAttribute() {
-        return ReferenceAttributeTests.randomReferenceAttribute(randomBoolean());
+        return randomReferenceAttribute(randomBoolean());
     }
 
     private MapExpression randomTaskSettings() {

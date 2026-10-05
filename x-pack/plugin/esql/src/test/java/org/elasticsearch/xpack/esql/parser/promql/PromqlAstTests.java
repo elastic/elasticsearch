@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.PromqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.io.BufferedReader;
@@ -70,16 +71,16 @@ public class PromqlAstTests extends ESTestCase {
                 ).forEach(pattern -> {
                     var query = String.format(Locale.ROOT, pattern, q);
                     LogicalPlan esqlPlan = TEST_PARSER.parseQuery(query);
-                    assertThat(esqlPlan.collect(PromqlCommand.class), hasSize(1));
+                    assertPromqlCommandOrFoldedScalar(esqlPlan);
 
                     if (EsqlCapabilities.Cap.EXPLAIN.isEnabled()) {
                         LogicalPlan explainPlan = TEST_PARSER.parseQuery("EXPLAIN (" + query + ")");
                         Explain explain = explainPlan.collect(Explain.class).getFirst();
-                        assertThat(explain.query().collect(PromqlCommand.class), hasSize(1));
+                        assertPromqlCommandOrFoldedScalar(explain.query());
 
                         explainPlan = TEST_PARSER.parseQuery("EXPLAIN (" + query + " | LIMIT 1 )");
                         explain = explainPlan.collect(Explain.class).getFirst();
-                        assertThat(explain.query().collect(PromqlCommand.class), hasSize(1));
+                        assertPromqlCommandOrFoldedScalar(explain.query());
                     }
                 });
             } catch (ParsingException pe) {
@@ -87,6 +88,15 @@ public class PromqlAstTests extends ESTestCase {
             } catch (Exception e) {
                 fail(format(null, "Unexpected exception for line {}: [{}] \n {}", line.v2(), line.v1(), e));
             }
+        }
+    }
+
+    private static void assertPromqlCommandOrFoldedScalar(LogicalPlan plan) {
+        List<PromqlCommand> promqlCommands = plan.collect(PromqlCommand.class);
+        if (promqlCommands.isEmpty()) {
+            assertThat(plan.collect(Row.class), hasSize(1));
+        } else {
+            assertThat(promqlCommands, hasSize(1));
         }
     }
 

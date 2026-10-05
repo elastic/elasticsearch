@@ -45,7 +45,7 @@ import java.util.function.Function;
  */
 public class ServerLauncher<D extends LaunchDescriptor> {
 
-    private final Terminal terminal = Terminal.DEFAULT;
+    protected final Terminal terminal = Terminal.DEFAULT;
     private final AtomicBoolean shuttingDown = new AtomicBoolean(false);
     private volatile ServerProcess server;
 
@@ -54,8 +54,13 @@ public class ServerLauncher<D extends LaunchDescriptor> {
     }
 
     protected void run(String[] args) throws Exception {
+        Terminal.SystemStreams originalStreams = terminal.installSystemStreams();
         Process preparerProcess = startPreparer(args);
-        PreparerOutputPump outputPump = new PreparerOutputPump(preparerProcess.getErrorStream(), System.out, System.err);
+        PreparerOutputPump outputPump = new PreparerOutputPump(
+            preparerProcess.getErrorStream(),
+            originalStreams.out(),
+            originalStreams.err()
+        );
         outputPump.start();
         D descriptor = readDescriptorFromPreparer(preparerProcess);
         outputPump.drain();

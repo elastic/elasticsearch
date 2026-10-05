@@ -58,6 +58,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.TestDriverFactory;
@@ -198,7 +199,8 @@ public class OperatorTests extends MapperServiceTestCase {
                 }, 0.8)),
                 randomBoolean(),
                 0,
-                randomDoubleBetween(0.1, 10.0, true)
+                randomDoubleBetween(0.1, 10.0, true),
+                () -> 0L
             );
             List<Page> pages = new ArrayList<>();
             DriverContext driverContext = driverContext();
@@ -510,7 +512,10 @@ public class OperatorTests extends MapperServiceTestCase {
             randomIntBetween(1, 10),
             randomPageSize(),
             limit,
-            false // no scoring
+            false, // no scoring
+            () -> 0L,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+            QueryWarnings.EMIT
         );
     }
 
@@ -527,7 +532,10 @@ public class OperatorTests extends MapperServiceTestCase {
             LuceneOperator.SMALL_INDEX_BOUNDARY,
             randomIntBetween(1, 10),
             tagTypes,
-            LuceneOperator.NO_LIMIT
+            LuceneOperator.NO_LIMIT,
+            () -> 0L,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+            QueryWarnings.EMIT
         );
     }
 }

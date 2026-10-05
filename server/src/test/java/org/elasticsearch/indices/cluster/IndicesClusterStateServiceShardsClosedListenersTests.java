@@ -23,6 +23,7 @@ import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.SnapshotShardContextFactory;
 import org.elasticsearch.search.SearchService;
@@ -164,7 +165,8 @@ public class IndicesClusterStateServiceShardsClosedListenersTests extends Abstra
                 ),
                 mock(PrimaryReplicaSyncer.class),
                 RetentionLeaseSyncer.EMPTY,
-                mock(NodeClient.class)
+                mock(NodeClient.class),
+                RecoveryMetricsCollector.NOOP
             );
             this.doApplyClusterStateHook = doApplyClusterStateHook;
         }

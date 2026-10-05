@@ -55,7 +55,25 @@ public abstract class DenseVectorArithmeticOperation extends EsqlArithmeticOpera
         BinaryEvaluator doubles,
         DenseVectorBinaryEvaluator denseVectors
     ) {
-        super(source, left, right, op, ints, longs, ulongs, doubles);
+        this(source, left, right, op, ints, longs, ulongs, doubles, denseVectors, null, null, null, false);
+    }
+
+    protected DenseVectorArithmeticOperation(
+        Source source,
+        Expression left,
+        Expression right,
+        OperationSymbol op,
+        BinaryEvaluator ints,
+        BinaryEvaluator longs,
+        BinaryEvaluator ulongs,
+        BinaryEvaluator doubles,
+        DenseVectorBinaryEvaluator denseVectors,
+        IntConstantFactory intsConst,
+        LongConstantFactory longsConst,
+        DoubleConstantFactory doublesConst,
+        boolean excludeZeroRhs
+    ) {
+        super(source, left, right, op, ints, longs, ulongs, doubles, intsConst, longsConst, doublesConst, excludeZeroRhs);
         this.denseVectors = denseVectors;
     }
 
@@ -68,7 +86,23 @@ public abstract class DenseVectorArithmeticOperation extends EsqlArithmeticOpera
         BinaryEvaluator doubles,
         DenseVectorBinaryEvaluator denseVectors
     ) throws IOException {
-        super(in, op, ints, longs, ulongs, doubles);
+        this(in, op, ints, longs, ulongs, doubles, denseVectors, null, null, null, false);
+    }
+
+    DenseVectorArithmeticOperation(
+        StreamInput in,
+        OperationSymbol op,
+        BinaryEvaluator ints,
+        BinaryEvaluator longs,
+        BinaryEvaluator ulongs,
+        BinaryEvaluator doubles,
+        DenseVectorBinaryEvaluator denseVectors,
+        IntConstantFactory intsConst,
+        LongConstantFactory longsConst,
+        DoubleConstantFactory doublesConst,
+        boolean excludeZeroRhs
+    ) throws IOException {
+        super(in, op, ints, longs, ulongs, doubles, intsConst, longsConst, doublesConst, excludeZeroRhs);
         this.denseVectors = denseVectors;
     }
 

@@ -45,6 +45,10 @@ public final class EventsIndex {
         return name;
     }
 
+    public EventsIndex withOtelSuffix() {
+        return new EventsIndex(name + ".otel-*", samplingFactor, exponent);
+    }
+
     public int getExponent() {
         return exponent;
     }
@@ -53,8 +57,9 @@ public final class EventsIndex {
         return Math.pow(1.0d / samplingFactor, exponent);
     }
 
-    public EventsIndex getResampledIndex(long targetSampleSize, long currentSampleSize) {
-        return EventsIndex.getSampledIndex(targetSampleSize, currentSampleSize, this.getExponent());
+    public EventsIndex getResampledIndex(long targetSampleSize, long currentSampleSize, boolean otel) {
+        EventsIndex resampled = EventsIndex.getSampledIndex(targetSampleSize, currentSampleSize, this.getExponent());
+        return otel ? resampled.withOtelSuffix() : resampled;
     }
 
     @Override
@@ -96,5 +101,9 @@ public final class EventsIndex {
             names.add(indexName(SAMPLING_FACTOR, exp));
         }
         return Collections.unmodifiableSet(names);
+    }
+
+    public static Collection<String> otelIndexNames() {
+        return indexNames().stream().map(n -> n + ".otel-*").toList();
     }
 }

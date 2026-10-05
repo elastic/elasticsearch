@@ -231,6 +231,13 @@ v:version
 // end::to_version-result[]
 ;
 
+castFromKeywordFieldToVersion
+FROM conv_from_keyword | EVAL v = TO_VERSION(version_str) | KEEP version_str, v;
+
+version_str:keyword | v:version
+1.2.3               | 1.2.3
+;
+
 // AwaitFix: #1521 better plan queries that return only constants
 castConstantToVersion2-Ignore
 FROM apps | EVAL v = TO_VERSION("1.2.3") | KEEP v;
@@ -430,4 +437,15 @@ name:keyword | version:version
 aaaaa        | 1.2.3.4
 hhhhh        | 1.2.3.4
 iiiii        | bad
+;
+
+mvInRangeVersionSemanticOrder
+required_capability: fn_mv_in_range
+// semantic version order, not lexical: 1.9.0 < 1.10.0, so 1.9.0 is NOT in [1.10.0, 2.0.0]
+ROW v = ["1.9.0"]::version
+| EVAL in_range = mv_in_range(v, "1.10.0"::version, "2.0.0"::version)
+;
+
+v:version | in_range:boolean
+1.9.0     | false
 ;

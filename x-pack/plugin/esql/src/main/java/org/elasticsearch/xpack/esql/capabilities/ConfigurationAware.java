@@ -12,11 +12,11 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.Locale;
 import java.util.Map;
 
@@ -36,7 +36,6 @@ public interface ConfigurationAware extends ConfigurationFunction {
 
     // Configuration placeholder used by the Analyzer to replace
     Configuration CONFIGURATION_MARKER = new Configuration(
-        ZoneOffset.UTC,
         Instant.now(),
         Locale.ROOT,
         StringUtils.EMPTY,
@@ -51,8 +50,7 @@ public interface ConfigurationAware extends ConfigurationFunction {
         false,
         0,
         0,
-        null,
-        null,
+        ResolvedSettings.EMPTY,
         Map.of()
     );
 

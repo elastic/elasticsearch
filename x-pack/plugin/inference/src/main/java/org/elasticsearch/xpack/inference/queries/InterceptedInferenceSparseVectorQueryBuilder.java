@@ -21,9 +21,9 @@ import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceStringGroup;
-import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
@@ -262,7 +262,7 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
     }
 
     private QueryBuilder querySemanticTextField(String clusterAlias, SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
-        MinimalServiceSettings modelSettings = semanticTextFieldType.getModelSettings();
+        EndpointClusterState modelSettings = semanticTextFieldType.getModelSettings();
         if (modelSettings == null) {
             // No inference results have been indexed yet
             return new MatchNoneQueryBuilder();

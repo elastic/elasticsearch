@@ -177,7 +177,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 actionName,
                 TransportBroadcastByNodeActionTests.this.clusterService,
                 TransportBroadcastByNodeActionTests.this.transportService,
-                new ActionFilters(Set.of()),
+                ActionFilters.EMPTY,
                 new MyResolver(),
                 Request::new,
                 TransportBroadcastByNodeActionTests.this.transportService.getThreadPool().executor(TEST_THREAD_POOL_NAME)
@@ -280,8 +280,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     }
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initServices() throws Exception {
         transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
         transportService = transport.createTransportService(
@@ -299,8 +298,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeClusterService() throws Exception {
         clusterService.close();
     }
 

@@ -16,6 +16,7 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -25,13 +26,14 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.engine.Engine.SearcherSupplier;
+import org.elasticsearch.index.shard.ShardFieldStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequestTests;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
-import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
@@ -80,6 +82,81 @@ public class SearchEngineTests extends AbstractEngineTestCase {
 
     private static long getCurrentGeneration(SearchEngine engine) {
         return engine.getCurrentPrimaryTermAndGeneration().generation();
+    }
+
+    public void testFieldInfoCachingDirectoryWrapsSearchEngineDirectory() throws IOException {
+        assumeTrue(
+            "requires the per-Directory FieldInfo cache feature flag",
+            org.elasticsearch.index.store.FieldInfoCachingDirectory.FEATURE_FLAG.isEnabled()
+        );
+        final var indexConfig = indexConfig();
+        final var searchTaskQueue = new DeterministicTaskQueue();
+
+        try (
+            var indexEngine = newIndexEngine(indexConfig);
+            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue)
+        ) {
+            for (int i = 0; i < 3; i++) {
+                indexEngine.index(randomDoc(String.valueOf(i)));
+                indexEngine.flush();
+            }
+            notifyCommits(indexEngine, searchEngine);
+            searchTaskQueue.runAllRunnableTasks();
+
+            try (Searcher searcher = searchEngine.acquireSearcher("test")) {
+                DirectoryReader reader = searcher.getDirectoryReader();
+                boolean sawCachingDir = false;
+                for (org.apache.lucene.index.LeafReaderContext leaf : reader.leaves()) {
+                    org.apache.lucene.index.SegmentReader sr = org.elasticsearch.common.lucene.Lucene.tryUnwrapSegmentReader(leaf.reader());
+                    assertNotNull("expected SegmentReader at leaf", sr);
+                    if (org.elasticsearch.index.store.FieldInfoCachingDirectory.unwrap(sr.getSegmentInfo().info.dir) != null) {
+                        sawCachingDir = true;
+                    }
+                }
+                // Wiring check: at least one SearchEngine leaf must surface the FieldInfoCachingDirectory via SegmentInfo.dir.
+                // This is what CachingFieldInfosFormat consults to reach the per-Directory cache. Identity assertions across
+                // leaves are deliberately not made here because the system fields (_id, _seq_no, _version, etc.) carry DV
+                // generations that vary per segment in stateless; those are covered in CachingFieldInfosFormatTests against a
+                // schema with stable DV gens.
+                assertTrue("expected at least one SearchEngine leaf to see FieldInfoCachingDirectory via SegmentInfo.dir", sawCachingDir);
+            }
+        }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
+    }
+
+    public void testShardFieldStatsComputedFromCurrentReader() throws IOException {
+        final var indexConfig = indexConfig();
+        final var searchTaskQueue = new DeterministicTaskQueue();
+
+        try (
+            var indexEngine = newIndexEngine(indexConfig);
+            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue)
+        ) {
+            // On the seed commit no segments have been indexed yet, so the field count is zero.
+            ShardFieldStats initial = searchEngine.shardFieldStats();
+            assertNotNull("shardFieldStats() should never be null on SearchEngine", initial);
+            assertEquals(0, initial.numSegments());
+            assertEquals(0, initial.totalFields());
+
+            for (int i = 0; i < 3; i++) {
+                indexEngine.index(randomDoc(String.valueOf(i)));
+                indexEngine.flush();
+            }
+            notifyCommits(indexEngine, searchEngine);
+            searchTaskQueue.runAllRunnableTasks();
+
+            ShardFieldStats after = searchEngine.shardFieldStats();
+            assertNotNull("expected shard field stats after commits processed", after);
+            assertTrue("expected at least one segment after indexing/flushing", after.numSegments() >= 1);
+            assertTrue("expected non-zero total fields after indexing", after.totalFields() > 0);
+        }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testCommitNotifications() throws IOException {
@@ -779,11 +856,11 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             searchTaskQueue.runAllRunnableTasks();
 
             Engine.IndexCommitRef commit1 = searchEngine.acquireLastIndexCommit(false);
-            Map<String, BlobLocation> metadata = null;
+            Map<String, BlobFileRanges> metadata;
             try (DirectoryReader reader = DirectoryReader.open(commit1.getIndexCommit())) {
                 assertThat(reader.numDocs(), equalTo(numDocs));
                 SearchDirectory searchDirectory = SearchDirectory.unwrapDirectory(reader.directory());
-                metadata = searchDirectory.getBlobLocationForFiles(commit1.getIndexCommit().getFileNames());
+                metadata = searchDirectory.getBlobFileRangesForFiles(commit1.getIndexCommit().getFileNames());
             }
             String segmentsFileName = commit1.getIndexCommit().getSegmentsFileName();
 
@@ -821,19 +898,95 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             }; // no-op wrapper
 
             ActionListener<SearcherSupplier> listener = ActionListener.wrap(supplier -> {
-                try (Searcher searcher = supplier.acquireSearcher("test")) {
-                    assertEquals("my_wrapper", searcher.source());
-                    assertThat(searcher.getDirectoryReader().numDocs(), equalTo(numDocs));
+                try (supplier) {
+                    try (Searcher searcher = supplier.acquireSearcher("test")) {
+                        assertEquals("my_wrapper", searcher.source());
+                        assertThat(searcher.getDirectoryReader().numDocs(), equalTo(numDocs));
+                    }
                 }
             }, e -> { fail("listener should not have failed: " + e.getMessage()); });
 
             // try getting a searcher for commit1
-            searchEngine.acquireSearcherForCommit(segmentsFileName, metadata, wrapper, listener);
+            searchEngine.acquireSearcherForCommit(segmentsFileName, metadata, wrapper, null, SplitShardCountSummary.IRRELEVANT, listener);
             searchTaskQueue.runAllRunnableTasks();
             assertTrue(wrapperCalled.actionGet(TimeValue.timeValueSeconds(1L)));
             assertTrue(searcherClosed.actionGet(TimeValue.timeValueSeconds(1L)));
 
             IOUtils.close(commit1, commit2);
+        }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
+    }
+
+    /**
+     * Verifies that closing a relocated PIT {@link SearcherSupplier} before any search is issued
+     * ("unprimed") releases the store reference and shared commit reader that were acquired during
+     * {@link SearchEngine#acquireSearcherForCommit}.
+     *
+     * <p>{@link SearchEngine#acquireSearcherForCommit} registers a {@code RelocatedPITReader} in
+     * {@code SearchEngine.RelocatedPITReaderTracker} and returns a lazy-initialisation wrapper
+     * {@link SearcherSupplier}: the real underlying supplier (the {@code delegate}) is only acquired
+     * on the first {@code acquireSearcher} call, deferring the Lucene searcher open until a search
+     * actually arrives. Until then the supplier is "unprimed" — {@code delegate} is {@code null}.
+     * The supplier is handed to {@code PITRelocationService}, which registers it with
+     * {@code SearchService} once the shard reaches STARTED. When the {@code SearchService.Reaper}
+     * expires a context before any search is issued, it closes the supplier while {@code delegate}
+     * is still {@code null}. Closing an unprimed supplier must remove the {@code RelocatedPITReader}
+     * from {@code SearchEngine.RelocatedPITReaderTracker.trackedReaders} and release its
+     * {@code storeRef} and {@code PITCommitHandle}, because those resources are not owned by anyone
+     * else at that point.
+     */
+    public void testUnprimedRelocatedPITSearcherSupplierReleasesResourcesOnClose() throws IOException {
+        final var indexConfig = indexConfig();
+        final var searchTaskQueue = new DeterministicTaskQueue();
+
+        try (
+            var indexEngine = newIndexEngine(indexConfig);
+            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue)
+        ) {
+            indexEngine.index(randomDoc("1"));
+            indexEngine.flush();
+            notifyCommits(indexEngine, searchEngine);
+            searchTaskQueue.runAllRunnableTasks();
+
+            Engine.IndexCommitRef commit = searchEngine.acquireLastIndexCommit(false);
+            final String segmentsFileName = commit.getIndexCommit().getSegmentsFileName();
+            final Map<String, BlobFileRanges> metadata;
+            try (DirectoryReader reader = DirectoryReader.open(commit.getIndexCommit())) {
+                SearchDirectory searchDirectory = SearchDirectory.unwrapDirectory(reader.directory());
+                metadata = searchDirectory.getBlobFileRangesForFiles(commit.getIndexCommit().getFileNames());
+            }
+            IOUtils.close(commit);
+
+            final var store = searchEngine.config().getStore();
+            final int refCountBefore = store.refCount();
+            final int sharedReaderCountBefore = searchEngine.getSharedPITCommitReaderCount();
+
+            var supplierFuture = new PlainActionFuture<SearcherSupplier>();
+            searchEngine.acquireSearcherForCommit(
+                segmentsFileName,
+                metadata,
+                Function.identity(),
+                null,
+                SplitShardCountSummary.IRRELEVANT,
+                supplierFuture
+            );
+            searchTaskQueue.runAllRunnableTasks();
+            SearcherSupplier supplier = supplierFuture.actionGet(TimeValue.timeValueSeconds(5));
+
+            assertThat(store.refCount(), equalTo(refCountBefore + 1));
+            assertThat(searchEngine.getSharedPITCommitReaderCount(), equalTo(sharedReaderCountBefore + 1));
+
+            // Simulate closing the context before any search: close the supplier
+            // without ever calling acquireSearcher(), leaving the internal delegate null.
+            supplier.close();
+
+            // Closing an unprimed supplier must release the storeRef and PITCommitHandle
+            // that are still owned by the RelocatedPITReader in trackedReaders.
+            assertThat(store.refCount(), equalTo(refCountBefore));
+            assertThat(searchEngine.getSharedPITCommitReaderCount(), equalTo(sharedReaderCountBefore));
         }
         assertWarnings(
             "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "

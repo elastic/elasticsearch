@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matchers;
 
@@ -118,7 +119,7 @@ public class DayNameTests extends AbstractConfigurationFunctionTestCase {
         long randomMillis = randomMillisUpToYear9999();
         Configuration cfg = configurationForTimezoneAndLocale(randomZone(), randomLocale(random()));
         String expected = Instant.ofEpochMilli(randomMillis)
-            .atZone(cfg.zoneId())
+            .atZone(QuerySettings.TIME_ZONE.get(cfg.resolvedSettings()))
             .getDayOfWeek()
             .getDisplayName(TextStyle.FULL, cfg.locale());
 

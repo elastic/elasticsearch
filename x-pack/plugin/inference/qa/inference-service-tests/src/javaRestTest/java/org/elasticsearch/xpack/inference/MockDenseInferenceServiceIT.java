@@ -10,16 +10,36 @@ package org.elasticsearch.xpack.inference;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension.DEFAULT_EMBEDDING_DIMENSIONS;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+
 public class MockDenseInferenceServiceIT extends InferenceBaseRestTest {
 
+    private String inferenceEntityId;
+
+    @Before
+    public void init() {
+        inferenceEntityId = randomIdentifier();
+    }
+
+    @After
+    public void shutdown() throws IOException {
+        deleteModel(inferenceEntityId);
+    }
+
     public void testMockService() throws IOException {
-        String inferenceEntityId = "test-mock";
         var putModel = putModel(inferenceEntityId, mockTextEmbeddingServiceModelConfig(), TaskType.TEXT_EMBEDDING);
         var model = getModels(inferenceEntityId, TaskType.TEXT_EMBEDDING).get(0);
 
@@ -39,7 +59,6 @@ public class MockDenseInferenceServiceIT extends InferenceBaseRestTest {
     }
 
     public void testMockServiceWithMultipleInputs() throws IOException {
-        String inferenceEntityId = "test-mock-with-multi-inputs";
         putModel(inferenceEntityId, mockTextEmbeddingServiceModelConfig(), TaskType.TEXT_EMBEDDING);
 
         // The response is randomly generated, the input can be anything
@@ -53,7 +72,6 @@ public class MockDenseInferenceServiceIT extends InferenceBaseRestTest {
     }
 
     public void testMockService_withEmbeddingTask() throws IOException {
-        String inferenceEntityId = "test-mock-embedding";
         var putModel = putModel(inferenceEntityId, mockEmbeddingServiceModelConfig(), TaskType.EMBEDDING);
         var model = getModels(inferenceEntityId, TaskType.EMBEDDING).getFirst();
 
@@ -63,7 +81,7 @@ public class MockDenseInferenceServiceIT extends InferenceBaseRestTest {
             assertEquals("text_embedding_test_service", modelMap.get("service"));
         }
 
-        var input = List.of(new InferenceString(DataType.TEXT, randomAlphaOfLength(10)));
+        var input = List.of(InferenceString.ofText(randomAlphaOfLength(10)));
         var inference = embedding(inferenceEntityId, input);
         assertNonEmptyInferenceResults(inference, 1, TaskType.EMBEDDING);
         // Same input should return the same result
@@ -71,15 +89,11 @@ public class MockDenseInferenceServiceIT extends InferenceBaseRestTest {
         // Different input values should not
         assertNotEquals(
             inference,
-            embedding(
-                inferenceEntityId,
-                randomValueOtherThan(input, () -> List.of(new InferenceString(DataType.TEXT, randomAlphaOfLength(10))))
-            )
+            embedding(inferenceEntityId, randomValueOtherThan(input, () -> List.of(InferenceString.ofText(randomAlphaOfLength(10)))))
         );
     }
 
     public void testMockServiceWithMultipleInputs_withEmbeddingTask() throws IOException {
-        String inferenceEntityId = "test-mock-with-multi-inputs-embedding";
         putModel(inferenceEntityId, mockEmbeddingServiceModelConfig(), TaskType.EMBEDDING);
 
         // The response is randomly generated, the input can be anything
@@ -90,8 +104,8 @@ public class MockDenseInferenceServiceIT extends InferenceBaseRestTest {
                     DataType.IMAGE,
                     "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(randomByteArrayOfLength(5))
                 ),
-                new InferenceString(DataType.TEXT, randomAlphaOfLength(10)),
-                new InferenceString(DataType.TEXT, randomAlphaOfLength(15))
+                InferenceString.ofText(randomAlphaOfLength(10)),
+                InferenceString.ofText(randomAlphaOfLength(15))
             )
         );
 
@@ -100,7 +114,6 @@ public class MockDenseInferenceServiceIT extends InferenceBaseRestTest {
 
     @SuppressWarnings("unchecked")
     public void testMockService_DoesNotReturnSecretsInGetResponse() throws IOException {
-        String inferenceEntityId = "test-mock";
         var putModel = putModel(inferenceEntityId, mockTextEmbeddingServiceModelConfig(), TaskType.TEXT_EMBEDDING);
         var model = getModels(inferenceEntityId, TaskType.TEXT_EMBEDDING).get(0);
 
@@ -111,5 +124,45 @@ public class MockDenseInferenceServiceIT extends InferenceBaseRestTest {
         var putServiceSettings = (Map<String, Object>) putModel.get("service_settings");
         assertNull(putServiceSettings.get("api_key"));
         assertNotNull(putServiceSettings.get("model"));
+    }
+
+    public void testMockService_DimensionsNotSpecified_TextEmbedding() throws IOException {
+        var putModel = putModel(inferenceEntityId, mockTextEmbeddingServiceModelConfig_NoDimensions(), TaskType.TEXT_EMBEDDING);
+        var model = getModels(inferenceEntityId, TaskType.TEXT_EMBEDDING).get(0);
+
+        for (var modelMap : List.of(putModel, model)) {
+            assertEquals(inferenceEntityId, modelMap.get("inference_id"));
+            assertEquals(TaskType.TEXT_EMBEDDING, TaskType.fromString((String) modelMap.get("task_type")));
+            assertEquals("text_embedding_test_service", modelMap.get("service"));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> serviceSettings = (Map<String, Object>) modelMap.get("service_settings");
+            assertThat(serviceSettings.get("dimensions"), is(DEFAULT_EMBEDDING_DIMENSIONS));
+        }
+
+        var input = List.of(randomAlphaOfLength(10));
+        var resultMap = infer(inferenceEntityId, input);
+        @SuppressWarnings("unchecked")
+        var embeddings = (List<Map<String, List<Float>>>) resultMap.get(DenseEmbeddingFloatResults.TEXT_EMBEDDING);
+        assertThat(embeddings.getFirst().get(EmbeddingResults.EMBEDDING), hasSize(DEFAULT_EMBEDDING_DIMENSIONS));
+    }
+
+    public void testMockService_DimensionsNotSpecified_Embedding() throws IOException {
+        var putModel = putModel(inferenceEntityId, mockEmbeddingServiceModelConfig_NoDimensions(), TaskType.EMBEDDING);
+        var model = getModels(inferenceEntityId, TaskType.EMBEDDING).get(0);
+
+        for (var modelMap : List.of(putModel, model)) {
+            assertEquals(inferenceEntityId, modelMap.get("inference_id"));
+            assertEquals(TaskType.EMBEDDING, TaskType.fromString((String) modelMap.get("task_type")));
+            assertEquals("text_embedding_test_service", modelMap.get("service"));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> serviceSettings = (Map<String, Object>) modelMap.get("service_settings");
+            assertThat(serviceSettings.get("dimensions"), is(DEFAULT_EMBEDDING_DIMENSIONS));
+        }
+
+        var input = List.of(InferenceString.ofText(randomAlphaOfLength(10)));
+        var resultMap = embedding(inferenceEntityId, input);
+        @SuppressWarnings("unchecked")
+        var embeddings = (List<Map<String, List<Float>>>) resultMap.get(GenericDenseEmbeddingFloatResults.EMBEDDINGS);
+        assertThat(embeddings.getFirst().get(EmbeddingResults.EMBEDDING), hasSize(DEFAULT_EMBEDDING_DIMENSIONS));
     }
 }

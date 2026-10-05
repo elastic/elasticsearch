@@ -8,8 +8,11 @@
 package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.EnumSet;
 
 import static org.hamcrest.Matchers.is;
 
@@ -49,15 +52,26 @@ public class CohereEmbeddingTypeTests extends ESTestCase {
         );
     }
 
-    public void testFromElementType_CovertsFloatToCohereEmbeddingTypeFloat() {
-        assertThat(CohereEmbeddingType.fromElementType(DenseVectorFieldMapper.ElementType.FLOAT), is(CohereEmbeddingType.FLOAT));
+    public void testFromCohereOrElementType_GivenCohereEmbeddingType() {
+        for (var cohereEmbeddingType : CohereEmbeddingType.values()) {
+            var embeddingType = CohereEmbeddingType.fromCohereOrElementType(cohereEmbeddingType.toString());
+            assertThat(embeddingType, is(cohereEmbeddingType));
+        }
     }
 
-    public void testFromElementType_CovertsByteToCohereEmbeddingTypeByte() {
-        assertThat(CohereEmbeddingType.fromElementType(DenseVectorFieldMapper.ElementType.BYTE), is(CohereEmbeddingType.BYTE));
+    public void testFromCohereOrElementType_GivenSupportedElementType() {
+        for (var elementType : CohereEmbeddingType.SUPPORTED_ELEMENT_TYPES) {
+            var embeddingType = CohereEmbeddingType.fromCohereOrElementType(elementType.toString());
+            assertThat(embeddingType.toElementType(), is(elementType));
+        }
     }
 
-    public void testFromElementType_ConvertsBitToCohereEmbeddingTypeBinary() {
-        assertThat(CohereEmbeddingType.fromElementType(DenseVectorFieldMapper.ElementType.BIT), is(CohereEmbeddingType.BIT));
+    public void testFromCohereOrElementType_GivenUnsupportedElementType() {
+        for (var elementType : Sets.difference(
+            EnumSet.allOf(DenseVectorFieldMapper.ElementType.class),
+            CohereEmbeddingType.SUPPORTED_ELEMENT_TYPES
+        )) {
+            expectThrows(IllegalArgumentException.class, () -> CohereEmbeddingType.fromCohereOrElementType(elementType.toString()));
+        }
     }
 }

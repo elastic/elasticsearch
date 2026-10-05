@@ -161,3 +161,10 @@ This setting does not affect the persistent tasks that are already being execute
 `cluster.persistent_tasks.allocation.recheck_interval`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The master node will automatically check whether persistent tasks need to be assigned when the cluster state changes significantly. However, there may be other factors, such as memory usage, that affect whether persistent tasks can be assigned to nodes but do not cause the cluster state to change. This setting controls how often assignment checks are performed to react to these factors. The default is 30 seconds. The minimum permitted value is 10 seconds.
 
+### Time series data stream settings [time-series-data-stream]
+
+`data_streams.past_tsdb_index_interval` {applies_to}`serverless: ga` {applies_to}`stack: ga 9.5`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Controls the covered interval of each past TSDB backing index created when back-filling past timestamps into a time series data stream. Defaults to `1d`. The minimum value is `1h` and the maximum value is `7d`.
+
+`data_stream.past_tsdb_index_creation_enabled` {applies_to}`serverless: ga` {applies_to}`stack: ga 9.5`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Enables past time series index creation, effectively extending the write time window of a time series data stream in the past. Defaults to `false`.

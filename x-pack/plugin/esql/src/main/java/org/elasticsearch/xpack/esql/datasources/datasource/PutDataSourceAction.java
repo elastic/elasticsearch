@@ -19,6 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.esql.DataSourceRequestInfo;
 import org.elasticsearch.xpack.core.esql.EsqlDataSourceActionNames;
 
 import java.io.IOException;
@@ -27,6 +28,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xpack.esql.datasources.DataSourceLimits.MAX_DESCRIPTION_LENGTH;
 
 /** Create or replace an ES|QL data source. */
 public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
@@ -38,7 +40,7 @@ public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> {
+    public static class Request extends AcknowledgedRequest<Request> implements DataSourceRequestInfo {
         private static final ParseField TYPE = new ParseField("type");
         private static final ParseField DESCRIPTION = new ParseField("description");
         private static final ParseField SETTINGS = new ParseField("settings");
@@ -135,11 +137,30 @@ public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
                     validationException
                 );
             }
+            if (description != null && description.length() > MAX_DESCRIPTION_LENGTH) {
+                validationException = addValidationError(
+                    "data source description is too large: "
+                        + description.length()
+                        + " characters, the maximum allowed is "
+                        + MAX_DESCRIPTION_LENGTH,
+                    validationException
+                );
+            }
             return validationException;
         }
 
         public String name() {
             return name;
+        }
+
+        @Override
+        public String[] dataSourceNames() {
+            return new String[] { name };
+        }
+
+        @Override
+        public String dataSourceClusterActionName() {
+            return NAME;
         }
 
         public String type() {

@@ -91,10 +91,8 @@ public class ClusterStateHealthTests extends ESTestCase {
         threadPool = new TestThreadPool("ClusterStateHealthTests");
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initClusterAndTransport() throws Exception {
         clusterService = createClusterService(threadPool);
         CapturingTransport transport = new CapturingTransport();
         transportService = transport.createTransportService(
@@ -111,8 +109,7 @@ public class ClusterStateHealthTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeClusterAndTransport() throws Exception {
         clusterService.close();
         transportService.close();
     }
@@ -163,7 +160,7 @@ public class ClusterStateHealthTests extends ESTestCase {
             transportService,
             clusterService,
             threadPool,
-            new ActionFilters(new HashSet<>()),
+            ActionFilters.EMPTY,
             indexNameExpressionResolver,
             new AllocationService(null, new TestGatewayAllocator(), null, null, null, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY),
             TestProjectResolvers.singleProject(projectId)
@@ -486,7 +483,10 @@ public class ClusterStateHealthTests extends ESTestCase {
                     ShardRouting shardRouting = shardRoutingTable.shard(copy);
                     if (shardRouting.primary() && (shardRouting.started() == false || alreadyFailedPrimary == false)) {
                         newIndexRoutingTable.addShard(
-                            shardRouting.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "unlucky shard"))
+                            shardRouting.moveToUnassigned(
+                                new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "unlucky shard"),
+                                ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+                            )
                         );
                         alreadyFailedPrimary = true;
                     } else {

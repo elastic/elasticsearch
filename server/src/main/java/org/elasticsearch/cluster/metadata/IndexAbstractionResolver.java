@@ -86,15 +86,29 @@ public class IndexAbstractionResolver {
         final String originProjectAlias = targetProjects.originProjectAlias();
         final Set<String> linkedProjectAliases = targetProjects.allProjectAliases();
         final ResolvedIndexExpressions.Builder resolvedExpressionsBuilder = ResolvedIndexExpressions.builder();
+
+        boolean originProjectExcluded = false;
+
         for (String originalIndexExpression : indices) {
             final CrossProjectIndexExpressionsRewriter.IndexRewriteResult indexRewriteResult = CrossProjectIndexExpressionsRewriter
                 .rewriteIndexExpression(originalIndexExpression, originProjectAlias, linkedProjectAliases, projectRouting);
 
-            final String localIndexExpression = indexRewriteResult.localExpression();
+            assert indexRewriteResult.includedProjects().isEmpty() || indexRewriteResult.excludedProjects().isEmpty()
+                : "a single expression cannot both include and exclude projects";
+            if (originProjectAlias != null) {
+                if (indexRewriteResult.excludedProjects().contains(originProjectAlias)) {
+                    resolvedExpressionsBuilder.setAllLocalExpressionsToNone();
+                    originProjectExcluded = true;
+                } else if (originProjectExcluded && indexRewriteResult.includedProjects().contains(originProjectAlias)) {
+                    originProjectExcluded = false;
+                }
+            }
+
+            final String localIndexExpression = originProjectExcluded ? null : indexRewriteResult.localExpression();
             if (localIndexExpression == null) {
-                // (there can be an exclusion without any local index expressions)
-                // nothing to resolve locally so skip resolve abstraction call
-                resolvedExpressionsBuilder.addRemoteExpressions(originalIndexExpression, indexRewriteResult.remoteExpressions());
+                if (indexRewriteResult.remoteExpressions().isEmpty() == false) {
+                    resolvedExpressionsBuilder.addRemoteExpressions(originalIndexExpression, indexRewriteResult.remoteExpressions());
+                }
                 continue;
             }
 
@@ -181,8 +195,8 @@ public class IndexAbstractionResolver {
                 }
             } else {
                 if (minus) {
-                    resolvedExpressionsBuilder.excludeFromLocalExpressions(resolvedIndices);
-                    // Exclusion from local indices is done by excludeFromLocalExpressions.
+                    resolvedExpressionsBuilder.excludeFromExpressions(resolvedIndices, remoteExpressions.isEmpty());
+                    // Exclusion from local indices is done by excludeFromExpressions.
                     // No need to add itself unless it has remote expressions.
                     maybeAddWithRemoteExpressions(resolvedExpressionsBuilder, originalIndexExpression, remoteExpressions);
                 } else {
@@ -193,7 +207,7 @@ public class IndexAbstractionResolver {
             final HashSet<String> resolvedIndices = new HashSet<>();
             resolveSelectorsAndCollect(indexAbstraction, selectorString, indicesOptions, resolvedIndices, projectMetadata);
             if (minus) {
-                resolvedExpressionsBuilder.excludeFromLocalExpressions(resolvedIndices);
+                resolvedExpressionsBuilder.excludeFromExpressions(resolvedIndices, remoteExpressions.isEmpty());
                 maybeAddWithRemoteExpressions(resolvedExpressionsBuilder, originalIndexExpression, remoteExpressions);
             } else {
                 final boolean authorized = isAuthorized.test(indexAbstraction, selector);

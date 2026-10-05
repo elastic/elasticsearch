@@ -38,7 +38,7 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
 
   MaxDoubleGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = new DoubleArrayState(driverContext.bigArrays(), MaxDoubleAggregator.init());
+    this.state = new DoubleArrayState(driverContext.bigArrays(), driverContext.breaker(), MaxDoubleAggregator.init());
     this.driverContext = driverContext;
   }
 
@@ -127,7 +127,7 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
         int vEnd = vStart + vBlock.getValueCount(valuesPosition);
         for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
           double vValue = vBlock.getDouble(vOffset);
-          state.set(groupId, MaxDoubleAggregator.combine(state.getOrDefault(groupId), vValue));
+          MaxDoubleAggregator.combine(state, groupId, vValue);
         }
       }
     }
@@ -144,14 +144,13 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         double vValue = vVector.getDouble(valuesPosition);
-        state.set(groupId, MaxDoubleAggregator.combine(state.getOrDefault(groupId), vValue));
+        MaxDoubleAggregator.combine(state, groupId, vValue);
       }
     }
   }
 
   @Override
   public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block maxUncast = page.getBlock(channels.get(0));
     if (maxUncast.areAllValuesNull()) {
@@ -192,7 +191,7 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
         if (seen.getBoolean(valuesPosition)) {
-          state.set(groupId, MaxDoubleAggregator.combine(state.getOrDefault(groupId), max.getDouble(valuesPosition)));
+          MaxDoubleAggregator.combine(state, groupId, max.getDouble(valuesPosition));
         }
       }
     }
@@ -215,7 +214,7 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
         int vEnd = vStart + vBlock.getValueCount(valuesPosition);
         for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
           double vValue = vBlock.getDouble(vOffset);
-          state.set(groupId, MaxDoubleAggregator.combine(state.getOrDefault(groupId), vValue));
+          MaxDoubleAggregator.combine(state, groupId, vValue);
         }
       }
     }
@@ -232,14 +231,13 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         double vValue = vVector.getDouble(valuesPosition);
-        state.set(groupId, MaxDoubleAggregator.combine(state.getOrDefault(groupId), vValue));
+        MaxDoubleAggregator.combine(state, groupId, vValue);
       }
     }
   }
 
   @Override
   public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block maxUncast = page.getBlock(channels.get(0));
     if (maxUncast.areAllValuesNull()) {
@@ -280,7 +278,7 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
         if (seen.getBoolean(valuesPosition)) {
-          state.set(groupId, MaxDoubleAggregator.combine(state.getOrDefault(groupId), max.getDouble(valuesPosition)));
+          MaxDoubleAggregator.combine(state, groupId, max.getDouble(valuesPosition));
         }
       }
     }
@@ -297,7 +295,7 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
       int vEnd = vStart + vBlock.getValueCount(valuesPosition);
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         double vValue = vBlock.getDouble(vOffset);
-        state.set(groupId, MaxDoubleAggregator.combine(state.getOrDefault(groupId), vValue));
+        MaxDoubleAggregator.combine(state, groupId, vValue);
       }
     }
   }
@@ -307,13 +305,12 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
       int valuesPosition = groupPosition + positionOffset;
       int groupId = groups.getInt(groupPosition);
       double vValue = vVector.getDouble(valuesPosition);
-      state.set(groupId, MaxDoubleAggregator.combine(state.getOrDefault(groupId), vValue));
+      MaxDoubleAggregator.combine(state, groupId, vValue);
     }
   }
 
   @Override
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block maxUncast = page.getBlock(channels.get(0));
     if (maxUncast.areAllValuesNull()) {
@@ -348,9 +345,19 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       if (seen.getBoolean(valuesPosition)) {
-        state.set(groupId, MaxDoubleAggregator.combine(state.getOrDefault(groupId), max.getDouble(valuesPosition)));
+        MaxDoubleAggregator.combine(state, groupId, max.getDouble(valuesPosition));
       }
     }
+  }
+
+  @Override
+  public GroupingAggregatorFunction.AddInput prepareProcessIntermediateInputPage(
+      SeenGroupIds seenGroupIds, Page page) {
+    BooleanVector seen = ((BooleanBlock) page.getBlock(channels.get(1))).asVector();
+    if (seen == null || seen.isConstant() == false || seen.getBoolean(0) == false) {
+      state.enableGroupIdTracking(seenGroupIds);
+    }
+    return new GroupingAggregatorFunction.IntermediateAddInput(this, seenGroupIds, page);
   }
 
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, DoubleBlock vBlock) {

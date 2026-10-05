@@ -59,39 +59,10 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
                 .put("indices.memory.index_buffer_size", "10mb")
                 .build();
             IndexSettings indexSettings = new IndexSettings(config.getIndexSettings().getIndexMetadata(), settings);
-            return new EngineConfig(
-                config.getShardId(),
-                config.getThreadPool(),
-                config.getThreadPoolMergeExecutorService(),
-                indexSettings,
-                config.getWarmer(),
-                config.getStore(),
-                config.getMergePolicy(),
-                config.getAnalyzer(),
-                config.getSimilarity(),
-                new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, null),
-                config.getEventListener(),
-                config.getQueryCache(),
-                config.getQueryCachingPolicy(),
-                config.getTranslogConfig(),
-                config.getFlushMergesAfter(),
-                config.getExternalRefreshListener(),
-                config.getInternalRefreshListener(),
-                config.getIndexSort(),
-                config.getCircuitBreakerService(),
-                config.getGlobalCheckpointSupplier(),
-                config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(),
-                config.getSnapshotCommitSupplier(),
-                config.getLeafSorter(),
-                config.getRelativeTimeInNanosSupplier(),
-                config.getIndexCommitListener(),
-                config.isPromotableToPrimary(),
-                config.getMapperService(),
-                config.getEngineResetLock(),
-                config.getMergeMetrics(),
-                config.getIndexDeletionPolicyWrapper()
-            );
+            return EngineConfig.builder(config)
+                .indexSettings(indexSettings)
+                .codecProvider(new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, null))
+                .build();
         }
 
         @Override

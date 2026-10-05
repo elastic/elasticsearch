@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.compute.operator.topn.GroupedTopNOperator.OutputOrdering;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -55,6 +56,12 @@ public class TopNByExecSerializationTests extends AbstractPhysicalPlanSerializat
             );
         }
         return new TopNByExec(instance.source(), child, order, limit, groupings, estimatedRowSize);
+    }
+
+    public void testDeserializeDefaultsOutputOrderingToSorted() throws IOException {
+        TopNByExec instance = randomTopNByExec(0).withNonSortedOutput();
+        TopNByExec deserialized = copyInstance(instance);
+        assertEquals(OutputOrdering.SORTED, deserialized.outputOrdering());
     }
 
     @Override

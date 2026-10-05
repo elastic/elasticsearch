@@ -158,7 +158,7 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
         Iterator<Map<String, Object>> destIterator = hits.iterator();
 
         while (sourceIterator.hasNext() && destIterator.hasNext()) {
-            var bucket = sourceIterator.next();
+            var bucket = nextNonEmptyAggregationBucket(sourceIterator, iteration);
             var searchHit = destIterator.next();
             var source = (Map<String, Object>) searchHit.get("_source");
 
@@ -168,12 +168,6 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
                     .format(Instant.ofEpochMilli((Long) XContentMapValues.extractValue("second", source)));
             } else {
                 transformBucketKey = (String) XContentMapValues.extractValue("second", source);
-            }
-
-            // aggs return buckets with 0 doc_count while composite aggs skip over them
-            while ((Integer) bucket.get("doc_count") == 0) {
-                assertTrue(sourceIterator.hasNext());
-                bucket = sourceIterator.next();
             }
 
             // test correctness, the results from the aggregation and the results from the transform should be the same
@@ -206,8 +200,7 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
             );
 
         }
-        assertFalse(sourceIterator.hasNext());
-        assertFalse(destIterator.hasNext());
+        assertAggregationAndDestinationIteratorsExhausted(sourceIterator, destIterator, iteration);
     }
 
     @SuppressWarnings("unchecked")
@@ -282,8 +275,7 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
                 is(lessThanOrEqualTo(2))
             );
         }
-        assertFalse(sourceIterator.hasNext());
-        assertFalse(destIterator.hasNext());
+        assertAggregationAndDestinationIteratorsExhausted(sourceIterator, destIterator, iteration);
     }
 
     private static Map<String, Object> flattenedResult(String second, String event, int count) {

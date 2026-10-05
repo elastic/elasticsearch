@@ -11,7 +11,7 @@ package org.elasticsearch.xpack.esql.datasource.csv;
  * Marker thrown by the CSV tokenisers (Jackson and the bracket-aware path) when a single
  * row cannot be parsed. The single point of truth for what to do with it lives in
  * {@code CsvFormatReader.CsvBatchIterator.onRowError}, which decides between mapping it to
- * a client {@code ParsingException} (FAIL_FAST) and recording it against the error budget
+ * a client {@code ExternalClientException} (FAIL_FAST) and recording it against the error budget
  * (SKIP_ROW / NULL_FIELD).
  *
  * <p>Kept package-private and unchecked on purpose: it is purely a control-flow signal
@@ -26,5 +26,18 @@ final class MalformedRowException extends RuntimeException {
 
     MalformedRowException(String message, Throwable cause) {
         super(message, cause);
+    }
+
+    /**
+     * Shared message template for the structural fault factories below: keeps the two splitter
+     * copies aligned and routes every long-row excerpt through {@link CsvErrorMessages#summarizeAround}
+     * so the printed window is anchored on {@code offset} (the parser's known fault index).
+     */
+    static MalformedRowException unclosedQuotedField(String line, int offset) {
+        return new MalformedRowException("Unclosed quoted field in line [" + CsvErrorMessages.summarizeAround(line, offset) + "]");
+    }
+
+    static MalformedRowException unclosedBracketCell(String line, int offset) {
+        return new MalformedRowException("Unclosed bracket cell in line [" + CsvErrorMessages.summarizeAround(line, offset) + "]");
     }
 }

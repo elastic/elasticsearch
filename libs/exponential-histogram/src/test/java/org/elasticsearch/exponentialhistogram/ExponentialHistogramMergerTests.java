@@ -27,7 +27,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
@@ -38,8 +40,35 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCase {
+
+    public void testZeroBucketDoesNotOverlapBucketsAfterMerge() {
+        try (
+            ReleasableExponentialHistogram input = ExponentialHistogramTestUtils.randomHistogram(ExponentialHistogramCircuitBreaker.noop());
+            ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(randomIntBetween(4, 100), breaker())
+        ) {
+            merger.add(input);
+            ExponentialHistogram result = merger.get();
+
+            for (ExponentialHistogram.Buckets buckets : List.of(result.negativeBuckets(), result.positiveBuckets())) {
+                BucketIterator closestToZero = buckets.iterator();
+                if (closestToZero.hasNext()) {
+                    assertThat(
+                        "zero bucket overlaps with the closest populated bucket",
+                        ExponentialScaleUtils.compareExponentiallyScaledValues(
+                            result.zeroBucket().index(),
+                            result.zeroBucket().scale(),
+                            closestToZero.peekIndex(),
+                            closestToZero.scale()
+                        ),
+                        lessThanOrEqualTo(0)
+                    );
+                }
+            }
+        }
+    }
 
     public void testZeroThresholdCollapsesOverlappingBuckets() {
         ExponentialHistogram first = createAutoReleasedHistogram(b -> b.zeroBucket(ZeroBucket.create(2.0001, 10)));
@@ -203,7 +232,100 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
         assertThat(esBreaker.getUsed(), equalTo(0L));
     }
 
-    public void testDifference() {
+    /**
+     * Subtracts random histograms, which means they are typically not cumulative.
+     */
+    public void testDifferenceForRandomHistos() {
+        ExponentialHistogram a = ExponentialHistogramTestUtils.randomHistogram();
+        ExponentialHistogram b = ExponentialHistogramTestUtils.randomHistogram();
+        // Make sure that a.count() > b.count
+        if (a.valueCount() <= b.valueCount()) {
+            ExponentialHistogram temp = a;
+            a = b;
+            b = temp;
+        }
+
+        CircuitBreaker esBreaker = newLimitedBreaker(ByteSizeValue.ofMb(100));
+        try (
+            ExponentialHistogramMerger.Factory factory = ExponentialHistogramMerger.createFactory(1000, breaker(esBreaker));
+            ExponentialHistogramMerger diffMerger = factory.createMerger();
+        ) {
+            boolean isCumulative = diffMerger.setToDifference(a, b);
+
+            ExponentialHistogram diff = diffMerger.get();
+            assertThat(diff.valueCount(), equalTo(a.valueCount() - b.valueCount()));
+
+            if (a.valueCount() == b.valueCount()) {
+                assertThat(diff, equalTo(ExponentialHistogram.empty()));
+            } else {
+                assertThat(diff.sum(), closeTo(a.sum() - b.sum(), 0.000001));
+                assertThat(diff.min(), greaterThanOrEqualTo(a.min()));
+                assertThat(diff.max(), lessThanOrEqualTo(a.max()));
+                assertThat(diff.min(), lessThanOrEqualTo(diff.max()));
+                // it is unlikely for the two random histograms to be cumulative, unless b is empty.
+                // however, to prevent flakes and to be sure that isCumulative is actually correct we still
+                // validate both cases
+                if (isCumulative) {
+                    int scale = Math.min(a.scale(), b.scale());
+                    ExponentialHistogramMerger merger = ExponentialHistogramMerger.createWithMaxScale(
+                        1000,
+                        scale,
+                        ExponentialHistogramCircuitBreaker.noop()
+                    );
+                    merger.add(diff);
+                    merger.add(b);
+                    ExponentialHistogram merged = merger.get();
+                    // adjust the sum of merged to exactly match a
+                    ExponentialHistogramBuilder correctedBuilder = ExponentialHistogram.builder(
+                        merged,
+                        ExponentialHistogramCircuitBreaker.noop()
+                    );
+                    correctedBuilder.sum(a.sum());
+                    if (diff.zeroBucket().count() == 0) {
+                        // zero threshold is lost in this case, preserve it
+                        correctedBuilder.zeroBucket(a.zeroBucket().withCount(merged.zeroBucket().count()));
+                    }
+                    assertThat(correctedBuilder.build(), equalTo(a));
+                } else {
+                    // Make sure that all buckets that are present in the result correspond to buckets that happened to be cumulative
+                    assertOnlyCumulativeBucketsPresent(a.negativeBuckets(), b.negativeBuckets(), diff.negativeBuckets());
+                    assertOnlyCumulativeBucketsPresent(a.positiveBuckets(), b.positiveBuckets(), diff.positiveBuckets());
+                }
+            }
+        }
+    }
+
+    private static void assertOnlyCumulativeBucketsPresent(
+        ExponentialHistogram.Buckets bucketsA,
+        ExponentialHistogram.Buckets bucketsB,
+        ExponentialHistogram.Buckets diffBuckets
+    ) {
+        Map<Long, Long> rawDiffByIndex = new HashMap<>();
+        MergingBucketIterator rawDiff = new MergingBucketIterator(
+            bucketsA.iterator(),
+            bucketsB.iterator(),
+            diffBuckets.iterator().scale(),
+            (aCount, bCount) -> aCount - bCount
+        );
+        while (rawDiff.hasNext()) {
+            rawDiffByIndex.put(rawDiff.peekIndex(), rawDiff.peekCount());
+            rawDiff.advance();
+        }
+
+        BucketIterator diffIt = diffBuckets.iterator();
+        while (diffIt.hasNext()) {
+            long diffIndex = diffIt.peekIndex();
+            Long rawCount = rawDiffByIndex.get(diffIndex);
+            assertThat("diff bucket at index " + diffIndex + " has no corresponding bucket in raw subtraction", rawCount, notNullValue());
+            assertThat("diff bucket at index " + diffIndex + " exists but raw a.count <= b.count", rawCount, greaterThan(0L));
+            diffIt.advance();
+        }
+    }
+
+    /**
+     * Tests the happy path when the subtracted histograms are actually cumulative.
+     */
+    public void testDifferenceForCumulativeHistos() {
         ExponentialHistogram a = ExponentialHistogramTestUtils.randomHistogram();
         ExponentialHistogram b = ExponentialHistogramTestUtils.randomHistogram();
         CircuitBreaker esBreaker = newLimitedBreaker(ByteSizeValue.ofMb(100));
@@ -236,7 +358,7 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
             // Add a histogram to the merger just to make sure it is properly cleared when setToDifference is called
             diffMerger.add(ExponentialHistogramTestUtils.randomHistogram());
 
-            diffMerger.setToDifference(merged.get(), b);
+            boolean areHistosCumulative = diffMerger.setToDifference(merged.get(), b);
             ExponentialHistogram diff = diffMerger.get();
 
             if (reference.zeroBucket().count() == 0) {
@@ -284,6 +406,59 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
                 assertThat(diff.min(), equalTo(Double.NaN));
                 assertThat(diff.max(), equalTo(Double.NaN));
             }
+            assertThat(areHistosCumulative, equalTo(true));
+        }
+    }
+
+    public void testDifferenceDoesNotProduceMinGreaterThanMax() {
+        var noopBreaker = ExponentialHistogramCircuitBreaker.noop();
+        // Bucket 0 at scale 0 covers [1, 2), while the exact bounds came from values below that range.
+        // This can occur when an explicit histogram bucket is represented by its centroid in an exponential histogram.
+        ExponentialHistogram previous = ExponentialHistogram.builder(0, noopBreaker)
+            .setPositiveBucket(0, 1)
+            .sum(0.5)
+            .min(0.5)
+            .max(0.5)
+            .build();
+        ExponentialHistogram current = ExponentialHistogram.builder(0, noopBreaker)
+            .setPositiveBucket(0, 2)
+            .sum(1.25)
+            .min(0.5)
+            .max(0.75)
+            .build();
+
+        try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(breaker())) {
+            assertThat(merger.setToDifference(current, previous), equalTo(true));
+            ExponentialHistogram difference = merger.get();
+            assertThat(difference.min(), equalTo(0.75));
+            assertThat(difference.max(), equalTo(0.75));
+            assertThat(difference.min(), lessThanOrEqualTo(difference.max()));
+        }
+    }
+
+    public void testDifferenceDoesNotProduceMaxLessThanMin() {
+        var noopBreaker = ExponentialHistogramCircuitBreaker.noop();
+        // Bucket 0 at scale 0 covers [1, 2), while the exact bounds came from values above that range.
+        // This can occur when an explicit histogram bucket is represented by its centroid in an exponential histogram.
+        ExponentialHistogram previous = ExponentialHistogram.builder(0, noopBreaker)
+            .setPositiveBucket(0, 1)
+            .sum(3.0)
+            .min(3.0)
+            .max(3.0)
+            .build();
+        ExponentialHistogram current = ExponentialHistogram.builder(0, noopBreaker)
+            .setPositiveBucket(0, 2)
+            .sum(5.5)
+            .min(2.5)
+            .max(3.0)
+            .build();
+
+        try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(breaker())) {
+            assertThat(merger.setToDifference(current, previous), equalTo(true));
+            ExponentialHistogram difference = merger.get();
+            assertThat(difference.min(), equalTo(2.5));
+            assertThat(difference.max(), equalTo(2.5));
+            assertThat(difference.max(), greaterThanOrEqualTo(difference.min()));
         }
     }
 
@@ -299,77 +474,151 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
         }
     }
 
-    public void testDifferenceFailsWhenAScaleGreaterThanBScale() {
-        ExponentialHistogram a = createAutoReleasedHistogram(b -> b.scale(10).setPositiveBucket(100, 5).min(1.0).max(10.0));
-        ExponentialHistogram b = createAutoReleasedHistogram(b2 -> b2.scale(5).setPositiveBucket(3, 2).min(1.0).max(10.0));
+    public void testDifferenceWhenAScaleGreaterThanBScale() {
+        var noopBreaker = ExponentialHistogramCircuitBreaker.noop();
+        // At scale 0: a's bucket 3>>1=1 with count 5, b's bucket 1 with count 2. Diff: bucket 1 -> 3.
+        ExponentialHistogram a = ExponentialHistogram.builder(1, noopBreaker).setPositiveBucket(3, 5).min(2.0).max(4.0).build();
+        ExponentialHistogram b = ExponentialHistogram.builder(0, noopBreaker).setPositiveBucket(1, 2).min(2.0).max(4.0).build();
 
+        ExponentialHistogram expected = ExponentialHistogram.builder(0, noopBreaker)
+            .setPositiveBucket(1, 3)
+            .sum(a.sum() - b.sum())
+            .min(2.0)
+            .max(4.0)
+            .build();
         try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(breaker())) {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> merger.setToDifference(a, b));
-            assertThat(e.getMessage(), containsString("a.scale > b.scale"));
+            boolean isCumulative = merger.setToDifference(a, b);
+            assertThat(isCumulative, equalTo(false));
+            assertThat(merger.get(), equalTo(expected));
         }
     }
 
-    public void testDifferenceFailsWhenAMinGreaterThanBMin() {
-        ExponentialHistogram a = ExponentialHistogram.create(100, breaker(), 5.0, 10.0);
-        autoReleaseOnTestEnd((ReleasableExponentialHistogram) a);
-        ExponentialHistogram b = ExponentialHistogram.create(100, breaker(), 1.0);
-        autoReleaseOnTestEnd((ReleasableExponentialHistogram) b);
+    public void testDifferenceWhenAMinGreaterThanBMin() {
+        var noopBreaker = ExponentialHistogramCircuitBreaker.noop();
+        // a.min(2.0) > b.min(1.0): not cumulative. No overlapping buckets, desired=1, raw=3, scaled to 1.
+        ExponentialHistogram a = ExponentialHistogram.builder(0, noopBreaker).setPositiveBucket(1, 3).min(2.0).max(4.0).build();
+        ExponentialHistogram b = ExponentialHistogram.builder(0, noopBreaker).setPositiveBucket(0, 2).min(1.0).max(2.0).build();
 
+        ExponentialHistogram expected = ExponentialHistogram.builder(0, noopBreaker)
+            .setPositiveBucket(1, 1)
+            .sum(a.sum() - b.sum())
+            .min(2.0)
+            .max(4.0)
+            .build();
         try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(breaker())) {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> merger.setToDifference(a, b));
-            assertThat(e.getMessage(), containsString("a.min > b.min"));
+            boolean isCumulative = merger.setToDifference(a, b);
+            assertThat(isCumulative, equalTo(false));
+            assertThat(merger.get(), equalTo(expected));
         }
     }
 
-    public void testDifferenceFailsWhenAMaxLessThanBMax() {
-        ExponentialHistogram a = ExponentialHistogram.create(100, breaker(), 1.0, 5.0);
-        autoReleaseOnTestEnd((ReleasableExponentialHistogram) a);
-        ExponentialHistogram b = ExponentialHistogram.create(100, breaker(), 10.0);
-        autoReleaseOnTestEnd((ReleasableExponentialHistogram) b);
+    public void testDifferenceWhenAMaxLessThanBMax() {
+        var noopBreaker = ExponentialHistogramCircuitBreaker.noop();
+        // a.max(4.0) < b.max(8.0): not cumulative. No overlapping buckets, desired=2, raw=3, scaled.
+        ExponentialHistogram a = ExponentialHistogram.builder(0, noopBreaker)
+            .setPositiveBucket(1, 2)
+            .setPositiveBucket(2, 1)
+            .min(1.0)
+            .max(4.0)
+            .build();
+        ExponentialHistogram b = ExponentialHistogram.builder(0, noopBreaker).setPositiveBucket(3, 1).min(4.0).max(8.0).build();
 
+        ExponentialHistogram expected = ExponentialHistogram.builder(0, noopBreaker)
+            .setPositiveBucket(1, 1)
+            .setPositiveBucket(2, 1)
+            .sum(a.sum() - b.sum())
+            .min(1.0)
+            .max(4.0)
+            .build();
         try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(breaker())) {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> merger.setToDifference(a, b));
-            assertThat(e.getMessage(), containsString("a.max < b.max"));
+            boolean isCumulative = merger.setToDifference(a, b);
+            assertThat(isCumulative, equalTo(false));
+            assertThat(merger.get(), equalTo(expected));
         }
     }
 
-    public void testDifferenceFailsWhenAZeroThresholdLessThanBZeroThreshold() {
-        ExponentialHistogram a = createAutoReleasedHistogram(
-            b -> b.zeroBucket(ZeroBucket.create(1.0, 5)).setPositiveBucket(10, 3).min(0.5).max(10.0)
-        );
-        ExponentialHistogram b = createAutoReleasedHistogram(
-            b2 -> b2.zeroBucket(ZeroBucket.create(5.0, 2)).setPositiveBucket(10, 1).min(0.5).max(10.0)
-        );
+    public void testDifferenceWhenAZeroThresholdLessThanBZeroThreshold() {
+        var noopBreaker = ExponentialHistogramCircuitBreaker.noop();
+        // B's zero threshold adjusted to A's (1.0). No B buckets collapsed.
+        // Raw diff: zero -> max(0, 5-2)=3, pos(1) -> max(0, 3-1)=2. Total=5=8-3. No scaling.
+        ExponentialHistogram a = ExponentialHistogram.builder(0, noopBreaker)
+            .zeroBucket(ZeroBucket.create(1.0, 5))
+            .setPositiveBucket(1, 3)
+            .min(0.5)
+            .max(4.0)
+            .build();
+        ExponentialHistogram b = ExponentialHistogram.builder(0, noopBreaker)
+            .zeroBucket(ZeroBucket.create(2.0, 2))
+            .setPositiveBucket(1, 1)
+            .min(0.5)
+            .max(4.0)
+            .build();
 
+        ExponentialHistogram expected = ExponentialHistogram.builder(0, noopBreaker)
+            .zeroBucket(ZeroBucket.create(1.0, 3))
+            .setPositiveBucket(1, 2)
+            .sum(a.sum() - b.sum())
+            .min(0.5)
+            .max(4.0)
+            .build();
         try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(breaker())) {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> merger.setToDifference(a, b));
-            assertThat(e.getMessage(), containsString("a.zeroThreshold < b.zeroThreshold"));
+            boolean isCumulative = merger.setToDifference(a, b);
+            assertThat(isCumulative, equalTo(false));
+            assertThat(merger.get(), equalTo(expected));
         }
     }
 
-    public void testDifferenceFailsWhenAZeroCountLessThanBZeroCount() {
-        ExponentialHistogram a = createAutoReleasedHistogram(
-            b -> b.zeroBucket(ZeroBucket.create(5.0, 2)).setPositiveBucket(10, 5).min(0.1).max(10.0)
-        );
-        ExponentialHistogram b = createAutoReleasedHistogram(
-            b2 -> b2.zeroBucket(ZeroBucket.create(5.0, 5)).setPositiveBucket(10, 1).min(0.1).max(10.0)
-        );
+    public void testDifferenceWhenAZeroCountLessThanBZeroCount() {
+        var noopBreaker = ExponentialHistogramCircuitBreaker.noop();
+        // Raw diff: zero -> max(0, 2-5)=0, pos(1) -> max(0, 5-1)=4. Total raw=4, desired=1. Scaled to 1.
+        ExponentialHistogram a = ExponentialHistogram.builder(0, noopBreaker)
+            .zeroBucket(ZeroBucket.create(1.0, 2))
+            .setPositiveBucket(1, 5)
+            .min(0.5)
+            .max(4.0)
+            .build();
+        ExponentialHistogram b = ExponentialHistogram.builder(0, noopBreaker)
+            .zeroBucket(ZeroBucket.create(1.0, 5))
+            .setPositiveBucket(1, 1)
+            .min(0.5)
+            .max(4.0)
+            .build();
 
+        ExponentialHistogram expected = ExponentialHistogram.builder(0, noopBreaker)
+            .zeroBucket(ZeroBucket.create(1.0, 0))
+            .setPositiveBucket(1, 1)
+            .sum(a.sum() - b.sum())
+            .min(2.0)
+            .max(4.0)
+            .build();
         try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(breaker())) {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> merger.setToDifference(a, b));
-            assertThat(e.getMessage(), containsString("a.zeroCount < b.zeroCount"));
+            boolean isCumulative = merger.setToDifference(a, b);
+            assertThat(isCumulative, equalTo(false));
+            assertThat(merger.get(), equalTo(expected));
         }
     }
 
-    public void testDifferenceFailsWhenBucketCountInALessThanB() {
-        ExponentialHistogram a = createAutoReleasedHistogram(
-            b -> b.scale(0).setPositiveBucket(5, 2).setPositiveBucket(6, 5).min(1.0).max(100.0)
-        );
-        ExponentialHistogram b = createAutoReleasedHistogram(b2 -> b2.scale(0).setPositiveBucket(5, 5).min(1.0).max(100.0));
+    public void testDifferenceWhenBucketCountInALessThanB() {
+        var noopBreaker = ExponentialHistogramCircuitBreaker.noop();
+        // Raw diff: pos(0) -> max(0, 2-5)=0, pos(1) -> 5. Total raw=5, desired=2. Scaled to 2.
+        ExponentialHistogram a = ExponentialHistogram.builder(0, noopBreaker)
+            .setPositiveBucket(0, 2)
+            .setPositiveBucket(1, 5)
+            .min(1.0)
+            .max(4.0)
+            .build();
+        ExponentialHistogram b = ExponentialHistogram.builder(0, noopBreaker).setPositiveBucket(0, 5).min(1.0).max(2.0).build();
 
+        ExponentialHistogram expected = ExponentialHistogram.builder(0, noopBreaker)
+            .setPositiveBucket(1, 2)
+            .sum(a.sum() - b.sum())
+            .min(2.0)
+            .max(4.0)
+            .build();
         try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(breaker())) {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> merger.setToDifference(a, b));
-            assertThat(e.getMessage(), containsString("A has a smaller count for the same bucket than B"));
+            boolean isCumulative = merger.setToDifference(a, b);
+            assertThat(isCumulative, equalTo(false));
+            assertThat(merger.get(), equalTo(expected));
         }
     }
 

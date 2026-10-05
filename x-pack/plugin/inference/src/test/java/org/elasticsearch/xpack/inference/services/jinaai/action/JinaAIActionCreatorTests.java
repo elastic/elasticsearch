@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.inference.services.jinaai.action;
 
 import org.apache.http.HttpHeaders;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
@@ -67,7 +69,13 @@ public class JinaAIActionCreatorTests extends ESTestCase {
     public void init() throws Exception {
         webServer.start();
         threadPool = createThreadPool(inferenceUtilityExecutors());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
+        clientManager = HttpClientManager.create(
+            Settings.EMPTY,
+            threadPool,
+            mockClusterServiceEmpty(),
+            mock(ThrottlerManager.class),
+            new TestCircuitBreaker()
+        );
     }
 
     @After
@@ -122,7 +130,7 @@ public class JinaAIActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, Map.of());
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of(TEST_EMBEDDING_INPUT), null), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(List.of(TEST_EMBEDDING_INPUT), null), null, listener);
 
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
@@ -183,7 +191,17 @@ public class JinaAIActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, Map.of());
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new QueryAndDocsInputs(TEST_QUERY, List.of(TEST_DOCUMENT), null, null, false), null, listener);
+            action.execute(
+                new QueryAndDocsInputs(
+                    InferenceString.ofText(TEST_QUERY),
+                    List.of(InferenceString.ofText(TEST_DOCUMENT)),
+                    null,
+                    null,
+                    false
+                ),
+                null,
+                listener
+            );
 
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 

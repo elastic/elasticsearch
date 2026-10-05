@@ -452,7 +452,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
         var exception = new NotEntitledException(message);
         // Don't emit a log for suppressed packages, e.g. packages containing self tests
         if (suppressFailureLogPackages.contains(requestingClass.getPackage()) == false) {
-            entitlements.logger(requestingClass).warn("Not entitled: {}", message, exception);
+            entitlements.logger(requestingClass).debug("Not entitled: {}", message, exception);
         }
         throw exception;
     }

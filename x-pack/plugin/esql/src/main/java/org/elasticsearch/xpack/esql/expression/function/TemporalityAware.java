@@ -13,11 +13,11 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggr
 
 /**
  * Marker interface for {@link TimeSeriesAggregateFunction}s to identify classes of functions that operate
- * on the {code @timestamp} and the temporality field of an index.
- * Implementations of this interface need to expect the associated {@code Attribute}s to be passed after all regular arguments.
- * The {code @timestamp} will be passed first, followed by the temporality.
+ * on the temporality field of an index.
+ * Implementations of this interface need to expect the temporality {@code Attribute} to be passed after all regular arguments.
+ * Implementations that also need the {code @timestamp} should additionally implement {@link TimestampAware}.
  */
-public interface TemporalityAware extends TimestampAware {
+public interface TemporalityAware {
 
     /**
      * The current value for the temporality argument of the function.

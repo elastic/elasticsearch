@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
+import fixture.s3.BlobEntry;
 import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 import fixture.s3.S3HttpHandler;
@@ -43,6 +44,12 @@ public final class S3FixtureUtils {
 
     /** Default S3 secret key for test fixtures */
     public static final String SECRET_KEY = "test-secret-key";
+
+    /** The allowlist setting a test cluster uses to reach its loopback fixture, taken from the setting itself. */
+    public static final String ALLOWED_ENDPOINT_HOSTS_SETTING = ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY;
+
+    /** Loopback on any port, which is every fixture this repository starts. */
+    public static final String LOOPBACK_ENDPOINT_HOSTS = "127.0.0.1:*,[::1]:*,localhost:*";
 
     /** Default bucket name for test fixtures */
     public static final String BUCKET = "test-bucket";
@@ -85,7 +92,7 @@ public final class S3FixtureUtils {
      */
     public static void addBlobToFixture(S3HttpHandler handler, String key, byte[] content) {
         String fullPath = "/" + BUCKET + "/" + key;
-        handler.blobs().put(fullPath, new BytesArray(content));
+        handler.blobs().put(fullPath, new BlobEntry(new BytesArray(content), "STANDARD"));
         logRequest("PUT_OBJECT", fullPath, content.length);
     }
 

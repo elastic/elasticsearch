@@ -129,11 +129,11 @@ public class SpatialDiskUsageIT extends ESIntegTestCase {
         value = extractValue("test-index.fields._id.inverted_index.total_in_bytes", objects);
         assertThat(value, greaterThan(0));
         value = extractValue("test-index.fields._id.stored_fields_in_bytes", objects);
-        assertThat(value, greaterThan(0));
+        assertThat(value, indexColumnarIdMode(index) ? equalTo(0) : greaterThan(0));
         value = extractValue("test-index.fields._id.points_in_bytes", objects);
         assertThat(value, equalTo(0));
         value = extractValue("test-index.fields._id.doc_values_in_bytes", objects);
-        assertThat(value, equalTo(0));
+        assertThat(value, indexColumnarIdMode(index) ? greaterThan(0) : equalTo(0));
 
         value = extractValue("test-index.fields._seq_no.inverted_index.total_in_bytes", objects);
         assertThat(value, equalTo(0));

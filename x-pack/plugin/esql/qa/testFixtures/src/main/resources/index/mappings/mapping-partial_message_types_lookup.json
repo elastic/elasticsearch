@@ -1,0 +1,10 @@
+{
+    "properties": {
+        "message": {
+            "type": "keyword"
+        },
+        "message_type": {
+            "type": "keyword"
+        }
+    }
+}

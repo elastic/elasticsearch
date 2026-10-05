@@ -1,37 +1,29 @@
 [Views](/reference/query-languages/esql/esql-views.md),
-[subqueries](/reference/query-languages/esql/esql-subquery.md) and the
-[`FORK`](/reference/query-languages/esql/commands/fork.md) command are related.
-There are many similarities and differences between them.
+[`FROM` subqueries](/reference/query-languages/esql/esql-from-subquery.md),
+[`IN` subqueries](/reference/query-languages/esql/esql-in-subquery.md), and
+[`FORK`](/reference/query-languages/esql/commands/fork.md) share several traits but differ in important ways.
 
-### High level definitions
-
-* `FORK` allows data coming from previous commands, like an initial `FROM index` command, to be processed in parallel in multiple different branches, each performing different commands on the same original data.
-* Subqueries also enable parallel processing, but allow each branch to use a different source index with a different `FROM` command per branch.
-Views are reusable, named queries that act like virtual indices. Each view has its own `FROM` command and processing pipeline, and can be referenced like a regular index.
+`IN` subqueries operate differently from the other three. They filter rows rather than producing branches, so the similarities and differences below apply to `FROM` subqueries, views, and `FORK` only.
 
 ### Similarities
 
-* **Dynamic execution.** All three mechanisms will process the entire set of query definitions at query time, resulting in an up-to-date response when source indexes are changed and the query is re-run.
-* **Union of columns.** Columns from the results of multiple branches are merged into the main query, expanding the table of results, and inserting `null` values if any branch has different columns than the others.
-* **Supported commands.** Complex processing commands can be used inside both views and subqueries, as detailed in the [description of subqueries](/reference/query-languages/esql/esql-subquery.md#description).
-* **No nested branching.** Nested branching is generally not supported, but views can work around this limitation through query compaction.
-* **Maximum branch count.** All of these approaches to parallel processing are bound by the same maximum branch count of 8.
+* **Dynamic execution.** All three run at query time, so results reflect the current state of the data.
+* **Union of columns.** Columns from multiple branches are merged into a single table. Missing columns are filled with `null` values.
+* **Supported commands.** Complex processing commands can be used inside both views and `FROM` subqueries, as detailed in the [description of `FROM` subqueries](/reference/query-languages/esql/esql-from-subquery.md#description).
+* **No nested branching.** Nested branching is generally not supported, but views can work around this through [query compaction](/reference/query-languages/esql/esql-views.md#query-compaction).
+* **Maximum branch count.** All three share the same maximum branch count of 8.
 
-### FORK differences
+### How FORK differs
 
-The `FORK` command never includes a `FROM` command, and relies entirely on an existing query to provide the incoming columns.
-This also means that all branches will receive identical incoming data, the same columns and the same rows.
-This is not true of subqueries or views, which can receive completely different columns and rows from their own `FROM` commands.
-Only one `FORK` command is allowed per query, so nested branches are not possible.
-This limitation is partially true for views and subqueries, but to a lesser extent as described below.
+* `FORK` does not include a source command. Every branch receives the same incoming rows and columns.
+* `FROM` subqueries and views each have their own source command (`FROM`, `TS`, or `ROW`), so branches can read from different sources with different columns.
+* Only one `FORK` command is allowed per query, so nested branches are not possible. `FROM` subqueries and views have similar restrictions, but views can partially work around them through query compaction.
 
-### Differences between views and subqueries
+### How views differ from FROM subqueries
 
-Views have names, and these names are unique within the index namespace. This means a view cannot have the same name as an index, and vice versa.
-Views can be nested within one another, as long as neither of the following two rules are broken:
-* Cyclic references are not allowed. For example, if `viewA` references `viewB` and `viewB` references `viewC` it is not allowed to have `viewC` reference `viewA`.
-    * Detection of cyclic references is done at main query execution time
-* Multiple branching points do not exist
-
-This last point highlights a difference between views and subqueries.
-While subqueries simply disallow the use of further subqueries or `FORK` within a subquery, views will allow this under limited conditions.
+* Views must be defined using the [REST API](/reference/query-languages/esql/esql-views.md#create-and-manage-views) before they can be used in queries. Subqueries are written inline and require no setup.
+* Views have names that are unique within the index namespace. A view cannot share a name with an index.
+* Views can be nested (up to a depth of 10), with two restrictions:
+  * Cyclic references are not allowed. For example, if `viewA` references `viewB` and `viewB` references `viewC`, then `viewC` cannot reference `viewA`. Cycles are detected at query time.
+  * No more than one branching point can exist across the nesting chain.
+* `FROM` subqueries do not support further `FROM` subqueries or `FORK` inside them, but can contain `IN` subqueries. Views allow nested branching under [limited conditions](/reference/query-languages/esql/esql-views.md#nesting-and-branching).

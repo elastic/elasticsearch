@@ -138,6 +138,12 @@
         "type": "list",
         "description": "A comma-separated list of specific routing values"
       },
+      "slice": {
+        "type": "string",
+        "description": "Slice identifier for a slice-enabled index (`index.slice.enabled=true`); scopes the search to that slice, or `_all` to search across all slices",
+        "visibility": "feature_flag",
+        "feature_flag": "es.slice_indexing_feature_flag_enabled"
+      },
       "scroll": {
         "type": "time",
         "description": "Specify how long a consistent view of the index should be maintained for scrolled search"

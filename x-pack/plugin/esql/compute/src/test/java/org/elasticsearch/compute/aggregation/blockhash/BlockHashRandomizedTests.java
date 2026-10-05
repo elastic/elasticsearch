@@ -46,6 +46,7 @@ import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeSet;
 
+import static org.elasticsearch.compute.test.BlockTestUtils.randomValue;
 import static org.elasticsearch.compute.test.BlockTestUtils.valuesAtPositions;
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
 import static org.hamcrest.Matchers.either;
@@ -70,6 +71,11 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
          * optimizations that hit if you only have those.
          */
         new ParamsBuilder().allowedType(new Basic(ElementType.BYTES_REF)).groups(1, 2, 3, 4, 5).add(params);
+        /*
+         * Run with only `DOUBLE_RANGE` elements to exercise the specialized
+         * single-key hash and packed multi-key hash.
+         */
+        new ParamsBuilder().allowedType(new Basic(ElementType.DOUBLE_RANGE)).groups(1, 2).add(params);
         /*
          * Run with only `BYTES_REF` elements in an OrdinalBytesRefBlock
          * because we have a few optimizations that use it.
@@ -175,14 +181,11 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
         try (BlockHash blockHash = newBlockHash(blockFactory, emitBatchSize, elementTypes)) {
             logger.info("checking {}", blockHash);
             /*
-             * Only the long/long, long/bytes_ref, and bytes_ref/long implementations don't collect nulls.
+             * Only the long/long implementation still doesn't collect nulls. (LONG, BYTES_REF)/(BYTES_REF, LONG)
+             * now route through LongBytesRefAdaptiveBlockHash, which migrates to PackedValuesBlockHash on
+             * the first non-vector page so all nulls and multivalues end up represented as groups.
              */
-            Oracle oracle = new Oracle(
-                forcePackedHash
-                    || false == (elementTypes.equals(List.of(ElementType.LONG, ElementType.LONG))
-                        || elementTypes.equals(List.of(ElementType.LONG, ElementType.BYTES_REF))
-                        || elementTypes.equals(List.of(ElementType.BYTES_REF, ElementType.LONG)))
-            );
+            Oracle oracle = new Oracle(forcePackedHash || elementTypes.equals(List.of(ElementType.LONG, ElementType.LONG)) == false);
 
             for (int p = 0; p < pageCount; p++) {
                 for (int g = 0; g < blocks.length; g++) {
@@ -200,9 +203,15 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
                          * page (the vector/vector fast path). Page sizes are assumed safe, so
                          * emitting exactly positionCount in one shot is acceptable.
                          */
+                        int effectiveEmitBatchSize = emitBatchSize;
+                        if (blockHash instanceof LongIntBlockHash adaptive) {
+                            effectiveEmitBatchSize = adaptive.effectiveEmitBatchSize();
+                        } else if (blockHash instanceof LongBytesRefBlockHash adaptive) {
+                            effectiveEmitBatchSize = adaptive.effectiveEmitBatchSize();
+                        }
                         assertThat(
                             ordsAndKeys.ords().getTotalValueCount(),
-                            either(lessThanOrEqualTo(emitBatchSize)).or(equalTo(positionCount))
+                            either(lessThanOrEqualTo(effectiveEmitBatchSize)).or(equalTo(positionCount))
                         );
                     }
                     batchCount[0]++;
@@ -225,7 +234,6 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
             }
 
             if (blockHash instanceof LongLongBlockHash == false
-                && blockHash instanceof BytesRefLongBlockHash == false
                 && blockHash instanceof BytesRef2BlockHash == false
                 && blockHash instanceof BytesRef3BlockHash == false) {
                 assertLookup(blockFactory, expectedOrds, types, blockHash, oracle);
@@ -432,6 +440,7 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
             case INT -> randomInt();
             case LONG -> randomLong();
             case DOUBLE -> randomDouble();
+            case DOUBLE_RANGE -> randomValue(type);
             case BYTES_REF -> new BytesRef(randomAlphaOfLength(5));
             case BOOLEAN -> randomBoolean();
             case NULL -> null;

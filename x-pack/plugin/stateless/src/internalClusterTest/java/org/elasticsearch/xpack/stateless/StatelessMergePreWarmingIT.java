@@ -14,6 +14,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.OperationPurpose;
@@ -43,6 +44,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.xpack.stateless.StatelessMergeIT.blockMergePool;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class StatelessMergePreWarmingIT extends AbstractStatelessPluginIntegTestCase {
 
@@ -193,14 +195,18 @@ public class StatelessMergePreWarmingIT extends AbstractStatelessPluginIntegTest
         internalCluster().getInstances(StatelessPlugin.SharedBlobCacheServiceSupplier.class)
             .forEach(sharedBlobCacheServiceSupplier -> sharedBlobCacheServiceSupplier.get().forceEvict(entry -> true));
 
-        // This prevents the shard to be allocated if the shard fails due to a bug in the tested code
+        // This prevents the shard from being re-allocated if the engine fails due to a bug in the tested code
         client().admin()
             .indices()
             .prepareUpdateSettings(indexName)
-            .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNode));
+            .setSettings(Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"))
+            .execute();
 
-        // Let the merge proceed and wait until the merge pre-warming kicks in
+        final var previousMergeCount = getTotalMergeCount(indexName);
+
+        // Let the merge proceed, then wait until it finishes.
         unblockMergePoolLatch.countDown();
+        assertBusy(() -> assertThat(getTotalMergeCount(indexName), greaterThan(previousMergeCount)));
 
         // Let the upload continue and wait until it finishes
         blockUploadLatch.countDown();
@@ -219,4 +225,7 @@ public class StatelessMergePreWarmingIT extends AbstractStatelessPluginIntegTest
         ensureGreen(indexName);
     }
 
+    private long getTotalMergeCount(String indexName) {
+        return indicesAdmin().prepareStats(indexName).setMerge(true).get().getIndices().get(indexName).getPrimaries().merge.getTotal();
+    }
 }

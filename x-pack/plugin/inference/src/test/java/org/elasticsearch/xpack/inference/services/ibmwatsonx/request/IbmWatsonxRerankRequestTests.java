@@ -13,7 +13,6 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
-import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModelTests;
 
 import java.io.IOException;
@@ -42,7 +41,10 @@ public class IbmWatsonxRerankRequestTests extends ESTestCase {
         var query = "database";
         List<String> input = List.of("greenland", "google", "john", "mysql", "potter", "grammar");
 
-        var request = createRequest(model, projectId, uri, apiVersion, apiKey, query, input);
+        var topN = randomIntBetween(1, 128);
+        var returnDocuments = randomBoolean();
+        var truncateInputTokens = randomIntBetween(1, 128);
+        var request = createRequest(model, projectId, uri, apiVersion, apiKey, query, input, topN, returnDocuments, truncateInputTokens);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -50,6 +52,7 @@ public class IbmWatsonxRerankRequestTests extends ESTestCase {
 
         assertThat(httpPost.getURI().toString(), endsWith(Strings.format("%s=%s", "version", apiVersion)));
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is(AUTH_HEADER_VALUE));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap, aMapWithSize(5));
@@ -74,7 +77,7 @@ public class IbmWatsonxRerankRequestTests extends ESTestCase {
                     "query",
                     "database",
                     "parameters",
-                    Map.of("return_options", Map.of("top_n", 2, "inputs", true), "truncate_input_tokens", 100)
+                    Map.of("return_options", Map.of("top_n", topN, "inputs", returnDocuments), "truncate_input_tokens", truncateInputTokens)
                 )
             )
         );
@@ -87,21 +90,24 @@ public class IbmWatsonxRerankRequestTests extends ESTestCase {
         String apiVersion,
         String apiKey,
         String query,
-        List<String> input
+        List<String> input,
+        int topN,
+        boolean returnDocuments,
+        int truncateInputTokens
     ) {
-        var embeddingsModel = IbmWatsonxRerankModelTests.createModel(model, projectId, uri, apiVersion, apiKey);
+        var rerankModel = IbmWatsonxRerankModelTests.createModel(
+            model,
+            projectId,
+            uri,
+            apiVersion,
+            apiKey,
+            null,
+            AUTH_HEADER_VALUE,
+            topN,
+            returnDocuments,
+            truncateInputTokens
+        );
 
-        return new IbmWatsonxRerankWithoutAuthRequest(query, input, embeddingsModel);
-    }
-
-    private static class IbmWatsonxRerankWithoutAuthRequest extends IbmWatsonxRerankRequest {
-        IbmWatsonxRerankWithoutAuthRequest(String query, List<String> input, IbmWatsonxRerankModel model) {
-            super(query, input, model);
-        }
-
-        @Override
-        public void decorateWithAuth(HttpPost httpPost) {
-            httpPost.setHeader(HttpHeaders.AUTHORIZATION, AUTH_HEADER_VALUE);
-        }
+        return new IbmWatsonxRerankRequest(query, input, rerankModel);
     }
 }

@@ -23,7 +23,7 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
- * REST handler for tests that triggers a flush of all telemetry (traces, metrics) so tests can await export.
+ * REST handler for tests that triggers a flush of all telemetry so tests can await export.
  */
 public class FlushTelemetryRestHandler extends BaseRestHandler {
 
@@ -44,8 +44,7 @@ public class FlushTelemetryRestHandler extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         return channel -> {
-            telemetryProvider.get().attemptFlushMetrics();
-            telemetryProvider.get().attemptFlushTraces();
+            telemetryProvider.get().attemptFlush();
             try (XContentBuilder builder = channel.newBuilder()) {
                 channel.sendResponse(new RestResponse(RestStatus.OK, builder));
             }

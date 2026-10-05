@@ -29,6 +29,8 @@ import org.elasticsearch.xcontent.ParseField;
 import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -63,18 +65,16 @@ public class JsonLoggerTests extends ESTestCase {
         JsonLogsTestSetup.init();
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void configureLogging() throws Exception {
         LogConfigurator.registerErrorListener();
         setupLogging("json_layout");
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void shutdownLogging() throws Exception {
         LoggerContext context = (LoggerContext) LogManager.getContext(false);
         Configurator.shutdown(context);
-        super.tearDown();
     }
 
     public void testDeprecationWarnMessage() throws IOException {
@@ -103,7 +103,7 @@ public class JsonLoggerTests extends ESTestCase {
             );
         }
 
-        assertWarnings(true, new DeprecationWarning(Level.WARN, "deprecated warn message1"));
+        assertWarnings("deprecated warn message1");
     }
 
     public void testDeprecatedMessageWithoutXOpaqueId() throws IOException {
@@ -141,7 +141,7 @@ public class JsonLoggerTests extends ESTestCase {
             );
         }
 
-        assertCriticalWarnings("deprecated message1");
+        assertWarnings("deprecated message1");
     }
 
     public void testCompatibleLog() throws Exception {
@@ -203,7 +203,7 @@ public class JsonLoggerTests extends ESTestCase {
                 );
             }
 
-            assertCriticalWarnings("deprecated message1", "compatible API message");
+            assertWarnings("deprecated message1", "compatible API message");
         });
     }
 
@@ -294,13 +294,9 @@ public class JsonLoggerTests extends ESTestCase {
             }
 
             assertWarnings(
-                true,
-                new DeprecationWarning(Level.WARN, "Deprecated field [deprecated_name] used, expected [new_name] instead"),
-                new DeprecationWarning(Level.WARN, "Deprecated field [deprecated_name2] used, expected [new_name] instead"),
-                new DeprecationWarning(
-                    DeprecationLogger.CRITICAL,
-                    "Deprecated field [compatible_deprecated_name] used, expected [new_name] instead"
-                )
+                "Deprecated field [deprecated_name] used, expected [new_name] instead",
+                "Deprecated field [deprecated_name2] used, expected [new_name] instead",
+                "Deprecated field [compatible_deprecated_name] used, expected [new_name] instead"
             );
         });
     }
@@ -564,7 +560,7 @@ public class JsonLoggerTests extends ESTestCase {
             threadContext.putHeader(Task.X_OPAQUE_ID_HTTP_HEADER, "ID1");
             deprecationLogger.critical(DeprecationCategory.OTHER, "key", "message1");
             deprecationLogger.critical(DeprecationCategory.OTHER, "key", "message2");
-            assertCriticalWarnings("message1", "message2");
+            assertWarnings("message1", "message2");
 
             final Path path = PathUtils.get(
                 System.getProperty("es.logs.base_path"),
@@ -597,7 +593,7 @@ public class JsonLoggerTests extends ESTestCase {
             threadContext.putHeader(Task.X_OPAQUE_ID_HTTP_HEADER, "ID2");
             deprecationLogger.critical(DeprecationCategory.OTHER, "key", "message1");
             deprecationLogger.critical(DeprecationCategory.OTHER, "key", "message2");
-            assertCriticalWarnings("message1", "message2");
+            assertWarnings("message1", "message2");
 
             final Path path = PathUtils.get(
                 System.getProperty("es.logs.base_path"),

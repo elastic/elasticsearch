@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `ST_NPOINTS` function [esql-st_npoints]
 
-:::{include} ../../_snippets/functions/layout/st_npoints.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/st_npoints.md
 :::

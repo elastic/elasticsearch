@@ -10,19 +10,21 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Describes one document for {@link DocumentMapper#parse(SourceToParse)} to parse: its source, in
+ * either {@link DocumentSource} form, plus the request metadata parsing needs — id, routing, dynamic
+ * template choices, the metering decorator, and the time-series id when the coordinating node
+ * computed one during routing.
+ */
 public class SourceToParse {
-
-    private final BytesReference source;
 
     private final String id;
 
@@ -30,91 +32,42 @@ public class SourceToParse {
 
     private final @Nullable String routing;
 
-    private final XContentType xContentType;
-
     private final Map<String, String> dynamicTemplates;
 
     private final Map<String, Map<String, String>> dynamicTemplateParams;
 
-    private final boolean includeSourceOnError;
+    private final DocumentSource source;
 
     private final XContentMeteringParserDecorator meteringParserDecorator;
 
-    @Nullable
-    private final XContentParser eirfParser;
-
     public SourceToParse(
         @Nullable String id,
-        BytesReference source,
-        XContentType xContentType,
+        DocumentSource source,
         @Nullable String routing,
         Map<String, String> dynamicTemplates,
         Map<String, Map<String, String>> dynamicTemplateParams,
-        boolean includeSourceOnError,
         XContentMeteringParserDecorator meteringParserDecorator,
         @Nullable BytesRef tsid
     ) {
-        this(
-            id,
-            source,
-            xContentType,
-            routing,
-            dynamicTemplates,
-            dynamicTemplateParams,
-            includeSourceOnError,
-            meteringParserDecorator,
-            tsid,
-            null
-        );
-    }
-
-    public SourceToParse(
-        @Nullable String id,
-        BytesReference source,
-        XContentType xContentType,
-        @Nullable String routing,
-        Map<String, String> dynamicTemplates,
-        Map<String, Map<String, String>> dynamicTemplateParams,
-        boolean includeSourceOnError,
-        XContentMeteringParserDecorator meteringParserDecorator,
-        @Nullable BytesRef tsid,
-        @Nullable XContentParser eirfParser
-    ) {
         this.id = id;
-        // we always convert back to byte array, since we store it and Field only supports bytes..
-        // so, we might as well do it here, and improve the performance of working with direct byte arrays
-        this.source = source.hasArray() ? source : new BytesArray(source.toBytesRef());
-        this.xContentType = Objects.requireNonNull(xContentType);
+        this.source = Objects.requireNonNull(source);
         this.routing = routing;
         this.dynamicTemplates = Objects.requireNonNull(dynamicTemplates);
         this.dynamicTemplateParams = dynamicTemplateParams;
-        this.includeSourceOnError = includeSourceOnError;
         this.meteringParserDecorator = meteringParserDecorator;
         this.tsid = tsid;
-        this.eirfParser = eirfParser;
     }
 
     public SourceToParse(String id, BytesReference source, XContentType xContentType) {
-        this(id, source, xContentType, null, Map.of(), Map.of(), true, XContentMeteringParserDecorator.NOOP, null);
+        this(id, source, xContentType, null);
     }
 
-    public SourceToParse(String id, BytesReference source, XContentType xContentType, String routing) {
-        this(id, source, xContentType, routing, Map.of(), Map.of(), true, XContentMeteringParserDecorator.NOOP, null);
+    public SourceToParse(String id, BytesReference source, XContentType xContentType, @Nullable String routing) {
+        this(id, new BytesSource(source, xContentType, true), routing, Map.of(), Map.of(), XContentMeteringParserDecorator.NOOP, null);
     }
 
-    public SourceToParse(
-        String id,
-        BytesReference source,
-        XContentType xContentType,
-        String routing,
-        Map<String, String> dynamicTemplates,
-        BytesRef tsid
-    ) {
-        this(id, source, xContentType, routing, dynamicTemplates, Map.of(), true, XContentMeteringParserDecorator.NOOP, tsid);
-    }
-
-    public BytesReference source() {
-        return this.source;
+    public DocumentSource source() {
+        return source;
     }
 
     /**
@@ -147,28 +100,11 @@ public class SourceToParse {
         return dynamicTemplateParams;
     }
 
-    public XContentType getXContentType() {
-        return this.xContentType;
-    }
-
     public XContentMeteringParserDecorator getMeteringParserDecorator() {
         return meteringParserDecorator;
     }
 
-    public boolean getIncludeSourceOnError() {
-        return includeSourceOnError;
-    }
-
     public BytesRef tsid() {
         return tsid;
-    }
-
-    /**
-     * Returns a pre-built parser for EIRF row data, or null if this source uses standard XContent.
-     * When non-null, DocumentParser uses this parser instead of creating one from the source bytes.
-     */
-    @Nullable
-    public XContentParser getEirfParser() {
-        return eirfParser;
     }
 }

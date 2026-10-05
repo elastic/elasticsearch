@@ -37,6 +37,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -157,8 +158,18 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
     }
 
     @Before
-    public void setInitialAuditLogOffset() throws IOException {
-        auditLogLinesBeforeTestStart = countAuditLogLines();
+    public void setInitialAuditLogOffset() throws Exception {
+        // Audit events are flushed asynchronously, so lines from the previous test may still be
+        // arriving when this test starts. Wait until the audit log stops growing before recording
+        // the offset, otherwise late-arriving lines from a prior test would land inside this test's
+        // window and be treated as unmatched logs.
+        assertBusy(() -> {
+            int first = countAuditLogLines();
+            Thread.sleep(100);
+            int second = countAuditLogLines();
+            assertEquals("audit log still being written", first, second);
+            auditLogLinesBeforeTestStart = second;
+        });
     }
 
     private int countAuditLogLines() throws IOException {
@@ -513,6 +524,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                 auditFailure
             );
             try {
+                // Audit events flush asynchronously; allow generous time for the expected events to appear.
                 assertBusy(() -> {
                     List<String> allLines;
                     try (InputStream auditLog = getCluster().getNodeLog(0, LogType.AUDIT)) {
@@ -588,7 +600,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                     if (false == logs.isEmpty()) {
                         fail("Not all logs matched. Unmatched logs:" + logsMessage(logs));
                     }
-                });
+                }, 30, TimeUnit.SECONDS);
             } catch (AssertionError e) {
                 auditFailure = true;
                 logger.warn(

@@ -40,7 +40,6 @@ public class MemoryIndexChunkScorer {
     private final Analyzer analyzer;
 
     public MemoryIndexChunkScorer() {
-        // TODO: Allow analyzer to be customizable and/or read from the field mapping
         this(new StandardAnalyzer());
     }
 

@@ -9,8 +9,10 @@
 
 package org.elasticsearch.aggregations.bucket.histogram;
 
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.test.ESTestCase;
 
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -53,6 +55,46 @@ public class AutoDateHistogramAggregationBuilderTests extends ESTestCase {
             .collect(Collectors.toSet());
         Set<String> expectedDateTimeUnits = new HashSet<>(AutoDateHistogramAggregationBuilder.ALLOWED_INTERVALS.values());
         assertEquals(actualDateTimeUnits, expectedDateTimeUnits);
+    }
+
+    /**
+     * {@code roughEstimateDurationMillis} and {@code unitAbbreviation} are both serialized by {@link
+     * AutoDateHistogramAggregationBuilder.RoundingInfo#writeTo}, so two RoundingInfo instances that differ only in one of those
+     * serialized fields must not be equal.
+     */
+    public void testRoundingInfoEqualsConsidersAllSerializedFields() {
+        AutoDateHistogramAggregationBuilder.RoundingInfo base = new AutoDateHistogramAggregationBuilder.RoundingInfo(
+            Rounding.DateTimeUnit.SECOND_OF_MINUTE,
+            ZoneOffset.UTC,
+            1000L,
+            "s",
+            1,
+            5,
+            10,
+            30
+        );
+        AutoDateHistogramAggregationBuilder.RoundingInfo differentDuration = new AutoDateHistogramAggregationBuilder.RoundingInfo(
+            Rounding.DateTimeUnit.SECOND_OF_MINUTE,
+            ZoneOffset.UTC,
+            2000L,
+            "s",
+            1,
+            5,
+            10,
+            30
+        );
+        AutoDateHistogramAggregationBuilder.RoundingInfo differentAbbreviation = new AutoDateHistogramAggregationBuilder.RoundingInfo(
+            Rounding.DateTimeUnit.SECOND_OF_MINUTE,
+            ZoneOffset.UTC,
+            1000L,
+            "sec",
+            1,
+            5,
+            10,
+            30
+        );
+        assertNotEquals(base, differentDuration);
+        assertNotEquals(base, differentAbbreviation);
     }
 
 }

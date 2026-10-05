@@ -1558,7 +1558,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
     }
 
     public void testWriteAllBytesFrom() throws IOException {
-        final var bytes = randomBytesReference(between(0, PageCacheRecycler.BYTE_PAGE_SIZE * 4));
+        final var bytes = randomTestBytesReference();
         try (var out = new RecyclerBytesStreamOutput(recycler)) {
             writeAllBytesRandomSlices(out, bytes);
             assertThat(out.bytes(), equalBytes(bytes));
@@ -1566,9 +1566,9 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
     }
 
     public void testCircuitBreakerTracking() throws IOException {
-        final var bytes = randomBytesReference(between(0, PageCacheRecycler.BYTE_PAGE_SIZE * 4));
+        final var bytes = randomTestBytesReference();
         final var expectedAllocation = getExpectedAllocation(bytes.length());
-        final var circuitBreaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(expectedAllocation + between(0, 100)));
+        final var circuitBreaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(expectedAllocation + getRandomLeeway()));
         try (var out = new RecyclerBytesStreamOutput(recycler, circuitBreaker)) {
             writeAllBytesRandomSlices(out, bytes);
             assertThat(out.bytes(), equalBytes(bytes));
@@ -1579,9 +1579,9 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
     }
 
     public void testCircuitBreakerMoveToBytesReference() throws IOException {
-        final var bytes = randomBytesReference(between(0, PageCacheRecycler.BYTE_PAGE_SIZE * 4));
+        final var bytes = randomTestBytesReference();
         final var expectedTracked = getExpectedAllocation(bytes.length());
-        final var circuitBreaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(expectedTracked + between(0, 100)));
+        final var circuitBreaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(expectedTracked + getRandomLeeway()));
         final ReleasableBytesReference actualBytes;
         try (var out = new RecyclerBytesStreamOutput(recycler, circuitBreaker)) {
             writeAllBytesRandomSlices(out, bytes);
@@ -1597,7 +1597,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
     }
 
     public void testCircuitBreakerTripping() {
-        final var bytes = randomBytesReference(between(0, PageCacheRecycler.BYTE_PAGE_SIZE * 4));
+        final var bytes = randomTestBytesReference();
         final var expectedTracked = getExpectedAllocation(bytes.length());
         final var circuitBreaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(randomLongBetween(0L, expectedTracked - 1L)));
 
@@ -1653,8 +1653,25 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         }
     }
 
+    /// @return a random [BytesReference], often with a size close to a multiple of the page size to better exercise corner cases.
+    private static BytesReference randomTestBytesReference() {
+        return randomBytesReference(
+            randomBoolean()
+                ? between(0, PageCacheRecycler.BYTE_PAGE_SIZE * 4)
+                : Math.max(0, between(0, 4) * PageCacheRecycler.BYTE_PAGE_SIZE + between(-2, 2))
+        );
+    }
+
+    /// @return the expected allocation size for a [RecyclerBytesStreamOutput] populated using [RecyclerBytesStreamOutput#writeAllBytesFrom]
+    /// with an [java.io.InputStream] of the given length. Always has at least one free byte, even if this means the last page is completely
+    /// empty, because we must allocate the page before performing the final [java.io.InputStream#read] which returns `-1`.
     private static long getExpectedAllocation(int length) {
-        final var expectedPages = Math.max(1, (length + PageCacheRecycler.BYTE_PAGE_SIZE - 1) / PageCacheRecycler.BYTE_PAGE_SIZE);
+        final var expectedPages = Math.max(1, (length + PageCacheRecycler.BYTE_PAGE_SIZE) / PageCacheRecycler.BYTE_PAGE_SIZE);
         return expectedPages * PageCacheRecycler.BYTE_PAGE_SIZE;
+    }
+
+    /// @return a random amount of additional leeway in a circuit breaker, often zero.
+    private static int getRandomLeeway() {
+        return randomBoolean() ? 0 : between(1, 100);
     }
 }

@@ -11,7 +11,10 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
+import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
+import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -53,11 +56,25 @@ public record SourceOperatorContext(
     Object pushedFilter,
     List<Expression> pushedExpressions,
     FileList fileList,
+    Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+    @Nullable ExternalSchema unifiedSchema,
     @Nullable ExternalSplit split,
     Set<String> partitionColumnNames,
     @Nullable ExternalSliceQueue sliceQueue,
-    int parsingParallelism
+    int parsingParallelism,
+    int maxConcurrentOpenSegments,
+    int maxRecordBytes,
+    int parallelism,
+    boolean deferredExtraction,
+    DeclaredReadSpec declaredReadSpec
 ) {
+    /**
+     * Single source of truth for the {@code external_max_concurrent_open_segments} default. Lives in this SPI (leaf)
+     * layer so both the {@code QueryPragmas} setting and the datasources-side fallback defaults reference it
+     * without {@code datasources} having to depend on {@code plugin}. Change here and it propagates.
+     */
+    public static final int DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS = 4;
+
     public SourceOperatorContext {
         Check.notNull(path, "path cannot be null");
         Check.notNull(executor, "executor cannot be null");
@@ -66,9 +83,11 @@ public record SourceOperatorContext(
         config = config != null ? Map.copyOf(config) : Map.of();
         sourceMetadata = sourceMetadata != null ? Map.copyOf(sourceMetadata) : Map.of();
         pushedExpressions = pushedExpressions != null ? List.copyOf(pushedExpressions) : List.of();
+        schemaMap = schemaMap != null ? schemaMap : Map.of();
         partitionColumnNames = partitionColumnNames != null && partitionColumnNames.isEmpty() == false
             ? Collections.unmodifiableSet(new LinkedHashSet<>(partitionColumnNames))
             : Set.of();
+        declaredReadSpec = declaredReadSpec != null ? declaredReadSpec : DeclaredReadSpec.NONE;
 
         if (batchSize <= 0) {
             throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);
@@ -78,6 +97,12 @@ public record SourceOperatorContext(
         }
         if (parsingParallelism < 1) {
             throw new IllegalArgumentException("parsingParallelism must be >= 1, got: " + parsingParallelism);
+        }
+        if (maxConcurrentOpenSegments < 1) {
+            throw new IllegalArgumentException("maxConcurrentOpenSegments must be >= 1, got: " + maxConcurrentOpenSegments);
+        }
+        if (parallelism < 1) {
+            throw new IllegalArgumentException("parallelism must be >= 1, got: " + parallelism);
         }
     }
 
@@ -110,10 +135,17 @@ public record SourceOperatorContext(
             pushedFilter,
             null,
             fileList,
+            Map.of(),
+            null,
             split,
             null,
             null,
-            1
+            1,
+            DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            1,
+            false,
+            DeclaredReadSpec.NONE
         );
     }
 
@@ -145,10 +177,17 @@ public record SourceOperatorContext(
             pushedFilter,
             null,
             fileList,
+            Map.of(),
             null,
             null,
             null,
-            1
+            null,
+            1,
+            DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            1,
+            false,
+            DeclaredReadSpec.NONE
         );
     }
 
@@ -179,10 +218,17 @@ public record SourceOperatorContext(
             pushedFilter,
             null,
             null,
+            Map.of(),
             null,
             null,
             null,
-            1
+            null,
+            1,
+            DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            1,
+            false,
+            DeclaredReadSpec.NONE
         );
     }
 
@@ -211,10 +257,17 @@ public record SourceOperatorContext(
             null,
             null,
             null,
+            Map.of(),
             null,
             null,
             null,
-            1
+            null,
+            1,
+            DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            1,
+            false,
+            DeclaredReadSpec.NONE
         );
     }
 
@@ -238,10 +291,20 @@ public record SourceOperatorContext(
         private Object pushedFilter;
         private List<Expression> pushedExpressions;
         private FileList fileList;
+        private Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
+        @Nullable
+        private ExternalSchema unifiedSchema;
         private ExternalSplit split;
         private Set<String> partitionColumnNames;
         private ExternalSliceQueue sliceQueue;
         private int parsingParallelism = 1;
+        private int maxConcurrentOpenSegments = DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS;
+        // Default matches StreamingParallelParsingCoordinator's record-growth cap (64 MiB); the planner
+        // overrides it from the external_max_record_size query pragma.
+        private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
+        private int parallelism = 1;
+        private boolean deferredExtraction;
+        private DeclaredReadSpec declaredReadSpec = DeclaredReadSpec.NONE;
 
         public Builder sourceType(String sourceType) {
             this.sourceType = sourceType;
@@ -318,6 +381,17 @@ public record SourceOperatorContext(
             return this;
         }
 
+        /**
+         * Per-file planner-resolved schema info, populated by the resolver and threaded through
+         * {@link org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec}. Always present
+         * for resolved sources (single-file gets a one-entry identity map; multi-file gets the
+         * reconciliation result). Empty map for legacy/unresolved paths.
+         */
+        public Builder schemaMap(Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap) {
+            this.schemaMap = schemaMap;
+            return this;
+        }
+
         public Builder split(ExternalSplit split) {
             this.split = split;
             return this;
@@ -338,6 +412,52 @@ public record SourceOperatorContext(
             return this;
         }
 
+        public Builder maxConcurrentOpenSegments(int maxConcurrentOpenSegments) {
+            this.maxConcurrentOpenSegments = maxConcurrentOpenSegments;
+            return this;
+        }
+
+        public Builder maxRecordBytes(int maxRecordBytes) {
+            this.maxRecordBytes = maxRecordBytes;
+            return this;
+        }
+
+        public Builder parallelism(int parallelism) {
+            this.parallelism = parallelism;
+            return this;
+        }
+
+        /**
+         * Whether the plan pairs this source with an {@code ExternalFieldExtractExec} consuming
+         * deferred-encoded columns. The operator factory keys deferred extraction off this flag,
+         * not off {@code _rowPosition} presence in the projection — the latter is also produced
+         * for plain {@code _file.record_ref} composition with no extract operator downstream.
+         */
+        public Builder deferredExtraction(boolean deferredExtraction) {
+            this.deferredExtraction = deferredExtraction;
+            return this;
+        }
+
+        /**
+         * The pre-prune unified schema, distinct from {@code attributes}, which the optimizer prunes to the
+         * query projection. A projection-dependent schema cannot identify how a file is read: a coordinator
+         * resolving the full schema and a data node reading a subset would derive different identities.
+         */
+        public Builder unifiedSchema(@Nullable ExternalSchema unifiedSchema) {
+            this.unifiedSchema = unifiedSchema;
+            return this;
+        }
+
+        /**
+         * The declared mapping's read-instructions (renames, per-column date formats), or {@link DeclaredReadSpec#NONE}.
+         * Consumed by {@code FileSourceFactory}: renames physicalize reader-facing names, date formats drive
+         * per-column date parsing.
+         */
+        public Builder declaredReadSpec(DeclaredReadSpec declaredReadSpec) {
+            this.declaredReadSpec = declaredReadSpec;
+            return this;
+        }
+
         public SourceOperatorContext build() {
             return new SourceOperatorContext(
                 sourceType,
@@ -354,10 +474,17 @@ public record SourceOperatorContext(
                 pushedFilter,
                 pushedExpressions,
                 fileList,
+                schemaMap,
+                unifiedSchema,
                 split,
                 partitionColumnNames,
                 sliceQueue,
-                parsingParallelism
+                parsingParallelism,
+                maxConcurrentOpenSegments,
+                maxRecordBytes,
+                parallelism,
+                deferredExtraction,
+                declaredReadSpec
             );
         }
     }

@@ -18,6 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -27,9 +28,8 @@ public class ResolvedRepositoriesTests extends ESTestCase {
 
     private ProjectId projectId;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initProjectId() throws Exception {
         projectId = randomProjectIdOrDefault();
     }
 

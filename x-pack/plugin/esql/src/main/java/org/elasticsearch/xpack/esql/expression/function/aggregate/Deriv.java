@@ -13,6 +13,7 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.DerivDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.DerivIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.DerivLongAggregatorFunctionSupplier;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -41,19 +42,22 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_D
 /**
  * Calculates the derivative over time of a numeric field using linear regression.
  */
-public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator, TimestampAware {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Deriv", Deriv::new);
+public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator, TimestampAware, AnyNullIsNull {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Deriv", Deriv::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Deriv.class).ternary(Deriv::new).name("deriv");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .withinSeries(Deriv::new)
         .description("Calculates the per-second derivative of the time series using simple linear regression.")
+        .extendedDescription(PromqlFunctionDefinition.GAUGE_FAMILY_BEHAVIOR)
         .example("deriv(node_memory_free_bytes[5m])")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("deriv");
     private final Expression timestamp;
 
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
+        briefSummary = "Calculates the derivative over time of a numeric field using linear regression.",
         description = "Calculates the derivative over time of a numeric field using linear regression.",
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0"),
@@ -75,22 +79,21 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator, 
         ) Expression window,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
+        this(source, field, timestamp, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
     }
 
-    public Deriv(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
-        super(source, field, filter, window, List.of(timestamp));
+    public Deriv(Source source, Expression field, Expression timestamp, Expression filter, Expression window) {
+        super(source, List.of(field, timestamp), filter, window, List.of());
         this.timestamp = timestamp;
     }
 
-    private Deriv(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
-        );
+    private static Deriv readFrom(StreamInput in) throws IOException {
+        Source source = Source.readFrom((PlanStreamInput) in);
+        Expression field = in.readNamedWriteable(Expression.class);
+        Expression filter = in.readNamedWriteable(Expression.class);
+        Expression window = in.readNamedWriteable(Expression.class);
+        Expression timestamp = in.readNamedWriteableCollectionAsList(Expression.class).getFirst();
+        return new Deriv(source, field, timestamp, filter, window);
     }
 
     @Override
@@ -101,11 +104,6 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator, 
     @Override
     public AggregateFunction perTimeSeriesAggregation() {
         return this;
-    }
-
-    @Override
-    public AggregateFunction withFilter(Expression filter) {
-        return new Deriv(source(), field(), filter, window(), timestamp);
     }
 
     @Override
@@ -131,7 +129,7 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator, 
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Deriv::new, field(), filter(), window(), timestamp);
+        return NodeInfo.create(this, Deriv::new, field(), timestamp, filter(), window());
     }
 
     @Override

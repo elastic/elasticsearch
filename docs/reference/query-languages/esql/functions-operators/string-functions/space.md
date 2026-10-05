@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `SPACE` function [esql-space]
 
-:::{include} ../../_snippets/functions/layout/space.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/space.md
 :::

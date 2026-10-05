@@ -26,6 +26,7 @@ class ES815HnswBitRWVectorsFormat extends ES815HnswBitVectorsFormat {
             state,
             maxConn,
             beamWidth,
+            flatVectorsFormat,
             flatVectorsFormat.fieldsWriter(state),
             numMergeWorkers,
             mergeExec,

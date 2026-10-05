@@ -38,9 +38,7 @@ public class OTLPTracesIndexingRestIT extends AbstractOTLPIndexingRestIT {
     }
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initTraceExporter() throws Exception {
         OtlpHttpSpanExporter exporter = OtlpHttpSpanExporter.builder()
             .setEndpoint(getClusterHosts().getFirst().toURI() + otlpEndpointPath())
             .addHeader("Authorization", "ApiKey " + createApiKey("traces-*", "logs-*"))
@@ -53,9 +51,7 @@ public class OTLPTracesIndexingRestIT extends AbstractOTLPIndexingRestIT {
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeTracerProvider() throws Exception {
         if (tracerProvider != null) {
             tracerProvider.close();
         }

@@ -13,6 +13,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 
 import java.io.IOException;
@@ -20,11 +22,19 @@ import java.util.Map;
 
 /**
  * Describes the capabilities of a field in a single index.
+ *
  * @param name           The name of the field.
  * @param type           The type associated with the field.
  * @param isSearchable   Whether this field is indexed for search.
  * @param isAggregatable Whether this field can be aggregated on.
+ * @param isInference    Whether this field is an inference field.
  * @param meta           Metadata about the field.
+ * @param indexAnalyzer  index analyzer name for a text field, set only when any node can rebuild it by name;
+ *                       {@code null} otherwise, as for analyzers a mapper hard-codes or fields from older nodes
+ * @param indexAnalyzerPositionIncrementGap mapping {@code position_increment_gap} when {@code indexAnalyzer} is set;
+ *                       the default otherwise, so a missing name does not affect equality
+ * @param indexLocalAnalyzer {@code true} when a text field's analyzer name was withheld because it is defined under
+ *                       {@code index.analysis}. Never set together with {@code indexAnalyzer}.
  */
 
 public record IndexFieldCapabilities(
@@ -33,10 +43,21 @@ public record IndexFieldCapabilities(
     boolean isMetadatafield,
     boolean isSearchable,
     boolean isAggregatable,
+    boolean isInference,
     boolean isDimension,
     TimeSeriesParams.MetricType metricType,
-    Map<String, String> meta
+    Map<String, String> meta,
+    @Nullable String indexAnalyzer,
+    int indexAnalyzerPositionIncrementGap,
+    boolean indexLocalAnalyzer
 ) implements Writeable {
+
+    public IndexFieldCapabilities {
+        if (indexAnalyzer == null) {
+            indexAnalyzerPositionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
+        }
+        assert indexAnalyzer == null || indexLocalAnalyzer == false : "a reported analyzer name cannot be index-local";
+    }
 
     private static final StringLiteralDeduplicator typeStringDeduplicator = new StringLiteralDeduplicator();
 
@@ -48,15 +69,25 @@ public record IndexFieldCapabilities(
         boolean isAggregatable = in.readBoolean();
         boolean isDimension = in.readBoolean();
         TimeSeriesParams.MetricType metricType = in.readOptionalEnum(TimeSeriesParams.MetricType.class);
+        Map<String, String> meta = in.readImmutableMap(StreamInput::readString);
+        boolean isInference = in.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_INFERENCE_FIELD) && in.readBoolean();
+        boolean hasAnalyzer = in.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER);
+        String indexAnalyzer = hasAnalyzer ? in.readOptionalString() : null;
+        int indexAnalyzerPositionIncrementGap = indexAnalyzer != null ? in.readVInt() : TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
+        boolean indexLocalAnalyzer = hasAnalyzer && indexAnalyzer == null && in.readBoolean();
         return new IndexFieldCapabilities(
             name,
             type,
             isMetadatafield,
             isSearchable,
             isAggregatable,
+            isInference,
             isDimension,
             metricType,
-            in.readImmutableMap(StreamInput::readString)
+            meta,
+            indexAnalyzer,
+            indexAnalyzerPositionIncrementGap,
+            indexLocalAnalyzer
         );
     }
 
@@ -70,6 +101,17 @@ public record IndexFieldCapabilities(
         out.writeBoolean(isDimension);
         out.writeOptionalEnum(metricType);
         out.writeMap(meta, StreamOutput::writeString);
+        if (out.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_INFERENCE_FIELD)) {
+            out.writeBoolean(isInference);
+        }
+        if (out.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER)) {
+            out.writeOptionalString(indexAnalyzer);
+            if (indexAnalyzer != null) {
+                out.writeVInt(indexAnalyzerPositionIncrementGap);
+            } else {
+                out.writeBoolean(indexLocalAnalyzer);
+            }
+        }
     }
 
 }

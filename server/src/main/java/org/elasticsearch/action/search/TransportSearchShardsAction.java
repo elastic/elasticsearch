@@ -66,6 +66,7 @@ public class TransportSearchShardsAction extends TransportAction<SearchShardsReq
     private final SearchResponseMetrics searchResponseMetrics;
 
     @Inject
+    @SuppressWarnings("this-escape")
     public TransportSearchShardsAction(
         TransportService transportService,
         SearchService searchService,
@@ -121,6 +122,7 @@ public class TransportSearchShardsAction extends TransportAction<SearchShardsReq
         final long relativeStartNanos = System.nanoTime();
         SearchRequest original = new SearchRequest(searchShardsRequest.indices()).indicesOptions(searchShardsRequest.indicesOptions())
             .routing(searchShardsRequest.routing())
+            .setRoutingFromSlice(searchShardsRequest.isRoutingFromSlice())
             .preference(searchShardsRequest.preference())
             .allowPartialSearchResults(searchShardsRequest.allowPartialSearchResults());
         if (searchShardsRequest.query() != null) {
@@ -159,6 +161,12 @@ public class TransportSearchShardsAction extends TransportAction<SearchShardsReq
             threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
             listener.delegateFailureAndWrap((delegate, searchRequest) -> {
                 Index[] concreteIndices = resolvedIndices.getConcreteLocalIndices();
+                TransportSearchAction.validateAndResolveSearchSliceRouting(
+                    searchRequest,
+                    resolvedIndices.getConcreteLocalIndicesMetadata(),
+                    searchRequest.indices(),
+                    false
+                );
                 final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(
                     project.metadata(),
                     searchRequest.indices()

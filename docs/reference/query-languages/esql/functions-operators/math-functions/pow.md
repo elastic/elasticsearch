@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `POW` function [esql-pow]
 
-:::{include} ../../_snippets/functions/layout/pow.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/pow.md
 :::

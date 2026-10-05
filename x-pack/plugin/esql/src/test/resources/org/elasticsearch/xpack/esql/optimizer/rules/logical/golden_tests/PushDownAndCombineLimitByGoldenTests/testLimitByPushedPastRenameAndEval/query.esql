@@ -1,0 +1,4 @@
+FROM employees
+| EVAL doubled = salary * 2
+| RENAME doubled AS x
+| LIMIT 5 BY languages

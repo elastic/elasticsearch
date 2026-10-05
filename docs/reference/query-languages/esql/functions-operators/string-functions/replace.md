@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `REPLACE` function [esql-replace]
 
-:::{include} ../../_snippets/functions/layout/replace.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/replace.md
 :::

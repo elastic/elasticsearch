@@ -6,10 +6,12 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -20,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -93,6 +96,9 @@ public class AnomalyRecordTests extends AbstractXContentSerializingTestCase<Anom
                 causes.add(new AnomalyCauseTests().createTestInstance());
             }
             anomalyRecord.setCauses(causes);
+        }
+        if (randomBoolean()) {
+            anomalyRecord.setEventIngested(Instant.ofEpochMilli(randomNonNegativeLong()));
         }
         if (randomBoolean()) {
             AnomalyScoreExplanation anomalyScoreExplanation = new AnomalyScoreExplanation();
@@ -267,5 +273,71 @@ public class AnomalyRecordTests extends AbstractXContentSerializingTestCase<Anom
         String id = AnomalyRecord.buildId(jobId, timestamp, bucketSpan, detectorIndex, byFieldValue, overFieldValue, partitionFieldValue);
         // 512 comes from IndexRequest.validate()
         assertThat(id.getBytes(StandardCharsets.UTF_8).length, lessThanOrEqualTo(512));
+    }
+
+    public void testEventIngestedSerializesAsNestedObject() throws IOException {
+        AnomalyRecord record = new AnomalyRecord("job1", new Date(1000L), 60L);
+        record.setEventIngested(Instant.ofEpochMilli(123456789L));
+
+        BytesReference bytes = XContentHelper.toXContent(record, XContentType.JSON, false);
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), bytes)) {
+            Map<String, Object> map = parser.map();
+            // Must be nested {"event": {"ingested": ...}}, not a flat "event.ingested" key
+            assertNull("event.ingested must not appear as a flat key", map.get("event.ingested"));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> event = (Map<String, Object>) map.get("event");
+            assertNotNull("event object must be present", event);
+            assertEquals(123456789L, ((Number) event.get("ingested")).longValue());
+        }
+    }
+
+    public void testEventIngestedAbsentFromXContentWhenNull() throws IOException {
+        AnomalyRecord record = new AnomalyRecord("job1", new Date(1000L), 60L);
+        assertNull(record.getEventIngested());
+
+        BytesReference bytes = XContentHelper.toXContent(record, XContentType.JSON, false);
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), bytes)) {
+            Map<String, Object> map = parser.map();
+            assertFalse("event key must not appear when eventIngested is null", map.containsKey("event"));
+        }
+    }
+
+    public void testEventIngestedPreservedThroughRenormalization() throws IOException {
+        Instant originalIngested = Instant.ofEpochMilli(123456789L);
+        AnomalyRecord record = new AnomalyRecord("job1", new Date(1000L), 60L);
+        record.setEventIngested(originalIngested);
+        record.setRecordScore(5.0);
+
+        // First round-trip: serialize and parse back (as renormalization would read the stored doc)
+        BytesReference bytes = XContentHelper.toXContent(record, XContentType.JSON, false);
+        AnomalyRecord reparsed;
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), bytes)) {
+            reparsed = AnomalyRecord.LENIENT_PARSER.apply(parser, null);
+        }
+        assertEquals(originalIngested, reparsed.getEventIngested());
+
+        // Simulate renormalization: update score, re-serialize (without calling setEventIngested again)
+        reparsed.setRecordScore(8.0);
+        BytesReference bytes2 = XContentHelper.toXContent(reparsed, XContentType.JSON, false);
+        AnomalyRecord reparsed2;
+        try (XContentParser parser2 = createParser(XContentType.JSON.xContent(), bytes2)) {
+            reparsed2 = AnomalyRecord.LENIENT_PARSER.apply(parser2, null);
+        }
+        assertEquals("event.ingested must survive renormalization unchanged", originalIngested, reparsed2.getEventIngested());
+    }
+
+    public void testEventIngestedWireBwc() throws IOException {
+        TransportVersion gate = TransportVersion.fromName("ml_anomaly_event_ingested");
+
+        AnomalyRecord instance = createTestInstance();
+        instance.setEventIngested(Instant.ofEpochMilli(randomNonNegativeLong()));
+
+        AnomalyRecord supported = copyInstance(instance, TransportVersionUtils.randomVersionSupporting(gate));
+        assertEquals(instance.getEventIngested(), supported.getEventIngested());
+
+        AnomalyRecord old = copyInstance(instance, TransportVersionUtils.randomVersionNotSupporting(gate));
+        assertNull(old.getEventIngested());
+        instance.setEventIngested(null);
+        assertEquals(instance, old);
     }
 }

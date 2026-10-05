@@ -18,15 +18,34 @@
         "version": "${kibana.workflows.version}",
         "managed_index_mappings_version": ${kibana.workflows.events.managed.index.version}
       },
-      "dynamic": true,
+      "dynamic": false,
       "properties": {
         "@timestamp": {
           "type": "date"
+        },
+        "eventId": {
+          "type": "keyword"
+        },
+        "triggerId": {
+          "type": "keyword"
+        },
+        "spaceId": {
+          "type": "keyword"
+        },
+        "subscriptions": {
+          "type": "keyword"
+        },
+        "sourceExecutionId": {
+          "type": "keyword"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {}
         }
       }
     }
   },
   "composed_of": [],
   "priority": 200,
-  "version": 2
+  "version": 3
 }

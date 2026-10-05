@@ -107,7 +107,8 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         RoutingAllocation allocation = onePrimaryOnNode1And1Replica(
             yesAllocationDeciders(),
             Settings.EMPTY,
-            UnassignedInfo.Reason.INDEX_CREATED
+            UnassignedInfo.Reason.INDEX_CREATED,
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
         );
         testAllocator.clean();
         allocateAllUnassigned(allocation);
@@ -125,7 +126,11 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
             random(),
             EnumSet.complementOf(EnumSet.of(UnassignedInfo.Reason.INDEX_CREATED))
         );
-        RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders(), Settings.EMPTY, reason);
+        ShardRouting.RecoveryPriority recoveryPriority = randomFrom(
+            ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED,
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+        ); // this priority may or may not make sense for the chosen reason, but it shouldn't affect the test anyway
+        RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders(), Settings.EMPTY, reason, recoveryPriority);
         testAllocator.clean();
         allocateAllUnassigned(allocation);
         assertThat("failed with reason " + reason, testAllocator.getFetchDataCalledAndClean(), equalTo(true));
@@ -394,7 +399,8 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         RoutingAllocation allocation = onePrimaryOnNode1And1Replica(
             yesAllocationDeciders(),
             Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1)).build(),
-            UnassignedInfo.Reason.NODE_LEFT
+            UnassignedInfo.Reason.NODE_LEFT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
         );
         testAllocator.addData(node1, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
         if (randomBoolean()) {
@@ -409,7 +415,8 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         allocation = onePrimaryOnNode1And1Replica(
             yesAllocationDeciders(),
             Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1)).build(),
-            UnassignedInfo.Reason.NODE_LEFT
+            UnassignedInfo.Reason.NODE_LEFT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
         );
         testAllocator.addData(node2, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
         allocateAllUnassigned(allocation);
@@ -587,10 +594,20 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
     }
 
     private RoutingAllocation onePrimaryOnNode1And1Replica(AllocationDeciders deciders) {
-        return onePrimaryOnNode1And1Replica(deciders, Settings.EMPTY, UnassignedInfo.Reason.CLUSTER_RECOVERED);
+        return onePrimaryOnNode1And1Replica(
+            deciders,
+            Settings.EMPTY,
+            UnassignedInfo.Reason.CLUSTER_RECOVERED,
+            ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+        );
     }
 
-    private RoutingAllocation onePrimaryOnNode1And1Replica(AllocationDeciders deciders, Settings settings, UnassignedInfo.Reason reason) {
+    private RoutingAllocation onePrimaryOnNode1And1Replica(
+        AllocationDeciders deciders,
+        Settings settings,
+        UnassignedInfo.Reason reason,
+        ShardRouting.RecoveryPriority recoveryPriority
+    ) {
         ShardRouting primaryShard = TestShardRouting.newShardRouting(shardId, node1.getId(), true, ShardRoutingState.STARTED);
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder(shardId.getIndexName())
             .settings(settings(IndexVersion.current()).put(settings))
@@ -627,7 +644,8 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                                         Collections.emptySet(),
                                         lastAllocatedNodeId
                                     ),
-                                    ShardRouting.Role.DEFAULT
+                                    ShardRouting.Role.DEFAULT,
+                                    recoveryPriority
                                 )
                             )
                     )

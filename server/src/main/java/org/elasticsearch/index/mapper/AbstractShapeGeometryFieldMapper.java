@@ -34,13 +34,6 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
      */
     private static final long BLOCK_LOADER_ESTIMATED_SIZE = ByteSizeValue.ofKb(2).getBytes();
 
-    @Override
-    protected boolean supportsParsingObject() {
-        // ShapeGeometryFieldMapper supports parsing Well-Known Text (WKT) and GeoJSON.
-        // WKT are of type String and GeoJSON for all shapes are of type Array.
-        return false;
-    }
-
     public static Parameter<Explicit<Boolean>> coerceParam(Function<FieldMapper, Explicit<Boolean>> initializer, boolean coerceByDefault) {
         return Parameter.explicitBoolParam("coerce", true, initializer, coerceByDefault);
     }

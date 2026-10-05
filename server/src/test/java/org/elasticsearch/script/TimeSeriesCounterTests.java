@@ -33,10 +33,8 @@ public class TimeSeriesCounterTests extends ESTestCase {
     protected List<Long> events;
     protected Counter counter;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initCounter() throws Exception {
         now = 1635182590;
         customCounterResolution = 45;
         customCounterDuration = 900;

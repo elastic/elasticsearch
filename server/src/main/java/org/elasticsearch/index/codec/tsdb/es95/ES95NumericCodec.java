@@ -9,11 +9,14 @@
 
 package org.elasticsearch.index.codec.tsdb.es95;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.tsdb.NumericBlockCodec;
 import org.elasticsearch.index.codec.tsdb.NumericFieldReader;
 import org.elasticsearch.index.codec.tsdb.NumericFieldWriter;
 import org.elasticsearch.index.codec.tsdb.NumericReadContext;
 import org.elasticsearch.index.codec.tsdb.NumericWriteContext;
+import org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfigResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecFactory;
 
 /**
@@ -29,16 +32,20 @@ import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecFactory;
  */
 final class ES95NumericCodec implements NumericBlockCodec {
 
-    private final PipelineConfigFactory pipelineConfigFactory;
+    private final PipelineConfigResolver resolver;
+    @Nullable
+    private final FieldContextResolver fieldContextResolver;
     private final NumericCodecFactory numericCodecFactory;
     private final FallbackDecoderFactory fallbackDecoderFactory;
 
     ES95NumericCodec(
-        final PipelineConfigFactory pipelineConfigFactory,
+        final PipelineConfigResolver resolver,
+        @Nullable final FieldContextResolver fieldContextResolver,
         final NumericCodecFactory numericCodecFactory,
         final FallbackDecoderFactory fallbackDecoderFactory
     ) {
-        this.pipelineConfigFactory = pipelineConfigFactory;
+        this.resolver = resolver;
+        this.fieldContextResolver = fieldContextResolver;
         this.numericCodecFactory = numericCodecFactory;
         this.fallbackDecoderFactory = fallbackDecoderFactory;
     }
@@ -50,6 +57,6 @@ final class ES95NumericCodec implements NumericBlockCodec {
 
     @Override
     public NumericFieldWriter createWriter(final NumericWriteContext ctx) {
-        return new ES95NumericFieldWriter(ctx, pipelineConfigFactory, numericCodecFactory);
+        return new ES95NumericFieldWriter(ctx, resolver, fieldContextResolver, numericCodecFactory);
     }
 }

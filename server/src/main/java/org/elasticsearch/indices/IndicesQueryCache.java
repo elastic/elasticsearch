@@ -15,6 +15,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FilterWeight;
+import org.apache.lucene.search.LRUQueryCache;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -32,7 +33,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.lucene.search.XLRUQueryCache;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -69,7 +69,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         Property.NodeScope
     );
 
-    private final XLRUQueryCache cache;
+    private final LRUQueryCache cache;
     private final ShardCoreKeyMap shardKeyMap = new ShardCoreKeyMap();
     private final Map<ShardId, Stats> shardStats = new ConcurrentHashMap<>();
     private volatile long sharedRamBytesUsed;
@@ -124,6 +124,11 @@ public class IndicesQueryCache implements QueryCache, Closeable {
             cache = new ElasticsearchLRUQueryCache(count, size.getBytes());
         }
         sharedRamBytesUsed = 0;
+    }
+
+    // Visible for testing:
+    LRUQueryCache getCache() {
+        return cache;
     }
 
     private static QueryCacheStats toQueryCacheStatsSafe(@Nullable Stats stats) {
@@ -339,7 +344,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         shardStats.remove(shardId);
     }
 
-    private class ElasticsearchLRUQueryCache extends XLRUQueryCache {
+    private class ElasticsearchLRUQueryCache extends LRUQueryCache {
 
         ElasticsearchLRUQueryCache(int maxSize, long maxRamBytesUsed, Predicate<LeafReaderContext> leavesToCache, float skipFactor) {
             super(maxSize, maxRamBytesUsed, leavesToCache, skipFactor);
@@ -358,7 +363,11 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
 
         private Stats getOrCreateStats(Object coreKey) {
-            return shardStats.computeIfAbsent(shardKeyMap.getShardId(coreKey), Stats::new);
+            final ShardId shardId = shardKeyMap.getShardId(coreKey);
+            if (shardId == null) {
+                return null;
+            }
+            return shardStats.computeIfAbsent(shardId, Stats::new);
         }
 
         // It's ok to not protect these callbacks by a lock since it is
@@ -391,6 +400,9 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         protected void onDocIdSetCache(Object readerCoreKey, long ramBytesUsed) {
             super.onDocIdSetCache(readerCoreKey, ramBytesUsed);
             final Stats shardStats = getOrCreateStats(readerCoreKey);
+            if (shardStats == null) {
+                return;
+            }
             shardStats.cacheSize += 1;
             shardStats.cacheCount += 1;
             shardStats.ramBytesUsed += ramBytesUsed;
@@ -412,6 +424,9 @@ public class IndicesQueryCache implements QueryCache, Closeable {
                 // we only evict when nothing is cached anymore on the segment
                 // instead of relying on close listeners
                 final StatsAndCount statsAndCount = stats2.get(readerCoreKey);
+                if (statsAndCount == null) {
+                    return;
+                }
                 final Stats shardStats = statsAndCount.stats;
                 shardStats.cacheSize -= numEntries;
                 shardStats.ramBytesUsed -= sumRamBytesUsed;
@@ -426,14 +441,18 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         protected void onHit(Object readerCoreKey, Query filter) {
             super.onHit(readerCoreKey, filter);
             final Stats shardStats = getStats(readerCoreKey);
-            shardStats.hitCount += 1;
+            if (shardStats != null) {
+                shardStats.hitCount += 1;
+            }
         }
 
         @Override
         protected void onMiss(Object readerCoreKey, Query filter) {
             super.onMiss(readerCoreKey, filter);
             final Stats shardStats = getOrCreateStats(readerCoreKey);
-            shardStats.missCount += 1;
+            if (shardStats != null) {
+                shardStats.missCount += 1;
+            }
         }
 
         @Override

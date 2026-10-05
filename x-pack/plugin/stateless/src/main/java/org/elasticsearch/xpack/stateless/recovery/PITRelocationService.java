@@ -17,7 +17,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.internal.ReaderContext;
+import org.elasticsearch.search.internal.PitReaderContext;
 
 import java.util.List;
 import java.util.Map;
@@ -28,12 +28,12 @@ public class PITRelocationService implements IndexEventListener {
 
     private static final Logger logger = LogManager.getLogger(PITRelocationService.class);
     private final Map<ShardId, Set<Runnable>> relocatingContexts = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
-    private final SetOnce<Function<ShardId, List<ReaderContext>>> activeReaderContextProvider = new SetOnce<>();
+    private final SetOnce<Function<ShardId, List<PitReaderContext>>> activeReaderContextProvider = new SetOnce<>();
     private boolean pitRelocationEnabled = true;
 
     public PITRelocationService() {}
 
-    public void setActiveReaderContextProvider(Function<ShardId, List<ReaderContext>> activeReaderContextProvider) {
+    public void setActiveReaderContextProvider(Function<ShardId, List<PitReaderContext>> activeReaderContextProvider) {
         this.activeReaderContextProvider.set(activeReaderContextProvider);
     }
 
@@ -70,10 +70,10 @@ public class PITRelocationService implements IndexEventListener {
             logger.debug("afterIndexShardClosed [{}]", shardId);
             // on shard close, free all PIT contexts related to this shard. This is important on the source node of a PIT relocation
             // because otherwise we will never route searches to the new location of the PIT
-            Function<ShardId, List<ReaderContext>> shardIdListFunction = this.activeReaderContextProvider.get();
+            Function<ShardId, List<PitReaderContext>> shardIdListFunction = this.activeReaderContextProvider.get();
             if (shardIdListFunction != null) {
-                List<ReaderContext> activePITContexts = shardIdListFunction.apply(shardId);
-                for (ReaderContext context : activePITContexts) {
+                List<PitReaderContext> activePITContexts = shardIdListFunction.apply(shardId);
+                for (PitReaderContext context : activePITContexts) {
                     context.relocate();
                     logger.debug("forcing PIT context [{}] on shard [{}] to expire in next Reaper run.", context.id(), shardId);
                 }

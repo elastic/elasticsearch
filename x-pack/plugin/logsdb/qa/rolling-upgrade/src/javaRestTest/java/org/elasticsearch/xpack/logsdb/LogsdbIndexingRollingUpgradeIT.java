@@ -25,13 +25,18 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTestCase {
 
+    static {
+        enableColumnarIndexModeRandomization();
+    }
+
     static String BULK_ITEM_TEMPLATE =
         """
-            {"@timestamp": "$now", "host.name": "$host", "method": "$method", "ip": "$ip", "message": "$message", "length": $length, "factor": $factor}
+            {"@timestamp": "$now", "host.name": "$host", "method": "$method", "ip": "$ip", "message": "$message", "length": $length, "factor": $factor, "tag": "$tag"}
             """;
 
     private static final String TEMPLATE = """
         {
+            %%settings%%
             "mappings": {
               "properties": {
                 "@timestamp" : {
@@ -51,6 +56,10 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
                 },
                 "factor": {
                   "type": "double"
+                },
+                "tag": {
+                  "type": "keyword"
+                  %%tag_keep_mode%%
                 }
               }
             }
@@ -66,21 +75,37 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
         {
             maybeEnableLogsdbByDefault();
 
+            final String tagKeepMode = columnarEnabled ? "" : ",\"synthetic_source_keep\":\"all\"";
+            String template = TEMPLATE.replace("%%tag_keep_mode%%", tagKeepMode);
+            final Version oldVersion = System.getProperty("tests.old_cluster_version") != null
+                ? Version.fromString(System.getProperty("tests.old_cluster_version"))
+                : Version.CURRENT;
+            // 9.4.x nodes write _ignored_source using stored fields on release builds but doc values
+            // on snapshot builds, making the on-disk format ambiguous during a rolling upgrade.
+            // Disable the TSDB doc-values format so both old and new nodes use stored fields,
+            // eliminating the conflict while still exercising _ignored_source via synthetic_source_keep.
+            final boolean ignoredSourceFormatIsStable = oldVersion.before("9.4.0") || oldVersion.onOrAfter(Version.fromString("9.5.0"));
+            final String settingsJson = ignoredSourceFormatIsStable
+                ? ""
+                : "\"settings\": {\"index.use_time_series_doc_values_format\": false},";
+            template = template.replace("%%settings%%", settingsJson);
+
             String templateId = getClass().getSimpleName().toLowerCase(Locale.ROOT);
-            createTemplate(dataStreamName, templateId, TEMPLATE);
+            createTemplate(dataStreamName, templateId, template);
 
             time = Instant.now().minusSeconds(60 * 60);
             bulkIndex(dataStreamName, 4, 1024, time, LogsdbIndexingRollingUpgradeIT::docSupplier);
 
             String firstBackingIndex = getDataStreamBackingIndexNames(dataStreamName).getFirst();
             var settings = (Map<?, ?>) getIndexSettings(firstBackingIndex, true).get(firstBackingIndex);
-            assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo("logsdb"));
+            assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo(columnarEnabled ? "logsdb_columnar" : "logsdb"));
             assertThat(((Map<?, ?>) settings.get("defaults")).get("index.mapping.source.mode"), equalTo("SYNTHETIC"));
 
             // check prior to rollover
             assertDataStream(dataStreamName, templateId);
             ensureGreen(dataStreamName);
             search(dataStreamName);
+            searchWithSource(dataStreamName);
             query(dataStreamName);
         }
         AtomicReference<Instant> timeRef = new AtomicReference<>(time);
@@ -88,7 +113,10 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
             timeRef.set(timeRef.get().plusNanos(60 * 30));
             bulkIndex(dataStreamName, 4, 1024, timeRef.get(), LogsdbIndexingRollingUpgradeIT::docSupplier);
             search(dataStreamName);
+            searchWithSource(dataStreamName);
             query(dataStreamName);
+            // verify index mode stats are serializable across mixed-version nodes
+            assertOK(client().performRequest(new Request("GET", "/_xpack/usage")));
         });
         {
             var forceMergeRequest = new Request("POST", "/" + dataStreamName + "/_forcemerge");
@@ -97,6 +125,7 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
 
             ensureGreen(dataStreamName);
             search(dataStreamName);
+            searchWithSource(dataStreamName);
             query(dataStreamName);
         }
     }
@@ -115,16 +144,22 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
         String hostName = "host" + j % 50; // Not realistic, but makes asserting search / query response easier.
         String methodName = "method" + j % 5;
         String ip = NetworkAddress.format(randomIp(true));
-        String message = randomAlphaOfLength(128);
+        // Every ~100th document uses a message that exceeds the binary doc-values block threshold
+        // (512 KB). The text field value is stored as binary doc values in its fallback field for
+        // synthetic source reconstruction, so the oversized value lands in a single-doc block and
+        // exercises the verbatim-copy path in addRawBlock during force merges.
+        String message = (j % 100 == 0) ? randomAlphaOfLength(1024 * 1024) : randomAlphaOfLength(128);
         long length = randomLong();
         double factor = randomDouble();
+        String tag = randomAlphaOfLengthBetween(3, 8);
         return BULK_ITEM_TEMPLATE.replace("$now", formatInstant(startTime))
             .replace("$host", hostName)
             .replace("$method", methodName)
             .replace("$ip", ip)
             .replace("$message", message)
             .replace("$length", Long.toString(length))
-            .replace("$factor", Double.toString(factor));
+            .replace("$factor", Double.toString(factor))
+            .replace("$tag", tag);
     }
 
     void search(String dataStreamName) throws Exception {
@@ -169,6 +204,30 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
         assertThat(maxTx, notNullValue());
         Double maxRx = ObjectPath.evaluate(responseBody, "aggregations.host_name.buckets.0.max_factor.value");
         assertThat(maxRx, notNullValue());
+    }
+
+    /**
+     * Fetches actual documents to exercise the {@code _ignored_source} read path. The {@code tag} field is
+     * mapped with {@code synthetic_source_keep: all}, which unconditionally writes its value to
+     * {@code _ignored_source}.
+     */
+    void searchWithSource(String dataStreamName) throws Exception {
+        var searchRequest = new Request("POST", "/" + dataStreamName + "/_search");
+        searchRequest.addParameter("pretty", "true");
+        searchRequest.setJsonEntity("""
+            {
+                "size": 10
+            }
+            """);
+        var response = client().performRequest(searchRequest);
+        assertOK(response);
+        var responseBody = entityAsMap(response);
+
+        Integer totalCount = ObjectPath.evaluate(responseBody, "hits.total.value");
+        assertThat(totalCount, greaterThanOrEqualTo(1024));
+        // tag has synthetic_source_keep:all so it is written to _ignored_source
+        String tag = ObjectPath.evaluate(responseBody, "hits.hits.0._source.tag");
+        assertThat(tag, notNullValue());
     }
 
     void query(String dataStreamName) throws Exception {

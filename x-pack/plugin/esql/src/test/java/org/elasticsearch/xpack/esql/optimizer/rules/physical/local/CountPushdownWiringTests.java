@@ -25,7 +25,10 @@ import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitCoalescer;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -58,7 +61,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
  * Wiring tests that verify COUNT(*) pushdown works end-to-end through
  * {@link PlannerUtils#localPlan} — the same code path used on data nodes.
  * <p>
- * Unlike {@link PushAggregatesToExternalSourceTests} which tests the optimizer rule
+ * Unlike {@link PushStatsToExternalSourceTests} which tests the optimizer rule
  * in isolation, these tests exercise the full chain: FragmentExec containing a logical
  * Aggregate → ExternalRelation is mapped, splits are injected, and the physical
  * optimizer runs. This catches regressions where splits lose their statistics during
@@ -176,7 +179,9 @@ public class CountPushdownWiringTests extends ESTestCase {
 
     /**
      * A pure ungrouped COUNT(*) over ExternalRelation with complete sourceMetadata stats
-     * qualifies for skipping split discovery.
+     * qualifies for skipping split discovery. {@code ComputeService.executePlan} consults this
+     * predicate before scheduling Phase-2: a true result means no footer/probe work and
+     * {@code splitDiscoveryNanos} stays 0.
      */
     public void testCanSkipSplitDiscoveryForCountStar() {
         Aggregate agg = countStarAggregate();
@@ -197,7 +202,14 @@ public class CountPushdownWiringTests extends ESTestCase {
         sourceMetadata.put(SourceStatisticsSerializer.STATS_PARTIAL, Boolean.TRUE);
 
         SourceMetadata metadata = stubMetadata(attrs, sourceMetadata);
-        ExternalRelation external = new ExternalRelation(Source.EMPTY, "file:///test.parquet", metadata, attrs);
+        ExternalRelation external = new ExternalRelation(
+            Source.EMPTY,
+            "file:///test.parquet",
+            metadata,
+            attrs,
+            FileList.UNRESOLVED,
+            Map.of()
+        );
         Alias countAlias = alias("c", new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*")));
         Aggregate agg = new Aggregate(Source.EMPTY, external, List.of(), List.of(countAlias));
         FragmentExec fragment = new FragmentExec(agg);
@@ -211,7 +223,14 @@ public class CountPushdownWiringTests extends ESTestCase {
     public void testCannotSkipSplitDiscoveryWhenNoRowCount() {
         List<Attribute> attrs = List.of(referenceAttribute("x", DataType.INTEGER));
         SourceMetadata metadata = stubMetadata(attrs, Map.of());
-        ExternalRelation external = new ExternalRelation(Source.EMPTY, "file:///test.parquet", metadata, attrs);
+        ExternalRelation external = new ExternalRelation(
+            Source.EMPTY,
+            "file:///test.parquet",
+            metadata,
+            attrs,
+            FileList.UNRESOLVED,
+            Map.of()
+        );
         Alias countAlias = alias("c", new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*")));
         Aggregate agg = new Aggregate(Source.EMPTY, external, List.of(), List.of(countAlias));
         FragmentExec fragment = new FragmentExec(agg);
@@ -228,7 +247,14 @@ public class CountPushdownWiringTests extends ESTestCase {
         sourceMetadata.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 99_000L);
 
         SourceMetadata metadata = stubMetadata(attrs, sourceMetadata);
-        ExternalRelation external = new ExternalRelation(Source.EMPTY, "file:///test.parquet", metadata, attrs);
+        ExternalRelation external = new ExternalRelation(
+            Source.EMPTY,
+            "file:///test.parquet",
+            metadata,
+            attrs,
+            FileList.UNRESOLVED,
+            Map.of()
+        );
         Alias countAlias = alias("c", new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*")));
         Aggregate agg = new Aggregate(Source.EMPTY, external, List.of(AGE), List.of(countAlias, AGE));
         FragmentExec fragment = new FragmentExec(agg);
@@ -247,7 +273,14 @@ public class CountPushdownWiringTests extends ESTestCase {
         sourceMetadata.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 99_000L);
 
         SourceMetadata metadata = stubMetadata(attrs, sourceMetadata);
-        ExternalRelation external = new ExternalRelation(Source.EMPTY, "file:///test.parquet", metadata, attrs);
+        ExternalRelation external = new ExternalRelation(
+            Source.EMPTY,
+            "file:///test.parquet",
+            metadata,
+            attrs,
+            FileList.UNRESOLVED,
+            Map.of()
+        );
         Alias sumAlias = alias("s", new Sum(Source.EMPTY, AGE));
         Aggregate agg = new Aggregate(Source.EMPTY, external, List.of(), List.of(sumAlias));
         FragmentExec fragment = new FragmentExec(agg);
@@ -268,7 +301,14 @@ public class CountPushdownWiringTests extends ESTestCase {
         sourceMetadata.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 99_000L);
 
         SourceMetadata metadata = stubMetadata(attrs, sourceMetadata);
-        ExternalRelation external = new ExternalRelation(Source.EMPTY, "file:///test.parquet", metadata, attrs);
+        ExternalRelation external = new ExternalRelation(
+            Source.EMPTY,
+            "file:///test.parquet",
+            metadata,
+            attrs,
+            FileList.UNRESOLVED,
+            Map.of()
+        );
         Alias countAlias = alias("c", new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*")));
         Alias sumAlias = alias("s", new Sum(Source.EMPTY, AGE));
         Aggregate agg = new Aggregate(Source.EMPTY, external, List.of(), List.of(countAlias, sumAlias));
@@ -302,6 +342,67 @@ public class CountPushdownWiringTests extends ESTestCase {
     }
 
     /**
+     * zero-split servability regression: the gate must consult per-column SERVABILITY, not only the type-level
+     * {@code canPushAggregates}. {@code MIN(age)} is type-pushable, but with no harvested {@code age} stats
+     * the fold rule ({@code PushStatsToExternalSource}) safe-misses. If the gate skipped discovery here
+     * while the fold bailed, the query would run a zero-split scan that crashes under union_by_name
+     * ({@code SchemaAdaptingIterator} width guard). The gate now shares the fold's resolution, so it declines.
+     */
+    public void testCannotSkipSplitDiscoveryForMinWithoutServableColumnStats() {
+        List<Attribute> attrs = List.of(referenceAttribute("x", DataType.INTEGER), AGE);
+        Map<String, Object> sourceMetadata = new HashMap<>();
+        sourceMetadata.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 99_000L);
+        // No _stats.columns.age.* -> age's extremum is unservable; the fold would safe-miss.
+
+        SourceMetadata metadata = stubMetadata(attrs, sourceMetadata);
+        ExternalRelation external = new ExternalRelation(
+            Source.EMPTY,
+            "file:///test.parquet",
+            metadata,
+            attrs,
+            FileList.UNRESOLVED,
+            Map.of()
+        );
+        Aggregate agg = new Aggregate(Source.EMPTY, external, List.of(), List.of(alias("m", new Min(Source.EMPTY, AGE))));
+        FragmentExec fragment = new FragmentExec(agg);
+
+        assertFalse(
+            "must not skip discovery for MIN of a column the fold cannot serve from stats",
+            ComputeService.canSkipSplitDiscovery(fragment, buildParquetRegistry())
+        );
+    }
+
+    /**
+     * The counterpart: the fix must ONLY narrow the skip, never expand it. {@code MIN(age)} over a summary
+     * that DOES carry servable {@code age} min/max resolves from stats, so skipping discovery is correct and
+     * the warm short-circuit is preserved.
+     */
+    public void testCanSkipSplitDiscoveryForMinOfServableColumn() {
+        List<Attribute> attrs = List.of(referenceAttribute("x", DataType.INTEGER), AGE);
+        Map<String, Object> sourceMetadata = new HashMap<>();
+        sourceMetadata.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 99_000L);
+        sourceMetadata.put("_stats.columns.age.min", 18);
+        sourceMetadata.put("_stats.columns.age.max", 99);
+
+        SourceMetadata metadata = stubMetadata(attrs, sourceMetadata);
+        ExternalRelation external = new ExternalRelation(
+            Source.EMPTY,
+            "file:///test.parquet",
+            metadata,
+            attrs,
+            FileList.UNRESOLVED,
+            Map.of()
+        );
+        Aggregate agg = new Aggregate(Source.EMPTY, external, List.of(), List.of(alias("m", new Min(Source.EMPTY, AGE))));
+        FragmentExec fragment = new FragmentExec(agg);
+
+        assertTrue(
+            "must still skip discovery for MIN of a servable column (fold serves from stats)",
+            ComputeService.canSkipSplitDiscovery(fragment, buildParquetRegistry())
+        );
+    }
+
+    /**
      * Multi-file COUNT(*) pushdown: with aggregated sourceMetadata (no STATS_PARTIAL, valid row count),
      * empty splits should resolve to the total row count from sourceMetadata.
      */
@@ -314,7 +415,14 @@ public class CountPushdownWiringTests extends ESTestCase {
         // No STATS_PARTIAL — stats are global
 
         SourceMetadata metadata = stubMetadata(attrs, sourceMetadata);
-        ExternalRelation external = new ExternalRelation(Source.EMPTY, "s3://bucket/*.parquet", metadata, attrs);
+        ExternalRelation external = new ExternalRelation(
+            Source.EMPTY,
+            "s3://bucket/*.parquet",
+            metadata,
+            attrs,
+            FileList.UNRESOLVED,
+            Map.of()
+        );
         Alias countAlias = alias("c", new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*")));
         Aggregate agg = new Aggregate(Source.EMPTY, external, List.of(), List.of(countAlias));
 
@@ -425,7 +533,14 @@ public class CountPushdownWiringTests extends ESTestCase {
             }
         };
 
-        ExternalRelation external = new ExternalRelation(Source.EMPTY, "file:///test.parquet", metadata, attrs);
+        ExternalRelation external = new ExternalRelation(
+            Source.EMPTY,
+            "file:///test.parquet",
+            metadata,
+            attrs,
+            FileList.UNRESOLVED,
+            Map.of()
+        );
         Alias countAlias = alias("c", new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*")));
         return new Aggregate(Source.EMPTY, external, List.of(), List.of(countAlias));
     }
@@ -473,7 +588,12 @@ public class CountPushdownWiringTests extends ESTestCase {
         return registry;
     }
 
-    private static class StubFormatReader implements FormatReader {
+    private static class StubFormatReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
         private final AggregatePushdownSupport support;
 
         StubFormatReader(AggregatePushdownSupport support) {

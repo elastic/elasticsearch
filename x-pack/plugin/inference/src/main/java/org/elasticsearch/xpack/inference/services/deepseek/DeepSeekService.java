@@ -23,6 +23,8 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.InferenceServiceFeatures;
+import org.elasticsearch.inference.configuration.NonStreamingChatFeature;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -131,7 +133,7 @@ public class DeepSeekService extends SenderService<DeepSeekChatCompletionModel> 
     }
 
     @Override
-    protected boolean supportsChunkedInfer() {
+    public boolean supportsChunkedInfer() {
         return false;
     }
 
@@ -158,6 +160,11 @@ public class DeepSeekService extends SenderService<DeepSeekChatCompletionModel> 
     @Override
     public Set<TaskType> supportedStreamingTasks() {
         return SUPPORTED_TASK_TYPES_FOR_STREAMING;
+    }
+
+    @Override
+    public boolean supportsNonStreamingChatCompletion() {
+        return true;
     }
 
     private static class Configuration {
@@ -208,6 +215,7 @@ public class DeepSeekService extends SenderService<DeepSeekChatCompletionModel> 
                     .setName(SERVICE_NAME)
                     .setTaskTypes(SUPPORTED_TASK_TYPES_FOR_SERVICES_API)
                     .setConfigurations(configurationMap)
+                    .setFeatures(InferenceServiceFeatures.of(NonStreamingChatFeature.SUPPORTED_INSTANCE))
                     .build();
             }
         );

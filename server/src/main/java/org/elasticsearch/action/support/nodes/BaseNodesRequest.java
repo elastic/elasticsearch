@@ -10,7 +10,7 @@
 package org.elasticsearch.action.support.nodes;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-public abstract class BaseNodesRequest extends LegacyActionRequest {
+public abstract class BaseNodesRequest extends UntypedActionRequest {
 
     /**
      * Sequence of node specifications that describe the nodes that this request should target. See {@link DiscoveryNodes#resolveNodes} for

@@ -12,11 +12,19 @@ package org.elasticsearch.useragent;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.useragent.api.Details;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.BeforeClass;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -350,5 +358,56 @@ public class UserAgentParserImplTests extends ESTestCase {
         assertThat(parser.getUaPatterns().isEmpty(), equalTo(false));
         assertThat(parser.getOsPatterns().isEmpty(), equalTo(false));
         assertThat(parser.getDevicePatterns().isEmpty(), equalTo(false));
+    }
+
+    /**
+     * Data-driven regression and spot-check suite for bot / AI-crawler user-agent strings.
+     *
+     * <p>Each case in {@code test-bot-agents.yml} specifies a {@code ua} string together with the
+     * expected {@code name} and (optional) {@code version} produced by the parser. This keeps the
+     * pattern regression list separate from Java source code and makes it straightforward to add
+     * new cases without modifying test logic.
+     */
+    public void testBotAgents() throws IOException {
+        List<Map<String, String>> cases = parseBotTestCases();
+        assertThat("test-bot-agents.yml must not be empty", cases.isEmpty(), equalTo(false));
+
+        for (Map<String, String> tc : cases) {
+            String ua = tc.get("ua");
+            String expectedName = tc.get("name");
+            String expectedVersion = tc.get("version");
+
+            Details details = parser.parseUserAgentInfo(ua, true);
+
+            assertThat("name mismatch for UA: " + ua, details.name(), equalTo(expectedName));
+            if (expectedVersion == null) {
+                assertThat("version should be null for UA: " + ua, details.version(), nullValue());
+            } else {
+                assertThat("version mismatch for UA: " + ua, details.version(), equalTo(expectedVersion));
+            }
+        }
+    }
+
+    private static List<Map<String, String>> parseBotTestCases() throws IOException {
+        InputStream stream = UserAgentParserImplTests.class.getResourceAsStream("/test-bot-agents.yml");
+        assertNotNull("test-bot-agents.yml resource not found", stream);
+
+        List<Map<String, String>> cases = new ArrayList<>();
+        try (XContentParser yaml = XContentFactory.xContent(XContentType.YAML).createParser(XContentParserConfiguration.EMPTY, stream)) {
+            // Top-level object: { bot_test_cases: [ { ua, name, version? }, ... ] }
+            yaml.nextToken(); // START_OBJECT
+            while (yaml.nextToken() != XContentParser.Token.END_OBJECT) {
+                if (yaml.currentToken() == XContentParser.Token.FIELD_NAME && "bot_test_cases".equals(yaml.currentName())) {
+                    yaml.nextToken(); // START_ARRAY
+                    while (yaml.nextToken() != XContentParser.Token.END_ARRAY) {
+                        cases.add(yaml.mapStrings());
+                    }
+                } else {
+                    yaml.nextToken();
+                    yaml.skipChildren();
+                }
+            }
+        }
+        return cases;
     }
 }

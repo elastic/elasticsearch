@@ -10,15 +10,6 @@ steps:
       diskSizeGb: 350
       machineType: custom-32-98304
 
-  - label: encryption-at-rest
-    command: .buildkite/scripts/encryption-at-rest.sh
-    timeout_in_minutes: 420
-    agents:
-      provider: gcp
-      image: family/elasticsearch-ubuntu-2404
-      diskSizeGb: 350
-      machineType: custom-32-98304
-
   - label: eql-correctness
     command: .buildkite/scripts/eql-correctness.sh
     timeout_in_minutes: 300
@@ -300,7 +291,7 @@ steps:
 
       - label: third-party / geoip
         command: |
-          .ci/scripts/run-gradle.sh --continue :modules:ingest-geoip:internalClusterTest -Dtests.jvm.argline="-Dgeoip_use_service=true"
+          .ci/scripts/run-gradle.sh --continue :modules:ip-location:internalClusterTest -Dtests.jvm.argline="-Dgeoip_use_service=true"
         timeout_in_minutes: 30
         agents:
           provider: gcp

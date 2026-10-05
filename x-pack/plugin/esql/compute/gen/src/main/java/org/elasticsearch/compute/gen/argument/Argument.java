@@ -12,6 +12,7 @@ import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
+import org.elasticsearch.compute.ann.CodegenConstants;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.gen.Types;
@@ -36,22 +37,15 @@ public interface Argument {
     static Argument fromParameter(javax.lang.model.util.Types types, VariableElement v) {
         TypeName type = TypeName.get(v.asType());
         String name = v.getSimpleName().toString();
+
         Fixed fixed = v.getAnnotation(Fixed.class);
         if (fixed != null) {
-            return new FixedArgument(
-                type,
-                name,
-                fixed.includeInToString(),
-                fixed.scope(),
-                Types.extendsSuper(types, v.asType(), "org.elasticsearch.core.Releasable")
-            );
+            boolean releasable = Types.extendsSuper(types, v.asType(), CodegenConstants.RELEASABLE_FQN);
+            return fromFixed(type, name, fixed, releasable);
         }
-
-        Position position = v.getAnnotation(Position.class);
-        if (position != null) {
+        if (v.getAnnotation(Position.class) != null) {
             return new PositionArgument(type, name);
         }
-
         if (type instanceof ClassName c
             && c.simpleName().equals("Builder")
             && c.enclosingClassName() != null
@@ -66,6 +60,14 @@ public interface Argument {
             return new BlockArgument(type, name);
         }
         return new StandardArgument(type, name);
+    }
+
+    private static Argument fromFixed(TypeName type, String name, Fixed fixed, boolean releasable) {
+        if (fixed.jitConstant()) {
+            ConstantSpecializedFixedArgument.validateJitConstantCompatible(name, fixed.scope(), releasable);
+            return new ConstantSpecializedFixedArgument(type, name, fixed.includeInToString(), fixed.scope());
+        }
+        return new FixedArgument(type, name, fixed.includeInToString(), fixed.scope(), releasable);
     }
 
     default String blockName() {
@@ -134,6 +136,27 @@ public interface Argument {
      * Declare any required fields for the evaluator to implement this type of parameter.
      */
     void declareField(TypeSpec.Builder builder);
+
+    /**
+     * Add an abstract accessor method on the generated evaluator class for this argument's
+     * value (typically {@code protected abstract T name()}).
+     *
+     * <p>Only {@link ConstantSpecializedFixedArgument} overrides this. Its parameter intentionally
+     * has no instance field on the evaluator — the accessor is the seam that the
+     * spinner-generated hidden subclass overrides to return the JIT-baked constant, and
+     * that the {@code Standard} subclass overrides to return a regular instance field.
+     *
+     * <p>The default no-op is the correct behavior for every other argument kind: their
+     * values live on regular instance fields declared by {@link #declareField}, and the
+     * per-row code reads them as {@code this.name} directly. No accessor method is needed
+     * or wanted — adding one would be unused dead code on the evaluator.
+     */
+    default void declareAbstractAccessor(TypeSpec.Builder builder) {}
+
+    /** Whether this argument is a JIT-constant marker; the generated evaluator becomes non-final. */
+    default boolean isJitConstant() {
+        return false;
+    }
 
     /**
      * Declare any required fields for the evaluator factory to implement this type of parameter.
@@ -250,9 +273,20 @@ public interface Argument {
     void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle);
 
     /**
-     * Accumulate invocation pattern and arguments to implement {@link Object#toString()}.
+     * Accumulate invocation pattern and arguments to implement {@link Object#toString()}
+     * on the generated evaluator class.
      */
     void buildToStringInvocation(StringBuilder pattern, List<Object> args, String prefix);
+
+    /**
+     * Accumulate invocation pattern and arguments to implement {@link Object#toString()}
+     * on the generated Factory. Defaults to the evaluator variant; overridden by
+     * {@code ConstantSpecializedFixedArgument} because the Factory still holds the value as
+     * a regular field (only the evaluator side moved to an abstract accessor).
+     */
+    default void buildToStringInvocationFromFactory(StringBuilder pattern, List<Object> args, String prefix) {
+        buildToStringInvocation(pattern, args, prefix);
+    }
 
     /**
      * The string to close this argument or {@code null}.

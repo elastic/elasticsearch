@@ -55,17 +55,13 @@ public class StatelessClusterStateCleanupServiceIT extends AbstractStatelessPlug
     private ClusterStateBlockingStrategy strategy = new ClusterStateBlockingStrategy();
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void captureMockLog() throws Exception {
         mockLog = MockLog.capture(StatelessClusterStateCleanupService.class);
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
+    public void closeMockLog() throws Exception {
         mockLog.close();
-        super.tearDown();
     }
 
     @Override

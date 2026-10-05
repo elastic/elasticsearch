@@ -23,14 +23,19 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SearchShardRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
@@ -47,6 +52,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -168,14 +174,17 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
 
     @Override
     protected List<SearchShardRouting> shards(ClusterState clusterState, ValidateQueryRequest request, String[] concreteIndices) {
+        ProjectState project = getProjectState();
+        final String resolvedRouting = validateAndResolveSliceRouting(request, project.metadata(), concreteIndices);
         final String routing;
-        if (request.allShards()) {
+        if (request.isRoutingFromSlice() || resolvedRouting != null) {
+            routing = resolvedRouting;
+        } else if (request.allShards()) {
             routing = null;
         } else {
             // Random routing to limit request to a single shard
             routing = Integer.toString(Randomness.get().nextInt(1000));
         }
-        ProjectState project = getProjectState();
         Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(
             project.metadata(),
             routing,
@@ -247,7 +256,10 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         ShardSearchRequest shardSearchLocalRequest = new ShardSearchRequest(
             request.shardId(),
             request.nowInMillis(),
-            request.filteringAliases()
+            request.filteringAliases(),
+            null,
+            SplitShardCountSummary.UNSET,
+            request.sliceRouting()
         );
         try (SearchContext searchContext = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT)) {
             ParsedQuery parsedQuery = searchContext.getSearchExecutionContext().toQuery(request.query());
@@ -264,6 +276,30 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         }
 
         return new ShardValidateQueryResponse(request.shardId(), valid, explanation, error);
+    }
+
+    static String validateAndResolveSliceRouting(ValidateQueryRequest request, ProjectMetadata projectMetadata, String[] concreteIndices) {
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+            return request.routing();
+        }
+        final boolean fromSlice = request.isRoutingFromSlice();
+        final String requestedSlice = fromSlice ? request.searchSlice() : null;
+        final boolean anySliceEnabled = Arrays.stream(concreteIndices)
+            .map(projectMetadata::index)
+            .filter(indexMetadata -> indexMetadata != null)
+            .anyMatch(indexMetadata -> IndexSettings.SLICE_ENABLED.get(indexMetadata.getSettings()));
+        final String target = request.indices().length == 0
+            ? Strings.arrayToCommaDelimitedString(concreteIndices)
+            : Strings.arrayToCommaDelimitedString(request.indices());
+        return SliceIndexing.validateAndResolveSliceRoutingRequirement(
+            anySliceEnabled,
+            fromSlice,
+            request.routing(),
+            requestedSlice,
+            "validate query request",
+            target,
+            false
+        );
     }
 
     private static String explain(SearchContext context, boolean rewritten) {

@@ -32,7 +32,7 @@ $if(BytesRef)$
 $endif$
  * This class is generated. Edit {@code X-ArrayVector.java.st} instead.
  */
-final class $Type$ArrayVector extends AbstractVector implements $Type$Vector {
+public final class $Type$ArrayVector extends AbstractVector implements $Type$Vector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayVector.class)
         // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.
@@ -169,12 +169,13 @@ $endif$
     }
 
     @Override
-    public $Type$Vector filter(boolean mayContainDuplicates, int... positions) {
+    public $Type$Vector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
     $if(BytesRef)$
         final var scratch = new BytesRef();
     $endif$
-        try ($Type$Vector.Builder builder = blockFactory().new$Type$VectorBuilder(positions.length)) {
-            for (int pos : positions) {
+        try ($Type$Vector.Builder builder = blockFactory().new$Type$VectorBuilder(length)) {
+            for (int i = offset, end = offset + length; i < end; i++) {
+                int pos = positions[i];
             $if(BytesRef)$
                 builder.append$Type$(values.get(pos, scratch));
             $else$

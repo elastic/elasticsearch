@@ -50,8 +50,22 @@ public interface CuVSResourceManager {
      * effect on GPU memory and compute usage to determine whether to give out
      * another resource or wait for a resources to be returned before giving out another.
      */
-    ManagedCuVSResources acquire(int numVectors, int dims, CuVSMatrix.DataType dataType, CagraIndexParams cagraIndexParams)
+    ManagedCuVSResources acquire(int numVectors, int dims, CuVSMatrix.DataType dataType, CagraIndexParams cagraIndexParams, String reason)
         throws InterruptedException, IOException;
+
+    /**
+     * Tries to acquire a resource from the manager.
+     *
+     * <p> Non-blocking variant of {@link #acquire}. Returns a locked resource immediately if
+     * one is available and there is sufficient GPU memory, or {@code null} if the GPU is busy.
+     */
+    ManagedCuVSResources tryAcquire(
+        int numVectors,
+        int dims,
+        CuVSMatrix.DataType dataType,
+        CagraIndexParams cagraIndexParams,
+        String reason
+    ) throws IOException;
 
     /** Marks the resources as finished with regard to compute. */
     void finishedComputation(ManagedCuVSResources resources);
@@ -148,23 +162,54 @@ public interface CuVSResourceManager {
         }
 
         @Override
-        public ManagedCuVSResources acquire(int numVectors, int dims, CuVSMatrix.DataType dataType, CagraIndexParams cagraIndexParams)
-            throws InterruptedException, IOException {
+        public ManagedCuVSResources acquire(
+            int numVectors,
+            int dims,
+            CuVSMatrix.DataType dataType,
+            CagraIndexParams cagraIndexParams,
+            String reason
+        ) throws InterruptedException, IOException {
+            return doAcquire(numVectors, dims, dataType, cagraIndexParams, false, reason);
+        }
+
+        @Override
+        public ManagedCuVSResources tryAcquire(
+            int numVectors,
+            int dims,
+            CuVSMatrix.DataType dataType,
+            CagraIndexParams cagraIndexParams,
+            String reason
+        ) throws IOException {
             try {
-                var started = System.nanoTime();
-                lock.lock();
+                return doAcquire(numVectors, dims, dataType, cagraIndexParams, true, reason);
+            } catch (InterruptedException e) {
+                throw new AssertionError("non-blocking acquire should never block", e);
+            }
+        }
+
+        /**
+         * Shared implementation for {@link #acquire} and {@link #tryAcquire}.
+         *
+         * @param nonBlocking if {@code true}, returns {@code null} instead of waiting when no
+         *                    resource or memory is available (tryAcquire semantics); if {@code false},
+         *                    blocks until a resource becomes available (acquire semantics).
+         */
+        private ManagedCuVSResources doAcquire(
+            int numVectors,
+            int dims,
+            CuVSMatrix.DataType dataType,
+            CagraIndexParams cagraIndexParams,
+            boolean nonBlocking,
+            String reason
+        ) throws InterruptedException, IOException {
+            var started = System.nanoTime();
+            lock.lock();
+            try {
+                long requiredMemoryInBytes = estimateRequiredMemory(numVectors, dims, dataType, cagraIndexParams);
+                logAcquireAttempt(reason, nonBlocking, numVectors, dims, dataType, requiredMemoryInBytes);
 
                 boolean allConditionsMet = false;
                 ManagedCuVSResources res = null;
-
-                long requiredMemoryInBytes = estimateRequiredMemory(numVectors, dims, dataType, cagraIndexParams);
-                logger.debug(
-                    "Estimated memory for [{}] vectors, [{}] dims of type [{}] is [{} B]",
-                    numVectors,
-                    dims,
-                    dataType.name(),
-                    requiredMemoryInBytes
-                );
 
                 while (allConditionsMet == false) {
                     res = getResourceFromPool();
@@ -173,42 +218,37 @@ public interface CuVSResourceManager {
                     if (res != null) {
                         // Check immutable constraints
                         long totalMemoryInBytes = gpuMemoryService.totalMemoryInBytes(res);
-                        if (requiredMemoryInBytes > totalMemoryInBytes) {
-                            String message = Strings.format(
-                                "Requested GPU memory for [%d] vectors, [%d] dims is greater than the GPU total memory [%d B]",
-                                numVectors,
-                                dims,
-                                totalMemoryInBytes
-                            );
-                            logger.error(message);
-                            throw new IllegalArgumentException(message);
-                        }
-
-                        // If no resource in the pool is locked, short circuit to avoid livelock
-                        if (numLockedResources() == 0) {
-                            logger.debug("No resources currently locked, proceeding");
-                            break;
-                        }
-
-                        // Check resources availability
                         long availableMemoryInBytes = gpuMemoryService.availableMemoryInBytes(res);
                         enoughMemory = requiredMemoryInBytes <= availableMemoryInBytes;
-                        logger.debug("Free device memory [{} B], enoughMemory[{}]", availableMemoryInBytes, enoughMemory);
+                        logMemoryCheck(availableMemoryInBytes, totalMemoryInBytes, requiredMemoryInBytes, enoughMemory);
+
+                        if (requiredMemoryInBytes > totalMemoryInBytes) {
+                            throw memoryExceededError(numVectors, dims, totalMemoryInBytes);
+                        }
+
+                        // If no resource in the pool is locked, we must proceed to avoid livelock
+                        if (enoughMemory == false && numLockedResources() == 0) {
+                            logLivelockBypass(availableMemoryInBytes, requiredMemoryInBytes);
+                            break;
+                        }
                     } else {
-                        if (createdCount == 0) {
+                        if (nonBlocking == false && createdCount == 0) {
                             throw new IOException("No GPU resources available and unable to create new ones");
                         }
                         logger.debug("No resources available in pool");
                         enoughMemory = false;
                     }
-                    // TODO: add enoughComputation / enoughComputationCondition here
-                    allConditionsMet = enoughMemory; // && enoughComputation
+
+                    allConditionsMet = enoughMemory;
                     if (allConditionsMet == false) {
+                        if (nonBlocking) {
+                            return null;
+                        }
+                        logger.debug("Waiting for GPU resources for [{}]", reason);
                         enoughResourcesCondition.await();
                     }
                 }
-                var elapsed = started - System.nanoTime();
-                logger.debug("Resource acquired in [{}ms]", elapsed / 1_000_000.0);
+                logAcquired(reason, started, requiredMemoryInBytes);
                 gpuMemoryService.reserveMemory(requiredMemoryInBytes);
                 res.lock(() -> gpuMemoryService.releaseMemory(requiredMemoryInBytes));
                 return res;
@@ -287,6 +327,61 @@ public interface CuVSResourceManager {
                 assert res != null;
                 res.delegate.close();
             }
+        }
+
+        private IllegalArgumentException memoryExceededError(int numVectors, int dims, long totalMemoryInBytes) {
+            String message = Strings.format(
+                "Requested GPU memory for [%d] vectors, [%d] dims is greater than the GPU total memory [%d B]",
+                numVectors,
+                dims,
+                totalMemoryInBytes
+            );
+            logger.error(message);
+            return new IllegalArgumentException(message);
+        }
+
+        private void logAcquireAttempt(
+            String reason,
+            boolean nonBlocking,
+            int numVectors,
+            int dims,
+            CuVSMatrix.DataType dataType,
+            long requiredMemoryInBytes
+        ) {
+            logger.debug(
+                "[{}] Try acquire(nonBlocking={}): [{}] vectors, dims={} type={}, estimated={}B, state:([{}] created, [{}] locked)",
+                reason,
+                nonBlocking,
+                numVectors,
+                dims,
+                dataType.name(),
+                requiredMemoryInBytes,
+                createdCount,
+                numLockedResources()
+            );
+        }
+
+        private void logMemoryCheck(long available, long total, long required, boolean enough) {
+            logger.debug("Memory check: available={}B, total={}B, required={}B, enough={}", available, total, required, enough);
+        }
+
+        private void logLivelockBypass(long available, long required) {
+            logger.warn(
+                "Insufficient GPU memory ({}B available, {}B required) but no locked resources; proceeding to avoid livelock",
+                available,
+                required
+            );
+        }
+
+        private void logAcquired(String reason, long startedNanos, long reservedBytes) {
+            logger.debug(
+                "[{}] acquired in {}ms, reserving {}B, state:([{}] created, [{}] locked)",
+                reason,
+                (System.nanoTime() - startedNanos) / 1_000_000.0,
+                reservedBytes,
+                createdCount,
+                numLockedResources() + 1
+            );
         }
     }
 

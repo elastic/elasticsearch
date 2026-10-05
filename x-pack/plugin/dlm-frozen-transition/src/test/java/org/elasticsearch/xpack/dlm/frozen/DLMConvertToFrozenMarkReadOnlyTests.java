@@ -38,6 +38,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -83,7 +84,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             System::currentTimeMillis,
             new XPackLicenseStatus(License.OperationMode.ENTERPRISE, true, null)
         );
-        index = new Index(indexName, randomAlphaOfLength(10));
+        index = new Index(indexName, randomUUID());
         capturedRequest = new AtomicReference<>();
         mockResponse = new AtomicReference<>();
         mockFailure = new AtomicReference<>();
@@ -132,9 +133,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId)
             .put(
                 IndexMetadata.builder(indexName)
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)
+                    .settings(indexSettings(IndexVersion.current(), index.getUUID(), 1, 0))
                     .putCustom(
                         DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
                         Map.of(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, DEFAULT_REPO_NAME)
@@ -154,7 +153,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         setState(clusterService, clusterState);
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -172,7 +171,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         mockResponse.set(new AddIndexBlockResponse(true, true, List.of(new AddIndexBlockResponse.AddBlockResult(index))));
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -193,7 +192,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         mockResponse.set(new AddIndexBlockResponse(false, false, Collections.emptyList()));
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -211,7 +210,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         mockResponse.set(new AddIndexBlockResponse(false, false, List.of(new AddIndexBlockResponse.AddBlockResult(index, blockException))));
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -236,7 +235,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         mockResponse.set(new AddIndexBlockResponse(false, false, List.of(new AddIndexBlockResponse.AddBlockResult(index, shardResults))));
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -253,7 +252,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         mockFailure.set(new ElasticsearchException("some error"));
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -271,9 +270,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId)
             .put(
                 IndexMetadata.builder(indexName)
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)
+                    .settings(indexSettings(IndexVersion.current(), index.getUUID(), 1, 0))
                     .putCustom(
                         DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
                         Map.of(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, DEFAULT_REPO_NAME)
@@ -294,7 +291,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         mockResponse.set(new AddIndexBlockResponse(true, true, List.of(new AddIndexBlockResponse.AddBlockResult(index))));
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -330,7 +327,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         mockResponse.set(new AddIndexBlockResponse(false, false, List.of(new AddIndexBlockResponse.AddBlockResult(index, shardResults))));
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -353,7 +350,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         mockResponse.set(new AddIndexBlockResponse(false, false, List.of(new AddIndexBlockResponse.AddBlockResult(index, shardResults))));
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -370,7 +367,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         mockResponse.set(new AddIndexBlockResponse(true, true, List.of(new AddIndexBlockResponse.AddBlockResult(index))));
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -390,7 +387,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         setState(clusterService, clusterState);
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -407,7 +404,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         createProjectStateWithRepo(repoName, false);
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -416,6 +413,23 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         );
 
         DLMUnrecoverableException exception = expectThrows(DLMUnrecoverableException.class, converter::checkIfEligibleForConvertToFrozen);
+        assertThat(exception.getMessage(), containsString(repoName));
+    }
+
+    public void testIsEligibleThrowsWhenRepositoryIsReadOnly() {
+        String repoName = "my-repo";
+        createProjectStateWithRepo(repoName, Settings.builder().put(BlobStoreRepository.READONLY_SETTING_KEY, true).build());
+
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
+            index,
+            projectId,
+            createMockClient(),
+            clusterService,
+            () -> licenseState,
+            Clock.systemUTC()
+        );
+
+        ElasticsearchException exception = expectThrows(DLMUnrecoverableException.class, converter::checkIfEligibleForConvertToFrozen);
         assertThat(exception.getMessage(), containsString(repoName));
     }
 
@@ -430,7 +444,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         );
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -451,7 +465,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         createProjectStateWithRepo(repoName, true);
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -465,12 +479,9 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
 
     public void testThrowsWhenYellowStatusTimeoutBreached() {
         createProjectState();
-        ClusterHealthResponse timedOut = new ClusterHealthResponse();
-        timedOut.setTimedOut(true);
-        mockHealthResponse.set(timedOut);
 
-        DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+        DLMConvertToFrozen converter = new DLMConvertToFrozenSnapshotTests.TestDLMConvertToFrozenWithTimeout(
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -490,12 +501,14 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
      * and optionally registers a matching repository in the project's RepositoriesMetadata.
      */
     private void createProjectStateWithRepo(String repoName, boolean registerRepo) {
+        createProjectStateWithRepo(repoName, registerRepo ? Settings.EMPTY : null);
+    }
+
+    private void createProjectStateWithRepo(String repoName, Settings repoSettings) {
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId)
             .put(
                 IndexMetadata.builder(indexName)
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)
+                    .settings(indexSettings(IndexVersion.current(), index.getUUID(), 1, 0))
                     .putCustom(
                         DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
                         Map.of(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, repoName)
@@ -504,8 +517,8 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
                 false
             );
 
-        if (registerRepo) {
-            RepositoryMetadata repo = new RepositoryMetadata(repoName, "fs", Settings.EMPTY);
+        if (repoSettings != null) {
+            RepositoryMetadata repo = new RepositoryMetadata(repoName, "fs", repoSettings);
             projectMetadataBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(List.of(repo)));
         }
 
@@ -524,9 +537,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId)
             .put(
                 IndexMetadata.builder(indexName)
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)
+                    .settings(indexSettings(IndexVersion.current(), index.getUUID(), 1, 0))
                     .putCustom(
                         DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
                         Map.of(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, DEFAULT_REPO_NAME)

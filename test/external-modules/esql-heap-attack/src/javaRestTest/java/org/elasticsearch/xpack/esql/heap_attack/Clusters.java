@@ -11,10 +11,25 @@ package org.elasticsearch.xpack.esql.heap_attack;
 
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 
 public class Clusters {
+    public static final int HEAP_SIZE_IN_MB = 512;
+
     static ElasticsearchCluster buildCluster() {
+        return buildClusterSpec().build();
+    }
+
+    /**
+     * The addresses the suite's REST client sends requests to. Any node can coordinate here; serverless replaces this class
+     * and sends everything to the search node, which is where its proxy routes {@code _query}.
+     */
+    static String testRestCluster(ElasticsearchCluster cluster) {
+        return cluster.getHttpAddresses();
+    }
+
+    static LocalClusterSpecBuilder<ElasticsearchCluster> buildClusterSpec() {
         var spec = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .nodes(2)
@@ -22,13 +37,15 @@ public class Clusters {
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("esql.query.allow_partial_results", "false")
+            // Allow setup to index 16MB source documents; tests lower the request breaker around the queries under test.
+            .setting("indexing_pressure.memory.primary.limit", "20%")
             .setting("logger.org.elasticsearch.compute.lucene.read", "DEBUG")
-            .jvmArg("-Xmx512m");
+            .jvmArg("-Xmx" + HEAP_SIZE_IN_MB + "m");
         String javaVersion = JvmInfo.jvmInfo().version();
         if (javaVersion.equals("20") || javaVersion.equals("21")) {
             // see https://github.com/elastic/elasticsearch/issues/99592
             spec.jvmArg("-XX:+UnlockDiagnosticVMOptions -XX:+G1UsePreventiveGC");
         }
-        return spec.build();
+        return spec;
     }
 }

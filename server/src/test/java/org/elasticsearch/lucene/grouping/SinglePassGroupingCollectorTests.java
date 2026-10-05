@@ -380,8 +380,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
 
         MappedFieldType fieldType = new MockFieldMapper.FakeFieldType("group");
 
-        SortField sortField = new SortField("group", SortField.Type.LONG);
-        sortField.setMissingValue(Long.MAX_VALUE);
+        SortField sortField = new SortField("group", SortField.Type.LONG, false, Long.MAX_VALUE);
         Sort sort = new Sort(sortField);
 
         final SinglePassGroupingCollector<?> collapsingCollector = SinglePassGroupingCollector.createNumeric(

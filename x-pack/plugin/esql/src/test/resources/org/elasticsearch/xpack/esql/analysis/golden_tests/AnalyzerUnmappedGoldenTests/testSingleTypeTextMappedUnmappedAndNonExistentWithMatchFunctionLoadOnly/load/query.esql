@@ -1,0 +1,3 @@
+SET unmapped_fields="load"; FROM text_state_mapped, text_state_unmapped, text_state_nonexistent
+| WHERE match(txt, "Faulkner") OR txt IS NULL
+| KEEP txt

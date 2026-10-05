@@ -90,6 +90,7 @@ standaloneParquetFromCsv.each { baseName ->
     inputs.file(csvInput)
     outputs.file(parquetOut)
     systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+    systemProperty 'slf4j.internal.verbosity', 'WARN'
   }
   generateIcebergStandaloneParquetTasks.add(tasks.named(taskName))
 }
@@ -136,14 +137,5 @@ tasks.named('javaRestTest') {
     events = ["passed", "skipped", "failed"]
     exceptionFormat = "full"
     showStandardStreams = false
-  }
-}
-
-restResources {
-  restApi {
-    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'cluster', 'capabilities', 'index'
-  }
-  restTests {
-    includeXpack 'esql'
   }
 }

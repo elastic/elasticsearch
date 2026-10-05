@@ -16,6 +16,7 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -43,6 +44,7 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher.BCCPreFetchedOffset;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
@@ -60,8 +62,13 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
+import java.util.NavigableMap;
+import java.util.Queue;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -70,12 +77,17 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_C
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCase {
@@ -123,6 +135,9 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
                 SearchCommitPrefetcherDynamicSettings.PREFETCH_SEARCH_IDLE_TIME_SETTING.getKey(),
                 skipPrefetchingBecauseSearchIsIdle ? TimeValue.ZERO : TimeValue.THIRTY_SECONDS
             )
+            // Release VBCCs immediately so the notification window cannot accumulate extra indexing-node chunk reads
+            // and push bytesReadFromIndexingNode over bccTotalSizeInBytes before the assertion at line 173.
+            .put(StatelessCommitService.STATELESS_UPLOAD_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT.getKey(), TimeValue.ZERO)
             .build();
         var indexNode = startMasterAndIndexNode(nodeSettings);
         var searchNode = startSearchNode(nodeSettings);
@@ -148,18 +163,19 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             refresh(indexName);
         }
         var currentVirtualBcc = internalCluster().getInstance(StatelessCommitService.class, indexNode).getCurrentVirtualBcc(shardId);
-        var bccTotalSizeInBytes = currentVirtualBcc.getTotalSizeInBytes();
 
         var uploadBCC = prefetchNonUploadedCommits == false || randomBoolean();
         if (uploadBCC) {
             flush(indexName);
         }
 
-        assertThat(bytesReadFromBlobStore.get(), is(equalTo(0L)));
-        assertThat(bytesReadFromIndexingNode.get(), is(greaterThan(0L)));
-        assertThat(bytesReadFromIndexingNode.get(), is(lessThan(bccTotalSizeInBytes)));
+        var bccTotalSizeInBytes = currentVirtualBcc.getTotalSizeInBytes();
 
-        var bytesReadFromIndexingNodeBeforeSearch = bytesReadFromIndexingNode.get();
+        assertThat(bytesReadFromBlobStore.get(), is(equalTo(0L)));
+        assertThat(bytesReadFromIndexingNode.bytesCount(), is(greaterThan(0L)));
+        assertThat(bytesReadFromIndexingNode.bytesCount(), is(lessThan(bccTotalSizeInBytes)));
+
+        var bytesReadFromIndexingNodeBeforeSearch = bytesReadFromIndexingNode.bytesCount();
         var bytesReadFromBlobStoreBeforeSearch = bytesReadFromBlobStore.get();
 
         var searchRequest = prepareSearch(indexName);
@@ -172,25 +188,28 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
 
         // Maybe there's a better search request that forces fetching more data?
         if (uploadBCC) {
-            assertThat(bytesReadFromIndexingNode.get(), is(equalTo(bytesReadFromIndexingNodeBeforeSearch)));
+            assertThat(bytesReadFromIndexingNode.bytesCount(), is(equalTo(bytesReadFromIndexingNodeBeforeSearch)));
             assertThat(bytesReadFromBlobStore.get(), is(greaterThanOrEqualTo(bytesReadFromBlobStoreBeforeSearch)));
         } else {
-            assertThat(bytesReadFromIndexingNode.get(), is(greaterThanOrEqualTo(bytesReadFromIndexingNodeBeforeSearch)));
+            assertThat(bytesReadFromIndexingNode.bytesCount(), is(greaterThanOrEqualTo(bytesReadFromIndexingNodeBeforeSearch)));
             assertThat(bytesReadFromBlobStore.get(), is(equalTo(bytesReadFromBlobStoreBeforeSearch)));
         }
     }
 
-    public void testSearchNodePrefetchesOnlyLatestGenerationOnFirstCommitNotifcation() throws Exception {
+    public void testSearchNodePrefetchesOnlyLatestGenerationOnFirstCommitNotification() throws Exception {
         // testing that the first commit notification received after the search node started is used as the
-        // lower bound of things to prefetch (put another way, we won't donwload files from commits that were created in previous
+        // lower bound of things to prefetch (put another way, we won't download files from commits that were created in previous
         // generations)
         var nodeSettings = Settings.builder()
             .put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), false)
             // TODO fix this test to work with this randomized
             // TODO this does more reading & caching because it reads all referenced CCs
             .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), false)
+            // Foreground prefetch so the prefetcher populates the cache before the engine opens new segments,
+            // avoiding a race where segment-opening blob store reads are not counted as prefetched bytes.
+            .put(SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING.getKey(), false)
             .build();
-        startMasterAndIndexNode(nodeSettings);
+        var indexNode = startMasterAndIndexNode(nodeSettings);
         var indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
         ensureGreen(indexName);
@@ -217,12 +236,24 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         // no new commits were created since the search node started, so it didn't receive any commit notifications, nothing to prefetch
         assertThat(searchEngine.getTotalPrefetchedBytes(), is(0L));
 
-        var latestCommitGeneration = client().admin().indices().prepareStats(indexName).get().getAt(0).getCommitStats().getGeneration();
-        var vBCCGen = latestCommitGeneration + 1;
-        var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(vBCCGen);
-        var bytesReadFromBlobStore = meterBlobStoreReadsForBCC(searchNode, bccBlobName);
-
-        var beforeNewCommit = bytesReadFromBlobStore.get();
+        // Delay new commit notifications on the search shard to be able to capture the metrics before the search shard refreshes its engine
+        final var delayed = new AtomicBoolean(true);
+        final var delayedNewBccGeneration = new PlainActionFuture<Long>();
+        final Queue<CheckedRunnable<Exception>> delayedNewCommitNotifications = ConcurrentCollections.newQueue();
+        MockTransportService.getInstance(searchNode)
+            .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
+                if (delayed.get()) {
+                    delayedNewCommitNotifications.add(() -> handler.messageReceived(request, channel, task));
+                    var notification = asInstanceOf(NewCommitNotificationRequest.class, request);
+                    if (delayedNewBccGeneration.isDone()) {
+                        assertThat(delayedNewBccGeneration.get(), equalTo(notification.getBatchedCompoundCommitGeneration()));
+                    } else {
+                        delayedNewBccGeneration.onResponse(notification.getBatchedCompoundCommitGeneration());
+                    }
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            });
 
         ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, DiscoveryNodeRole.SEARCH_ROLE);
         String prewarmThreadPool = StatelessPlugin.PREWARM_THREAD_POOL;
@@ -230,18 +261,45 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         long preIngestTasksPrewarmingPool = getNumberOfCompletedTasks(threadPool, prewarmThreadPool);
         // number of completed tasks in the refresh pool before we start indexing
         long preIngestTasksRefreshPool = getNumberOfCompletedTasks(threadPool, ThreadPool.Names.REFRESH);
-        // create a new commit and upload it
+
+        // Now index more docs and refresh to create a new virtual commit
         indexDocs(indexName, 10_000);
-        refresh(indexName);
+        var refreshResponse = indicesAdmin().prepareRefresh(indexName).execute();
+
+        // Capture the lastBccGeneration of the latest (non-processed) new commit
+        long lastBccGeneration = safeGet(delayedNewBccGeneration);
+
+        // Ensure there is a virtual BCC that matches the expected generation
+        var shardId = new ShardId(resolveIndex(indexName), 0);
+        var pendingVbcc = internalCluster().getInstance(StatelessCommitService.class, indexNode).getCurrentVirtualBcc(shardId);
+        assertThat(pendingVbcc, notNullValue());
+        assertThat(pendingVbcc.getPrimaryTermAndGeneration().generation(), equalTo(lastBccGeneration));
+
+        // Record the BCC generations the prefetcher fetches from the blob store. Non-uploaded commit prefetching is
+        // disabled, so the prefetcher reads uploaded BCCs from the blob store on the prewarm pool.
+        var prefetchedGenerations = captureGenerationsReadFromBlobStore(searchNode, prewarmThreadPool);
+
+        // Wait until all commit notifications have been intercepted before releasing them
+        assertBusy(() -> assertThat(delayedNewCommitNotifications.size(), equalTo(pendingVbcc.getPendingCompoundCommits().size())));
+
+        // Now we can release the delayed requests and flush, so that prefetcher kicks in
+        delayed.set(false);
+        for (var delayedNewCommitNotification : delayedNewCommitNotifications) {
+            delayedNewCommitNotification.run();
+        }
+        safeGet(refreshResponse);
+
         flush(indexName);
 
         // wait for the refreshes to complete
         assertNoRunningAndQueueTasks(threadPool, ThreadPool.Names.REFRESH, preIngestTasksRefreshPool);
         assertNoRunningAndQueueTasks(threadPool, prewarmThreadPool, preIngestTasksPrewarmingPool);
 
-        var afterFlush = bytesReadFromBlobStore.get();
-        // we should have prefetched the latest commit generation only
-        assertBusy(() -> assertThat(searchEngine.getTotalPrefetchedBytes(), is(afterFlush - beforeNewCommit)));
+        // We must not prefetch anything older than the latest generation captured on the first commit notification.
+        // With merges, we can potentially prefetch generation > lastBccGeneration.
+        assertThat(prefetchedGenerations, not(empty()));
+        assertThat(prefetchedGenerations, hasItem(lastBccGeneration));
+        assertThat(prefetchedGenerations, everyItem(greaterThanOrEqualTo(lastBccGeneration)));
     }
 
     public void testSkipFetchingForSearchIdleIndices() throws Exception {
@@ -285,7 +343,6 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         }
 
         var currentVirtualBcc = internalCluster().getInstance(StatelessCommitService.class, indexNode).getCurrentVirtualBcc(shardId);
-        var bccTotalSizeInBytes = currentVirtualBcc.getTotalSizeInBytes();
 
         var uploadBCC = prefetchNonUploadedCommits == false || randomBoolean();
         if (uploadBCC) {
@@ -293,6 +350,8 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         }
         // wait for the refreshes to complete
         assertNoRunningAndQueueTasks(threadPool, ThreadPool.Names.REFRESH, preIngestTasksRefreshPool);
+
+        var bccTotalSizeInBytes = currentVirtualBcc.getTotalSizeInBytes();
 
         // it's tricky to test that something does NOT happen (you can't wait for things to not happen)
         // so we just submit a marker task to the prewarming thread pool and then check that it was the only task that ran in the pool
@@ -310,8 +369,8 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         assertThat(getNumberOfCompletedTasks(threadPool, prewarmThreadPool), is(preIngestTasksPrewarmingPool + 1));
 
         assertThat(bytesReadFromBlobStore.get(), is(equalTo(0L)));
-        assertThat(bytesReadFromIndexingNode.get(), is(greaterThan(0L)));
-        assertThat(bytesReadFromIndexingNode.get(), is(lessThan(bccTotalSizeInBytes)));
+        assertThat(bytesReadFromIndexingNode.bytesCount(), is(greaterThan(0L)));
+        assertThat(bytesReadFromIndexingNode.bytesCount(), is(lessThan(bccTotalSizeInBytes)));
         assertThat(searchEngine.getTotalPrefetchedBytes(), is(0L));
 
         // let's test we updated the internal tracking of the max prefetch offset to the latest commit, at the very end
@@ -369,11 +428,13 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             indexDocs(indexName, 10_000);
             refresh(indexName);
         }
+
         var currentVirtualBcc = internalCluster().getInstance(StatelessCommitService.class, indexNode).getCurrentVirtualBcc(shardId);
-        var bccTotalPaddingInBytes = currentVirtualBcc.getTotalPaddingInBytes();
-        var bccTotalSizeInBytes = currentVirtualBcc.getTotalSizeInBytes();
 
         flush(indexName);
+
+        var bccTotalPaddingInBytes = currentVirtualBcc.getTotalPaddingInBytes();
+        var bccTotalSizeInBytes = currentVirtualBcc.getTotalSizeInBytes();
 
         assertBusy(
             () -> assertThat(
@@ -381,7 +442,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
                 // A BCC can contain multiple Lucene commits, for performance reasons, the latest file on each commit is padded
                 // to be page aligned. The get VBCC chunk request doesn't account for that since the padding is done by the cache
                 // at population time and the blob is padded later on.
-                is(equalTo(bytesReadFromBlobStore.get() + bytesReadFromIndexingNode.get() + bccTotalPaddingInBytes))
+                is(equalTo(bytesReadFromBlobStore.get() + bytesReadFromIndexingNode.bytesCount() + bccTotalPaddingInBytes))
             )
         );
 
@@ -401,7 +462,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             assertThat(bytesReadFromBlobStore.get(), is(greaterThan(0L)));
         }
 
-        var bytesReadFromIndexingNodeBeforeSearch = bytesReadFromIndexingNode.get();
+        var bytesReadFromIndexingNodeBeforeSearch = bytesReadFromIndexingNode.bytesCount();
         var bytesReadFromBlobStoreBeforeSearch = bytesReadFromBlobStore.get();
 
         searchRequest = prepareSearch(indexName);
@@ -412,8 +473,64 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         }
         assertNoFailures(searchRequest);
 
-        assertThat(bytesReadFromIndexingNode.get(), is(equalTo(bytesReadFromIndexingNodeBeforeSearch)));
+        assertThat(bytesReadFromIndexingNode.bytesCount(), is(equalTo(bytesReadFromIndexingNodeBeforeSearch)));
         assertThat(bytesReadFromBlobStore.get(), is(equalTo(bytesReadFromBlobStoreBeforeSearch)));
+    }
+
+    public void testUploadedCommitPrefetchNeverHitsIndexingNode() throws Exception {
+        final boolean backgroundPrefetch = randomBoolean();
+        var nodeSettings = Settings.builder()
+            // Only prefetch uploaded commits — the indexing node is never involved
+            .put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), false)
+            .put(SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING.getKey(), backgroundPrefetch)
+            .build();
+        var indexNode = startMasterAndIndexNode(nodeSettings);
+        var searchNode = startSearchNode(nodeSettings);
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+        ensureGreen(indexName);
+        // Break the idle barrier so prefetching is not skipped
+        assertNoFailures(prepareSearch(indexName));
+
+        var latestCommitGeneration = client().admin().indices().prepareStats(indexName).get().getAt(0).getCommitStats().getGeneration();
+        var vBCCGen = latestCommitGeneration + 1;
+        var shardId = new ShardId(resolveIndex(indexName), 0);
+        var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(vBCCGen);
+
+        var bytesReadFromBlobStore = meterBlobStoreReadsForBCC(searchNode, bccBlobName);
+        var bytesReadFromIndexingNode = meterIndexingNodeReadsForBCC(indexNode, shardId, vBCCGen);
+
+        var searchEngine = getShardEngine(findSearchShard(indexName), SearchEngine.class);
+        assertThat(searchEngine.getTotalPrefetchedBytes(), is(equalTo(0L)));
+
+        // Track the search node's refresh pool to know when N-notification segment openings are done.
+        // processCommitNotifications() runs on REFRESH and blocks until VBCC cache fills complete,
+        // so draining REFRESH guarantees all N-notification indexing-node reads have finished.
+        ThreadPool searchThreadPool = internalCluster().getInstance(ThreadPool.class, DiscoveryNodeRole.SEARCH_ROLE);
+        long preIndexingRefreshTasks = getNumberOfCompletedTasks(searchThreadPool, ThreadPool.Names.REFRESH);
+
+        var numberOfCommits = randomIntBetween(5, 8);
+        for (int j = 0; j < numberOfCommits; j++) {
+            // Index enough documents so the initial read happening during refresh doesn't include the complete Lucene files
+            indexDocs(indexName, 10_000);
+            refresh(indexName);
+        }
+
+        // Wait for all N-notification segment openings (and their VBCC reads) to complete
+        assertNoRunningAndQueueTasks(searchThreadPool, ThreadPool.Names.REFRESH, preIndexingRefreshTasks);
+
+        // Snapshot indexing-node reads before the flush so we can assert M's prefetch adds nothing
+        var indexingNodeReadsBeforeFlush = bytesReadFromIndexingNode.bytesCount();
+
+        flush(indexName);
+
+        // Wait until the M notification's prefetch has completed
+        assertBusy(() -> assertThat(searchEngine.getTotalPrefetchedBytes(), is(greaterThan(0L))));
+
+        // M notification's prefetch read from the blob store
+        assertThat(bytesReadFromBlobStore.get(), is(greaterThan(0L)));
+        // M notification's prefetch never contacted the indexing node
+        assertThat(bytesReadFromIndexingNode.bytesCount(), is(equalTo(indexingNodeReadsBeforeFlush)));
     }
 
     public void testOnNonUploadedCommitNotificationsTryToPrefetchUploadedData() throws Exception {
@@ -451,8 +568,6 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             refresh(indexName);
         }
         var currentVirtualBcc = internalCluster().getInstance(StatelessCommitService.class, indexNode).getCurrentVirtualBcc(shardId);
-        var bccTotalPaddingInBytes = currentVirtualBcc.getTotalPaddingInBytes();
-        var bccTotalSizeInBytes = currentVirtualBcc.getTotalSizeInBytes();
 
         var uploadCommitNotificationReceived = new CountDownLatch(1);
         AtomicReference<CheckedRunnable<Exception>> pendingNewCommitNotificationHandlerRef = new AtomicReference<>();
@@ -469,6 +584,9 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
 
         flush(indexName);
 
+        var bccTotalPaddingInBytes = currentVirtualBcc.getTotalPaddingInBytes();
+        var bccTotalSizeInBytes = currentVirtualBcc.getTotalSizeInBytes();
+
         safeAwait(uploadCommitNotificationReceived);
 
         indexDocs(indexName, 100);
@@ -480,7 +598,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
                 // A BCC can contain multiple Lucene commits, for performance reasons, the latest file on each commit is padded
                 // to be page aligned. The get VBCC chunk request doesn't account for that since the padding is done by the cache
                 // at population time and the blob is padded later on.
-                is(equalTo(bytesReadFromBlobStore.get() + bytesReadFromIndexingNode.get() + bccTotalPaddingInBytes))
+                is(equalTo(bytesReadFromBlobStore.get() + bytesReadFromIndexingNode.bytesCount() + bccTotalPaddingInBytes))
             )
         );
         assertBusy(() -> assertThat(searchEngine.getTotalPrefetchedBytes(), is(lessThanOrEqualTo(bccTotalSizeInBytes))));
@@ -492,7 +610,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         assertThat(pendingNewCommitNotificationHandler, is(notNullValue()));
         pendingNewCommitNotificationHandler.run();
 
-        var bytesReadFromIndexingNodeBeforeSearch = bytesReadFromIndexingNode.get();
+        var bytesReadFromIndexingNodeBeforeSearch = bytesReadFromIndexingNode.bytesCount();
         var bytesReadFromBlobStoreBeforeSearch = bytesReadFromBlobStore.get();
 
         searchRequest = prepareSearch(indexName);
@@ -503,17 +621,27 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         }
         assertNoFailures(searchRequest);
 
-        assertThat(bytesReadFromIndexingNode.get(), is(equalTo(bytesReadFromIndexingNodeBeforeSearch)));
+        assertThat(bytesReadFromIndexingNode.bytesCount(), is(equalTo(bytesReadFromIndexingNodeBeforeSearch)));
         assertThat(bytesReadFromBlobStore.get(), is(equalTo(bytesReadFromBlobStoreBeforeSearch)));
     }
 
     public void testCommitPrefetchingInForeground() throws Exception {
+        final boolean prefetchNonUploadedCommits = randomBoolean();
+        // immediateVbccRelease=true requires prefetchNonUploadedCommits=true: without N's prefetch,
+        // no blob store reads happen from N's step (breaking the bytesReadFromBlobStore > 0 assertion),
+        // and the VBCC would be gone for Search 1 (no prefetch to warm the cache), causing that
+        // search to read from the blob store and breaking the "no blob store reads" assertion.
+        final boolean immediateVbccRelease = prefetchNonUploadedCommits && randomBoolean();
         var nodeSettings = Settings.builder()
-            .put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), true)
+            .put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), prefetchNonUploadedCommits)
             .put(SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING.getKey(), false)
+            .put(
+                StatelessCommitService.STATELESS_UPLOAD_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT.getKey(),
+                immediateVbccRelease ? TimeValue.ZERO : TimeValue.timeValueMinutes(5)
+            )
             .build();
         var indexNode = startMasterAndIndexNode(nodeSettings);
-        startSearchNode(nodeSettings);
+        var searchNode = startSearchNode(nodeSettings);
         var indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
         ensureGreen(indexName);
@@ -524,23 +652,67 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         var initialCommitGeneration = client().admin().indices().prepareStats(indexName).get().getAt(0).getCommitStats().getGeneration();
         var vBCCGen = initialCommitGeneration + 1;
         var shardId = new ShardId(resolveIndex(indexName), 0);
+        var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(vBCCGen);
+
+        var bytesReadFromBlobStore = meterBlobStoreReadsForBCC(searchNode, bccBlobName);
+        var bytesReadFromIndexingNode = meterIndexingNodeReadsForBCC(indexNode, shardId, vBCCGen);
 
         var vBCCReadBlockedLatch = new CountDownLatch(1);
-        var vBCCReadReceived = new CountDownLatch(1);
-        MockTransportService.getInstance(indexNode)
-            .addRequestHandlingBehavior(
-                TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
-                (handler, request, channel, task) -> {
-                    var getVBCCChunkRequest = (GetVirtualBatchedCompoundCommitChunkRequest) request;
-                    if (getVBCCChunkRequest.getShardId().equals(shardId)
-                        && getVBCCChunkRequest.getVirtualBatchedCompoundCommitGeneration() == vBCCGen) {
-                        vBCCReadReceived.countDown();
-                        safeAwait(vBCCReadBlockedLatch);
-                    }
+        // count=1 only when prefetchNonUploadedCommits=true; otherwise safeAwait returns immediately
+        var vBCCReadReceived = new CountDownLatch(prefetchNonUploadedCommits ? 1 : 0);
+        if (prefetchNonUploadedCommits) {
+            MockTransportService.getInstance(indexNode)
+                .addRequestHandlingBehavior(
+                    TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
+                    (handler, request, channel, task) -> {
+                        var getVBCCChunkRequest = (GetVirtualBatchedCompoundCommitChunkRequest) request;
+                        if (getVBCCChunkRequest.getShardId().equals(shardId)
+                            && getVBCCChunkRequest.getVirtualBatchedCompoundCommitGeneration() == vBCCGen) {
+                            vBCCReadReceived.countDown();
+                            safeAwait(vBCCReadBlockedLatch);
+                        }
 
+                        handler.messageReceived(request, channel, task);
+                    }
+                );
+        }
+
+        // Hold back the uploaded notification so its foreground prefetch (which reads from the blob
+        // store and completes quickly) cannot send its ACK and trigger VBCC cleanup before the prior
+        // non-uploaded notification's prefetch has finished reading VBCC chunks.
+        // The channel is wrapped to signal mNotificationCompleted when M's full processing chain
+        // (prefetch + segment gen listener) has finished and the ACK is about to leave the search node.
+        var uploadNotificationReceived = new CountDownLatch(1);
+        var mNotificationCompleted = new CountDownLatch(1);
+        AtomicReference<CheckedRunnable<Exception>> pendingUploadNotificationRef = new AtomicReference<>();
+        MockTransportService.getInstance(searchNode)
+            .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
+                var req = (NewCommitNotificationRequest) request;
+                if (req.isUploaded() && req.getBatchedCompoundCommitGeneration() == vBCCGen) {
+                    var completingChannel = new TransportChannel() {
+                        @Override
+                        public String getProfileName() {
+                            return channel.getProfileName();
+                        }
+
+                        @Override
+                        public void sendResponse(TransportResponse response) {
+                            channel.sendResponse(response);
+                            mNotificationCompleted.countDown();
+                        }
+
+                        @Override
+                        public void sendResponse(Exception exception) {
+                            channel.sendResponse(exception);
+                            mNotificationCompleted.countDown();
+                        }
+                    };
+                    pendingUploadNotificationRef.set(() -> handler.messageReceived(request, completingChannel, task));
+                    uploadNotificationReceived.countDown();
+                } else {
                     handler.messageReceived(request, channel, task);
                 }
-            );
+            });
 
         var searchEngine = getShardEngine(findSearchShard(indexName), SearchEngine.class);
         assertThat(searchEngine.getTotalPrefetchedBytes(), is(equalTo(0L)));
@@ -550,24 +722,86 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
 
         safeAwait(vBCCReadReceived);
 
+        if (prefetchNonUploadedCommits == false) {
+            // No VBCC reads to synchronize on; wait for the refresh to fully commit so getCurrentVirtualBcc
+            // returns the correct generation.
+            refreshFuture.get();
+        }
+
         var currentVirtualBcc = internalCluster().getInstance(StatelessCommitService.class, indexNode).getCurrentVirtualBcc(shardId);
         var bccTotalSizeInBytes = currentVirtualBcc.getTotalSizeInBytes();
 
-        // Since the prefetch is blocked and running in the foreground the commit hasn't moved forward yet.
-        IndexShard indexingNodeShard = findIndexShard(indexName);
-        assertBusy(() -> assertThat(indexingNodeShard.commitStats().getGeneration(), is(greaterThan(initialCommitGeneration))));
-        assertThat(findSearchShard(indexName).commitStats().getGeneration(), is(equalTo(initialCommitGeneration)));
-        assertThat(refreshFuture.isDone(), is(equalTo(false)));
-        assertThat(searchEngine.getTotalPrefetchedBytes(), is(equalTo(0L)));
+        if (prefetchNonUploadedCommits) {
+            // Since the prefetch is blocked and running in the foreground the commit hasn't moved forward yet.
+            IndexShard indexingNodeShard = findIndexShard(indexName);
+            assertBusy(() -> assertThat(indexingNodeShard.commitStats().getGeneration(), is(greaterThan(initialCommitGeneration))));
+            assertThat(findSearchShard(indexName).commitStats().getGeneration(), is(equalTo(initialCommitGeneration)));
+            assertThat(refreshFuture.isDone(), is(equalTo(false)));
+            assertThat(searchEngine.getTotalPrefetchedBytes(), is(equalTo(0L)));
+        }
 
-        vBCCReadBlockedLatch.countDown();
+        // Upload the BCC while N's prefetch is still blocked on the VBCC read (prefetchNonUploadedCommits=true)
+        // or while no N prefetch is in progress (false). With immediateVbccRelease=false the VBCC moves to
+        // recentlyUploadedVbccs and stays alive until the uploaded notification is acknowledged. The uploaded
+        // notification is held back by the interceptor above, so its ACK (and the resulting VBCC cleanup)
+        // cannot fire before the blocked VBCC reads have completed.
+        flush(indexName);
+        // Wait until the uploaded notification has arrived so we know the flush is complete and
+        // the VBCC has been moved (or released) on the indexing node before unblocking reads.
+        safeAwait(uploadNotificationReceived);
 
-        refreshFuture.get();
+        if (prefetchNonUploadedCommits) {
+            vBCCReadBlockedLatch.countDown();
+            refreshFuture.get();
+        }
 
-        // If we prefetch all the commits through the indexing node, the cache would align writes
-        // (even thought the latest file in the BCC won't have padding in the final blob uploaded to the blob store).
-        assertBusy(() -> assertThat(searchEngine.getTotalPrefetchedBytes(), is(lessThanOrEqualTo(toPageAlignedSize(bccTotalSizeInBytes)))));
+        if (immediateVbccRelease) {
+            // VBCC was released synchronously when the flush completed; the blocked VBCC reads
+            // encountered a gone VBCC and fell back to the object store via SwitchingCacheBlobReader
+            assertThat(bytesReadFromBlobStore.get(), is(greaterThan(0L)));
+        } else {
+            // No object store reads at this point: either the VBCC stayed alive in
+            // recentlyUploadedVbccs so blocked reads went to the indexing node, or N's prefetch
+            // was skipped but the search shard still read VBCC chunks to open the IndexReader.
+            assertThat(bytesReadFromBlobStore.get(), is(equalTo(0L)));
+            assertThat(bytesReadFromIndexingNode.bytesCount(), is(greaterThan(0L)));
+        }
+
+        assertThat(searchEngine.getTotalPrefetchedBytes(), lessThanOrEqualTo(toPageAlignedSize(bccTotalSizeInBytes)));
+        if (prefetchNonUploadedCommits && immediateVbccRelease == false) {
+            // N's prefetch read from VBCC (indexing node); those bytes are counted.
+            assertThat(searchEngine.getTotalPrefetchedBytes(), greaterThan(0L));
+        }
         assertThat(findSearchShard(indexName).commitStats().getGeneration(), is(greaterThan(initialCommitGeneration)));
+
+        // A search before the uploaded notification is released should see the refreshed data and
+        // require no object store reads. When prefetchNonUploadedCommits=true, N's prefetch has already
+        // loaded all BCC data into the shared blob cache (from VBCC or object store). When false, the
+        // VBCC is still alive while M is held back (timeout=5min), so the search reads via VBCC from
+        // the indexing node rather than the object store.
+        long blobBytesBeforeSearch1 = bytesReadFromBlobStore.get();
+        assertNoFailuresAndResponse(
+            prepareSearch(indexName).setTrackTotalHits(true).setSize(0),
+            response -> assertThat(response.getHits().getTotalHits().value(), is(greaterThan(0L)))
+        );
+        assertThat(bytesReadFromBlobStore.get(), is(equalTo(blobBytesBeforeSearch1)));
+
+        // Release the held-back uploaded notification
+        pendingUploadNotificationRef.get().run();
+
+        // Wait for M's full processing chain to complete: prefetch (reads any missing BCC data into
+        // cache) → segment gen listener → ACK sent. The wrapped channel fires mNotificationCompleted
+        // at the point the ACK leaves the search node, guaranteeing all blob store reads from M's
+        // prefetch are done before we check the cache state.
+        safeAwait(mNotificationCompleted);
+
+        // With M's prefetch complete the commit is fully cached; searches need no object store reads.
+        long blobBytesBeforeSearch2 = bytesReadFromBlobStore.get();
+        assertNoFailuresAndResponse(
+            prepareSearch(indexName).setTrackTotalHits(true).setSize(0),
+            response -> assertThat(response.getHits().getTotalHits().value(), is(greaterThan(0L)))
+        );
+        assertThat(bytesReadFromBlobStore.get(), is(equalTo(blobBytesBeforeSearch2)));
     }
 
     public void testForceCommitPrefetch() throws Exception {
@@ -714,8 +948,8 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         assertBusy(() -> assertThat(searchEngine.getTotalPrefetchedBytes(), is(0L)));
     }
 
-    private AtomicLong meterIndexingNodeReadsForBCC(String indexNode, ShardId shardId, long vBCCGenToMeter) {
-        var bytesReadFromIndexingNode = new AtomicLong();
+    private UniqueRangesTracker meterIndexingNodeReadsForBCC(String indexNode, ShardId shardId, long vBCCGenToMeter) {
+        final var bytesReadFromIndexingNode = new UniqueRangesTracker();
         MockTransportService.getInstance(indexNode)
             .addRequestHandlingBehavior(
                 TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
@@ -732,7 +966,10 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
                             var getVBCCChunkResponse = (GetVirtualBatchedCompoundCommitChunkResponse) response;
                             if (getVBCCChunkRequest.getShardId().equals(shardId)
                                 && getVBCCChunkRequest.getVirtualBatchedCompoundCommitGeneration() == vBCCGenToMeter) {
-                                bytesReadFromIndexingNode.addAndGet(getVBCCChunkResponse.getData().length());
+                                bytesReadFromIndexingNode.addRange(
+                                    getVBCCChunkRequest.getOffset(),
+                                    getVBCCChunkResponse.getData().length()
+                                );
                             }
                             channel.sendResponse(response);
                         }
@@ -777,6 +1014,76 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         return bytesReadFromBlobStore;
     }
 
+    /// Records the BCC generations whose blobs are read from the blob store by the passed thread pool.
+    private Set<Long> captureGenerationsReadFromBlobStore(String searchNode, String trackedThreadPool) {
+        Set<Long> prefetchedGenerations = ConcurrentCollections.newConcurrentSet();
+        setNodeRepositoryStrategy(searchNode, new StatelessMockRepositoryStrategy() {
+            @Override
+            public InputStream blobContainerReadBlob(
+                CheckedSupplier<InputStream, IOException> originalSupplier,
+                OperationPurpose purpose,
+                String blobName,
+                long position,
+                long length
+            ) throws IOException {
+                if (Thread.currentThread().getName().contains("[" + trackedThreadPool + "]") == false) {
+                    return super.blobContainerReadBlob(originalSupplier, purpose, blobName, position, length);
+                }
+                return new FilterInputStream(originalSupplier.get()) {
+                    @Override
+                    public int read(byte[] b, int off, int len) throws IOException {
+                        var bytesRead = super.read(b, off, len);
+                        if (bytesRead > 0 && BatchedCompoundCommit.startsWithBlobPrefix(blobName)) {
+                            prefetchedGenerations.add(BatchedCompoundCommit.parseGenerationFromBlobName(blobName));
+                        }
+                        return bytesRead;
+                    }
+                };
+            }
+        });
+        return prefetchedGenerations;
+    }
+
+    /// Tracks unique bytes received from the indexing-node chunk endpoint by recording each `[offset, offset + respLen)`
+    /// range and merging overlaps.
+    private static final class UniqueRangesTracker {
+        private final NavigableMap<Long, Long> rangesByStart = new TreeMap<>();
+
+        /// Records a `[offset, offset + length)` range and returns the running total of unique bytes after the merge.
+        private synchronized void addRange(long offset, long length) {
+            if (length > 0) {
+                long start = offset;
+                long end = offset + length;
+                // coalesce with the predecessor entry if it overlaps or touches
+                final var floor = rangesByStart.floorEntry(start);
+                if (floor != null && floor.getValue() >= start) {
+                    start = floor.getKey();
+                    end = Math.max(end, floor.getValue());
+                    rangesByStart.remove(floor.getKey());
+                }
+                // coalesce with any subsequent entries that the merged range now overlaps or touches
+                final var iter = rangesByStart.tailMap(start, false).entrySet().iterator();
+                while (iter.hasNext()) {
+                    final var entry = iter.next();
+                    if (entry.getKey() > end) {
+                        break;
+                    }
+                    end = Math.max(end, entry.getValue());
+                    iter.remove();
+                }
+                rangesByStart.put(start, end);
+            }
+        }
+
+        private synchronized long bytesCount() {
+            long total = 0;
+            for (final var entry : rangesByStart.entrySet()) {
+                total += entry.getValue() - entry.getKey();
+            }
+            return total;
+        }
+    }
+
     public static final class TestStatelessPluginNoRecoveryPrewarming extends TestUtils.StatelessPluginWithTrialLicense {
 
         public TestStatelessPluginNoRecoveryPrewarming(Settings settings) {
@@ -799,7 +1106,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
-                    @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+                    @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
                     boolean preWarmForIdLookup,
                     ActionListener<Void> listener
                 ) {

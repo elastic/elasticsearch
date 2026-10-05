@@ -63,6 +63,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -89,7 +90,6 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
     protected static final String DEFAULT_ACCOUNT_NAME = "account";
     protected static final Predicate<String> LIST_PATTERN = Pattern.compile("GET /[a-zA-Z0-9]+/[a-zA-Z0-9]+\\?.+").asMatchPredicate();
     protected static final Predicate<String> GET_BLOB_PATTERN = Pattern.compile("GET /[a-zA-Z0-9]+/[a-zA-Z0-9]+/.+").asMatchPredicate();
-    private static final AtomicInteger MAX_CONNECTION_SETTING = new AtomicInteger(-1);
     private static final AtomicInteger EVENT_LOOP_THREAD_COUNT_SETTING = new AtomicInteger(-1);
 
     @Override
@@ -151,13 +151,11 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         final String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + httpServerUrlLocalhost() + "/" + accountName;
 
         // The first node configured sets these for all nodes
-        MAX_CONNECTION_SETTING.compareAndSet(-1, randomIntBetween(10, 30));
         EVENT_LOOP_THREAD_COUNT_SETTING.compareAndSet(-1, randomIntBetween(1, 3));
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(AzureStorageSettings.ENDPOINT_SUFFIX_SETTING.getConcreteSettingForNamespace("test").getKey(), endpoint)
             .put(AzureClientProvider.EVENT_LOOP_THREAD_COUNT.getKey(), EVENT_LOOP_THREAD_COUNT_SETTING.get())
-            .put(AzureClientProvider.MAX_OPEN_CONNECTIONS.getKey(), MAX_CONNECTION_SETTING.get())
             .put(AzureClientProvider.MAX_IDLE_TIME.getKey(), TimeValue.timeValueSeconds(randomIntBetween(10, 30)))
             .put(AzureClientProvider.OPEN_CONNECTION_TIMEOUT.getKey(), TimeValue.timeValueSeconds(randomIntBetween(10, 30)))
             .setSecureSettings(secureSettings)
@@ -218,6 +216,11 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                 null /* no auth header validation - sometimes it's omitted in these tests (TODO why?) */,
                 MockAzureBlobStore.LeaseExpiryPredicate.NEVER_EXPIRE
             );
+        }
+
+        @Override
+        public Set<String> blobsKeyset() {
+            return blobs().keySet();
         }
     }
 
@@ -294,8 +297,6 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
     }
 
     public void testSettingsTakeEffect() {
-        AzureClientProvider azureClientProvider = internalCluster().getInstance(AzureClientProvider.class);
-        assertEquals(MAX_CONNECTION_SETTING.get(), azureClientProvider.getConnectionProvider().maxConnections());
         ThreadPool nodeThreadPool = internalCluster().getInstance(ThreadPool.class);
         assertEquals(
             EVENT_LOOP_THREAD_COUNT_SETTING.get(),
@@ -430,7 +431,14 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         assertBusy(() -> assertTrue(sourceBlobContainer.blobExists(randomPurpose(), sourceBlobName)));
 
         final var destinationBlobContainer = repository.blobStore().blobContainer(repository.basePath().add("target"));
-        destinationBlobContainer.copyBlob(randomPurpose(), sourceBlobContainer, sourceBlobName, destinationBlobName, blobBytes.length());
+        destinationBlobContainer.copyBlob(
+            randomPurpose(),
+            sourceBlobContainer,
+            sourceBlobName,
+            destinationBlobName,
+            blobBytes.length(),
+            null
+        );
         assertThat(Streams.readFully(destinationBlobContainer.readBlob(randomPurpose(), destinationBlobName)), equalBytes(blobBytes));
 
         sourceBlobContainer.delete(randomPurpose());
@@ -441,7 +449,8 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                 sourceBlobContainer,
                 sourceBlobName,
                 destinationBlobName,
-                blobBytes.length()
+                blobBytes.length(),
+                null
             )
         );
         destinationBlobContainer.delete(randomPurpose());

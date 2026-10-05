@@ -91,21 +91,23 @@ public final class IpPrefixEvaluator implements ExpressionEvaluator {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef ipScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        if (ipBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (ipBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
               warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
               result.appendNull();
               continue position;
+        }
+        if (prefixLengthV4Block.isNull(p)) {
+          result.appendNull();
+          continue position;
         }
         switch (prefixLengthV4Block.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -113,10 +115,11 @@ public final class IpPrefixEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (prefixLengthV6Block.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (prefixLengthV6Block.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -169,7 +172,7 @@ public final class IpPrefixEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

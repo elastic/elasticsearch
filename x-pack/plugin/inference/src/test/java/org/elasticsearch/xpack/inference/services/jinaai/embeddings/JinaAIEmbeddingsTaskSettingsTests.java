@@ -94,7 +94,7 @@ public class JinaAIEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializat
     }
 
     public void testFromMap_CreatesEmptySettings_WhenAllFieldsAreNull() {
-        assertThat(JinaAIEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of())), is(new JinaAIEmbeddingsTaskSettings((InputType) null)));
+        assertThat(JinaAIEmbeddingsTaskSettings.fromMap(new HashMap<>()), is(new JinaAIEmbeddingsTaskSettings((InputType) null)));
     }
 
     public void testFromMap_CreatesEmptySettings_WhenMapIsNull() {

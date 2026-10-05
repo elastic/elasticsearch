@@ -31,9 +31,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.SeekableByteChannel;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.CopyOption;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileSystem;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
@@ -342,6 +344,36 @@ public class FsBlobContainerTests extends ESTestCase {
         }
     }
 
+    public void testAtomicWriteHardLinkThrowsFileSystemException() throws IOException {
+        final var noHardLinkFs = new FilterFileSystemProvider("nohardlinkfs://", fileSystem) {
+            @Override
+            public void createLink(Path link, Path existing) throws IOException {
+                throw new FileSystemException(link.toString(), existing.toString(), "hard links not supported");
+            }
+        }.getFileSystem(null);
+        PathUtilsForTesting.installMock(noHardLinkFs);
+        try {
+            checkAtomicWrite();
+        } finally {
+            PathUtilsForTesting.installMock(fileSystem);
+        }
+    }
+
+    public void testAtomicWriteHardLinkThrowsAccessDeniedException() throws IOException {
+        final var noPermissionsForHardLinksFs = new FilterFileSystemProvider("nohardlinkfs://", fileSystem) {
+            @Override
+            public void createLink(Path link, Path existing) throws IOException {
+                throw new AccessDeniedException(link.toString(), existing.toString(), "no permissions for hard links");
+            }
+        }.getFileSystem(null);
+        PathUtilsForTesting.installMock(noPermissionsForHardLinksFs);
+        try {
+            checkAtomicWrite();
+        } finally {
+            PathUtilsForTesting.installMock(fileSystem);
+        }
+    }
+
     public void testAtomicWriteDefaultFs() throws Exception {
         restoreFileSystem();
         checkAtomicWrite();
@@ -426,7 +458,7 @@ public class FsBlobContainerTests extends ESTestCase {
         final var blobName = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
         final var contents = new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512)));
         sourceContainer.writeBlob(randomPurpose(), sourceBlobName, contents, true);
-        destinationContainer.copyBlob(randomPurpose(), sourceContainer, sourceBlobName, blobName, contents.length());
+        destinationContainer.copyBlob(randomPurpose(), sourceContainer, sourceBlobName, blobName, contents.length(), null);
 
         var sourceContents = Streams.readFully(sourceContainer.readBlob(randomPurpose(), sourceBlobName));
         var targetContents = Streams.readFully(destinationContainer.readBlob(randomPurpose(), blobName));

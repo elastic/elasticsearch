@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `ASINH` function [esql-asinh]
 
-:::{include} ../../_snippets/functions/layout/asinh.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/asinh.md
 :::

@@ -81,7 +81,7 @@ public class LessThanOrEqualTests extends AbstractScalarFunctionTestCase {
 
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
-                "LessThanOrEqualKeywordsEvaluator",
+                "LessThanOrEqualBytesRefEvaluator",
                 "lhs",
                 "rhs",
                 (l, r) -> ((BytesRef) l).compareTo((BytesRef) r) <= 0,
@@ -95,7 +95,7 @@ public class LessThanOrEqualTests extends AbstractScalarFunctionTestCase {
 
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
-                "LessThanOrEqualKeywordsEvaluator",
+                "LessThanOrEqualBytesRefEvaluator",
                 "lhs",
                 "rhs",
                 (l, r) -> ((BytesRef) l).compareTo((BytesRef) r) <= 0,
@@ -152,7 +152,7 @@ public class LessThanOrEqualTests extends AbstractScalarFunctionTestCase {
         suppliers.addAll(
             TestCaseSupplier.stringCases(
                 (l, r) -> ((BytesRef) l).compareTo((BytesRef) r) <= 0,
-                (lhsType, rhsType) -> "LessThanOrEqualKeywordsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                (lhsType, rhsType) -> "LessThanOrEqualBytesRefEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 List.of(),
                 DataType.BOOLEAN
             )

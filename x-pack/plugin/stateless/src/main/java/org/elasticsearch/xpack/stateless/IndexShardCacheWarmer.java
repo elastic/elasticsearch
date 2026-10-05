@@ -193,7 +193,6 @@ public class IndexShardCacheWarmer {
                     indexShard,
                     last,
                     prewarmingDirectory,
-                    null,
                     preWarmForIdLookup,
                     ActionListener.noop()
                 );

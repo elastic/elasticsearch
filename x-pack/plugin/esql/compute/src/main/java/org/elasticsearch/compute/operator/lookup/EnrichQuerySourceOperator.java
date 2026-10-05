@@ -17,6 +17,10 @@ import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
@@ -26,13 +30,16 @@ import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.ShardContext;
+import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.function.LongSupplier;
 
 /**
  * Lookup document IDs for the input queries.
@@ -53,6 +60,8 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
     private final IndexSearcher searcher;
     private final Warnings warnings;
     private final int maxPageSize;
+    private final LongSupplier directoryBytesRead;
+    private long totalBytesRead = 0L;
 
     // using smaller pages enables quick cancellation and reduces sorting costs
     public static final int DEFAULT_MAX_PAGE_SIZE = 256;
@@ -66,7 +75,8 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         IndexedByShardId<? extends ShardContext> shardContexts,
         int shardId,
         SearchExecutionContext searchExecutionContext,
-        Warnings warnings
+        Warnings warnings,
+        LongSupplier directoryBytesRead
     ) {
         this.blockFactory = blockFactory;
         this.maxPageSize = maxPageSize;
@@ -77,6 +87,7 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         this.shardContext = shardContexts.get(shardId);
         this.shardContext.incRef();
         this.searchExecutionContext = searchExecutionContext;
+        this.directoryBytesRead = directoryBytesRead;
         try {
             if (shardContext.searcher().getIndexReader() instanceof DirectoryReader directoryReader) {
                 // This optimization is currently disabled for ParallelCompositeReader
@@ -134,7 +145,13 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
     }
 
     @Override
+    public Operator.Status status() {
+        return new Status(totalBytesRead);
+    }
+
+    @Override
     public Page getOutput() {
+        long bytesBefore = directoryBytesRead.getAsLong();
         Page inputPage = getInputPageInternal();
         int estimatedSize = Math.min(maxPageSize, queryList.getPositionCount(inputPage) - queryPosition);
         IntVector.Builder positionsBuilder = null;
@@ -192,6 +209,7 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         } finally {
+            totalBytesRead += Math.max(0L, directoryBytesRead.getAsLong() - bytesBefore);
             Releasables.close(docsBuilder, segmentsBuilder, positionsBuilder);
         }
     }
@@ -296,6 +314,73 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         // Release optimized page if it was created
         if (optimizedPage != null && optimizedPage != originalPage) {
             Releasables.close(optimizedPage);
+        }
+    }
+
+    public static class Status implements Operator.Status {
+        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            Operator.Status.class,
+            "enrich_query_source",
+            Status::new
+        );
+
+        public static final TransportVersion ESQL_ENRICH_BYTES_READ = TransportVersion.fromName("esql_enrich_bytes_read");
+
+        private final long bytesRead;
+
+        Status(long bytesRead) {
+            this.bytesRead = bytesRead;
+        }
+
+        Status(StreamInput in) throws IOException {
+            this.bytesRead = in.getTransportVersion().supports(ESQL_ENRICH_BYTES_READ) ? in.readVLong() : 0L;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            if (out.getTransportVersion().supports(ESQL_ENRICH_BYTES_READ)) {
+                out.writeVLong(bytesRead);
+            }
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return ESQL_ENRICH_BYTES_READ;
+        }
+
+        @Override
+        public long bytesRead() {
+            return bytesRead;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("bytes_read", bytesRead);
+            return builder.endObject();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Status status = (Status) o;
+            return bytesRead == status.bytesRead;
+        }
+
+        @Override
+        public int hashCode() {
+            return Long.hashCode(bytesRead);
+        }
+
+        @Override
+        public String toString() {
+            return "EnrichQuerySourceOperator.Status[bytesRead=" + bytesRead + "]";
         }
     }
 }

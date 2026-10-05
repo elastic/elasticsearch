@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
@@ -40,9 +40,7 @@ import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateWithTypeToString;
@@ -65,81 +63,91 @@ public class ReplaceDateTruncBucketWithRoundTo extends ParameterizedRule<Logical
      * Perform the actual substitution with {@code SearchStats} and predicates in the query.
      */
     private Expression substitute(Expression e, Eval eval, SearchStats searchStats) {
-        Expression roundTo = null;
+        RoundTo roundTo = null;
         if (e instanceof DateTrunc dateTrunc) {
-            roundTo = maybeSubstituteWithRoundTo(
+            roundTo = maybeToRoundTo(
                 dateTrunc.source(),
                 dateTrunc.field(),
                 dateTrunc.interval(),
                 searchStats,
                 eval,
+                Rounding.RoundingConvention.DOWN,
                 (interval, minValue, maxValue) -> DateTrunc.createRounding(interval, dateTrunc.zoneId(), minValue, maxValue)
             );
         } else if (e instanceof Bucket bucket) {
-            roundTo = maybeSubstituteWithRoundTo(
+            // TODO(sidosera): https://github.com/elastic/elasticsearch/issues/148306
+            if (bucket.roundingConfiguration() == Rounding.RoundingConvention.UP) {
+                return e;
+            }
+            roundTo = maybeToRoundTo(
                 bucket.source(),
                 bucket.field(),
                 bucket.buckets(),
                 searchStats,
                 eval,
+                Rounding.RoundingConvention.DOWN,
                 (interval, minValue, maxValue) -> bucket.getDateRounding(FoldContext.small(), minValue, maxValue)
             );
         }
         return roundTo != null ? roundTo : e;
     }
 
-    private RoundTo maybeSubstituteWithRoundTo(
+    private RoundTo maybeToRoundTo(
         Source source,
         Expression field,
         Expression foldableTimeExpression,
         SearchStats searchStats,
         Eval eval,
+        Rounding.RoundingConvention convention,
         TriFunction<Object, Long, Long, Rounding.Prepared> roundingFunction
     ) {
-        if (field instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField == false && isDateTime(fa.dataType())) {
+        if (field instanceof FieldAttribute fa && fa.field() instanceof UnionTypeEsField == false && isDateTime(fa.dataType())) {
             DataType fieldType = fa.dataType();
             FieldAttribute.FieldName fieldName = fa.fieldName();
-            // Extract min/max from SearchStats
-            Object minFromSearchStats = searchStats.min(fieldName);
-            Object maxFromSearchStats = searchStats.max(fieldName);
-            Long min = toLong(minFromSearchStats);
-            Long max = toLong(maxFromSearchStats);
-            // Extract min/max from query
-            Tuple<Long, Long> minMaxFromPredicates = minMaxFromPredicates(predicates(eval, field));
-            Long minFromPredicates = minMaxFromPredicates.v1();
-            Long maxFromPredicates = minMaxFromPredicates.v2();
-            // Consolidate min/max from SearchStats and query
-            if (minFromPredicates != null) {
-                min = min != null ? Math.max(min, minFromPredicates) : minFromPredicates;
-            }
-            if (maxFromPredicates != null) {
-                max = max != null ? Math.min(max, maxFromPredicates) : maxFromPredicates;
-            }
+            MinMax minMax = minMax(fieldName, searchStats, eval, field);
             // If min/max is available create rounding with them
-            if (min != null && max != null && foldableTimeExpression.foldable() && min <= max) {
+            if (minMax != null && foldableTimeExpression.foldable()) {
                 Object foldedInterval = foldableTimeExpression.fold(FoldContext.small() /* TODO remove me */);
-                Rounding.Prepared rounding = roundingFunction.apply(foldedInterval, min, max);
-                long[] roundingPoints = rounding.fixedRoundingPoints();
-                if (roundingPoints == null) {
+                Rounding.Prepared rounding = roundingFunction.apply(foldedInterval, minMax.min, minMax.max);
+                RoundTo roundTo = createRoundTo(source, field, rounding, convention);
+                if (roundTo == null) {
                     logger.trace(
                         "Fixed rounding point is null for field {}, minValue {} in string format {} and maxValue {} in string format {}",
                         fieldName,
-                        min,
-                        dateWithTypeToString(min, fieldType),
-                        max,
-                        dateWithTypeToString(max, fieldType)
+                        minMax.min,
+                        dateWithTypeToString(minMax.min, fieldType),
+                        minMax.max,
+                        dateWithTypeToString(minMax.max, fieldType)
                     );
                     return null;
                 }
-                // Convert to round_to function with the roundings
-                List<Expression> points = Arrays.stream(roundingPoints)
-                    .mapToObj(l -> new Literal(Source.EMPTY, l, fieldType))
-                    .collect(Collectors.toList());
-                return new RoundTo(source, field, points);
+                return roundTo;
             }
         }
         return null;
     }
+
+    private MinMax minMax(FieldAttribute.FieldName fieldName, SearchStats searchStats, Eval eval, Expression field) {
+        // Extract min/max from SearchStats
+        Object minFromSearchStats = searchStats.min(fieldName);
+        Object maxFromSearchStats = searchStats.max(fieldName);
+        Long min = toLong(minFromSearchStats);
+        Long max = toLong(maxFromSearchStats);
+        // Extract min/max from query
+        Tuple<Long, Long> minMaxFromPredicates = minMaxFromPredicates(predicates(eval, field));
+        Long minFromPredicates = minMaxFromPredicates.v1();
+        Long maxFromPredicates = minMaxFromPredicates.v2();
+        // Consolidate min/max from SearchStats and query
+        if (minFromPredicates != null) {
+            min = min != null ? Math.max(min, minFromPredicates) : minFromPredicates;
+        }
+        if (maxFromPredicates != null) {
+            max = max != null ? Math.min(max, maxFromPredicates) : maxFromPredicates;
+        }
+        return min != null && max != null && min <= max ? new MinMax(min, max) : null;
+    }
+
+    private record MinMax(long min, long max) {}
 
     private List<EsqlBinaryComparison> predicates(Eval eval, Expression field) {
         List<EsqlBinaryComparison> binaryComparisons = new ArrayList<>();
@@ -191,5 +199,23 @@ public class ReplaceDateTruncBucketWithRoundTo extends ParameterizedRule<Logical
 
     private Long toLong(Object value) {
         return value instanceof Long l ? l : null;
+    }
+
+    private static RoundTo createRoundTo(
+        Source source,
+        Expression field,
+        Rounding.Prepared rounding,
+        Rounding.RoundingConvention convention
+    ) {
+        long[] roundingPoints = rounding.fixedRoundingPoints();
+        if (roundingPoints == null) {
+            return null;
+        }
+        DataType fieldType = field.dataType();
+        List<Expression> literals = new ArrayList<>(roundingPoints.length);
+        for (long p : roundingPoints) {
+            literals.add(new Literal(Source.EMPTY, p, fieldType));
+        }
+        return new RoundTo(source, field, literals, convention);
     }
 }

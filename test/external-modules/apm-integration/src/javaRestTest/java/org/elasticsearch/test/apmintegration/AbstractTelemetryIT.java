@@ -9,6 +9,9 @@
 
 package org.elasticsearch.test.apmintegration;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
+import org.elasticsearch.client.Request;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -19,19 +22,19 @@ import org.junit.rules.TestRule;
 import org.junit.runners.model.Statement;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.is;
+
+@ThreadLeakFilters(filters = { GrpcThreadsFilter.class })
 public abstract class AbstractTelemetryIT extends ESRestTestCase {
     private static final Logger logger = LogManager.getLogger(AbstractTelemetryIT.class);
 
     /**
-     * The APM agent is reconfigured dynamically by the APM module after booting,
-     * and the agent only reloads its configuration every 30 seconds.
-     * The first telemetry can be blocked waiting for this, so let's give it
-     * a good long time before giving up.
-     * <p>
-     * This should be unnecessary when the APM agent is no longer used.
+     * Upper bound on how long a test waits for exported telemetry to arrive.
      */
-    static final int TELEMETRY_TIMEOUT = 40;
+    static final int TELEMETRY_TIMEOUT = 15;
 
     /**
      * Concrete subclasses supply their own {@link RecordingApmServer} static field
@@ -67,5 +70,25 @@ public abstract class AbstractTelemetryIT extends ESRestTestCase {
                 }
             }
         });
+    }
+
+    protected static long longSample(ReceivedTelemetry.ReceivedMetricSet metricSet, String metricName) {
+        return metricSet.samples().get(metricName) instanceof ReceivedTelemetry.ValueSample(Number value) ? value.longValue() : 0L;
+    }
+
+    protected static boolean positiveLongSample(ReceivedTelemetry.ReceivedMetricSet metricSet, String metricName) {
+        return longSample(metricSet, metricName) > 0;
+    }
+
+    protected void assertSdkResourceAttributes(String expectedProjectId, String expectedProjectType, String expectedNodeTier)
+        throws Exception {
+        client().performRequest(new Request("GET", "/_nodes/stats"));
+        client().performRequest(new Request("GET", "/_flush_telemetry"));
+        assertBusy(() -> assertNotNull("no resource event observed yet", apmServer().resource()), 10, TimeUnit.SECONDS);
+        Map<String, Object> attrs = apmServer().resource().attributes();
+
+        assertThat("elasticsearch.project.id", attrs.get("elasticsearch.project.id"), is(expectedProjectId));
+        assertThat("elasticsearch.project.type", attrs.get("elasticsearch.project.type"), is(expectedProjectType));
+        assertThat("elasticsearch.node.tier", attrs.get("elasticsearch.node.tier"), is(expectedNodeTier));
     }
 }

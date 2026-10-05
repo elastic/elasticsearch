@@ -16,8 +16,10 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -60,6 +62,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntConsumer;
+import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.get.ShardGetService.maybeExcludeVectorFields;
@@ -91,7 +94,7 @@ public final class FetchPhase {
     public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs) {
         // Synchronous wrapper for backward compatibility,
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        execute(context, docIdsToLoad, rankDocs, null, null, null, null, null, future);
+        execute(context, docIdsToLoad, rankDocs, null, null, null, null, null, null, future);
         try {
             future.actionGet();
         } catch (UncategorizedExecutionException e) {
@@ -112,7 +115,7 @@ public final class FetchPhase {
     public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs, @Nullable IntConsumer memoryChecker) {
         // Synchronous wrapper for backward compatibility,
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        execute(context, docIdsToLoad, rankDocs, memoryChecker, null, null, null, null, future);
+        execute(context, docIdsToLoad, rankDocs, memoryChecker, null, null, null, null, null, future);
         try {
             future.actionGet();
         } catch (UncategorizedExecutionException e) {
@@ -135,6 +138,10 @@ public final class FetchPhase {
      * @param rankDocs ranking information
      * @param memoryChecker optional callback for memory tracking, may be {@code null}
      * @param writer optional chunk writer for streaming mode, may be {@code null}
+     * @param maxInFlightChunks optional override for the maximum concurrent in-flight chunks in streaming mode; when {@code null}
+     *                          the value is resolved from {@link SearchService#FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS}.
+     * @param targetChunkBytes  optional override for the target chunk size in bytes in streaming mode; when {@code null} the
+     *                          value is resolved from {@link SearchService#FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES}.
      * @param continuationExecutor executor for dispatching chunk production after ACK-driven continuation in streaming mode.
      *                             When a chunk ACK arrives on a network thread, this executor ensures the next chunk is produced
      *                             on a search thread rather than inline on the network thread. Required when {@code writer} is
@@ -157,6 +164,7 @@ public final class FetchPhase {
         @Nullable IntConsumer memoryChecker,
         @Nullable FetchPhaseResponseChunk.Writer writer,
         @Nullable Integer maxInFlightChunks,
+        @Nullable Integer targetChunkBytes,
         @Nullable Executor continuationExecutor,
         @Nullable ActionListener<Void> buildListener,
         ActionListener<Void> listener
@@ -185,7 +193,7 @@ public final class FetchPhase {
                 ? Profiler.NOOP
                 : Profilers.startProfilingFetchPhase();
 
-        var docsIterator = createDocsIterator(context, profiler, rankDocs, writer != null ? bytes -> {} : memoryChecker);
+        var docsIterator = createDocsIterator(context, profiler, rankDocs, memoryChecker, writer != null);
 
         // Common completion handler for both sync and streaming modes
         // finalizes profiling, stores the shard result, and signals the outer listener.
@@ -195,8 +203,9 @@ public final class FetchPhase {
                 ProfileResult profileResult = profiler.finish();
                 context.fetchResult().shardResult(hitsAndBytes.hits, profileResult);
 
-                if (writer == null) {
-                    context.fetchResult().setSearchHitsSizeBytes(hitsAndBytes.searchHitsBytesSize);
+                // Some contexts have no breaker; nothing to record when nothing was charged.
+                if (writer == null && hitsAndBytes.searchHitsBytesSize > 0L) {
+                    context.fetchResult().setSearchHitsSizeBytes(hitsAndBytes.searchHitsBytesSize, context.circuitBreaker());
                 }
 
                 hitsToRelease = null;
@@ -212,20 +221,36 @@ public final class FetchPhase {
             buildSearchHits(context, docIdsToLoad, docsIterator, resolvedBuildListener, hitsListener);
         } else {
             assert continuationExecutor != null : "continuationExecutor is required in streaming mode";
-            int resolvedMaxInFlightChunks = maxInFlightChunks != null
-                ? maxInFlightChunks
-                : SearchService.FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS.get(context.getSearchExecutionContext().getIndexSettings().getSettings());
+            var settings = context.getSearchExecutionContext().getIndexSettings().getSettings();
             buildSearchHitsStreaming(
                 context,
                 docIdsToLoad,
                 docsIterator,
                 writer,
-                resolvedMaxInFlightChunks,
+                resolveMaxInFlightChunks(maxInFlightChunks, settings),
+                resolveTargetChunkBytes(targetChunkBytes, settings),
                 continuationExecutor,
                 resolvedBuildListener,
                 hitsListener
             );
         }
+    }
+
+    /**
+     * Resolves the streaming-fetch max in-flight chunk count. Explicit caller overrides win; otherwise the value is read
+     * from the (potentially cluster-overridden) {@link SearchService#FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS} setting.
+     */
+    static int resolveMaxInFlightChunks(@Nullable Integer override, Settings settings) {
+        return override != null ? override : SearchService.FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS.get(settings);
+    }
+
+    /**
+     * Resolves the streaming-fetch target chunk size in bytes. Explicit caller overrides win; otherwise the value is read
+     * from the (potentially cluster-overridden) {@link SearchService#FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES} setting so
+     * cluster-level changes are honoured rather than always falling back to the hard-coded default.
+     */
+    static int resolveTargetChunkBytes(@Nullable Integer override, Settings settings) {
+        return override != null ? override : Math.toIntExact(SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES.get(settings).getBytes());
     }
 
     private static class PreloadedSourceProvider implements SourceProvider {
@@ -239,14 +264,18 @@ public final class FetchPhase {
     }
 
     /**
-     * Creates the docs iterator that handles per-document fetching and sub-phase processing.
-     * Shared between sync and streaming modes; the memoryChecker parameter controls per-hit memory accounting.
+     * Creates the docs iterator that handles per-document fetching and sub-phase processing, shared between sync and
+     * streaming modes. In streaming mode, only per-hit source/script-field bytes exceeding
+     * {@link SearchContext#memAccountingBufferSize()} are charged to the request circuit breaker;
+     * In non-streaming mode, bytes are accumulated and charged once the threshold is crossed, and
+     * held until the fetch response is released.
      */
     private StreamingFetchPhaseDocsIterator createDocsIterator(
         SearchContext context,
         Profiler profiler,
         RankDocShardInfo rankDocs,
-        @Nullable IntConsumer memoryChecker
+        @Nullable IntConsumer memoryChecker,
+        boolean streaming
     ) {
         var lookup = context.getSearchExecutionContext().getMappingLookup();
 
@@ -279,6 +308,30 @@ public final class FetchPhase {
         SourceLoader sourceLoader = context.newSourceLoader(res.v2());
         FetchContext fetchContext = new FetchContext(context, sourceLoader);
 
+        final long[] scriptFieldsBreakerBytes = new long[1];
+        final long[] streamingHeldBytes = new long[1];
+        LongConsumer scriptFieldsByteChecker;
+        if (streaming) {
+            scriptFieldsByteChecker = bytes -> {
+                if (bytes > context.memAccountingBufferSize()) {
+                    context.circuitBreaker()
+                        .addEstimateBytesAndMaybeBreak(bytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[script_field]");
+                    streamingHeldBytes[0] += bytes;
+                }
+            };
+        } else if (memoryChecker != null) {
+            scriptFieldsByteChecker = bytes -> memoryChecker.accept(bytes > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) bytes);
+        } else {
+            scriptFieldsByteChecker = bytes -> {
+                if (bytes > 0) {
+                    context.circuitBreaker()
+                        .addEstimateBytesAndMaybeBreak(bytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[script_field]");
+                    scriptFieldsBreakerBytes[0] += bytes;
+                }
+            };
+        }
+        fetchContext.setScriptFieldsByteChecker(scriptFieldsByteChecker);
+
         PreloadedSourceProvider sourceProvider = new PreloadedSourceProvider();
         PreloadedFieldLookupProvider fieldLookupProvider = new PreloadedFieldLookupProvider();
         // The following relies on the fact that we fetch sequentially one segment after another, from a single thread
@@ -303,7 +356,7 @@ public final class FetchPhase {
         final int[] locallyAccumulatedBytes = new int[1];
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
 
-        return new StreamingFetchPhaseDocsIterator() {
+        StreamingFetchPhaseDocsIterator docsIterator = new StreamingFetchPhaseDocsIterator(context.currentThreadDirectoryMetricsCapture()) {
 
             LeafReaderContext ctx;
             LeafNestedDocuments leafNestedDocuments;
@@ -311,13 +364,32 @@ public final class FetchPhase {
             SourceLoader.Leaf leafSourceLoader;
             IdLoader.Leaf leafIdLoader;
 
-            IntConsumer memChecker = memoryChecker != null ? memoryChecker : bytes -> {
+            IntConsumer memChecker = streaming ? bytes -> {
+                if (bytes > context.memAccountingBufferSize()) {
+                    context.circuitBreaker().addEstimateBytesAndMaybeBreak(bytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[source]");
+                    streamingHeldBytes[0] += bytes;
+                }
+            } : (memoryChecker != null ? memoryChecker : bytes -> {
                 locallyAccumulatedBytes[0] += bytes;
-                if (context.checkCircuitBreaker(locallyAccumulatedBytes[0], "fetch source")) {
+                if (context.checkCircuitBreaker(locallyAccumulatedBytes[0], ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[source]")) {
                     addRequestBreakerBytes(locallyAccumulatedBytes[0]);
                     locallyAccumulatedBytes[0] = 0;
                 }
-            };
+            });
+
+            @Override
+            public long getRequestBreakerBytes() {
+                return super.getRequestBreakerBytes() + scriptFieldsBreakerBytes[0] + streamingHeldBytes[0];
+            }
+
+            @Override
+            protected void onHitSerialized() {
+                long held = streamingHeldBytes[0];
+                if (held > 0) {
+                    context.circuitBreaker().addWithoutBreaking(-held, ChildMemoryCircuitBreaker.CATEGORY_FETCH);
+                    streamingHeldBytes[0] = 0;
+                }
+            }
 
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) throws IOException {
@@ -326,7 +398,7 @@ public final class FetchPhase {
                     this.ctx = ctx;
                     this.leafNestedDocuments = nestedDocuments.getLeafNestedDocuments(ctx);
                     this.leafStoredFieldLoader = storedFieldLoader.getLoader(ctx, docsInLeaf);
-                    this.leafSourceLoader = sourceLoader.leaf(ctx.reader(), docsInLeaf);
+                    this.leafSourceLoader = sourceLoader.leaf(ctx, docsInLeaf);
                     this.leafIdLoader = idLoader.leaf(leafStoredFieldLoader, ctx.reader(), docsInLeaf);
 
                     fieldLookupProvider.setNextReader(ctx);
@@ -380,6 +452,7 @@ public final class FetchPhase {
                 }
             }
         };
+        return docsIterator;
     }
 
     /**
@@ -395,15 +468,17 @@ public final class FetchPhase {
         ActionListener<SearchHitsWithSizeBytes> wrappedListener = new ActionListener<>() {
             @Override
             public void onResponse(SearchHitsWithSizeBytes result) {
+                context.addFetchThreadsMetrics(docsIterator.getFetchMetricsDelta());
                 buildListener.onResponse(null);
                 listener.onResponse(result);
             }
 
             @Override
             public void onFailure(Exception e) {
+                context.addFetchThreadsMetrics(docsIterator.getFetchMetricsDelta());
                 long leakedBytes = docsIterator.getRequestBreakerBytes();
                 if (leakedBytes > 0) {
-                    context.circuitBreaker().addWithoutBreaking(-leakedBytes);
+                    context.circuitBreaker().addWithoutBreaking(-leakedBytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH);
                 }
                 buildListener.onFailure(e);
                 listener.onFailure(e);
@@ -446,6 +521,7 @@ public final class FetchPhase {
         StreamingFetchPhaseDocsIterator docsIterator,
         FetchPhaseResponseChunk.Writer writer,
         int maxInFlightChunks,
+        int targetChunkBytes,
         Executor continuationExecutor,
         ActionListener<Void> buildListener,
         ActionListener<SearchHitsWithSizeBytes> listener
@@ -454,8 +530,6 @@ public final class FetchPhase {
         final AtomicReference<ReleasableBytesReference> lastChunkBytesRef = new AtomicReference<>();
         final AtomicLong lastChunkHitCountRef = new AtomicLong(0);
         final AtomicLong lastChunkSequenceStartRef = new AtomicLong(-1);
-
-        final int targetChunkBytes = StreamingFetchPhaseDocsIterator.DEFAULT_TARGET_CHUNK_BYTES;
 
         // RefCountingListener tracks chunk ACKs in streaming mode.
         // Each chunk calls acquire() to get a listener, which is completed when the ACK arrives.
@@ -514,14 +588,21 @@ public final class FetchPhase {
                         onFailure(e);
                         return;
                     }
+                    context.addFetchThreadsMetrics(docsIterator.getFetchMetricsDelta());
                     buildListener.onResponse(null);
                     mainBuildListener.onResponse(null);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
+                    context.addFetchThreadsMetrics(docsIterator.getFetchMetricsDelta());
                     ReleasableBytesReference lastChunkBytes = lastChunkBytesRef.getAndSet(null);
                     Releasables.closeWhileHandlingException(lastChunkBytes);
+
+                    long leakedBytes = docsIterator.getRequestBreakerBytes();
+                    if (leakedBytes > 0) {
+                        context.circuitBreaker().addWithoutBreaking(-leakedBytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH);
+                    }
 
                     buildListener.onFailure(e);
                     mainBuildListener.onFailure(e);
@@ -670,10 +751,12 @@ public final class FetchPhase {
                 rootSource = innerHitsContext.getRootLookup();
             }
         } else {
+            IdLoader idLoader = context.newIdLoader();
             StoredFieldLoader rootLoader = profiler.storedFields(StoredFieldLoader.create(requiresSource, Collections.emptySet()));
             LeafStoredFieldLoader leafRootLoader = rootLoader.getLoader(subReaderContext, null);
             leafRootLoader.advanceTo(nestedInfo.rootDoc());
-            rootId = leafRootLoader.id();
+            IdLoader.Leaf leafIdLoader = idLoader.leaf(leafRootLoader, subReaderContext.reader(), null);
+            rootId = leafIdLoader.getId(nestedInfo.rootDoc());
 
             if (requiresSource) {
                 if (leafRootLoader.source() != null) {

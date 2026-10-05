@@ -17,4 +17,5 @@ public interface BulkOperationListener {
      * Called after the bulk operation occurred.
      */
     default void afterBulk(long bulkShardSizeInBytes, long tookInNanos) {}
+
 }

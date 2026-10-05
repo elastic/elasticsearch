@@ -1,0 +1,289 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.painless;
+
+import java.math.BigDecimal;
+import java.math.BigInteger;
+
+/**
+ * Sizing constants and helpers for Painless allocation tracking. Sizes are derived purely from the allocation's structure
+ * (element type and count, captured-value count, boxed primitive) as known at compile time -- no reflection. All constants
+ * assume HotSpot 64-bit with conservative reference sizing (8 bytes), which is safe under both {@code +UseCompressedOops}
+ * (the ES default) and {@code -UseCompressedOops} (large-heap configs); sizing may trip the limit slightly earlier than
+ * strictly necessary on compressed-oops JVMs, but never under-counts these structurally-sized allocations.
+ *
+ * <p>Sizing the object produced by {@code new T()} needs the class's field layout, which is the whitelist's domain: it is
+ * determined at whitelist-load time and carried on the constructor metadata (see the {@code @allocates} annotation work),
+ * not computed reflectively here.
+ */
+public final class AllocSizes {
+
+    /** JVM object header size in bytes (HotSpot 64-bit). */
+    public static final int OBJECT_HEADER = 12;
+
+    /** JVM array header size in bytes (object header + 4-byte length field). */
+    public static final int ARRAY_HEADER = 16;
+
+    /**
+     * Conservative reference size in bytes. Over-counts by 2x on compressed-oops JVMs (the ES default, where refs are
+     * 4 bytes) but is safe under all supported JVM configs.
+     */
+    public static final int REFERENCE_SIZE = 8;
+
+    private AllocSizes() {}
+
+    /**
+     * Heap size of an iterator, charged once per {@code for-each} loop. Sized for the largest common JDK shape, the
+     * {@code HashMap} iterator (shared by {@code LinkedHashMap} and matched by {@code LinkedList}): two {@code int}s plus
+     * references to the next and current entries and to the enclosing map. Leaner iterators such as {@code ArrayList}'s
+     * (three {@code int}s plus one reference) are over-counted rather than any being under-counted.
+     */
+    public static final long ITERATOR_BYTES = pad8(OBJECT_HEADER + 2L * Integer.BYTES + 3L * REFERENCE_SIZE);
+
+    /**
+     * Number of capturing groups assumed for a regex operator whose pattern is not a literal. A {@code Pattern} held in a
+     * variable or returned by a call is only known at runtime, so its arrays are charged for this many entries. Ten covers
+     * typical patterns; a pattern with more groups is under-charged by the extra entries alone.
+     */
+    private static final int REGEX_ASSUMED_GROUPS = 10;
+
+    /**
+     * Heap size of the {@code ReadLimitedCharSequence} that wraps a regex input. {@code Augmentation.wrapRegexReceiver} builds
+     * it as an anonymous subclass that captures the receiver, the pattern and the limit factor, so on top of the base class's
+     * one reference and three {@code int}s it carries two more references and one more {@code int}.
+     */
+    private static final long READ_LIMITED_CHAR_SEQUENCE_BYTES = pad8(OBJECT_HEADER + 3L * REFERENCE_SIZE + 4L * Integer.BYTES);
+
+    /** Heap size of a {@code Matcher} object without its arrays: six references, nine {@code int}s and four {@code boolean}s. */
+    private static final long MATCHER_OBJECT_BYTES = pad8(OBJECT_HEADER + 6L * REFERENCE_SIZE + 9L * Integer.BYTES + 4L);
+
+    /**
+     * Heap size of what one use of a regex operator ({@code =~} or {@code ==~}) allocates when the pattern is not a literal,
+     * so the real group count is unknown. See {@link #matcherBytes(int)}, which this calls with
+     * {@link #REGEX_ASSUMED_GROUPS}.
+     */
+    public static final long MATCHER_BYTES = matcherBytes(REGEX_ASSUMED_GROUPS);
+
+    /**
+     * Heap size of what one use of a regex operator ({@code =~} or {@code ==~}) allocates for a pattern with {@code groups}
+     * capturing groups. Two objects and three arrays:
+     *
+     * <ul>
+     * <li>the {@code Matcher} object, six references, nine {@code int}s and four {@code boolean}s;</li>
+     * <li>{@code groups}, two {@code int}s per capturing group, counting the whole match as a group;</li>
+     * <li>{@code locals}, one {@code int} per pattern local, charged at the same length as {@code groups};</li>
+     * <li>{@code localsPos}, one reference per transparent-bounds local, charged at one per capturing group;</li>
+     * <li>the {@code ReadLimitedCharSequence} that wraps the input.</li>
+     * </ul>
+     *
+     * <p>A literal pattern is a compile-time constant, so the emitter reads its real group count and the charge is exact.
+     * Any other {@code Pattern} expression falls back to {@link #MATCHER_BYTES}. The wrapper is only built when a regex limit
+     * factor is set, so an unlimited regex is over-charged by its size. The regex literal itself is a static constant on the
+     * script class, allocated once at class load, and is never charged.
+     */
+    public static long matcherBytes(int groups) {
+        // Group 0 is the whole match, so a pattern with no capturing groups still gets one slot pair.
+        long slots = 2L * (groups + 1L);
+
+        long groupsArray = arrayBytes(slots, Integer.BYTES);
+        long localsArray = arrayBytes(slots, Integer.BYTES);
+        long localsPosArray = arrayBytes(groups + 1L, REFERENCE_SIZE);
+
+        return MATCHER_OBJECT_BYTES + groupsArray + localsArray + localsPosArray + READ_LIMITED_CHAR_SEQUENCE_BYTES;
+    }
+
+    /** Rounds {@code bytes} up to the nearest 8-byte alignment boundary, saturating rather than overflowing near {@link Long#MAX_VALUE}. */
+    public static long pad8(long bytes) {
+        return addSat(bytes, 7L) & ~7L;
+    }
+
+    /**
+     * Signed multiply that saturates to {@link Long#MAX_VALUE}/{@link Long#MIN_VALUE} on overflow instead of wrapping. Used
+     * to fold multi-dimensional array extents into a single element count: a wrapped product could under-count an enormous
+     * allocation and let it slip past the limit, so overflow must clamp high (the saturated charge then trips the limit)
+     * rather than silently wrap to a small value.
+     */
+    public static long mulSat(long a, long b) {
+        try {
+            return Math.multiplyExact(a, b);
+        } catch (ArithmeticException overflow) {
+            // Clamp toward the sign the true product would have had (opposite signs -> negative).
+            return ((a ^ b) < 0) ? Long.MIN_VALUE : Long.MAX_VALUE;
+        }
+    }
+
+    /** Signed add that saturates to {@link Long#MAX_VALUE}/{@link Long#MIN_VALUE} on overflow instead of wrapping. */
+    public static long addSat(long a, long b) {
+        try {
+            return Math.addExact(a, b);
+        } catch (ArithmeticException overflow) {
+            // Overflow only happens when both operands share a sign; clamp toward that sign.
+            return (a < 0) ? Long.MIN_VALUE : Long.MAX_VALUE;
+        }
+    }
+
+    /** Returns the in-memory footprint of one field/element of the given type; references count as {@link #REFERENCE_SIZE}. */
+    public static int fieldSize(Class<?> type) {
+        if (type == long.class || type == double.class) {
+            return 8;
+        }
+        if (type == int.class || type == float.class) {
+            return 4;
+        }
+        if (type == short.class || type == char.class) {
+            return 2;
+        }
+        if (type == byte.class || type == boolean.class) {
+            return 1;
+        }
+        return REFERENCE_SIZE;
+    }
+
+    /**
+     * Returns the heap size of the boxed wrapper for {@code type}, which may be given as either the primitive (as the cast
+     * emitter sees it) or the wrapper class. {@code long}/{@code double} (and {@link Long}/{@link Double}) carry an 8-byte
+     * value (24 bytes total); all other numeric wrappers carry at most 4 bytes (16 bytes total).
+     */
+    public static long boxSize(Class<?> type) {
+        if (type == long.class || type == double.class || type == Long.class || type == Double.class) {
+            return pad8(OBJECT_HEADER + 8L); // 24
+        }
+        return pad8(OBJECT_HEADER + 4L); // 16
+    }
+
+    /** Returns the heap size of a one-dimensional array with {@code length} elements of {@code componentType}. */
+    public static long arraySize(Class<?> componentType, long length) {
+        return arrayBytes(length, fieldSize(componentType));
+    }
+
+    /**
+     * Returns the heap size of an array of {@code length} elements each {@code fieldSize} bytes wide, using saturating
+     * arithmetic so an overflowing extent yields {@link Long#MAX_VALUE} (which trips any limit) rather than a wrapped,
+     * under-counted charge. Invoked directly from generated bytecode for runtime-sized arrays, where {@code length} is the
+     * (already saturating) product of the dimensions; see {@code DefaultIRTreeToASMBytesPhase#visitNewArray}.
+     */
+    public static long arrayBytes(long length, int fieldSize) {
+        return pad8(addSat(ARRAY_HEADER, mulSat(fieldSize, length)));
+    }
+
+    /** Returns the heap size of a lambda/reference capture object holding {@code captureCount} captured references. */
+    public static long captureSize(int captureCount) {
+        return pad8(ARRAY_HEADER + (long) REFERENCE_SIZE * captureCount);
+    }
+
+    /**
+     * Fixed overhead charged once per string concatenation result, covering the produced {@link String} object and its backing
+     * {@code char[]} header. The per-operand contributions ({@link #stringConcatPrimitiveBytes}/{@link #stringConcatOperandBytes})
+     * approximate the backing-array payload on top of this.
+     */
+    public static final int STRING_CONCAT_RESULT_OVERHEAD = 32;
+
+    /** UTF-16 byte cost charged for a {@code null} concat operand, which stringifies to {@code "null"} (4 chars). */
+    public static final int NULL_STRING_CONCAT_BYTES = 8;
+
+    /**
+     * Conservative byte cost for a non-{@link String}, non-null reference concat operand whose {@code toString()} length is not
+     * known at compile time (e.g. a {@code def} or {@link Object} operand that is not a {@code String} at runtime).
+     */
+    public static final int NON_STRING_OBJECT_CONCAT_BYTES = 256;
+
+    /**
+     * Worst-case UTF-16 byte length of the string form of a primitive concat operand: the longest decimal/textual rendering of
+     * the type, times two bytes per char. These are compile-time constants because the rendered length of a primitive is
+     * bounded by its type alone.
+     */
+    public static long stringConcatPrimitiveBytes(Class<?> type) {
+        if (type == boolean.class) {
+            return 10; // "false"
+        }
+        if (type == byte.class) {
+            return 8; // "-128"
+        }
+        if (type == short.class) {
+            return 12; // "-32768"
+        }
+        if (type == char.class) {
+            return 2; // single char
+        }
+        if (type == int.class) {
+            return 22; // "-2147483648"
+        }
+        if (type == long.class) {
+            return 40; // "-9223372036854775808"
+        }
+        if (type == float.class) {
+            return 32;
+        }
+        if (type == double.class) {
+            return 48;
+        }
+        throw new IllegalArgumentException("not a primitive concat operand type [" + type + "]");
+    }
+
+    /**
+     * Runtime byte cost of a reference concat operand (a {@code String}, {@link Object}, or {@code def}). A {@code null} operand
+     * stringifies to {@code "null"} ({@link #NULL_STRING_CONCAT_BYTES}); a {@link String} contributes its real UTF-16 payload;
+     * any other object falls back to {@link #NON_STRING_OBJECT_CONCAT_BYTES} since its {@code toString()} length is unknown.
+     * Invoked directly from generated bytecode for each non-primitive concat operand; see
+     * {@code DefaultIRTreeToASMBytesPhase#visitStringConcatenation}.
+     */
+    public static long stringConcatOperandBytes(Object value) {
+        if (value == null) {
+            return NULL_STRING_CONCAT_BYTES;
+        }
+        if (value instanceof String s) {
+            return (long) s.length() * 2;
+        }
+        return NON_STRING_OBJECT_CONCAT_BYTES;
+    }
+
+    /** Longest {@code Double.toString} result, {@code -1.7976931348623157E308}. */
+    private static final int DOUBLE_CHARS = 24;
+
+    /** Longest {@code Float.toString} result, {@code -3.4028235E38}. */
+    private static final int FLOAT_CHARS = 15;
+
+    /**
+     * Chars in the String made of {@code value}: "null", the text itself, an exact or bounded count for a number, boolean or
+     * character, and half the object allowance for anything else. Counts without rendering, so it allocates nothing.
+     */
+    public static long renderedChars(Object value) {
+        if (value == null) {
+            return 4;
+        } else if (value instanceof CharSequence sequence) {
+            return sequence.length();
+        } else if (value instanceof Integer || value instanceof Long || value instanceof Short || value instanceof Byte) {
+            return decimalChars(((Number) value).longValue());
+        } else if (value instanceof Double) {
+            return DOUBLE_CHARS;
+        } else if (value instanceof Float) {
+            return FLOAT_CHARS;
+        } else if (value instanceof Boolean) {
+            return 5;
+        } else if (value instanceof Character) {
+            return 1;
+        } else if (value instanceof BigInteger big) {
+            return big.bitLength() / 3 + 2;
+        } else if (value instanceof BigDecimal decimal) {
+            return decimal.precision() + 14L;
+        }
+        return NON_STRING_OBJECT_CONCAT_BYTES / 2;
+    }
+
+    /** Digits in {@code value} written in decimal, plus one for a minus sign. */
+    public static long decimalChars(long value) {
+        long chars = value < 0 ? 1 : 0;
+        do {
+            chars++;
+            value /= 10;
+        } while (value != 0);
+        return chars;
+    }
+}

@@ -417,7 +417,7 @@ public class IndexingDiskControllerIT extends AbstractStatelessPluginIntegTestCa
      */
     public static class TestObjectStoreService extends ObjectStoreService {
 
-        private final List<BlockedListener<Void>> blockedListeners = new ArrayList<>();
+        private final List<BlockedListener<BccUploadObjectStoreTiming>> blockedListeners = new ArrayList<>();
         private boolean blocked;
 
         public TestObjectStoreService(
@@ -453,7 +453,7 @@ public class IndexingDiskControllerIT extends AbstractStatelessPluginIntegTestCa
             Directory directory,
             long commitStartNanos,
             VirtualBatchedCompoundCommit pendingCommit,
-            ActionListener<Void> listener
+            ActionListener<BccUploadObjectStoreTiming> listener
         ) {
             synchronized (this) {
                 if (blocked) {

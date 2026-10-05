@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `MEDIAN` function [esql-median]
 
-:::{include} ../../_snippets/functions/layout/median.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/median.md
 :::

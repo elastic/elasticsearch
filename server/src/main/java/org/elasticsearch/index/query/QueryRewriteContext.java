@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
@@ -27,16 +28,19 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -91,7 +95,11 @@ public class QueryRewriteContext {
     private final boolean isProfile;
     private Long timeRangeFilterFromMillis;
     private boolean trackTimeRangeFilterFrom = true;
+    @Nullable
+    private Boolean hasAnyLocalInferenceFields;
     private final boolean allowPartialSearchResults;
+    @Nullable
+    private TaskId parentTaskId;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -408,11 +416,18 @@ public class QueryRewriteContext {
         return mapperService.getIndexAnalyzers();
     }
 
+    /**
+     * @return a supplier that can be used to check whether loading field data from _id field's inverted index is allowed.
+     */
+    public BooleanSupplier idFieldDataEnabled() {
+        return mapperService.getIdFieldDataEnabled();
+    }
+
     MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
         if (fieldMapping != null || allowUnmappedFields) {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
-            TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, getIndexAnalyzers());
+            TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, indexSettings, getIndexAnalyzers(), false);
             return builder.build(MapperBuilderContext.root(false, false)).fieldType();
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
@@ -460,6 +475,14 @@ public class QueryRewriteContext {
     }
 
     /**
+     * Sets the task that owns this rewrite. Requests sent by the registered async actions become child tasks of it,
+     * so cancelling the owning task (for instance when the client of a search disconnects) also cancels them.
+     */
+    public void setParentTask(TaskId parentTaskId) {
+        this.parentTaskId = parentTaskId;
+    }
+
+    /**
      * Registers an async action that must be executed before the next rewrite round in order to make progress.
      * This should be used if a rewriteable needs to fetch some external resources in order to be executed ie. a document
      * from an index.
@@ -502,17 +525,18 @@ public class QueryRewriteContext {
                 }
             };
 
+            final Client actionClient = parentTaskId == null ? client : new ParentTaskAssigningClient(client, parentTaskId);
             // make a copy to prevent concurrent modification exception
             List<BiConsumer<Client, ActionListener<?>>> biConsumers = new ArrayList<>(asyncActions);
             asyncActions.clear();
             for (BiConsumer<Client, ActionListener<?>> action : biConsumers) {
-                action.accept(client, internalListener);
+                action.accept(actionClient, internalListener);
             }
 
             var copyUniqueAsyncActions = new HashMap<>(uniqueAsyncActions);
             uniqueAsyncActions.clear();
             for (var entry : copyUniqueAsyncActions.keySet()) {
-                entry.execute(client, internalListener, copyUniqueAsyncActions.get(entry));
+                entry.execute(actionClient, internalListener, copyUniqueAsyncActions.get(entry));
             }
         }
     }
@@ -572,7 +596,11 @@ public class QueryRewriteContext {
      */
     public Set<String> getMatchingFieldNames(String pattern) {
         if (isSliceFieldAlias(pattern)) {
-            return Set.of(SliceIndexing.PARAM_NAME);
+            return Set.of(SliceIndexing.FIELD_NAME);
+        }
+        if (isRoutingHiddenBySlice(pattern)) {
+            // A slice-enabled index hides _routing from field retrieval; it is fetched as _slice instead.
+            return Set.of();
         }
         Set<String> matches;
         if (runtimeMappings.isEmpty()) {
@@ -599,7 +627,15 @@ public class QueryRewriteContext {
     }
 
     protected final boolean isSliceFieldAlias(String fieldName) {
-        return isSliceFieldAliasEnabled() && SliceIndexing.PARAM_NAME.equals(fieldName);
+        return isSliceFieldAliasEnabled() && SliceIndexing.FIELD_NAME.equals(fieldName);
+    }
+
+    /**
+     * A slice-enabled index keeps routing and slicing non-overlapping: {@code _routing} is not retrievable by name (it is
+     * surfaced as {@code _slice} instead). Its {@link #getFieldType} stays resolvable so slice routing filters still work.
+     */
+    protected final boolean isRoutingHiddenBySlice(String fieldName) {
+        return isSliceFieldAliasEnabled() && RoutingFieldMapper.NAME.equals(fieldName);
     }
 
     private boolean isSliceFieldAliasEnabled() {
@@ -624,8 +660,60 @@ public class QueryRewriteContext {
         return () -> Iterators.concat(allEntrySet.iterator(), runtimeEntrySet.iterator());
     }
 
+    /**
+     * Returns {@code true} if {@code name} is a concrete mapped field in this index — either an
+     * explicitly mapped field, a runtime field, or a dynamically-resolved sub-field of a
+     * {@link MetadataFieldMapper} — and is permitted by the {@link #allowedFields} predicate when set.
+     * <p>
+     *     Unlike {@link SearchExecutionContext#isFieldMapped}, this does <em>not</em>
+     *     include fields that are only dynamically resolved, such as sub-keys of
+     *     {@code flattened} fields. Those sub-keys are not visible to the coordinator
+     *     via field caps and using them in a block loader would cause element-type
+     *     mismatches at runtime. Sub-fields of {@link MetadataFieldMapper} instances
+     *     (e.g. {@code _project._alias}) are allowed because they are registered
+     *     metadata mappers and are reported by field caps.
+     * </p>
+     * <p>
+     *      This is <strong>mostly</strong> used by ESQL because it exposes flattened
+     *      sub-fields using its own machinery.
+     * </p>
+     */
+    public boolean isMappedField(String name) {
+        if (allowedFields != null && false == allowedFields.test(name)) {
+            return false;
+        }
+        String fieldName = resolveSliceAlias(name);
+        if (mappingLookup.getFullNameToFieldType().containsKey(fieldName) || runtimeMappings.containsKey(fieldName)) {
+            return true;
+        }
+        int dotIndex = fieldName.indexOf('.');
+        if (dotIndex > 0) {
+            return mappingLookup.getMapper(fieldName.substring(0, dotIndex)) instanceof MetadataFieldMapper metaMapper
+                && metaMapper.fieldType() instanceof DynamicFieldType dft
+                && dft.getChildFieldType(fieldName.substring(dotIndex + 1)) != null;
+        }
+        return false;
+    }
+
     public ResolvedIndices getResolvedIndices() {
         return resolvedIndices;
+    }
+
+    /**
+     * Returns whether concrete local indices include any inference fields. Returns {@code null} if unknown.
+     */
+    @Nullable
+    public Boolean getHasAnyLocalInferenceFields() {
+        return hasAnyLocalInferenceFields;
+    }
+
+    /**
+     * Sets whether concrete local indices include any inference fields.
+     */
+    public void setHasAnyLocalInferenceFields(boolean hasAnyLocalInferenceFields) {
+        // we don't expect this to ever change during the lifetime of the context
+        assert this.hasAnyLocalInferenceFields == null || this.hasAnyLocalInferenceFields == hasAnyLocalInferenceFields;
+        this.hasAnyLocalInferenceFields = hasAnyLocalInferenceFields;
     }
 
     /**
@@ -707,6 +795,10 @@ public class QueryRewriteContext {
      */
     public void setTrackTimeRangeFilterFrom(boolean trackTimeRangeFilterFrom) {
         this.trackTimeRangeFilterFrom = trackTimeRangeFilterFrom;
+    }
+
+    public boolean isTrackTimeRangeFilterFrom() {
+        return trackTimeRangeFilterFrom;
     }
 
     /**

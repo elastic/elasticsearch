@@ -89,6 +89,9 @@ $$$xpack.ml.max_open_jobs$$$
 `xpack.ml.results_index_rollover_max_size`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The maximum size the anomaly detection results indices can reach before being rolled over by the nightly maintenance task. When the {{operator-feature}} is enabled, this setting can be updated only by operator users. Valid values must be greater than or equal to `-1B`. A value of `-1B` means the indices will never be rolled over. A value of `0B` means the indices will always be rolled over, regardless of size. Defaults to `50GB`.
 
+`xpack.ml.anomalies.heal_reindexed_v7.enabled` {applies_to}`stack: ga 9.3`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Controls whether {{es}} automatically fixes {{anomaly-detect}} result aliases that point to indices matching `.reindexed-*-ml-anomalies-*` with incorrect mappings after an upgrade. For details, refer to [#147686](https://github.com/elastic/elasticsearch/issues/147686). Set to `false` to turn off. Defaults to `true`.
+
 `xpack.ml.idle_job_auto_close_timeout` {applies_to}`stack: ga 9.5`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The duration after which an open anomaly detection job whose configured datafeed is stopped is automatically closed by the nightly maintenance task. The timer is based on the job's most recent `latest_record_timestamp`. Jobs that have never received data and jobs without a configured datafeed are not affected. When the {{operator-feature}} is enabled, this setting can be updated only by operator users. Set to `-1` to disable automatic closing of idle jobs. Defaults to `48h`.
 
@@ -124,6 +127,15 @@ $$$xpack.ml.trained_models.graph_validation_enabled$$$
 
     ::::{warning}
     Skipping graph validation reduces assurance that a deployed model only performs expected operations. Only disable validation when you understand the trade-offs.
+    ::::
+
+$$$xpack.ml.trained_models.sandbox_enabled$$$
+
+`xpack.ml.trained_models.sandbox_enabled` {applies_to}`stack: ga 9.6`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) This setting controls whether the `pytorch_inference` native process for trained model deployments runs inside the security sandbox. When set to `true`, the process runs inside the sandbox, which enforces system call and file system isolation before the model runs. When set to `false` (the default), the sandbox is bypassed, and the process uses the in-process system call filter instead. This setting and sandboxing apply only to Linux; on other platforms, the setting has no effect. Sandbox isolation requires that the host permit unprivileged user namespaces or that the kernel support Landlock (Linux kernel version 5.13 or newer). Updating this setting only affects trained model deployments started after the change. Already-running `pytorch_inference` processes keep the sandbox configuration with which they were launched. When the operator feature is enabled, only operator users can update this setting.
+
+    ::::{warning}
+    For maximum compatibility, sandboxing is disabled by default, so `pytorch_inference` runs with reduced process and file system isolation for untrusted models, unless you opt in.
     ::::
 
 $$$xpack.ml.model_repository$$$

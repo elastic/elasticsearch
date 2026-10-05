@@ -19,6 +19,8 @@ import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Collections;
 
@@ -28,18 +30,16 @@ public class PendingReplicationActionsTests extends ESTestCase {
     private ShardId shardId;
     private PendingReplicationActions pendingReplication;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initPendingReplication() throws Exception {
         shardId = new ShardId("index", UUIDs.randomBase64UUID(), 0);
         threadPool = new TestThreadPool(getTestName());
         pendingReplication = new PendingReplicationActions(shardId, threadPool);
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void closeThreadPool() throws Exception {
         terminate(threadPool);
-        super.tearDown();
     }
 
     public void testAllocationIdActionCanBeRun() {

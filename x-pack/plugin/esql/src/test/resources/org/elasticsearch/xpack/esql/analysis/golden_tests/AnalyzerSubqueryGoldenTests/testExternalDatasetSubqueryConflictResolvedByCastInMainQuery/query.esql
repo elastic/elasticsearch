@@ -1,0 +1,3 @@
+FROM (FROM salaries_int), (FROM salaries_long)
+| EVAL salary = salary::long
+| KEEP salary

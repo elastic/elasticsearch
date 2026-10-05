@@ -1,0 +1,408 @@
+---
+"Index Sort with doc_values multi_value false - integer":
+
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: ["mapper.doc_values.multi_value_false_alias"]
+      reason: "doc_values.multi_value: false for index sort requires the false alias to be supported on all nodes; columnar index mode required"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            number_of_shards: 1
+            refresh_interval: -1
+            index.sort.field: rank
+            # ensure no relocation as tests rely on segments.
+            routing.rebalance.enable: "none"
+          mappings:
+            properties:
+              rank:
+                type: integer
+                doc_values:
+                  multi_value: false
+  - do:
+      cluster.health:
+        index: test
+        # ensure that all shards are ready before indexing/refresh as tests rely on segments.
+        wait_for_events: languid
+        wait_for_no_initializing_shards: true
+
+  # Verify the multi_value parameter round-trips in the stored mapping.
+  - do:
+      indices.get_mapping:
+        index: test
+
+  - match: { test.mappings.properties.rank.type: integer }
+  - match: { test.mappings.properties.rank.doc_values.multi_value: false }
+
+  - do:
+      index:
+        index: test
+        id:    "1"
+        body:  { "rank": 4 }
+
+  - do:
+      index:
+        index: test
+        id:    "2"
+        body:  { "rank": 1 }
+
+  - do:
+      index:
+        index: test
+        id:    "3"
+        body:  { "rank": 3 }
+
+  - do:
+      index:
+        index: test
+        id:    "4"
+        body:  { "rank": 2 }
+
+  - do:
+      indices.refresh:
+        index: test
+
+  - do:
+      index:
+        index: test
+        id:    "5"
+        body:  { "rank": 8 }
+
+  - do:
+      index:
+        index: test
+        id:    "6"
+        body:  { "rank": 6 }
+
+  - do:
+      index:
+        index: test
+        id:    "7"
+        body:  { "rank": 5 }
+
+  - do:
+      index:
+        index: test
+        id:    "8"
+        body:  { "rank": 7 }
+
+  - do:
+      indices.refresh:
+        index: test
+
+  # Basic sort by rank confirms the field is sortable.
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          sort: ["rank"]
+          size: 1
+
+  - match: {hits.total: 8 }
+  - length: {hits.hits: 1 }
+  - match: {hits.hits.0._id: "2" }
+
+  # After forcemerge to a single segment the _doc order reflects the index sort order
+  # (ascending by rank): rank=1→id=2, rank=2→id=4, rank=3→id=3, rank=4→id=1,
+  # rank=5→id=7, rank=6→id=6, rank=7→id=8, rank=8→id=5.
+  - do:
+      indices.forcemerge:
+        index: test
+        max_num_segments: 1
+
+  - do:
+      indices.refresh:
+        index: test
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          sort: _doc
+
+  - match: {hits.total: 8 }
+  - length: {hits.hits: 8 }
+  - match: {hits.hits.0._id: "2" }
+  - match: {hits.hits.1._id: "4" }
+  - match: {hits.hits.2._id: "3" }
+  - match: {hits.hits.3._id: "1" }
+  - match: {hits.hits.4._id: "7" }
+  - match: {hits.hits.5._id: "6" }
+  - match: {hits.hits.6._id: "8" }
+  - match: {hits.hits.7._id: "5" }
+
+---
+"Index Sort with doc_values multi_value false - keyword":
+
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: ["mapper.doc_values.multi_value_false_alias"]
+      reason: "doc_values.multi_value: false for index sort requires the false alias to be supported on all nodes; columnar index mode required"
+
+  - do:
+      indices.create:
+        index: test_kw
+        body:
+          settings:
+            index.mode: columnar
+            number_of_shards: 1
+            refresh_interval: -1
+            index.sort.field: tag
+            routing.rebalance.enable: "none"
+          mappings:
+            properties:
+              tag:
+                type: keyword
+                doc_values:
+                  multi_value: false
+
+  - do:
+      cluster.health:
+        index: test_kw
+        wait_for_events: languid
+        wait_for_no_initializing_shards: true
+
+  - do:
+      indices.get_mapping:
+        index: test_kw
+
+  - match: { test_kw.mappings.properties.tag.type: keyword }
+  - match: { test_kw.mappings.properties.tag.doc_values.multi_value: false }
+
+  # Segment 1: tags c, a, d, b
+  - do:
+      index:
+        index: test_kw
+        id:    "1"
+        body:  { "tag": "c" }
+  - do:
+      index:
+        index: test_kw
+        id:    "2"
+        body:  { "tag": "a" }
+  - do:
+      index:
+        index: test_kw
+        id:    "3"
+        body:  { "tag": "d" }
+  - do:
+      index:
+        index: test_kw
+        id:    "4"
+        body:  { "tag": "b" }
+
+  - do:
+      indices.refresh:
+        index: test_kw
+
+  # Segment 2: tags g, e, h, f
+  - do:
+      index:
+        index: test_kw
+        id:    "5"
+        body:  { "tag": "g" }
+  - do:
+      index:
+        index: test_kw
+        id:    "6"
+        body:  { "tag": "e" }
+  - do:
+      index:
+        index: test_kw
+        id:    "7"
+        body:  { "tag": "h" }
+  - do:
+      index:
+        index: test_kw
+        id:    "8"
+        body:  { "tag": "f" }
+
+  - do:
+      indices.refresh:
+        index: test_kw
+
+  # Basic sort by tag confirms the field is sortable across segments.
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_kw
+        body:
+          sort: ["tag"]
+          size: 1
+
+  - match: {hits.total: 8}
+  - match: {hits.hits.0._id: "2"}
+
+  # After forcemerge the _doc order reflects index sort order (ascending by tag):
+  # a→2, b→4, c→1, d→3, e→6, f→8, g→5, h→7
+  - do:
+      indices.forcemerge:
+        index: test_kw
+        max_num_segments: 1
+
+  - do:
+      indices.refresh:
+        index: test_kw
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_kw
+        body:
+          sort: _doc
+
+  - match: {hits.total: 8}
+  - length: {hits.hits: 8}
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.1._id: "4"}
+  - match: {hits.hits.2._id: "1"}
+  - match: {hits.hits.3._id: "3"}
+  - match: {hits.hits.4._id: "6"}
+  - match: {hits.hits.5._id: "8"}
+  - match: {hits.hits.6._id: "5"}
+  - match: {hits.hits.7._id: "7"}
+
+---
+"Index Sort with doc_values multi_value false - secondary sort field":
+
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: ["mapper.doc_values.multi_value_false_alias"]
+      reason: "doc_values.multi_value: false for index sort requires the false alias to be supported on all nodes; columnar index mode required"
+
+  - do:
+      indices.create:
+        index: test_secondary
+        body:
+          settings:
+            index.mode: columnar
+            number_of_shards: 1
+            refresh_interval: -1
+            index.sort.field: ["category", "rank"]
+            index.sort.order: ["asc", "asc"]
+            routing.rebalance.enable: "none"
+          mappings:
+            properties:
+              category:
+                type: keyword
+              rank:
+                type: integer
+                doc_values:
+                  multi_value: false
+
+  - do:
+      cluster.health:
+        index: test_secondary
+        wait_for_events: languid
+        wait_for_no_initializing_shards: true
+
+  # Segment 1
+  - do:
+      index:
+        index: test_secondary
+        id:    "1"
+        body:  { "category": "b", "rank": 2 }
+  - do:
+      index:
+        index: test_secondary
+        id:    "2"
+        body:  { "category": "a", "rank": 3 }
+  - do:
+      index:
+        index: test_secondary
+        id:    "3"
+        body:  { "category": "a", "rank": 1 }
+  - do:
+      index:
+        index: test_secondary
+        id:    "4"
+        body:  { "category": "b", "rank": 1 }
+
+  - do:
+      indices.refresh:
+        index: test_secondary
+
+  # Segment 2
+  - do:
+      index:
+        index: test_secondary
+        id:    "5"
+        body:  { "category": "a", "rank": 4 }
+  - do:
+      index:
+        index: test_secondary
+        id:    "6"
+        body:  { "category": "b", "rank": 3 }
+  - do:
+      index:
+        index: test_secondary
+        id:    "7"
+        body:  { "category": "a", "rank": 2 }
+  - do:
+      index:
+        index: test_secondary
+        id:    "8"
+        body:  { "category": "b", "rank": 4 }
+
+  - do:
+      indices.refresh:
+        index: test_secondary
+
+  # Sort by category asc, rank asc — first hit should be a/rank=1 → id=3
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_secondary
+        body:
+          sort: [{"category": "asc"}, {"rank": "asc"}]
+          size: 1
+
+  - match: {hits.total: 8}
+  - match: {hits.hits.0._id: "3"}
+
+  # After forcemerge _doc order reflects compound index sort (category asc, rank asc):
+  # a/1→3, a/2→7, a/3→2, a/4→5, b/1→4, b/2→1, b/3→6, b/4→8
+  - do:
+      indices.forcemerge:
+        index: test_secondary
+        max_num_segments: 1
+
+  - do:
+      indices.refresh:
+        index: test_secondary
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_secondary
+        body:
+          sort: _doc
+
+  - match: {hits.total: 8}
+  - length: {hits.hits: 8}
+  - match: {hits.hits.0._id: "3"}
+  - match: {hits.hits.1._id: "7"}
+  - match: {hits.hits.2._id: "2"}
+  - match: {hits.hits.3._id: "5"}
+  - match: {hits.hits.4._id: "4"}
+  - match: {hits.hits.5._id: "1"}
+  - match: {hits.hits.6._id: "6"}
+  - match: {hits.hits.7._id: "8"}

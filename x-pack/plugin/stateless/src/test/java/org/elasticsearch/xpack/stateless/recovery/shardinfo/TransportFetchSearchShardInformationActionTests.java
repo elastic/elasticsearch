@@ -47,7 +47,6 @@ import org.mockito.ArgumentCaptor;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -71,12 +70,14 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
     private final Index index = new Index("my_index", "uuid");
     private final ShardId shardId = new ShardId(index, 0);
     private final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "");
+    private final ShardRouting.RecoveryPriority recoveryPriority = ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY;
     private final ShardRouting newUnassignedPrimaryIndexOnly = ShardRouting.newUnassigned(
         shardId,
         true,
         RecoverySource.EmptyStoreRecoverySource.INSTANCE,
         unassignedInfo,
-        ShardRouting.Role.INDEX_ONLY
+        ShardRouting.Role.INDEX_ONLY,
+        recoveryPriority
     );
 
     private final ThreadPool threadPool = mock(ThreadPool.class);
@@ -89,7 +90,7 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
         clusterService,
         DefaultProjectResolver.INSTANCE,
         transportService,
-        new ActionFilters(new HashSet<>()),
+        ActionFilters.EMPTY,
         indicesService
     );
 
@@ -170,7 +171,8 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             unassignedInfo,
-            ShardRouting.Role.INDEX_ONLY
+            ShardRouting.Role.INDEX_ONLY,
+            recoveryPriority
         ).initialize("index_node", null, randomNonNegativeLong()).moveToStarted(1);
         ShardRouting searchShard = createSearchOnlyShard(otherShardId, "search_node_1").moveToStarted(1);
 
@@ -218,7 +220,8 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
 
     public void testShardRoutingReturnsRelocatingShard() {
         ShardRouting primaryShard = newUnassignedPrimaryIndexOnly.initialize("index_node", null, randomNonNegativeLong()).moveToStarted(1);
-        ShardRouting searchShard = createSearchOnlyShard(shardId, "search_node_1").moveToStarted(1).relocate("search_node_1000", 1);
+        ShardRouting searchShard = createSearchOnlyShard(shardId, "search_node_1").moveToStarted(1)
+            .relocate("search_node_1000", 1, ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
 
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(index)
             .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(primaryShard))
@@ -286,7 +289,8 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
         final ShardId shardId = new ShardId(backingIndex, 0);
 
         ShardRouting primaryShard = createPrimaryShard(shardId);
-        ShardRouting searchShard = createSearchOnlyShard(shardId, "search_node_1").moveToStarted(1).relocate("search_node_1000", 1);
+        ShardRouting searchShard = createSearchOnlyShard(shardId, "search_node_1").moveToStarted(1)
+            .relocate("search_node_1000", 1, ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
 
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(backingIndex)
             .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(primaryShard))
@@ -476,7 +480,8 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
             false,
             RecoverySource.PeerRecoverySource.INSTANCE,
             unassignedInfo,
-            ShardRouting.Role.SEARCH_ONLY
+            ShardRouting.Role.SEARCH_ONLY,
+            recoveryPriority
         ).initialize(nodeId, null, randomNonNegativeLong());
     }
 
@@ -486,7 +491,8 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             unassignedInfo,
-            ShardRouting.Role.INDEX_ONLY
+            ShardRouting.Role.INDEX_ONLY,
+            recoveryPriority
         ).initialize("index_node", null, randomNonNegativeLong()).moveToStarted(1);
     }
 }

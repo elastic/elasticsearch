@@ -126,7 +126,7 @@ public class IdsQueryBuilder extends LeafQueryBuilder<IdsQueryBuilder> {
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         if (ids.size() > context.indexSettings.getMaxResultWindow()) {
-            throw new IllegalStateException(
+            throw new IllegalArgumentException(
                 "Too many ids specified, allowed max result window is [" + context.indexSettings.getMaxResultWindow() + "]"
             );
         }

@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -227,7 +228,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         final var runner = new IndexLifecycleRunner(null, null, clusterService, null, () -> 0L);
         final var index = IndexMetadata.builder(randomAlphaOfLength(5))
-            .settings(randomIndexSettings().put(LifecycleSettings.LIFECYCLE_SKIP, true))
+            .settings(randomIndexSettings().put(IndexMetadata.LIFECYCLE_SKIP, true))
             .build();
 
         runner.runPolicyAfterStateChange(randomProjectIdOrDefault(), policyName, index);
@@ -241,7 +242,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         final var runner = new IndexLifecycleRunner(null, null, clusterService, null, () -> 0L);
         final var index = IndexMetadata.builder(randomAlphaOfLength(5))
-            .settings(randomIndexSettings().put(LifecycleSettings.LIFECYCLE_SKIP, true))
+            .settings(randomIndexSettings().put(IndexMetadata.LIFECYCLE_SKIP, true))
             .build();
 
         runner.runPeriodicStep(null, policyName, index);
@@ -255,7 +256,56 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         final var runner = new IndexLifecycleRunner(null, null, clusterService, null, () -> 0L);
         final var index = IndexMetadata.builder(randomAlphaOfLength(5))
-            .settings(randomIndexSettings().put(LifecycleSettings.LIFECYCLE_SKIP, true))
+            .settings(randomIndexSettings().put(IndexMetadata.LIFECYCLE_SKIP, true))
+            .build();
+
+        final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(index, true));
+        runner.maybeRunAsyncAction(state, index, policyName, null);
+
+        Mockito.verify(clusterService).createTaskQueue(anyString(), any(Priority.class), any());
+        Mockito.verifyNoMoreInteractions(clusterService);
+    }
+
+    public void testSkipLookupIndex_afterStateChange() {
+        final var policyName = randomAlphaOfLength(10);
+        ClusterService clusterService = mock(ClusterService.class);
+        final var runner = new IndexLifecycleRunner(null, null, clusterService, null, () -> 0L);
+        final var index = IndexMetadata.builder(randomAlphaOfLength(5))
+            .settings(settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP.getName()))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+
+        runner.runPolicyAfterStateChange(randomProjectIdOrDefault(), policyName, index);
+
+        Mockito.verify(clusterService).createTaskQueue(anyString(), any(Priority.class), any());
+        Mockito.verifyNoMoreInteractions(clusterService);
+    }
+
+    public void testSkipLookupIndex_periodicRun() {
+        final var policyName = randomAlphaOfLength(10);
+        ClusterService clusterService = mock(ClusterService.class);
+        final var runner = new IndexLifecycleRunner(null, null, clusterService, null, () -> 0L);
+        final var index = IndexMetadata.builder(randomAlphaOfLength(5))
+            .settings(settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP.getName()))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+
+        runner.runPeriodicStep(null, policyName, index);
+
+        Mockito.verify(clusterService).createTaskQueue(anyString(), any(Priority.class), any());
+        Mockito.verifyNoMoreInteractions(clusterService);
+    }
+
+    public void testSkipLookupIndex_asyncAction() {
+        final var policyName = randomAlphaOfLength(10);
+        ClusterService clusterService = mock(ClusterService.class);
+        final var runner = new IndexLifecycleRunner(null, null, clusterService, null, () -> 0L);
+        final var index = IndexMetadata.builder(randomAlphaOfLength(5))
+            .settings(settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP.getName()))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
             .build();
 
         final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(index, true));

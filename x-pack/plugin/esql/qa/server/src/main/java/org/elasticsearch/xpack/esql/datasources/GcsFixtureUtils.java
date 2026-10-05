@@ -63,8 +63,7 @@ public final class GcsFixtureUtils {
          */
         public void loadFixturesFromResources() {
             try {
-                byte[] serviceAccountBytes = TestUtils.createServiceAccount(Randomness.get());
-                gcsServiceAccountJson = new String(serviceAccountBytes, java.nio.charset.StandardCharsets.UTF_8);
+                ensureServiceAccountInitialized();
 
                 Set<String> loadedKeys = new HashSet<>();
                 FixtureUtils.forEachFixtureEntryMergingAllClasspathRoots(getClass().getClassLoader(), (relativePath, content) -> {
@@ -78,6 +77,27 @@ public final class GcsFixtureUtils {
                 logger.error("Failed to load GCS fixtures", e);
                 throw new RuntimeException(e);
             }
+        }
+
+        /**
+         * Generate a service account JSON if one hasn't already been created. Lets callers that bypass
+         * {@link #loadFixturesFromResources()} (e.g. dataset-CRUD tests that {@link #getHandler() put}
+         * a single ad-hoc blob) still obtain the JSON via {@link #gcsServiceAccountJson()} for
+         * embedding into a {@code DataSource} registration.
+         */
+        public synchronized void ensureServiceAccountInitialized() {
+            if (gcsServiceAccountJson == null) {
+                byte[] serviceAccountBytes = TestUtils.createServiceAccount(Randomness.get());
+                gcsServiceAccountJson = new String(serviceAccountBytes, java.nio.charset.StandardCharsets.UTF_8);
+            }
+        }
+
+        /**
+         * Returns the service-account JSON the fixture trusts. Must be called after
+         * {@link #ensureServiceAccountInitialized()} or {@link #loadFixturesFromResources()}.
+         */
+        public String gcsServiceAccountJson() {
+            return gcsServiceAccountJson;
         }
 
         /**

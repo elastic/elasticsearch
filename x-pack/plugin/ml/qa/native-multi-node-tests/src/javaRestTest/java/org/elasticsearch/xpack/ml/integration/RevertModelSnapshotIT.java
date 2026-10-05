@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
+import org.elasticsearch.xpack.ml.job.results.AnomalyResultsTestUtils;
 import org.junit.After;
 
 import java.io.IOException;
@@ -155,7 +156,11 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         closeJob(job.getId());
 
         assertThat(getBuckets(jobId).size(), equalTo(expectedBuckets.size()));
-        assertThat(getRecords(jobId), equalTo(expectedRecords));
+        List<AnomalyRecord> actualRecords = getRecords(jobId);
+        assertThat(actualRecords.size(), equalTo(expectedRecords.size()));
+        AnomalyResultsTestUtils.assertRecordsEventIngestedPresentThenClear(expectedRecords);
+        AnomalyResultsTestUtils.assertRecordsEventIngestedPresentThenClear(actualRecords);
+        assertThat(actualRecords, equalTo(expectedRecords));
     }
 
     private void testRunJobInTwoPartsAndRevertSnapshotAndRunToCompletion(String jobId, boolean deleteInterveningResults) throws Exception {

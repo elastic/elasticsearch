@@ -3,7 +3,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/plugins/current/discovery-gce-usage-tips.html
 ---
 
-# GCE Tips [discovery-gce-usage-tips]
+# GCE tips [discovery-gce-usage-tips]
 
 ## Store project id locally [discovery-gce-usage-tips-projectid]
 
@@ -14,7 +14,7 @@ gcloud config set project es-cloud
 ```
 
 
-## Machine Permissions [discovery-gce-usage-tips-permissions]
+## Machine permissions [discovery-gce-usage-tips-permissions]
 
 If you have created a machine without the correct permissions, you will see `403 unauthorized` error messages. To change machine permission on an existing instance, first stop the instance then Edit. Scroll down to `Access Scopes` to change permission. The other way to alter these permissions is to delete the instance (NOT THE DISK). Then create another with the correct permissions.
 

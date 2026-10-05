@@ -22,7 +22,7 @@ public class StatelessSnapshotResiliencyWithReadFromObjectStoreTests extends Sta
             tempDir,
             deterministicTaskQueue,
             transportInterceptorFactory,
-            this::assertCriticalWarnings
+            expectedWarnings -> assertWarnings(expectedWarnings)
         ) {
             @Override
             protected Settings nodeSettings(DiscoveryNode node) {

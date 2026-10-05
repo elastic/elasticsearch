@@ -45,13 +45,13 @@ public class TimedListener<Response> {
         ThreadPool threadPool,
         String inferenceId
     ) {
-        ActionListener<Response> notificationListener = ActionListener.wrap(result -> {
+        ActionListener<Response> notificationListener = ActionListener.notifyOnce(ActionListener.wrap(result -> {
             completed.set(true);
             origListener.onResponse(result);
         }, e -> {
             completed.set(true);
             origListener.onFailure(e);
-        });
+        }));
 
         if (timeout == null) {
             return notificationListener;

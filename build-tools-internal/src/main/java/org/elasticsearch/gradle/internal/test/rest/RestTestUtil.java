@@ -18,6 +18,8 @@ import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
 
+import java.util.Map;
+
 /**
  * Utility class to configure the necessary tasks and dependencies.
  */
@@ -70,9 +72,17 @@ public class RestTestUtil {
         Project yamlTestRunnerProject = project.findProject(":test:yaml-rest-runner");
         // we shield the project dependency to make integration tests easier
         if (yamlTestRunnerProject != null) {
-            project.getDependencies().add(sourceSet.getImplementationConfigurationName(), yamlTestRunnerProject);
+            project.getDependencies()
+                .add(
+                    sourceSet.getImplementationConfigurationName(),
+                    project.getDependencies().project(Map.of("path", yamlTestRunnerProject.getPath()))
+                );
             if (useNewTestClusters) {
-                project.getDependencies().add(sourceSet.getImplementationConfigurationName(), project.project(":test:test-clusters"));
+                project.getDependencies()
+                    .add(
+                        sourceSet.getImplementationConfigurationName(),
+                        project.getDependencies().project(Map.of("path", ":test:test-clusters"))
+                    );
             }
         }
     }
@@ -85,7 +95,11 @@ public class RestTestUtil {
         // we shield the project dependency to make integration tests easier
         Project yamlTestRunnerProject = project.findProject(":test:yaml-rest-runner");
         if (yamlTestRunnerProject != null) {
-            project.getDependencies().add(sourceSet.getImplementationConfigurationName(), yamlTestRunnerProject);
+            project.getDependencies()
+                .add(
+                    sourceSet.getImplementationConfigurationName(),
+                    project.getDependencies().project(Map.of("path", yamlTestRunnerProject.getPath()))
+                );
         }
     }
 }

@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.chunk.FetchPhaseResponseChunk;
@@ -70,11 +71,15 @@ import java.util.function.Supplier;
  */
 abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
 
+    protected StreamingFetchPhaseDocsIterator(DirectoryMetrics.Capture metricsCaptureSupplier) {
+        super(metricsCaptureSupplier);
+    }
+
     /**
-     * Default target chunk size in bytes (256KB).
-     * Chunks may slightly exceed this as we complete the current hit before checking.
+     * Invoked after a hit is serialized into the chunk buffer, including on failure. Subclasses can
+     * override to release per-hit resources; must be idempotent. Default is a no-op.
      */
-    static final int DEFAULT_TARGET_CHUNK_BYTES = 256 * 1024;
+    protected void onHitSerialized() {}
 
     /**
      * Asynchronous iteration using {@link ThrottledIterator} for streaming mode.
@@ -324,6 +329,10 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
         }
 
         private PendingChunk produceNext() {
+            return measure(this::doProduceNext);
+        }
+
+        private PendingChunk doProduceNext() {
             RecyclerBytesStreamOutput chunkBuffer = null;
             try {
                 chunkBuffer = chunkWriter.newNetworkBytesStream();
@@ -352,6 +361,7 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
                         hit.writeTo(chunkBuffer);
                     } finally {
                         hit.decRef();
+                        onHitSerialized();
                     }
                     currentIdx++;
                     hitsInChunk++;

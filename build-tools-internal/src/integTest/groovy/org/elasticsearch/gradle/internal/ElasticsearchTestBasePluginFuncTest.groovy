@@ -36,7 +36,7 @@ class ElasticsearchTestBasePluginFuncTest extends AbstractGradleFuncTest {
             }
 
             dependencies {
-                testImplementation 'junit:junit:4.12'
+                testImplementation 'junit:junit:4.13'
             }
         """
     }
@@ -92,7 +92,7 @@ class ElasticsearchTestBasePluginFuncTest extends AbstractGradleFuncTest {
             }
 
             dependencies {
-                testImplementation 'junit:junit:4.12'
+                testImplementation 'junit:junit:4.13'
             }
 
             tasks.named('test').configure {
@@ -150,7 +150,7 @@ class ElasticsearchTestBasePluginFuncTest extends AbstractGradleFuncTest {
             }
 
             dependencies {
-                testImplementation 'junit:junit:4.12'
+                testImplementation 'junit:junit:4.13'
             }
 
         """

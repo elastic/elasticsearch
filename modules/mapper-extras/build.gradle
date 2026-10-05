@@ -18,8 +18,17 @@ esplugin {
 
 restResources {
   restApi {
-    include '_common', 'cluster', 'field_caps', 'nodes', 'indices', 'index', 'search', 'get'
+    include '_common', 'bulk', 'cluster', 'field_caps', 'nodes', 'indices', 'index', 'search', 'get', 'synonyms'
   }
+}
+
+dependencies {
+  clusterModules project(':modules:analysis-common')
+  clusterModules project(':modules:reindex')
+}
+
+testClusters.configureEach {
+  module ':modules:analysis-common'
 }
 
 tasks.named("yamlRestCompatTestTransform").configure { task ->

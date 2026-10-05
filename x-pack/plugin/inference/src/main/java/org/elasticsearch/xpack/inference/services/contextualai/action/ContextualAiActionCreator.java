@@ -50,8 +50,8 @@ public class ContextualAiActionCreator implements ContextualAiActionVisitor {
         var overriddenModel = ContextualAiRerankModel.of(model, taskSettings);
 
         Function<QueryAndDocsInputs, OutboundRequest> requestCreator = rerankInput -> new ContextualAiRerankRequest(
-            rerankInput.getQuery(),
-            rerankInput.getChunks(),
+            rerankInput.getQueryAsString(),
+            rerankInput.getDocsAsStrings(),
             rerankInput.getTopN(),
             overriddenModel
         );

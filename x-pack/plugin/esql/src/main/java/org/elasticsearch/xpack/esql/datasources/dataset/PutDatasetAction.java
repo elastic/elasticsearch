@@ -6,12 +6,14 @@
  */
 package org.elasticsearch.xpack.esql.datasources.dataset;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -21,6 +23,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.esql.DataSourceRequestInfo;
 import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
 
 import java.io.IOException;
@@ -29,6 +32,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xpack.esql.datasources.DataSourceLimits.MAX_DESCRIPTION_LENGTH;
 
 /** Create or replace an ES|QL dataset. */
 public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
@@ -45,11 +49,15 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest {
+    public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest, DataSourceRequestInfo {
         private static final ParseField DATA_SOURCE = new ParseField("data_source");
         private static final ParseField RESOURCE = new ParseField("resource");
         private static final ParseField DESCRIPTION = new ParseField("description");
         private static final ParseField SETTINGS = new ParseField("settings");
+        private static final ParseField MAPPINGS = new ParseField("mappings");
+
+        /** Gates the optional {@link DatasetMapping} on the request wire (mixed-version upgrade). */
+        private static final TransportVersion DATASET_DECLARED_SCHEMA = TransportVersion.fromName("dataset_declared_schema");
 
         public record ParseContext(String name, TimeValue masterNodeTimeout, TimeValue ackTimeout) {}
 
@@ -64,7 +72,8 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
                 (String) args[0],
                 (String) args[1],
                 (String) args[2],
-                (Map<String, Object>) args[3]
+                (Map<String, Object>) args[3],
+                DatasetMapping.assemble((DatasetMapping.Mappings) args[4])
             )
         );
 
@@ -73,6 +82,7 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), RESOURCE);
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), DESCRIPTION);
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), SETTINGS);
+            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DatasetMapping.parseMappings(p), MAPPINGS);
         }
 
         public static Request fromXContent(XContentParser parser, TimeValue masterNodeTimeout, TimeValue ackTimeout, String name)
@@ -86,6 +96,8 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
         @Nullable
         private final String description;
         private final Map<String, Object> rawSettings;
+        @Nullable
+        private final DatasetMapping mapping;
 
         public Request(
             TimeValue masterNodeTimeout,
@@ -96,12 +108,26 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             @Nullable String description,
             Map<String, Object> rawSettings
         ) {
+            this(masterNodeTimeout, ackTimeout, name, dataSource, resource, description, rawSettings, null);
+        }
+
+        public Request(
+            TimeValue masterNodeTimeout,
+            TimeValue ackTimeout,
+            String name,
+            String dataSource,
+            String resource,
+            @Nullable String description,
+            Map<String, Object> rawSettings,
+            @Nullable DatasetMapping mapping
+        ) {
             super(masterNodeTimeout, ackTimeout);
             this.name = name;
             this.dataSource = dataSource;
             this.resource = resource;
             this.description = description;
             this.rawSettings = rawSettings == null ? Map.of() : rawSettings;
+            this.mapping = mapping;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -111,6 +137,9 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             this.resource = in.readString();
             this.description = in.readOptionalString();
             this.rawSettings = in.readGenericMap();
+            this.mapping = in.getTransportVersion().supports(DATASET_DECLARED_SCHEMA)
+                ? in.readOptionalWriteable(DatasetMapping::new)
+                : null;
         }
 
         @Override
@@ -121,6 +150,13 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             out.writeString(resource);
             out.writeOptionalString(description);
             out.writeGenericMap(rawSettings);
+            if (out.getTransportVersion().supports(DATASET_DECLARED_SCHEMA)) {
+                out.writeOptionalWriteable(mapping);
+            } else if (mapping != null) {
+                // Reject rather than silently dropping the mapping toward an older master: an acked PUT whose
+                // declared schema evaporated is worse than a failed one (same pattern as RestGetSnapshotsAction).
+                throw new IllegalArgumentException("[mappings] is not supported on all nodes in the cluster; retry after the upgrade");
+            }
         }
 
         @Override
@@ -147,6 +183,15 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             if (Strings.hasText(resource) == false) {
                 validationException = addValidationError("dataset resource is missing or empty", validationException);
             }
+            if (description != null && description.length() > MAX_DESCRIPTION_LENGTH) {
+                validationException = addValidationError(
+                    "dataset description is too large: "
+                        + description.length()
+                        + " characters, the maximum allowed is "
+                        + MAX_DESCRIPTION_LENGTH,
+                    validationException
+                );
+            }
             return validationException;
         }
 
@@ -156,6 +201,17 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
 
         public String dataSource() {
             return dataSource;
+        }
+
+        @Override
+        public String[] dataSourceNames() {
+            return new String[] { dataSource };
+        }
+
+        /** Cluster action used to evaluate {@code global.data_source} for the attached datasource on put. */
+        @Override
+        public String dataSourceClusterActionName() {
+            return EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASET_DATASOURCE_ACTION_NAME;
         }
 
         public String resource() {
@@ -171,6 +227,12 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             return rawSettings;
         }
 
+        /** The parsed declared mapping (the declared mappings block), or {@code null} when none was supplied. */
+        @Nullable
+        public DatasetMapping mapping() {
+            return mapping;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -180,12 +242,13 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
                 && Objects.equals(dataSource, request.dataSource)
                 && Objects.equals(resource, request.resource)
                 && Objects.equals(description, request.description)
-                && Objects.equals(rawSettings, request.rawSettings);
+                && Objects.equals(rawSettings, request.rawSettings)
+                && Objects.equals(mapping, request.mapping);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(name, dataSource, resource, description, rawSettings);
+            return Objects.hash(name, dataSource, resource, description, rawSettings, mapping);
         }
 
         @Override

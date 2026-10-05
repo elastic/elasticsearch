@@ -16,9 +16,9 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequestBuilder;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequestBuilder;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
@@ -71,7 +71,7 @@ public class RethrottleTests extends ReindexTestCase {
         testCase(deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).setSlices(randomSlices()), DeleteByQueryAction.NAME);
     }
 
-    private void testCase(AbstractBulkByScrollRequestBuilder<?, ?> request, String actionName) throws Exception {
+    private void testCase(AbstractBulkByPaginatedSearchRequestBuilder<?, ?> request, String actionName) throws Exception {
         logger.info("Starting test for [{}] with [{}] slices", actionName, request.request().getSlices());
         /* Add ten documents per slice so most slices will have many documents to process, having to go to multiple batches.
          * We can't rely on the slices being evenly sized but 10 means we have some pretty big slices.
@@ -89,7 +89,7 @@ public class RethrottleTests extends ReindexTestCase {
         // Start a request that will never finish unless we rethrottle it
         request.setRequestsPerSecond(.000001f);  // Throttle "forever"
         request.source().setSize(1);             // Make sure we use multiple batches
-        ActionFuture<? extends BulkByScrollResponse> responseListener = request.execute();
+        ActionFuture<? extends BulkByPaginatedSearchResponse> responseListener = request.execute();
 
         TaskGroup taskGroupToRethrottle = findTaskToRethrottle(actionName, numSlices);
         TaskId taskToRethrottle = taskGroupToRethrottle.taskInfo().taskId();
@@ -101,7 +101,7 @@ public class RethrottleTests extends ReindexTestCase {
             assertThat(taskGroupToRethrottle.childTasks(), hasSize(allOf(greaterThanOrEqualTo(1), lessThanOrEqualTo(numSlices))));
             // Wait for all of the sub tasks to start (or finish, some might finish early, all that matters is that not all do)
             assertBusy(() -> {
-                BulkByScrollTask.Status parent = (BulkByScrollTask.Status) clusterAdmin().prepareGetTask(taskToRethrottle)
+                BulkByPaginatedSearchTask.Status parent = (BulkByPaginatedSearchTask.Status) clusterAdmin().prepareGetTask(taskToRethrottle)
                     .get()
                     .getTask()
                     .getTask()
@@ -117,7 +117,7 @@ public class RethrottleTests extends ReindexTestCase {
         // Now rethrottle it so it'll finish
         float newRequestsPerSecond = randomBoolean() ? Float.POSITIVE_INFINITY : between(1, 1000) * 100000; // No throttle or "very fast"
         ListTasksResponse rethrottleResponse = rethrottleTask(taskToRethrottle, newRequestsPerSecond);
-        BulkByScrollTask.Status status = (BulkByScrollTask.Status) rethrottleResponse.getTasks().get(0).status();
+        BulkByPaginatedSearchTask.Status status = (BulkByPaginatedSearchTask.Status) rethrottleResponse.getTasks().get(0).status();
 
         // Now check the resulting requests per second.
         if (numSlices == 1) {
@@ -139,14 +139,14 @@ public class RethrottleTests extends ReindexTestCase {
                 : (newRequestsPerSecond / numSlices) * 0.99F;
             boolean oneSliceRethrottled = false;
             float totalRequestsPerSecond = 0;
-            for (BulkByScrollTask.StatusOrException statusOrException : status.getSliceStatuses()) {
+            for (BulkByPaginatedSearchTask.StatusOrException statusOrException : status.getSliceStatuses()) {
                 if (statusOrException == null) {
                     /* The slice can be null here because it was completed but hadn't reported its success back to the task when the
                      * rethrottle request came through. */
                     continue;
                 }
                 assertNull(statusOrException.getException());
-                BulkByScrollTask.Status slice = statusOrException.getStatus();
+                BulkByPaginatedSearchTask.Status slice = statusOrException.getStatus();
                 if (slice.getTotal() > slice.getSuccessfullyProcessed()) {
                     // This slice reports as not having completed so it should have been processed.
                     assertThat(
@@ -174,7 +174,7 @@ public class RethrottleTests extends ReindexTestCase {
         }
 
         // Now the response should come back quickly because we've rethrottled the request
-        BulkByScrollResponse response = responseListener.get();
+        BulkByPaginatedSearchResponse response = responseListener.get();
 
         // It'd be bad if the entire require completed in a single batch. The test wouldn't be testing anything.
         assertThat(
@@ -231,7 +231,7 @@ public class RethrottleTests extends ReindexTestCase {
             }
             TaskGroup taskGroup = tasks.getTaskGroups().get(0);
             if (sliceCount != 1) {
-                BulkByScrollTask.Status status = (BulkByScrollTask.Status) taskGroup.taskInfo().status();
+                BulkByPaginatedSearchTask.Status status = (BulkByPaginatedSearchTask.Status) taskGroup.taskInfo().status();
                 /*
                  * If there are child tasks wait for all of them to start. It
                  * is possible that we'll end up with some very small slices

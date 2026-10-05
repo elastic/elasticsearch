@@ -8,16 +8,18 @@ package org.elasticsearch.xpack.eql.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.ResolvedIndexExpressions;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -28,6 +30,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.xpack.core.async.AsyncTask;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,10 +45,10 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_EVENT_CATEGORY;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_TIMESTAMP;
 
-public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequest.Replaceable, ToXContent {
+public class EqlSearchRequest extends UntypedActionRequest implements IndicesRequest.Replaceable, ToXContent {
 
     public static final long MIN_KEEP_ALIVE = TimeValue.timeValueMinutes(1).millis();
-    public static final TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
+    public static final TimeValue LEGACY_DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(true, true, true, false);
 
     private String[] originalIndices;
@@ -68,10 +71,12 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
     private Boolean allowPartialSequenceResults;
     private String projectRouting;
     private ResolvedIndexExpressions resolvedIndexExpressions;
+    private transient TargetProjects resolvedTargetProjects;
 
     // Async settings
     private TimeValue waitForCompletionTimeout = null;
-    private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
+    @Nullable
+    private TimeValue keepAlive = null;
     private boolean keepOnCompletion;
 
     static final String KEY_FILTER = "filter";
@@ -324,6 +329,16 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
         return resolvedIndexExpressions;
     }
 
+    @Override
+    public void setResolvedTargetProjects(TargetProjects targetProjects) {
+        this.resolvedTargetProjects = targetProjects;
+    }
+
+    @Override
+    public TargetProjects getResolvedTargetProjects() {
+        return resolvedTargetProjects;
+    }
+
     public QueryBuilder filter() {
         return this.filter;
     }
@@ -405,11 +420,12 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
         return this;
     }
 
+    @Nullable
     public TimeValue keepAlive() {
         return keepAlive;
     }
 
-    public EqlSearchRequest keepAlive(TimeValue keepAlive) {
+    public EqlSearchRequest keepAlive(@Nullable TimeValue keepAlive) {
         this.keepAlive = keepAlive;
         return this;
     }
@@ -507,7 +523,11 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
         out.writeString(query);
         out.writeBoolean(ccsMinimizeRoundtrips);
         out.writeOptionalTimeValue(waitForCompletionTimeout);
-        out.writeOptionalTimeValue(keepAlive);
+        if (out.getTransportVersion().supports(AsyncTask.ASYNC_DEFAULT_KEEP_ALIVE_SETTING)) {
+            out.writeOptionalTimeValue(keepAlive);
+        } else {
+            out.writeOptionalTimeValue(keepAlive != null ? keepAlive : LEGACY_DEFAULT_KEEP_ALIVE);
+        }
         out.writeBoolean(keepOnCompletion);
         out.writeString(resultPosition);
         out.writeBoolean(fetchFields != null);
@@ -594,7 +614,18 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new EqlSearchTask(id, type, action, getDescription(), parentTaskId, headers, null, null, keepAlive);
+        // Sync tasks are never stored. Use DEFAULT_KEEP_ALIVE as fallback so StoredAsyncTask doesn't NPE.
+        return new EqlSearchTask(
+            id,
+            type,
+            action,
+            getDescription(),
+            parentTaskId,
+            headers,
+            null,
+            null,
+            keepAlive != null ? keepAlive : LEGACY_DEFAULT_KEEP_ALIVE
+        );
     }
 
     @Override

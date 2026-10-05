@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramBuilder;
@@ -165,6 +166,7 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
             List.of()
         );
         TestCaseSupplier.forUnaryStrings(suppliers, read, DataType.KEYWORD, bytesRef -> bytesRef, List.of());
+        TestCaseSupplier.forUnaryFlattened(suppliers, read, DataType.KEYWORD, bytesRef -> bytesRef, List.of());
         TestCaseSupplier.forUnaryVersion(
             suppliers,
             "ToStringFromVersionEvaluator[version=" + read + "]",
@@ -227,6 +229,13 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
             h -> matchesBytesRef(EsqlDataTypeConverter.histogramToString(h)),
             List.of()
         );
+        TestCaseSupplier.forUnaryTDigest(
+            suppliers,
+            "ToStringFromTDigestEvaluator[digest=" + read + "]",
+            DataType.KEYWORD,
+            digest -> matchesBytesRef(EsqlDataTypeConverter.tDigestToString(digest)),
+            List.of()
+        );
         // doesn't matter if it's not an actual encoded histogram, as we should never get to the decoding step
         BytesRef largeTDigest = new BytesRef(new byte[3 * 1024 * 1024]);
         suppliers.add(
@@ -242,6 +251,16 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
                     .withWarning("Line 1:1: java.lang.IllegalArgumentException: Histogram length is greater than 2MB")
             )
         );
+
+        suppliers.add(new TestCaseSupplier("double_range", List.of(DataType.DOUBLE_RANGE), () -> {
+            var range = new DoubleRangeBlockBuilder.DoubleRange(-12.5, 42.25);
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(range, DataType.DOUBLE_RANGE, "range")),
+                "ToStringFromDoubleRangeEvaluator[range=" + read + "]",
+                DataType.KEYWORD,
+                matchesBytesRef("-12.5..42.25")
+            );
+        }));
 
         List<TestCaseSupplier> fixedTimezoneSuppliers = new ArrayList<>();
         TestCaseSupplier.forUnaryDateTime(
@@ -260,7 +279,7 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
         );
         TestCaseSupplier.forUnaryDateRange(
             fixedTimezoneSuppliers,
-            "ToStringFromDateRangeEvaluator[field=" + read + ", formatter=format[strict_date_optional_time] locale[]]",
+            "ToStringFromDateRangeEvaluator[range=" + read + ", formatter=format[strict_date_optional_time] locale[]]",
             DataType.KEYWORD,
             dr -> matchesBytesRef(EsqlDataTypeConverter.dateRangeToString(dr)),
             List.of()
@@ -278,10 +297,14 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
 
         FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", true);
         FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
+        FunctionAppliesTo tdigestGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.6.0", "", false);
         suppliers = TestCaseSupplier.mapTestCases(suppliers, tc -> tc.withData(tc.getData().stream().map(typedData -> {
             DataType type = typedData.type();
             if (type == DataType.HISTOGRAM || type == DataType.EXPONENTIAL_HISTOGRAM) {
                 return typedData.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo);
+            }
+            if (type == DataType.TDIGEST) {
+                return typedData.withAppliesTo(tdigestGaAppliesTo);
             }
             return typedData;
         }).toList()));
@@ -335,7 +358,7 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
                                 "date"
                             )
                         ),
-                        "ToStringFromDateRangeEvaluator[field=Attribute[channel=0], "
+                        "ToStringFromDateRangeEvaluator[range=Attribute[channel=0], "
                             + "formatter=format[strict_date_optional_time] locale[]]",
                         DataType.KEYWORD,
                         matchesBytesRef(

@@ -144,12 +144,12 @@ public class TimeSeriesAggregationBuilder extends AbstractAggregationBuilder<Tim
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         TimeSeriesAggregationBuilder that = (TimeSeriesAggregationBuilder) o;
-        return keyed == that.keyed;
+        return keyed == that.keyed && size == that.size;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), keyed);
+        return Objects.hash(super.hashCode(), keyed, size);
     }
 
     @Override

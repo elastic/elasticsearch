@@ -464,30 +464,26 @@ public class DynamicTemplate implements ToXContentObject {
         return false;
     }
 
-    public boolean isSimplePathMatch() {
-        return pathMatch.isEmpty() == false
-            && pathUnmatch.isEmpty()
-            && match.isEmpty()
-            && unmatch.isEmpty()
-            && matchMappingType.isEmpty()
-            && unmatchMappingType.isEmpty()
-            && matchType != MatchType.REGEX;
-    }
-
     public boolean match(String templateName, String path, String fieldName, XContentFieldType xcontentFieldType) {
         // If the template name parameter is specified, then we will check only the name of the template and ignore other matches.
         if (templateName != null) {
             return templateName.equals(name);
         }
-        if (pathMatch.isEmpty() == false) {
-            if (pathMatch.stream().anyMatch(m -> matchType.matches(m, path)) == false) {
-                return false;
+        boolean matchedXContentType = false;
+        for (XContentFieldType type : xContentFieldTypes) {
+            if (type.equals(xcontentFieldType)) {
+                matchedXContentType = true;
+                break;
             }
         }
-        if (match.isEmpty() == false) {
-            if (match.stream().anyMatch(m -> matchType.matches(m, fieldName)) == false) {
-                return false;
-            }
+        if (matchedXContentType == false) {
+            return false;
+        }
+        if (pathMatch.isEmpty() == false && matchesAny(matchType, pathMatch, path) == false) {
+            return false;
+        }
+        if (match.isEmpty() == false && matchesAny(matchType, match, fieldName) == false) {
+            return false;
         }
         for (String um : pathUnmatch) {
             if (matchType.matches(um, path)) {
@@ -499,13 +495,19 @@ public class DynamicTemplate implements ToXContentObject {
                 return false;
             }
         }
-        if (Arrays.stream(xContentFieldTypes).noneMatch(xcontentFieldType::equals)) {
-            return false;
-        }
         if (runtimeMapping && xcontentFieldType.supportsRuntimeField() == false) {
             return false;
         }
         return true;
+    }
+
+    private static boolean matchesAny(MatchType matchType, List<String> patterns, String value) {
+        for (String pattern : patterns) {
+            if (matchType.matches(pattern, value)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public String mappingType(String dynamicType) {

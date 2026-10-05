@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.telemetry.InferenceProductContext;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestTests;
@@ -25,12 +26,12 @@ import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
-import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
@@ -154,87 +155,61 @@ public class BaseInferenceActionTests extends RestActionTestCase {
         assertThat(executeCalled.get(), equalTo(true));
     }
 
-    public void testExtractProductUseCase() {
-        SetOnce<Boolean> executeCalled = new SetOnce<>();
-        String productUseCase = "product-use-case";
-
-        verifyingClient.setExecuteVerifier(((actionType, actionRequest) -> {
-            assertThat(actionRequest, instanceOf(InferenceActionProxy.Request.class));
-
-            var request = (InferenceActionProxy.Request) actionRequest;
-            InferenceContext context = request.getContext();
-            assertNotNull(context);
-            assertThat(context.productUseCase(), equalTo(productUseCase));
-
-            executeCalled.set(true);
-            return createResponse();
-        }));
-
-        // Create a request with the product use case header
-        Map<String, List<String>> headers = new HashMap<>();
-        headers.put(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, List.of(productUseCase));
-
-        RestRequest inferenceRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
-            .withPath(route("test"))
-            .withHeaders(headers)
-            .withContent(new BytesArray("{}"), XContentType.JSON)
-            .build();
-
-        dispatchRequest(inferenceRequest);
-        assertThat(executeCalled.get(), equalTo(true));
+    public void testExtractAttributionHeaders() {
+        assertExtractedHeaders(
+            Map.of(
+                InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER,
+                List.of("product-use-case"),
+                InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER,
+                List.of("security"),
+                InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER,
+                List.of("attack_discovery"),
+                InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER,
+                List.of("interaction-id")
+            ),
+            context -> assertThat(
+                context,
+                equalTo(new InferenceContext("product-use-case", "security", "attack_discovery", "interaction-id"))
+            )
+        );
     }
 
-    public void testExtractProductUseCase_EmptyWhenHeaderMissing() {
-        SetOnce<Boolean> executeCalled = new SetOnce<>();
-
-        verifyingClient.setExecuteVerifier(((actionType, actionRequest) -> {
-            assertThat(actionRequest, instanceOf(InferenceActionProxy.Request.class));
-
-            var request = (InferenceActionProxy.Request) actionRequest;
-            InferenceContext context = request.getContext();
-            assertNotNull(context);
-            assertThat(context.productUseCase(), equalTo(""));
-
-            executeCalled.set(true);
-            return createResponse();
-        }));
-
-        // Create a request without the product use case header
-        RestRequest inferenceRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
-            .withPath(route("test"))
-            .withContent(new BytesArray("{}"), XContentType.JSON)
-            .build();
-
-        dispatchRequest(inferenceRequest);
-        assertThat(executeCalled.get(), equalTo(true));
+    public void testExtractAttributionHeaders_EmptyWhenHeadersMissing() {
+        assertExtractedHeaders(Map.of(), context -> assertThat(context, equalTo(InferenceContext.EMPTY_INSTANCE)));
     }
 
-    public void testExtractProductUseCase_EmptyWhenHeaderValueEmpty() {
+    public void testExtractAttributionHeaders_EmptyWhenHeaderValuesEmpty() {
+        assertExtractedHeaders(
+            Map.of(
+                InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER,
+                List.of(""),
+                InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER,
+                List.of(""),
+                InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER,
+                List.of(""),
+                InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER,
+                List.of("")
+            ),
+            context -> assertThat(context, equalTo(InferenceContext.EMPTY_INSTANCE))
+        );
+    }
+
+    private void assertExtractedHeaders(Map<String, List<String>> headers, Consumer<InferenceContext> assertion) {
         SetOnce<Boolean> executeCalled = new SetOnce<>();
 
         verifyingClient.setExecuteVerifier(((actionType, actionRequest) -> {
-            assertThat(actionRequest, instanceOf(InferenceActionProxy.Request.class));
-
-            var request = (InferenceActionProxy.Request) actionRequest;
-            InferenceContext context = request.getContext();
-            assertNotNull(context);
-            assertThat(context.productUseCase(), equalTo(""));
-
+            assertion.accept(((InferenceActionProxy.Request) actionRequest).getContext());
             executeCalled.set(true);
             return createResponse();
         }));
 
-        // Create a request with an empty product use case header value
-        Map<String, List<String>> headers = new HashMap<>();
-        headers.put(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, List.of(""));
-
-        RestRequest inferenceRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
-            .withPath(route("test"))
-            .withHeaders(headers)
-            .withContent(new BytesArray("{}"), XContentType.JSON)
-            .build();
-
-        dispatchRequest(inferenceRequest);
+        dispatchRequest(
+            new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+                .withPath(route("test"))
+                .withHeaders(new HashMap<>(headers))
+                .withContent(new BytesArray("{}"), XContentType.JSON)
+                .build()
+        );
         assertThat(executeCalled.get(), equalTo(true));
     }
 
@@ -249,7 +224,7 @@ public class BaseInferenceActionTests extends RestActionTestCase {
     }
 
     public void testResolveTimeoutForTaskType_NonNullTimeout_ReturnsTimeout() {
-        var timeout = randomTimeValue();
+        var timeout = randomTimeValue(1, 1000);
         for (TaskType taskType : TaskType.values()) {
             assertThat(resolveTimeoutForTaskType(taskType, timeout), is(timeout));
         }

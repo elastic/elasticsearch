@@ -9,6 +9,9 @@
 
 package org.elasticsearch.cli.terminal;
 
+import org.elasticsearch.cli.terminal.internal.EcsJsonUtils;
+import org.elasticsearch.cli.terminal.internal.TerminalPrintStream;
+
 import java.io.Console;
 import java.io.IOException;
 import java.io.InputStream;
@@ -30,14 +33,52 @@ import java.util.Locale;
  * which allows {@link #println(Verbosity,CharSequence)} calls which act like a logger,
  * only actually printing if the verbosity level of the terminal is above
  * the verbosity of the message.
+ *
+ * If enabled the environment is configured with {@code ES_CLI_JSON=true},
+ * the default terminal will emit ECS JSON.
 */
 public abstract class Terminal {
+    /**
+     * Environment variable to enable JSON terminal output the {@link #DEFAULT} terminal (defaults to {@code false}).
+     */
+    private static final String ES_CLI_JSON = "ES_CLI_JSON";
+
+    /**
+     * Environment variable enabling wrapping of system streams (stdout / stderr)
+     * with a terminal print stream if JSON terminal output is enabled (defaults to {@code true}).
+     */
+    private static final String ES_CLI_JSON_STREAMS = "ES_CLI_JSON_STREAMS";
 
     // Writer to standard error - not supplied by the {@link Console} API, so we share with subclasses
     private static final PrintWriter ERROR_WRITER = newErrorWriter();
 
-    /** The default terminal implementation, which will be a console if available, or stdout/stderr if not. */
-    public static final Terminal DEFAULT = ConsoleTerminal.isSupported() ? new ConsoleTerminal() : new SystemTerminal();
+    /**
+     * The default terminal implementation, which will be a console if available, or stdout/stderr if not.
+     * Depending on the env, this might be a JSON terminal.
+     */
+    public static final Terminal DEFAULT = defaultTerminal();
+
+    private static Terminal defaultTerminal() {
+        Terminal terminal = ConsoleTerminal.isSupported() ? new ConsoleTerminal() : new SystemTerminal();
+        if (parseBoolean(System.getenv(ES_CLI_JSON), false)) {
+            return new JsonTerminal(terminal);
+        }
+        return terminal;
+    }
+
+    public Terminal delegateTo(Terminal delegate) {
+        return delegate;
+    }
+
+    /**
+     * Captures the current system streams and, if this terminal requires it,
+     * replaces them with terminal-aware wrappers.
+     *
+     * @return the original system streams prior to installation of terminal system streams.
+     */
+    public SystemStreams installSystemStreams() {
+        return new SystemStreams(System.out, System.err);
+    }
 
     private static PrintWriter newErrorWriter() {
         return new PrintWriter(System.err, true, StandardCharsets.UTF_8);
@@ -387,5 +428,85 @@ public abstract class Terminal {
                 flush(false);
             }
         }
+    }
+
+    public record SystemStreams(OutputStream out, OutputStream err) {}
+
+    /**
+     * A {@link Terminal} decorator that formats all output as single-line ECS JSON.
+     *
+     * <p> Wraps a delegate terminal, intercepting all print operations to emit JSON via
+     * {@link EcsJsonUtils}. Messages sent to stdout use log level {@code INFO}, messages
+     * sent to stderr use {@code WARN}. Stacktraces from {@link #errorPrintln} are captured
+     * into a single JSON line with {@code error.stack_trace} and {@code error.type} fields.
+     */
+    static class JsonTerminal extends Terminal {
+
+        private final Terminal delegate;
+
+        protected JsonTerminal(Terminal delegate) {
+            super(delegate);
+            this.delegate = delegate;
+        }
+
+        @Override
+        public Terminal delegateTo(Terminal delegate) {
+            return new JsonTerminal(delegate);
+        }
+
+        @Override
+        public SystemStreams installSystemStreams() {
+            if (parseBoolean(System.getenv(ES_CLI_JSON_STREAMS), true)) {
+                SystemStreams originals = super.installSystemStreams();
+                System.setOut(new TerminalPrintStream(this, false));
+                System.setErr(new TerminalPrintStream(this, true));
+                return originals;
+            }
+            // if not installing the JSON wrappers, let the delegate install wrappers if necessary
+            return delegate.installSystemStreams();
+        }
+
+        @Override
+        public InputStream getInputStream() {
+            return delegate.getInputStream();
+        }
+
+        @Override
+        public OutputStream getOutputStream() {
+            return delegate.getOutputStream();
+        }
+
+        @Override
+        protected void print(Verbosity verbosity, PrintWriter writer, CharSequence msg, boolean newline, boolean flush) {
+            assert newline : "Expected usage of println variants when JSON terminal is enabled";
+            if (isPrintable(verbosity)) {
+                if (EcsJsonUtils.looksLikeJson(msg) == false) {
+                    // if not JSON yet, format the message as Ecs JSON
+                    msg = (writer == delegate.errWriter)
+                        ? EcsJsonUtils.formatJson("WARN", "stderr", msg)
+                        : EcsJsonUtils.formatJson("INFO", "stdout", msg);
+                }
+                super.print(verbosity, writer, msg, newline, flush);
+            }
+        }
+
+        @Override
+        public void errorPrintln(Verbosity verbosity, Throwable throwable) {
+            if (isPrintable(verbosity)) {
+                String json = EcsJsonUtils.formatJson("WARN", "stderr", throwable.getMessage(), throwable);
+                delegate.errorPrintln(Verbosity.SILENT, json);
+            }
+        }
+    }
+
+    private static boolean parseBoolean(String value, boolean defaultValue) {
+        if (value == null || value.isBlank()) {
+            return defaultValue;
+        }
+        return switch (value) {
+            case "true" -> true;
+            case "false" -> false;
+            default -> throw new IllegalArgumentException("Failed to parse value [" + value + "] as only [true] or [false] are allowed.");
+        };
     }
 }

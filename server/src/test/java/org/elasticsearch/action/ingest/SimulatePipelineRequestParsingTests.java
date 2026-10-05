@@ -409,7 +409,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         assertThat(actualRequest.pipeline().getDescription(), nullValue());
         assertThat(actualRequest.pipeline().getProcessors().size(), equalTo(numProcessors));
 
-        assertCriticalWarnings("[types removal] specifying _type in pipeline simulation requests is deprecated");
+        assertWarnings("[types removal] specifying _type in pipeline simulation requests is deprecated");
 
     }
 }

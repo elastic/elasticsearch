@@ -70,7 +70,8 @@ public class AlibabaCloudSearchSparseModel extends AlibabaCloudSearchModel {
         super(
             modelConfigurations,
             modelSecrets,
-            ((AlibabaCloudSearchSparseServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings()
+            ((AlibabaCloudSearchSparseServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings(),
+            null
         );
     }
 

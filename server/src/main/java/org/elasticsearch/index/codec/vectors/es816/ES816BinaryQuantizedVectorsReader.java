@@ -22,6 +22,7 @@ package org.elasticsearch.index.codec.vectors.es816;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
+import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.lucene95.OrdToDocDISIReaderConfiguration;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.CorruptIndexException;
@@ -76,7 +77,6 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
         FlatVectorsReader rawVectorsReader,
         ES816BinaryFlatVectorsScorer vectorsScorer
     ) throws IOException {
-        super(vectorsScorer);
         this.vectorScorer = vectorsScorer;
         this.rawVectorsReader = rawVectorsReader;
         int versionMeta = -1;
@@ -153,6 +153,11 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
                     + numQuantizedVectorBytes
             );
         }
+    }
+
+    @Override
+    public FlatVectorsScorer getFlatVectorScorer(String field) throws IOException {
+        return vectorScorer;
     }
 
     @Override

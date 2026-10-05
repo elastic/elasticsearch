@@ -103,8 +103,8 @@ static inline void doti4_bulk_impl(
         if (has_next) {
             apply_indexed<batches>([&](auto I) {
                 next_doc_ptrs[I] = mapper(docs, c + batches + I, offsets, pitch);
-                prefetch(next_doc_ptrs[I], lines_to_fetch);
             });
+            head_prefetch<batches, 1>(next_doc_ptrs);
         }
 
         __m256i acc32[batches];
@@ -124,6 +124,9 @@ static inline void doti4_bulk_impl(
             const int end = std::min(i + chunk, blk);
 
             for (; i < end; i += stride) {
+                if (has_next) {
+                    spread_prefetch_step<batches, 1, stride>(next_doc_ptrs, i, lines_to_fetch);
+                }
                 __m256i query_high = _mm256_loadu_si256((const __m256i*)(query + i));
                 __m256i query_low = _mm256_loadu_si256((const __m256i*)(query + i + packed_len));
 

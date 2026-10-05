@@ -18,12 +18,16 @@ import org.elasticsearch.compute.aggregation.CountDistinctLongAggregatorFunction
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
@@ -37,6 +41,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -46,9 +51,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isWholeNumber;
-import static org.elasticsearch.xpack.esql.expression.Foldables.intValueOf;
 
-public class CountDistinct extends AggregateFunction implements OptionalArgument, ToAggregator, SurrogateExpression {
+public class CountDistinct extends UnaryAggregateFunction implements OptionalArgument, ToAggregator, SurrogateExpression {
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "CountDistinct",
@@ -56,6 +61,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(CountDistinct.class)
         .binary(CountDistinct::new)
+        .capabilities("flattened", "precision_clamp", "spatial_grid_types")
         .name("count_distinct");
 
     private static final Map<DataType, Function<Integer, AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
@@ -70,14 +76,21 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         Map.entry(DataType.IP, CountDistinctBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.VERSION, CountDistinctBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.TEXT, CountDistinctBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.TSID_DATA_TYPE, CountDistinctBytesRefAggregatorFunctionSupplier::new)
+        Map.entry(DataType.TSID_DATA_TYPE, CountDistinctBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.FLATTENED, CountDistinctBytesRefAggregatorFunctionSupplier::new),
+        // Geo-grid types are encoded as long values
+        Map.entry(DataType.GEOHASH, CountDistinctLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.GEOTILE, CountDistinctLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.GEOHEX, CountDistinctLongAggregatorFunctionSupplier::new)
     );
 
     private static final int DEFAULT_PRECISION = 3000;
     private final Expression precision;
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "long",
+        briefSummary = "Returns the approximate number of distinct values.",
         description = "Returns the approximate number of distinct values.",
         note = "[Counts are approximate](/reference/query-languages/esql/functions-operators/"
             + "aggregation-functions/count_distinct.md#esql-agg-count-distinct-approximate).",
@@ -123,13 +136,29 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version", "_tsid" },
+            type = {
+                "boolean",
+                "date",
+                "date_nanos",
+                "double",
+                "flattened",
+                "geohash",
+                "geohex",
+                "geotile",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "version",
+                "_tsid" },
             description = "Column or literal for which to count the number of distinct values."
         ) Expression field,
         @Param(
             optional = true,
             name = "precision",
             type = { "integer", "long", "unsigned_long" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. "
                 + "The maximum supported value is 40000. Thresholds above this number will have the "
                 + "same effect as a threshold of 40000. The default value is 3000."
@@ -174,11 +203,6 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     }
 
     @Override
-    public CountDistinct withFilter(Expression filter) {
-        return new CountDistinct(source(), field(), filter, window(), precision);
-    }
-
-    @Override
     public DataType dataType() {
         return DataType.LONG;
     }
@@ -217,8 +241,24 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         return SUPPLIERS.get(type).apply(precision);
     }
 
+    @Override
+    public Nullability nullable() {
+        return Nullability.FALSE;
+    }
+
     private int precisionValue() {
-        return intValueOf(precision, source().text(), "Precision");
+        return clampPrecisionThreshold(precision.dataType(), (Number) ((Literal) precision).value());
+    }
+
+    /** Clamps a folded precision literal to {@code [0, {@link Integer#MAX_VALUE}]} without narrowing wraparound. */
+    static int clampPrecisionThreshold(DataType precisionType, Number value) {
+        if (precisionType == DataType.UNSIGNED_LONG) {
+            BigInteger unsignedValue = value instanceof BigInteger bigInteger
+                ? bigInteger
+                : NumericUtils.unsignedLongAsBigInteger(value.longValue());
+            return unsignedValue.min(BigInteger.valueOf(Integer.MAX_VALUE)).intValueExact();
+        }
+        return Math.clamp(value.longValue(), 0, Integer.MAX_VALUE);
     }
 
     @Override

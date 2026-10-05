@@ -102,9 +102,8 @@ public class MergeWithFailureIT extends ESIntegTestCase {
             }
             return Optional.of(
                 config -> new TestEngine(
-                    EngineTestCase.copy(
-                        config,
-                        new OneMergeWrappingMergePolicy(config.getMergePolicy(), toWrap -> new MergePolicy.OneMerge(toWrap) {
+                    EngineConfig.builder(config)
+                        .mergePolicy(new OneMergeWrappingMergePolicy(config.getMergePolicy(), toWrap -> new MergePolicy.OneMerge(toWrap) {
                             @Override
                             public CodecReader wrapForMerge(CodecReader reader) {
                                 return new FilterCodecReader(reader) {
@@ -135,8 +134,8 @@ public class MergeWithFailureIT extends ESIntegTestCase {
                                     }
                                 };
                             }
-                        })
-                    )
+                        }))
+                        .build()
                 )
             );
         }
@@ -402,6 +401,11 @@ public class MergeWithFailureIT extends ESIntegTestCase {
         @Override
         public void onMergeQueued(OnGoingMerge merge, long estimateMergeMemoryBytes) {
             mergesQueued.incrementAndGet();
+        }
+
+        @Override
+        public void onMergeStarted(OnGoingMerge merge) {
+
         }
 
         @Override

@@ -18,23 +18,25 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankShardResult;
+import org.elasticsearch.search.rank.ThrowingRankBuilderType;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
-import org.elasticsearch.search.rank.rerank.AbstractRerankerIT;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.RerankAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
+import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
-import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
 
@@ -49,6 +51,8 @@ import java.util.regex.Pattern;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.Strings.isAllOrWildcard;
+import static org.elasticsearch.inference.InferenceString.fromStringList;
+import static org.elasticsearch.inference.InferenceString.toStringList;
 
 /**
  * Plugin for text similarity tests. Defines a filter for modifying inference call behavior, as well as a {@code TextSimilarityRankBuilder}
@@ -113,9 +117,9 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
                 } else {
                     handleGetInferenceModelActionRequest(getModelRequest, listener);
                 }
-            } else if (action.equals(InferenceAction.INSTANCE.name())) {
-                assert request instanceof InferenceAction.Request;
-                handleInferenceActionRequest((InferenceAction.Request) request, listener);
+            } else if (action.equals(RerankAction.INSTANCE.name())) {
+                assert request instanceof RerankAction.Request;
+                handleInferenceActionRequest((RerankAction.Request) request, listener);
             } else {
                 // For any other action than get model and inference, execute normally
                 chain.proceed(task, action, request, listener);
@@ -140,8 +144,10 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
                         request.getInferenceEntityId(),
                         TaskType.RERANK,
                         CohereService.NAME,
-                        new CohereRerankServiceSettings("uri", "model", null, CohereServiceSettings.CohereApiVersion.V2),
-                        topN == null ? new EmptyTaskSettings() : new CohereRerankTaskSettings(topN, null, null)
+                        new CohereRerankServiceSettings(
+                            new CohereCommonServiceSettings("model", null, CohereCommonServiceSettings.CohereApiVersion.V2)
+                        ),
+                        topN == null ? EmptyTaskSettings.INSTANCE : new CohereRerankTaskSettings(topN, null, null)
                     )
                 )
             );
@@ -150,10 +156,10 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
 
         @SuppressWarnings("unchecked")
         private <Response extends ActionResponse> void handleInferenceActionRequest(
-            InferenceAction.Request request,
+            RerankAction.Request request,
             ActionListener<Response> listener
         ) {
-            Map<String, Object> taskSettings = request.getTaskSettings();
+            Map<String, Object> taskSettings = request.getRerankRequest().taskSettings();
             boolean shouldThrow = (boolean) taskSettings.getOrDefault("throwing", false);
             Integer inferenceResultCount = (Integer) taskSettings.get("inferenceResultCount");
 
@@ -161,7 +167,7 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
                 listener.onFailure(new UnsupportedOperationException("simulated failure"));
             } else {
                 List<RankedDocsResults.RankedDoc> rankedDocsResults = new ArrayList<>();
-                List<String> inputs = request.getInput();
+                List<String> inputs = toStringList(request.getRerankRequest().inputs());
                 int resultCount = inferenceResultCount == null ? inputs.size() : inferenceResultCount;
                 for (int i = 0; i < resultCount; i++) {
                     rankedDocsResults.add(new RankedDocsResults.RankedDoc(i, Float.parseFloat(inputs.get(i)), inputs.get(i)));
@@ -174,7 +180,7 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
 
     public static class ThrowingMockRequestActionBasedRankBuilder extends TextSimilarityRankBuilder {
 
-        protected final AbstractRerankerIT.ThrowingRankBuilderType throwingRankBuilderType;
+        protected final ThrowingRankBuilderType throwingRankBuilderType;
 
         public ThrowingMockRequestActionBasedRankBuilder(
             int rankWindowSize,
@@ -187,12 +193,12 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
             ChunkScorerConfig chunkScorerConfig
         ) {
             super(field, inferenceId, inferenceText, rankWindowSize, minScore, failuresAllowed, chunkScorerConfig);
-            this.throwingRankBuilderType = AbstractRerankerIT.ThrowingRankBuilderType.valueOf(throwingType);
+            this.throwingRankBuilderType = ThrowingRankBuilderType.valueOf(throwingType);
         }
 
         public ThrowingMockRequestActionBasedRankBuilder(StreamInput in) throws IOException {
             super(in);
-            this.throwingRankBuilderType = in.readEnum(AbstractRerankerIT.ThrowingRankBuilderType.class);
+            this.throwingRankBuilderType = in.readEnum(ThrowingRankBuilderType.class);
         }
 
         @Override
@@ -203,7 +209,7 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
 
         @Override
         public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
-            if (this.throwingRankBuilderType == AbstractRerankerIT.ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_SHARD_CONTEXT)
+            if (this.throwingRankBuilderType == ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_SHARD_CONTEXT)
                 return new RankFeaturePhaseRankShardContext(field()) {
                     @Override
                     public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
@@ -217,7 +223,7 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
 
         @Override
         public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from, Client client) {
-            if (this.throwingRankBuilderType == AbstractRerankerIT.ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_COORDINATOR_CONTEXT)
+            if (this.throwingRankBuilderType == ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_COORDINATOR_CONTEXT)
                 return new TextSimilarityRankFeaturePhaseRankCoordinatorContext(
                     size,
                     from,
@@ -229,18 +235,17 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
                     failuresAllowed()
                 ) {
                     @Override
-                    protected InferenceAction.Request generateRequest(List<String> docFeatures) {
-                        return new InferenceAction.Request(
-                            TaskType.RERANK,
+                    protected RerankAction.Request generateRequest(List<String> docFeatures) {
+                        return new RerankAction.Request(
                             inferenceId,
-                            inferenceText,
-                            null,
-                            null,
-                            docFeatures,
-                            Map.of("throwing", true),
-                            InputType.INTERNAL_SEARCH,
-                            null,
-                            false
+                            new RerankRequest(
+                                fromStringList(docFeatures),
+                                InferenceString.ofText(inferenceText),
+                                null,
+                                null,
+                                Map.of("throwing", true)
+                            ),
+                            null
                         );
                     }
                 };

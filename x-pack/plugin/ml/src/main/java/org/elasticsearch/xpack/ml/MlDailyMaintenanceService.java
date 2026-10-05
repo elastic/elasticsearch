@@ -38,6 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
@@ -418,11 +419,14 @@ public class MlDailyMaintenanceService implements Releasable {
         MlIndexAndAlias.createAliasForRollover(originSettingClient, index, rolloverAlias, getIndicesAliasesListener);
     }
 
-    private String[] findIndicesMatchingPattern(ClusterState clusterState, String indexPattern) {
-        // list all indices matching the given index pattern
-        String[] indices = expressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpenHidden(), indexPattern);
+    private String[] findIndicesMatchingPatterns(ClusterState clusterState, String[] indexPatterns) {
+        String[] indices = expressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpenHidden(), indexPatterns);
         if (logger.isTraceEnabled()) {
-            logger.trace("findIndicesMatchingPattern: indices found: {} matching pattern [{}]", Arrays.toString(indices), indexPattern);
+            logger.trace(
+                "findIndicesMatchingPatterns: indices found: {} matching patterns [{}]",
+                Arrays.toString(indices),
+                Arrays.toString(indexPatterns)
+            );
         }
         return indices;
     }
@@ -472,29 +476,31 @@ public class MlDailyMaintenanceService implements Releasable {
         request.indices(indexName);
         request.includeDefaults(true); // Request index settings, mappings and aliases
 
-        GetIndexResponse response = client.admin().indices().getIndex(request).actionGet();
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
+            GetIndexResponse response = client.admin().indices().getIndex(request).actionGet();
 
-        Settings settings = response.getSettings().get(indexName);
+            Settings settings = response.getSettings().get(indexName);
 
-        if (settings != null) {
-            String ilmPolicyName = settings.get("index.lifecycle.name");
-            // If the setting is present and not empty, ILM is in force
-            return ilmPolicyName != null && ilmPolicyName.isEmpty() == false;
+            if (settings != null) {
+                String ilmPolicyName = settings.get("index.lifecycle.name");
+                // If the setting is present and not empty, ILM is in force
+                return ilmPolicyName != null && ilmPolicyName.isEmpty() == false;
+            }
+
+            return false;
         }
-
-        return false;
     }
 
     private void triggerRollIndicesIfNecessaryTask(
         String taskName,
-        String indexPattern,
+        String[] indexPatterns,
         ActionListener<AcknowledgedResponse> finalListener
     ) {
-        logger.info("[ML] maintenance task: [{}] for index pattern [{}]", taskName, indexPattern);
+        logger.info("[ML] maintenance task: [{}] for index patterns [{}]", taskName, Arrays.toString(indexPatterns));
 
         ClusterState clusterState = clusterService.state();
 
-        String[] indices = findIndicesMatchingPattern(clusterState, indexPattern);
+        String[] indices = findIndicesMatchingPatterns(clusterState, indexPatterns);
         if (rolloverMaxSize == ByteSizeValue.MINUS_ONE || indices.length == 0) {
             // Early bath
             finalListener.onResponse(AcknowledgedResponse.TRUE);
@@ -521,12 +527,16 @@ public class MlDailyMaintenanceService implements Releasable {
 
     // public for testing
     public void triggerRollResultsIndicesIfNecessaryTask(ActionListener<AcknowledgedResponse> finalListener) {
-        triggerRollIndicesIfNecessaryTask("roll-results-indices", AnomalyDetectorsIndex.jobResultsIndexPattern(), finalListener);
+        triggerRollIndicesIfNecessaryTask(
+            "roll-results-indices",
+            new String[] { AnomalyDetectorsIndex.jobResultsIndexPattern() },
+            finalListener
+        );
     }
 
     // public for testing
     public void triggerRollStateIndicesIfNecessaryTask(ActionListener<AcknowledgedResponse> finalListener) {
-        triggerRollIndicesIfNecessaryTask("roll-state-indices", AnomalyDetectorsIndex.jobStateIndexPattern(), finalListener);
+        triggerRollIndicesIfNecessaryTask("roll-state-indices", AnomalyDetectorsIndex.jobStateIndexPatterns(), finalListener);
     }
 
     private void triggerDeleteExpiredDataTask(ActionListener<AcknowledgedResponse> finalListener) {

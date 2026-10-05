@@ -18,8 +18,10 @@ import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAct
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.rollover.LazyRolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
+import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
@@ -34,6 +36,7 @@ import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
@@ -157,7 +160,7 @@ public class InternalUsers {
         UsernamesField.DATA_STREAM_LIFECYCLE_NAME,
         new RoleDescriptor(
             UsernamesField.DATA_STREAM_LIFECYCLE_ROLE,
-            new String[] {},
+            new String[] { "manage" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("*")
@@ -172,7 +175,10 @@ public class InternalUsers {
                             IndicesStatsAction.NAME + "*",
                             TransportUpdateSettingsAction.TYPE.name(),
                             DownsampleAction.NAME,
-                            TransportAddIndexBlockAction.TYPE.name()
+                            TransportAddIndexBlockAction.TYPE.name(),
+                            IndicesSegmentsAction.NAME,
+                            ModifyDataStreamsAction.NAME,
+                            TransportResizeAction.TYPE.name()
                         )
                     )
                     .allowRestrictedIndices(false)
@@ -184,7 +190,9 @@ public class InternalUsers {
                         // System data streams for storing uploaded file data for Agent diagnostics and Endpoint response actions
                         ".fleet-fileds*",
                         // System data stream for kibana workflows
-                        ".workflows*"
+                        ".workflows*",
+                        // System data stream for kibana saved objects change history
+                        ".kibana_change_history*"
                     )
                     .privileges(
                         filterNonNull(
@@ -304,6 +312,25 @@ public class InternalUsers {
     );
 
     /**
+     * Internal user for enrich policy execution, maintenance, and enrich-processor/ES|QL lookups.
+     * Operates exclusively on the {@code .enrich-*} system indices.
+     */
+    public static final InternalUser ENRICH_USER = new InternalUser(
+        UsernamesField.ENRICH_NAME,
+        new RoleDescriptor(
+            UsernamesField.ENRICH_ROLE,
+            new String[] { "monitor", "manage_ingest_pipelines" },
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder().indices(".enrich-*").privileges("all").allowRestrictedIndices(true).build() },
+            null,
+            null,
+            null,
+            MetadataUtils.DEFAULT_RESERVED_METADATA,
+            Map.of()
+        )
+    );
+
+    /**
      * Internal user that can manage a cross-project connections (e.g. handshake)
      * and searches (e.g. cancelling).
      */
@@ -312,13 +339,15 @@ public class InternalUsers {
         new RoleDescriptor(
             UsernamesField.CROSS_PROJECT_SEARCH_ROLE_NAME,
             new String[] {
+                XPackInfoAction.REMOTE_TYPE.name(),
                 RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
                 TaskCancellationService.REMOTE_CLUSTER_BAN_PARENT_ACTION_NAME,
                 TaskCancellationService.REMOTE_CLUSTER_CANCEL_CHILD_ACTION_NAME,
                 "cluster:internal:data/read/esql/open_exchange",
                 "cluster:internal:data/read/esql/exchange",
                 "cluster:internal/remote_cluster/nodes",
-                "cluster:admin/serverless/autoscaling/get_serverless_autoscaling_metrics" },
+                "cluster:admin/serverless/autoscaling/get_serverless_autoscaling_metrics",
+                XPackInfoAction.NAME },
             null,
             null,
             null,
@@ -344,6 +373,7 @@ public class InternalUsers {
             REINDEX_DATA_STREAM_USER,
             SYNONYMS_USER,
             LAZY_ROLLOVER_USER,
+            ENRICH_USER,
             CROSS_PROJECT_SEARCH_USER
         ).collect(Collectors.toUnmodifiableMap(InternalUser::principal, Function.identity()));
     }

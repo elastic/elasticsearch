@@ -32,15 +32,18 @@ public final class AddDoublesEvaluator implements ExpressionEvaluator {
 
   private final ExpressionEvaluator rhs;
 
+  private final boolean allowNonFinite;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public AddDoublesEvaluator(Source source, ExpressionEvaluator lhs, ExpressionEvaluator rhs,
-      DriverContext driverContext) {
+      boolean allowNonFinite, DriverContext driverContext) {
     this.source = source;
     this.lhs = lhs;
     this.rhs = rhs;
+    this.allowNonFinite = allowNonFinite;
     this.driverContext = driverContext;
   }
 
@@ -72,10 +75,11 @@ public final class AddDoublesEvaluator implements ExpressionEvaluator {
   public DoubleBlock eval(int positionCount, DoubleBlock lhsBlock, DoubleBlock rhsBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (lhsBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (lhsBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -83,10 +87,11 @@ public final class AddDoublesEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (rhsBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (rhsBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -97,7 +102,7 @@ public final class AddDoublesEvaluator implements ExpressionEvaluator {
         double lhs = lhsBlock.getDouble(lhsBlock.getFirstValueIndex(p));
         double rhs = rhsBlock.getDouble(rhsBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Add.processDoubles(lhs, rhs));
+          result.appendDouble(Add.processDoubles(lhs, rhs, this.allowNonFinite));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -113,7 +118,7 @@ public final class AddDoublesEvaluator implements ExpressionEvaluator {
         double lhs = lhsVector.getDouble(p);
         double rhs = rhsVector.getDouble(p);
         try {
-          result.appendDouble(Add.processDoubles(lhs, rhs));
+          result.appendDouble(Add.processDoubles(lhs, rhs, this.allowNonFinite));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -135,7 +140,7 @@ public final class AddDoublesEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }
@@ -147,16 +152,19 @@ public final class AddDoublesEvaluator implements ExpressionEvaluator {
 
     private final ExpressionEvaluator.Factory rhs;
 
-    public Factory(Source source, ExpressionEvaluator.Factory lhs,
-        ExpressionEvaluator.Factory rhs) {
+    private final boolean allowNonFinite;
+
+    public Factory(Source source, ExpressionEvaluator.Factory lhs, ExpressionEvaluator.Factory rhs,
+        boolean allowNonFinite) {
       this.source = source;
       this.lhs = lhs;
       this.rhs = rhs;
+      this.allowNonFinite = allowNonFinite;
     }
 
     @Override
     public AddDoublesEvaluator get(DriverContext context) {
-      return new AddDoublesEvaluator(source, lhs.get(context), rhs.get(context), context);
+      return new AddDoublesEvaluator(source, lhs.get(context), rhs.get(context), allowNonFinite, context);
     }
 
     @Override

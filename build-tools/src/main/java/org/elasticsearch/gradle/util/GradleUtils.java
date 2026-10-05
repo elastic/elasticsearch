@@ -27,10 +27,8 @@ import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
-import org.gradle.plugins.ide.eclipse.model.EclipseModel;
 import org.gradle.plugins.ide.idea.model.IdeaModel;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -126,16 +124,6 @@ public abstract class GradleUtils {
             IdeaModel idea = project.getExtensions().getByType(IdeaModel.class);
             idea.getModule().getTestSources().from(testSourceSet.getJava().getSrcDirs());
             idea.getModule().getScopes().put(testSourceSet.getName(), Map.of("plus", List.of(runtimeClasspathConfiguration)));
-        });
-        project.getPluginManager().withPlugin("eclipse", p -> {
-            EclipseModel eclipse = project.getExtensions().getByType(EclipseModel.class);
-            List<SourceSet> eclipseSourceSets = new ArrayList<>();
-            for (SourceSet old : eclipse.getClasspath().getSourceSets()) {
-                eclipseSourceSets.add(old);
-            }
-            eclipseSourceSets.add(testSourceSet);
-            eclipse.getClasspath().setSourceSets(project.getExtensions().getByType(SourceSetContainer.class));
-            eclipse.getClasspath().getPlusConfigurations().add(runtimeClasspathConfiguration);
         });
     }
 

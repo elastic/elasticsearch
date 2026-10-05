@@ -11,7 +11,7 @@ package org.elasticsearch.action.support.broadcast.unpromotable;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,7 +28,7 @@ import static org.elasticsearch.action.support.IndicesOptions.strictSingleIndexN
 /**
  * A request that is broadcast to the unpromotable assigned replicas of a primary.
  */
-public class BroadcastUnpromotableRequest extends LegacyActionRequest implements IndicesRequest {
+public class BroadcastUnpromotableRequest extends UntypedActionRequest implements IndicesRequest {
 
     /**
      * Holds the index shard routing table that will be used by {@link TransportBroadcastUnpromotableAction} to broadcast the requests to

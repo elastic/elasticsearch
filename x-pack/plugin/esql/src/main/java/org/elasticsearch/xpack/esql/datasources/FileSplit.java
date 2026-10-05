@@ -12,14 +12,22 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Represents a byte range within a file for a file-based external source.
@@ -35,6 +43,27 @@ public class FileSplit implements ExternalSplit {
     );
 
     static final TransportVersion ESQL_SPLIT_STATS_COMPACT = TransportVersion.fromName("esql_split_stats_compact");
+    private static final TransportVersion ESQL_EXTERNAL_SOURCE_READ_SCHEMA = TransportVersion.fromName("esql_external_source_read_schema");
+    /**
+     * Survivor maps no longer store {@code _file.path}, {@code _file.name}, or {@code _file.directory}.
+     * Readers at this version derive them from {@link #path}. Older nodes still read those keys from the map.
+     */
+    static final TransportVersion ESQL_DERIVE_FILE_LOCATION = TransportVersion.fromName("esql_derive_file_location");
+
+    /**
+     * {@link Collections#unmodifiableMap} wrapper class. Discovery freezes each survivor's partition
+     * map once; the constructor keeps that instance. {@code Map.copyOf} is not used: {@code _file.directory}
+     * and {@code _file.modified} are null for some files.
+     */
+    private static final Class<?> UNMODIFIABLE_MAP_CLASS = Collections.unmodifiableMap(new LinkedHashMap<String, Object>()).getClass();
+
+    /** LinkedHashMap copies made for a caller that did not pass an already-frozen partition map. */
+    private static final AtomicLong DEFENSIVE_PARTITION_MAP_COPIES = new AtomicLong();
+
+    /** Test hook: how many defensive partition-map copies the constructor has made. */
+    static long defensivePartitionMapCopies() {
+        return DEFENSIVE_PARTITION_MAP_COPIES.get();
+    }
 
     private final String sourceType;
     private final StoragePath path;
@@ -44,11 +73,20 @@ public class FileSplit implements ExternalSplit {
     private final Map<String, Object> config;
     private final Map<String, Object> partitionValues;
     @Nullable
-    private final SchemaReconciliation.ColumnMapping columnMapping;
+    private final ColumnMapping columnMapping;
     @Nullable
     private final Map<String, Object> statistics;
     @Nullable
     private final SplitStats splitStats;
+    /**
+     * The schema the reader should use to interpret this file. Per-file, by nature — readers are per-file
+     * entities. In FFW and STRICT, every split's {@code readSchema} carries the same value (the
+     * anchor / validated common schema). In UBN, each split carries that file's coordinator-inferred
+     * physical schema, which differs across files when files differ. {@code null} means "no pin — reader
+     * may self-infer," preserving pre-PR behavior for older nodes or sources that don't compute one.
+     */
+    @Nullable
+    private final List<Attribute> readSchema;
 
     public FileSplit(
         String sourceType,
@@ -59,7 +97,7 @@ public class FileSplit implements ExternalSplit {
         Map<String, Object> config,
         Map<String, Object> partitionValues
     ) {
-        this(sourceType, path, offset, length, format, config, partitionValues, null, null, null);
+        this(sourceType, path, offset, length, format, config, partitionValues, null, null, null, null);
     }
 
     public FileSplit(
@@ -70,9 +108,9 @@ public class FileSplit implements ExternalSplit {
         String format,
         Map<String, Object> config,
         Map<String, Object> partitionValues,
-        @Nullable SchemaReconciliation.ColumnMapping columnMapping
+        @Nullable ColumnMapping columnMapping
     ) {
-        this(sourceType, path, offset, length, format, config, partitionValues, columnMapping, null, null);
+        this(sourceType, path, offset, length, format, config, partitionValues, columnMapping, null, null, null);
     }
 
     public FileSplit(
@@ -83,10 +121,61 @@ public class FileSplit implements ExternalSplit {
         String format,
         Map<String, Object> config,
         Map<String, Object> partitionValues,
-        @Nullable SchemaReconciliation.ColumnMapping columnMapping,
+        @Nullable ColumnMapping columnMapping,
         @Nullable Map<String, Object> statistics
     ) {
-        this(sourceType, path, offset, length, format, config, partitionValues, columnMapping, statistics, null);
+        this(sourceType, path, offset, length, format, config, partitionValues, columnMapping, statistics, null, null);
+    }
+
+    /**
+     * Static factory that includes the per-file {@code readSchema} alongside the {@link ColumnMapping}.
+     * Use this when building splits with the planner-resolved per-file schema so the reader can be pinned to the
+     * coordinator's inference instead of self-inferring at runtime.
+     * <p>Provided as a static factory (instead of a constructor overload) to avoid ambiguity with the
+     * existing {@code (columnMapping, statistics)} constructor when callers pass {@code null}.
+     */
+    public static FileSplit withReadSchema(
+        String sourceType,
+        StoragePath path,
+        long offset,
+        long length,
+        String format,
+        Map<String, Object> config,
+        Map<String, Object> partitionValues,
+        @Nullable ColumnMapping columnMapping,
+        @Nullable List<Attribute> readSchema
+    ) {
+        return new FileSplit(sourceType, path, offset, length, format, config, partitionValues, columnMapping, null, null, readSchema);
+    }
+
+    /**
+     * Static factory that includes statistics (raw map) and the per-file {@code readSchema}.
+     */
+    public static FileSplit withStatisticsAndReadSchema(
+        String sourceType,
+        StoragePath path,
+        long offset,
+        long length,
+        String format,
+        Map<String, Object> config,
+        Map<String, Object> partitionValues,
+        @Nullable ColumnMapping columnMapping,
+        @Nullable Map<String, Object> statistics,
+        @Nullable List<Attribute> readSchema
+    ) {
+        return new FileSplit(
+            sourceType,
+            path,
+            offset,
+            length,
+            format,
+            config,
+            partitionValues,
+            columnMapping,
+            statistics,
+            null,
+            readSchema
+        );
     }
 
     /**
@@ -100,10 +189,40 @@ public class FileSplit implements ExternalSplit {
         String format,
         Map<String, Object> config,
         Map<String, Object> partitionValues,
-        @Nullable SchemaReconciliation.ColumnMapping columnMapping,
+        @Nullable ColumnMapping columnMapping,
         @Nullable SplitStats splitStats
     ) {
-        return new FileSplit(sourceType, path, offset, length, format, config, partitionValues, columnMapping, null, splitStats);
+        return new FileSplit(sourceType, path, offset, length, format, config, partitionValues, columnMapping, null, splitStats, null);
+    }
+
+    /**
+     * Creates a FileSplit with compact {@link SplitStats} and a per-file {@code readSchema}.
+     */
+    public static FileSplit withSplitStats(
+        String sourceType,
+        StoragePath path,
+        long offset,
+        long length,
+        String format,
+        Map<String, Object> config,
+        Map<String, Object> partitionValues,
+        @Nullable ColumnMapping columnMapping,
+        @Nullable SplitStats splitStats,
+        @Nullable List<Attribute> readSchema
+    ) {
+        return new FileSplit(
+            sourceType,
+            path,
+            offset,
+            length,
+            format,
+            config,
+            partitionValues,
+            columnMapping,
+            null,
+            splitStats,
+            readSchema
+        );
     }
 
     private FileSplit(
@@ -114,9 +233,10 @@ public class FileSplit implements ExternalSplit {
         String format,
         Map<String, Object> config,
         Map<String, Object> partitionValues,
-        @Nullable SchemaReconciliation.ColumnMapping columnMapping,
+        @Nullable ColumnMapping columnMapping,
         @Nullable Map<String, Object> statistics,
-        @Nullable SplitStats splitStats
+        @Nullable SplitStats splitStats,
+        @Nullable List<Attribute> readSchema
     ) {
         if (sourceType == null) {
             throw new IllegalArgumentException("sourceType cannot be null");
@@ -133,10 +253,11 @@ public class FileSplit implements ExternalSplit {
         this.length = length;
         this.format = format;
         this.config = config != null ? Map.copyOf(config) : Map.of();
-        this.partitionValues = partitionValues != null && partitionValues.isEmpty() == false
-            ? Collections.unmodifiableMap(new LinkedHashMap<>(partitionValues))
-            : Map.of();
+        this.partitionValues = freezePartitionValues(partitionValues);
         this.columnMapping = columnMapping;
+        // Empty list and null mean the same thing at this layer: "no schema pin." Collapse so the reader
+        // does exactly one null-check downstream (mirrors FormatReadContext.readSchema's compact ctor).
+        this.readSchema = (readSchema == null || readSchema.isEmpty()) ? null : List.copyOf(readSchema);
         // Normalize: eagerly convert legacy map to SplitStats when possible so that
         // equals/hashCode and serialization round-trips are stable.
         if (splitStats != null) {
@@ -157,6 +278,22 @@ public class FileSplit implements ExternalSplit {
         }
     }
 
+    /**
+     * Reuses a map already wrapped by {@link Collections#unmodifiableMap}, and a {@link LayeredPartitionMap}
+     * whose directory tuple is shared across files. Copying either would drop that sharing. Any other map is
+     * copied so a caller cannot mutate the split after construction. Empty stays {@link Map#of()}.
+     */
+    private static Map<String, Object> freezePartitionValues(@Nullable Map<String, Object> partitionValues) {
+        if (partitionValues == null || partitionValues.isEmpty()) {
+            return Map.of();
+        }
+        if (partitionValues.getClass() == UNMODIFIABLE_MAP_CLASS || partitionValues instanceof LayeredPartitionMap) {
+            return partitionValues;
+        }
+        DEFENSIVE_PARTITION_MAP_COPIES.incrementAndGet();
+        return Collections.unmodifiableMap(new LinkedHashMap<>(partitionValues));
+    }
+
     public FileSplit(StreamInput in) throws IOException {
         this.sourceType = in.readString();
         this.path = StoragePath.of(in.readString());
@@ -166,7 +303,7 @@ public class FileSplit implements ExternalSplit {
         this.config = in.readGenericMap();
         this.partitionValues = in.readGenericMap();
         if (in.readBoolean()) {
-            this.columnMapping = new SchemaReconciliation.ColumnMapping(in);
+            this.columnMapping = new ColumnMapping(in);
         } else {
             this.columnMapping = null;
         }
@@ -186,6 +323,25 @@ public class FileSplit implements ExternalSplit {
             }
             this.splitStats = null;
         }
+        if (in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_READ_SCHEMA)) {
+            if (in.readBoolean()) {
+                int count = in.readVInt();
+                List<Attribute> attrs = new ArrayList<>(count);
+                for (int i = 0; i < count; i++) {
+                    String name = in.readString();
+                    // DataType.readFrom throws IOException on unknown; DataType.fromTypeName returns null.
+                    DataType type = DataType.readFrom(in.readString());
+                    Nullability nullability = in.readBoolean() ? Nullability.TRUE : Nullability.FALSE;
+                    attrs.add(new ReferenceAttribute(Source.EMPTY, null, name, type, nullability, null, false));
+                }
+                // Local list never escapes; wrap rather than copy.
+                this.readSchema = Collections.unmodifiableList(attrs);
+            } else {
+                this.readSchema = null;
+            }
+        } else {
+            this.readSchema = null;
+        }
     }
 
     @Override
@@ -196,7 +352,7 @@ public class FileSplit implements ExternalSplit {
         out.writeVLong(length);
         out.writeOptionalString(format);
         out.writeGenericMap(config);
-        out.writeGenericMap(partitionValues);
+        out.writeGenericMap(partitionValuesToWrite(out.getTransportVersion()));
         if (columnMapping != null) {
             out.writeBoolean(true);
             columnMapping.writeTo(out);
@@ -225,6 +381,23 @@ public class FileSplit implements ExternalSplit {
             if (statsMap != null) {
                 out.writeBoolean(true);
                 out.writeGenericMap(statsMap);
+            } else {
+                out.writeBoolean(false);
+            }
+        }
+        if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_READ_SCHEMA)) {
+            if (readSchema != null) {
+                out.writeBoolean(true);
+                // Primitive (name, typeName, nullable). writeNamedWriteableCollection(Attribute) can't
+                // be used: FileSplit travels on RecyclerBytesStreamOutput, not PlanStreamOutput.
+                // Anything not provably non-null is written as nullable: UNKNOWN (planner-internal) maps to TRUE
+                // on the wire so it can't be reconstituted as a stronger non-null guarantee than the source carried.
+                out.writeVInt(readSchema.size());
+                for (Attribute attr : readSchema) {
+                    out.writeString(attr.name());
+                    out.writeString(attr.dataType().typeName());
+                    out.writeBoolean(attr.nullable() != Nullability.FALSE);
+                }
             } else {
                 out.writeBoolean(false);
             }
@@ -265,9 +438,43 @@ public class FileSplit implements ExternalSplit {
         return partitionValues;
     }
 
+    /**
+     * Interned directory-constant keys, or {@link #partitionValues()} when per-file keys are not layered over a
+     * shared tuple. Siblings in one directory return the same instance.
+     */
+    public Map<String, Object> directoryTuple() {
+        if (partitionValues instanceof LayeredPartitionMap layered) {
+            return layered.sharedTuple();
+        }
+        return partitionValues;
+    }
+
+    /**
+     * Current versions write the stored map unchanged. An older node still fills location columns from
+     * the map, so the outbound copy includes {@code _file.path}, {@code _file.name}, and
+     * {@code _file.directory} derived from {@link #path} when they are absent. Keys already present,
+     * including an explicit null, are left as stored.
+     */
+    private Map<String, Object> partitionValuesToWrite(TransportVersion version) {
+        if (version.supports(ESQL_DERIVE_FILE_LOCATION)) {
+            return partitionValues;
+        }
+        return FileMetadataColumns.overlayLocation(partitionValues, path, FileMetadataColumns.LOCATION_NAMES);
+    }
+
     @Nullable
-    public SchemaReconciliation.ColumnMapping columnMapping() {
+    public ColumnMapping columnMapping() {
         return columnMapping;
+    }
+
+    /**
+     * Returns the per-file schema the reader should be pinned to, or {@code null} if no pin —
+     * the reader is then free to self-infer (pre-PR behavior, preserved for older nodes and
+     * sources that don't compute a per-file schema).
+     */
+    @Nullable
+    public List<Attribute> readSchema() {
+        return readSchema;
     }
 
     /**
@@ -315,12 +522,25 @@ public class FileSplit implements ExternalSplit {
             && Objects.equals(partitionValues, that.partitionValues)
             && Objects.equals(columnMapping, that.columnMapping)
             && Objects.equals(statistics, that.statistics)
-            && Objects.equals(splitStats, that.splitStats);
+            && Objects.equals(splitStats, that.splitStats)
+            && Objects.equals(readSchema, that.readSchema);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sourceType, path, offset, length, format, config, partitionValues, columnMapping, statistics, splitStats);
+        return Objects.hash(
+            sourceType,
+            path,
+            offset,
+            length,
+            format,
+            config,
+            partitionValues,
+            columnMapping,
+            statistics,
+            splitStats,
+            readSchema
+        );
     }
 
     @Override

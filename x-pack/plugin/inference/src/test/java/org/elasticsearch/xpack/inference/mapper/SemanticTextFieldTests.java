@@ -16,14 +16,16 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.DataType;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.EndpointMetadataTests;
-import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
-import org.elasticsearch.search.vectors.VectorData;
+import org.elasticsearch.inference.metadata.EndpointMetadataClusterState;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -40,6 +42,8 @@ import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults
 import org.elasticsearch.xpack.core.inference.results.EmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.utils.FloatConversionUtils;
 import org.elasticsearch.xpack.inference.model.TestModel;
@@ -52,6 +56,8 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomByteVector;
+import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunk;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunkLegacy;
@@ -86,7 +92,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         assertThat(newInstance.inference().modelSettings(), equalTo(expectedInstance.inference().modelSettings()));
         assertThat(newInstance.inference().chunks().size(), equalTo(expectedInstance.inference().chunks().size()));
         assertThat(newInstance.inference().chunkingSettings(), equalTo(expectedInstance.inference().chunkingSettings()));
-        MinimalServiceSettings modelSettings = newInstance.inference().modelSettings();
+        EndpointClusterState modelSettings = newInstance.inference().modelSettings();
         for (var entry : newInstance.inference().chunks().entrySet()) {
             var expectedChunks = expectedInstance.inference().chunks().get(entry.getKey());
             assertNotNull(expectedChunks);
@@ -156,27 +162,27 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
     public void testModelSettingsValidation() {
         NullPointerException npe = expectThrows(NullPointerException.class, () -> {
-            new MinimalServiceSettings("service", null, 10, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT);
+            new EndpointClusterState("service", null, 10, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT);
         });
         assertThat(npe.getMessage(), equalTo("task type must not be null"));
 
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
-            new MinimalServiceSettings("service", TaskType.SPARSE_EMBEDDING, 10, null, null);
+            new EndpointClusterState("service", TaskType.SPARSE_EMBEDDING, 10, null, null);
         });
         assertThat(ex.getMessage(), containsString("[dimensions] is not allowed"));
 
         ex = expectThrows(IllegalArgumentException.class, () -> {
-            new MinimalServiceSettings("service", TaskType.SPARSE_EMBEDDING, null, SimilarityMeasure.COSINE, null);
+            new EndpointClusterState("service", TaskType.SPARSE_EMBEDDING, null, SimilarityMeasure.COSINE, null);
         });
         assertThat(ex.getMessage(), containsString("[similarity] is not allowed"));
 
         ex = expectThrows(IllegalArgumentException.class, () -> {
-            new MinimalServiceSettings("service", TaskType.SPARSE_EMBEDDING, null, null, DenseVectorFieldMapper.ElementType.FLOAT);
+            new EndpointClusterState("service", TaskType.SPARSE_EMBEDDING, null, null, DenseVectorFieldMapper.ElementType.FLOAT);
         });
         assertThat(ex.getMessage(), containsString("[element_type] is not allowed"));
 
         ex = expectThrows(IllegalArgumentException.class, () -> {
-            new MinimalServiceSettings(
+            new EndpointClusterState(
                 "service",
                 TaskType.TEXT_EMBEDDING,
                 null,
@@ -187,25 +193,25 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         assertThat(ex.getMessage(), containsString("required [dimensions] field is missing"));
 
         ex = expectThrows(IllegalArgumentException.class, () -> {
-            new MinimalServiceSettings("service", TaskType.TEXT_EMBEDDING, 10, null, DenseVectorFieldMapper.ElementType.FLOAT);
+            new EndpointClusterState("service", TaskType.TEXT_EMBEDDING, 10, null, DenseVectorFieldMapper.ElementType.FLOAT);
         });
         assertThat(ex.getMessage(), containsString("required [similarity] field is missing"));
 
         ex = expectThrows(IllegalArgumentException.class, () -> {
-            new MinimalServiceSettings("service", TaskType.TEXT_EMBEDDING, 10, SimilarityMeasure.COSINE, null);
+            new EndpointClusterState("service", TaskType.TEXT_EMBEDDING, 10, SimilarityMeasure.COSINE, null);
         });
         assertThat(ex.getMessage(), containsString("required [element_type] field is missing"));
     }
 
     public void testModelSettingsXContentExcludesEndpointMetadata() throws IOException {
         final EndpointMetadata endpointMetadata = EndpointMetadataTests.randomNonEmptyInstance();
-        final MinimalServiceSettings modelSettings = new MinimalServiceSettings(
+        final EndpointClusterState modelSettings = new EndpointClusterState(
             "test-service",
             TaskType.SPARSE_EMBEDDING,
             null,
             null,
             null,
-            endpointMetadata
+            EndpointMetadataClusterState.from(endpointMetadata)
         );
         final SemanticTextField semanticTextField = new SemanticTextField(
             useLegacyFormat,
@@ -225,46 +231,63 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             parser,
             new SemanticTextField.ParserContext(useLegacyFormat, NAME, parser.contentType())
         );
-        assertThat(parsed.inference().modelSettings().endpointMetadata(), equalTo(EndpointMetadata.EMPTY_INSTANCE));
+        assertThat(parsed.inference().modelSettings().endpointMetadata(), equalTo(EndpointMetadataClusterState.EMPTY_INSTANCE));
     }
 
-    public void testGetDenseVectorsAsSupplier() throws IOException {
-        for (int i = 0; i < 10; i++) {
-            Model model = TestModel.createRandomInstance(TaskType.TEXT_EMBEDDING);
-
-            List<String> inputs = randomList(3, 8, () -> randomSemanticTextInput().toString());
-            var inferenceResults = randomChunkedInferenceEmbedding(model, inputs);
-
-            List<VectorData> chunkVectors = new ArrayList<>();
-            for (EmbeddingResults.Chunk chunk : inferenceResults.chunks()) {
-                VectorData thisVector = switch (chunk.embedding()) {
-                    case EmbeddingFloatResults.Embedding efr -> new VectorData(efr.values());
-                    case EmbeddingByteResults.Embedding ebr -> new VectorData(ebr.values());
-                    default -> throw new IllegalStateException("Unexpected value: " + chunk.embedding().getClass());
-                };
-                chunkVectors.add(thisVector);
-            }
-
-            var field = semanticTextFieldFromChunkedInferenceResults(
-                useLegacyFormat,
-                "testfield",
-                model,
-                generateRandomChunkingSettings(),
-                inputs,
-                inferenceResults,
-                randomFrom(XContentType.values())
-            );
-
-            var vectors = field.getDenseVectorData();
-            assertNotNull(vectors);
-            assertEquals(chunkVectors, vectors);
+    public static EmbeddingResults<?> combineMultimodalEmbeddings(List<? extends EmbeddingResults.Embedding<?>> embeddings) {
+        if (embeddings.isEmpty()) {
+            throw new IllegalArgumentException("Cannot combine an empty list of embeddings");
         }
+
+        Class<?> type = embeddings.getFirst().getClass();
+        for (var embedding : embeddings) {
+            if (embedding.getClass() != type) {
+                throw new IllegalArgumentException(
+                    "All embeddings must be the same concrete type, found [" + type + "] and [" + embedding.getClass() + "]"
+                );
+            }
+        }
+
+        if (type == EmbeddingFloatResults.Embedding.class) {
+            return new GenericDenseEmbeddingFloatResults(embeddings.stream().map(e -> (EmbeddingFloatResults.Embedding) e).toList());
+        }
+        if (type == EmbeddingByteResults.Embedding.class) {
+            return new GenericDenseEmbeddingByteResults(embeddings.stream().map(e -> (EmbeddingByteResults.Embedding) e).toList());
+        }
+        throw new AssertionError("Unsupported embedding type: " + type);
+    }
+
+    public static EmbeddingResults.Embedding<?> randomMultimodalEmbedding(Model model) {
+        if (model.getTaskType() == TaskType.EMBEDDING) {
+            return switch (model.getServiceSettings().elementType()) {
+                case FLOAT, BFLOAT16 -> randomMultimodalEmbeddingFloat(model);
+                case BIT, BYTE -> randomMultimodalEmbeddingByte(model);
+            };
+        }
+
+        throw new AssertionError("invalid task type: " + model.getTaskType().name());
+    }
+
+    public static EmbeddingResults.Embedding<?> randomMultimodalEmbeddingFloat(Model model) {
+        DenseVectorFieldMapper.ElementType elementType = model.getServiceSettings().elementType();
+        assert elementType == DenseVectorFieldMapper.ElementType.FLOAT || elementType == DenseVectorFieldMapper.ElementType.BFLOAT16;
+
+        int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(elementType, model.getServiceSettings().dimensions());
+        return new GenericDenseEmbeddingFloatResults.Embedding(randomFloatVector(embeddingLength));
+    }
+
+    public static EmbeddingResults.Embedding<?> randomMultimodalEmbeddingByte(Model model) {
+        DenseVectorFieldMapper.ElementType elementType = model.getServiceSettings().elementType();
+        assert elementType == DenseVectorFieldMapper.ElementType.BYTE || elementType == DenseVectorFieldMapper.ElementType.BIT;
+
+        int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(elementType, model.getServiceSettings().dimensions());
+        return new GenericDenseEmbeddingByteResults.Embedding(randomByteVector(embeddingLength));
     }
 
     public static ChunkedInferenceEmbedding randomChunkedInferenceEmbedding(Model model, List<String> inputs) {
         return switch (model.getTaskType()) {
             case SPARSE_EMBEDDING -> randomChunkedInferenceEmbeddingSparse(inputs);
-            case TEXT_EMBEDDING -> switch (model.getServiceSettings().elementType()) {
+            case TEXT_EMBEDDING, EMBEDDING -> switch (model.getServiceSettings().elementType()) {
                 case FLOAT, BFLOAT16 -> randomChunkedInferenceEmbeddingFloat(model, inputs);
                 case BIT, BYTE -> randomChunkedInferenceEmbeddingByte(model, inputs);
             };
@@ -279,7 +302,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
         List<EmbeddingResults.Chunk> chunks = new ArrayList<>();
         for (String input : inputs) {
-            byte[] values = randomByteVectorOfLength(embeddingLength);
+            byte[] values = randomByteVector(embeddingLength);
             chunks.add(
                 new EmbeddingResults.Chunk(
                     new DenseEmbeddingByteResults.Embedding(values),
@@ -290,15 +313,6 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         return new ChunkedInferenceEmbedding(chunks);
     }
 
-    public static byte[] randomByteVectorOfLength(int embeddingLength) {
-        byte[] values = new byte[embeddingLength];
-        for (int j = 0; j < values.length; j++) {
-            // to avoid vectors with zero magnitude
-            values[j] = (byte) Math.max(1, randomByte());
-        }
-        return values;
-    }
-
     public static ChunkedInferenceEmbedding randomChunkedInferenceEmbeddingFloat(Model model, List<String> inputs) {
         DenseVectorFieldMapper.ElementType elementType = model.getServiceSettings().elementType();
         int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(elementType, model.getServiceSettings().dimensions());
@@ -306,7 +320,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
         List<EmbeddingResults.Chunk> chunks = new ArrayList<>();
         for (String input : inputs) {
-            float[] values = randomFloatVectorOfLength(embeddingLength);
+            float[] values = randomFloatVector(embeddingLength);
             chunks.add(
                 new EmbeddingResults.Chunk(
                     new DenseEmbeddingFloatResults.Embedding(values),
@@ -315,15 +329,6 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             );
         }
         return new ChunkedInferenceEmbedding(chunks);
-    }
-
-    public static float[] randomFloatVectorOfLength(int embeddingLength) {
-        float[] values = new float[embeddingLength];
-        for (int j = 0; j < values.length; j++) {
-            // to avoid vectors with zero magnitude
-            values[j] = Math.max(1e-6f, randomFloat());
-        }
-        return values;
     }
 
     public static ChunkedInferenceEmbedding randomChunkedInferenceEmbeddingSparse(List<String> inputs) {
@@ -355,14 +360,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         List<String> inputs,
         XContentType contentType
     ) throws IOException {
-        ChunkedInference results = switch (model.getTaskType()) {
-            case TEXT_EMBEDDING -> switch (model.getServiceSettings().elementType()) {
-                case FLOAT, BFLOAT16 -> randomChunkedInferenceEmbeddingFloat(model, inputs);
-                case BIT, BYTE -> randomChunkedInferenceEmbeddingByte(model, inputs);
-            };
-            case SPARSE_EMBEDDING -> randomChunkedInferenceEmbeddingSparse(inputs);
-            default -> throw new AssertionError("invalid task type: " + model.getTaskType().name());
-        };
+        ChunkedInference results = randomChunkedInferenceEmbedding(model, inputs);
         return semanticTextFieldFromChunkedInferenceResults(
             useLegacyFormat,
             fieldName,
@@ -412,7 +410,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             useLegacyFormat ? inputs : null,
             new SemanticTextField.InferenceResult(
                 model.getInferenceEntityId(),
-                new MinimalServiceSettings(model),
+                new EndpointClusterState(model),
                 chunkingSettings,
                 Map.of(fieldName, chunks)
             ),
@@ -440,10 +438,11 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         return randomValueOtherThan(chunkingSettings, () -> generateRandomChunkingSettings(false));
     }
 
-    /**
-     * Returns a randomly generated object for Semantic Text tests purpose.
-     */
     public static Object randomSemanticTextInput() {
+        return randomSemanticInput(false);
+    }
+
+    public static Object randomSemanticInput(boolean allowInferenceStrings) {
         if (rarely()) {
             return switch (randomIntBetween(0, 4)) {
                 case 0 -> randomInt();
@@ -451,11 +450,18 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                 case 2 -> randomFloat();
                 case 3 -> randomBoolean();
                 case 4 -> randomDouble();
-                default -> throw new IllegalStateException("Illegal state while generating random semantic text input");
+                default -> throw new AssertionError("Unexpected state");
             };
         } else {
-            return randomAlphaOfLengthBetween(10, 20);
+            return allowInferenceStrings && randomBoolean() ? randomInferenceString() : randomAlphaOfLengthBetween(10, 20);
         }
+    }
+
+    public static InferenceString randomInferenceString() {
+        return new InferenceString(
+            randomValueOtherThan(DataType.TEXT, () -> randomFrom(DataType.values())),
+            "data:image/jpeg;base64," + randomAlphaOfLength(10)
+        );
     }
 
     public static ChunkedInference toChunkedResult(
@@ -481,7 +487,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                 }
                 return new ChunkedInferenceEmbedding(chunks);
             }
-            case TEXT_EMBEDDING -> {
+            case TEXT_EMBEDDING, EMBEDDING -> {
                 var elementType = field.inference().modelSettings().elementType();
                 int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(
                     elementType,

@@ -69,7 +69,7 @@ public class SampledAggregate extends Aggregate {
     }
 
     @Override
-    protected NodeInfo<Aggregate> info() {
+    protected NodeInfo<SampledAggregate> info() {
         return NodeInfo.create(this, SampledAggregate::new, child(), groupings, aggregates, originalAggregates, sampleProbability);
     }
 

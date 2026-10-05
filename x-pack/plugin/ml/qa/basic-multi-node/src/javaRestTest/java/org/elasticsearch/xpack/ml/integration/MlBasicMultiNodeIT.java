@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.client.Request;
@@ -13,8 +15,11 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.test.TestClustersThreadFilter;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -28,7 +33,16 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 
+@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MlBasicMultiNodeIT extends ESRestTestCase {
+
+    @ClassRule
+    public static final ElasticsearchCluster cluster = Clusters.CLUSTER;
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     private static final String BASE_PATH = "/_ml/";
 

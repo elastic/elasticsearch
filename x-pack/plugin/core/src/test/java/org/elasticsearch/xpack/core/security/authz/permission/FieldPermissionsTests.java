@@ -38,6 +38,14 @@ public class FieldPermissionsTests extends ESTestCase {
         assertThat(fieldPermissions.grantsAccessTo("f2"), is(true));
     }
 
+    public void testFieldPermissionsWithSurrogatePairField() {
+        final String supplementaryField = "field\uD835\uDD4F";
+        final FieldPermissions fieldPermissions = new FieldPermissions(
+            fieldPermissionDef(new String[] { supplementaryField }, new String[] {})
+        );
+        assertThat(fieldPermissions.grantsAccessTo(supplementaryField), is(true));
+    }
+
     public void testFieldPermissionsIntersection() {
 
         final FieldPermissions fieldPermissions = FieldPermissions.DEFAULT;

@@ -10,8 +10,9 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
@@ -30,7 +31,7 @@ public class ReindexSettingsTests extends ESTestCase {
      * After construction with empty node settings, {@link ReindexSettings#pitKeepAlive()} matches the setting default
      */
     public void testPitKeepAliveMatchesDefaultWhenNodeSettingsEmpty() {
-        ClusterSettings clusterSettings = clusterSettings(Set.of(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING), Settings.EMPTY);
+        ClusterSettings clusterSettings = clusterSettings(Settings.EMPTY);
         ReindexSettings reindexSettings = new ReindexSettings(clusterSettings);
         assertThat(reindexSettings.pitKeepAlive(), equalTo(TimeValue.timeValueMinutes(15)));
     }
@@ -53,7 +54,7 @@ public class ReindexSettingsTests extends ESTestCase {
         Settings nodeSettings = Settings.builder()
             .put(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING.getKey(), configured.getStringRep())
             .build();
-        ClusterSettings clusterSettings = clusterSettings(Set.of(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING), nodeSettings);
+        ClusterSettings clusterSettings = clusterSettings(nodeSettings);
         ReindexSettings reindexSettings = new ReindexSettings(clusterSettings);
         assertThat(reindexSettings.pitKeepAlive(), equalTo(configured));
     }
@@ -63,7 +64,7 @@ public class ReindexSettingsTests extends ESTestCase {
      * to the newly applied value.
      */
     public void testPitKeepAliveUpdatesWhenClusterSettingApplied() {
-        ClusterSettings clusterSettings = clusterSettings(Set.of(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING), Settings.EMPTY);
+        ClusterSettings clusterSettings = clusterSettings(Settings.EMPTY);
         ReindexSettings reindexSettings = new ReindexSettings(clusterSettings);
         assertThat(reindexSettings.pitKeepAlive(), equalTo(TimeValue.timeValueMinutes(15)));
 
@@ -79,7 +80,7 @@ public class ReindexSettingsTests extends ESTestCase {
      * Successive valid {@link ClusterSettings#applySettings} calls each replace the cached PIT keep-alive with the latest value.
      */
     public void testPitKeepAliveTracksLatestAppliedValue() {
-        ClusterSettings clusterSettings = clusterSettings(Set.of(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING), Settings.EMPTY);
+        ClusterSettings clusterSettings = clusterSettings(Settings.EMPTY);
         ReindexSettings reindexSettings = new ReindexSettings(clusterSettings);
 
         TimeValue first = TimeValue.timeValueMinutes(12);
@@ -100,7 +101,7 @@ public class ReindexSettingsTests extends ESTestCase {
      * last successfully applied value.
      */
     public void testInvalidClusterSettingUpdateDoesNotChangeCachedPitKeepAlive() {
-        ClusterSettings clusterSettings = clusterSettings(Set.of(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING), Settings.EMPTY);
+        ClusterSettings clusterSettings = clusterSettings(Settings.EMPTY);
         ReindexSettings reindexSettings = new ReindexSettings(clusterSettings);
 
         TimeValue valid = TimeValue.timeValueMinutes(15);
@@ -152,7 +153,55 @@ public class ReindexSettingsTests extends ESTestCase {
         );
     }
 
-    private static ClusterSettings clusterSettings(Set<Setting<?>> settingsSet, Settings nodeSettings) {
-        return new ClusterSettings(nodeSettings, settingsSet);
+    /**
+     * After construction with empty node settings, {@link ReindexSettings#getMemoryAccountingThresholdInBytes()} matches the
+     * documented default of 1 MB.
+     */
+    public void testMemoryAccountingThresholdMatchesDefaultWhenNodeSettingsEmpty() {
+        ClusterSettings clusterSettings = clusterSettings(Settings.EMPTY);
+        ReindexSettings reindexSettings = new ReindexSettings(clusterSettings);
+        assertThat(reindexSettings.getMemoryAccountingThresholdInBytes(), equalTo(ByteSizeValue.of(1, ByteSizeUnit.MB).getBytes()));
+    }
+
+    /**
+     * The no-arg constructor (used by nodes that don't load ReindexPlugin and by some tests) falls back to the static default.
+     */
+    public void testMemoryAccountingThresholdUsesDefaultWhenSettingNotRegistered() {
+        ReindexSettings reindexSettings = new ReindexSettings();
+        assertThat(reindexSettings.getMemoryAccountingThresholdInBytes(), equalTo(ByteSizeValue.of(1, ByteSizeUnit.MB).getBytes()));
+    }
+
+    /**
+     * A dynamic cluster settings update propagates the new threshold into the cached value.
+     */
+    public void testMemoryAccountingThresholdUpdatesWhenClusterSettingApplied() {
+        ClusterSettings clusterSettings = clusterSettings(Settings.EMPTY);
+        ReindexSettings reindexSettings = new ReindexSettings(clusterSettings);
+
+        ByteSizeValue updated = ByteSizeValue.of(randomIntBetween(2, 512), ByteSizeUnit.MB);
+        clusterSettings.applySettings(
+            Settings.builder().put(ReindexSettings.REINDEX_MEMORY_ACCOUNTING_THRESHOLD_SETTING.getKey(), updated.getStringRep()).build()
+        );
+
+        assertThat(reindexSettings.getMemoryAccountingThresholdInBytes(), equalTo(updated.getBytes()));
+    }
+
+    /**
+     * Values strictly below the 1 MB minimum are rejected so the cached value is unchanged.
+     */
+    public void testMemoryAccountingThresholdRejectsBelowMinimum() {
+        String key = ReindexSettings.REINDEX_MEMORY_ACCOUNTING_THRESHOLD_SETTING.getKey();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ReindexSettings.REINDEX_MEMORY_ACCOUNTING_THRESHOLD_SETTING.get(Settings.builder().put(key, "512kb").build())
+        );
+        assertThat(e.getMessage(), containsString(key));
+    }
+
+    private static ClusterSettings clusterSettings(Settings nodeSettings) {
+        return new ClusterSettings(
+            nodeSettings,
+            Set.of(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING, ReindexSettings.REINDEX_MEMORY_ACCOUNTING_THRESHOLD_SETTING)
+        );
     }
 }

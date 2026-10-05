@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `TO_CARTESIANPOINT` function [esql-to_cartesianpoint]
 
-:::{include} ../../_snippets/functions/layout/to_cartesianpoint.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/to_cartesianpoint.md
 :::

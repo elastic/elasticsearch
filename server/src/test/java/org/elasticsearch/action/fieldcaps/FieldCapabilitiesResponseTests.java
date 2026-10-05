@@ -49,7 +49,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         int numResponse = randomIntBetween(0, 10);
         for (int i = 0; i < numResponse; i++) {
             Map<String, IndexFieldCapabilities> fieldCaps = FieldCapabilitiesIndexResponseTests.randomFieldCaps();
-            var indexMode = randomFrom(IndexMode.values());
+            var indexMode = randomFrom(IndexMode.availableModes());
             responses.add(new FieldCapabilitiesIndexResponse("index_" + i, null, fieldCaps, randomBoolean(), indexMode));
         }
         randomResponse = FieldCapabilitiesResponse.builder().withIndexResponses(responses).build();
@@ -156,6 +156,42 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         return FieldCapabilitiesResponse.builder().withIndexResponses(indexResponses).withFailures(failures).build();
     }
 
+    /** Checks the analyzer version boundary for both grouped and ungrouped cross-cluster responses. */
+    public void testIndexAnalyzerSerialization() throws IOException {
+        var title = new IndexFieldCapabilitiesBuilder("title", "text").indexAnalyzer("english")
+            .indexAnalyzerPositionIncrementGap(7)
+            .build();
+        var body = new IndexFieldCapabilitiesBuilder("body", "text").indexLocalAnalyzer(true).build();
+        var tag = new IndexFieldCapabilitiesBuilder("tag", "keyword").build();
+        var fields = Map.of("title", title, "body", body, "tag", tag);
+        var response = FieldCapabilitiesResponse.builder()
+            .withIndexResponses(
+                List.of(
+                    new FieldCapabilitiesIndexResponse("ungrouped", null, fields, true, IndexMode.STANDARD),
+                    new FieldCapabilitiesIndexResponse("grouped-1", "mapping", fields, true, IndexMode.STANDARD),
+                    new FieldCapabilitiesIndexResponse("grouped-2", "mapping", fields, true, IndexMode.STANDARD)
+                )
+            )
+            .build();
+        var withoutAnalyzers = Map.of(
+            "title",
+            new IndexFieldCapabilitiesBuilder("title", "text").build(),
+            "body",
+            new IndexFieldCapabilitiesBuilder("body", "text").build(),
+            "tag",
+            tag
+        );
+
+        var current = copyInstance(response, FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER);
+        assertThat(fieldsPerIndex(current), equalTo(Collections.nCopies(3, fields)));
+        var previous = copyInstance(response, TransportVersionUtils.getPreviousVersion(FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER));
+        assertThat(fieldsPerIndex(previous), equalTo(Collections.nCopies(3, withoutAnalyzers)));
+    }
+
+    private static List<Map<String, IndexFieldCapabilities>> fieldsPerIndex(FieldCapabilitiesResponse response) {
+        return response.getIndexResponses().stream().map(FieldCapabilitiesIndexResponse::get).toList();
+    }
+
     public void testSerializeCCSResponseBetweenNewClusters() throws Exception {
         Map<String, List<String>> mappingHashToIndices = randomMappingHashToIndices();
         List<FieldCapabilitiesIndexResponse> indexResponses = CollectionUtils.concatLists(
@@ -164,7 +200,39 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         );
         Randomness.shuffle(indexResponses);
         FieldCapabilitiesResponse inResponse = randomCCSResponse(indexResponses);
+
         final TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
+        final boolean hasColumnarMode = indexResponses.stream()
+            .anyMatch(r -> r.getIndexMode() == IndexMode.COLUMNAR || r.getIndexMode() == IndexMode.LOGSDB_COLUMNAR);
+        assumeTrue(
+            "columnar index modes require transport version " + IndexMode.COLUMNAR_INDEX_MODES_ADDED,
+            hasColumnarMode == false || version.supports(IndexMode.COLUMNAR_INDEX_MODES_ADDED)
+        );
+        final boolean hasVectordbDocumentMode = indexResponses.stream().anyMatch(r -> r.getIndexMode() == IndexMode.VECTORDB_DOCUMENT);
+        assumeTrue(
+            "vectordb_document index mode requires transport version " + IndexMode.VECTORDB_DOCUMENT_INDEX_MODE,
+            hasVectordbDocumentMode == false || version.supports(IndexMode.VECTORDB_DOCUMENT_INDEX_MODE)
+        );
+        final boolean hasVectordbColumnarMode = indexResponses.stream().anyMatch(r -> r.getIndexMode() == IndexMode.VECTORDB_COLUMNAR);
+        assumeTrue(
+            "vectordb_columnar index mode requires transport version " + IndexMode.VECTORDB_COLUMNAR_INDEX_MODE,
+            hasVectordbColumnarMode == false || version.supports(IndexMode.VECTORDB_COLUMNAR_INDEX_MODE)
+        );
+        final boolean hasInferenceField = indexResponses.stream()
+            .flatMap(r -> r.get().values().stream())
+            .anyMatch(IndexFieldCapabilities::isInference);
+        assumeTrue(
+            "inference field flag requires transport version " + FieldCapabilities.FIELD_CAPS_INFERENCE_FIELD,
+            hasInferenceField == false || version.supports(FieldCapabilities.FIELD_CAPS_INFERENCE_FIELD)
+        );
+        final boolean hasIndexAnalyzer = indexResponses.stream()
+            .flatMap(r -> r.get().values().stream())
+            .anyMatch(fc -> fc.indexAnalyzer() != null || fc.indexLocalAnalyzer());
+        assumeTrue(
+            "index analyzer requires transport version " + FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER,
+            hasIndexAnalyzer == false || version.supports(FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER)
+        );
+
         final FieldCapabilitiesResponse outResponse = copyInstance(inResponse, version);
         assertThat(
             outResponse.getFailures().stream().flatMap(f -> Arrays.stream(f.getIndices())).toList(),
@@ -177,10 +245,12 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
             outList.stream().sorted(Comparator.comparing(FieldCapabilitiesIndexResponse::getIndexName)).toList(),
             equalTo(inList.stream().sorted(Comparator.comparing(FieldCapabilitiesIndexResponse::getIndexName)).toList())
         );
+
         Map<String, List<FieldCapabilitiesIndexResponse>> groupedResponses = outList.stream()
             .filter(r -> r.canMatch() && r.getIndexMappingHash() != null)
             .collect(Collectors.groupingBy(FieldCapabilitiesIndexResponse::getIndexMappingHash));
         assertThat(groupedResponses.keySet(), equalTo(mappingHashToIndices.keySet()));
+
         // Asserts responses of indices with the same mapping hash must be shared.
         for (Map.Entry<String, List<FieldCapabilitiesIndexResponse>> e : groupedResponses.entrySet()) {
             List<String> indices = mappingHashToIndices.get(e.getKey());

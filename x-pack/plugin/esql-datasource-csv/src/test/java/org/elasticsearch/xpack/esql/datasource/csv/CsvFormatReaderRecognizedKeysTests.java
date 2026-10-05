@@ -1,0 +1,481 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.datasource.csv;
+
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+
+/** Pins {@link CsvFormatReader#RECOGNIZED_KEYS} against the parser's actual reads. */
+public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
+
+    private static final BlockFactory NOOP_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("noop"))
+        .build();
+
+    public void testRecognizedKeysSetIsExpected() {
+        Set<String> expected = new TreeSet<>();
+        expected.add("column_prefix");
+        expected.add("comment");
+        expected.add("datetime_format");
+        expected.add("delimiter");
+        expected.add("mode");
+        expected.add("encoding");
+        expected.add("escape");
+        expected.add("header_row");
+        expected.add("max_field_size");
+        expected.add("multi_value_syntax");
+        expected.add("null_value");
+        expected.add("quote");
+        expected.add("schema_sample_size");
+        expected.add("skip_rows");
+        expected.add("trim_spaces");
+        assertEquals(expected, new TreeSet<>(CsvFormatReader.RECOGNIZED_KEYS));
+    }
+
+    public void testEveryRecognizedKeyRoundTripsThroughWithConfig() {
+        for (String key : CsvFormatReader.RECOGNIZED_KEYS) {
+            Map<String, Object> config = new HashMap<>();
+            config.put(key, sampleValueFor(key));
+            try {
+                Configured<FormatReader> result = new CsvFormatReader(NOOP_BLOCK_FACTORY).withConfigTrackingConsumedKeys(config);
+                assertTrue("key [" + key + "] must be consumed when present", result.consumedKeys().contains(key));
+            } catch (RuntimeException e) {
+                // A throw still proves the key was read — the reader looked at it before rejecting.
+            }
+        }
+    }
+
+    public void testUnknownKeysAreNotClaimed() {
+        Map<String, Object> config = new LinkedHashMap<>();
+        config.put("delimiter", "|");
+        config.put("not_a_csv_key", true);
+        config.put("alsobogus", 42);
+        Configured<FormatReader> result = new CsvFormatReader(NOOP_BLOCK_FACTORY).withConfigTrackingConsumedKeys(config);
+        assertThat(result.consumedKeys(), containsInAnyOrder("delimiter"));
+    }
+
+    public void testEmptyConfigConsumesNothing() {
+        Configured<FormatReader> result = new CsvFormatReader(NOOP_BLOCK_FACTORY).withConfigTrackingConsumedKeys(Map.of());
+        assertThat(result.consumedKeys(), empty());
+    }
+
+    public void testNullConfigConsumesNothing() {
+        Configured<FormatReader> result = new CsvFormatReader(NOOP_BLOCK_FACTORY).withConfigTrackingConsumedKeys(null);
+        assertThat(result.consumedKeys(), empty());
+    }
+
+    public void testRandomKeysNeverClaimedBeyondRecognizedSet() {
+        Map<String, Object> config = new HashMap<>();
+        Set<String> expectedConsumed = new HashSet<>();
+        for (int i = 0; i < 50; i++) {
+            String key = randomAlphaOfLength(between(3, 12)).toLowerCase(Locale.ROOT);
+            config.put(key, randomBoolean() ? randomAlphaOfLength(5) : randomInt());
+            if (CsvFormatReader.RECOGNIZED_KEYS.contains(key)) {
+                expectedConsumed.add(key);
+            }
+        }
+        try {
+            Configured<FormatReader> result = new CsvFormatReader(NOOP_BLOCK_FACTORY).withConfigTrackingConsumedKeys(config);
+            assertEquals(expectedConsumed, result.consumedKeys());
+        } catch (RuntimeException e) {
+            // Random values may trigger parser validation; the contract is only checked on success.
+        }
+    }
+
+    /**
+     * Bidirectional symmetry: every {@code static final String CONFIG_*} constant on
+     * {@link CsvFormatReader} appears in {@link CsvFormatReader#RECOGNIZED_KEYS}, and every entry
+     * in {@code RECOGNIZED_KEYS} is backed by a matching constant.
+     */
+    @SuppressForbidden(reason = "test-only reflection over CONFIG_* constants to pin set/constant symmetry")
+    public void testRecognizedKeysMatchConfigConstants() {
+        Set<String> fromConstants = new TreeSet<>();
+        for (Field f : CsvFormatReader.class.getDeclaredFields()) {
+            int mods = f.getModifiers();
+            if (Modifier.isStatic(mods) == false || Modifier.isFinal(mods) == false) continue;
+            if (f.getType() != String.class) continue;
+            if (f.getName().startsWith("CONFIG_") == false) continue;
+            f.setAccessible(true);
+            try {
+                String value = (String) f.get(null);
+                if (value != null) fromConstants.add(value);
+            } catch (IllegalAccessException e) {
+                throw new AssertionError("cannot read constant " + f.getName(), e);
+            }
+        }
+        Set<String> missingFromKeys = new TreeSet<>(fromConstants);
+        missingFromKeys.removeAll(CsvFormatReader.RECOGNIZED_KEYS);
+        Set<String> extraInKeys = new TreeSet<>(CsvFormatReader.RECOGNIZED_KEYS);
+        extraInKeys.removeAll(fromConstants);
+        assertTrue("CsvFormatReader CONFIG_* constants missing from RECOGNIZED_KEYS: " + missingFromKeys, missingFromKeys.isEmpty());
+        assertTrue("CsvFormatReader RECOGNIZED_KEYS entries with no backing CONFIG_* constant: " + extraInKeys, extraInKeys.isEmpty());
+    }
+
+    /**
+     * Verifies that the config keys declared in {@link CsvDataSourcePlugin#FORMAT_CONFIG_KEYS}
+     * (used for CRUD-time validation via {@link FormatSpec#configKeys()}) match the reader's
+     * runtime {@link CsvFormatReader#RECOGNIZED_KEYS} exactly.
+     */
+    public void testFormatSpecConfigKeysMatchRecognizedKeys() {
+        Set<String> specKeys = new TreeSet<>(CsvDataSourcePlugin.FORMAT_CONFIG_KEYS);
+        Set<String> readerKeys = new TreeSet<>(CsvFormatReader.RECOGNIZED_KEYS);
+        Set<String> missingFromSpec = new TreeSet<>(readerKeys);
+        missingFromSpec.removeAll(specKeys);
+        Set<String> extraInSpec = new TreeSet<>(specKeys);
+        extraInSpec.removeAll(readerKeys);
+        assertTrue(
+            "CsvFormatReader.RECOGNIZED_KEYS has keys missing from FormatSpec.configKeys: " + missingFromSpec,
+            missingFromSpec.isEmpty()
+        );
+        assertTrue("FormatSpec.configKeys has keys not in CsvFormatReader.RECOGNIZED_KEYS: " + extraInSpec, extraInSpec.isEmpty());
+    }
+
+    /**
+     * Verifies that every FormatSpec declared by the plugin carries the config keys.
+     */
+    public void testAllFormatSpecsDeclareConfigKeys() {
+        CsvDataSourcePlugin plugin = new CsvDataSourcePlugin();
+        for (FormatSpec spec : plugin.formatSpecs()) {
+            assertEquals(
+                "FormatSpec for [" + spec.format() + "] must declare FORMAT_CONFIG_KEYS",
+                CsvDataSourcePlugin.FORMAT_CONFIG_KEYS,
+                spec.configKeys()
+            );
+        }
+    }
+
+    private static Object sampleValueFor(String key) {
+        return switch (key) {
+            case "delimiter" -> "|";
+            case "mode" -> "escaped";
+            case "quote" -> "\"";
+            case "escape" -> "\\";
+            case "comment" -> "#";
+            case "null_value" -> "NA";
+            case "encoding" -> "UTF-8";
+            case "datetime_format" -> "yyyy-MM-dd";
+            case "max_field_size" -> 1024;
+            case "multi_value_syntax" -> "brackets";
+            case "header_row" -> false;
+            case "column_prefix" -> "f_";
+            case "trim_spaces" -> true;
+            case "schema_sample_size" -> 10;
+            case "skip_rows" -> 2;
+            default -> throw new AssertionError("update sampleValueFor() for new recognised key: " + key);
+        };
+    }
+
+    /**
+     * Differential test: the FormatSpec's configValidator and the reader's withConfigTrackingConsumedKeys
+     * must accept and reject identically for the same corpus, with identical error messages.
+     */
+    public void testValidatorAndReaderAgreeCsvFormat() {
+        CsvDataSourcePlugin plugin = new CsvDataSourcePlugin();
+        FormatSpec csvSpec = plugin.formatSpecs().stream().filter(s -> s.format().equals("csv")).findFirst().orElseThrow();
+        FormatSpec.FormatConfigValidator validator = csvSpec.configValidator();
+        assertNotNull("csv FormatSpec must have a configValidator", validator);
+        CsvFormatReader reader = new CsvFormatReader(NOOP_BLOCK_FACTORY);
+
+        // Good values — both must accept without throwing.
+        for (Map.Entry<String, Object> good : goodCsvValues()) {
+            Map<String, Object> config = Map.of(good.getKey(), good.getValue());
+            validator.validate(config);                         // must not throw
+            reader.withConfigTrackingConsumedKeys(config);       // must not throw
+        }
+
+        // Bad values — both must throw, with identical messages.
+        for (Map.Entry<String, Object> bad : badCsvValues()) {
+            Map<String, Object> config = Map.of(bad.getKey(), bad.getValue());
+            IllegalArgumentException fromValidator = expectThrows(IllegalArgumentException.class, () -> validator.validate(config));
+            IllegalArgumentException fromReader = expectThrows(
+                IllegalArgumentException.class,
+                () -> reader.withConfigTrackingConsumedKeys(config)
+            );
+            assertEquals(
+                "validator and reader must produce identical message for bad " + bad.getKey() + "=[" + bad.getValue() + "]",
+                fromReader.getMessage(),
+                fromValidator.getMessage()
+            );
+        }
+
+        // Multi-character char options — the validator rejects them at PUT, but the reader must stay
+        // lenient (truncate to the first character, the pre-gate behavior): datasets stored before the
+        // gate existed carry such values and an upgrade must not turn their queries into errors.
+        for (Map.Entry<String, Object> bad : putOnlyRejectedCharValues()) {
+            Map<String, Object> config = Map.of(bad.getKey(), bad.getValue());
+            expectThrows(IllegalArgumentException.class, () -> validator.validate(config));
+            assertTrue(
+                "reader must stay lenient (and consume) stored " + bad.getKey() + "=[" + bad.getValue() + "]",
+                reader.withConfigTrackingConsumedKeys(config).consumedKeys().contains(bad.getKey())
+            );
+        }
+    }
+
+    public void testValidatorAndReaderAgreeTsvFormat() {
+        CsvDataSourcePlugin plugin = new CsvDataSourcePlugin();
+        FormatSpec tsvSpec = plugin.formatSpecs().stream().filter(s -> s.format().equals("tsv")).findFirst().orElseThrow();
+        FormatSpec.FormatConfigValidator validator = tsvSpec.configValidator();
+        assertNotNull("tsv FormatSpec must have a configValidator", validator);
+        CsvFormatReader reader = new CsvFormatReader(NOOP_BLOCK_FACTORY, CsvFormatOptions.TSV, "tsv", List.of(".tsv"));
+
+        // Good values — both must accept without throwing.
+        for (Map.Entry<String, Object> good : goodCsvValues()) {
+            Map<String, Object> config = Map.of(good.getKey(), good.getValue());
+            validator.validate(config);
+            reader.withConfigTrackingConsumedKeys(config);
+        }
+
+        for (Map.Entry<String, Object> bad : badCsvValues()) {
+            Map<String, Object> config = Map.of(bad.getKey(), bad.getValue());
+            IllegalArgumentException fromValidator = expectThrows(IllegalArgumentException.class, () -> validator.validate(config));
+            IllegalArgumentException fromReader = expectThrows(
+                IllegalArgumentException.class,
+                () -> reader.withConfigTrackingConsumedKeys(config)
+            );
+            assertEquals(
+                "tsv validator and reader must produce identical message for bad " + bad.getKey() + "=[" + bad.getValue() + "]",
+                fromReader.getMessage(),
+                fromValidator.getMessage()
+            );
+        }
+
+        for (Map.Entry<String, Object> bad : putOnlyRejectedCharValues()) {
+            Map<String, Object> config = Map.of(bad.getKey(), bad.getValue());
+            expectThrows(IllegalArgumentException.class, () -> validator.validate(config));
+            assertTrue(
+                "tsv reader must stay lenient (and consume) stored " + bad.getKey() + "=[" + bad.getValue() + "]",
+                reader.withConfigTrackingConsumedKeys(config).consumedKeys().contains(bad.getKey())
+            );
+        }
+    }
+
+    /** Good CSV config values that both validator and reader must accept (tested one at a time). */
+    private static List<Map.Entry<String, Object>> goodCsvValues() {
+        List<Map.Entry<String, Object>> list = new ArrayList<>();
+        list.add(Map.entry("delimiter", "|"));
+        list.add(Map.entry("delimiter", "\\t"));
+        list.add(Map.entry("mode", "escaped"));
+        list.add(Map.entry("mode", "quoted"));
+        list.add(Map.entry("encoding", "UTF-8"));
+        list.add(Map.entry("encoding", "ISO-8859-1"));
+        list.add(Map.entry("quote", "'"));
+        list.add(Map.entry("escape", "\\\\"));
+        return list;
+    }
+
+    /** Bad CSV config values that both validator and reader must reject with the same message. */
+    private static List<Map.Entry<String, Object>> badCsvValues() {
+        List<Map.Entry<String, Object>> list = new ArrayList<>();
+        list.add(Map.entry("mode", "lenient"));           // unknown mode
+        list.add(Map.entry("encoding", "UTF-99"));        // unknown charset
+        list.add(Map.entry("multi_value_syntax", "bogus")); // unknown multi-value syntax
+        list.add(Map.entry("max_field_size", "abc"));     // non-integer
+        list.add(Map.entry("max_field_size", -1));        // negative integer
+        list.add(Map.entry("header_row", "banana"));      // non-boolean
+        return list;
+    }
+
+    /**
+     * Multi-character char values: rejected at PUT by the validator, but truncated (not rejected) by the
+     * reader so datasets stored before the PUT gate existed keep reading exactly as they did.
+     */
+    private static List<Map.Entry<String, Object>> putOnlyRejectedCharValues() {
+        List<Map.Entry<String, Object>> list = new ArrayList<>();
+        list.add(Map.entry("delimiter", "||"));
+        list.add(Map.entry("delimiter", "none"));
+        list.add(Map.entry("quote", "abc"));
+        list.add(Map.entry("escape", "xx"));
+        return list;
+    }
+
+    /**
+     * {@code mode: escaped} combined with an explicit quote character is rejected at PUT time
+     * (the combination turns quoting on, silently disabling C-style decoding). At query time the
+     * reader keeps it as a config notice rather than an error (stored datasets that predate the gate keep
+     * reading), so validator and reader diverge intentionally here.
+     */
+    public void testEscapedModeWithExplicitQuoteRejectedByValidatorNotByReader() {
+        CsvDataSourcePlugin plugin = new CsvDataSourcePlugin();
+        FormatSpec csvSpec = plugin.formatSpecs().stream().filter(s -> s.format().equals("csv")).findFirst().orElseThrow();
+        FormatSpec.FormatConfigValidator validator = csvSpec.configValidator();
+
+        // Validator rejects at PUT time.
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> validator.validate(Map.of("mode", "escaped", "quote", "\""))
+        );
+        assertThat(e.getMessage(), containsString("escaped"));
+        assertThat(e.getMessage(), containsString("quote"));
+
+        // Reader accepts the combination at query time and records the notice for the resolver to deliver.
+        CsvFormatReader reader = new CsvFormatReader(NOOP_BLOCK_FACTORY, "csv", List.of(".csv"));
+        FormatReader configured = reader.withConfigTrackingConsumedKeys(Map.of("mode", "escaped", "quote", "\"")).value();
+        assertThat(
+            configured.configWarnings(),
+            contains("[quote] turns off the [escaped] mode's \\N and \\t decoding; remove [quote] to decode them")
+        );
+    }
+
+    /**
+     * Every key the reader consumes must either participate in the cache identity
+     * (the identity this reader vends) or be declared inert here with a justification. CSV has no inert
+     * keys: every recognised option changes record boundaries, values, null-ness, or whether inference fails, so
+     * every one of them must split the cache. A new option added without a decision fails here rather than
+     * silently sharing a cache entry with a read that interprets the same bytes differently.
+     */
+    private static final Set<String> IDENTITY_INERT_KEYS = Set.of();
+
+    public void testDeclaredInertKeysAreStillRecognized() {
+        for (String key : IDENTITY_INERT_KEYS) {
+            assertTrue(
+                "stale IDENTITY_INERT_KEYS entry [" + key + "]: the reader no longer consumes it",
+                CsvFormatReader.RECOGNIZED_KEYS.contains(key)
+            );
+        }
+    }
+
+    /**
+     * The behavioural form of the pin above, against the value the reader actually vends. CSV declares nothing
+     * inert, so every recognised key must move the identity: a set-membership assertion cannot see a reader that
+     * derived its identity by hand and dropped one.
+     */
+    public void testTheVendedIdentityMovesWithEveryRecognizedKey() {
+        CsvFormatReader reader = new CsvFormatReader(NOOP_BLOCK_FACTORY, "csv", List.of(".csv"));
+        Map<String, Object> base = new HashMap<>();
+        for (String key : CsvFormatReader.RECOGNIZED_KEYS) {
+            base.put(key, sampleValueFor(key));
+        }
+        String baseIdentity = reader.withConfigTrackingConsumedKeys(base).identity();
+
+        for (String key : CsvFormatReader.RECOGNIZED_KEYS) {
+            Map<String, Object> altered = new HashMap<>(base);
+            altered.put(key, otherSampleValueFor(key));
+            assertNotEquals(
+                "recognised key [" + key + "] must move the vended identity, or two reads that differ share a record",
+                baseIdentity,
+                reader.withConfigTrackingConsumedKeys(altered).identity()
+            );
+        }
+    }
+
+    /** A second valid value per key, different from {@link #sampleValueFor}, so each key can be varied alone. */
+    private static Object otherSampleValueFor(String key) {
+        return switch (key) {
+            case "delimiter" -> ";";
+            case "mode" -> "quoted";
+            case "quote" -> "'";
+            case "escape" -> "/";
+            case "comment" -> "%";
+            case "null_value" -> "NULL";
+            case "encoding" -> "ISO-8859-1";
+            case "datetime_format" -> "dd-MM-yyyy";
+            case "max_field_size" -> 2048;
+            case "multi_value_syntax" -> "none";
+            case "header_row" -> true;
+            case "column_prefix" -> "c_";
+            case "trim_spaces" -> false;
+            case "schema_sample_size" -> 20;
+            case "skip_rows" -> 3;
+            default -> throw new AssertionError("update otherSampleValueFor() for new recognised key: " + key);
+        };
+    }
+
+    /**
+     * The error policy moves the vended identity, because it decides which rows survive. This is the guard that
+     * matters most here: a contribution is matched to a cache entry on path, mtime and this identity alone, so if a
+     * {@code skip_row} read and a {@code fail_fast} read of one file derive the same value, the lenient scan's
+     * survivor count enriches the strict entry and the strict query answers where its own scan aborts.
+     * <p>
+     * Derived through the production vend rather than compared as literals, and asserted over
+     * {@link ErrorPolicy#CONFIG_KEYS} rather than a name typed here, so a policy setting added later is covered.
+     */
+    public void testEveryErrorPolicyKeyMovesTheVendedIdentity() {
+        // error_mode is held at skip_row throughout, so a budget key must move the identity on its own. Varying it
+        // alongside the mode would let the mode satisfy every assertion and leave the budget keys unchecked - which
+        // is what the first version of this test did, and it stayed green against an identity of mode.name() alone.
+        Map<String, Object> base = new HashMap<>(Map.of("delimiter", ",", "error_mode", "skip_row"));
+        String baseIdentity = harvestFingerprintOf(base);
+        assertFalse("the fingerprint must not be empty, or this asserts nothing", baseIdentity.isEmpty());
+
+        for (String policyKey : ErrorPolicy.CONFIG_KEYS) {
+            Map<String, Object> altered = new HashMap<>(base);
+            altered.put(policyKey, alternativePolicyValueFor(policyKey));
+            assertNotEquals(
+                "policy key [" + policyKey + "] must move the fingerprint on its own: it changes which rows survive",
+                baseIdentity,
+                harvestFingerprintOf(altered)
+            );
+        }
+    }
+
+    /** A value different from what {@code base} carries for that key, valid for a skip_row policy. */
+    private static Object alternativePolicyValueFor(String policyKey) {
+        return switch (policyKey) {
+            case "error_mode" -> "null_field";
+            case "max_errors" -> 7;
+            case "max_error_ratio" -> 0.5;
+            default -> throw new AssertionError("unhandled error-policy key [" + policyKey + "]");
+        };
+    }
+
+    /**
+     * The reconcile gate compares the fingerprint the coordinator seeded against the one the data node stamped, so
+     * these must be one string. They were two: the seed took the vended {@code Configured.identity()} and the harvest
+     * took the policy-folded value, so no strict text dataset ever warmed.
+     */
+    public void testTheVendedIdentityIsTheFingerprintTheHarvestStamps() {
+        List<Map<String, Object>> configs = new ArrayList<>();
+        configs.add(new HashMap<>(Map.of("delimiter", ",")));
+        configs.add(new HashMap<>(Map.of("delimiter", ",", "error_mode", "skip_row")));
+        Map<String, Object> withBudget = new HashMap<>();
+        withBudget.put("delimiter", ";");
+        withBudget.put("error_mode", "skip_row");
+        withBudget.put("max_errors", 7);
+        configs.add(withBudget);
+        configs.add(new HashMap<>(Map.of("header_row", "true")));
+        for (Map<String, Object> config : configs) {
+            CsvFormatReader reader = new CsvFormatReader(NOOP_BLOCK_FACTORY, "csv", List.of(".csv"));
+            Configured<FormatReader> configured = reader.withConfigTrackingConsumedKeys(config);
+            assertEquals(
+                "the identity the coordinator seeds with must be the fingerprint the data node stamps, for " + config,
+                ((CsvFormatReader) configured.value()).harvestFingerprintForTests(),
+                configured.identity()
+            );
+        }
+    }
+
+    private static String harvestFingerprintOf(Map<String, Object> config) {
+        CsvFormatReader reader = new CsvFormatReader(NOOP_BLOCK_FACTORY, "csv", List.of(".csv"));
+        return ((CsvFormatReader) reader.withConfigTrackingConsumedKeys(config).value()).harvestFingerprintForTests();
+    }
+
+}

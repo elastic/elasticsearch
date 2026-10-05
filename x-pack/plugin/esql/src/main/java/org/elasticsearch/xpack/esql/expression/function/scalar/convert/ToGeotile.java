@@ -51,6 +51,7 @@ public class ToGeotile extends AbstractConvertFunction {
         returnType = "geotile",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        briefSummary = "Converts a value to a geotile.",
         description = """
             Converts an input value to a `geotile` value.
             A string will only be successfully converted if it respects the

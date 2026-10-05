@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
@@ -91,7 +90,7 @@ public class TransportPutWatchActionTests extends ESTestCase {
         action = new TransportPutWatchAction(
             transportService,
             threadPool,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             new ClockHolder(new ClockMock()),
             TestUtils.newTestLicenseState(),
             parser,

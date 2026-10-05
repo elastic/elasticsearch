@@ -7,10 +7,21 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 
 import java.io.IOException;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQueryProfile> {
 
@@ -31,7 +42,20 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
             randomTimeSpan(),
             randomTimeSpan(),
             randomTimeSpan(),
-            randomIntBetween(0, 100)
+            randomTimeSpan(),
+            randomIntBetween(0, 100),
+            randomIntBetween(0, 100),
+            randomIntBetween(0, 1000),
+            randomNonNegativeLong(),
+            randomFrom(UnmappedResolution.values()),
+            randomIntBetween(0, 100),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomIntBetween(0, 1000)
         );
     }
 
@@ -41,36 +65,208 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
         TimeSpan planning = instance.planning().timeSpan();
         TimeSpan parsing = instance.parsing().timeSpan();
         TimeSpan viewResolution = instance.viewResolution().timeSpan();
+        TimeSpan datasetResolution = instance.datasetResolution().timeSpan();
         TimeSpan preAnalysis = instance.preAnalysis().timeSpan();
         TimeSpan indicesResolutionMarker = instance.indicesResolutionMarker().timeSpan();
         TimeSpan enrichResolutionMarker = instance.enrichResolutionMarker().timeSpan();
         TimeSpan inferenceResolutionMarker = instance.inferenceResolutionMarker().timeSpan();
         TimeSpan analysis = instance.analysis().timeSpan();
         int fieldCapsCalls = instance.fieldCapsCalls();
-        switch (randomIntBetween(0, 9)) {
+        int filesScanned = instance.filesScanned();
+        int splitsScanned = instance.splitsScanned();
+        long bytesScanned = instance.bytesScanned();
+        UnmappedResolution unmappedResolution = instance.unmappedResolution();
+        int externalWarmAggregates = instance.externalWarmAggregates();
+        long splitDiscovery = instance.splitDiscoveryNanos();
+        long splitDiscoveryCpu = instance.splitDiscoveryCpuNanos();
+        long externalPlanningBytes = instance.externalPlanningBytesRead();
+        long externalPlanningRequests = instance.externalPlanningRequests();
+        long externalResolutionBytes = instance.externalResolutionBytesRead();
+        long externalResolutionRequests = instance.externalResolutionRequests();
+        int splitDiscoveryProbes = instance.splitDiscoveryProbes();
+        switch (randomIntBetween(0, 22)) {
             case 0 -> query = randomValueOtherThan(query, EsqlQueryProfileTests::randomTimeSpan);
             case 1 -> planning = randomValueOtherThan(planning, EsqlQueryProfileTests::randomTimeSpan);
             case 2 -> parsing = randomValueOtherThan(parsing, EsqlQueryProfileTests::randomTimeSpan);
             case 3 -> viewResolution = randomValueOtherThan(viewResolution, EsqlQueryProfileTests::randomTimeSpan);
-            case 4 -> preAnalysis = randomValueOtherThan(preAnalysis, EsqlQueryProfileTests::randomTimeSpan);
-            case 5 -> indicesResolutionMarker = randomValueOtherThan(indicesResolutionMarker, EsqlQueryProfileTests::randomTimeSpan);
-            case 6 -> enrichResolutionMarker = randomValueOtherThan(enrichResolutionMarker, EsqlQueryProfileTests::randomTimeSpan);
-            case 7 -> inferenceResolutionMarker = randomValueOtherThan(inferenceResolutionMarker, EsqlQueryProfileTests::randomTimeSpan);
-            case 8 -> analysis = randomValueOtherThan(analysis, EsqlQueryProfileTests::randomTimeSpan);
-            case 9 -> fieldCapsCalls = randomValueOtherThan(fieldCapsCalls, () -> randomIntBetween(0, 100));
+            case 4 -> datasetResolution = randomValueOtherThan(datasetResolution, EsqlQueryProfileTests::randomTimeSpan);
+            case 5 -> preAnalysis = randomValueOtherThan(preAnalysis, EsqlQueryProfileTests::randomTimeSpan);
+            case 6 -> indicesResolutionMarker = randomValueOtherThan(indicesResolutionMarker, EsqlQueryProfileTests::randomTimeSpan);
+            case 7 -> enrichResolutionMarker = randomValueOtherThan(enrichResolutionMarker, EsqlQueryProfileTests::randomTimeSpan);
+            case 8 -> inferenceResolutionMarker = randomValueOtherThan(inferenceResolutionMarker, EsqlQueryProfileTests::randomTimeSpan);
+            case 9 -> analysis = randomValueOtherThan(analysis, EsqlQueryProfileTests::randomTimeSpan);
+            case 10 -> fieldCapsCalls = randomValueOtherThan(fieldCapsCalls, () -> randomIntBetween(0, 100));
+            case 11 -> filesScanned = randomValueOtherThan(filesScanned, () -> randomIntBetween(0, 100));
+            case 12 -> splitsScanned = randomValueOtherThan(splitsScanned, () -> randomIntBetween(0, 1000));
+            case 13 -> bytesScanned = randomValueOtherThan(bytesScanned, ESTestCase::randomNonNegativeLong);
+            case 14 -> unmappedResolution = randomValueOtherThan(unmappedResolution, () -> randomFrom(UnmappedResolution.values()));
+            case 15 -> externalWarmAggregates = randomValueOtherThan(externalWarmAggregates, () -> randomIntBetween(0, 100));
+            case 16 -> splitDiscovery = randomValueOtherThan(splitDiscovery, ESTestCase::randomNonNegativeLong);
+            case 17 -> splitDiscoveryCpu = randomValueOtherThan(splitDiscoveryCpu, ESTestCase::randomNonNegativeLong);
+            case 18 -> externalPlanningBytes = randomValueOtherThan(externalPlanningBytes, ESTestCase::randomNonNegativeLong);
+            case 19 -> externalPlanningRequests = randomValueOtherThan(externalPlanningRequests, ESTestCase::randomNonNegativeLong);
+            case 20 -> externalResolutionBytes = randomValueOtherThan(externalResolutionBytes, ESTestCase::randomNonNegativeLong);
+            case 21 -> externalResolutionRequests = randomValueOtherThan(externalResolutionRequests, ESTestCase::randomNonNegativeLong);
+            case 22 -> splitDiscoveryProbes = randomValueOtherThan(splitDiscoveryProbes, () -> randomIntBetween(0, 1000));
         }
         return new EsqlQueryProfile(
             query,
             planning,
             parsing,
             viewResolution,
+            datasetResolution,
             preAnalysis,
             indicesResolutionMarker,
             enrichResolutionMarker,
             inferenceResolutionMarker,
             analysis,
-            fieldCapsCalls
+            fieldCapsCalls,
+            filesScanned,
+            splitsScanned,
+            bytesScanned,
+            unmappedResolution,
+            externalWarmAggregates,
+            splitDiscovery,
+            splitDiscoveryCpu,
+            externalPlanningBytes,
+            externalPlanningRequests,
+            externalResolutionBytes,
+            externalResolutionRequests,
+            splitDiscoveryProbes
         );
+    }
+
+    public void testAddExternalScanStatsIsAdditive() {
+        EsqlQueryProfile profile = new EsqlQueryProfile();
+        profile.addExternalScanStats(2, 5, 1000L);
+        profile.addExternalScanStats(3, 7, 500L);
+        assertEquals(5, profile.filesScanned());
+        assertEquals(12, profile.splitsScanned());
+        assertEquals(1500L, profile.bytesScanned());
+    }
+
+    public void testScanStatsOnlyEmittedWhenSplitsScanned() throws IOException {
+        EsqlQueryProfile withoutScan = new EsqlQueryProfile();
+        assertThat(toJson(withoutScan), not(containsString("splits_scanned")));
+
+        EsqlQueryProfile withScan = new EsqlQueryProfile();
+        withScan.addExternalScanStats(2, 4, 2048L);
+        String json = toJson(withScan);
+        assertThat(json, containsString("\"files_scanned\":2"));
+        assertThat(json, containsString("\"splits_scanned\":4"));
+        assertThat(json, containsString("\"bytes_scanned\":2048"));
+    }
+
+    public void testFileAndByteScanStatsOmittedWhenSourceCannotReportThem() throws IOException {
+        // Connector sources like Arrow Flight report splits but no file or byte accounting.
+        EsqlQueryProfile connectorScan = new EsqlQueryProfile();
+        connectorScan.addExternalScanStats(0, 4, 0L);
+        String json = toJson(connectorScan);
+        assertThat(json, containsString("\"splits_scanned\":4"));
+        assertThat(json, not(containsString("files_scanned")));
+        assertThat(json, not(containsString("bytes_scanned")));
+    }
+
+    public void testUnmappedFieldsLoadEmittedWhenEnabled() throws IOException {
+        EsqlQueryProfile profile = new EsqlQueryProfile();
+        profile.setUnmappedResolution(UnmappedResolution.LOAD);
+        assertThat(toJson(profile), containsString("\"unmapped_fields\":\"load\""));
+    }
+
+    public void testUnmappedFieldsNullifyEmitted() throws IOException {
+        EsqlQueryProfile profile = new EsqlQueryProfile();
+        profile.setUnmappedResolution(UnmappedResolution.NULLIFY);
+        assertThat(toJson(profile), containsString("\"unmapped_fields\":\"nullify\""));
+    }
+
+    public void testUnmappedFieldsDefaultEmittedByDefault() throws IOException {
+        EsqlQueryProfile profile = new EsqlQueryProfile();
+        assertThat(toJson(profile), containsString("\"unmapped_fields\":\"default\""));
+    }
+
+    public void testWarmAggregatesIsAdditive() {
+        EsqlQueryProfile profile = new EsqlQueryProfile();
+        profile.addExternalWarmAggregates(2);
+        profile.addExternalWarmAggregates(3);
+        assertEquals(5, profile.externalWarmAggregates());
+    }
+
+    public void testExternalPlanningIoOmittedWhenZero() throws IOException {
+        EsqlQueryProfile empty = new EsqlQueryProfile();
+        assertThat(toJson(empty), not(containsString("planning_bytes_read")));
+        assertThat(toJson(empty), not(containsString("planning_requests")));
+        assertThat(toJson(empty), not(containsString("external_resolution_bytes_read")));
+        assertThat(toJson(empty), not(containsString("external_resolution_requests")));
+
+        EsqlQueryProfile withIo = new EsqlQueryProfile();
+        withIo.addExternalPlanningIo(128L, 3L);
+        String json = toJson(withIo);
+        assertThat(json, containsString("\"planning_bytes_read\":128"));
+        assertThat(json, containsString("\"planning_requests\":3"));
+    }
+
+    public void testResolutionIoFoldThenPlanningFold() {
+        ExternalPlanningReservation reservation = new ExternalPlanningReservation(new NoopCircuitBreaker("test"));
+        try (var ignored = ExternalPlanningIo.activate(reservation.planningIo())) {
+            ExternalPlanningIo.addMetadataGet(93);
+            ExternalPlanningIo.addStreamBytes(7);
+        }
+        EsqlQueryProfile profile = new EsqlQueryProfile();
+        profile.foldResolutionIo(reservation);
+        assertEquals(100L, profile.externalResolutionBytesRead());
+        assertEquals(1L, profile.externalResolutionRequests());
+        assertEquals(100L, profile.externalPlanningBytesRead());
+        assertEquals(1L, profile.externalPlanningRequests());
+
+        try (var ignored = ExternalPlanningIo.activate(reservation.planningIo())) {
+            ExternalPlanningIo.addMetadataGet(16);
+        }
+        profile.foldPlanningIo(reservation);
+        assertEquals("resolution fold must stay at the first snapshot", 100L, profile.externalResolutionBytesRead());
+        assertEquals(116L, profile.externalPlanningBytesRead());
+        assertEquals(2L, profile.externalPlanningRequests());
+    }
+
+    public void testResolutionIoOmittedWhenZero() throws IOException {
+        EsqlQueryProfile profile = new EsqlQueryProfile();
+        profile.addExternalResolutionIo(64L, 2L);
+        String json = toJson(profile);
+        assertThat(json, containsString("\"external_resolution_bytes_read\":64"));
+        assertThat(json, containsString("\"external_resolution_requests\":2"));
+    }
+
+    public void testWarmAggregatesOnlyEmittedWhenServedWarm() throws IOException {
+        EsqlQueryProfile notWarm = new EsqlQueryProfile();
+        assertThat(toJson(notWarm), not(containsString("external_warm_aggregates")));
+
+        EsqlQueryProfile warm = new EsqlQueryProfile();
+        warm.addExternalWarmAggregates(2);
+        assertThat(toJson(warm), containsString("\"external_warm_aggregates\":2"));
+    }
+
+    public void testSplitDiscoveryProbesIsAdditive() {
+        EsqlQueryProfile profile = new EsqlQueryProfile();
+        profile.addSplitDiscoveryProbes(4);
+        profile.addSplitDiscoveryProbes(12);
+        assertEquals(16, profile.splitDiscoveryProbes());
+    }
+
+    public void testSplitDiscoveryProbesOnlyEmittedWhenIssued() throws IOException {
+        EsqlQueryProfile none = new EsqlQueryProfile();
+        assertThat(toJson(none), not(containsString("split_discovery_probes")));
+
+        EsqlQueryProfile withProbes = new EsqlQueryProfile();
+        withProbes.addSplitDiscoveryProbes(16);
+        assertThat(toJson(withProbes), containsString("\"split_discovery_probes\":16"));
+    }
+
+    private static String toJson(EsqlQueryProfile profile) throws IOException {
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.startObject();
+            profile.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
+            return Strings.toString(builder);
+        }
     }
 
     private static TimeSpan randomTimeSpan() {

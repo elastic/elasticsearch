@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 153615
+summary: Push down TopN into count aggregation
+type: enhancement

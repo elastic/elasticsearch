@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `V_DOT_PRODUCT` function [esql-v_dot_product]
 
-:::{include} ../../_snippets/functions/layout/v_dot_product.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/v_dot_product.md
 :::

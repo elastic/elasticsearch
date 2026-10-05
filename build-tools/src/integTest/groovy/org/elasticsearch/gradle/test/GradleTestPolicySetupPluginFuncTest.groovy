@@ -11,8 +11,17 @@ package org.elasticsearch.gradle.test
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
+import spock.lang.TempDir
 
 class GradleTestPolicySetupPluginFuncTest extends AbstractGradleFuncTest {
+
+    @TempDir
+    File gradleUserHome
+
+    @Override
+    protected File customGradleUserHome() {
+        return gradleUserHome
+    }
 
     def "configures test tasks"() {
         given:

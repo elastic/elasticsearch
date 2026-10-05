@@ -150,7 +150,9 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
     @Override
     public Collection<?> createComponents(PluginServices services) {
         this.scriptServiceHolder.set(services.scriptService());
-        this.synonymsManagementServiceHolder.set(new SynonymsManagementAPIService(services.client(), services.clusterService()));
+        this.synonymsManagementServiceHolder.set(
+            new SynonymsManagementAPIService(services.client(), services.clusterService(), services.featureService())
+        );
         this.circuitBreakerServiceHolder.set(services.indicesService().getCircuitBreakerService());
         return Collections.emptyList();
     }
@@ -255,6 +257,12 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                     return super.create(tokenStream);
                 }
 
+                @Override
+                public Object sharingKey() {
+                    // The 8.0+ rejection above runs in create(), which a cache hit skips, so a legacy
+                    // index sharing this analyzer would let a new index accept the deprecated name.
+                    return this;
+                }
             };
         });
         filters.put("elision", requiresAnalysisSettings(ElisionTokenFilterFactory::new));
@@ -296,6 +304,12 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                     return super.create(tokenStream);
                 }
 
+                @Override
+                public Object sharingKey() {
+                    // The 8.0+ rejection above runs in create(), which a cache hit skips, so a legacy
+                    // index sharing this analyzer would let a new index accept the deprecated name.
+                    return this;
+                }
             };
         });
         filters.put("pattern_capture", requiresAnalysisSettings(PatternCaptureGroupTokenFilterFactory::new));

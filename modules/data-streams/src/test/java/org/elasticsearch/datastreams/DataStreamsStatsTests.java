@@ -62,9 +62,8 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
     private final Set<String> createdDataStreams = new HashSet<>();
     private final Set<String> createdStandAloneIndices = new HashSet<>();
 
-    @Override
     @After
-    public void tearDown() throws Exception {
+    public void cleanupDataStreams() throws Exception {
         if (createdDataStreams.isEmpty() == false) {
             for (String createdDataStream : createdDataStreams) {
                 deleteDataStream(createdDataStream);
@@ -77,7 +76,6 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
             }
             createdStandAloneIndices.clear();
         }
-        super.tearDown();
     }
 
     public void testStatsNoDataStream() throws Exception {

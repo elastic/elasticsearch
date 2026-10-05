@@ -37,7 +37,7 @@
       "include_implicit": {
         "type": "boolean",
         "default": false,
-        "description": "If true, include privileges that are implicitly granted by registered ImplicitPrivilegesProviders alongside the explicitly configured privileges."
+        "description": "If true, include privileges that are implicitly granted by registered ImplicitPrivilegesProviders alongside the explicitly configured privileges. These implicit privileges are computed for each role individually; for a user holding multiple roles, the privileges effectively granted at authorization time may therefore differ from the per-role view returned here."
       }
     }
   }

@@ -347,22 +347,22 @@ public class AllLastFloatByLongAggregator {
             try (var valuesBuilder = blockFactory.newFloatBlockBuilder(groups.getPositionCount())) {
                 for (int p = 0; p < groups.getPositionCount(); p++) {
                     int group = groups.getInt(p);
-                    if (group <= maxGroupId && hasValue(group) && nullValue(group) == false) {
-                        FloatArray tail = getTail(group);
-                        int tailCount = tail == null ? 0 : (int) tail.size();
-                        if (tailCount == 0) {
-                            valuesBuilder.appendFloat(firstValues.get(group));
-                        } else {
-                            valuesBuilder.beginPositionEntry();
-                            valuesBuilder.appendFloat(firstValues.get(group));
-                            for (int i = 0; i < tailCount; ++i) {
-                                valuesBuilder.appendFloat(tail.get(i));
-                            }
-                            valuesBuilder.endPositionEntry();
-                        }
-                    } else {
+                    if (group > maxGroupId || hasValue(group) == false || nullValue(group)) {
                         valuesBuilder.appendNull();
+                        continue;
                     }
+                    FloatArray tail = getTail(group);
+                    int tailCount = tail == null ? 0 : (int) tail.size();
+                    if (tailCount == 0) {
+                        valuesBuilder.appendFloat(firstValues.get(group));
+                        continue;
+                    }
+                    valuesBuilder.beginPositionEntry();
+                    valuesBuilder.appendFloat(firstValues.get(group));
+                    for (int i = 0; i < tailCount; ++i) {
+                        valuesBuilder.appendFloat(tail.get(i));
+                    }
+                    valuesBuilder.endPositionEntry();
                 }
                 return valuesBuilder.build();
             }

@@ -5,5 +5,7 @@ version: 3
 component-templates:
   - metrics-prometheus@mappings
   - metrics-prometheus@settings
+  - exemplars-prometheus@mappings
 index-templates:
   - metrics-prometheus@template
+  - exemplars-prometheus@template

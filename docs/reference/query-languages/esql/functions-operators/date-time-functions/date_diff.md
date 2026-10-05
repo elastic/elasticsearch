@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `DATE_DIFF` function [esql-date_diff]
 
-:::{include} ../../_snippets/functions/layout/date_diff.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/date_diff.md
 :::

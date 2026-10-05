@@ -95,7 +95,7 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
     }
 
     @Override
-    protected NodeInfo<AggregateExec> info() {
+    protected NodeInfo<? extends AggregateExec> info() {
         return NodeInfo.create(this, AggregateExec::new, child(), groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
     }
 

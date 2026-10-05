@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.util.concurrent.ExecutionException;
 
@@ -39,20 +40,40 @@ public class OrcStorageObjectAdapter extends FileSystem {
 
     private final StorageObject storageObject;
     private final Path path;
+    private final FooterByteCache.Key cacheKey;
+    private final FooterByteCache footerBytes;
 
     /**
      * Creates an adapter for the given StorageObject.
      *
      * @param storageObject the storage object to adapt
+     * @param footerBytes the footer byte cache to consult and seed on tail reads. The owning
+     *                    format reader passes its own instance so all adapters it creates share
+     *                    one cache
      */
     @SuppressWarnings("this-escape")
-    public OrcStorageObjectAdapter(StorageObject storageObject) {
+    public OrcStorageObjectAdapter(StorageObject storageObject, FooterByteCache footerBytes) {
         if (storageObject == null) {
             throw new QlIllegalArgumentException("storageObject cannot be null");
         }
         this.storageObject = storageObject;
+        this.footerBytes = footerBytes;
         this.path = new Path(storageObject.path().toString());
+        try {
+            this.cacheKey = FooterByteCache.Key.keyFor(storageObject);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to read storage object length for [" + storageObject.path().objectName() + "]", e);
+        }
         setConf(new Configuration(false));
+    }
+
+    /**
+     * Returns the cache key identifying this file by {@code (path, length)}. Shared with
+     * {@link FooterByteCache} and the parsed-footer cache held by {@link OrcFormatReader} so that
+     * callers reusing this adapter can hit those caches without recomputing the key.
+     */
+    FooterByteCache.Key cacheKey() {
+        return cacheKey;
     }
 
     @Override
@@ -62,16 +83,12 @@ public class OrcStorageObjectAdapter extends FileSystem {
 
     @Override
     public FSDataInputStream open(Path f, int bufferSize) throws IOException {
-        return new FSDataInputStream(new StorageObjectInputStream(storageObject));
+        return new FSDataInputStream(new StorageObjectInputStream(storageObject, footerBytes));
     }
 
     @Override
     public FSDataInputStream open(Path f) throws IOException {
         return open(f, 4096);
-    }
-
-    static void clearCacheForTests() {
-        FooterByteCache.getInstance().invalidateAll();
     }
 
     @Override
@@ -138,15 +155,17 @@ public class OrcStorageObjectAdapter extends FileSystem {
     static class StorageObjectInputStream extends InputStream implements Seekable, PositionedReadable {
         private final StorageObject storageObject;
         private final FooterByteCache.Key cacheKey;
+        private final FooterByteCache tailCache;
         private InputStream currentStream;
         private long position;
         private long streamStartPosition;
         private final long length;
 
-        StorageObjectInputStream(StorageObject storageObject) throws IOException {
+        StorageObjectInputStream(StorageObject storageObject, FooterByteCache tailCache) throws IOException {
             this.storageObject = storageObject;
+            this.tailCache = tailCache;
             this.length = storageObject.length();
-            this.cacheKey = FooterByteCache.Key.keyFor(storageObject, this.length);
+            this.cacheKey = FooterByteCache.Key.keyFor(storageObject);
             this.position = 0;
             this.streamStartPosition = 0;
             this.currentStream = storageObject.newStream();
@@ -210,14 +229,13 @@ public class OrcStorageObjectAdapter extends FileSystem {
             if (bytesRead > 0 && pos + bytesRead == length) {
                 byte[] tailBytes = new byte[bytesRead];
                 System.arraycopy(buffer, offset, tailBytes, 0, bytesRead);
-                FooterByteCache.getInstance().put(cacheKey, tailBytes);
+                tailCache.put(cacheKey, tailBytes);
             }
             return bytesRead;
         }
 
         @Override
         public void readFully(long pos, byte[] buffer, int offset, int len) throws IOException {
-            FooterByteCache tailCache = FooterByteCache.getInstance();
             boolean isTailRead = pos + len == length;
 
             if (isTailRead && len > 0 && len <= tailCache.maxEntryBytes()) {
@@ -260,7 +278,7 @@ public class OrcStorageObjectAdapter extends FileSystem {
         }
 
         private int readFromTailCache(long pos, byte[] buffer, int offset, int len) {
-            byte[] cached = FooterByteCache.getInstance().get(cacheKey);
+            byte[] cached = tailCache.get(cacheKey);
             if (cached == null || cached.length == 0) {
                 return -1;
             }

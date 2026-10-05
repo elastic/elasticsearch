@@ -28,7 +28,7 @@ Want to get started quickly testing a self-managed connector and a self-managed 
 You must satisfy the [prerequisites](/reference/search-connectors/self-managed-connectors.md#es-build-connector-prerequisites) for self-managed connectors.
 
 <!--
-TBD: If you're using {{es-serverless}}, you must have a `developer` or `admin` predefined role or an equivalent custom role to add the connector. 
+TBD: If you're using {{es-serverless}}, you must have a `developer` or `admin` predefined role or an equivalent custom role to add the connector.
 -->
 
 ### PostgreSQL prerequisites [es-postgresql-connector-client-tutorial-postgresql-prerequisites]
@@ -38,19 +38,6 @@ You need:
 * PostgreSQL version 11+.
 * Tables must be owned by a PostgreSQL user.
 * Database `superuser` privileges are required to index all database tables.
-
-::::{tip}
-You should enable recording of the commit time of PostgreSQL transactions. Otherwise, *all* data will be indexed in every sync. By default, `track_commit_timestamp` is `off`.
-
-Enable this by running the following command on the PosgreSQL server command line:
-
-```shell
-ALTER SYSTEM SET track_commit_timestamp = on;
-```
-
-Then restart the PostgreSQL server.
-
-::::
 
 ## Set up the connector
 
@@ -103,7 +90,7 @@ For this example, we’ll use the latter method:
         connector_id: "<YOUR-CONNECTOR-ID>"
         api_key: "<YOUR-API-KEY>" # Your scoped connector index API key (optional). If not provided, the top-level API key is used.
         service_type: "postgresql"
-    
+
     sources:
       # mongodb: connectors.sources.mongo:MongoDataSource
       # s3: connectors.sources.s3:S3DataSource

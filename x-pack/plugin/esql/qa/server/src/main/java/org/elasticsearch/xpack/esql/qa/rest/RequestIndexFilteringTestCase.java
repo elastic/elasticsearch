@@ -260,8 +260,18 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
 
         assertQueryResult(
             runEsql(builder),
-            matchesList().item(matchesMap().entry("name", "count").entry("type", "long"))
-                .item(matchesMap().entry("name", "bucket").entry("type", "date")),
+            matchesList().item(
+                matchesMap()//
+                    .entry("name", "count")
+                    .entry("type", "long")
+            )
+                .item(
+                    matchesMap()//
+                        .entry("name", "bucket")
+                        .entry("type", "date")
+                        // meta is only present if request is routed to a node supporting this feature
+                        .optionalEntry("_meta", Map.of("bucket", Map.of("interval", 3, "unit", "hour")))
+                ),
             allOf(instanceOf(List.class), hasSize(0))
         );
     }

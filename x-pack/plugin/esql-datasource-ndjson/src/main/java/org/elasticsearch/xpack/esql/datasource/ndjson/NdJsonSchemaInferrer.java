@@ -10,7 +10,10 @@ package org.elasticsearch.xpack.esql.datasource.ndjson;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
+import com.fasterxml.jackson.core.exc.StreamConstraintsException;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -19,12 +22,20 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
+import org.elasticsearch.xpack.esql.datasources.spi.TemporalInference;
+import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.temporal.TemporalAccessor;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.Deque;
 import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,7 +46,13 @@ import java.util.Map;
  * - Detects arrays as multi-value fields
  * - Marks fields as nullable when null or missing values are encountered
  *
- * Types: KEYWORD, INTEGER, LONG, DOUBLE, BOOLEAN, DATETIME.
+ * Types: KEYWORD, INTEGER, LONG, DOUBLE, BOOLEAN, DATETIME, DATE_NANOS.
+ *
+ * <p>A timestamp is inferred DATE_NANOS only when it carries a non-zero sub-millisecond component,
+ * which DATETIME would silently drop; see {@link TemporalInference}.
+ *
+ * <p>Column names are always flat dotted names, whichever way the file spells them: the two spellings of a dotted
+ * column are one path through the field tree ({@link #childFor}), so mixing them across records infers one column.
  */
 public class NdJsonSchemaInferrer {
 
@@ -50,54 +67,135 @@ public class NdJsonSchemaInferrer {
     // The default format for date fields in ES is "strict_date_optional_time||epoch_millis".
     // Use the string part of this default for schema inference (we cannot assume that a number
     // is a date)
-    public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("strict_date_optional_time");
+    public static final DateFormatter STRICT_DATE_OPTIONAL_TIME = DateFormatter.forPattern("strict_date_optional_time");
 
     private static final Logger logger = LogManager.getLogger(NdJsonSchemaInferrer.class);
-
-    private static final EnumSet<DataType> NUMBER_TYPES = EnumSet.of(DataType.DOUBLE, DataType.LONG, DataType.INTEGER);
 
     // Fields that we've actually seen in the current json document
     private final BitSet fieldsSeen = new BitSet();
     private final List<FieldInfo> fields = new ArrayList<>();
     private int lineCount = 0;
 
-    private NdJsonSchemaInferrer() {}
+    /**
+     * Allowance for one {@link FieldInfo}: the object, its {@link EnumSet}, and its slot in {@link #fields} and in the
+     * parent's children map. The field name is charged on top. Not a measured deep size.
+     */
+    static final long FIELD_INFO_BYTES = 256L;
+
+    /** Label the inference charges are made under, so a trip names the work that was refused. */
+    static final String BREAKER_LABEL = "ndjson_schema_inference";
+
+    private final int maxFields;
+    private final DateFormatter dateFormatter;
+    private final CircuitBreaker breaker;
+    private long reservedBytes = 0;
+
+    private NdJsonSchemaInferrer(int maxFields, DateFormatter dateFormatter, CircuitBreaker breaker) {
+        this.maxFields = maxFields;
+        this.dateFormatter = dateFormatter != null ? dateFormatter : STRICT_DATE_OPTIONAL_TIME;
+        this.breaker = breaker;
+    }
 
     /**
      * Infers schema from an NDJSON input stream, reading up to maxLines.
+     * When {@code datetimeFormatter} is null, falls back to {@link #STRICT_DATE_OPTIONAL_TIME}.
+     * <p>
+     * The field tree and the column list built from it are charged to {@code breaker} while they exist, and released
+     * before returning, so the breaker bounds a schema while it is built. The returned attributes belong to the caller,
+     * and whether they stay charged after that is the caller's choice: the multi-file gather and the schema interner
+     * charge what they keep, while a single-file resolve and a data-node read keep it uncharged. A flattened nested field
+     * is named by its whole dotted path, so the column list can be orders of magnitude larger than the input that
+     * produced it. A {@code CircuitBreakingException} propagates unchanged and stops inference. It is not a malformed
+     * line, so it must never be caught as one.
+     * <p>
+     * More than {@code maxFields} fields, objects and leaves alike, fails inference with a client error naming
+     * {@code schema_max_fields}. Like the breaker, that is not a malformed line: it stops inference at once. Fields are
+     * counted as a line is parsed, so the line that crosses the cap is read to its end first, and if it turns out to be
+     * malformed it is skipped like any other and its fields are discarded.
      */
-    public static List<Attribute> inferSchema(InputStream inputStream, int maxLines) throws IOException {
-        return new NdJsonSchemaInferrer().doInferSchema(inputStream, maxLines);
+    public static List<Attribute> inferSchema(
+        InputStream inputStream,
+        int maxLines,
+        int maxFields,
+        DateFormatter datetimeFormatter,
+        CircuitBreaker breaker
+    ) throws IOException {
+        return inferSampledSchema(inputStream, maxLines, maxFields, datetimeFormatter, breaker).schema();
+    }
+
+    /** Schema plus how many records the sample actually consumed. */
+    public record SampledSchema(List<Attribute> schema, int sampleRows) {}
+
+    public static SampledSchema inferSampledSchema(
+        InputStream inputStream,
+        int maxLines,
+        int maxFields,
+        DateFormatter datetimeFormatter,
+        CircuitBreaker breaker
+    ) throws IOException {
+        NdJsonSchemaInferrer inferrer = new NdJsonSchemaInferrer(maxFields, datetimeFormatter, breaker);
+        try {
+            List<Attribute> schema = inferrer.doInferSchema(inputStream, maxLines);
+            return new SampledSchema(schema, inferrer.lineCount);
+        } finally {
+            inferrer.breaker.addWithoutBreaking(-inferrer.reservedBytes);
+        }
+    }
+
+    private void charge(long bytes) {
+        breaker.addEstimateBytesAndMaybeBreak(bytes, BREAKER_LABEL);
+        reservedBytes += bytes;
     }
 
     private List<Attribute> doInferSchema(InputStream inputStream, int maxLines) throws IOException {
-        FieldInfo root = new FieldInfo(null);
-        JsonParser parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
+        FieldInfo root = new FieldInfo(null, null);
+        NdJsonUtils.LineTerminatorTrackingStream tracking = new NdJsonUtils.LineTerminatorTrackingStream(inputStream);
+        JsonParser parser = NdJsonUtils.JSON_FACTORY.createParser(tracking);
         try {
             while (lineCount < maxLines) {
                 try {
                     if (parser.nextToken() == null) {
                         break; // End of stream
                     }
-                } catch (JsonParseException e) {
+                } catch (JsonParseException | StreamConstraintsException e) {
                     // Schema inference is a best-effort sampling pass: malformed lines here are
                     // safe to skip because every such line will be re-encountered during the
                     // actual slice read (see NdJsonPageIterator), where the configured
                     // ErrorPolicy decides whether to log/fail. Logging at debug avoids noisy
-                    // duplicate reports of the same issue.
+                    // duplicate reports of the same issue. A StreamConstraintsException (an
+                    // over-long number or field name, nesting past the depth cap) is the same
+                    // scanner-level whole-line failure and defers to the slice read identically;
+                    // failing inference on it would deny the read's error_mode a say. A record that
+                    // names one field twice (NdJsonUtils.JSON_FACTORY enables Jackson's duplicate
+                    // detection) arrives here as a JsonParseException and defers for the same reason:
+                    // the fields it introduced are discarded, so it contributes no columns to the sample,
+                    // and the slice read is where it either fails the query or drops with a warning.
                     logger.debug("Malformed NDJSON at line {}: {}", lineCount, e);
-                    inputStream = NdJsonUtils.moveToNextLine(parser, inputStream);
+                    inputStream = NdJsonUtils.moveToNextLine(parser, tracking);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
                     continue;
                 }
 
+                int lineStart = fields.size();
                 try {
                     inferObjectSchema(parser, root);
                     lineCount++;
-                } catch (JsonParseException e) {
+                } catch (JsonParseException | StreamConstraintsException e) {
                     // See comment above: deferred to the slice read for policy-driven handling.
                     logger.debug("Malformed NDJSON at line {}: {}", lineCount, e);
-                    inputStream = NdJsonUtils.moveToNextLine(parser, inputStream);
+                    discardFieldsFrom(lineStart);
+                    inputStream = NdJsonUtils.moveToNextLine(parser, tracking);
+                    parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
+                } catch (FieldCapExceeded e) {
+                    // Fields are created while the line is still being parsed, so the line that crossed the cap may
+                    // yet turn out to be malformed. Only a well-formed line fails inference; a malformed one is
+                    // skipped like any other, without its fields counting toward the cap.
+                    if (restOfRecordParses(parser)) {
+                        throw new IllegalArgumentException(fieldCapMessage(maxFields));
+                    }
+                    logger.debug("Malformed NDJSON at line {} past the field cap", lineCount);
+                    discardFieldsFrom(lineStart);
+                    inputStream = NdJsonUtils.moveToNextLine(parser, tracking);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
                 }
 
@@ -116,11 +214,71 @@ public class NdJsonSchemaInferrer {
 
         // Convert FieldInfo map to Attribute list
         List<Attribute> attributes = new ArrayList<>();
-        buildSchema(root, null, attributes);
+        buildSchema(root, attributes);
         return attributes;
     }
 
-    private static void inferObjectSchema(JsonParser parser, FieldInfo object) throws IOException {
+    /**
+     * Removes the fields created since {@code start}, children before their parents, and releases their charges. A
+     * malformed line's partial record must not leave columns behind.
+     */
+    private void discardFieldsFrom(int start) {
+        for (int i = fields.size() - 1; i >= start; i--) {
+            FieldInfo field = fields.remove(i);
+            field.parent.children.remove(field.name);
+            if (field.parent.children.isEmpty()) {
+                // getChild only creates the map to add a child, so an empty one was created by this line.
+                field.parent.children = null;
+            }
+            long bytes = fieldBytes(field.name);
+            breaker.addWithoutBreaking(-bytes);
+            reservedBytes -= bytes;
+        }
+    }
+
+    /**
+     * Reads the rest of the current record without building fields, to tell whether the line that crossed the field cap
+     * is well formed. A record cut short at the end of the stream counts as malformed.
+     */
+    private static boolean restOfRecordParses(JsonParser parser) throws IOException {
+        try {
+            while (parser.getParsingContext().inRoot() == false) {
+                if (parser.nextToken() == null) {
+                    return false;
+                }
+            }
+            return true;
+        } catch (JsonParseException | StreamConstraintsException e) {
+            return false;
+        }
+    }
+
+    /**
+     * The refusal for a schema over {@code maxFields}. Below the ceiling the user can raise the cap; at the ceiling
+     * raising it is rejected too, so say the file is wider than any schema inference supports instead.
+     */
+    static String fieldCapMessage(int maxFields) {
+        if (maxFields >= ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS) {
+            return LoggerMessageFormat.format(
+                "NDJSON schema inference found more than [{}] fields, the most [{}] allows; declare the dataset's "
+                    + "columns with [dynamic: false] to skip inference",
+                maxFields,
+                NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS
+            );
+        }
+        return LoggerMessageFormat.format(
+            "NDJSON schema inference found more than [{}] fields; raise [{}] in the dataset settings or the "
+                + "WITH clause to infer a wider schema",
+            maxFields,
+            NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS
+        );
+    }
+
+    private static long fieldBytes(String name) {
+        return FIELD_INFO_BYTES + HeapEstimates.stringBytes(name);
+    }
+
+    private void inferObjectSchema(JsonParser parser, FieldInfo object) throws IOException {
         JsonToken token = parser.currentToken();
         if (token != JsonToken.START_OBJECT) {
             throw new NdJsonParseException(parser, "Expected JSON object");
@@ -129,13 +287,32 @@ public class NdJsonSchemaInferrer {
             if (token != JsonToken.FIELD_NAME) {
                 throw new NdJsonParseException(parser, "Expected field name in object");
             }
-            var child = object.getChild(parser.getCurrentName());
+            var child = childFor(object, parser.getCurrentName());
             parser.nextToken();
             inferValueSchema(parser, child);
         }
     }
 
-    private static void inferValueSchema(JsonParser parser, FieldInfo field) throws IOException {
+    /**
+     * The node a field name addresses within {@code object}. A dotted name is a path, so both spellings of a dotted
+     * column ({@code {"a.b":1}} and {@code {"a":{"b":1}}}) land on one node and a file that mixes them infers one
+     * column rather than two attributes with the same name.
+     */
+    private static FieldInfo childFor(FieldInfo object, String fieldName) {
+        if (NdJsonUtils.isFieldPath(fieldName) == false) {
+            return object.getChild(fieldName);
+        }
+        FieldInfo node = object;
+        int start = 0;
+        int dot;
+        while ((dot = fieldName.indexOf('.', start)) >= 0) {
+            node = node.getChild(fieldName.substring(start, dot));
+            start = dot + 1;
+        }
+        return node.getChild(fieldName.substring(start));
+    }
+
+    private void inferValueSchema(JsonParser parser, FieldInfo field) throws IOException {
         switch (parser.currentToken()) {
             case START_ARRAY -> {
                 field.isArray = true;
@@ -143,17 +320,8 @@ public class NdJsonSchemaInferrer {
                     inferValueSchema(parser, field);
                 }
             }
-            // Keep in sync with NdJsonPageIterator.Decoder
             case START_OBJECT -> inferObjectSchema(parser, field);
-            case VALUE_STRING -> {
-                String text = parser.getText();
-                // All-digit strings (e.g. book ids) must not be inferred as years / partial dates.
-                if (field.types.contains(DataType.KEYWORD) == false && isLikelyDateString(text) && DATE_FORMATTER.tryParse(text) != null) {
-                    field.addType(DataType.DATETIME);
-                } else {
-                    field.addType(DataType.KEYWORD);
-                }
-            }
+            case VALUE_STRING -> inferStringType(field, parser.getText());
             case VALUE_NUMBER_INT -> {
                 switch (parser.getNumberType()) {
                     case INT:
@@ -181,36 +349,79 @@ public class NdJsonSchemaInferrer {
         }
     }
 
-    /** Build the list of Attribute by recursively traversing the FieldInfo tree */
-    private static void buildSchema(FieldInfo field, String parentName, List<Attribute> attributes) {
-        if (field.children == null) {
-            // No children were ever observed. Happens for the root when every sampled line was
-            // malformed (so {@link FieldInfo#getChild} was never called), or legitimately for
-            // leaf fields during recursion. Nothing to contribute to the schema either way.
+    /**
+     * Build the list of Attribute by walking the FieldInfo tree depth first. A dotted key is split into one node per
+     * segment, which the parser's nesting cap does not bound, so the walk keeps its own stack rather than recursing and
+     * spells the dotted path in one shared buffer rather than building a string per ancestor. Only a column's own name
+     * is materialized, and it is charged from its length before it is built, so a refusal never follows the allocation
+     * it was meant to prevent. Each stack frame is covered by its node's {@link #FIELD_INFO_BYTES}.
+     */
+    private void buildSchema(FieldInfo root, List<Attribute> attributes) {
+        if (root.children == null) {
+            // No children were ever observed. Happens when every sampled line was malformed (so
+            // {@link FieldInfo#getChild} was never called). Nothing to contribute to the schema.
             return;
         }
-        for (Map.Entry<String, FieldInfo> entry : field.children.entrySet()) {
-            // TODO: disallow dots in names (or replace them) as it may cause issues when decoding
-            var name = entry.getKey();
-            var info = entry.getValue();
-            if (parentName != null) {
-                name = parentName + "." + name;
+        StringBuilder path = new StringBuilder();
+        int chargedPathLength = 0;
+        Deque<SchemaFrame> stack = new ArrayDeque<>();
+        stack.push(new SchemaFrame(root.children.entrySet().iterator(), NO_PARENT_PATH));
+        while (stack.isEmpty() == false) {
+            SchemaFrame frame = stack.peek();
+            if (frame.children().hasNext() == false) {
+                stack.pop();
+                continue;
             }
+            Map.Entry<String, FieldInfo> entry = frame.children().next();
+            String name = entry.getKey();
+            FieldInfo info = entry.getValue();
+            int pathLength = frame.pathLength() == NO_PARENT_PATH ? name.length() : frame.pathLength() + 1 + name.length();
+            if (pathLength > chargedPathLength) {
+                // Two bytes per character also covers the builder's doubling growth for Latin-1 names.
+                charge((pathLength - chargedPathLength) * (long) Character.BYTES);
+                chargedPathLength = pathLength;
+            }
+            path.setLength(Math.max(frame.pathLength(), 0));
+            if (frame.pathLength() != NO_PARENT_PATH) {
+                path.append('.');
+            }
+            path.append(name);
 
             DataType dataType = info.resolveType();
             if (dataType != DataType.UNSUPPORTED) {
                 // Unsupported is used for nested object properties
-                attributes.add(attribute(name, dataType, info.nullable));
+                charge(HeapEstimates.columnBytes(pathLength));
+                attributes.add(attribute(path.toString(), dataType, info.nullable));
             }
 
             if (info.children != null) {
-                buildSchema(info, name, attributes);
+                stack.push(new SchemaFrame(info.children.entrySet().iterator(), pathLength));
             }
         }
     }
 
+    /**
+     * Path length of the root's children's parent. Distinct from 0 because an empty segment is a real parent whose
+     * children are still separated from it by a dot.
+     */
+    private static final int NO_PARENT_PATH = -1;
+
+    /** One level of {@link #buildSchema}'s walk: the children still to visit and the length of their parent's path. */
+    private record SchemaFrame(Iterator<Map.Entry<String, FieldInfo>> children, int pathLength) {}
+
     public static Attribute attribute(String name, DataType type, boolean nullable) {
         return new ReferenceAttribute(Source.EMPTY, null, name, type, nullable ? Nullability.TRUE : Nullability.UNKNOWN, null, false);
+    }
+
+    /**
+     * Thrown when a line would create more than {@code maxFields} fields. Not a client error yet: {@link #doInferSchema}
+     * first checks whether the line is malformed, which defers to the slice read instead. Carries no stack trace, since
+     * it never leaves this class.
+     */
+    private static final class FieldCapExceeded extends RuntimeException {
+        FieldCapExceeded() {
+            super(null, null, false, false);
+        }
     }
 
     /**
@@ -222,9 +433,16 @@ public class NdJsonSchemaInferrer {
         boolean nullable = false;
         Map<String, FieldInfo> children = null;
         final int idx;
+        final FieldInfo parent;
         final String name;
 
-        FieldInfo(String name) {
+        FieldInfo(FieldInfo parent, String name) {
+            // fields holds the root too, so this admits exactly maxFields fields below it.
+            if (fields.size() > maxFields) {
+                throw new FieldCapExceeded();
+            }
+            charge(fieldBytes(name));
+            this.parent = parent;
             this.name = name;
             this.idx = fields.size();
             fields.add(this);
@@ -235,11 +453,10 @@ public class NdJsonSchemaInferrer {
         }
 
         FieldInfo getChild(String name) {
-            // TODO: limit depth
             if (children == null) {
                 children = new LinkedHashMap<>();
             }
-            return children.computeIfAbsent(name, (n) -> new FieldInfo(n));
+            return children.computeIfAbsent(name, (n) -> new FieldInfo(this, n));
         }
 
         void addType(DataType type) {
@@ -248,62 +465,80 @@ public class NdJsonSchemaInferrer {
         }
 
         DataType resolveType() {
-            if (types.isEmpty()) {
-                // Can happen with parent and always-empty array
-                return DataType.UNSUPPORTED;
-            }
-
-            // Note: DATETIME and BOOLEAN will only be selected if they're the only type
-            if (types.size() == 1) {
-                return types.iterator().next();
-            }
-
-            // Multiple types - use the widest type
-            // Nullability is handled separately and not part of type resolution
-            if (types.contains(DataType.KEYWORD)) {
-                return DataType.KEYWORD;
-            }
-
-            if (hasOnly(types, NUMBER_TYPES)) {
-                if (types.contains(DataType.DOUBLE)) {
-                    return DataType.DOUBLE;
-                }
-                if (types.contains(DataType.LONG)) {
-                    return DataType.LONG;
-                }
-                if (types.contains(DataType.INTEGER)) {
-                    return DataType.INTEGER;
-                }
-            }
-
-            // Widest type
-            return DataType.KEYWORD;
+            return resolveObservedTypes(types);
         }
-    }
-
-    private static <E extends Enum<E>> boolean hasOnly(EnumSet<E> values, EnumSet<E> from) {
-        if (values.isEmpty()) {
-            return false;
-        }
-        var copy = EnumSet.copyOf(values);
-        copy.removeAll(from);
-        return copy.isEmpty();
     }
 
     /**
-     * {@code strict_date_optional_time} accepts year-only forms that collide with numeric identifiers
-     * (e.g. book numbers). Skip date inference for all-ASCII-digit tokens.
+     * The single type that represents everything observed for one field.
+     * <p>
+     * The rule is {@link TypeWidening}'s, folded over the observed set: this rail decides which types
+     * it saw, not what they combine to, and the combining is the same question reconciliation answers
+     * when two files disagree. Folding in any order is safe because the lattice is a join-semilattice,
+     * which matters here — a JSON field's types arrive in whatever order the file happens to list them.
+     * <p>
+     * An empty set means the field was only ever an object or an always-empty array, which is not a
+     * scalar column at all; that is this method's answer to give because the lattice has no bottom
+     * element to represent "nothing observed".
      */
-    private static boolean isLikelyDateString(String text) {
-        if (text.isEmpty()) {
-            return false;
+    static DataType resolveObservedTypes(EnumSet<DataType> observed) {
+        if (observed.isEmpty()) {
+            // Can happen with parent and always-empty array
+            return DataType.UNSUPPORTED;
         }
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            if (c < '0' || c > '9') {
-                return true;
+        DataType resolved = null;
+        for (DataType type : observed) {
+            resolved = resolved == null ? type : TypeWidening.join(resolved, type);
+        }
+        return resolved;
+    }
+
+    /**
+     * Types one string value.
+     * <p>
+     * Kept out of {@link #inferValueSchema} deliberately. That method carries the per-value token
+     * switch for every field of every sampled line, and it is small enough for the JIT to inline;
+     * growing it with this body measurably slowed the whole switch, including the string field that
+     * never reaches the date parse at all.
+     * <p>
+     * The KEYWORD short-circuit is what keeps a string field cheap: once a field is known to hold
+     * strings, no later value pays a date parse. Without it every sampled value of a keyword column
+     * would be parsed as a date and the result thrown away.
+     */
+    private void inferStringType(FieldInfo field, String text) {
+        if (field.types.contains(DataType.KEYWORD)) {
+            field.addType(DataType.KEYWORD);
+            return;
+        }
+        TemporalAccessor parsed = tryParseDateTime(text);
+        field.addType(parsed == null ? DataType.KEYWORD : forcesDateNanos(parsed) ? DataType.DATE_NANOS : DataType.DATETIME);
+    }
+
+    /**
+     * Parses a string as a datetime, returning the parse result so the caller can tell millisecond
+     * timestamps from nanosecond ones without paying a second parse. Returns null when the string is
+     * not a datetime at all. We filter out 4-digit years accepted by strict_date_optional_time
+     * and other Iso8601 parsers where {@code MONTH_OF_YEAR} is optional. These are the only 4-digit values they
+     * accept, and we don't want to treat an all-4-digit column as DATETIME.
+     */
+    private TemporalAccessor tryParseDateTime(String text) {
+        if (dateFormatter == STRICT_DATE_OPTIONAL_TIME) {
+            if (text.length() == 4 && text.chars().allMatch(Character::isDigit)) {
+                return null;
             }
         }
-        return false;
+        return dateFormatter.tryParse(text);
+    }
+
+    /**
+     * Whether a parsed timestamp must be read as {@code date_nanos} to survive intact.
+     * <p>
+     * Only asked on the default ISO rail, mirroring the 4-digit-year filter above: when the file
+     * declares its own {@code datetime_format} the user has expressed intent about how their
+     * timestamps are written, and declaring the schema is the way to ask for nanoseconds. It also
+     * keeps us from flipping a column onto a decode rail that the custom pattern may not parse.
+     */
+    private boolean forcesDateNanos(TemporalAccessor parsed) {
+        return dateFormatter == STRICT_DATE_OPTIONAL_TIME && TemporalInference.forcesDateNanos(parsed);
     }
 }

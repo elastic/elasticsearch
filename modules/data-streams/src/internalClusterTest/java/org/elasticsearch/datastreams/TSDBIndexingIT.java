@@ -47,7 +47,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.RangeQueryBuilder;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
@@ -624,7 +624,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         BulkResponse bulkResponse = bulkRequestBuilder.get();
         assertThat(bulkResponse.hasFailures(), is(false));
 
-        BulkByScrollResponse reindexResponse = safeGet(
+        BulkByPaginatedSearchResponse reindexResponse = safeGet(
             client().execute(
                 ReindexAction.INSTANCE,
                 new ReindexRequest().setSourceIndices(dataStreamName).setDestIndex(reindexedDataStreamName).setDestOpType("create")
@@ -695,7 +695,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                 }
               }
             }
-            """, XContentType.JSON);
+            """);
         assertAcked(client().execute(TransportPutMappingAction.TYPE, putMappingRequest).actionGet());
         if (indexDimensionsTsidStrategyEnabled) {
             assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), containsInAnyOrder("metricset", "k8s.pod.name"));
@@ -721,7 +721,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                 }
               ]
             }
-            """, XContentType.JSON);
+            """);
         ActionFuture<AcknowledgedResponse> putMappingFuture = client().execute(TransportPutMappingAction.TYPE, putMappingRequest);
         if (indexDimensionsTsidStrategyEnabled) {
             IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, putMappingFuture::actionGet);

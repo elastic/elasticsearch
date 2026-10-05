@@ -36,7 +36,7 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
 
   MaxBooleanGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = new BooleanArrayState(driverContext.bigArrays(), MaxBooleanAggregator.init());
+    this.state = new BooleanArrayState(driverContext.bigArrays(), driverContext.breaker(), MaxBooleanAggregator.init());
     this.driverContext = driverContext;
   }
 
@@ -125,7 +125,7 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
         int vEnd = vStart + vBlock.getValueCount(valuesPosition);
         for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
           boolean vValue = vBlock.getBoolean(vOffset);
-          state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), vValue));
+          MaxBooleanAggregator.combine(state, groupId, vValue);
         }
       }
     }
@@ -142,14 +142,13 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         boolean vValue = vVector.getBoolean(valuesPosition);
-        state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), vValue));
+        MaxBooleanAggregator.combine(state, groupId, vValue);
       }
     }
   }
 
   @Override
   public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block maxUncast = page.getBlock(channels.get(0));
     if (maxUncast.areAllValuesNull()) {
@@ -190,7 +189,7 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
         if (seen.getBoolean(valuesPosition)) {
-          state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), max.getBoolean(valuesPosition)));
+          MaxBooleanAggregator.combine(state, groupId, max.getBoolean(valuesPosition));
         }
       }
     }
@@ -213,7 +212,7 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
         int vEnd = vStart + vBlock.getValueCount(valuesPosition);
         for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
           boolean vValue = vBlock.getBoolean(vOffset);
-          state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), vValue));
+          MaxBooleanAggregator.combine(state, groupId, vValue);
         }
       }
     }
@@ -230,14 +229,13 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         boolean vValue = vVector.getBoolean(valuesPosition);
-        state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), vValue));
+        MaxBooleanAggregator.combine(state, groupId, vValue);
       }
     }
   }
 
   @Override
   public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block maxUncast = page.getBlock(channels.get(0));
     if (maxUncast.areAllValuesNull()) {
@@ -278,7 +276,7 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
         if (seen.getBoolean(valuesPosition)) {
-          state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), max.getBoolean(valuesPosition)));
+          MaxBooleanAggregator.combine(state, groupId, max.getBoolean(valuesPosition));
         }
       }
     }
@@ -295,7 +293,7 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
       int vEnd = vStart + vBlock.getValueCount(valuesPosition);
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         boolean vValue = vBlock.getBoolean(vOffset);
-        state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), vValue));
+        MaxBooleanAggregator.combine(state, groupId, vValue);
       }
     }
   }
@@ -305,13 +303,12 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
       int valuesPosition = groupPosition + positionOffset;
       int groupId = groups.getInt(groupPosition);
       boolean vValue = vVector.getBoolean(valuesPosition);
-      state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), vValue));
+      MaxBooleanAggregator.combine(state, groupId, vValue);
     }
   }
 
   @Override
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block maxUncast = page.getBlock(channels.get(0));
     if (maxUncast.areAllValuesNull()) {
@@ -346,9 +343,19 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       if (seen.getBoolean(valuesPosition)) {
-        state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), max.getBoolean(valuesPosition)));
+        MaxBooleanAggregator.combine(state, groupId, max.getBoolean(valuesPosition));
       }
     }
+  }
+
+  @Override
+  public GroupingAggregatorFunction.AddInput prepareProcessIntermediateInputPage(
+      SeenGroupIds seenGroupIds, Page page) {
+    BooleanVector seen = ((BooleanBlock) page.getBlock(channels.get(1))).asVector();
+    if (seen == null || seen.isConstant() == false || seen.getBoolean(0) == false) {
+      state.enableGroupIdTracking(seenGroupIds);
+    }
+    return new GroupingAggregatorFunction.IntermediateAddInput(this, seenGroupIds, page);
   }
 
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, BooleanBlock vBlock) {

@@ -37,7 +37,7 @@ public class SageMakerSchemasTests extends ESTestCase {
 
     public static SageMakerSchema mockSchema() {
         SageMakerSchema schema = mock();
-        when(schema.apiServiceSettings(anyMap(), any())).thenReturn(SageMakerStoredServiceSchema.NO_OP);
+        when(schema.apiServiceSettings(anyMap(), any(), any())).thenReturn(SageMakerStoredServiceSchema.NO_OP);
         when(schema.apiTaskSettings(anyMap(), any())).thenReturn(SageMakerStoredTaskSchema.NO_OP);
         return schema;
     }

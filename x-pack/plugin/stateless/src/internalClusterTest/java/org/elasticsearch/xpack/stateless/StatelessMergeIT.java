@@ -157,24 +157,25 @@ public class StatelessMergeIT extends AbstractStatelessPluginIntegTestCase {
             }
         });
 
+        logger.info("--> kicking off reroute");
         ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, indexNode, newIndexNode));
 
         assertBusy(() -> assertTrue(sourceShard.routingEntry().relocating()));
 
+        logger.info("--> waiting for relocation handoff to be paused");
         pauseHandoff.await();
+        logger.info("--> relocation handoff paused, starting indexing");
 
         var startingMerges = client().admin().indices().prepareStats(indexName).clear().setMerge(true).get().getPrimaries().merge
             .getTotal();
 
-        // In tests, this many documents + commits tend to produce 3-6 merges
-        int totalDocs = 0;
-        int threshold = randomIntBetween(1500, 2000);
-        while (totalDocs < threshold) {
-            int docs = randomIntBetween(100, 200);
-            totalDocs += docs;
-            indexDocs(indexName, docs);
+        // Create multiple segments that would normally trigger merge activity
+        int iterations = randomIntBetween(8, 12);
+        for (int i = 0; i < iterations; i++) {
+            indexDocs(indexName, randomIntBetween(10, 20));
             indicesAdmin().prepareRefresh(indexName).get();
         }
+        logger.info("--> indexing complete [{} iterations], starting merge", iterations);
 
         try {
             assertThat(
@@ -286,9 +287,9 @@ public class StatelessMergeIT extends AbstractStatelessPluginIntegTestCase {
 
             assertBusy(() -> {
                 plugin.collect();
-                List<Measurement> queuedBytes = plugin.getLongGaugeMeasurement(MergeMetrics.MERGE_SEGMENTS_QUEUED_USAGE);
-                List<Measurement> runningBytes = plugin.getLongGaugeMeasurement(MergeMetrics.MERGE_SEGMENTS_RUNNING_USAGE);
-                List<Measurement> queuedEstimated = plugin.getLongGaugeMeasurement(MergeMetrics.MERGE_QUEUED_ESTIMATED_MEMORY_SIZE);
+                List<Measurement> queuedBytes = plugin.getLongAsyncGaugeMeasurement(MergeMetrics.MERGE_SEGMENTS_QUEUED_USAGE);
+                List<Measurement> runningBytes = plugin.getLongAsyncGaugeMeasurement(MergeMetrics.MERGE_SEGMENTS_RUNNING_USAGE);
+                List<Measurement> queuedEstimated = plugin.getLongAsyncGaugeMeasurement(MergeMetrics.MERGE_QUEUED_ESTIMATED_MEMORY_SIZE);
                 assertThat(queuedBytes.stream().mapToLong(Measurement::getLong).sum(), greaterThanOrEqualTo(1L));
                 assertThat(runningBytes.stream().mapToLong(Measurement::getLong).sum(), equalTo(0L));
                 assertThat(queuedEstimated.stream().mapToLong(Measurement::getLong).sum(), equalTo(0L));
@@ -388,7 +389,7 @@ public class StatelessMergeIT extends AbstractStatelessPluginIntegTestCase {
             .orElseThrow();
         assertBusy(() -> {
             plugin.collect();
-            List<Measurement> queuedEstimated = plugin.getLongGaugeMeasurement(MergeMetrics.MERGE_QUEUED_ESTIMATED_MEMORY_SIZE);
+            List<Measurement> queuedEstimated = plugin.getLongAsyncGaugeMeasurement(MergeMetrics.MERGE_QUEUED_ESTIMATED_MEMORY_SIZE);
             assertThat(queuedEstimated.stream().mapToLong(Measurement::getLong).sum(), greaterThan(0L));
         });
 
@@ -398,7 +399,7 @@ public class StatelessMergeIT extends AbstractStatelessPluginIntegTestCase {
 
         assertBusy(() -> {
             plugin.collect();
-            List<Measurement> queuedEstimated = plugin.getLongGaugeMeasurement(MergeMetrics.MERGE_QUEUED_ESTIMATED_MEMORY_SIZE);
+            List<Measurement> queuedEstimated = plugin.getLongAsyncGaugeMeasurement(MergeMetrics.MERGE_QUEUED_ESTIMATED_MEMORY_SIZE);
             assertThat(queuedEstimated.getLast().getLong(), is(0L));
         });
 

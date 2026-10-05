@@ -7,9 +7,13 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.elasticsearch.compute.data.UninitializedArrays;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.PrimitiveIterator;
 
 /**
  * Represents a set of selected row ranges within a row group as sorted, non-overlapping
@@ -74,8 +78,8 @@ final class RowRanges {
         }
         merged.add(current);
 
-        long[] s = new long[merged.size()];
-        long[] e = new long[merged.size()];
+        long[] s = UninitializedArrays.newLongArray(merged.size());
+        long[] e = UninitializedArrays.newLongArray(merged.size());
         for (int i = 0; i < merged.size(); i++) {
             s[i] = merged.get(i)[0];
             e[i] = merged.get(i)[1];
@@ -103,8 +107,8 @@ final class RowRanges {
             }
         }
 
-        long[] rs = new long[result.size()];
-        long[] re = new long[result.size()];
+        long[] rs = UninitializedArrays.newLongArray(result.size());
+        long[] re = UninitializedArrays.newLongArray(result.size());
         for (int k = 0; k < result.size(); k++) {
             rs[k] = result.get(k)[0];
             re[k] = result.get(k)[1];
@@ -147,8 +151,8 @@ final class RowRanges {
             gaps.add(new long[] { prev, totalRows });
         }
 
-        long[] rs = new long[gaps.size()];
-        long[] re = new long[gaps.size()];
+        long[] rs = UninitializedArrays.newLongArray(gaps.size());
+        long[] re = UninitializedArrays.newLongArray(gaps.size());
         for (int k = 0; k < gaps.size(); k++) {
             rs[k] = gaps.get(k)[0];
             re[k] = gaps.get(k)[1];
@@ -302,6 +306,36 @@ final class RowRanges {
         long runEnd = Math.min(ends[rangeIdx], windowEnd);
         int length = (int) (runEnd - first);
         return new Run(skipBefore, length);
+    }
+
+    /**
+     * Returns a fresh iterator over every selected row index in ascending order.
+     */
+    PrimitiveIterator.OfLong rowIndexes() {
+        return new PrimitiveIterator.OfLong() {
+            private int rangeIndex;
+            private long next = starts.length == 0 ? 0 : starts[0];
+
+            @Override
+            public boolean hasNext() {
+                return rangeIndex < starts.length;
+            }
+
+            @Override
+            public long nextLong() {
+                if (hasNext() == false) {
+                    throw new NoSuchElementException();
+                }
+                long result = next++;
+                if (next == ends[rangeIndex]) {
+                    rangeIndex++;
+                    if (rangeIndex < starts.length) {
+                        next = starts[rangeIndex];
+                    }
+                }
+                return result;
+            }
+        };
     }
 
     record Run(int skipBefore, int length) {}

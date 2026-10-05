@@ -17,6 +17,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.usage.SearchUsage;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -25,6 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
+import static org.hamcrest.Matchers.containsString;
 
 public class RescorerRetrieverBuilderParsingTests extends AbstractXContentTestCase<RescorerRetrieverBuilder> {
     private static List<NamedXContentRegistry.Entry> xContentRegistryEntries;
@@ -60,6 +62,39 @@ public class RescorerRetrieverBuilderParsingTests extends AbstractXContentTestCa
     @Override
     protected boolean supportsUnknownFields() {
         return false;
+    }
+
+    public void testMaxNestedDepth() throws IOException {
+
+        parseRetriever(nestedRescorerRetriever(RetrieverBuilder.MAX_NESTED_DEPTH));
+        String expectedMessage = "The nested depth of the [retriever] exceeds the maximum nested depth of ["
+            + RetrieverBuilder.MAX_NESTED_DEPTH
+            + "] for retrievers";
+        var exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> parseRetriever(nestedRescorerRetriever(RetrieverBuilder.MAX_NESTED_DEPTH + 10))
+        );
+        assertThat(exception.getMessage(), containsString(expectedMessage));
+    }
+
+    private RetrieverBuilder parseRetriever(String json) throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            return RetrieverBuilder.parseTopLevelRetrieverBuilder(parser, new RetrieverParserContext(new SearchUsage(), n -> true));
+        }
+    }
+
+    /**
+     * Builds a JSON retriever tree made of {@code depth} nested retrievers: {@code depth - 1} {@code rescorer}
+     * retrievers wrapping a single innermost {@code standard} retriever.
+     */
+    private static String nestedRescorerRetriever(int depth) {
+        StringBuilder open = new StringBuilder();
+        StringBuilder close = new StringBuilder();
+        for (int i = 0; i < depth - 1; i++) {
+            open.append("{\"rescorer\":{\"retriever\":");
+            close.append(",\"rescore\":{\"query\":{\"rescore_query\":{\"match_all\":{}}}}}}");
+        }
+        return open + "{\"standard\":{\"query\":{\"match_all\":{}}}}" + close;
     }
 
     @Override

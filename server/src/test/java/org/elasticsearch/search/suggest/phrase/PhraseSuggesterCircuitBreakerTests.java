@@ -191,7 +191,7 @@ public class PhraseSuggesterCircuitBreakerTests extends ESTestCase {
         }
     }
 
-    public void testNoCBUsageWithoutCollateScript() throws IOException {
+    public void testCollectorCBReleasedWithoutCollateScript() throws IOException {
         Directory dir = new ByteBuffersDirectory();
         try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(new WhitespaceAnalyzer()))) {
             Document doc = new Document();
@@ -244,8 +244,96 @@ public class PhraseSuggesterCircuitBreakerTests extends ESTestCase {
             suggestion.setConfidence(0.0f);
             suggestion.setText(new BytesRef("hello"));
 
+            PhraseSuggestionContext.DirectCandidateGenerator generator = new PhraseSuggestionContext.DirectCandidateGenerator();
+            generator.setField("body");
+            generator.suggestMode(SuggestMode.SUGGEST_MORE_POPULAR);
+            generator.size(10);
+            suggestion.addGenerator(generator);
+
             PhraseSuggester.INSTANCE.innerExecute("test", suggestion, searcher, new CharsRefBuilder());
-            assertThat("No CB bytes should be used when there is no collate script", cb.getUsed(), equalTo(0L));
+            assertThat("temporary collector memory must be released after the suggestion", cb.getUsed(), equalTo(0L));
+            assertThat(
+                "temporary collector memory must not enter query-construction accounting",
+                ctx.getQueryConstructionMemoryUsed(),
+                equalTo(0L)
+            );
+        }
+    }
+
+    /**
+     * A missing suggest field cannot build any correction queues. A one-byte breaker proves that this branch does not
+     * attempt a collector reservation: any such reservation would trip the test breaker.
+     */
+    public void testNoCBReservationWhenSuggestFieldHasNoTerms() throws IOException {
+        try (Directory dir = new ByteBuffersDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(new WhitespaceAnalyzer()))) {
+                Document doc = new Document();
+                doc.add(new Field("other", "hello world", TextField.TYPE_NOT_STORED));
+                writer.addDocument(doc);
+            }
+
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                CircuitBreaker cb = newLimitedBreaker(ByteSizeValue.ofBytes(1));
+
+                IndexVersion indexVersion = IndexVersion.current();
+                Settings indexSettingsSettings = indexSettings(indexVersion, 1, 1).build();
+                IndexSettings indexSettings = new IndexSettings(
+                    IndexMetadata.builder("test").settings(indexSettingsSettings).build(),
+                    Settings.EMPTY
+                );
+                SearchExecutionContext baseCtx = new SearchExecutionContext(
+                    0,
+                    0,
+                    indexSettings,
+                    null,
+                    null,
+                    null,
+                    MappingLookup.EMPTY,
+                    null,
+                    null,
+                    parserConfig(),
+                    writableRegistry(),
+                    null,
+                    searcher,
+                    System::currentTimeMillis,
+                    null,
+                    null,
+                    () -> true,
+                    null,
+                    Collections.emptyMap(),
+                    null,
+                    MapperMetrics.NOOP,
+                    SHARD_SEARCH_STATS
+                );
+                SearchExecutionContext ctx = new SearchExecutionContext(baseCtx, cb);
+
+                PhraseSuggestionContext suggestion = new PhraseSuggestionContext(ctx);
+                suggestion.setField("body");
+                suggestion.setAnalyzer(new WhitespaceAnalyzer());
+                suggestion.setSize(5);
+                suggestion.setShardSize(5);
+                suggestion.setGramSize(1);
+                suggestion.setConfidence(0.0f);
+                suggestion.setText(new BytesRef("hello"));
+
+                PhraseSuggestionContext.DirectCandidateGenerator generator = new PhraseSuggestionContext.DirectCandidateGenerator();
+                generator.setField("body");
+                generator.suggestMode(SuggestMode.SUGGEST_MORE_POPULAR);
+                generator.size(10);
+                suggestion.addGenerator(generator);
+
+                assertEquals("CB must be zero before innerExecute", 0L, cb.getUsed());
+
+                PhraseSuggester.INSTANCE.innerExecute("test", suggestion, searcher, new CharsRefBuilder());
+
+                assertThat(
+                    "no query-construction memory should be tracked when the suggest field has no terms",
+                    ctx.getQueryConstructionMemoryUsed(),
+                    equalTo(0L)
+                );
+                assertThat("no raw CB usage should remain when the suggest field has no terms", cb.getUsed(), equalTo(0L));
+            }
         }
     }
 }

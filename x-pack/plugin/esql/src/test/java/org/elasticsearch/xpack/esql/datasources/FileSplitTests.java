@@ -7,15 +7,26 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -210,5 +221,211 @@ public class FileSplitTests extends ESTestCase {
 
         assertEquals(fromMap, fromSplitStats);
         assertEquals(fromMap.hashCode(), fromSplitStats.hashCode());
+    }
+
+    /**
+     * Null {@code readSchema} round-trips as null. This is the smoke test that the new wire-encoding
+     * branch on {@link FileSplit} doesn't accidentally invent a non-null value during deserialization.
+     */
+    public void testNamedWriteableRoundTripWithNullReadSchema() throws IOException {
+        StoragePath path = StoragePath.of("s3://bucket/file.csv");
+        FileSplit original = FileSplit.withReadSchema("file", path, 0, 1024, ".csv", Map.of(), Map.of(), null, null);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeNamedWriteable(original);
+
+        StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
+        FileSplit deserialized = (FileSplit) in.readNamedWriteable(ExternalSplit.class);
+
+        assertEquals(original, deserialized);
+        assertNull(deserialized.readSchema());
+    }
+
+    /**
+     * Non-null {@code readSchema} round-trips via the primitive (count, name, typeName, nullable) wire
+     * encoding. Critical because {@code FileSplit} crosses the wire inside {@code DataNodeRequest} on a
+     * {@code RecyclerBytesStreamOutput} (not a {@code PlanStreamOutput}); the encoding therefore
+     * cannot delegate to {@code writeNamedWriteableCollection(Attribute)}, which would cast.
+     * Mixes {@code Nullability.TRUE} and {@code FALSE} attributes to prove the bit round-trips faithfully.
+     */
+    public void testNamedWriteableRoundTripWithNonNullReadSchema() throws IOException {
+        StoragePath path = StoragePath.of("s3://bucket/data.csv");
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.KEYWORD, Nullability.TRUE, null, false),
+            new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.INTEGER, Nullability.FALSE, null, false),
+            new ReferenceAttribute(Source.EMPTY, null, "col2", DataType.DOUBLE, Nullability.TRUE, null, false)
+        );
+        FileSplit original = FileSplit.withReadSchema("file", path, 0, 2048, ".csv", Map.of(), Map.of(), null, schema);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeNamedWriteable(original);
+
+        StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
+        FileSplit deserialized = (FileSplit) in.readNamedWriteable(ExternalSplit.class);
+
+        assertEquals(schema.size(), deserialized.readSchema().size());
+        for (int i = 0; i < schema.size(); i++) {
+            assertEquals(schema.get(i).name(), deserialized.readSchema().get(i).name());
+            assertEquals(schema.get(i).dataType(), deserialized.readSchema().get(i).dataType());
+            assertEquals(
+                "Nullability of " + schema.get(i).name() + " must round-trip",
+                schema.get(i).nullable(),
+                deserialized.readSchema().get(i).nullable()
+            );
+        }
+    }
+
+    /**
+     * UNKNOWN nullability is planner-internal and shouldn't survive analysis, but if it does
+     * reach wire encoding it must be conservatively reconstituted as nullable (TRUE), not as
+     * a stronger non-null guarantee (FALSE). Anything other than provable non-null is nullable.
+     */
+    public void testNamedWriteableRoundTripCoercesUnknownNullabilityToTrue() throws IOException {
+        StoragePath path = StoragePath.of("s3://bucket/data.csv");
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.KEYWORD, Nullability.UNKNOWN, null, false)
+        );
+        FileSplit original = FileSplit.withReadSchema("file", path, 0, 2048, ".csv", Map.of(), Map.of(), null, schema);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeNamedWriteable(original);
+
+        StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
+        FileSplit deserialized = (FileSplit) in.readNamedWriteable(ExternalSplit.class);
+
+        assertEquals(1, deserialized.readSchema().size());
+        assertEquals(
+            "UNKNOWN must reconstitute as TRUE (nullable), never as FALSE",
+            Nullability.TRUE,
+            deserialized.readSchema().get(0).nullable()
+        );
+    }
+
+    public void testFrozenPartitionMapIsReusedAndNullsRoundTrip() throws IOException {
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put(FileMetadataColumns.DIRECTORY, null);
+        values.put(FileMetadataColumns.MODIFIED, null);
+        values.put("year", 2024);
+        Map<String, Object> frozen = Collections.unmodifiableMap(values);
+        long copiesBefore = FileSplit.defensivePartitionMapCopies();
+        StoragePath path = StoragePath.of("s3://bucket/file.parquet");
+        FileSplit split = new FileSplit("file", path, 0, 10, ".parquet", Map.of("k", "v"), frozen);
+
+        assertSame(frozen, split.partitionValues());
+        assertEquals(copiesBefore, FileSplit.defensivePartitionMapCopies());
+        expectThrows(UnsupportedOperationException.class, () -> split.partitionValues().put("x", 1));
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeNamedWriteable(split);
+        StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
+        FileSplit deserialized = (FileSplit) in.readNamedWriteable(ExternalSplit.class);
+
+        assertNull(deserialized.partitionValues().get(FileMetadataColumns.DIRECTORY));
+        assertNull(deserialized.partitionValues().get(FileMetadataColumns.MODIFIED));
+        assertEquals(2024, deserialized.partitionValues().get("year"));
+        assertEquals(split, deserialized);
+    }
+
+    public void testMutablePartitionMapIsDefensivelyCopied() {
+        Map<String, Object> mutable = new LinkedHashMap<>();
+        mutable.put("year", 2024);
+        long copiesBefore = FileSplit.defensivePartitionMapCopies();
+        FileSplit split = new FileSplit("file", StoragePath.of("s3://bucket/file.parquet"), 0, 10, ".parquet", Map.of(), mutable);
+
+        assertEquals(copiesBefore + 1, FileSplit.defensivePartitionMapCopies());
+        assertNotSame(mutable, split.partitionValues());
+        mutable.put("extra", 1);
+        assertNull(split.partitionValues().get("extra"));
+        assertEquals(2024, split.partitionValues().get("year"));
+    }
+
+    /** A layered view is frozen as-is and round-trips by value. Copying it would drop the shared directory tuple. */
+    public void testLayeredPartitionMapRoundTripsAndIsNotCopied() throws IOException {
+        Map<String, Object> shared = new LinkedHashMap<>();
+        shared.put("year", 2024);
+        shared.put(FileMetadataColumns.DIRECTORY, new BytesRef("s3://bucket/year=2024"));
+        Map<String, Object> overlay = new LinkedHashMap<>();
+        overlay.put(FileMetadataColumns.NAME, new BytesRef("a.parquet"));
+        LayeredPartitionMap view = new LayeredPartitionMap(Collections.unmodifiableMap(shared), Collections.unmodifiableMap(overlay));
+        long copiesBefore = FileSplit.defensivePartitionMapCopies();
+        StoragePath path = StoragePath.of("s3://bucket/year=2024/a.parquet");
+        FileSplit split = new FileSplit("file", path, 0, 10, ".parquet", Map.of(), view);
+
+        assertSame(view, split.partitionValues());
+        assertEquals(copiesBefore, FileSplit.defensivePartitionMapCopies());
+        expectThrows(UnsupportedOperationException.class, () -> split.partitionValues().put("x", 1));
+        assertEquals(
+            List.of("year", FileMetadataColumns.NAME, FileMetadataColumns.DIRECTORY),
+            new ArrayList<>(split.partitionValues().keySet())
+        );
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeNamedWriteable(split);
+        StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
+        FileSplit deserialized = (FileSplit) in.readNamedWriteable(ExternalSplit.class);
+
+        assertEquals(split.partitionValues(), deserialized.partitionValues());
+        assertEquals(split, deserialized);
+        assertEquals(new BytesRef("a.parquet"), deserialized.partitionValues().get(FileMetadataColumns.NAME));
+        assertEquals(2024, deserialized.partitionValues().get("year"));
+    }
+
+    public void testCurrentTransportVersionOmitsDerivedLocationKeys() throws IOException {
+        StoragePath path = StoragePath.of("s3://bucket/data/year=2024/file.parquet");
+        FileSplit split = new FileSplit("file", path, 0, 100, ".parquet", Map.of(), Map.of("year", 2024));
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(TransportVersion.current());
+        split.writeTo(out);
+
+        StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(TransportVersion.current());
+        FileSplit deserialized = new FileSplit(in);
+
+        assertFalse(deserialized.partitionValues().containsKey(FileMetadataColumns.PATH));
+        assertFalse(deserialized.partitionValues().containsKey(FileMetadataColumns.NAME));
+        assertFalse(deserialized.partitionValues().containsKey(FileMetadataColumns.DIRECTORY));
+        assertEquals(2024, deserialized.partitionValues().get("year"));
+        assertFalse(split.partitionValues().containsKey(FileMetadataColumns.PATH));
+    }
+
+    public void testOlderTransportVersionWritesDerivedLocationKeys() throws IOException {
+        StoragePath path = StoragePath.of("s3://bucket/data/year=2024/file.parquet");
+        Map<String, Object> stored = Map.of("year", 2024, FileMetadataColumns.SIZE, 100L);
+        FileSplit split = new FileSplit("file", path, 0, 40, ".parquet", Map.of(), stored);
+        TransportVersion old = TransportVersionUtils.getPreviousVersion(FileSplit.ESQL_DERIVE_FILE_LOCATION);
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(old);
+        split.writeTo(out);
+
+        assertEquals(100L, split.partitionValues().get(FileMetadataColumns.SIZE));
+        assertFalse(
+            "writing an older version must not mutate the stored map",
+            split.partitionValues().containsKey(FileMetadataColumns.PATH)
+        );
+
+        StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(old);
+        FileSplit deserialized = new FileSplit(in);
+        assertEquals(new BytesRef(path.toString()), deserialized.partitionValues().get(FileMetadataColumns.PATH));
+        assertEquals(new BytesRef(path.objectName()), deserialized.partitionValues().get(FileMetadataColumns.NAME));
+        assertEquals(new BytesRef(path.parentDirectory().toString()), deserialized.partitionValues().get(FileMetadataColumns.DIRECTORY));
+        assertEquals(100L, deserialized.partitionValues().get(FileMetadataColumns.SIZE));
+        assertEquals(2024, deserialized.partitionValues().get("year"));
+
+        BytesRef legacyPath = new BytesRef("s3://bucket/legacy.parquet");
+        Map<String, Object> withPath = new LinkedHashMap<>();
+        withPath.put(FileMetadataColumns.PATH, legacyPath);
+        withPath.put("year", 2024);
+        FileSplit legacy = new FileSplit("file", path, 0, 40, ".parquet", Map.of(), withPath);
+        BytesStreamOutput legacyOut = new BytesStreamOutput();
+        legacyOut.setTransportVersion(old);
+        legacy.writeTo(legacyOut);
+        StreamInput legacyIn = legacyOut.bytes().streamInput();
+        legacyIn.setTransportVersion(old);
+        FileSplit legacyRead = new FileSplit(legacyIn);
+        assertEquals(legacyPath, legacyRead.partitionValues().get(FileMetadataColumns.PATH));
+        assertEquals(legacyPath, legacy.partitionValues().get(FileMetadataColumns.PATH));
+        assertEquals(new BytesRef(path.objectName()), legacyRead.partitionValues().get(FileMetadataColumns.NAME));
+        assertEquals(new BytesRef(path.parentDirectory().toString()), legacyRead.partitionValues().get(FileMetadataColumns.DIRECTORY));
     }
 }

@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `SCALB` function [esql-scalb]
 
-:::{include} ../../_snippets/functions/layout/scalb.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/scalb.md
 :::

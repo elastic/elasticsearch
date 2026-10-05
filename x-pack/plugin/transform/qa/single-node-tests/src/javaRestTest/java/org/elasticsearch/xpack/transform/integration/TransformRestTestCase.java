@@ -18,6 +18,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.DestAlias;
@@ -25,6 +27,7 @@ import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.transform.integration.common.TransformCommonRestTestCase;
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -53,6 +56,23 @@ public abstract class TransformRestTestCase extends TransformCommonRestTestCase 
 
     protected static final String REVIEWS_INDEX_NAME = "reviews";
     protected static final String REVIEWS_DATE_NANO_INDEX_NAME = "reviews_nano";
+
+    // TransformUsageIT exercises _xpack/usage, which fans out to every xpack feature's
+    // usage transport action (cluster:monitor/xpack/usage/<feature>). Only the DEFAULT
+    // distribution registers them all, so we use it here rather than the integ-test
+    // distribution + an explicit .module(...) list.
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.license.self_generated.type", "trial")
+        .user("x_pack_rest_user", TEST_PASSWORD)
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @Override
     protected Settings restClientSettings() {

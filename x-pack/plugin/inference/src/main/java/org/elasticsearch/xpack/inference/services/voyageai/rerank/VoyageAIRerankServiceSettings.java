@@ -12,12 +12,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceSettings;
 
 import java.io.IOException;
@@ -25,6 +23,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 public class VoyageAIRerankServiceSettings extends VoyageAIServiceSettings {
     public static final String NAME = "voyageai_rerank_service_settings";
@@ -34,7 +33,7 @@ public class VoyageAIRerankServiceSettings extends VoyageAIServiceSettings {
     public static VoyageAIRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var validationException = new ValidationException();
 
-        var modelId = extractRequiredString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var modelId = extractRequiredString(map, ServiceFields.MODEL_ID, SERVICE_SETTINGS, validationException);
         var rateLimitSettings = extractRateLimitSettings(map, context, validationException);
 
         validationException.throwIfValidationErrorsExist();
@@ -58,7 +57,6 @@ public class VoyageAIRerankServiceSettings extends VoyageAIServiceSettings {
             serviceSettings,
             this.rateLimitSettings(),
             validationException,
-            VoyageAIService.NAME,
             ConfigurationParseContext.REQUEST
         );
 

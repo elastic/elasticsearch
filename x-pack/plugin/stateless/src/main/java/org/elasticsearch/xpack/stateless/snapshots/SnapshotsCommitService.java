@@ -153,7 +153,8 @@ public class SnapshotsCommitService implements ClusterStateListener {
                 indexShard::isRelocatedPrimary
             )
         ) {
-            assert releasable != NOOP_RELEASABLE : "commit cannot be released by relocation since it is not registered yet";
+            assert releasable != NOOP_RELEASABLE || indexShard.isRelocatedPrimary()
+                : "unexpected noop releasable for non-relocated shard " + shardId;
             final var indexCommit = snapshotIndexCommit.indexCommit();
             maybeEnsureNotAborted(snapshotStatus);
             final Map<String, BlobLocation> blobLocations = indexCommit.getFileNames()
@@ -187,7 +188,7 @@ public class SnapshotsCommitService implements ClusterStateListener {
      */
     // Package private for testing
     void registerReleaseForSnapshot(ShardId shardId, Snapshot snapshot, SnapshotIndexCommit snapshotIndexCommit) {
-        final var releasable = Releasables.releaseOnce(() -> closeSnapshotIndexCommit(snapshotIndexCommit, shardId, snapshot));
+        final var releasable = Releasables.releaseOnce(snapshotIndexCommit::releaseInitialReference);
 
         final var old = new Releasable[1];
         final var shardReleasables = snapshotsCommitReleasables.compute(shardId, (k, v) -> {

@@ -12,10 +12,12 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
@@ -26,7 +28,7 @@ import org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
@@ -42,7 +44,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
+import static org.elasticsearch.xpack.core.inference.results.CompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests.buildExpectationRerank;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
@@ -118,7 +120,13 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
     public void init() throws Exception {
         webServer.start();
         threadPool = createThreadPool(inferenceUtilityExecutors());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
+        clientManager = HttpClientManager.create(
+            Settings.EMPTY,
+            threadPool,
+            mockClusterServiceEmpty(),
+            mock(ThrottlerManager.class),
+            new TestCircuitBreaker()
+        );
     }
 
     @After
@@ -163,7 +171,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(INPUT_VALUE, InputTypeTests.randomWithNull()), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(INPUT_VALUE, InputTypeTests.randomWithNull()), null, listener);
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
@@ -221,7 +229,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             var action = new OpenShiftAiActionCreator(sender, createWithEmptySettings(threadPool)).create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(INPUT_VALUE, InputTypeTests.randomWithNull()), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(INPUT_VALUE, InputTypeTests.randomWithNull()), null, listener);
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
@@ -284,7 +292,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             var action = new OpenShiftAiActionCreator(sender, createWithEmptySettings(threadPool)).create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(INPUT_VALUE), null, listener);
+            action.execute(new CompletionInput(INPUT_VALUE), null, listener);
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
@@ -346,7 +354,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             var action = new OpenShiftAiActionCreator(sender, createWithEmptySettings(threadPool)).create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(INPUT_VALUE), null, listener);
+            action.execute(new CompletionInput(INPUT_VALUE), null, listener);
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
@@ -418,7 +426,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(INPUT_VALUE, InputTypeTests.randomWithNull()), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(INPUT_VALUE, InputTypeTests.randomWithNull()), null, listener);
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
@@ -496,7 +504,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             var action = new OpenShiftAiActionCreator(sender, createWithEmptySettings(threadPool)).create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(INPUT_VALUE, InputTypeTests.randomWithNull()), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(INPUT_VALUE, InputTypeTests.randomWithNull()), null, listener);
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
@@ -558,7 +566,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             var action = new OpenShiftAiActionCreator(sender, createWithEmptySettings(threadPool)).create(model);
 
             var listener = new PlainActionFuture<InferenceServiceResults>();
-            action.execute(new EmbeddingsInput(List.of(INPUT_TO_TRUNCATE), InputTypeTests.randomWithNull()), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(List.of(INPUT_TO_TRUNCATE), InputTypeTests.randomWithNull()), null, listener);
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
@@ -617,12 +625,22 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             );
             var actionCreator = new OpenShiftAiActionCreator(
                 sender,
-                new ServiceComponents(threadPool, mockThrottlerManager(), NO_RETRY_SETTINGS, TruncatorTests.createTruncator())
+                new ServiceComponents(
+                    threadPool,
+                    mockThrottlerManager(),
+                    NO_RETRY_SETTINGS,
+                    TruncatorTests.createTruncator(),
+                    new TestCircuitBreaker()
+                )
             );
             var action = actionCreator.create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new QueryAndDocsInputs(QUERY_VALUE, DOCUMENTS_VALUE, null, null, false), null, listener);
+            action.execute(
+                new QueryAndDocsInputs(InferenceString.ofText(QUERY_VALUE), InferenceString.fromStringList(DOCUMENTS_VALUE)),
+                null,
+                listener
+            );
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
             assertThat(result.asMap(), is(buildExpectationRerank(RERANK_EXPECTATIONS_WITH_TEXT_TWO_RESULTS)));
@@ -661,7 +679,13 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             );
             var actionCreator = new OpenShiftAiActionCreator(
                 sender,
-                new ServiceComponents(threadPool, mockThrottlerManager(), NO_RETRY_SETTINGS, TruncatorTests.createTruncator())
+                new ServiceComponents(
+                    threadPool,
+                    mockThrottlerManager(),
+                    NO_RETRY_SETTINGS,
+                    TruncatorTests.createTruncator(),
+                    new TestCircuitBreaker()
+                )
             );
             var action = actionCreator.create(
                 model,
@@ -676,7 +700,11 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             );
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new QueryAndDocsInputs(QUERY_VALUE, DOCUMENTS_VALUE, null, null, false), null, listener);
+            action.execute(
+                new QueryAndDocsInputs(InferenceString.ofText(QUERY_VALUE), InferenceString.fromStringList(DOCUMENTS_VALUE)),
+                null,
+                listener
+            );
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
             assertThat(result.asMap(), is(buildExpectationRerank(RERANK_EXPECTATIONS_NO_TEXT_SINGLE_RESULT)));
@@ -719,12 +747,22 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             var model = OpenShiftAiRerankModelTests.createModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE, null, null);
             var actionCreator = new OpenShiftAiActionCreator(
                 sender,
-                new ServiceComponents(threadPool, mockThrottlerManager(), NO_RETRY_SETTINGS, TruncatorTests.createTruncator())
+                new ServiceComponents(
+                    threadPool,
+                    mockThrottlerManager(),
+                    NO_RETRY_SETTINGS,
+                    TruncatorTests.createTruncator(),
+                    new TestCircuitBreaker()
+                )
             );
             var action = actionCreator.create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new QueryAndDocsInputs(QUERY_VALUE, DOCUMENTS_VALUE, null, null, false), null, listener);
+            action.execute(
+                new QueryAndDocsInputs(InferenceString.ofText(QUERY_VALUE), InferenceString.fromStringList(DOCUMENTS_VALUE)),
+                null,
+                listener
+            );
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
             assertThat(result.asMap(), is(buildExpectationRerank(RERANK_EXPECTATIONS_WITH_TEXT_TWO_RESULTS)));
@@ -767,12 +805,22 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             var model = OpenShiftAiRerankModelTests.createModel(getUrl(webServer), API_KEY_VALUE, null, null, null);
             var actionCreator = new OpenShiftAiActionCreator(
                 sender,
-                new ServiceComponents(threadPool, mockThrottlerManager(), NO_RETRY_SETTINGS, TruncatorTests.createTruncator())
+                new ServiceComponents(
+                    threadPool,
+                    mockThrottlerManager(),
+                    NO_RETRY_SETTINGS,
+                    TruncatorTests.createTruncator(),
+                    new TestCircuitBreaker()
+                )
             );
             var action = actionCreator.create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new QueryAndDocsInputs(QUERY_VALUE, DOCUMENTS_VALUE, null, null, false), null, listener);
+            action.execute(
+                new QueryAndDocsInputs(InferenceString.ofText(QUERY_VALUE), InferenceString.fromStringList(DOCUMENTS_VALUE)),
+                null,
+                listener
+            );
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
             assertThat(result.asMap(), is(buildExpectationRerank(RERANK_EXPECTATIONS_WITH_TEXT_TWO_RESULTS)));
@@ -815,13 +863,25 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             var model = OpenShiftAiRerankModelTests.createModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE, null, null);
             var actionCreator = new OpenShiftAiActionCreator(
                 sender,
-                new ServiceComponents(threadPool, mockThrottlerManager(), NO_RETRY_SETTINGS, TruncatorTests.createTruncator())
+                new ServiceComponents(
+                    threadPool,
+                    mockThrottlerManager(),
+                    NO_RETRY_SETTINGS,
+                    TruncatorTests.createTruncator(),
+                    new TestCircuitBreaker()
+                )
             );
             var action = actionCreator.create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(QUERY_VALUE, DOCUMENTS_VALUE, RETURN_DOCUMENTS_DEFAULT_VALUE, TOP_N_DEFAULT_VALUE, false),
+                new QueryAndDocsInputs(
+                    InferenceString.ofText(QUERY_VALUE),
+                    InferenceString.fromStringList(DOCUMENTS_VALUE),
+                    RETURN_DOCUMENTS_DEFAULT_VALUE,
+                    TOP_N_DEFAULT_VALUE,
+                    false
+                ),
                 null,
                 listener
             );
@@ -863,13 +923,25 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             );
             var actionCreator = new OpenShiftAiActionCreator(
                 sender,
-                new ServiceComponents(threadPool, mockThrottlerManager(), NO_RETRY_SETTINGS, TruncatorTests.createTruncator())
+                new ServiceComponents(
+                    threadPool,
+                    mockThrottlerManager(),
+                    NO_RETRY_SETTINGS,
+                    TruncatorTests.createTruncator(),
+                    new TestCircuitBreaker()
+                )
             );
             var action = actionCreator.create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(QUERY_VALUE, DOCUMENTS_VALUE, RETURN_DOCUMENTS_OVERRIDDEN_VALUE, TOP_N_OVERRIDDEN_VALUE, false),
+                new QueryAndDocsInputs(
+                    InferenceString.ofText(QUERY_VALUE),
+                    InferenceString.fromStringList(DOCUMENTS_VALUE),
+                    RETURN_DOCUMENTS_OVERRIDDEN_VALUE,
+                    TOP_N_OVERRIDDEN_VALUE,
+                    false
+                ),
                 null,
                 listener
             );
@@ -921,12 +993,22 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             );
             var actionCreator = new OpenShiftAiActionCreator(
                 sender,
-                new ServiceComponents(threadPool, mockThrottlerManager(), NO_RETRY_SETTINGS, TruncatorTests.createTruncator())
+                new ServiceComponents(
+                    threadPool,
+                    mockThrottlerManager(),
+                    NO_RETRY_SETTINGS,
+                    TruncatorTests.createTruncator(),
+                    new TestCircuitBreaker()
+                )
             );
             var action = actionCreator.create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new QueryAndDocsInputs(QUERY_VALUE, DOCUMENTS_VALUE, null, null, false), null, listener);
+            action.execute(
+                new QueryAndDocsInputs(InferenceString.ofText(QUERY_VALUE), InferenceString.fromStringList(DOCUMENTS_VALUE)),
+                null,
+                listener
+            );
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
             assertThat(

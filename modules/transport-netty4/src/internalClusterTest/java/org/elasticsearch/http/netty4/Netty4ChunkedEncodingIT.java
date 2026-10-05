@@ -40,6 +40,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
@@ -138,7 +139,7 @@ public class Netty4ChunkedEncodingIT extends ESNetty4IntegTestCase {
             final var gracefulClose = randomBoolean();
             final var chunkSizeBytes = between(1, Netty4WriteThrottlingHandler.MAX_BYTES_PER_WRITE * 2); // sometimes write in slices
             final var closeAfterBytes = between(0, chunkSizeBytes * 5);
-            final var chunkDelayMillis = randomBoolean() ? 0 : between(10, 100);
+            final var chunkDelayMillis = cappedChunkDelayMillis(chunkSizeBytes, closeAfterBytes);
 
             final var clientBootstrap = new Bootstrap().channel(NettyAllocator.getChannelType())
                 .option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator())
@@ -206,6 +207,21 @@ public class Netty4ChunkedEncodingIT extends ESNetty4IntegTestCase {
             Collections.reverse(releasables);
             Releasables.close(releasables);
         }
+    }
+
+    /**
+     * Random per-chunk delay, capped so that the test encodes at least enough body for the client to close
+     * (see {@link PageCacheRecycler#BYTE_PAGE_SIZE}). The total delay shouldn't exceed half of {@link #SAFE_AWAIT_TIMEOUT}
+     */
+    private int cappedChunkDelayMillis(int chunkSizeBytes, int closeAfterBytes) {
+        if (randomBoolean()) {
+            return 0;
+        }
+        final int bytesUntilClientCanClose = Math.max(closeAfterBytes + 1, PageCacheRecycler.BYTE_PAGE_SIZE);
+        final int chunksUntilClientCanClose = (bytesUntilClientCanClose + chunkSizeBytes - 1) / chunkSizeBytes;
+        final int budgetMillis = Math.toIntExact(SAFE_AWAIT_TIMEOUT.millis() / 2);
+        final int maxDelayMillis = Math.max(1, budgetMillis / chunksUntilClientCanClose);
+        return Math.min(between(10, 100), maxDelayMillis);
     }
 
     private static Releasable withResourceTracker() {

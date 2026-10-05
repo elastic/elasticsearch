@@ -35,7 +35,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * probability on data nodes — the corrected value stays in floating point and
  * is only rounded to the target integer type on the coordinator.
  */
-public class CountApproximate extends AggregateFunction implements ToAggregator {
+public class CountApproximate extends UnaryAggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "CountApproximate",
@@ -71,11 +71,6 @@ public class CountApproximate extends AggregateFunction implements ToAggregator 
     }
 
     @Override
-    public AggregateFunction withFilter(Expression filter) {
-        return new CountApproximate(source(), field(), filter, window());
-    }
-
-    @Override
     public CountApproximate replaceChildren(List<Expression> newChildren) {
         return new CountApproximate(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
@@ -102,10 +97,10 @@ public class CountApproximate extends AggregateFunction implements ToAggregator 
     protected TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt.isCounter() == false && dt != DataType.HISTOGRAM && dt != DataType.DATE_RANGE,
+            dt -> dt.isCounter() == false && dt != DataType.HISTOGRAM,
             sourceText(),
             DEFAULT,
-            "any type except counter types, histogram, or date_range"
+            "any type except counter types or histogram"
         );
     }
 }

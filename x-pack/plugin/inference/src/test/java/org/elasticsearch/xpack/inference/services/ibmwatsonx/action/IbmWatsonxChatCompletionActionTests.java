@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.services.ibmwatsonx.action;
 
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -40,7 +40,7 @@ public class IbmWatsonxChatCompletionActionTests extends ChatCompletionActionTes
             model,
             COMPLETION_HANDLER,
             inputs -> new IbmWatsonxChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), model),
-            ChatCompletionInput.class
+            CompletionInput.class
         );
         var errorMessage = constructFailedToSendRequestMessage("watsonx chat completions");
         return new SingleInputSenderExecutableAction(sender, manager, errorMessage, "watsonx chat completions");

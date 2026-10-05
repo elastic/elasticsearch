@@ -19,6 +19,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -27,6 +28,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.DoubleScriptFieldRangeQuery;
 import org.elasticsearch.search.runtime.DoubleScriptFieldTermQuery;
@@ -39,9 +41,11 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.subfieldName;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -65,6 +69,45 @@ public class AggregateMetricDoubleFieldTypeTests extends FieldTypeTestCase {
             metricFields.put(m, subfield);
         }
         return new AggregateMetricDoubleFieldType(name, null, metricFields, meta);
+    }
+
+    private IndexFieldData<?> buildFieldData(AggregateMetricDoubleFieldType fieldType) {
+        return fieldType.fielddataBuilder(
+            new FieldDataContext("test", null, () -> null, s -> Set.of(), () -> false, MappedFieldType.FielddataOperation.SEARCH)
+        ).build(null, null);
+    }
+
+    // Sorting on a multi-metric field without [sum, value_count] must fail with a 400, not a 500.
+    public void testSortFieldWithMultipleMetricsThrowsIllegalArgument() {
+        AggregateMetricDoubleFieldType fieldType = createFieldType("field", Collections.emptyMap(), Metric.min, Metric.max);
+        IndexFieldData<?> fieldData = buildFieldData(fieldType);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> fieldData.sortField(null, MultiValueMode.MIN, null, false)
+        );
+        assertThat(e.getMessage(), containsString("Sorting by field [field]"));
+    }
+
+    // A single-metric field is still sortable.
+    public void testSortFieldWithSingleMetricSucceeds() {
+        Metric singleMetric = randomFrom(Metric.values());
+        AggregateMetricDoubleFieldType fieldType = createFieldType("field", Collections.emptyMap(), singleMetric);
+        IndexFieldData<?> fieldData = buildFieldData(fieldType);
+        assertNotNull(fieldData.sortField(null, MultiValueMode.MIN, null, false));
+    }
+
+    // A field with both [sum, value_count] is sortable via the computed average.
+    public void testSortFieldWithSumAndValueCountSucceeds() {
+        AggregateMetricDoubleFieldType fieldType = createFieldType("field", Collections.emptyMap(), Metric.sum, Metric.value_count);
+        IndexFieldData<?> fieldData = buildFieldData(fieldType);
+        assertNotNull(fieldData.sortField(null, MultiValueMode.MIN, null, false));
+    }
+
+    // A multi-metric field with only one of [sum, value_count] is not sortable.
+    public void testSortFieldWithSumButNotValueCountThrowsIllegalArgument() {
+        AggregateMetricDoubleFieldType fieldType = createFieldType("field", Collections.emptyMap(), Metric.sum, Metric.min);
+        IndexFieldData<?> fieldData = buildFieldData(fieldType);
+        expectThrows(IllegalArgumentException.class, () -> fieldData.sortField(null, MultiValueMode.MIN, null, false));
     }
 
     public void testTermQuery() {
@@ -162,7 +205,7 @@ public class AggregateMetricDoubleFieldTypeTests extends FieldTypeTestCase {
                 SearchLookup lookup = new SearchLookup(
                     searchExecutionContext::getFieldType,
                     (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(
-                        new FieldDataContext("test", null, lookupSupplier, searchExecutionContext::sourcePath, fdo)
+                        new FieldDataContext("test", null, lookupSupplier, searchExecutionContext::sourcePath, () -> false, fdo)
                     ).build(null, null),
                     (ctx, doc) -> null
                 );
@@ -213,7 +256,7 @@ public class AggregateMetricDoubleFieldTypeTests extends FieldTypeTestCase {
                 SearchLookup lookup = new SearchLookup(
                     searchExecutionContext::getFieldType,
                     (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(
-                        new FieldDataContext("test", null, lookupSupplier, searchExecutionContext::sourcePath, fdo)
+                        new FieldDataContext("test", null, lookupSupplier, searchExecutionContext::sourcePath, () -> false, fdo)
                     ).build(null, null),
                     (ctx, doc) -> null
                 );

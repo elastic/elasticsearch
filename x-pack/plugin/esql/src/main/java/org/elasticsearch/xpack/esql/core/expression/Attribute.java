@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -150,7 +151,9 @@ public abstract class Attribute extends NamedExpression {
     }
 
     public Attribute withQualifier(String qualifier) {
-        return Objects.equals(qualifier, qualifier) ? this : clone(source(), qualifier, name(), dataType(), nullable(), id(), synthetic());
+        return Objects.equals(qualifier(), qualifier)
+            ? this
+            : clone(source(), qualifier, name(), dataType(), nullable(), id(), synthetic());
     }
 
     public Attribute withName(String name) {
@@ -215,14 +218,17 @@ public abstract class Attribute extends NamedExpression {
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append(qualifiedName()).append("{").append(label()).append(synthetic() ? "$" : "").append("}").append("#").append(id());
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        if (qualifier != null) {
+            sb.append(mapper.column(qualifier)).append('.');
+        }
+        sb.append(mapper.column(name())).append('{').append(label()).append(synthetic() ? "$" : "").append("}#").append(id());
     }
 
     @Override
     public final String toString() {
         StringBuilder sb = new StringBuilder();
-        nodeString(sb, NodeStringFormat.LIMITED);
+        nodeString(sb, NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY);
         return sb.toString();
     }
 

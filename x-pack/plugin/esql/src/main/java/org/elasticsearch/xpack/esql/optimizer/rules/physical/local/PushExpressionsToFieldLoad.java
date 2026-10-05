@@ -15,17 +15,19 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.RegexExtractExec;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 import java.util.ArrayList;
@@ -142,7 +144,14 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<PhysicalPlan, 
 
         private PhysicalPlan doRule(PhysicalPlan plan) {
             addedNewAttribute = false;
-            if (plan instanceof EvalExec || plan instanceof FilterExec || plan instanceof AggregateExec) {
+            // RegexExtractExec (DISSECT/GROK) and CompoundOutputEvalExec (URI_PARTS/REGISTERED_DOMAIN/USER_AGENT) both
+            // carry their parsed value in an input expression, another position where a pushable expression such as
+            // field_extract(<flattened>, "<key>") can be folded into the field load.
+            if (plan instanceof EvalExec
+                || plan instanceof FilterExec
+                || plan instanceof AggregateExec
+                || plan instanceof RegexExtractExec
+                || plan instanceof CompoundOutputEvalExec) {
                 return transformPotentialInvocation(plan);
             }
             if (addedAttrs.isEmpty()) {
@@ -177,7 +186,7 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<PhysicalPlan, 
             if (fuse == null) {
                 return e;
             }
-            if (fuse.field().field() instanceof MultiTypeEsField) {
+            if (fuse.field().field() instanceof UnionTypeEsField) {
                 return e;
             }
             if (primaries.canPush(nodeWithExpression) == false) {
@@ -208,7 +217,7 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<PhysicalPlan, 
          * not just {@code TS} command queries.
          */
         private boolean hasTimeSeriesShards() {
-            return context.searchStats().targetShards().values().stream().anyMatch(imd -> imd.getIndexMode() == IndexMode.TIME_SERIES);
+            return context.searchStats().targetShards().values().stream().anyMatch(imd -> IndexMode.isTsdb(imd.getIndexMode()));
         }
 
         private Expression replaceFieldsForFieldTransformations(Expression e, BlockLoaderExpression.PushedBlockLoaderExpression fuse) {

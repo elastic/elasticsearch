@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.StringPatter
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ChangeCase;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
@@ -34,6 +35,10 @@ public final class ReplaceRegexMatch extends OptimizerRules.OptimizerExpressionR
 
     @Override
     public Expression rule(RegexMatch<?> regexMatch, LogicalOptimizerContext ctx) {
+        return replace(regexMatch, ctx);
+    }
+
+    static Expression replace(RegexMatch<?> regexMatch, LogicalOptimizerContext ctx) {
         Expression e = regexMatch;
         StringPattern pattern = regexMatch.pattern();
         boolean matchesAll;
@@ -53,11 +58,11 @@ public final class ReplaceRegexMatch extends OptimizerRules.OptimizerExpressionR
             String match = pattern.exactMatch();
             if (match != null) {
                 Literal literal = Literal.keyword(regexMatch.source(), match);
-                e = regexToEquals(regexMatch, literal);
+                e = new Equals(regexMatch.source(), regexMatch.field(), literal);
             } else if (regexMatch instanceof WildcardLike wl
                 && wl.caseInsensitive() == false
                 && (wl.field() instanceof ChangeCase) == false) {
-                    Expression decomposed = decomposeWildcardLike(wl);
+                    Expression decomposed = decomposeWildcardLike(wl, ctx);
                     if (decomposed != null) {
                         e = decomposed;
                     }
@@ -66,11 +71,7 @@ public final class ReplaceRegexMatch extends OptimizerRules.OptimizerExpressionR
         return e;
     }
 
-    protected Expression regexToEquals(RegexMatch<?> regexMatch, Literal literal) {
-        return new Equals(regexMatch.source(), regexMatch.field(), literal);
-    }
-
-    private static Expression decomposeWildcardLike(WildcardLike wl) {
+    private static Expression decomposeWildcardLike(WildcardLike wl, LogicalOptimizerContext ctx) {
         WildcardPattern wp = wl.pattern();
         String prefix = wp.extractPrefix();
         String raw = wp.pattern();
@@ -81,6 +82,15 @@ public final class ReplaceRegexMatch extends OptimizerRules.OptimizerExpressionR
         String suffix = wp.extractSuffix();
         if (suffix != null && raw.equals("*" + StringUtils.escapeWildcardLiteral(suffix))) {
             return new EndsWith(wl.source(), wl.field(), Literal.keyword(wl.source(), suffix));
+        }
+        // Pure *literal* — escape-aware syntactic check via WildcardPattern.shape(); not reachable
+        // from the prefix/suffix branches above (those require single-star raw equality).
+        // Gated on the cluster minimum version: older remotes either lack Contains entirely or carry a
+        // non-TranslationAware Contains, so on a mixed-version (e.g. cross-cluster) query we keep the
+        // original WildcardLike, which every supported node serializes and translates correctly.
+        if (ctx.minimumVersion().supports(Contains.LIKE_TO_CONTAINS_VERSION)
+            && wp.shape() instanceof WildcardPattern.Shape.Contains contains) {
+            return new Contains(wl.source(), wl.field(), Literal.keyword(wl.source(), contains.literal()));
         }
         if (prefix != null) {
             return new And(wl.source(), new StartsWith(wl.source(), wl.field(), Literal.keyword(wl.source(), prefix)), wl);

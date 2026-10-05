@@ -682,7 +682,7 @@ public class MasterServiceTests extends ESTestCase {
             }
 
             assertThat(masterService.numberOfPendingTasks(), equalTo(submitThreads.length + 1));
-            final var sources = masterService.pendingTasks().stream().map(t -> t.getSource().string()).collect(Collectors.toSet());
+            final var sources = masterService.pendingTasks().stream().map(PendingClusterTask::getSource).collect(Collectors.toSet());
             assertThat(sources, hasSize(submitThreads.length + 1));
             assertTrue(sources.contains("block"));
             for (int i = 0; i < submitThreads.length; i++) {
@@ -1956,7 +1956,7 @@ public class MasterServiceTests extends ESTestCase {
      */
     public void testStarvationMetrics() {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
-        deterministicTaskQueue.setExecutionDelayVariabilityMillis(between(0, 10_000));
+        deterministicTaskQueue.setExecutionDelayVariabilityMillis(between(1, 10_000));
         deterministicTaskQueue.scheduleAtAndRunUpTo(randomLongBetween(0, 100_000), () -> {});
 
         final var meterRegistry = new RecordingMeterRegistry();
@@ -2148,14 +2148,14 @@ public class MasterServiceTests extends ESTestCase {
         meterRegistry.getRecorder().resetCalls();
         meterRegistry.getRecorder().collect();
         assertThat(
-            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, pendingTasksMetricName(metricName)),
+            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, pendingTasksMetricName(metricName)),
             measures(expectedValue)
         );
         for (final var priority : Priority.values()) {
             assertThat(
                 priority.toString(),
                 meterRegistry.getRecorder()
-                    .getMeasurements(InstrumentType.LONG_GAUGE, priorityPendingTasksMetricName(priority, metricName)),
+                    .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, priorityPendingTasksMetricName(priority, metricName)),
                 measures(expectedValuePerPriority.applyAsLong(priority))
             );
         }
@@ -2343,7 +2343,7 @@ public class MasterServiceTests extends ESTestCase {
                         .findFirst()
                         .orElseThrow(() -> new AssertionError("task not found"));
 
-                    assertEquals(getSource(), pendingTaskEntry.getSource().string());
+                    assertEquals(getSource(), pendingTaskEntry.getSource());
                     assertEquals(expectExecuting, pendingTaskEntry.isExecuting());
                     assertEquals(priority, pendingTaskEntry.getPriority());
                     assertEquals(

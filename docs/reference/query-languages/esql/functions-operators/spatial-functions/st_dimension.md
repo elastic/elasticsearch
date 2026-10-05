@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `ST_DIMENSION` function [esql-st_dimension]
 
-:::{include} ../../_snippets/functions/layout/st_dimension.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/st_dimension.md
 :::

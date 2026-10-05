@@ -60,10 +60,8 @@ public class GatewayServiceTests extends ESTestCase {
     private AtomicInteger rerouteCount;
     private String dataNodeIdPrefix;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initGatewayServiceFixtures() throws Exception {
         deterministicTaskQueue = new DeterministicTaskQueue();
         assertThat(deterministicTaskQueue.getCurrentTimeMillis(), equalTo(0L));
         rerouteCount = new AtomicInteger();

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.stateless;
 
+import org.apache.logging.log4j.Level;
+import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -19,6 +21,7 @@ import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAct
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
@@ -56,6 +59,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDe
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -69,6 +73,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.shard.IndexShard;
@@ -77,6 +82,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.TestProcessor;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.rest.RestStatus;
@@ -87,6 +93,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -99,6 +106,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -107,6 +115,7 @@ import org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.engine.IndexEngineDynamicSettings;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
@@ -115,6 +124,7 @@ import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
+import org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotSettings;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -131,8 +141,11 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -147,6 +160,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static java.lang.Math.min;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
@@ -166,11 +180,12 @@ import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STAT
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.elasticsearch.xpack.stateless.engine.IndexEngineTestUtils.flushHollow;
 import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
-import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -263,7 +278,8 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             RefreshManagerService refreshManagerService,
             ReshardIndexService reshardIndexService,
             DocumentParsingProvider documentParsingProvider,
-            IndexEngine.EngineMetrics engineMetrics
+            IndexEngine.EngineMetrics engineMetrics,
+            IndexEngineDynamicSettings indexEngineDynamicSettings
         ) {
             Semaphore newIndexEngineStartedSemaphore = newIndexEngineStartedSemaphoreReference.get();
             if (newIndexEngineStartedSemaphore != null) {
@@ -283,7 +299,8 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 refreshManagerService,
                 reshardIndexService,
                 documentParsingProvider,
-                engineMetrics
+                engineMetrics,
+                indexEngineDynamicSettings
             );
         }
     }
@@ -566,7 +583,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
 
         String indexNodeB = startIndexNode(indexNodeSettings);
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
-        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
+        internalCluster().awaitNodeVacated(indexName, indexNodeA);
         ensureGreen(indexName);
         final var indexNodeBCacheService = getCacheService(
             BlobStoreCacheDirectory.unwrapDirectory(findIndexShard(indexName).store().directory())
@@ -637,7 +654,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 indexShard.shardId(),
                 bcc.primaryTermAndGeneration().primaryTerm()
             );
-            final var blobName = StatelessCompoundCommit.blobNameFromGeneration(bcc.primaryTermAndGeneration().generation());
+            final var blobName = BatchedCompoundCommit.blobNameFromGeneration(bcc.primaryTermAndGeneration().generation());
 
             final var cc = bcc.lastCompoundCommit();
             assert cc.hollow();
@@ -700,7 +717,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 long position,
                 long length
             ) throws IOException {
-                if (StatelessCompoundCommit.startsWithBlobPrefix(blobName)) {
+                if (BatchedCompoundCommit.startsWithBlobPrefix(blobName)) {
                     logger.debug("--> reading BCC {} at position {} for length {}", blobName, position, length);
                     bccAccesses.incrementAndGet();
                 }
@@ -723,6 +740,17 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 indexShard.failShard("reassign", new Exception("test wants to recover hollow shard"));
             }
             ensureRed(clusterInfo.indexName);
+            // Ensure that all the shards have been completely closed
+            try {
+                assertBusy(() -> {
+                    for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
+                        final var indexService = indicesService.indexService(clusterInfo.index);
+                        assertNull(indexService);
+                    }
+                });
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
             updateIndexSettings(
                 Settings.builder().put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 1),
                 clusterInfo.indexName
@@ -755,6 +783,211 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         assertHitCount(client().prepareSearch(clusterInfo.indexName).setSize(0).setTrackTotalHits(true), clusterInfo.numDocs + moreDocs);
         // We expect more blob accesses that just the shards, since unhollowing prewarms/reads referenced blobs as well
         assertThat(bccAccesses.get(), greaterThan(clusterInfo.numberOfShards));
+    }
+
+    public void testCloseAndReopenHollowIndex() throws Exception {
+        final var clusterInfo = startNodesAndHollowShards(randomIntBetween(1, 5));
+
+        // Close the index
+        assertAcked(indicesAdmin().prepareClose(clusterInfo.indexName));
+        ensureGreen();
+
+        final Index index = resolveIndex(clusterInfo.indexName);
+        for (int i = 0; i < clusterInfo.numberOfShards; i++) {
+            var indexShard = findIndexShard(index, i);
+            indexShard.withEngine(e -> {
+                assertThat(e, instanceOf(NoOpEngine.class));
+                return null;
+            });
+        }
+
+        // Open the index
+        assertAcked(indicesAdmin().prepareOpen(clusterInfo.indexName));
+        ensureGreen();
+
+        for (int i = 0; i < clusterInfo.numberOfShards; i++) {
+            var indexShard = findIndexShard(index, i);
+            indexShard.withEngine(e -> {
+                assertThat(e, instanceOf(HollowIndexEngine.class));
+                return null;
+            });
+        }
+
+        // Ensure we read the same number of docs
+        startSearchNode();
+        setReplicaCount(1, clusterInfo.indexName);
+        ensureGreen(clusterInfo.indexName);
+        assertHitCount(client().prepareSearch(clusterInfo.indexName).setSize(0).setTrackTotalHits(true), clusterInfo.numDocs);
+
+        // Ensure we can continue indexing
+        final int moreDocs = randomIntBetween(clusterInfo.numDocs * 2, clusterInfo.numDocs * 4);
+        indexDocsAndRefresh(clusterInfo.indexName, moreDocs);
+        assertHitCount(client().prepareSearch(clusterInfo.indexName).setSize(0).setTrackTotalHits(true), clusterInfo.numDocs + moreDocs);
+    }
+
+    public void testCloseWhileShardsAreHollowed() throws Exception {
+        startMasterOnlyNode();
+        final var indexNodeSettings = Settings.builder()
+            .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .build();
+        final var indexNodeA = startIndexNode(indexNodeSettings);
+        final var indexNodeB = startIndexNode(indexNodeSettings);
+
+        final var indexName = randomIdentifier();
+        final var numberOfShards = randomIntBetween(1, 5);
+        createIndex(indexName, indexSettings(numberOfShards, 0).put("index.routing.allocation.exclude._name", indexNodeB).build());
+        ensureGreen(indexName);
+        final var numDocs = randomIntBetween(32, 64);
+        indexDocsAndRefresh(indexName, numDocs);
+
+        final var hollowShardsServiceA = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
+        final Index index = resolveIndex(indexName);
+        assertBusy(() -> {
+            for (int i = 0; i < numberOfShards; i++) {
+                var indexShard = findIndexShard(index, i);
+                assertTrue(hollowShardsServiceA.isHollowableIndexShard(indexShard));
+            }
+        });
+
+        // Close will race with relocation that hollows shards
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
+        assertAcked(indicesAdmin().prepareClose(indexName));
+        ensureGreen();
+
+        for (int i = 0; i < numberOfShards; i++) {
+            var indexShard = findIndexShard(index, i);
+            indexShard.withEngine(e -> {
+                assertThat(e, instanceOf(NoOpEngine.class));
+                return null;
+            });
+        }
+
+        // Open the index
+        assertAcked(indicesAdmin().prepareOpen(indexName));
+        ensureGreen(indexName);
+
+        for (int i = 0; i < numberOfShards; i++) {
+            var indexShard = findIndexShard(index, i);
+            indexShard.withEngine(e -> {
+                // Some shards might already be hollowed
+                assertThat(e, either(instanceOf(IndexEngine.class)).or(instanceOf(HollowIndexEngine.class)));
+                return null;
+            });
+        }
+
+        // Ensure we read the same number of docs
+        startSearchNode();
+        setReplicaCount(1, indexName);
+        ensureGreen(indexName);
+        assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHits(true), numDocs);
+
+        // Ensure we can continue indexing
+        final int moreDocs = randomIntBetween(numDocs * 2, numDocs * 4);
+        indexDocsAndRefresh(indexName, moreDocs);
+        assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHits(true), numDocs + moreDocs);
+    }
+
+    public void testCloseWhileShardsAreUnhollowed() throws Exception {
+        final var clusterInfo = startNodesAndHollowShards(randomIntBetween(1, 5));
+
+        final int writers = randomIntBetween(1, 5);
+        final ExecutorService ingestPool = Executors.newFixedThreadPool(writers);
+        final AtomicBoolean stopIngest = new AtomicBoolean(false);
+        final List<Throwable> unexpected = new CopyOnWriteArrayList<>();
+        final CountDownLatch writersReady = new CountDownLatch(writers);
+        final CountDownLatch writersStart = new CountDownLatch(1);
+        final var moreDocs = new AtomicLong(0);
+        try {
+            for (int i = 0; i < writers; i++) {
+                int finalI = i;
+                ingestPool.submit(() -> {
+                    try {
+                        writersReady.countDown();
+                        safeAwait(writersStart);
+                        while (stopIngest.get() == false) {
+                            final int newDocs = randomIntBetween(1, clusterInfo.numberOfShards * 10);
+
+                            var bulkRequest = client().prepareBulk();
+                            for (int j = 0; j < newDocs; j++) {
+                                bulkRequest.add(
+                                    new IndexRequest(clusterInfo.indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25))
+                                );
+                            }
+                            var bulkFuture = bulkRequest.execute();
+
+                            final var bulkResponse = bulkFuture.actionGet();
+                            for (int j = 0; j < bulkResponse.getItems().length; j++) {
+                                BulkItemResponse response = bulkResponse.getItems()[j];
+                                if (response.isFailed()) {
+                                    boolean containsClose = response.getFailureMessage().contains("close")
+                                        || ExceptionsHelper.unwrapCause(response.getFailure().getCause()).getMessage().contains("close");
+                                    if (containsClose == false) {
+                                        logger.error(
+                                            "unexpected non-close failure from writer [" + finalI + "]: " + response.getFailureMessage(),
+                                            response.getFailure().getCause()
+                                        );
+                                    }
+                                    assertTrue(response.getFailureMessage() + " does not relate to a closed index", containsClose);
+                                } else {
+                                    moreDocs.incrementAndGet();
+                                }
+                            }
+                        }
+                    } catch (Throwable e) {
+                        logger.error("unexpected throwable from writer [" + finalI + "]", e);
+                        unexpected.add(e);
+                    }
+                });
+            }
+            safeAwait(writersReady);
+            writersStart.countDown();
+            assertAcked(indicesAdmin().prepareClose(clusterInfo.indexName));
+        } finally {
+            stopIngest.set(true);
+            ingestPool.shutdown();
+            assertTrue(ingestPool.awaitTermination(2, TimeUnit.MINUTES));
+            assertThat(unexpected, empty());
+        }
+
+        final Index index = resolveIndex(clusterInfo.indexName);
+        for (int i = 0; i < clusterInfo.numberOfShards; i++) {
+            var indexShard = findIndexShard(index, i);
+            indexShard.withEngine(e -> {
+                assertThat(e, instanceOf(NoOpEngine.class));
+                return null;
+            });
+        }
+
+        // Open the index
+        assertAcked(indicesAdmin().prepareOpen(clusterInfo.indexName));
+        ensureGreen();
+
+        for (int i = 0; i < clusterInfo.numberOfShards; i++) {
+            var indexShard = findIndexShard(index, i);
+            indexShard.withEngine(e -> {
+                // Some shards might not have been unhollowed yet
+                assertThat(e, either(instanceOf(IndexEngine.class)).or(instanceOf(HollowIndexEngine.class)));
+                return null;
+            });
+        }
+
+        // Ensure we read the same number of docs
+        startSearchNode();
+        setReplicaCount(1, clusterInfo.indexName);
+        ensureGreen(clusterInfo.indexName);
+        assertHitCount(
+            client().prepareSearch(clusterInfo.indexName).setSize(0).setTrackTotalHits(true),
+            clusterInfo.numDocs + moreDocs.get()
+        );
+
+        // Ensure we can continue indexing
+        final int evenMoreDocs = randomIntBetween(clusterInfo.numDocs * 2, clusterInfo.numDocs * 4);
+        indexDocsAndRefresh(clusterInfo.indexName, evenMoreDocs);
+        assertHitCount(
+            client().prepareSearch(clusterInfo.indexName).setSize(0).setTrackTotalHits(true),
+            clusterInfo.numDocs + moreDocs.get() + evenMoreDocs
+        );
     }
 
     public void testSnapshotHollowShardsAndRestore() throws Exception {
@@ -792,7 +1025,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                     Settings.builder().put("index.routing.allocation.exclude._name", clusterInfo.indexNodeB),
                     clusterInfo.indexName
                 );
-                assertBusy(() -> assertThat(internalCluster().nodesInclude(clusterInfo.indexName), not(hasItem(clusterInfo.indexNodeB))));
+                internalCluster().awaitNodeVacated(clusterInfo.indexName, clusterInfo.indexNodeB);
                 ensureGreen(clusterInfo.indexName);
 
                 for (int i = 0; i < clusterInfo.numberOfShards; i++) {
@@ -1036,7 +1269,12 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 if (response.getFailedShards() != 0) {
                     final AssertionError assertionError = new AssertionError("[" + response.getFailedShards() + "] shard failures");
                     for (DefaultShardOperationFailedException shardFailure : response.getShardFailures()) {
-                        if (shardFailure.getCause().toString().toLowerCase(Locale.ROOT).contains("aborted") == false) {
+                        // Remote MergeAbortedException is serialized as IOException so that we also check the message
+                        if (ExceptionsHelper.unwrapCausesAndSuppressed(
+                            shardFailure.getCause(),
+                            t -> t instanceof MergePolicy.MergeAbortedException
+                                || (t.getMessage() != null && t.getMessage().contains("merge is aborted"))
+                        ).isEmpty()) {
                             assertionError.addSuppressed(new ElasticsearchException(shardFailure.toString(), shardFailure.getCause()));
                         }
                     }
@@ -1053,7 +1291,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         final var hollowThread = new Thread(() -> {
             try {
                 updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
-                assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
+                internalCluster().awaitNodeVacated(indexName, indexNodeA);
                 ensureGreen(indexName);
             } catch (Exception e) {
                 throw new AssertionError(e);
@@ -1200,11 +1438,14 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         assertThat(getTotalLongCounterValue(HollowShardsMetrics.HOLLOW_SUCCESS_TOTAL, telemetryPluginA), equalTo(0L));
         assertThat(getTotalLongHistogramValue(HollowShardsMetrics.HOLLOW_TIME_MILLIS, telemetryPluginA), equalTo(0L));
         assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginA), equalTo(0L));
-        assertThat(getLastLongGaugeValue(HollowShardsMetrics.HOLLOWABLE_SHARDS_TOTAL, telemetryPluginA), equalTo((long) numberOfShards));
+        assertThat(
+            getLastLongAsyncGaugeValue(HollowShardsMetrics.HOLLOWABLE_SHARDS_TOTAL, telemetryPluginA),
+            equalTo((long) numberOfShards)
+        );
 
         logger.info("--> relocating {} hollowable shards from {} to {}", numberOfShards, indexNodeA, indexNodeB);
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
-        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
+        internalCluster().awaitNodeVacated(indexName, indexNodeA);
         ensureGreen(indexName);
         logger.info("--> relocated");
 
@@ -1223,7 +1464,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         assertThat(getTotalLongCounterValue(HollowShardsMetrics.HOLLOW_SUCCESS_TOTAL, telemetryPluginA), equalTo((long) numberOfShards));
         assertThat(getTotalLongHistogramValue(HollowShardsMetrics.HOLLOW_TIME_MILLIS, telemetryPluginA), greaterThan(0L));
         assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginA), equalTo(0L));
-        assertThat(getLastLongGaugeValue(HollowShardsMetrics.HOLLOWABLE_SHARDS_TOTAL, telemetryPluginA), equalTo(0L));
+        assertThat(getLastLongAsyncGaugeValue(HollowShardsMetrics.HOLLOWABLE_SHARDS_TOTAL, telemetryPluginA), equalTo(0L));
 
         var telemetryPluginB = getTelemetryPlugin(indexNodeB);
         telemetryPluginB.collect();
@@ -1231,7 +1472,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginB),
             equalTo((long) numberOfShards)
         );
-        assertThat(getLastLongGaugeValue(HollowShardsMetrics.HOLLOWABLE_SHARDS_TOTAL, telemetryPluginA), equalTo(0L));
+        assertThat(getLastLongAsyncGaugeValue(HollowShardsMetrics.HOLLOWABLE_SHARDS_TOTAL, telemetryPluginA), equalTo(0L));
     }
 
     public void testRelocateHollowShards() throws Exception {
@@ -1265,7 +1506,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
 
         logger.info("--> relocating {} shards from {} to {}", numberOfShards, indexNodeA, indexNodeB);
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
-        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
+        internalCluster().awaitNodeVacated(indexName, indexNodeA);
         ensureGreen(indexName);
         logger.info("--> relocated");
 
@@ -1273,7 +1514,9 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             var indexShard = findIndexShard(index, i);
             var engine = indexShard.getEngineOrNull();
             assertThat(engine, instanceOf(HollowIndexEngine.class));
-            hollowShardsServiceA.ensureHollowShard(indexShard.shardId(), false);
+            // The source node removes the hollow shard blocker asynchronously when it closes the relocated shard, which can lag
+            // behind the cluster-state-based relocation wait above, so retry until the source node has cleaned up.
+            assertBusy(() -> hollowShardsServiceA.ensureHollowShard(indexShard.shardId(), false));
             hollowShardsServiceB.ensureHollowShard(indexShard.shardId(), true);
 
             initialHollowPrimaryTermGenerations.put(
@@ -1283,7 +1526,9 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         }
         var telemetryPluginA = getTelemetryPlugin(indexNodeA);
         assertThat(getTotalLongCounterValue(HollowShardsMetrics.HOLLOW_SUCCESS_TOTAL, telemetryPluginA), equalTo((long) numberOfShards));
-        assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginA), equalTo(0L));
+        assertBusy(
+            () -> assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginA), equalTo(0L))
+        );
         var telemetryPluginB = getTelemetryPlugin(indexNodeB);
         assertThat(
             getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginB),
@@ -1293,7 +1538,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         // Try to relocate back hollow shards now initialized with `HollowIndexEngine`
         logger.info("--> relocating {} shards from {} to {}", numberOfShards, indexNodeB, indexNodeA);
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeB), indexName);
-        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeB))));
+        internalCluster().awaitNodeVacated(indexName, indexNodeB);
         ensureGreen(indexName);
         logger.info("--> relocated");
 
@@ -1302,7 +1547,9 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             var engine = indexShard.getEngineOrNull();
             assertThat(engine, instanceOf(HollowIndexEngine.class));
             hollowShardsServiceA.ensureHollowShard(indexShard.shardId(), true);
-            hollowShardsServiceB.ensureHollowShard(indexShard.shardId(), false);
+            // The source node removes the hollow shard blocker asynchronously when it closes the relocated shard, which can lag
+            // behind the cluster-state-based relocation wait above, so retry until the source node has cleaned up.
+            assertBusy(() -> hollowShardsServiceB.ensureHollowShard(indexShard.shardId(), false));
 
             // No extra flushes triggered on relocating hollow shards with `HollowIndexEngine`
             var commitAfterRelocationToNodeA = internalCluster().getInstance(StatelessCommitService.class, indexNodeA)
@@ -1319,7 +1566,9 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginA),
             equalTo((long) numberOfShards)
         );
-        assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginB), equalTo(0L));
+        assertBusy(
+            () -> assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginB), equalTo(0L))
+        );
     }
 
     public void testRegistrationOnBccWithLastHollowCommitAndDifferentPrimaryTerm() throws Exception {
@@ -1384,14 +1633,15 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         logger.info("--> let relocation complete");
         setNodeRepositoryStrategy(indexNodeA, StatelessMockRepositoryStrategy.DEFAULT);
 
-        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
+        internalCluster().awaitNodeVacated(indexName, indexNodeA);
         ensureGreen(indexName);
         logger.info("--> relocated");
 
         final var indexShardRelocated = findIndexShard(indexName);
         var engine = indexShardRelocated.getEngineOrNull();
         assertThat(engine, instanceOf(HollowIndexEngine.class));
-        hollowShardsServiceA.ensureHollowShard(indexShardRelocated.shardId(), false);
+        // Removed via afterIndexShardClosed callback
+        assertBusy(() -> hollowShardsServiceA.ensureHollowShard(indexShardRelocated.shardId(), false));
         hollowShardsServiceB.ensureHollowShard(indexShardRelocated.shardId(), true);
 
         internalCluster().stopNode(indexNodeA);
@@ -1583,7 +1833,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
 
         // We would like to make the relocation flush stuck due to object store failures so we enable failures only for the new generation.
         // Later, while the flush keeps repeating the upload, we issue the ingestion that will linger until the relocation failure.
-        long newGen = statelessCommitServiceA.getMaxGenerationToUploadForFlush(indexShard.shardId()) + 1;
+        long newGen = statelessCommitServiceA.getMaxPendingOrUploadedGeneration(indexShard.shardId()) + 1;
         setNodeRepositoryFailureStrategy(indexNodeA, false, true, Map.of(OperationPurpose.INDICES, ".*stateless_commit_" + newGen + ".*"));
 
         var indexNodeB = startIndexNode(indexNodeSettings);
@@ -1599,7 +1849,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         );
 
         // Wait until the hollow flushed commit appears for upload
-        assertBusy(() -> assertThat(statelessCommitServiceA.getMaxGenerationToUploadForFlush(indexShard.shardId()), equalTo(newGen)));
+        assertBusy(() -> assertThat(statelessCommitServiceA.getMaxPendingOrUploadedGeneration(indexShard.shardId()), equalTo(newGen)));
 
         // Index more docs, which will complete after the relocation failure and after unhollowing the shard
         logger.debug("--> indexing {} docs", numDocs);
@@ -1636,9 +1886,10 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         ensureGreen(indexName);
         long translogRecoveredOps = indicesAdmin().prepareRecoveries(indexName)
             .get()
-            .shardRecoveryStates()
+            .shardRecoveryInfos()
             .get(indexName)
             .stream()
+            .map(ShardRecoveryInfo::recoveryState)
             .mapToLong(e -> e.getTranslog().recoveredOperations())
             .sum();
         assertThat(translogRecoveredOps, equalTo((long) numDocs * 3));
@@ -1829,6 +2080,15 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         unhollowOnIngestion(IngestionType.Index);
     }
 
+    // We have seen this test time out waiting for the ingestion latch. It does not reproduce locally and the CI logs
+    // before and after the timeout do not look slow, which points to a discrete stall in the unhollow-on-first-ingestion
+    // path rather than gradual slowness. HollowShardsService logs each step of unhollowing at DEBUG (start, engine reset,
+    // flush, "unhollowed shard with gen ..."), so enabling it should show how far each shard's unhollow progressed when
+    // we next catch a failure.
+    @TestIssueLogging(
+        value = "org.elasticsearch.xpack.stateless.commits.HollowShardsService:DEBUG",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/151100"
+    )
     public void testUnhollowOnUpdates() throws Exception {
         unhollowOnIngestion(IngestionType.Update);
     }
@@ -1864,11 +2124,11 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
 
         final var docsIdsGenerator = new AtomicLong();
         final Supplier<String> docIdSupplier = () -> Long.toHexString(docsIdsGenerator.getAndIncrement());
-        var bulkResponse = indexDocs(indexName, between(64, 128), docIdSupplier); // need enough docs for ingesting into all shards
+        var bulkResponse = indexDocs(indexName, between(128, 256), docIdSupplier); // need enough docs for ingesting into all shards
         var docsIds = Arrays.stream(bulkResponse.getItems()).map(BulkItemResponse::getId).collect(Collectors.toCollection(HashSet::new));
 
         flush(indexName);
-        bulkResponse = indexDocs(indexName, between(64, 128), docIdSupplier); // need enough docs for ingesting into all shards
+        bulkResponse = indexDocs(indexName, between(128, 256), docIdSupplier); // need enough docs for ingesting into all shards
         Arrays.stream(bulkResponse.getItems()).forEach(item -> docsIds.add(item.getId()));
         var hollowShardsServiceA = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
         for (int i = 0; i < numberOfShards; i++) {
@@ -1879,7 +2139,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
 
         logger.info("--> relocating {} hollowable shards from {} to {}", numberOfShards, indexNodeA, indexNodeB);
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
-        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
+        internalCluster().awaitNodeVacated(indexName, indexNodeA);
         ensureGreen(indexName);
         logger.info("--> relocated");
 
@@ -1904,13 +2164,22 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             List<Long> generationsBeforeUnhollow = IntStream.range(0, numberOfShards)
                 .mapToObj(i -> statelessCommitService.getLatestUploadedBcc(new ShardId(index, i)).lastCompoundCommit().generation())
                 .toList();
+            // Captured so that, if the latch times out below, we can tell whether a shard made any indexing progress at
+            // all during the burst. Read together with the engine type logged there. See #151100.
+            List<Long> indexOpsBeforeUnhollow = IntStream.range(0, numberOfShards)
+                .mapToObj(i -> findIndexShard(index, i).indexingStats().getTotal().getIndexCount())
+                .toList();
             var ingestLatch = new CountDownLatch(ingestingThreads);
+            // need enough updates to be sure to hollow every shard
+            final var docsToIngest = randomSubsetOf(100, docsIds);
+            final var ingestFutures = new ArrayList<Future<?>>(ingestingThreads);
             for (int i = 0; i < ingestingThreads; i++) {
+                final int threadIndex = i;
                 Runnable ingestRunnable = switch (ingestionType) {
                     // Index docs
                     case Index -> () -> {
                         try {
-                            indexDocs(indexName, randomIntBetween(64, 128)); // need enough ops to ensure unhollowing all shards
+                            indexDocs(indexName, randomIntBetween(128, 256)); // need enough ops to ensure unhollowing all shards
                         } finally {
                             ingestLatch.countDown();
                         }
@@ -1918,11 +2187,10 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                     // Update doc or Upsert new doc
                     case Update -> () -> {
                         try {
-                            for (int j = 0; j < Math.min(docsIds.size(), 128); j++) { // need enough updates to be sure to hollow every
-                                                                                      // shard
+                            for (int docIndex = threadIndex; docIndex < docsToIngest.size(); docIndex += ingestingThreads) {
                                 final var upsertOrUpdate = randomBoolean();
-                                var docId = upsertOrUpdate ? docIdSupplier.get() : randomFrom(docsIds);
-                                var response = client().prepareUpdate(indexName, docId)
+                                final var docId = upsertOrUpdate ? docIdSupplier.get() : docsToIngest.get(docIndex);
+                                final var response = client().prepareUpdate(indexName, docId)
                                     .setDoc(frequently() ? "field" : "field_" + docId, randomUnicodeOfLength(10))
                                     .setDocAsUpsert(upsertOrUpdate)
                                     .get();
@@ -1941,9 +2209,8 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                         try {
                             var client = client();
                             var bulkUpdates = client.prepareBulk();
-                            for (int j = 0; j < Math.min(docsIds.size(), 128); j++) { // need enough updates to be sure to hollow every
-                                                                                      // shard
-                                var docId = randomFrom(docsIds);
+                            for (int docIndex = threadIndex; docIndex < docsToIngest.size(); docIndex += ingestingThreads) {
+                                var docId = docsToIngest.get(docIndex);
                                 bulkUpdates.add(client.prepareUpdate(indexName, docId).setDoc("field", randomUnicodeOfLength(10)));
                             }
                             assertNoFailures(bulkUpdates.get());
@@ -1953,9 +2220,45 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                     };
                     default -> throw new AssertionError("Unexpected value");
                 };
-                ingestExecutor.submit(ingestRunnable);
+                ingestFutures.add(ingestExecutor.submit(ingestRunnable));
             }
-            safeAwait(ingestLatch, TimeValue.THIRTY_SECONDS);
+            // If an ingesting thread blocks (most likely on a shard's unhollow-on-first-ingestion), the latch never reaches
+            // zero. Rather than mask that by simply extending the timeout, capture diagnostics on the (rare, CI-only) timeout:
+            // which shards are still hollow, plus a hot-threads dump identifying the stuck operation. See #151100.
+            if (ingestLatch.await(30, TimeUnit.SECONDS) == false) {
+                for (int i = 0; i < numberOfShards; i++) {
+                    var shardId = new ShardId(index, i);
+                    try {
+                        var indexShard = findIndexShard(index, i);
+                        var engine = indexShard.getEngineOrNull();
+                        // The index-op count alone is ambiguous: it only moves once an operation is applied, and unhollowing
+                        // happens before apply, so "before == now" can mean either that the shard received no operations or
+                        // that operations are parked mid-unhollow. The engine type disambiguates: a HollowIndexEngine means
+                        // the reset to an IndexEngine has not completed yet.
+                        logger.error(
+                            "--> ingest latch timed out; shard {} on {}: hollow={}, engine={}, index ops before={} now={}",
+                            shardId,
+                            indexNodeB,
+                            hollowShardsServiceB.isHollowShard(shardId),
+                            engine == null ? "null" : engine.getClass().getSimpleName(),
+                            indexOpsBeforeUnhollow.get(i),
+                            indexShard.indexingStats().getTotal().getIndexCount()
+                        );
+                    } catch (Exception | AssertionError e) {
+                        // Never let a missing shard hide the remaining shards or the hot threads dump below
+                        logger.error(() -> "--> ingest latch timed out; failed to collect diagnostics for shard " + shardId, e);
+                    }
+                }
+                HotThreads.logLocalHotThreads(
+                    logger,
+                    Level.INFO,
+                    "ingest latch timed out waiting for unhollow-on-ingestion",
+                    ReferenceDocs.LOGGING
+                );
+                fail("ingestLatch did not reach zero within 30s; see still-hollow shards and hot threads logged above");
+            }
+            // if ingest threads haven't succeeded, we cannot be sure about the results
+            ingestFutures.forEach(ESTestCase::safeGet);
             for (int i = 0; i < numberOfShards; i++) {
                 // Should unhollow only once
                 assertThat(
@@ -2037,7 +2340,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         // Hollow shards by relocating them
         logger.info("--> relocating {} hollowable shards from {} to {}", numberOfShards, indexNodeA, indexNodeB);
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
-        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
+        internalCluster().awaitNodeVacated(indexName, indexNodeA);
         ensureGreen(indexName);
         logger.info("--> relocated");
         var hollowShardsServiceB = internalCluster().getInstance(HollowShardsService.class, indexNodeB);
@@ -2079,9 +2382,10 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         );
         long translogRecoveredOps = indicesAdmin().prepareRecoveries(indexName)
             .get()
-            .shardRecoveryStates()
+            .shardRecoveryInfos()
             .get(indexName)
             .stream()
+            .map(ShardRecoveryInfo::recoveryState)
             .mapToLong(e -> e.getTranslog().recoveredOperations())
             .sum();
         assertThat(translogRecoveredOps, equalTo((long) docs3 + docs4));
@@ -2115,7 +2419,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
 
         logger.debug("--> relocating hollowable shard from {} to {}", indexNodeA, indexNodeB);
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
-        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
+        internalCluster().awaitNodeVacated(indexName, indexNodeA);
         ensureGreen(indexName);
         logger.debug("--> relocated");
 
@@ -2136,6 +2440,31 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         assertNoFailures(bulkFuture.get());
     }
 
+    /// Verifies that an indexing primary fails itself and reloads from the object store when a search shard
+    /// registers a commit that is newer than the one the primary is currently serving, rather than continuing
+    /// to serve stale data.
+    ///
+    /// The "search shard has a newer commit than the primary" condition is manufactured via a hollow-shard
+    /// un-hollowing scenario:
+    ///
+    /// - A single-shard index holding N documents is built on index node A and relocated to index node B as a
+    ///   hollow shard (the shard's data lives in the object store; B keeps only a stub that still reports N docs).
+    /// - N further documents are indexed directly into B. This forces B to un-hollow: it pulls its N original
+    ///   documents back and applies the N new ones, so the shard is expected to hold 2N documents. B's upload of
+    ///   the resulting un-hollow commit is stalled, and B is then isolated from the cluster and dropped.
+    /// - Because B left before publishing its un-hollow commit, the shard is re-assigned to A, which recovers
+    ///   from the newest commit visible on the object store (still the hollow one) and becomes the new primary.
+    ///   The isolated B is then allowed to finish un-hollowing and to upload its newer commits (the un-hollow
+    ///   commit and the commit carrying the new documents) to the object store.
+    /// - A search shard is added for the index. During its recovery it registers the newest commit it finds on
+    ///   the object store - the one uploaded by B - which is newer than the commit A is serving.
+    ///
+    /// The test asserts that this registration causes A's primary to be failed and to reload the newer un-hollow
+    /// commit from the object store: A ends up un-hollow, at a primary term greater than that of B's un-hollow
+    /// commit, and serving all 2N documents (including the dirty reads of the never-acknowledged bulk). The
+    /// original bulk request into B is never acknowledged, since B was isolated while its writes were in flight.
+    /// Random delays are injected around the shard-failure and register-commit responses so that both orderings
+    /// of those two events are exercised.
     public void testHollowShardFailsIfSearchShardRegistersNewerCommit() throws Exception {
         var nodeSettings = Settings.builder()
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
@@ -2168,7 +2497,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         String indexNodeB = startIndexNode(nodeSettings);
         var commitServiceB = internalCluster().getInstance(StatelessCommitService.class, indexNodeB);
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
-        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
+        internalCluster().awaitNodeVacated(indexName, indexNodeA);
         ensureGreen(indexName);
 
         var hollowShardsServiceB = internalCluster().getInstance(HollowShardsService.class, indexNodeB);
@@ -2193,6 +2522,10 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
         }
         var bulkFuture = bulkRequest.execute();
+
+        // Wait until node B has queued the (blocked) unhollow gen N+1 upload before isolating it, so isolation
+        // cannot win the race and reject the write with a "no master" block before unhollowing starts.
+        assertBusy(() -> assertTrue(commitServiceB.hasBccUploadInProgress(indexShardB.shardId())));
 
         // Isolate node B
         Set<String> isolatedSide = Collections.singleton(indexNodeB);
@@ -2390,27 +2723,30 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         };
         assertDataStreamsActionResponse.run();
 
-        // Wait until the backing index is hollowable
-        final var backingIndices = getBackingIndices(dataStreamName, false).stream().map(Index::getName).toList();
-        assertThat(backingIndices.size(), equalTo(2));
-        final var backingIndex = backingIndices.get(0);
+        // Wait until the backing index is hollowable. Use assertBusy because GetDataStreamAction runs
+        // on whichever node the client routes to, and that node may not have applied the rollover
+        // cluster state yet even though the node that coordinated DataStreamsStatsAction, in the above call, already has.
         final var hollowShardsService = internalCluster().getInstance(HollowShardsService.class, indexingNodeA);
+        final AtomicReference<String> backingHollowIndex = new AtomicReference<>();
         assertBusy(() -> {
-            final var indexShard = findIndexShard(backingIndex);
+            final var indices = getBackingIndices(dataStreamName, false).stream().map(Index::getName).toList();
+            assertThat(indices.size(), equalTo(2));
+            final var indexShard = findIndexShard(indices.get(0));
             assertThat(hollowShardsService.isHollowableIndexShard(indexShard), equalTo(true));
+            backingHollowIndex.set(indices.get(0));
         });
 
         // Start a new indexing node and relocate the index from the first indexing node to this one so it is hollowed
         final var indexingNodeB = startIndexNode(lowTtlSettings);
         ensureStableCluster(4);
         assertNodeDoesNotReceiveAction.accept(indexingNodeB);
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexingNodeA), backingIndex);
-        assertBusy(() -> assertThat(internalCluster().nodesInclude(backingIndex), not(hasItem(indexingNodeA))));
-        ensureGreen(backingIndex);
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexingNodeA), backingHollowIndex.get());
+        internalCluster().awaitNodeVacated(backingHollowIndex.get(), indexingNodeA);
+        ensureGreen(backingHollowIndex.get());
 
         // Ensure the shard was hollowed
         final var hollowShardsServiceB = internalCluster().getInstance(HollowShardsService.class, indexingNodeB);
-        final var indexShard = findIndexShard(backingIndex);
+        final var indexShard = findIndexShard(backingHollowIndex.get());
         assertThat(hollowShardsServiceB.isHollowShard(indexShard.shardId()), equalTo(true));
 
         // Assert the action again on the hollow shard
@@ -2426,6 +2762,10 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.ZERO)
             .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 5) // so that relocations are fast in case of replaying translog
+            .put(
+                StatelessSnapshotSettings.STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(),
+                StatelessSnapshotSettings.StatelessSnapshotEnabledStatus.ENABLED
+            )
             .build();
         List<String> indexNodes = startIndexNodes(randomIntBetween(2, 4), indexNodeSettings);
         startSearchNode();
@@ -2639,7 +2979,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                     if (subsetOfInsertedDocs.isEmpty()) {
                         continue;
                     }
-                    List<String> docIds = randomSubsetOf(Math.min(8, subsetOfInsertedDocs.size()), subsetOfInsertedDocs);
+                    List<String> docIds = randomSubsetOf(min(8, subsetOfInsertedDocs.size()), subsetOfInsertedDocs);
                     try {
                         if (randomBoolean()) {
                             var multiGetItemResponse = safeGet(client().prepareMultiGet().addIds(indexName, docIds).execute());
@@ -2679,7 +3019,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 if (subsetOfInsertedDocs.isEmpty()) {
                     continue;
                 }
-                List<String> docIds = randomSubsetOf(Math.min(subsetOfInsertedDocs.size(), 64), subsetOfInsertedDocs);
+                List<String> docIds = randomSubsetOf(min(subsetOfInsertedDocs.size(), 64), subsetOfInsertedDocs);
                 if (docIds.isEmpty()) {
                     continue;
                 }
@@ -3061,7 +3401,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         }
         logger.info("--> relocating {} hollowable shards from {} to {}", numOfShards, indexNodeA, indexNodeB);
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
-        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
+        internalCluster().awaitNodeVacated(indexName, indexNodeA);
         ensureGreen(indexName);
         logger.info("--> relocated");
         var hollowShardsServiceB = internalCluster().getInstance(HollowShardsService.class, indexNodeB);
@@ -3162,7 +3502,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 long position,
                 long length
             ) throws IOException {
-                if (StatelessCompoundCommit.startsWithBlobPrefix(blobName)) {
+                if (BatchedCompoundCommit.startsWithBlobPrefix(blobName)) {
                     logger.info("--> {} reading BCC {} at position {} for length {}", indexNode, blobName, position, length);
                     bccAccesses.incrementAndGet();
                 }
@@ -3198,7 +3538,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                             .indices()
                             .recoveries(new RecoveryRequest(index))
                             .get()
-                            .shardRecoveryStates()
+                            .shardRecoveryInfos()
                             .entrySet()
                             .stream()
                             .map(
@@ -3206,6 +3546,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                                     + ":"
                                     + e.getValue()
                                         .stream()
+                                        .map(ShardRecoveryInfo::recoveryState)
                                         .map(rs -> rs.getShardId() + " - " + rs.getTimer().time())
                                         .collect(Collectors.joining(","))
                             )

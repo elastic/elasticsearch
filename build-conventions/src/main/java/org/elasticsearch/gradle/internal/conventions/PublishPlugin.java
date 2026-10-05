@@ -10,7 +10,6 @@
 package org.elasticsearch.gradle.internal.conventions;
 
 import groovy.util.Node;
-import nmcp.NmcpPlugin;
 
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
 
@@ -45,7 +44,6 @@ import org.w3c.dom.Element;
 
 import java.io.File;
 import java.util.Map;
-import java.util.concurrent.Callable;
 
 import javax.inject.Inject;
 
@@ -68,7 +66,9 @@ public class PublishPlugin implements Plugin<Project> {
         project.getPluginManager().apply(MavenPublishPlugin.class);
         project.getPluginManager().apply(PomValidationPrecommitPlugin.class);
         project.getPluginManager().apply(LicensingPlugin.class);
-        project.getPluginManager().apply(NmcpPlugin.class);
+        // nmcp 1.x no longer exposes a public plugin class (the implementation moved to an
+        // internal Gratatouille-generated type), so apply the publishing plugin by its id.
+        project.getPluginManager().apply("com.gradleup.nmcp");
         project.getPluginManager().apply(SigningPlugin.class);
         configureJavadocJar(project);
         configureSourcesJar(project);
@@ -136,16 +136,14 @@ public class PublishPlugin implements Plugin<Project> {
         var archivesBaseName = providerFactory.provider(() -> getArchivesBaseName(extensions));
         var projectVersion = providerFactory.provider(() -> project.getVersion());
         var generateMavenPoms = project.getTasks().withType(GenerateMavenPom.class);
-        generateMavenPoms.configureEach(pomTask -> {
-            pomTask.setDestination(
-                (Callable<String>) () -> String.format(
-                    "%s/distributions/%s-%s.pom",
-                    projectLayout.getBuildDirectory().get().getAsFile().getPath(),
-                    archivesBaseName.get(),
-                    projectVersion.get()
-                )
-            );
-        });
+        // Use the lazy destinationFile property rather than the eager setDestination(Object) bridge. The eager
+        // variant resolves its value at an unspecified point relative to afterEvaluate, so projects overriding
+        // base.archivesName ended up with a pom whose file name did not match the configured archives name.
+        var pomFile = archivesBaseName.zip(
+            projectVersion,
+            (baseName, version) -> String.format("distributions/%s-%s.pom", baseName, version)
+        );
+        generateMavenPoms.configureEach(pomTask -> pomTask.getDestinationFile().set(projectLayout.getBuildDirectory().file(pomFile)));
 
         var publishing = extensions.getByType(PublishingExtension.class);
         final var mavenPublications = publishing.getPublications().withType(MavenPublication.class);

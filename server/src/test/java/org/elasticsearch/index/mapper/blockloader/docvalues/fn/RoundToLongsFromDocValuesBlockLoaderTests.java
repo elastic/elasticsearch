@@ -9,8 +9,11 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.store.Directory;
@@ -29,11 +32,16 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.nullValue;
 
-public class RoundToLongsFromDocValuesBlockLoaderTests extends AbstractLongsFromDocValuesBlockLoaderTests {
+public class RoundToLongsFromDocValuesBlockLoaderTests extends AbstractNumericBlockLoaderTests {
     private static final long[] POINTS = new long[] { 0, 1_000_000, 10_000_000, 50_000_000, 90_000_000 };
 
     public RoundToLongsFromDocValuesBlockLoaderTests(boolean multiValues, boolean missingValues) {
         super(multiValues, missingValues);
+    }
+
+    @Override
+    protected IndexableField field(int v) {
+        return new LongField("field", v * 10001L, Field.Store.NO);
     }
 
     @Override

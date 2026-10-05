@@ -1,0 +1,4 @@
+id:integer,col_leading:keyword,col_trailing:keyword,col_both:keyword
+1,"  foo","foo  ","  foo  "
+2,"  bar","bar  ","  bar  "
+3,"  baz","baz  ","  baz  "

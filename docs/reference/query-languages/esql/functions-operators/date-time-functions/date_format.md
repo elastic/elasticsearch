@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `DATE_FORMAT` function [esql-date_format]
 
-:::{include} ../../_snippets/functions/layout/date_format.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/date_format.md
 :::

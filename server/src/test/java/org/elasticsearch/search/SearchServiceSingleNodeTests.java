@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.search;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
@@ -49,6 +50,7 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -58,12 +60,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.Engine.SearcherSupplier;
 import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -78,7 +82,9 @@ import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.settings.InternalOrPrivateSettingsPlugin;
+import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestStatus;
@@ -101,6 +107,7 @@ import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
+import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -130,6 +137,7 @@ import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -178,8 +186,10 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
@@ -1641,8 +1651,9 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                 request,
                 indexService,
                 indexShard,
-                indexShard.acquireSearcherSupplier(),
-                SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis()
+                indexShard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT),
+                SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis(),
+                null
             )
         );
         assertEquals(
@@ -1673,7 +1684,9 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                 try {
                     latch.await();
                     for (;;) {
-                        final Engine.SearcherSupplier reader = indexShard.acquireSearcherSupplier();
+                        final Engine.SearcherSupplier reader = indexShard.acquireExternalSearcherSupplier(
+                            SplitShardCountSummary.IRRELEVANT
+                        );
                         try {
                             final ShardScrollRequestTest request = new ShardScrollRequestTest(indexShard.shardId());
                             searchService.createAndPutReaderContext(
@@ -1681,7 +1694,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                 indexService,
                                 indexShard,
                                 reader,
-                                SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis()
+                                SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis(),
+                                null
                             );
                         } catch (ElasticsearchException e) {
                             assertThat(
@@ -2288,8 +2302,9 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                         request,
                         indexService,
                         indexShard,
-                        indexShard.acquireSearcherSupplier(),
-                        SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis()
+                        indexShard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT),
+                        SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis(),
+                        null
                     );
                     assertThat(context.id().getId(), equalTo((long) (i + 1)));
                     contextIds.add(context.id());
@@ -2325,12 +2340,87 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         searchService.openReaderContext(
             new ShardId(resolveIndex("index"), 0),
             TimeValue.timeValueMinutes(between(1, 10)),
+            null,
             SplitShardCountSummary.IRRELEVANT,
             future
         );
         future.actionGet();
         assertThat(searchService.getActiveContexts(), equalTo(1));
         assertTrue(searchService.freeReaderContext(future.actionGet()));
+    }
+
+    public void testFindReaderContextRejectsMismatchedShard() {
+        createIndex("index-a");
+        createIndex("index-b");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        ShardId shardA = new ShardId(resolveIndex("index-a"), 0);
+        ShardId shardB = new ShardId(resolveIndex("index-b"), 0);
+        ShardSearchContextId readerA = openReaderContext(searchService, shardA);
+        ShardSearchContextId readerB = openReaderContext(searchService, shardB);
+        try {
+            assertThat(searchService.getActiveContexts(), equalTo(2));
+
+            try (var mockLog = MockLog.capture(SearchService.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "rejected search context id that does not match the expected shard",
+                        SearchService.class.getCanonicalName(),
+                        Level.INFO,
+                        "Rejecting search context id "
+                            + readerB
+                            + " because it does not match expected shard "
+                            + shardA
+                            + "; reader context is on shard "
+                            + shardB
+                    )
+                );
+                IllegalArgumentException mismatch = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> searchService.createOrGetReaderContext(shardSearchRequest(shardA, readerB), null)
+                );
+                assertThat(mismatch.getMessage(), equalTo("search context id is not valid"));
+                mockLog.assertAllExpectationsMatched();
+            }
+            assertThat(searchService.getActiveContexts(), equalTo(2));
+
+            ReaderContext matched = searchService.createOrGetReaderContext(shardSearchRequest(shardA, readerA), null);
+            assertThat(matched.id(), equalTo(readerA));
+            assertThat(matched.indexShard().shardId(), equalTo(shardA));
+
+            ShardSearchContextId missing = new ShardSearchContextId(readerA.getSessionId(), Long.MAX_VALUE);
+            expectThrows(
+                SearchContextMissingException.class,
+                () -> searchService.createOrGetReaderContext(shardSearchRequest(shardA, missing), null)
+            );
+            assertThat(searchService.getActiveContexts(), equalTo(2));
+        } finally {
+            assertTrue(searchService.freeReaderContext(readerA));
+            assertTrue(searchService.freeReaderContext(readerB));
+        }
+    }
+
+    private static ShardSearchContextId openReaderContext(SearchService searchService, ShardId shardId) {
+        PlainActionFuture<ShardSearchContextId> future = new PlainActionFuture<>();
+        searchService.openReaderContext(shardId, TimeValue.timeValueMinutes(1), null, SplitShardCountSummary.IRRELEVANT, future);
+        return future.actionGet();
+    }
+
+    private static ShardSearchRequest shardSearchRequest(ShardId shardId, ShardSearchContextId readerId) {
+        return new ShardSearchRequest(
+            OriginalIndices.NONE,
+            new SearchRequest().allowPartialSearchResults(true),
+            shardId,
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            -1,
+            null,
+            readerId,
+            TimeValue.timeValueMinutes(1),
+            SplitShardCountSummary.IRRELEVANT,
+            true
+        );
     }
 
     public void testCancelQueryPhaseEarly() throws Exception {
@@ -2532,7 +2622,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             null,
             null,
             null,
-            SplitShardCountSummary.UNSET
+            SplitShardCountSummary.UNSET,
+            true
         );
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         service.executeQueryPhase(request, task, future.delegateFailure((l, r) -> {
@@ -2540,6 +2631,56 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             l.onResponse(null);
         }));
         future.get();
+    }
+
+    public void testFetchChargeIsReleasedWhenTheSearchFailsAfterCharging() {
+        createIndex("index");
+        prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        MockSearchService service = (MockSearchService) getInstanceFromNode(SearchService.class);
+        CircuitBreaker breaker = getInstanceFromNode(CircuitBreakerService.class).getBreaker(CircuitBreaker.REQUEST);
+
+        // Single-session reader contexts are freed right after the fetch phase charged the breaker and before the result
+        // reaches anyone who would release it, which is the window the deallocate backstop covers.
+        AtomicBoolean armed = new AtomicBoolean(true);
+        service.setOnRemoveContext(readerContext -> {
+            if (armed.compareAndSet(true, false)) {
+                // freeReaderContext never binds its resource when this throws, so close the context here instead.
+                MockSearchService.removeActiveContext(readerContext);
+                readerContext.close();
+                throw new IllegalStateException("injected failure after the fetch charge");
+            }
+        });
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        // Script fields are charged with no size threshold, unlike source, which only counts past a 1mb buffer.
+        searchRequest.source(
+            new SearchSourceBuilder().scriptField(
+                "test_field",
+                new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, emptyMap())
+            )
+        );
+
+        long usedBeforeSearch = breaker.getUsed();
+        PlainActionFuture<SearchPhaseResult> future = new PlainActionFuture<>();
+        service.executeQueryPhase(
+            new ShardSearchRequest(
+                OriginalIndices.NONE,
+                searchRequest,
+                new ShardId(resolveIndex("index"), 0),
+                0,
+                1,
+                AliasFilter.EMPTY,
+                1.0f,
+                -1,
+                null
+            ),
+            new SearchShardTask(123L, "", "", "", null, emptyMap()),
+            future
+        );
+        expectThrows(IllegalStateException.class, future::actionGet);
+
+        assertThat(breaker.getUsed(), equalTo(usedBeforeSearch));
     }
 
     public void testWaitOnRefreshFailsWithRefreshesDisabled() {
@@ -2569,7 +2710,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             null,
             null,
             null,
-            SplitShardCountSummary.UNSET
+            SplitShardCountSummary.UNSET,
+            true
         );
         service.executeQueryPhase(request, task, future);
         IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class, future::actionGet);
@@ -2608,7 +2750,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             null,
             null,
             null,
-            SplitShardCountSummary.UNSET
+            SplitShardCountSummary.UNSET,
+            true
         );
         service.executeQueryPhase(request, task, future);
 
@@ -2646,12 +2789,178 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             null,
             null,
             null,
-            SplitShardCountSummary.UNSET
+            SplitShardCountSummary.UNSET,
+            true
         );
         service.executeQueryPhase(request, task, future);
 
         SearchTimeoutException ex = expectThrows(SearchTimeoutException.class, future::actionGet);
         assertThat(ex.getMessage(), containsString("Wait for seq_no [0] refreshed timed out ["));
+    }
+
+    public void testCreateAndPutRelocatedPitContext() {
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        IndexService indexService = createIndex("index");
+        ShardId shardId = new ShardId(indexService.index(), 0);
+        final IndexShard shard = indexService.getShard(shardId.id());
+
+        assertEquals(0, searchService.getActiveContexts());
+        assertEquals(0, searchService.getRelocationMapSize());
+
+        Engine.SearcherSupplier searcherSupplier = null;
+        ReaderContext readerContext = null;
+        long contextId = randomNonNegativeLong();
+        try {
+            searcherSupplier = shard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT);
+            final ShardSearchContextId id = new ShardSearchContextId("otherSessionId", contextId, searcherSupplier.getSearcherId());
+
+            readerContext = searchService.createAndPutRelocatedPitContext(
+                id,
+                indexService,
+                indexService.getShard(0),
+                searcherSupplier,
+                TimeValue.timeValueMinutes(5).millis(),
+                null,
+                SplitShardCountSummary.IRRELEVANT
+            );
+            assertEquals(1, searchService.getActiveContexts());
+            searchService.freeReaderContext(readerContext.id());
+            assertEquals(0, searchService.getActiveContexts());
+        } catch (Exception exc) {
+            Releasables.closeWhileHandlingException(searcherSupplier, readerContext);
+            throw new RuntimeException(exc);
+        }
+    }
+
+    public void testCreateAndPutRelocatedPitContextConcurrently() {
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        IndexService indexService = createIndex("index");
+        ShardId shardId = new ShardId(indexService.index(), 0);
+        final IndexShard shard = indexService.getShard(shardId.id());
+
+        assertEquals(0, searchService.getActiveContexts());
+        assertEquals(0, searchService.getRelocationMapSize());
+
+        SetOnce<ReaderContext> readerContext1 = new SetOnce<>();
+        SetOnce<ReaderContext> readerContext2 = new SetOnce<>();
+        long contextId = randomNonNegativeLong();
+
+        try {
+            final ShardSearchContextId id1 = new ShardSearchContextId("otherSessionId", contextId, null);
+            final ShardSearchContextId id2 = new ShardSearchContextId("otherSessionId", contextId, null);
+
+            CountDownLatch latch = new CountDownLatch(1);
+            Thread t1 = new Thread(() -> {
+                SearcherSupplier searcherSupplier = shard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT);
+                try {
+                    latch.await();
+                    readerContext1.set(
+                        searchService.createAndPutRelocatedPitContext(
+                            id1,
+                            indexService,
+                            indexService.getShard(0),
+                            searcherSupplier,
+                            TimeValue.timeValueMinutes(5).millis(),
+                            null,
+                            SplitShardCountSummary.IRRELEVANT
+                        )
+                    );
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            Thread t2 = new Thread(() -> {
+                SearcherSupplier searcherSupplier = shard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT);
+                try {
+                    latch.await();
+                    readerContext2.set(
+                        searchService.createAndPutRelocatedPitContext(
+                            id2,
+                            indexService,
+                            indexService.getShard(0),
+                            searcherSupplier,
+                            TimeValue.timeValueMinutes(5).millis(),
+                            null,
+                            SplitShardCountSummary.IRRELEVANT
+                        )
+                    );
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            t1.start();
+            t2.start();
+            latch.countDown();
+            t1.join();
+            t2.join();
+
+            assertEquals(1, searchService.getActiveContexts());
+            assertNotNull(readerContext1.get());
+            assertNotNull(readerContext2.get());
+            assertEquals(readerContext1.get(), readerContext2.get());
+            searchService.freeReaderContext(readerContext1.get().id());
+            assertEquals(0, searchService.getActiveContexts());
+        } catch (Exception exc) {
+            Releasables.closeWhileHandlingException(readerContext1.get(), readerContext2.get());
+            throw new RuntimeException(exc);
+        }
+    }
+
+    public void testCreateAndPutRelocatedPitContextRejectsDifferentShard() {
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        IndexService indexA = createIndex("index-a");
+        IndexService indexB = createIndex("index-b");
+        IndexShard shardA = indexA.getShard(0);
+        IndexShard shardB = indexB.getShard(0);
+        ShardSearchContextId id = new ShardSearchContextId("otherSessionId", randomNonNegativeLong(), null);
+
+        Engine.SearcherSupplier searcherA = shardA.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT);
+        ReaderContext relocated = searchService.createAndPutRelocatedPitContext(
+            id,
+            indexA,
+            shardA,
+            searcherA,
+            TimeValue.timeValueMinutes(5).millis(),
+            null,
+            SplitShardCountSummary.IRRELEVANT
+        );
+        Engine.SearcherSupplier searcherB = shardB.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT);
+        try {
+            try (var mockLog = MockLog.capture(SearchService.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "rejected relocated search context id that does not match the expected shard",
+                        SearchService.class.getCanonicalName(),
+                        Level.INFO,
+                        "Rejecting search context id "
+                            + id
+                            + " because it does not match expected shard "
+                            + shardB.shardId()
+                            + "; reader context is on shard "
+                            + shardA.shardId()
+                    )
+                );
+                IllegalArgumentException mismatch = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> searchService.createAndPutRelocatedPitContext(
+                        id,
+                        indexB,
+                        shardB,
+                        searcherB,
+                        TimeValue.timeValueMinutes(5).millis(),
+                        null,
+                        SplitShardCountSummary.IRRELEVANT
+                    )
+                );
+                assertThat(mismatch.getMessage(), equalTo("search context id is not valid"));
+                mockLog.assertAllExpectationsMatched();
+            }
+            assertEquals(1, searchService.getActiveContexts());
+            assertEquals(1, searchService.getRelocationMapSize());
+            assertThat(relocated.indexShard().shardId(), equalTo(shardA.shardId()));
+        } finally {
+            searchService.freeReaderContext(relocated.id());
+        }
     }
 
     public void testMinimalSearchSourceInShardRequests() {
@@ -2708,13 +3017,14 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             -1,
             null
         );
-        final Engine.SearcherSupplier reader = indexShard.acquireSearcherSupplier();
+        final Engine.SearcherSupplier reader = indexShard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT);
         ReaderContext context = service.createAndPutReaderContext(
             request,
             indexService,
             indexShard,
             reader,
-            SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis()
+            SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis(),
+            null
         );
         PlainActionFuture<QuerySearchResult> plainActionFuture = new PlainActionFuture<>();
         service.executeQueryPhase(
@@ -2895,7 +3205,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         assert String.valueOf(SEARCH_POOL_SIZE).equals(node().settings().get("thread_pool.search.size"))
             : "Unexpected thread_pool.search.size";
 
-        int numDocs = randomIntBetween(50, 100);
+        // Between 4 and 6 segments of 5 docs each.
+        int numDocs = randomIntBetween(20, 30);
         for (int i = 0; i < numDocs; i++) {
             prepareIndex("index").setId(String.valueOf(i)).setSource("field", "value").get();
             if (i % 5 == 0) {
@@ -3149,15 +3460,157 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         assertThat(caughtException.get().getMessage(), containsString("pre-cancelled for test"));
     }
 
+    /**
+     * Tests that {@code SearchService#parseSource} correctly resolves embeddings fields into a
+     * {@link FetchFieldsContext}, silently skips unmapped fields, and rejects fields that cannot produce
+     * embeddings of the requested type.
+     */
+    public void testFetchEmbeddingsFields() throws IOException {
+        createEmbeddingsTestIndex("emb_test");
+
+        // No embeddings fields set — fetchFieldsContext should remain null.
+        assertThat(resolveFetchFields("emb_test", source -> {}), nullValue());
+
+        // dense_vector with no vector type → resolved to FieldAndFormat(dense, null).
+        assertThat(resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("dense", null)), contains(new FieldAndFormat("dense", null)));
+
+        // dense_vector with explicit DENSE_VECTOR type → same result.
+        assertThat(
+            resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("dense", VectorType.DENSE_VECTOR)),
+            contains(new FieldAndFormat("dense", null))
+        );
+
+        // sparse_vector with explicit SPARSE_VECTOR type → resolved.
+        assertThat(
+            resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("sparse", VectorType.SPARSE_VECTOR)),
+            contains(new FieldAndFormat("sparse", null))
+        );
+
+        // dense_vector field requested as SPARSE_VECTOR → type mismatch, rejected.
+        assertEmbeddingsFieldRejected(
+            "emb_test",
+            s -> s.fetchEmbeddingsField("dense", VectorType.SPARSE_VECTOR),
+            "Field [dense] of type [dense_vector] does not support [sparse_vector] embeddings"
+        );
+
+        // keyword field produces no embeddings → rejected.
+        assertEmbeddingsFieldRejected(
+            "emb_test",
+            s -> s.fetchEmbeddingsField("keyword", null),
+            "Field [keyword] of type [keyword] does not support embeddings"
+        );
+
+        // Unmapped field → skipped, no context.
+        assertThat(resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("unmapped", null)), nullValue());
+
+        // Mix: unmapped skipped, dense resolved → only dense in result.
+        assertThat(
+            resolveFetchFields(
+                "emb_test",
+                s -> s.fetchEmbeddingsField("unmapped", null).fetchEmbeddingsField("dense", VectorType.DENSE_VECTOR)
+            ),
+            contains(new FieldAndFormat("dense", null))
+        );
+    }
+
+    /**
+     * Tests that when both an explicit {@code fields} request and embeddings fields are present,
+     * {@code SearchService#parseSource} prepends the resolved embeddings fields before the user-supplied
+     * fields, and leaves the pre-existing context unchanged when all embeddings fields are skipped (e.g.
+     * because the field is unmapped).
+     */
+    public void testFetchEmbeddingsFieldsWithFetchFields() throws IOException {
+        createEmbeddingsTestIndex("emb_test");
+
+        // embeddings field resolved → placed before user fields in the merged list.
+        assertThat(
+            resolveFetchFields("emb_test", s -> s.fetchField("keyword").fetchEmbeddingsField("dense", VectorType.DENSE_VECTOR)),
+            contains(new FieldAndFormat("dense", null), new FieldAndFormat("keyword", null))
+        );
+
+        // embeddings field skipped (unmapped) → pre-existing fetchFieldsContext is left intact.
+        assertThat(
+            resolveFetchFields("emb_test", s -> s.fetchField("keyword").fetchEmbeddingsField("unmapped", null)),
+            contains(new FieldAndFormat("keyword", null))
+        );
+    }
+
     private static ReaderContext createReaderContext(IndexService indexService, IndexShard indexShard) {
         return new ReaderContext(
             new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong()),
             indexService,
             indexShard,
-            indexShard.acquireSearcherSupplier(),
+            indexShard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT),
             randomNonNegativeLong(),
-            false
+            false,
+            0L
         );
+    }
+
+    private void createEmbeddingsTestIndex(String indexName) throws IOException {
+        XContentBuilder mapping = JsonXContent.contentBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("dense")
+            .field("type", "dense_vector")
+            .field("dims", 3)
+            .field("index", true)
+            .field("similarity", "cosine")
+            .endObject()
+            .startObject("sparse")
+            .field("type", "sparse_vector")
+            .endObject()
+            .startObject("keyword")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex(indexName, Settings.EMPTY);
+        client().admin().indices().preparePutMapping(indexName).setSource(mapping).get();
+    }
+
+    /**
+     * Creates a search context for {@code indexName} with a source configured by {@code sourceConsumer},
+     * and returns the fields that {@code SearchService#parseSource} placed in the
+     * {@link FetchFieldsContext}, or {@code null} when no fetch-fields context was set.
+     */
+    private List<FieldAndFormat> resolveFetchFields(String indexName, Consumer<SearchSourceBuilder> sourceConsumer) throws IOException {
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex(indexName));
+        final IndexShard indexShard = indexService.getShard(0);
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        searchRequest.source(source);
+        sourceConsumer.accept(source);
+        ShardSearchRequest request = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            indexShard.shardId(),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            -1,
+            null
+        );
+        try (
+            ReaderContext reader = createReaderContext(indexService, indexShard);
+            SearchContext context = service.createContext(reader, request, mock(SearchShardTask.class), ResultsType.NONE, randomBoolean())
+        ) {
+            FetchFieldsContext fetchFieldsContext = context.fetchFieldsContext();
+            return fetchFieldsContext == null ? null : fetchFieldsContext.fields();
+        }
+    }
+
+    /**
+     * Asserts that {@code SearchService#parseSource} rejects the embeddings fields configured by
+     * {@code sourceConsumer} with {@code expectedMessage}.
+     */
+    private void assertEmbeddingsFieldRejected(String indexName, Consumer<SearchSourceBuilder> sourceConsumer, String expectedMessage) {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> resolveFetchFields(indexName, sourceConsumer));
+        assertThat(e.getMessage(), equalTo(expectedMessage));
     }
 
     private List<String> parseFeatureData(SearchHit hit, String fieldName) {

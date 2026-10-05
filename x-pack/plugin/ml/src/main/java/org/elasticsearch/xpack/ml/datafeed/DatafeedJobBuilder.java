@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
@@ -21,7 +22,9 @@ import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
+import org.elasticsearch.xpack.ml.action.datafeed.TransportStartDatafeedAction;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory;
@@ -47,6 +50,12 @@ public class DatafeedJobBuilder {
     private final JobResultsPersister jobResultsPersister;
     private final boolean remoteClusterClient;
     private final ClusterService clusterService;
+    private final CrossProjectModeDecider crossProjectModeDecider;
+    // Supplied lazily because the real serverless CloudCredentialManager is installed via SPI
+    // after MachineLearning.createComponents() runs. Eager capture would freeze a Noop value
+    // here and silently strip the cloud token from the datafeed runner's field_caps probe.
+    private final Supplier<CloudCredentialManager> cloudCredentialManagerSupplier;
+    private final DatafeedSearchTelemetry searchTelemetry;
 
     private volatile long delayedDataCheckFreq;
     private volatile int ccsStabilizationCycles;
@@ -60,7 +69,9 @@ public class DatafeedJobBuilder {
         Supplier<Long> currentTimeSupplier,
         JobResultsPersister jobResultsPersister,
         Settings settings,
-        ClusterService clusterService
+        ClusterService clusterService,
+        Supplier<CloudCredentialManager> cloudCredentialManagerSupplier,
+        DatafeedSearchTelemetry searchTelemetry
     ) {
         this.client = client;
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
@@ -73,6 +84,9 @@ public class DatafeedJobBuilder {
         this.ccsStabilizationCycles = CCS_STABILIZATION_CYCLES.get(settings);
         this.ccsStabilizationFloorMs = CCS_STABILIZATION_FLOOR.get(settings).millis();
         this.clusterService = Objects.requireNonNull(clusterService);
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+        this.cloudCredentialManagerSupplier = Objects.requireNonNull(cloudCredentialManagerSupplier);
+        this.searchTelemetry = Objects.requireNonNull(searchTelemetry);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DELAYED_DATA_CHECK_FREQ, this::setDelayedDataCheckFreq);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(CCS_STABILIZATION_CYCLES, v -> this.ccsStabilizationCycles = v);
         clusterService.getClusterSettings()
@@ -115,12 +129,31 @@ public class DatafeedJobBuilder {
             return;
         }
 
+        // if we had created a datafeed when the feature flag was enabled, but we disabled the feature flag
+        // then verify that this datafeed does not use CPS features
+        var validationException = datafeedConfig.validateNoCrossProjectWhenCrossProjectIsDisabled(crossProjectModeDecider, null);
+
+        if (validationException != null) {
+            listener.onFailure(validationException);
+            return;
+        }
+
+        // Apply cross-project search mode to IndicesOptions before creating the factory
+        DatafeedConfig effectiveDatafeedConfig = DatafeedConfig.withCrossProjectModeIfEnabled(
+            datafeedConfig,
+            crossProjectModeDecider,
+            datafeedConfig.getCloudInternalCredential() != null
+        );
+        PersistedCloudCredential cloudCredential = effectiveDatafeedConfig.getCloudInternalCredential();
+        String cloudCredentialId = cloudCredential != null ? cloudCredential.id() : null;
+
         ActionListener<DataExtractorFactory> dataExtractorFactoryHandler = ActionListener.wrap(dataExtractorFactory -> {
             TimeValue frequency = getFrequencyOrDefault(datafeedConfig, job, xContentRegistry);
             TimeValue queryDelay = datafeedConfig.getQueryDelay();
+            // Delayed-data searches must use the same execution copy as the extractor.
             DelayedDataDetector delayedDataDetector = DelayedDataDetectorFactory.buildDetector(
                 job,
-                datafeedConfig,
+                effectiveDatafeedConfig,
                 parentTaskAssigningClient,
                 xContentRegistry
             );
@@ -130,7 +163,10 @@ public class DatafeedJobBuilder {
                 java.time.Duration.ofMillis(ccsStabilizationFloorMs)
             );
             DatafeedJob datafeedJob = new DatafeedJob(
+                datafeedConfig.getId(),
+                effectiveDatafeedConfig.getProjectRouting(),
                 job.getId(),
+                cloudCredentialId,
                 buildDataDescription(job),
                 frequency.millis(),
                 queryDelay.millis(),
@@ -151,16 +187,24 @@ public class DatafeedJobBuilder {
 
             listener.onResponse(datafeedJob);
         }, e -> {
-            auditor.error(job.getId(), e.getMessage());
-            listener.onFailure(e);
+            Exception enriched = DatafeedProjectRoutingDiagnostics.enrichIfNoMatchingProject(
+                datafeedConfig.getId(),
+                effectiveDatafeedConfig.getProjectRouting(),
+                e
+            );
+            auditor.error(job.getId(), enriched.getMessage());
+            listener.onFailure(enriched);
         });
 
         DataExtractorFactory.create(
             parentTaskAssigningClient,
-            datafeedConfig,
+            cloudCredentialManagerSupplier.get(),
+            effectiveDatafeedConfig,
+            null,
             job,
             xContentRegistry,
             timingStatsReporter,
+            searchTelemetry,
             dataExtractorFactoryHandler
         );
     }

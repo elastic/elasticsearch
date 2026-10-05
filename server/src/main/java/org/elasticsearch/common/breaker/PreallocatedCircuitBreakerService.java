@@ -34,9 +34,10 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
             throw new IllegalArgumentException("can't preallocate negative or zero bytes but got [" + bytesToPreallocate + "]");
         }
         CircuitBreaker nextBreaker = next.getBreaker(breakerToPreallocate);
-        nextBreaker.addEstimateBytesAndMaybeBreak(bytesToPreallocate, "preallocate[" + label + "]");
+        final String preallocateLabel = ChildMemoryCircuitBreaker.CATEGORY_PREALLOCATE + "[" + label + "]";
+        nextBreaker.addEstimateBytesAndMaybeBreak(bytesToPreallocate, preallocateLabel);
         this.next = next;
-        this.preallocated = new PreallocatedCircuitBreaker(nextBreaker, bytesToPreallocate);
+        this.preallocated = new PreallocatedCircuitBreaker(nextBreaker, bytesToPreallocate, preallocateLabel);
     }
 
     @Override
@@ -91,12 +92,14 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
     private static class PreallocatedCircuitBreaker implements CircuitBreaker, Releasable {
         private final CircuitBreaker next;
         private final long preallocated;
+        private final String preallocateLabel;
         private long preallocationUsed;
         private boolean closed;
 
-        PreallocatedCircuitBreaker(CircuitBreaker next, long preallocated) {
+        PreallocatedCircuitBreaker(CircuitBreaker next, long preallocated, String preallocateLabel) {
             this.next = next;
             this.preallocated = preallocated;
+            this.preallocateLabel = preallocateLabel;
         }
 
         @Override
@@ -128,19 +131,28 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
 
         @Override
         public void addWithoutBreaking(long bytes) {
+            addWithoutBreakingInternal(bytes, ChildMemoryCircuitBreaker.CATEGORY_UNCATEGORIZED);
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes, String label) {
+            addWithoutBreakingInternal(bytes, label);
+        }
+
+        private void addWithoutBreakingInternal(long bytes, String label) {
             if (closed) {
                 throw new IllegalStateException("already closed");
             }
             if (preallocationUsed == preallocated) {
                 // Preallocation buffer was full before this request
-                next.addWithoutBreaking(bytes);
+                next.addWithoutBreaking(bytes, label);
                 return;
             }
             long newUsed = preallocationUsed + bytes;
             if (newUsed > preallocated) {
                 // This request filled up the buffer
                 preallocationUsed = preallocated;
-                next.addWithoutBreaking(newUsed - preallocated);
+                next.addWithoutBreaking(newUsed - preallocated, label);
                 return;
             }
             // This is the fast case. No volatile reads or writes here, ma!
@@ -159,15 +171,33 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
             }
             if (preallocationUsed < preallocated) {
                 /*
-                 * We only need to give bytes back if we haven't used up
-                 * all of our preallocated bytes. This is because if we
-                 * *have* used up all of our preallcated bytes then all
-                 * operations hit the underlying breaker directly, including
-                 * deallocations. This is using up the bytes is a one way
-                 * transition - as soon as we transition we know all
-                 * deallocations will go directly to the underlying breaker.
+                 * "Used fewer bytes" state: the underlying breaker still holds the whole preallocated reservation
+                 * (callers only ever touched the in-memory buffer), so give those real bytes back. Reusing the
+                 * construction label keeps both the real used bytes and the per-category
+                 * es.breaker.memory.held.usage gauge balanced - the admit and this release cancel out under
+                 * category="preallocate[<label>]".
                  */
-                next.addWithoutBreaking(-preallocated);
+                next.addWithoutBreaking(-preallocated, preallocateLabel);
+            } else {
+                /*
+                 * "Used all" state: this is a one-way transition, after which every operation - including
+                 * deallocations - hits the underlying breaker directly. Well-behaved callers therefore already
+                 * returned the preallocated bytes to the real breaker, so we must NOT release real bytes again.
+                 *
+                 * The held gauge, however, still carries the +preallocated admit recorded under
+                 * category="preallocate[<label>]" at construction; left alone it would accumulate a permanent
+                 * positive per preallocation. Cancel just that gauge entry by re-bucketing the reservation into
+                 * the uncategorized category. We use recordHeldDelta rather than addWithoutBreaking to avoid
+                 * transiently inflating the real used counter between the two corrections, which could otherwise
+                 * cause a concurrent checkParentLimit call to see a spuriously high value and trip the parent.
+                 */
+                if (next instanceof ChildMemoryCircuitBreaker cb) {
+                    cb.recordHeldDelta(preallocated, ChildMemoryCircuitBreaker.CATEGORY_UNCATEGORIZED);
+                    cb.recordHeldDelta(-preallocated, preallocateLabel);
+                } else {
+                    next.addWithoutBreaking(-preallocated, preallocateLabel);
+                    next.addWithoutBreaking(preallocated, ChildMemoryCircuitBreaker.CATEGORY_UNCATEGORIZED);
+                }
             }
             closed = true;
         }

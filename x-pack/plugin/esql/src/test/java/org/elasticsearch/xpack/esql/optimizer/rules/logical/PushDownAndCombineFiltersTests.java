@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -85,8 +86,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOrEqualOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.lessThanOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomMinimumVersion;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.rlike;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.wildcardLike;
@@ -102,7 +103,11 @@ import static org.mockito.Mockito.mock;
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizerTests {
 
-    private final LogicalOptimizerContext optimizerContext = new LogicalOptimizerContext(null, FoldContext.small(), randomMinimumVersion());
+    private final LogicalOptimizerContext optimizerContext = logicalOptimizerContext(null, FoldContext.small(), minimumVersion);
+
+    public PushDownAndCombineFiltersTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     public void testCombineFilters() {
         EsRelation relation = relation();
@@ -400,7 +405,15 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
     }
 
     private static EsRelation relation(List<Attribute> fieldAttributes) {
-        return new EsRelation(EMPTY, randomIdentifier(), randomFrom(IndexMode.values()), Map.of(), Map.of(), Map.of(), fieldAttributes);
+        return new EsRelation(
+            EMPTY,
+            randomIdentifier(),
+            randomFrom(IndexMode.availableModes()),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            fieldAttributes
+        );
     }
 
     public void testPushDownFilterPastLeftJoinWithPushable() {
@@ -616,7 +629,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         EsRelation left = relation(List.of(a, getFieldAttribute("b")));
         EsRelation right = relation(List.of(c, d, e, f, g));
         JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(a), List.of(c), null);
-        Join join = new Join(EMPTY, left, right, joinConfig);
+        Join join = new Join(Source.EMPTY, left, right, joinConfig, ExecuteLocation.ANY);
 
         // Predicates
         Expression p1 = greaterThanOf(c, ONE);                                  // pushable
@@ -867,7 +880,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         EsRelation right = relation(List.of(c, b));
 
         JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(a, b), List.of(b, c), null);
-        return new Join(EMPTY, left, right, joinConfig);
+        return new Join(Source.EMPTY, left, right, joinConfig, ExecuteLocation.ANY);
     }
 
     private Join createLeftJoinOnExpression() {
@@ -879,7 +892,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         EsRelation right = relation(List.of(c, b2));
         Expression joinOnCondition = new GreaterThanOrEqual(Source.EMPTY, b1, b2);
         JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(b1), List.of(b2), joinOnCondition);
-        return new Join(EMPTY, left, right, joinConfig);
+        return new Join(Source.EMPTY, left, right, joinConfig, ExecuteLocation.ANY);
     }
 
     public void testLeftJoinOnExpressionPushable() {

@@ -11,7 +11,6 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.ScoreMode;
-import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -87,7 +86,7 @@ public class NumericHistogramAggregator extends AbstractHistogramAggregator {
         }
 
         final SortedNumericDoubleValues values = valuesSource.doubleValues(aggCtx.getLeafReaderContext());
-        final DoubleValues singleton = FieldData.unwrapSingleton(values);
+        final DoubleValues singleton = SortedNumericDoubleValues.unwrapSingleton(values);
         return singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(values, sub);
     }
 
@@ -123,7 +122,7 @@ public class NumericHistogramAggregator extends AbstractHistogramAggregator {
     }
 
     private void addKey(double key, int doc, long owningBucketOrd, LeafBucketCollector sub) throws IOException {
-        if (hardBounds == null || hardBounds.contain(key * interval)) {
+        if (hardBounds == null || hardBounds.contain(key * interval + offset)) {
             long bucketOrd = bucketOrds.add(owningBucketOrd, Double.doubleToLongBits(key));
             if (bucketOrd < 0) { // already seen
                 bucketOrd = -1 - bucketOrd;

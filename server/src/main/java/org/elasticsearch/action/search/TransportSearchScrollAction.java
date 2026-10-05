@@ -91,6 +91,18 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
         };
         try {
             ParsedScrollId scrollId = parseScrollId(request.scrollId());
+            if (scrollId.getContext().length == 0) {
+                // The scroll id encodes zero shard contexts. This happens when the initial _search?scroll request
+                // resolved to zero shards — either because the index expression matched no indices, or because the
+                // can_match phase rewrote the query to MatchNoneQueryBuilder on every shard (e.g. a date range that
+                // doesn't overlap any shard's min/max). The corresponding scroll id is still returned to the client
+                // so it can run the same scroll-until-exhausted loop it uses for normal cursors. Before this fix that
+                // loop's first iteration failed with HTTP 503 "no nodes to search on"; return an empty 200 response
+                // instead so a client can terminate on hits.length == 0 without special-casing the error.
+                String responseScrollId = request.scroll() != null ? request.scrollId() : null;
+                ActionListener.respondAndRelease(listener, SearchResponse.emptyResponseBuilder().scrollId(responseScrollId).build());
+                return;
+            }
             var action = switch (scrollId.getType()) {
                 case QUERY_THEN_FETCH_TYPE -> new SearchScrollQueryThenFetchAsyncAction(
                     logger,

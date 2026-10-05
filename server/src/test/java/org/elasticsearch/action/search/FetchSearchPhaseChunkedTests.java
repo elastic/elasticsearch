@@ -73,11 +73,17 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
+import java.util.function.LongConsumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.action.search.FetchSearchPhaseTests.addProfiling;
 import static org.elasticsearch.action.search.FetchSearchPhaseTests.fetchProfile;
+import static org.elasticsearch.action.search.FetchSearchPhaseTests.requestBreaker;
 import static org.elasticsearch.action.search.FetchSearchPhaseTests.searchPhaseFactory;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class FetchSearchPhaseChunkedTests extends ESTestCase {
 
@@ -112,7 +118,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                 // Create the coordination action that will be called for chunked fetch
                 TransportFetchPhaseCoordinationAction fetchCoordinationAction = new TransportFetchPhaseCoordinationAction(
                     mockTransportService,
-                    new ActionFilters(Collections.emptySet()),
+                    ActionFilters.EMPTY,
                     new ActiveFetchPhaseTasks(),
                     newLimitedBreakerService(ByteSizeValue.ofMb(10)),
                     new NamedWriteableRegistry(Collections.emptyList())
@@ -121,20 +127,18 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                     public void doExecute(Task task, Request request, ActionListener<Response> listener) {
                         chunkedFetchUsed.set(true);
                         FetchSearchResult fetchResult = new FetchSearchResult();
-                        try {
-                            // Return result based on context ID
-                            SearchShardTarget target = request.getShardFetchRequest().contextId().equals(ctx1)
-                                ? shardTarget1
-                                : shardTarget2;
-                            int docId = request.getShardFetchRequest().contextId().equals(ctx1) ? 42 : 43;
+                        // Return result based on context ID
+                        SearchShardTarget target = request.getShardFetchRequest().contextId().equals(ctx1) ? shardTarget1 : shardTarget2;
+                        int docId = request.getShardFetchRequest().contextId().equals(ctx1) ? 42 : 43;
 
-                            fetchResult.setSearchShardTarget(target);
-                            SearchHits hits = new SearchHits(
-                                new SearchHit[] { new SearchHit(docId) },
-                                new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-                                1.0F
-                            );
-                            fetchResult.shardResult(hits, fetchProfile(profiled));
+                        fetchResult.setSearchShardTarget(target);
+                        SearchHits hits = new SearchHits(
+                            new SearchHit[] { new SearchHit(docId) },
+                            new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                            1.0F
+                        );
+                        fetchResult.shardResult(hits, fetchProfile(profiled));
+                        try {
                             listener.onResponse(new Response(fetchResult));
                         } finally {
                             fetchResult.decRef();
@@ -197,7 +201,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                 AtomicBoolean chunkedFetchUsed = new AtomicBoolean(false);
                 TransportFetchPhaseCoordinationAction fetchCoordinationAction = new TransportFetchPhaseCoordinationAction(
                     mockTransportService,
-                    new ActionFilters(Collections.emptySet()),
+                    ActionFilters.EMPTY,
                     new ActiveFetchPhaseTasks(),
                     newLimitedBreakerService(ByteSizeValue.ofMb(10)),
                     new NamedWriteableRegistry(Collections.emptyList())
@@ -206,18 +210,16 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                     public void doExecute(Task task, Request request, ActionListener<Response> listener) {
                         chunkedFetchUsed.set(true);
                         FetchSearchResult fetchResult = new FetchSearchResult();
+                        SearchShardTarget target = request.getShardFetchRequest().contextId().equals(ctx1) ? shardTarget1 : shardTarget2;
+                        int docId = request.getShardFetchRequest().contextId().equals(ctx1) ? 42 : 43;
+                        fetchResult.setSearchShardTarget(target);
+                        SearchHits hits = new SearchHits(
+                            new SearchHit[] { new SearchHit(docId) },
+                            new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                            1.0F
+                        );
+                        fetchResult.shardResult(hits, fetchProfile(profiled));
                         try {
-                            SearchShardTarget target = request.getShardFetchRequest().contextId().equals(ctx1)
-                                ? shardTarget1
-                                : shardTarget2;
-                            int docId = request.getShardFetchRequest().contextId().equals(ctx1) ? 42 : 43;
-                            fetchResult.setSearchShardTarget(target);
-                            SearchHits hits = new SearchHits(
-                                new SearchHit[] { new SearchHit(docId) },
-                                new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-                                1.0F
-                            );
-                            fetchResult.shardResult(hits, fetchProfile(profiled));
                             listener.onResponse(new Response(fetchResult));
                         } finally {
                             fetchResult.decRef();
@@ -283,7 +285,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                 AtomicBoolean chunkedFetchUsed = new AtomicBoolean(false);
                 TransportFetchPhaseCoordinationAction fetchCoordinationAction = new TransportFetchPhaseCoordinationAction(
                     mockTransportService,
-                    new ActionFilters(Collections.emptySet()),
+                    ActionFilters.EMPTY,
                     new ActiveFetchPhaseTasks(),
                     newLimitedBreakerService(ByteSizeValue.ofMb(10)),
                     new NamedWriteableRegistry(Collections.emptyList())
@@ -297,14 +299,14 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                         }
 
                         FetchSearchResult fetchResult = new FetchSearchResult();
+                        fetchResult.setSearchShardTarget(shardTarget1);
+                        SearchHits hits = new SearchHits(
+                            new SearchHit[] { new SearchHit(42) },
+                            new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                            1.0F
+                        );
+                        fetchResult.shardResult(hits, fetchProfile(profiled));
                         try {
-                            fetchResult.setSearchShardTarget(shardTarget1);
-                            SearchHits hits = new SearchHits(
-                                new SearchHit[] { new SearchHit(42) },
-                                new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-                                1.0F
-                            );
-                            fetchResult.shardResult(hits, fetchProfile(profiled));
                             listener.onResponse(new Response(fetchResult));
                         } finally {
                             fetchResult.decRef();
@@ -366,7 +368,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
 
                 TransportFetchPhaseCoordinationAction fetchCoordinationAction = new TransportFetchPhaseCoordinationAction(
                     mockTransportService,
-                    new ActionFilters(Collections.emptySet()),
+                    ActionFilters.EMPTY,
                     new ActiveFetchPhaseTasks(),
                     newLimitedBreakerService(ByteSizeValue.ofMb(10)),
                     new NamedWriteableRegistry(Collections.emptyList())
@@ -379,14 +381,14 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                         }
 
                         FetchSearchResult fetchResult = new FetchSearchResult();
+                        fetchResult.setSearchShardTarget(shardTarget1);
+                        SearchHits hits = new SearchHits(
+                            new SearchHit[] { new SearchHit(42) },
+                            new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                            1.0F
+                        );
+                        fetchResult.shardResult(hits, fetchProfile(profiled));
                         try {
-                            fetchResult.setSearchShardTarget(shardTarget1);
-                            SearchHits hits = new SearchHits(
-                                new SearchHit[] { new SearchHit(42) },
-                                new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-                                1.0F
-                            );
-                            fetchResult.shardResult(hits, fetchProfile(profiled));
                             listener.onResponse(new Response(fetchResult));
                         } finally {
                             fetchResult.decRef();
@@ -706,7 +708,15 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
             Transport.Connection oldVersionConnection = withTransportVersion(delegateConnection, unsupportedVersion);
 
             PlainActionFuture<FetchSearchResult> future = new PlainActionFuture<>();
-            searchTransportService.sendExecuteFetch(oldVersionConnection, shardFetchRequest, mockSearchPhaseContext, shardTarget, future);
+            searchTransportService.sendExecuteFetch(
+                oldVersionConnection,
+                shardFetchRequest,
+                mockSearchPhaseContext,
+                shardTarget,
+                future,
+                bytes -> {},
+                bytes -> {}
+            );
 
             FetchSearchResult result = future.actionGet(10, TimeUnit.SECONDS);
             result.decRef();
@@ -725,6 +735,169 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
             clusterService.close();
             ThreadPool.terminate(threadPool, 10, TimeValue.timeValueSeconds(5).timeUnit());
         }
+    }
+
+    public void testChunkedFetchHitsAreChargedUntilTheResponseIsReleased() throws Exception {
+        CircuitBreaker breaker = requestBreaker("1gb");
+        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2, breaker);
+        ThreadPool threadPool = new TestThreadPool("test");
+        AtomicLong fetchedBytes = new AtomicLong();
+        AtomicLong chargeOnceBothShardsAreIn = new AtomicLong(-1L);
+        try {
+            TransportService mockTransportService = createMockTransportService(threadPool);
+            try (SearchPhaseResults<SearchPhaseResult> results = createSearchPhaseResults(mockSearchPhaseContext)) {
+                final ShardSearchContextId ctx1 = new ShardSearchContextId(UUIDs.base64UUID(), 123);
+                SearchShardTarget shardTarget1 = new SearchShardTarget("node1", new ShardId("test", "na", 0), null);
+                addQuerySearchResult(ctx1, shardTarget1, false, 0, results);
+
+                final ShardSearchContextId ctx2 = new ShardSearchContextId(UUIDs.base64UUID(), 124);
+                SearchShardTarget shardTarget2 = new SearchShardTarget("node2", new ShardId("test", "na", 1), null);
+                addQuerySearchResult(ctx2, shardTarget2, false, 1, results);
+
+                AtomicBoolean chunkedFetchUsed = new AtomicBoolean(false);
+                provideSearchTransportWithChunkedFetch(
+                    mockSearchPhaseContext,
+                    mockTransportService,
+                    threadPool,
+                    chargedFetchCoordinationAction(
+                        mockTransportService,
+                        breaker,
+                        fetchedBytes,
+                        chunkedFetchUsed,
+                        ctx1,
+                        shardTarget1,
+                        shardTarget2
+                    )
+                );
+
+                SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
+                new FetchSearchPhase(results, null, mockSearchPhaseContext, reducedQueryPhase) {
+                    @Override
+                    protected SearchPhase nextPhase(
+                        SearchResponseSections searchResponseSections,
+                        AtomicArray<SearchPhaseResult> queryPhaseResults
+                    ) {
+                        chargeOnceBothShardsAreIn.set(breaker.getUsed());
+                        return searchPhaseFactory(mockSearchPhaseContext).apply(searchResponseSections, queryPhaseResults);
+                    }
+                }.run();
+
+                mockSearchPhaseContext.assertNoFailure();
+                assertTrue("Chunked fetch should be used", chunkedFetchUsed.get());
+                assertThat(fetchedBytes.get(), greaterThan(0L));
+                assertThat(chargeOnceBothShardsAreIn.get(), equalTo(fetchedBytes.get()));
+                // The response owns the charge now, held until it is released.
+                assertThat(breaker.getUsed(), equalTo(fetchedBytes.get()));
+            } finally {
+                mockSearchPhaseContext.results.close();
+                var resp = mockSearchPhaseContext.searchResponse.get();
+                if (resp != null) {
+                    resp.decRef();
+                }
+            }
+            // Released with the response.
+            assertThat(breaker.getUsed(), equalTo(0L));
+        } finally {
+            ThreadPool.terminate(threadPool, 10, TimeValue.timeValueSeconds(5).timeUnit());
+        }
+    }
+
+    public void testChunkedChargeIsNotLeakedWhenThePhaseFailsBeforeBuildingAResponse() throws Exception {
+        // The chunked twin of FetchSearchPhaseTests' non-chunked case: with no response to hand the charge to,
+        // the collection's own release is the only thing left to give these bytes back.
+        CircuitBreaker breaker = requestBreaker("1gb");
+        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2, breaker) {
+            @Override
+            public void executeNextPhase(String currentPhase, Supplier<SearchPhase> nextPhaseSupplier) {
+                onPhaseFailure(currentPhase, "simulated partial failure", new RuntimeException("simulated partial failure"));
+            }
+        };
+        ThreadPool threadPool = new TestThreadPool("test");
+        AtomicLong fetchedBytes = new AtomicLong();
+        try {
+            TransportService mockTransportService = createMockTransportService(threadPool);
+            try (SearchPhaseResults<SearchPhaseResult> results = createSearchPhaseResults(mockSearchPhaseContext)) {
+                final ShardSearchContextId ctx1 = new ShardSearchContextId(UUIDs.base64UUID(), 123);
+                SearchShardTarget shardTarget1 = new SearchShardTarget("node1", new ShardId("test", "na", 0), null);
+                addQuerySearchResult(ctx1, shardTarget1, false, 0, results);
+
+                final ShardSearchContextId ctx2 = new ShardSearchContextId(UUIDs.base64UUID(), 124);
+                SearchShardTarget shardTarget2 = new SearchShardTarget("node2", new ShardId("test", "na", 1), null);
+                addQuerySearchResult(ctx2, shardTarget2, false, 1, results);
+
+                AtomicBoolean chunkedFetchUsed = new AtomicBoolean(false);
+                provideSearchTransportWithChunkedFetch(
+                    mockSearchPhaseContext,
+                    mockTransportService,
+                    threadPool,
+                    chargedFetchCoordinationAction(
+                        mockTransportService,
+                        breaker,
+                        fetchedBytes,
+                        chunkedFetchUsed,
+                        ctx1,
+                        shardTarget1,
+                        shardTarget2
+                    )
+                );
+
+                SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
+                new FetchSearchPhase(results, null, mockSearchPhaseContext, reducedQueryPhase).run();
+
+                assertTrue("Chunked fetch should be used", chunkedFetchUsed.get());
+                assertThat(fetchedBytes.get(), greaterThan(0L));
+                assertNull(mockSearchPhaseContext.searchResponse.get());
+                assertNotNull(mockSearchPhaseContext.phaseFailure.get());
+            } finally {
+                mockSearchPhaseContext.results.close();
+                var resp = mockSearchPhaseContext.searchResponse.get();
+                if (resp != null) {
+                    resp.decRef();
+                }
+            }
+            assertThat(breaker.getUsed(), equalTo(0L));
+        } finally {
+            ThreadPool.terminate(threadPool, 10, TimeValue.timeValueSeconds(5).timeUnit());
+        }
+    }
+
+    private TransportFetchPhaseCoordinationAction chargedFetchCoordinationAction(
+        TransportService mockTransportService,
+        CircuitBreaker breaker,
+        AtomicLong fetchedBytes,
+        AtomicBoolean chunkedFetchUsed,
+        ShardSearchContextId ctx1,
+        SearchShardTarget shardTarget1,
+        SearchShardTarget shardTarget2
+    ) {
+        return new TransportFetchPhaseCoordinationAction(
+            mockTransportService,
+            ActionFilters.EMPTY,
+            new ActiveFetchPhaseTasks(),
+            newLimitedBreakerService(ByteSizeValue.ofMb(10)),
+            new NamedWriteableRegistry(Collections.emptyList())
+        ) {
+            @Override
+            public void doExecute(Task task, Request request, ActionListener<Response> listener) {
+                chunkedFetchUsed.set(true);
+                boolean isShard1 = request.getShardFetchRequest().contextId().equals(ctx1);
+                SearchHit hit = new SearchHit(isShard1 ? 42 : 43).sourceRef(new BytesArray(randomAlphaOfLength(256)));
+                long hitBytes = hit.ramBytesUsed();
+                fetchedBytes.addAndGet(hitBytes);
+                FetchSearchResult fetchResult = new FetchSearchResult();
+                fetchResult.setSearchShardTarget(isShard1 ? shardTarget1 : shardTarget2);
+                fetchResult.shardResult(new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F), null);
+                // What the real action does: the stream charged for these hits while accumulating them and
+                // hands the charge over, so the phase must hold it rather than estimate them again.
+                breaker.addWithoutBreaking(hitBytes);
+                fetchResult.setCoordinatorSearchHitsSizeBytes(hitBytes, breaker);
+                try {
+                    listener.onResponse(new Response(fetchResult));
+                } finally {
+                    fetchResult.decRef();
+                }
+            }
+        };
     }
 
     private SearchPhaseResults<SearchPhaseResult> createSearchPhaseResults(MockSearchPhaseContext mockSearchPhaseContext) {
@@ -817,21 +990,23 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                 ShardFetchSearchRequest request,
                 AbstractSearchAsyncAction<?> context,
                 SearchShardTarget shardTarget,
-                ActionListener<FetchSearchResult> listener
+                ActionListener<FetchSearchResult> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
             ) {
                 traditionalFetchUsed.set(true);
                 FetchSearchResult fetchResult = new FetchSearchResult();
-                try {
-                    SearchShardTarget target = request.contextId().equals(ctx1) ? shardTarget1 : shardTarget2;
-                    int docId = request.contextId().equals(ctx1) ? 42 : 43;
+                SearchShardTarget target = request.contextId().equals(ctx1) ? shardTarget1 : shardTarget2;
+                int docId = request.contextId().equals(ctx1) ? 42 : 43;
 
-                    fetchResult.setSearchShardTarget(target);
-                    SearchHits hits = new SearchHits(
-                        new SearchHit[] { new SearchHit(docId) },
-                        new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-                        1.0F
-                    );
-                    fetchResult.shardResult(hits, fetchProfile(profiled));
+                fetchResult.setSearchShardTarget(target);
+                SearchHits hits = new SearchHits(
+                    new SearchHit[] { new SearchHit(docId) },
+                    new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                    1.0F
+                );
+                fetchResult.shardResult(hits, fetchProfile(profiled));
+                try {
                     listener.onResponse(fetchResult);
                 } finally {
                     fetchResult.decRef();

@@ -232,7 +232,7 @@ public abstract class SwissHash {
      * and {@link Releasable}.
      */
     abstract class Core implements Releasable {
-        private long usedBytes = 0;
+        protected long usedBytes = 0;
         final List<Releasable> toClose;
 
         protected Core() {

@@ -7,7 +7,9 @@
 package org.elasticsearch.xpack.core.termsenum.action;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -32,6 +34,8 @@ import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
  */
 public final class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> implements ToXContentObject {
 
+    static final TransportVersion TERMS_ENUM_CPS_RESOLVED_EXPRESSIONS = TransportVersion.fromName("terms_enum_cps_resolved_expressions");
+
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = SearchRequest.DEFAULT_INDICES_OPTIONS;
     public static final int DEFAULT_SIZE = 10;
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1000);
@@ -42,6 +46,14 @@ public final class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> i
     private int size = DEFAULT_SIZE;
     private boolean caseInsensitive;
     private QueryBuilder indexFilter;
+    // Set internally by RestTermsEnumAction, not client-supplied XContent; excluded from equals/hashCode
+    // so it doesn't break XContent round-trip equality checks.
+    private boolean includeResolvedTo = false;
+
+    @Nullable
+    private transient ResolvedIndexExpressions resolvedIndexExpressions;
+    @Nullable
+    private transient String projectRouting;
 
     public TermsEnumRequest() {
         this(Strings.EMPTY_ARRAY);
@@ -64,6 +76,8 @@ public final class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> i
         this.caseInsensitive = clone.caseInsensitive;
         this.size = clone.size;
         this.indexFilter = clone.indexFilter;
+        this.includeResolvedTo = clone.includeResolvedTo;
+        // projectRouting and resolvedIndexExpressions are not copied: they are set on the coordinator by the security layer
         indices(clone.indices);
         indicesOptions(clone.indicesOptions());
         timeout(clone.timeout());
@@ -78,6 +92,11 @@ public final class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> i
         caseInsensitive = in.readBoolean();
         size = in.readVInt();
         indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        if (in.getTransportVersion().supports(TERMS_ENUM_CPS_RESOLVED_EXPRESSIONS)) {
+            includeResolvedTo = in.readBoolean();
+        } else {
+            includeResolvedTo = false;
+        }
     }
 
     @Override
@@ -89,6 +108,9 @@ public final class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> i
         out.writeBoolean(caseInsensitive);
         out.writeVInt(size);
         out.writeOptionalNamedWriteable(indexFilter);
+        if (out.getTransportVersion().supports(TERMS_ENUM_CPS_RESOLVED_EXPRESSIONS)) {
+            out.writeBoolean(includeResolvedTo);
+        }
     }
 
     @Override
@@ -108,6 +130,43 @@ public final class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> i
             builder.field("index_filter", indexFilter);
         }
         return builder.endObject();
+    }
+
+    @Override
+    public boolean allowsCrossProject() {
+        return true;
+    }
+
+    @Override
+    public void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {
+        this.resolvedIndexExpressions = expressions;
+    }
+
+    @Override
+    @Nullable
+    public ResolvedIndexExpressions getResolvedIndexExpressions() {
+        return resolvedIndexExpressions;
+    }
+
+    public void projectRouting(@Nullable String projectRouting) {
+        if (this.projectRouting != null) {
+            throw new IllegalArgumentException("project_routing is already set to [" + this.projectRouting + "]");
+        }
+        this.projectRouting = projectRouting;
+    }
+
+    @Override
+    public String getProjectRouting() {
+        return projectRouting;
+    }
+
+    public TermsEnumRequest includeResolvedTo(boolean includeResolvedTo) {
+        this.includeResolvedTo = includeResolvedTo;
+        return this;
+    }
+
+    public boolean includeResolvedTo() {
+        return includeResolvedTo;
     }
 
     @Override
@@ -133,6 +192,12 @@ public final class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> i
             if (timeout().getSeconds() > 60) {
                 validationException = ValidateActions.addValidationError("Timeout cannot be > 1 minute", validationException);
             }
+        }
+        if (projectRouting != null && indicesOptions().resolveCrossProjectIndexExpression() == false) {
+            validationException = ValidateActions.addValidationError(
+                "Unknown key for a VALUE_STRING in [project_routing]",
+                validationException
+            );
         }
         return validationException;
     }

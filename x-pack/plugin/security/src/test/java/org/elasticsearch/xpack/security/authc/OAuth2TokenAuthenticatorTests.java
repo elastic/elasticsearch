@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.security.metric.SecurityMetricType;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.equalTo;
@@ -51,9 +52,9 @@ public class OAuth2TokenAuthenticatorTests extends AbstractAuthenticatorTests {
         final BearerToken bearerToken = randomBearerToken();
         final Authenticator.Context context = mockAuthenticatorContext(bearerToken);
 
-        final long executionTimeInNanos = randomLongBetween(0, 500);
+        final long executionTimeInMillis = randomLongBetween(0, 500);
         doAnswer(invocation -> {
-            nanoTimeSupplier.advanceTime(executionTimeInNanos);
+            nanoTimeSupplier.advanceTime(TimeUnit.MILLISECONDS.toNanos(executionTimeInMillis));
             final ActionListener<UserToken> listener = invocation.getArgument(1);
             final Authentication authentication = AuthenticationTestHelper.builder()
                 .user(AuthenticationTestHelper.randomUser())
@@ -78,7 +79,7 @@ public class OAuth2TokenAuthenticatorTests extends AbstractAuthenticatorTests {
         assertZeroFailedAuthMetrics(telemetryPlugin, SecurityMetricType.AUTHC_OAUTH2_TOKEN);
 
         // verify we recorded authentication time
-        assertAuthenticationTimeMetric(telemetryPlugin, SecurityMetricType.AUTHC_OAUTH2_TOKEN, executionTimeInNanos, Map.of());
+        assertAuthenticationTimeMetric(telemetryPlugin, SecurityMetricType.AUTHC_OAUTH2_TOKEN, executionTimeInMillis, Map.of());
     }
 
     public void testRecordingFailedAuthenticationMetrics() {
@@ -98,9 +99,9 @@ public class OAuth2TokenAuthenticatorTests extends AbstractAuthenticatorTests {
         var failureError = new ElasticsearchSecurityException("failed to authenticate OAuth2 token", RestStatus.UNAUTHORIZED);
         when(context.getRequest().exceptionProcessingRequest(same(failureError), any())).thenReturn(failureError);
 
-        final long executionTimeInNanos = randomLongBetween(0, 500);
+        final long executionTimeInMillis = randomLongBetween(0, 500);
         doAnswer(invocation -> {
-            nanoTimeSupplier.advanceTime(executionTimeInNanos);
+            nanoTimeSupplier.advanceTime(TimeUnit.MILLISECONDS.toNanos(executionTimeInMillis));
             final ActionListener<Authentication> listener = invocation.getArgument(1);
             listener.onFailure(failureError);
             return Void.TYPE;
@@ -118,7 +119,7 @@ public class OAuth2TokenAuthenticatorTests extends AbstractAuthenticatorTests {
         assertZeroSuccessAuthMetrics(telemetryPlugin, SecurityMetricType.AUTHC_OAUTH2_TOKEN);
 
         // verify we recorded authentication time
-        assertAuthenticationTimeMetric(telemetryPlugin, SecurityMetricType.AUTHC_OAUTH2_TOKEN, executionTimeInNanos, Map.of());
+        assertAuthenticationTimeMetric(telemetryPlugin, SecurityMetricType.AUTHC_OAUTH2_TOKEN, executionTimeInMillis, Map.of());
     }
 
     private static BearerToken randomBearerToken() {

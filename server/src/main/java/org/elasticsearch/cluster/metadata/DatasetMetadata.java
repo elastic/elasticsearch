@@ -37,6 +37,9 @@ import java.util.Objects;
  */
 public final class DatasetMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
 
+    /** Shared transport version for {@code DataSourceMetadata} and {@link DatasetMetadata} — introduced and evolved together. */
+    public static final TransportVersion ESQL_DATASOURCES = TransportVersion.fromName("esql_datasources");
+
     public static final String TYPE = "esql_dataset";
     public static final List<NamedWriteableRegistry.Entry> ENTRIES = List.of(
         new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, TYPE, DatasetMetadata::readFromStream),
@@ -91,16 +94,13 @@ public final class DatasetMetadata extends AbstractNamedDiffable<Metadata.Projec
 
     @Override
     public EnumSet<Metadata.XContentContext> context() {
-        // API + GATEWAY. Datasets carry no secrets (credentials live on the parent data source), so full API exposure
-        // is intentional. SNAPSHOT is excluded to stay consistent with DataSourceMetadata: restoring datasets without
-        // their data sources would leave dangling references. Snapshot support is tracked as a future milestone.
-        return EnumSet.of(Metadata.XContentContext.API, Metadata.XContentContext.GATEWAY);
+        return EnumSet.of(Metadata.XContentContext.API, Metadata.XContentContext.GATEWAY, Metadata.XContentContext.SNAPSHOT);
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         // Shared with DataSourceMetadata — both metadata containers ship together
-        return DataSourceMetadata.ESQL_DATASOURCES;
+        return ESQL_DATASOURCES;
     }
 
     @Override

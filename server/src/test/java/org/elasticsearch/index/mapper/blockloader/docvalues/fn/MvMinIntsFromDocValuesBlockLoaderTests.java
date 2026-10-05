@@ -9,6 +9,9 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.IntField;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -24,9 +27,14 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MvMinIntsFromDocValuesBlockLoaderTests extends AbstractIntsFromDocValuesBlockLoaderTests {
+public class MvMinIntsFromDocValuesBlockLoaderTests extends AbstractNumericBlockLoaderTests {
     public MvMinIntsFromDocValuesBlockLoaderTests(boolean multiValues, boolean missingValues) {
         super(multiValues, missingValues);
+    }
+
+    @Override
+    protected IndexableField field(int v) {
+        return new IntField("field", v, Field.Store.NO);
     }
 
     @Override

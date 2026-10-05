@@ -22,6 +22,7 @@ import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -37,7 +38,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.validation.CustomServiceIntegrationValidator;
+import org.elasticsearch.xpack.inference.services.validation.CustomServiceRerankIntegrationValidator;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -45,6 +46,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
+import static org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs.fromRerankRequest;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 
@@ -141,6 +143,21 @@ public class CustomService extends SenderService<CustomModel> implements Reranki
     }
 
     @Override
+    protected void doRerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+        if (!(model instanceof CustomModel customModel)) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+        var overriddenModel = CustomModel.of(customModel, request.taskSettings());
+
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(SERVICE_NAME);
+        var manager = CustomRequestManager.of(overriddenModel, getServiceComponents().threadPool());
+        var action = new SenderExecutableAction(getSender(), manager, failedToSendRequestErrorMessage);
+
+        action.execute(fromRerankRequest(request), timeout, listener);
+    }
+
+    @Override
     protected void doChunkedInfer(
         Model model,
         List<ChunkInferenceInput> inputs,
@@ -163,12 +180,17 @@ public class CustomService extends SenderService<CustomModel> implements Reranki
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs,
             customModel.getServiceSettings().getBatchSize(),
+            getRegexReadLimitFactor(),
             customModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {
             var action = new SenderExecutableAction(getSender(), manager, failedToSendRequestErrorMessage);
-            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+            action.execute(
+                new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                timeout,
+                request.listener()
+            );
         }
     }
 
@@ -248,7 +270,7 @@ public class CustomService extends SenderService<CustomModel> implements Reranki
     @Override
     public ServiceIntegrationValidator getServiceIntegrationValidator(TaskType taskType) {
         if (taskType == TaskType.RERANK) {
-            return new CustomServiceIntegrationValidator();
+            return new CustomServiceRerankIntegrationValidator();
         }
 
         return null;

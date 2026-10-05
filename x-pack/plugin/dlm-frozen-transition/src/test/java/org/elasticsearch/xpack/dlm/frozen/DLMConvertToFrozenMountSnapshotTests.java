@@ -58,6 +58,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
 
@@ -128,11 +129,16 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
         };
     }
 
+    /**
+     * When the mounted index already exists in cluster state, the mount step short-circuits without issuing a
+     * mount request and without consulting cluster health. The yellow-status check is now a separate step
+     * (see {@link #testWaitForMountedIndexToBeAvailableSucceeds}).
+     */
     public void testSkipsWhenSnapshotAlreadyMounted() throws InterruptedException {
         String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
         createProjectStateWithMountedSnapshot(snapshotName);
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,
@@ -142,7 +148,6 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
 
         convert.maybeMountSearchableSnapshot(indexName);
 
-        // No mount request should have been issued
         assertNull(capturedMountRequest.get());
     }
 
@@ -152,7 +157,7 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
         mockMountResponse.set(new RestoreSnapshotResponse(restoreInfo));
 
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,
@@ -176,7 +181,7 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
         mockMountResponse.set(new RestoreSnapshotResponse((RestoreInfo) null));
 
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,
@@ -197,7 +202,7 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
         mockMountResponse.set(new RestoreSnapshotResponse(restoreInfo));
 
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,
@@ -218,7 +223,7 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
         mockMountResponse.set(new RestoreSnapshotResponse(restoreInfo));
 
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,
@@ -238,7 +243,7 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
         mockMountFailure.set(new ElasticsearchException("mount failed"));
 
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,
@@ -251,6 +256,54 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
             () -> convert.maybeMountSearchableSnapshot(indexName)
         );
         assertThat(exception.getMessage(), containsString("mounting snapshot"));
+    }
+
+    /**
+     * When the mounted index is allocated (primary shard active), the wait step returns cleanly via
+     * ClusterStateObserver without issuing any client requests, letting the pipeline advance to the
+     * cleanup/swap step.
+     */
+    public void testWaitForMountedIndexToBeAvailableSucceeds() throws InterruptedException {
+        String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
+        createProjectStateWithMountedSnapshot(snapshotName);
+
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(
+            index,
+            projectId,
+            client,
+            clusterService,
+            () -> licenseState,
+            Clock.systemUTC()
+        );
+
+        convert.waitForMountedIndexToBeAvailable();
+
+        assertThat(capturedMountRequest.get(), is(nullValue()));
+        assertThat(capturedDeleteRequest.get(), is(nullValue()));
+    }
+
+    /**
+     * When the mounted index has not reached yellow status before the wait times out, the step throws so that the
+     * cleanup/swap step never runs and the next poll cycle re-checks allocation. No delete is issued — the partial
+     * mount is left in place because deleting it would not change the outcome of the next mount attempt.
+     */
+    public void testThrowsWhenMountedIndexAllocationTimesOut() {
+        String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
+        createProjectStateWithMountedSnapshot(snapshotName);
+
+        DLMConvertToFrozen convert = new DLMConvertToFrozenSnapshotTests.TestDLMConvertToFrozenWithTimeout(
+            index,
+            projectId,
+            client,
+            clusterService,
+            () -> licenseState,
+            Clock.systemUTC()
+        );
+
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, convert::waitForMountedIndexToBeAvailable);
+        assertThat(exception.getMessage(), containsString("timed out"));
+        assertThat(capturedMountRequest.get(), is(nullValue()));
+        assertThat(capturedDeleteRequest.get(), is(nullValue()));
     }
 
     /**

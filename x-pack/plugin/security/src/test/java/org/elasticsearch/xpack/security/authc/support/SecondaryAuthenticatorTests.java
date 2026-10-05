@@ -23,9 +23,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.license.License;
-import org.elasticsearch.license.TestUtils;
-import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -34,6 +31,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
@@ -97,6 +95,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
     private TokenService tokenService;
     private Client client;
     private MockBytesRefRecycler bytesRefRecycler;
+    private AuditTrailService auditTrailService;
 
     @Before
     public void setupMocks() throws Exception {
@@ -116,7 +115,6 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         when(realms.getActiveRealms()).thenReturn(List.of(realm));
         when(realms.getUnlicensedRealms()).thenReturn(List.of());
 
-        final AuditTrailService auditTrail = new AuditTrailService(null, null);
         final AuthenticationFailureHandler failureHandler = new DefaultAuthenticationFailureHandler(Map.of());
         final AnonymousUser anonymous = new AnonymousUser(settings);
 
@@ -126,17 +124,18 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         client = Mockito.mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
 
-        final TestUtils.UpdatableLicenseState licenseState = new TestUtils.UpdatableLicenseState();
-        licenseState.update(new XPackLicenseStatus(License.OperationMode.PLATINUM, true, null));
-
         final Clock clock = Clock.systemUTC();
 
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterState clusterState = ClusterState.EMPTY_STATE;
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterService.getClusterSettings()).thenReturn(
-            new ClusterSettings(settings, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD, ApiKeyService.DELETE_INTERVAL))
+            new ClusterSettings(
+                settings,
+                Set.of(ApiKeyService.DELETE_RETENTION_PERIOD, ApiKeyService.DELETE_INTERVAL, XPackSettings.AUDIT_ENABLED)
+            )
         );
+        auditTrailService = new AuditTrailService(null, null, clusterService);
 
         securityContext = new SecurityContext(settings, threadContext);
 
@@ -146,7 +145,6 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
             settings,
             clock,
             client,
-            licenseState,
             securityContext,
             securityIndex,
             tokensIndex,
@@ -174,7 +172,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         authenticationService = new AuthenticationService(
             settings,
             realms,
-            auditTrail,
+            auditTrailService,
             failureHandler,
             threadPool,
             anonymous,
@@ -185,7 +183,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
             mock(),
             MeterRegistry.NOOP
         );
-        authenticator = new SecondaryAuthenticator(securityContext, authenticationService, auditTrail);
+        authenticator = new SecondaryAuthenticator(securityContext, authenticationService, auditTrailService);
     }
 
     @After
@@ -396,11 +394,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
             }).when(mockAuthService).authenticate(any(), any(Boolean.class), anyActionListener());
         }
 
-        final SecondaryAuthenticator mockAuthenticator = new SecondaryAuthenticator(
-            securityContext,
-            mockAuthService,
-            new AuditTrailService(null, null)
-        );
+        final SecondaryAuthenticator mockAuthenticator = new SecondaryAuthenticator(securityContext, mockAuthService, auditTrailService);
 
         threadPool.getThreadContext()
             .putHeader(SECONDARY_AUTH_HEADER_NAME, basicAuthHeaderValue(randomAlphanumericOfLength(5), randomSecureStringOfLength(5)));
@@ -442,11 +436,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
             return null;
         }).when(mockAuthService).authenticate(any(String.class), any(TransportRequest.class), any(Boolean.class), anyActionListener());
 
-        final SecondaryAuthenticator mockAuthenticator = new SecondaryAuthenticator(
-            securityContext,
-            mockAuthService,
-            new AuditTrailService(null, null)
-        );
+        final SecondaryAuthenticator mockAuthenticator = new SecondaryAuthenticator(securityContext, mockAuthService, auditTrailService);
 
         threadPool.getThreadContext()
             .putHeader(SECONDARY_AUTH_HEADER_NAME, basicAuthHeaderValue(randomAlphanumericOfLength(5), randomSecureStringOfLength(5)));

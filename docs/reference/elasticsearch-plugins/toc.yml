@@ -10,8 +10,10 @@ toc:
       - file: _other_command_line_parameters.md
       - file: _plugins_directory.md
       - file: manage-plugins-using-configuration-file.md
-      - file: cloud/ec-custom-bundles.md
-      - file: cloud/ec-plugins-guide.md
+      - title: Upload custom plugins and bundles
+        crosslink: docs-content://deploy-manage/deploy/elastic-cloud/upload-custom-plugins-bundles.md
+      - title: Manage plugins and extensions through the API
+        crosslink: docs-content://deploy-manage/deploy/elastic-cloud/manage-plugins-extensions-through-api.md
   - file: api-extension-plugins.md
   - file: analysis-plugins.md
     children:

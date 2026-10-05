@@ -7,16 +7,53 @@
 
 package org.elasticsearch.xpack.esql.datasource.azure;
 
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+
+import com.azure.core.credential.TokenCredential;
+import com.azure.core.credential.TokenRequestContext;
+import com.azure.core.http.HttpHeaders;
+import com.azure.core.http.HttpMethod;
+import com.azure.core.http.HttpRequest;
+import com.azure.core.http.HttpResponse;
+import com.azure.identity.CredentialUnavailableException;
+import com.azure.storage.blob.models.BlobErrorCode;
 import com.azure.storage.blob.models.BlobItem;
 import com.azure.storage.blob.models.BlobItemProperties;
+import com.azure.storage.blob.models.BlobStorageException;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient;
+import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.TestConnectionNotSupportedException;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Unit tests for AzureStorageProvider.
@@ -27,15 +64,25 @@ import java.util.List;
 public class AzureStorageProviderTests extends ESTestCase {
 
     public void testSupportedSchemes() {
-        AzureStorageProvider provider = new AzureStorageProvider((AzureConfiguration) null);
+        AzureStorageProvider provider = new AzureStorageProvider(null, null, null);
         assertEquals(List.of("wasbs", "wasb"), provider.supportedSchemes());
     }
 
     public void testInvalidSchemeThrows() {
-        AzureStorageProvider provider = new AzureStorageProvider((AzureConfiguration) null);
+        AzureStorageProvider provider = new AzureStorageProvider(null, null, null);
         StoragePath s3Path = StoragePath.of("s3://my-bucket/path/to/file.parquet");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> provider.newObject(s3Path));
         assertTrue(e.getMessage().contains("AzureStorageProvider only supports wasbs:// and wasb:// schemes"));
+    }
+
+    public void testManagedIdentityDefersBuildWhenAccountOnlyFromPath() {
+        // auth=managed_identity with the account supplied only in the query path (no account/endpoint in config) must
+        // not fail at construction: the endpoint is derived per-query from the wasbs://<account>... path, which is
+        // unavailable at construction, so the client build is deferred to first use. Regression guard for the eager-
+        // build guard, which must exclude managed_identity for Azure.
+        AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, null, "managed_identity");
+        AzureStorageProvider provider = new AzureStorageProvider(config, null, null);
+        assertNotNull(provider);
     }
 
     public void testWasbsPathParsing() {
@@ -175,7 +222,448 @@ public class AzureStorageProviderTests extends ESTestCase {
         return entries;
     }
 
+    // -- listChildren: hierarchy-level splitting into files and subdirectories --
+
+    public void testCollectChildrenSeparatesPrefixesFromBlobs() {
+        BlobItem subdir = new BlobItem().setName("data/year=2024/").setIsPrefix(Boolean.TRUE);
+        BlobItem marker = new BlobItem().setName("data/dir/").setProperties(properties(0L)); // "/"-named non-prefix blob
+        BlobItem file = new BlobItem().setName("data/file.parquet").setProperties(properties(123L));
+
+        StorageChildren children = AzureStorageProvider.collectChildren(
+            List.of(subdir, marker, file),
+            "wasbs://account.blob.core.windows.net/c/",
+            10
+        );
+
+        assertEquals(
+            List.of("wasbs://account.blob.core.windows.net/c/data/year=2024"),
+            children.directories().stream().map(StoragePath::toString).toList()
+        );
+        assertEquals(1, children.files().size());
+        assertEquals("wasbs://account.blob.core.windows.net/c/data/file.parquet", children.files().get(0).path().toString());
+        assertEquals(123L, children.files().get(0).length());
+    }
+
+    /** Exactly {@code limit} children are allowed; one over withdraws to {@code null} (the flat-listing fallback). */
+    public void testCollectChildrenPastLimitReturnsNull() {
+        List<BlobItem> items = List.of(
+            new BlobItem().setName("data/a.parquet").setProperties(properties(1L)),
+            new BlobItem().setName("data/b.parquet").setProperties(properties(1L)),
+            new BlobItem().setName("data/sub/").setIsPrefix(Boolean.TRUE)
+        );
+        String prefix = "wasbs://account.blob.core.windows.net/c/";
+
+        StorageChildren atLimit = AzureStorageProvider.collectChildren(items, prefix, 3);
+        assertNotNull(atLimit);
+        assertEquals(2, atLimit.files().size());
+        assertEquals(1, atLimit.directories().size());
+
+        assertNull("one child over the limit must withdraw", AzureStorageProvider.collectChildren(items, prefix, 2));
+    }
+
     private static BlobItemProperties properties(long contentLength) {
         return new BlobItemProperties().setContentLength(contentLength);
+    }
+
+    public void testIssueAssertionAsyncCompletesWithToken() throws Exception {
+        WorkloadIdentityIssuerClient issuer = (request, listener) -> listener.onResponse(
+            new WorkloadIdentityIssuerClient.IssueTokenResponse("header.payload.signature", Instant.now().plusSeconds(3600))
+        );
+        CompletableFuture<String> assertion = AzureStorageProvider.issueAssertionAsync(issuer, "api://AzureADTokenExchange");
+        assertEquals("header.payload.signature", assertion.get());
+    }
+
+    public void testIssueAssertionAsyncCompletesExceptionallyOnFailure() {
+        IOException failure = new IOException("issuer unavailable");
+        WorkloadIdentityIssuerClient issuer = (request, listener) -> listener.onFailure(failure);
+        CompletableFuture<String> assertion = AzureStorageProvider.issueAssertionAsync(issuer, "api://AzureADTokenExchange");
+        ExecutionException e = expectThrows(ExecutionException.class, assertion::get);
+        assertSame(failure, e.getCause());
+    }
+
+    public void testBuildClientAssertionCredentialThrowsWhenWorkloadIdentityDisabled() {
+        WorkloadIdentityRegistry.setIssuerClient(new RecordingIssuerClient(false, false));
+        try {
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> AzureStorageProvider.buildClientAssertionCredential(federatedConfig(), EsExecutors.DIRECT_EXECUTOR_SERVICE)
+            );
+            assertThat(e.getMessage(), containsString("workload-identity feature to be enabled"));
+        } finally {
+            WorkloadIdentityRegistry.reset();
+        }
+    }
+
+    public void testBuildClientAssertionCredentialRequiresExecutor() {
+        WorkloadIdentityRegistry.setIssuerClient(new RecordingIssuerClient(true, false));
+        try {
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> AzureStorageProvider.buildClientAssertionCredential(federatedConfig(), null)
+            );
+            assertThat(e.getMessage(), containsString("non-null executor"));
+        } finally {
+            WorkloadIdentityRegistry.reset();
+        }
+    }
+
+    public void testBuildClientAssertionCredentialRequestsConfiguredAudience() {
+        RecordingIssuerClient issuer = new RecordingIssuerClient(true, false);
+        WorkloadIdentityRegistry.setIssuerClient(issuer);
+        try {
+            TokenCredential credential = AzureStorageProvider.buildClientAssertionCredential(
+                federatedConfig(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            );
+            // The issuer fails the assertion, so resolution short-circuits before any Azure AD token exchange.
+            TokenRequestContext request = new TokenRequestContext().addScopes("https://storage.azure.com/.default");
+            expectThrows(CredentialUnavailableException.class, () -> credential.getToken(request).block());
+            assertEquals("overridden-audience", issuer.requestedAudience);
+        } finally {
+            WorkloadIdentityRegistry.reset();
+        }
+    }
+
+    public void testBuildClientAssertionCredentialRequestsDefaultAudienceWhenOmitted() {
+        RecordingIssuerClient issuer = new RecordingIssuerClient(true, false);
+        WorkloadIdentityRegistry.setIssuerClient(issuer);
+        try {
+            TokenCredential credential = AzureStorageProvider.buildClientAssertionCredential(
+                AzureConfiguration.fromMap(Map.of("tenant_id", "test-tenant-id", "client_id", "test-client-id")),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            );
+            // The issuer fails the assertion, so resolution short-circuits before any Azure AD token exchange.
+            TokenRequestContext request = new TokenRequestContext().addScopes("https://storage.azure.com/.default");
+            expectThrows(CredentialUnavailableException.class, () -> credential.getToken(request).block());
+            assertEquals("api://AzureADTokenExchange", issuer.requestedAudience);
+        } finally {
+            WorkloadIdentityRegistry.reset();
+        }
+    }
+
+    private static AzureConfiguration federatedConfig() {
+        return AzureConfiguration.fromMap(
+            Map.of("tenant_id", "test-tenant-id", "client_id", "test-client-id", "jwt_audience", "overridden-audience")
+        );
+    }
+
+    /** Stub issuer that records the requested audience and either fails the listener or returns a token. */
+    private static final class RecordingIssuerClient implements WorkloadIdentityIssuerClient {
+        private final boolean enabled;
+        private final boolean succeed;
+        private volatile String requestedAudience;
+
+        RecordingIssuerClient(boolean enabled, boolean succeed) {
+            this.enabled = enabled;
+            this.succeed = succeed;
+        }
+
+        @Override
+        public void issueToken(IssueTokenRequest request, ActionListener<IssueTokenResponse> listener) {
+            requestedAudience = request.audience();
+            if (succeed) {
+                listener.onResponse(new IssueTokenResponse("header.payload.signature", Instant.now().plusSeconds(3600)));
+            } else {
+                listener.onFailure(new IOException("issuer unavailable"));
+            }
+        }
+
+        @Override
+        public boolean isEnabled() {
+            return enabled;
+        }
+    }
+
+    // -- AKS Workload Identity activation matrix -------------------------------------------------
+
+    public void testAksWorkloadIdentityInactiveWithoutEnvironment() {
+        AzureStorageProvider provider = new AzureStorageProvider((AzureConfiguration) null, null, null);
+        assertNull(
+            "without an Environment the workload-identity chain must fall back to ManagedIdentity-only",
+            provider.maybeBuildAksWorkloadIdentityCredential(name -> "any")
+        );
+    }
+
+    public void testAksWorkloadIdentityInactiveWhenEnvTripleMissing() throws IOException {
+        Environment env = newTestEnvironment();
+        Files.createDirectories(env.configDir().resolve("esql-datasource-azure"));
+        Files.writeString(env.configDir().resolve(AzureStorageProvider.AKS_FEDERATED_TOKEN_FILE_LOCATION), "tok");
+        AzureStorageProvider provider = new AzureStorageProvider((AzureConfiguration) null, env, null);
+        assertNull(
+            "missing AZURE_FEDERATED_TOKEN_FILE must keep the workload-identity chain at ManagedIdentity-only",
+            provider.maybeBuildAksWorkloadIdentityCredential(env(Map.of("AZURE_CLIENT_ID", "cid", "AZURE_TENANT_ID", "tid")))
+        );
+    }
+
+    public void testAksWorkloadIdentityThrowsWhenSymlinkAbsent() throws IOException {
+        Environment env = newTestEnvironment();
+        Files.createDirectories(env.configDir().resolve("esql-datasource-azure"));
+        AzureStorageProvider provider = new AzureStorageProvider((AzureConfiguration) null, env, null);
+        // The AKS env triple means the operator intended workload identity; a missing entitled
+        // symlink is a misconfiguration that must fail loudly rather than silently degrade to a
+        // ManagedIdentityCredential that re-enters the entitlement-blocked K8s token path.
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> provider.maybeBuildAksWorkloadIdentityCredential(
+                env(
+                    Map.of(
+                        "AZURE_FEDERATED_TOKEN_FILE",
+                        "/var/run/secrets/azure/tokens/azure-identity-token",
+                        "AZURE_CLIENT_ID",
+                        "cid",
+                        "AZURE_TENANT_ID",
+                        "tid"
+                    )
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("is missing"));
+    }
+
+    public void testAksWorkloadIdentityActiveWhenFullyConfigured() throws IOException {
+        Environment env = newTestEnvironment();
+        Path tokenFile = env.configDir().resolve(AzureStorageProvider.AKS_FEDERATED_TOKEN_FILE_LOCATION);
+        Files.createDirectories(tokenFile.getParent());
+        Files.writeString(tokenFile, "fake-federated-token");
+        AzureStorageProvider provider = new AzureStorageProvider((AzureConfiguration) null, env, null);
+        TokenCredential credential = provider.maybeBuildAksWorkloadIdentityCredential(
+            env(
+                Map.of(
+                    "AZURE_FEDERATED_TOKEN_FILE",
+                    "/var/run/secrets/azure/tokens/azure-identity-token",
+                    "AZURE_CLIENT_ID",
+                    "cid",
+                    "AZURE_TENANT_ID",
+                    "tid"
+                )
+            )
+        );
+        assertNotNull("fully configured AKS env triple must produce a TokenCredential", credential);
+        assertThat(credential.getClass().getName(), org.hamcrest.Matchers.containsString("WorkloadIdentityCredential"));
+    }
+
+    public void testAksWorkloadIdentityThrowsWhenSymlinkUnreadable() throws IOException {
+        // POSIX permissions are required for this test; skip on filesystems that don't honor them
+        // (e.g. native Windows). The plugin only ships on Linux/macOS in production.
+        assumeTrue("requires POSIX file permissions", PathUtils.getDefaultFileSystem().supportedFileAttributeViews().contains("posix"));
+        Environment env = newTestEnvironment();
+        Path tokenFile = env.configDir().resolve(AzureStorageProvider.AKS_FEDERATED_TOKEN_FILE_LOCATION);
+        Files.createDirectories(tokenFile.getParent());
+        Files.writeString(tokenFile, "fake-federated-token");
+        try {
+            Files.setPosixFilePermissions(tokenFile, EnumSet.noneOf(PosixFilePermission.class));
+            // chmod 000 can still leave the file readable for the owning user on some filesystems
+            // (e.g. macOS APFS when the test runs as root); skip if the permission did not stick.
+            assumeTrue("filesystem honors chmod 000", Files.isReadable(tokenFile) == false);
+
+            AzureStorageProvider provider = new AzureStorageProvider((AzureConfiguration) null, env, null);
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> provider.maybeBuildAksWorkloadIdentityCredential(
+                    env(
+                        Map.of(
+                            "AZURE_FEDERATED_TOKEN_FILE",
+                            "/var/run/secrets/azure/tokens/azure-identity-token",
+                            "AZURE_CLIENT_ID",
+                            "cid",
+                            "AZURE_TENANT_ID",
+                            "tid"
+                        )
+                    )
+                )
+            );
+            assertThat(e.getMessage(), containsString("not readable"));
+        } finally {
+            Files.setPosixFilePermissions(tokenFile, PosixFilePermissions.fromString("rw-------"));
+        }
+    }
+
+    private static Environment newTestEnvironment() {
+        return TestEnvironment.newEnvironment(
+            Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
+        );
+    }
+
+    private static java.util.function.Function<String, String> env(Map<String, String> values) {
+        Map<String, String> snapshot = new HashMap<>(values);
+        return snapshot::get;
+    }
+
+    /**
+     * Verifies the SDK behavior that {@link BlobStorageException#getErrorCode()} reads from the
+     * {@code x-ms-error-code} response header. The production fix for the 403 classification
+     * (container-scoped vs. wrong-key) relies on this SDK contract.
+     */
+    public void testBlobStorageExceptionGetErrorCodeReadsFromHeader() {
+        BlobStorageException permMismatch = blobStorageExceptionWithErrorCode(403, "AuthorizationPermissionMismatch");
+        assertEquals(BlobErrorCode.AUTHORIZATION_PERMISSION_MISMATCH, permMismatch.getErrorCode());
+
+        BlobStorageException authFailed = blobStorageExceptionWithErrorCode(403, "AuthenticationFailed");
+        assertEquals(BlobErrorCode.AUTHENTICATION_FAILED, authFailed.getErrorCode());
+
+        // No x-ms-error-code header → getErrorCode() returns null.
+        BlobStorageException noCode = new BlobStorageException("403 bare", new StatusOnlyHttpResponse(403), null);
+        assertNull(noCode.getErrorCode());
+    }
+
+    /**
+     * Container-scoped credentials deny the account-wide Get Account Info call with 403
+     * {@code AuthorizationPermissionMismatch}. That must map to untestable — the credentials
+     * are valid for the bucket, they just lack account-wide listing rights.
+     * A null error-code 403 also maps to untestable (conservative: we don't know which kind it is).
+     */
+    public void testContainerScoped403IsUntestable() {
+        assertTrue(
+            "AuthorizationPermissionMismatch must be considered container-scoped",
+            AzureStorageProvider.isContainerScoped403(blobStorageExceptionWithErrorCode(403, "AuthorizationPermissionMismatch"))
+        );
+        assertTrue(
+            "null error code must be treated as container-scoped (conservative)",
+            AzureStorageProvider.isContainerScoped403(new BlobStorageException("403 bare", new StatusOnlyHttpResponse(403), null))
+        );
+    }
+
+    /**
+     * Wrong-key credentials return 403 {@code AuthenticationFailed}. That must NOT be treated as
+     * untestable — the credentials are definitively wrong, and the probe must report failure so the
+     * user knows to fix them rather than "create a dataset to validate access".
+     */
+    public void testAuthenticationFailed403IsNotUntestable() {
+        assertFalse(
+            "AuthenticationFailed must not be treated as container-scoped",
+            AzureStorageProvider.isContainerScoped403(blobStorageExceptionWithErrorCode(403, "AuthenticationFailed"))
+        );
+    }
+
+    private static BlobStorageException blobStorageExceptionWithErrorCode(int status, String errorCode) {
+        HttpHeaders headers = new HttpHeaders().set("x-ms-error-code", errorCode);
+        HttpResponse response = new HttpResponseWithHeaders(status, headers);
+        return new BlobStorageException("error " + errorCode, response, null);
+    }
+
+    private static final class StatusOnlyHttpResponse extends HttpResponse {
+        private final int status;
+
+        StatusOnlyHttpResponse(int status) {
+            super(new HttpRequest(HttpMethod.GET, "https://acct.blob.core.windows.net/"));
+            this.status = status;
+        }
+
+        @Override
+        public int getStatusCode() {
+            return status;
+        }
+
+        @Override
+        public String getHeaderValue(String name) {
+            return null;
+        }
+
+        @Override
+        public HttpHeaders getHeaders() {
+            return new HttpHeaders();
+        }
+
+        @Override
+        public Flux<ByteBuffer> getBody() {
+            return Flux.empty();
+        }
+
+        @Override
+        public Mono<byte[]> getBodyAsByteArray() {
+            return Mono.empty();
+        }
+
+        @Override
+        public Mono<String> getBodyAsString() {
+            return Mono.empty();
+        }
+
+        @Override
+        public Mono<String> getBodyAsString(Charset charset) {
+            return Mono.empty();
+        }
+    }
+
+    private static final class HttpResponseWithHeaders extends HttpResponse {
+        private final int status;
+        private final HttpHeaders headers;
+
+        HttpResponseWithHeaders(int status, HttpHeaders headers) {
+            super(new HttpRequest(HttpMethod.GET, "https://acct.blob.core.windows.net/"));
+            this.status = status;
+            this.headers = headers;
+        }
+
+        @Override
+        public int getStatusCode() {
+            return status;
+        }
+
+        @Override
+        public String getHeaderValue(String name) {
+            return headers.getValue(name);
+        }
+
+        @Override
+        public HttpHeaders getHeaders() {
+            return headers;
+        }
+
+        @Override
+        public Flux<ByteBuffer> getBody() {
+            return Flux.empty();
+        }
+
+        @Override
+        public Mono<byte[]> getBodyAsByteArray() {
+            return Mono.empty();
+        }
+
+        @Override
+        public Mono<String> getBodyAsString() {
+            return Mono.empty();
+        }
+
+        @Override
+        public Mono<String> getBodyAsString(Charset charset) {
+            return Mono.empty();
+        }
+    }
+
+    public void testAnonymousDefersBuildWhenAccountOnlyFromPath() {
+        // auth=anonymous with no endpoint/account in settings must not throw at construction.
+        // The account is supplied by the wasbs:// dataset URI at query time.
+        AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, null, "anonymous");
+        AzureStorageProvider provider = new AzureStorageProvider(config, null, null);
+        assertNotNull(provider);
+    }
+
+    public void testTestConnectionAnonymousIsUntestable() {
+        // testConnection() short-circuits on isAnonymous() before attempting to build the client.
+        AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, null, "anonymous");
+        AzureStorageProvider provider = new AzureStorageProvider(config, null, null);
+        TestConnectionNotSupportedException ex = expectThrows(TestConnectionNotSupportedException.class, provider::testConnection);
+        assertThat(ex.getMessage(), containsString("anonymous"));
+    }
+
+    public void testTestConnectionManagedIdentityWithoutAccountIsUntestable() {
+        // managed_identity without account or endpoint: pre-check in testConnection() short-circuits
+        // before calling clients(null), so no client is built and no network call is made.
+        AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, null, "managed_identity");
+        AzureStorageProvider provider = new AzureStorageProvider(config, null, null);
+        TestConnectionNotSupportedException ex = expectThrows(TestConnectionNotSupportedException.class, provider::testConnection);
+        assertThat(ex.getMessage(), containsString("managed_identity"));
+    }
+
+    public void testTestConnectionFederatedIdentityWithoutAccountIsUntestable() {
+        // federated_identity without account or endpoint: the pre-check in testConnection() short-circuits
+        // before any client call. tenant_id + client_id are required by validation when auth=federated_identity.
+        AzureConfiguration config = AzureConfiguration.fromMap(
+            Map.of("auth", "federated_identity", "tenant_id", "test-tenant", "client_id", "test-client")
+        );
+        AzureStorageProvider provider = new AzureStorageProvider(config, null, null);
+        TestConnectionNotSupportedException ex = expectThrows(TestConnectionNotSupportedException.class, provider::testConnection);
+        assertThat(ex.getMessage(), containsString("federated_identity"));
     }
 }

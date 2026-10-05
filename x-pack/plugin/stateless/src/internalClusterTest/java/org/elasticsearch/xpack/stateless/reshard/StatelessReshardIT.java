@@ -3915,6 +3915,14 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         safeAwait(relocateLatch);
 
         var targetShardNodeId = new AtomicReference<String>();
+        /* awaitClusterState(state -> {
+            String nodeId = state.routingTable().index(indexName).shard(1).primaryShard().currentNodeId();
+            if (nodeId != null) {
+                targetShardNodeId.compareAndSet(null, nodeId);
+                return true;
+            }
+            return false;
+        }); */
         awaitClusterState(state -> {
             targetShardNodeId.set(state.routingTable().index(indexName).shard(1).primaryShard().currentNodeId());
             return targetShardNodeId.get() != null;

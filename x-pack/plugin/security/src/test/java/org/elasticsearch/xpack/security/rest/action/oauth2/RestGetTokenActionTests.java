@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.rest.action.oauth2;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -156,6 +157,23 @@ public class RestGetTokenActionTests extends ESTestCase {
             assertEquals("user1", createTokenRequest.getUsername());
             assertEquals("FULL", createTokenRequest.getScope());
             assertTrue(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING.equals(createTokenRequest.getPassword()));
+        }
+    }
+
+    public void testParserUserManagedServiceAccountRequest() throws Exception {
+        final String token = randomAlphaOfLengthBetween(4, 32);
+        final String request = Strings.format("""
+            {
+              "grant_type": "_user_managed_service_account",
+              "service_account_token": "%s"
+            }""", token);
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, request)) {
+            CreateTokenRequest createTokenRequest = RestGetTokenAction.PARSER.parse(parser, null);
+            assertEquals("_user_managed_service_account", createTokenRequest.getGrantType());
+            assertTrue(new SecureString(token.toCharArray()).equals(createTokenRequest.getServiceAccountToken()));
+            assertNull(createTokenRequest.getUsername());
+            assertNull(createTokenRequest.getPassword());
+            assertNull(createTokenRequest.getRefreshToken());
         }
     }
 

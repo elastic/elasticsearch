@@ -99,7 +99,7 @@ public final class InnerHitsPhase implements FetchSubPhase {
 
             long innerHitsBreakerBytes = fetchResult.getSearchHitsSizeBytes();
             if (innerHitsBreakerBytes > 0L) {
-                fetchResult.releaseCircuitBreakerBytes(innerHitsContext.circuitBreaker());
+                fetchResult.releaseCircuitBreakerBytes();
                 parentContext.chargeScriptFieldsBytes(innerHitsBreakerBytes);
             }
 

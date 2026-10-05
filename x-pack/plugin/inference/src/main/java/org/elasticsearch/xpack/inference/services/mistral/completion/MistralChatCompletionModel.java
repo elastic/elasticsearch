@@ -12,7 +12,7 @@ import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.mistral.MistralModel;
@@ -65,7 +65,7 @@ public class MistralChatCompletionModel extends MistralModel {
      * @param request The UnifiedCompletionRequest containing the model override.
      * @return A new MistralChatCompletionModel with the overridden model ID.
      */
-    public static MistralChatCompletionModel of(MistralChatCompletionModel model, UnifiedCompletionRequest request) {
+    public static MistralChatCompletionModel of(MistralChatCompletionModel model, UnifiedCompletionRequestBody request) {
         if (request.model() == null) {
             // If no model is specified in the request, return the original model
             return model;

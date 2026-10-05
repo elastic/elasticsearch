@@ -87,7 +87,7 @@ class UpdateTransportVersionsCSVFuncTest extends AbstractTransportVersionFuncTes
         then:
         assertUpdateSuccess(result1)
         assertUpdateSuccess(result2)
-        assertOutputContains(result2.output, "Version 9.2.0 already exists in TransportVersions.csv with correct transport version ID, skipping")
+        assertOutputContains(result2.output, "Version 9.2.0 already exists in TransportVersions.csv with transport version ID 8123000, skipping")
         // Should only have one entry for 9.2.0
         assertTransportVersionsCsv("""
             9.0.0,8000000
@@ -96,9 +96,37 @@ class UpdateTransportVersionsCSVFuncTest extends AbstractTransportVersionFuncTes
         """)
     }
 
-    def "fails when existing version has wrong transport version ID"() {
+    def "is idempotent when the upper bound has moved on to the next stack version"() {
         given:
-        // Manually add an entry with wrong transport version ID
+        // The release was finalized once already, recording 9.1.1 and generating the initial transport version for
+        // 9.1.2, but the job failed afterwards and is being retried.
+        execute("git checkout main")
+        unreferableTransportVersion("initial_9.1.1", "8012002")
+        javaResource("myserver", "org/elasticsearch/TransportVersions.csv", """
+            9.0.0,8000000
+            9.1.0,8012001
+            9.1.1,8012002
+        """)
+        unreferableTransportVersion("initial_9.1.2", "8012003")
+        transportVersionUpperBound("9.1", "initial_9.1.2", "8012003")
+        commitAll("finalize-9.1.1")
+
+        when:
+        def result = runUpdateTask("--stack-version", "9.1.1").build()
+
+        then:
+        assertUpdateSuccess(result)
+        assertOutputContains(result.output, "Version 9.1.1 already exists in TransportVersions.csv with transport version ID 8012002, skipping")
+        assertTransportVersionsCsv("""
+            9.0.0,8000000
+            9.1.0,8012001
+            9.1.1,8012002
+        """)
+    }
+
+    def "fails when existing version is ahead of the upper bound"() {
+        given:
+        // Manually add an entry with a transport version ID that could never have shipped
         javaResource("myserver", "org/elasticsearch/TransportVersions.csv", """
             9.0.0,8000000
             9.1.0,8012001
@@ -109,6 +137,7 @@ class UpdateTransportVersionsCSVFuncTest extends AbstractTransportVersionFuncTes
         def result = runUpdateTask("--stack-version", "9.2.0").buildAndFail()
 
         then:
-        assertUpdateFailure(result, "Version 9.2.0 already exists in TransportVersions.csv with transport version ID 9999999, but expected 8123000")
+        assertUpdateFailure(result, "Version 9.2.0 already exists in TransportVersions.csv with transport version ID 9999999, " +
+            "which is ahead of the 9.2 upper bound 8123000")
     }
 }

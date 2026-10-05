@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.tree;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.ElementType;
@@ -73,6 +75,7 @@ import org.elasticsearch.xpack.esql.plan.logical.RemoteFetchSource;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
@@ -534,11 +537,10 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         } else if (argClass == ExternalSchema.class) {
             return new ExternalSchema(List.of());
         } else if (argClass == DeclaredReadSpec.class) {
-            // Typed carrier record; populate every component (renames, idPath, dateFormats, declaredTypeColumns) so
+            // Typed carrier record; populate every component (renames, dateFormats, declaredTypeColumns) so
             // transform/mutation tests exercise a fully-loaded value rather than an all-but-renames empty one.
             return DeclaredReadSpec.of(
                 Map.of(randomAlphaOfLength(4), randomAlphaOfLength(5)),
-                randomBoolean() ? randomAlphaOfLength(4) : null,
                 Map.of(randomAlphaOfLength(4), "yyyy-MM-dd"),
                 Set.of(randomAlphaOfLength(4), randomAlphaOfLength(5))
             );
@@ -550,6 +552,15 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             ElementType type = randomFrom(ElementType.LONG, ElementType.INT, ElementType.DOUBLE, ElementType.FLOAT);
             Object value = type == ElementType.LONG && randomBoolean() ? randomLong() : null;
             return new DefaultValue(type, value);
+        } else if (argClass == DenseVector.OutputNaming.class) {
+            // DenseVector.OutputNaming is a record and cannot be mocked. Build it through its factories so the value is a
+            // legitimate naming — the explicit-name and suffix forms are mutually exclusive — with enough variety that a
+            // caller needing a value different from the current one does not run out of retries.
+            return randomFrom(
+                DenseVector.OutputNaming.DEFAULT,
+                DenseVector.OutputNaming.explicit(randomAlphaOfLength(5)),
+                DenseVector.OutputNaming.suffixed(randomAlphaOfLength(4))
+            );
         } else if (argClass == ResolvingProject.Command.class) {
             return RESOLVING_PROJECT_COMMAND;
         } else if (argClass == AttributeSet.class) {
@@ -684,19 +695,13 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return randomBoolean() ? UnmappedFieldsPattern.ALL : UnmappedFieldsPattern.NONE;
         }
 
-        if (argClass == org.elasticsearch.cluster.metadata.DatasetMapping.class) {
-            // final type, can't be mocked — build a small real instance (declared mapping on UnresolvedExternalRelation)
-            return new org.elasticsearch.cluster.metadata.DatasetMapping(
-                new org.elasticsearch.cluster.metadata.DatasetMapping.Mappings(
-                    randomFrom(org.elasticsearch.cluster.metadata.DatasetMapping.Dynamic.values()),
-                    java.util.Map.of(
-                        randomAlphaOfLength(5),
-                        new org.elasticsearch.cluster.metadata.DatasetFieldMapping(
-                            "keyword",
-                            randomBoolean() ? null : randomAlphaOfLength(4)
-                        )
-                    ),
-                    randomBoolean() ? null : randomAlphaOfLength(5)
+        if (argClass == DatasetMapping.class) {
+            // final type, can't be mocked — build a small real instance (declared mapping on UnresolvedExternalRelation).
+            // Two components only: Mappings carries a dynamic mode and per-column properties, nothing else.
+            return new DatasetMapping(
+                new DatasetMapping.Mappings(
+                    randomFrom(DatasetMapping.Dynamic.values()),
+                    Map.of(randomAlphaOfLength(5), new DatasetFieldMapping("keyword", randomBoolean() ? null : randomAlphaOfLength(4)))
                 )
             );
         }

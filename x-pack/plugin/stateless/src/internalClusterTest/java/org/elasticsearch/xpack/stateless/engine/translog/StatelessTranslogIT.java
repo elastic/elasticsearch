@@ -621,7 +621,7 @@ public class StatelessTranslogIT extends AbstractStatelessPluginIntegTestCase {
                 induceFailures(settings, indexName, failureTypes);
             }
 
-            safeAwait(allReqLatch);
+            safeAwait(allReqLatch, TimeValue.timeValueSeconds(60));
 
             refresh(indexName);
 
@@ -721,8 +721,9 @@ public class StatelessTranslogIT extends AbstractStatelessPluginIntegTestCase {
             }
             case ISOLATED_INDEXING_NODE -> {
                 String isolatedNode = nonMasterIndexingNode();
+                String masterName = internalCluster().getMasterName();
                 final MockTransportService nodeATransportService = MockTransportService.getInstance(isolatedNode);
-                final MockTransportService masterTransportService = MockTransportService.getInstance(internalCluster().getMasterName());
+                final MockTransportService masterTransportService = MockTransportService.getInstance(masterName);
                 try {
                     PlainActionFuture<Void> removedNode = new PlainActionFuture<>();
 
@@ -744,7 +745,7 @@ public class StatelessTranslogIT extends AbstractStatelessPluginIntegTestCase {
                         .waitForNoInitializingShards(true)
                         .waitForNodes(Integer.toString(3));
 
-                    internalCluster().masterClient().admin().cluster().health(healthRequest).actionGet();
+                    client(masterName).admin().cluster().health(healthRequest).actionGet();
                 } finally {
                     masterTransportService.clearAllRules();
                 }

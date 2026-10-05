@@ -518,7 +518,8 @@ public final class DateFieldMapper extends FieldMapper {
                 resolution,
                 context.isSourceSynthetic(),
                 this,
-                offsetsFieldName
+                offsetsFieldName,
+                context.isDataStream()
             );
         }
     }
@@ -1201,7 +1202,8 @@ public final class DateFieldMapper extends FieldMapper {
         Resolution resolution,
         boolean isSourceSynthetic,
         Builder builder,
-        String offsetsFieldName
+        String offsetsFieldName,
+        boolean isDataStream
     ) {
         super(leafName, mappedFieldType, builderParams);
         this.stored = builder.store.getValue();
@@ -1222,7 +1224,7 @@ public final class DateFieldMapper extends FieldMapper {
         this.script = builder.script.get();
         this.scriptCompiler = builder.scriptCompiler;
         this.scriptValues = builder.scriptValues();
-        this.isDataStreamTimestampField = mappedFieldType.name().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+        this.isDataStreamTimestampField = isDataStream && mappedFieldType.name().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         this.indexSettings = builder.indexSettings;
         this.offsetsFieldName = offsetsFieldName;
     }
@@ -1263,15 +1265,13 @@ public final class DateFieldMapper extends FieldMapper {
 
     @Override
     protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
-        // Columnar support requires strict-columnar index mode or TIME_SERIES (for @timestamp),
-        // and a doc-values date field. doc_values.multi_value and ignore_malformed are not
-        // implemented by mapColumnBatch but are deliberately not rejected here — rejected at parse
-        // time instead.
-        return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
-            && docValuesParameters.enabled()
-            && hasScript() == false
-            && copyTo().copyToFields().isEmpty()
-            && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
+        // ignore_malformed is not enforced by mapColumnBatch — it falls back per document at parse time.
+        return docValuesParameters.enabled();
+    }
+
+    @Override
+    protected boolean shouldEnforceSingleValueBatch() {
+        return docValuesParameters.multiValue() == false;
     }
 
     @Override
@@ -1431,7 +1431,7 @@ public final class DateFieldMapper extends FieldMapper {
         //
         // DataStreamTimestampFieldMapper is present and enabled both
         // in data streams and standalone indices in time_series mode
-        if (isDataStreamTimestampField && context.mappingLookup().isDataStreamTimestampFieldEnabled()) {
+        if (isDataStreamTimestampField) {
             DataStreamTimestampFieldMapper.storeTimestampValueForReuse(context.doc(), timestamp);
         }
 
@@ -1493,12 +1493,7 @@ public final class DateFieldMapper extends FieldMapper {
                         )
                     );
                 }
-                if (ignoreMalformed) {
-                    layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
-                }
-                if (onFailureColumnEnabled()) {
-                    layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
-                }
+                CompositeSyntheticFieldLoader.addFallbackLayers(layers, this, indexSettings);
                 return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
             });
         }

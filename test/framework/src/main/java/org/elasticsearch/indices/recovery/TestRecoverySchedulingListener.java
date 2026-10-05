@@ -49,11 +49,6 @@ public abstract class TestRecoverySchedulingListener implements RecoveryScheduli
     }
 
     @Override
-    public void onPeerRecoveryStartedOnSource() {
-        onRecoverySchedulingChange();
-    }
-
-    @Override
     public void onRecoveryDequeuedAndStartedOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {
         onRecoverySchedulingChange();
     }

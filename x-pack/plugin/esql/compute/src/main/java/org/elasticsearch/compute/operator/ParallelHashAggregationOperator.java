@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Randomness;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.PartitionedAggregationBlock;
 import org.elasticsearch.compute.operator.exchange.ExchangeBuffer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -41,10 +43,9 @@ import java.util.concurrent.locks.ReentrantLock;
  *
  * <p>Aggregation runs in two phases. In the first phase, incoming pages are queued on an input
  * exchange and workers compete to drain it, each aggregating the pages it processes into its own
- * private {@link HashAggregationOperator}. Whenever a worker's state grows beyond
- * {@link #partitionKeysThreshold} keys, the worker splits that state into partitions and hands them
- * off to a shared registry. After the last input page has been processed, every worker performs
- * one final split.
+ * private {@link HashAggregationOperator}. Whenever a worker's state exceeds its key-count or
+ * memory threshold, the worker splits that state into partitions and hands them off to a shared
+ * registry. After the last input page has been processed, every worker performs one final split.
  *
  * <p>The second phase begins once all workers have completed their final split. Workers claim
  * partitions from the registry, merge the slices of that partition produced by all the splits,
@@ -78,6 +79,7 @@ public final class ParallelHashAggregationOperator implements Operator {
     private final ExchangeBuffer in;
     private int lastPendingPages = 0;
     private boolean finishCalled = false;
+    private final List<PartitionedAggregationBlock> partitionedAggregationBlocks;
 
     private final AtomicInteger pendingSplits;
     private final SubscribableListener<Void> splitsDone = new SubscribableListener<>();
@@ -94,6 +96,7 @@ public final class ParallelHashAggregationOperator implements Operator {
     private long addInputInlineCount;
     private long addInputInlineRows;
     private long addInputInlineNanos;
+    private int partitionedBlocksReceived;
     private long finishNanos;
     private long inlineEmitCount;
     private long inlineEmitRows;
@@ -127,6 +130,9 @@ public final class ParallelHashAggregationOperator implements Operator {
             for (int w = 0; w < numWorkers; w++) {
                 workers[w] = new Worker(w, operator.spawnWorker());
             }
+            this.partitionedBlocksReceived += operator.partitionedAggregationBlocks.size();
+            this.partitionedAggregationBlocks = new ArrayList<>(operator.partitionedAggregationBlocks);
+            operator.partitionedAggregationBlocks.clear();
             success = true;
         } finally {
             if (success == false) {
@@ -148,6 +154,13 @@ public final class ParallelHashAggregationOperator implements Operator {
         if (failureCollector.hasFailure()) {
             page.close();
             throw ExceptionsHelper.convertToRuntime(failureCollector.getFailure());
+        }
+        if (page.getBlockCount() == 1 && page.getBlock(0) instanceof PartitionedAggregationBlock pb) {
+            partitionedBlocksReceived++;
+            pb.mustIncRef();
+            partitionedAggregationBlocks.add(pb);
+            page.close();
+            return;
         }
         page.allowPassingToDifferentDriver();
         in.addPage(page);
@@ -207,6 +220,12 @@ public final class ParallelHashAggregationOperator implements Operator {
         long nanoStart = System.nanoTime();
         if (hasFailure() || finishCalled) {
             return;
+        }
+        try {
+            partitions.addPartitionedBlocks(partitionedAggregationBlocks);
+        } finally {
+            Releasables.close(partitionedAggregationBlocks);
+            partitionedAggregationBlocks.clear();
         }
         finishCalled = true;
         in.finish(false);
@@ -303,6 +322,8 @@ public final class ParallelHashAggregationOperator implements Operator {
             out.finish(true);
             releaseWorkers();
             partitions.close();
+            Releasables.close(partitionedAggregationBlocks);
+            partitionedAggregationBlocks.clear();
         }
     }
 
@@ -448,7 +469,9 @@ public final class ParallelHashAggregationOperator implements Operator {
         void processOnePage(Page page) {
             if (initialized == false) {
                 try {
-                    op.blockHash.ensureCapacity(partitionKeysThreshold);
+                    if (partitionKeysThreshold < Integer.MAX_VALUE) {
+                        op.blockHash.ensureCapacity(partitionKeysThreshold);
+                    }
                     initialized = true;
                 } finally {
                     if (initialized == false) {
@@ -457,7 +480,7 @@ public final class ParallelHashAggregationOperator implements Operator {
                 }
             }
             op.addInput(page);
-            if (op.blockHash.numKeys() >= partitionKeysThreshold) {
+            if (op.partitioningThresholdReached()) {
                 split();
             }
         }
@@ -596,6 +619,7 @@ public final class ParallelHashAggregationOperator implements Operator {
             addInputInlineCount,
             addInputInlineRows,
             addInputInlineNanos,
+            partitionedBlocksReceived,
             finishNanos,
             splitCount,
             splitNanos,
@@ -617,6 +641,8 @@ public final class ParallelHashAggregationOperator implements Operator {
     }
 
     public static class PartitioningStatus extends Status.ExtraStatus {
+        private static final TransportVersion PARTITIONS_RECEIVED = TransportVersion.fromName("esql_parallel_aggs_partitions_received");
+
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
             Status.ExtraStatus.class,
             "parallel_hashagg_extra_fields",
@@ -627,6 +653,7 @@ public final class ParallelHashAggregationOperator implements Operator {
         private final long addInputInlineCount;
         private final long addInputInlineRows;
         private final long addInputInlineNanos;
+        private final int partitionedBlocksReceived;
         private final long finishNanos;
         private final long splitCount;
         private final long splitNanos;
@@ -640,6 +667,7 @@ public final class ParallelHashAggregationOperator implements Operator {
             long addInputInlineCount,
             long addInputInlineRows,
             long addInputInlineNanos,
+            int partitionedBlocksReceived,
             long finishNanos,
             long splitCount,
             long splitNanos,
@@ -652,6 +680,7 @@ public final class ParallelHashAggregationOperator implements Operator {
             this.addInputInlineCount = addInputInlineCount;
             this.addInputInlineRows = addInputInlineRows;
             this.addInputInlineNanos = addInputInlineNanos;
+            this.partitionedBlocksReceived = partitionedBlocksReceived;
             this.finishNanos = finishNanos;
             this.splitCount = splitCount;
             this.splitNanos = splitNanos;
@@ -667,6 +696,7 @@ public final class ParallelHashAggregationOperator implements Operator {
                 in.readVLong(),
                 in.readVLong(),
                 in.readVLong(),
+                in.getTransportVersion().supports(PARTITIONS_RECEIVED) ? in.readVInt() : 0,
                 in.readVLong(),
                 in.readVLong(),
                 in.readVLong(),
@@ -683,6 +713,9 @@ public final class ParallelHashAggregationOperator implements Operator {
             out.writeVLong(addInputInlineCount);
             out.writeVLong(addInputInlineRows);
             out.writeVLong(addInputInlineNanos);
+            if (out.getTransportVersion().supports(PARTITIONS_RECEIVED)) {
+                out.writeVInt(partitionedBlocksReceived);
+            }
             out.writeVLong(finishNanos);
             out.writeVLong(splitCount);
             out.writeVLong(splitNanos);
@@ -690,6 +723,10 @@ public final class ParallelHashAggregationOperator implements Operator {
             out.writeVLong(inlineEmitRows);
             out.writeVLong(inlineEmitNanos);
             out.writeVLong(workerTasks);
+        }
+
+        public int partitionedBlocksReceived() {
+            return partitionedBlocksReceived;
         }
 
         @Override
@@ -710,6 +747,7 @@ public final class ParallelHashAggregationOperator implements Operator {
             if (builder.humanReadable()) {
                 builder.field("add_input_inline_time", TimeValue.timeValueNanos(addInputInlineNanos));
             }
+            builder.field("partitioned_blocks_received", partitionedBlocksReceived);
             builder.field("finish_nanos", finishNanos);
             if (builder.humanReadable()) {
                 builder.field("finish_time", TimeValue.timeValueNanos(finishNanos));
@@ -742,6 +780,7 @@ public final class ParallelHashAggregationOperator implements Operator {
                 && addInputInlineCount == other.addInputInlineCount
                 && addInputInlineRows == other.addInputInlineRows
                 && addInputInlineNanos == other.addInputInlineNanos
+                && partitionedBlocksReceived == other.partitionedBlocksReceived
                 && finishNanos == other.finishNanos
                 && splitCount == other.splitCount
                 && splitNanos == other.splitNanos
@@ -758,6 +797,7 @@ public final class ParallelHashAggregationOperator implements Operator {
                 addInputInlineCount,
                 addInputInlineRows,
                 addInputInlineNanos,
+                partitionedBlocksReceived,
                 finishNanos,
                 splitCount,
                 splitNanos,

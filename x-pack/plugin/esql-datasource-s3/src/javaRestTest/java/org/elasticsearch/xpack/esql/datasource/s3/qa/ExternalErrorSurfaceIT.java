@@ -25,6 +25,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -35,6 +36,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,6 +44,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
@@ -88,6 +91,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
 
     private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
+        .setting(S3FixtureUtils.ALLOWED_ENDPOINT_HOSTS_SETTING, S3FixtureUtils.LOOPBACK_ENDPOINT_HOSTS)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
@@ -172,8 +176,18 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
      * @param type       {@code error.type}
      * @param reason     {@code error.reason} — the string every client surfaces
      * @param causeChain flattened {@code caused_by} chain, outermost first
+     * @param objectName last segment of the resource the probe's dataset points at, or {@code null} if it has none
      */
-    private record Probe(String group, String name, String expectation, int status, String type, String reason, List<String> causeChain) {}
+    private record Probe(
+        String group,
+        String name,
+        String expectation,
+        int status,
+        String type,
+        String reason,
+        List<String> causeChain,
+        String objectName
+    ) {}
 
     private final List<Probe> probes = new ArrayList<>();
 
@@ -193,10 +207,21 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         Set.of("tsv object does not exist", "object key does not exist"),
         Set.of("tsv object is empty", "zero-byte object"),
         Set.of("tsv declared as parquet", "explicit format contradicts the bytes (parquet declared, CSV content)"),
-        // The store answers both with an identical 403 AccessDenied, so the message cannot tell them apart from
-        // the response alone. Naming the configured auth mode would ("…AccessDenied, data source uses
-        // auth=anonymous"), but that is local knowledge the storage object does not currently carry.
-        Set.of("wrong access key", "anonymous access against an authenticated endpoint")
+        // The store answers all three with an identical 403 AccessDenied, so the message cannot tell them apart
+        // from the response alone. Naming the configured auth mode would ("…AccessDenied, data source uses
+        // auth=anonymous"), but that is local knowledge the storage object does not currently carry. The tsv
+        // reported_case probe joins them for the same reason the other tsv probes join their equivalents above:
+        // it is the wrong-credentials condition under a second name, kept visible in the report.
+        Set.of(
+            "wrong access key",
+            "anonymous access against an authenticated endpoint",
+            "tsv under a data source with the wrong credentials"
+        ),
+        // Both are "the pattern names no registered format". PUT fail-closes with the same
+        // cannot-determine-format message whether the object has no extension or an unknown one;
+        // naming the extension would distinguish them, but the dataset refuses either way until
+        // [format] is set.
+        Set.of("no extension and no explicit format", "unknown extension and no explicit format")
     );
 
     /**
@@ -222,9 +247,6 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
      * from the report after an intentional change; never edit an entry to make a build pass.
      */
     private static final Map<String, Integer> EXPECTED_STATUS = Map.ofEntries(
-        // The three 200s -- multi-character delimiter, multi-character quote, malformed endpoint -- are
-        // misconfigurations we currently accept (esql-planning#1550, fix in flight as elastic/elasticsearch#157197).
-        // Pinned rather than skipped so that fix cannot land silently; the entries move with it.
         entry("tsv object does not exist", 400),
         entry("tsv object is empty", 400),
         entry("tsv declared as parquet", 400),
@@ -246,17 +268,19 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("parquet with correct magic but truncated body", 400),
         entry("zero-byte object", 400),
         entry("unknown setting key on the dataset", 400),
-        entry("multi-character delimiter", 200),
+        entry("multi-character delimiter", 400),
         entry("invalid encoding name", 400),
         entry("invalid datetime format pattern", 400),
         entry("non-boolean header_row", 400),
         entry("negative schema_sample_size", 400),
-        entry("multi-character quote character", 200),
+        entry("negative skip_rows", 400),
+        entry("non-integer skip_rows", 400),
+        entry("skip_rows above the cap", 400),
+        entry("multi-character quote character", 400),
         entry("unknown error_mode value", 400),
         entry("row with more fields than the header", 400),
         entry("declared column of an undeclarable type", 400),
         entry("unknown key inside the mappings block", 400),
-        entry("_id.path points at a column that is not declared", 400),
         entry("two declared columns resolving to one physical column", 400),
         entry("date format declared on a non-date column", 400),
         entry("strict declaration with no columns", 400),
@@ -282,7 +306,8 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("put s3 data source with an unknown setting", 400),
         entry("put s3 data source with anonymous auth plus credentials", 400),
         entry("put s3 data source with an access key and no secret key", 400),
-        entry("put s3 data source with a malformed endpoint", 200),
+        entry("put s3 data source with a malformed endpoint", 400),
+        entry("put s3 data source with an endpoint that is not an AWS host", 400),
         entry("get an unknown data source", 404),
         entry("delete an unknown data source", 404),
         entry("delete a data source that still has datasets", 409),
@@ -299,35 +324,37 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("tsv object does not exist", "external_client_exception"),
         entry("tsv object is empty", "illegal_argument_exception"),
         entry("tsv declared as parquet", "illegal_argument_exception"),
-        entry("tsv under a data source with the wrong credentials", "illegal_argument_exception"),
+        entry("tsv under a data source with the wrong credentials", "external_client_exception"),
         entry("object key does not exist", "external_client_exception"),
         entry("bucket does not exist", "external_client_exception"),
         entry("key is a prefix, not an object", "external_client_exception"),
         entry("unsupported URI scheme", "validation_exception"),
-        entry("scheme with no host or key", "illegal_argument_exception"),
+        entry("scheme with no host or key", "validation_exception"),
         entry("URI with no scheme at all", "validation_exception"),
         entry("endpoint refuses connections", "external_unavailable_exception"),
         entry("wrong access key", "external_client_exception"),
         entry("anonymous access against an authenticated endpoint", "external_client_exception"),
-        entry("no extension and no explicit format", "illegal_argument_exception"),
-        entry("unknown extension and no explicit format", "unreadable_object_exception"),
+        entry("no extension and no explicit format", "validation_exception"),
+        entry("unknown extension and no explicit format", "validation_exception"),
         entry("explicit format contradicts the bytes (parquet declared, CSV content)", "illegal_argument_exception"),
         entry("unknown explicit format name", "validation_exception"),
         entry("parquet extension over non-parquet bytes", "illegal_argument_exception"),
         entry("parquet with correct magic but truncated body", "illegal_argument_exception"),
         entry("zero-byte object", "illegal_argument_exception"),
         entry("unknown setting key on the dataset", "validation_exception"),
-        entry("multi-character delimiter", "<none>"),
-        entry("invalid encoding name", "illegal_argument_exception"),
-        entry("invalid datetime format pattern", "illegal_argument_exception"),
-        entry("non-boolean header_row", "illegal_argument_exception"),
+        entry("multi-character delimiter", "validation_exception"),
+        entry("invalid encoding name", "validation_exception"),
+        entry("invalid datetime format pattern", "validation_exception"),
+        entry("non-boolean header_row", "validation_exception"),
         entry("negative schema_sample_size", "validation_exception"),
-        entry("multi-character quote character", "<none>"),
+        entry("negative skip_rows", "validation_exception"),
+        entry("non-integer skip_rows", "validation_exception"),
+        entry("skip_rows above the cap", "validation_exception"),
+        entry("multi-character quote character", "validation_exception"),
         entry("unknown error_mode value", "validation_exception"),
         entry("row with more fields than the header", "external_client_exception"),
         entry("declared column of an undeclarable type", "illegal_argument_exception"),
         entry("unknown key inside the mappings block", "x_content_parse_exception"),
-        entry("_id.path points at a column that is not declared", "illegal_argument_exception"),
         entry("two declared columns resolving to one physical column", "illegal_argument_exception"),
         entry("date format declared on a non-date column", "illegal_argument_exception"),
         entry("strict declaration with no columns", "illegal_argument_exception"),
@@ -353,7 +380,8 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("put s3 data source with an unknown setting", "validation_exception"),
         entry("put s3 data source with anonymous auth plus credentials", "validation_exception"),
         entry("put s3 data source with an access key and no secret key", "validation_exception"),
-        entry("put s3 data source with a malformed endpoint", "<none>"),
+        entry("put s3 data source with a malformed endpoint", "validation_exception"),
+        entry("put s3 data source with an endpoint that is not an AWS host", "validation_exception"),
         entry("get an unknown data source", "resource_not_found_exception"),
         entry("delete an unknown data source", "resource_not_found_exception"),
         entry("delete a data source that still has datasets", "status_exception"),
@@ -369,7 +397,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         // A working data source and dataset, so every negative case below differs from a known-good
         // baseline by exactly one thing.
         putDataSource("good_ds", staticCredentialSettings());
-        putDataset("good_ds_rows", "good_ds", s3(GOOD_CSV), null, null);
+        putDataset("good_ds_rows", "good_ds", s3(GOOD_CSV), Map.of("region", regionSupplier.get()), null);
         assertQuerySucceeds("FROM good_ds_rows | STATS c = COUNT(*)");
 
         sweepReportedCase();
@@ -475,14 +503,14 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
             "s3://no-such-bucket-at-all/data/good.csv",
             null
         );
-        queryProbe(
+        queryProbeWithSettings(
             "addressing",
             "key is a prefix, not an object",
             "say the path addresses no object; suggest a glob if a prefix was meant",
             "prefix_not_object",
             "good_ds",
             s3("data"),
-            null
+            Map.of("format", "csv")
         );
         queryProbe(
             "addressing",
@@ -588,7 +616,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         queryProbe(
             "format",
             "unknown extension and no explicit format",
-            "name the unrecognized extension and list the known formats",
+            "say the format could not be determined and name the [format] setting",
             "unknown_ext",
             "good_ds",
             s3(UNKNOWN_EXTENSION),
@@ -692,6 +720,33 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         );
         queryProbeWithSettings(
             "reader_options",
+            "negative skip_rows",
+            "say skip_rows must be between 0 and 1000",
+            "negative_skip_rows",
+            "good_ds",
+            s3(GOOD_CSV),
+            Map.of("skip_rows", "-1")
+        );
+        queryProbeWithSettings(
+            "reader_options",
+            "non-integer skip_rows",
+            "say skip_rows must be a number",
+            "non_int_skip_rows",
+            "good_ds",
+            s3(GOOD_CSV),
+            Map.of("skip_rows", "two")
+        );
+        queryProbeWithSettings(
+            "reader_options",
+            "skip_rows above the cap",
+            "say skip_rows must be at most 1000",
+            "too_large_skip_rows",
+            "good_ds",
+            s3(GOOD_CSV),
+            Map.of("skip_rows", "1001")
+        );
+        queryProbeWithSettings(
+            "reader_options",
             "multi-character quote character",
             "say the quote must be a single character",
             "multichar_quote",
@@ -739,18 +794,6 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         );
         crudProbe(
             "declared_mapping",
-            "_id.path points at a column that is not declared",
-            "name the missing column",
-            () -> putDataset(
-                "bad_idpath_ds",
-                "good_ds",
-                s3(GOOD_CSV),
-                null,
-                Map.of("dynamic", "false", "properties", Map.of("id", Map.of("type", "long")), "_id", Map.of("path", "nonexistent_column"))
-            )
-        );
-        crudProbe(
-            "declared_mapping",
             "two declared columns resolving to one physical column",
             "name both logical columns and the physical one they collide on",
             () -> putDataset(
@@ -786,7 +829,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
             "strict_mismatch_ds",
             "good_ds",
             s3(GOOD_CSV),
-            null,
+            Map.of("region", regionSupplier.get()),
             Map.of("dynamic", "false", "properties", Map.of("id", Map.of("type", "long"), "city", Map.of("type", "long")))
         );
         queryProbeExisting(
@@ -806,7 +849,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
             "say the pattern matched no objects and echo the pattern",
             "glob_empty",
             "good_ds",
-            s3("glob/*.avro"),
+            s3("glob/no-such-prefix/*.csv"),
             null
         );
         queryProbe(
@@ -951,6 +994,15 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         );
         crudProbe(
             "data_source_crud",
+            "put s3 data source with an endpoint that is not an AWS host",
+            "name the setting and say the host is not a supported AWS S3 endpoint",
+            () -> putDataSource(
+                "foreign_endpoint_ds",
+                Map.of("access_key", "k", "secret_key", "s", "region", "us-east-1", "endpoint", "https://storage.example.com")
+            )
+        );
+        crudProbe(
+            "data_source_crud",
             "get an unknown data source",
             "say the data source does not exist",
             () -> get("/_query/data_source/no_such_data_source")
@@ -998,8 +1050,8 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         if (setup != null) {
             setup.run();
         }
-        record(group, name, expectation, () -> {
-            putDataset(dataset, dataSource, resource, null, null);
+        record(group, name, expectation, resource, () -> {
+            putDataset(dataset, dataSource, resource, Map.of("region", regionSupplier.get()), null);
             runEsql("FROM " + dataset + " | LIMIT 5");
         });
     }
@@ -1013,8 +1065,10 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         String resource,
         Map<String, Object> settings
     ) throws IOException {
-        record(group, name, expectation, () -> {
-            putDataset(dataset, dataSource, resource, settings, null);
+        record(group, name, expectation, resource, () -> {
+            Map<String, Object> withRegion = new HashMap<>(settings);
+            withRegion.put("region", regionSupplier.get());
+            putDataset(dataset, dataSource, resource, Map.copyOf(withRegion), null);
             runEsql("FROM " + dataset + " | LIMIT 5");
         });
     }
@@ -1033,16 +1087,34 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
      * the report (it usually means a misconfiguration was silently accepted).
      */
     private void record(String group, String name, String expectation, Action action) {
+        record(group, name, expectation, null, action);
+    }
+
+    private void record(String group, String name, String expectation, String resource, Action action) {
+        String objectName = resource == null ? null : resource.substring(resource.lastIndexOf('/') + 1);
         try {
             action.run();
-            probes.add(new Probe(group, name, expectation, 200, "<none>", "<request succeeded>", List.of()));
+            probes.add(new Probe(group, name, expectation, 200, "<none>", "<request succeeded>", List.of(), objectName));
         } catch (ResponseException e) {
             int status = e.getResponse().getStatusLine().getStatusCode();
             Map<String, Object> body = parseBody(e);
             Map<?, ?> error = body.get("error") instanceof Map<?, ?> m ? m : Map.of();
-            probes.add(new Probe(group, name, expectation, status, str(error.get("type")), str(error.get("reason")), flattenCauses(error)));
+            probes.add(
+                new Probe(
+                    group,
+                    name,
+                    expectation,
+                    status,
+                    str(error.get("type")),
+                    str(error.get("reason")),
+                    flattenCauses(error),
+                    objectName
+                )
+            );
         } catch (IOException e) {
-            probes.add(new Probe(group, name, expectation, -1, e.getClass().getSimpleName(), String.valueOf(e.getMessage()), List.of()));
+            probes.add(
+                new Probe(group, name, expectation, -1, e.getClass().getSimpleName(), String.valueOf(e.getMessage()), List.of(), objectName)
+            );
         }
     }
 
@@ -1198,7 +1270,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         sb.append("\n\n## Reason collisions\n\n");
         Map<String, List<String>> byReason = new TreeMap<>();
         for (Probe p : probes) {
-            byReason.computeIfAbsent(normalize(p.reason()), k -> new ArrayList<>()).add(p.group() + "/" + p.name());
+            byReason.computeIfAbsent(normalize(p), k -> new ArrayList<>()).add(p.group() + "/" + p.name());
         }
         byReason.forEach((reason, cases) -> {
             if (cases.size() > 1) {
@@ -1234,12 +1306,21 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
      * collide: "Failed to resolve metadata for [s3://b/a.parquet]" and "...[s3://b/b.csv]" carry exactly the same
      * information, and counting them as two distinct messages would hide the collapse this suite exists to find.
      * <p>
-     * Only URIs are masked, deliberately — not every bracketed token. "Required [resource]" and "Required [type]"
+     * Errors name the object rather than its URI, and end with the dataset context; both vary with the probe, not the
+     * condition, so the probe's own object name and the dataset context are masked the same way.
+     * <p>
+     * Only these are masked, deliberately — not every bracketed token. "Required [resource]" and "Required [type]"
      * name different settings and really are different messages; masking all brackets would fuse them.
      */
-    private static String normalize(String reason) {
+    private static String normalize(Probe probe) {
+        String reason = DATASET_CONTEXT.matcher(probe.reason()).replaceAll(" in dataset [<dataset>]");
+        if (probe.objectName() != null && probe.objectName().isEmpty() == false) {
+            reason = reason.replace("[" + probe.objectName() + "]", "[<location>]");
+        }
         return reason.replaceAll("[A-Za-z0-9]+://[^\\s\\]\",]*", "<location>").toLowerCase(Locale.ROOT);
     }
+
+    private static final Pattern DATASET_CONTEXT = Pattern.compile(" in dataset \\[[^\\]]*] from data source \\[[^\\]]*] \\([^)]*\\)");
 
     /** True when every colliding probe belongs to one {@link #SHARED_CONDITIONS} group, i.e. they are one condition. */
     private static boolean isOneCondition(List<String> collidingNames) {
@@ -1269,7 +1350,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
             if (p.status() == 200) {
                 continue;
             }
-            byReason.computeIfAbsent(normalize(p.reason()), k -> new ArrayList<>()).add(p.name());
+            byReason.computeIfAbsent(normalize(p), k -> new ArrayList<>()).add(p.name());
         }
         byReason.forEach((reason, cases) -> {
             List<String> unresolved = cases.stream().filter(c -> KNOWN_OPEN.containsKey(c) == false).toList();

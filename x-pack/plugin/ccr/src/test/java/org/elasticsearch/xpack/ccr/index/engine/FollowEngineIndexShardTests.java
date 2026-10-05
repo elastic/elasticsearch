@@ -137,7 +137,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
         Store targetStore = target.store();
 
         target.markAsRecovering("store");
-        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
         target.restoreFromRepository(new RestoreOnlyRepository(randomProjectIdOrDefault(), "test") {
             @Override
             public void restoreShard(
@@ -161,7 +161,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
                 });
             }
         }, future);
-        assertTrue(future.actionGet());
+        future.actionGet(); // Fail test on throw
         assertThat(target.getLocalCheckpoint(), equalTo(0L));
         assertThat(target.seqNoStats().getMaxSeqNo(), equalTo(2L));
         assertThat(target.seqNoStats().getGlobalCheckpoint(), equalTo(0L));

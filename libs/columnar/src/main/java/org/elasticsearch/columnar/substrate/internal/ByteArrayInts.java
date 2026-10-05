@@ -129,4 +129,71 @@ public final class ByteArrayInts {
         }
         return value;
     }
+
+    /**
+     * The minimum number of bits needed to represent {@code max} as an unsigned integer, or 0 if
+     * {@code max} is 0. Equivalent to {@code PackedInts.bitsRequired(max)} for non-negative values.
+     */
+    public static int bitsRequired(int max) {
+        return max == 0 ? 0 : 32 - Integer.numberOfLeadingZeros(max);
+    }
+
+    /**
+     * The number of bytes that {@link #writeBitPacked} writes for {@code count} values at
+     * {@code bits} bits each.
+     */
+    public static int bitPackedLength(int count, int bits) {
+        return (count * bits + 7) / 8;
+    }
+
+    /**
+     * Packs {@code count} non-negative integers from {@code src} into {@code dst} at {@code offset},
+     * each at {@code bits} bits, MSB-first through a {@code long} accumulator. When {@code bits} is
+     * 0 nothing is written; the trailing partial byte's unused low bits are zeroed.
+     */
+    public static void writeBitPacked(int[] src, int count, int bits, byte[] dst, int offset) {
+        if (bits == 0) {
+            return;
+        }
+        long accumulator = 0;
+        int bitsInAccumulator = 0;
+        int at = offset;
+        for (int i = 0; i < count; i++) {
+            accumulator = (accumulator << bits) | src[i];
+            bitsInAccumulator += bits;
+            while (bitsInAccumulator >= 8) {
+                bitsInAccumulator -= 8;
+                dst[at++] = (byte) (accumulator >>> bitsInAccumulator);
+            }
+        }
+        if (bitsInAccumulator > 0) {
+            dst[at] = (byte) (accumulator << (8 - bitsInAccumulator));
+        }
+    }
+
+    /**
+     * Unpacks {@code count} values from {@code src} at {@code offset} into {@code dst[0..count)},
+     * each at {@code bits} bits, as written by {@link #writeBitPacked}. When {@code bits} is 0
+     * fills {@code dst[0..count)} with 0.
+     */
+    public static void readBitPacked(byte[] src, int offset, int count, int bits, int[] dst) {
+        if (bits == 0) {
+            for (int i = 0; i < count; i++) {
+                dst[i] = 0;
+            }
+            return;
+        }
+        final int mask = (1 << bits) - 1;
+        long accumulator = 0;
+        int bitsInAccumulator = 0;
+        int at = offset;
+        for (int i = 0; i < count; i++) {
+            while (bitsInAccumulator < bits) {
+                accumulator = (accumulator << 8) | (src[at++] & 0xFF);
+                bitsInAccumulator += 8;
+            }
+            bitsInAccumulator -= bits;
+            dst[i] = (int) ((accumulator >>> bitsInAccumulator) & mask);
+        }
+    }
 }

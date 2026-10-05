@@ -1461,3 +1461,40 @@ FROM sample_data,
 2024-05-10T00:00:51.000Z | null         | prod            | 278                         | null
 2024-05-10T00:00:57.000Z | null         | prod            | 955                         | null
 ;
+
+nestedSubqueryWithTsAndFrom
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+
+FROM sample_data,
+     (FROM (TS k8s
+            | STATS max_bytes=max(to_long(network.total_bytes_in)) BY cluster
+            | KEEP max_bytes),
+           sample_data)
+| STATS c = COUNT(*)
+;
+
+c:long
+17
+;
+
+nestedSubqueryWithTsRowAndFrom
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: subquery_with_row
+
+FROM (ROW max_bytes=100),
+     (FROM (TS k8s
+            | STATS max_bytes=max(to_long(network.total_bytes_in)) BY cluster
+            | KEEP max_bytes),
+           sample_data)
+| STATS c = COUNT(*)
+;
+
+c:long
+11
+;

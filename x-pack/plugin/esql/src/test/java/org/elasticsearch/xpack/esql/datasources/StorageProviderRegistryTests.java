@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -42,6 +43,31 @@ public class StorageProviderRegistryTests extends ESTestCase {
             registry.registerFactory("stub", StorageProviderFactory.noConfigKeys(StubStorageProvider::new));
             StorageProvider wrapped = registry.provider(StoragePath.of("stub://bucket/file.csv"));
             assertThat(wrapped, org.hamcrest.Matchers.instanceOf(RetryableStorageProvider.class));
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    public void testLimiterForSchemeCarriesSchemeAndRaisableCarrier() {
+        Settings settings = Settings.builder().put("esql.external.max_concurrent_requests", 2).build();
+        try (StorageProviderRegistry registry = new StorageProviderRegistry(settings)) {
+            ConcurrencyLimiter limiter = registry.limiterForScheme("gs");
+            assertEquals("gs", limiter.scheme());
+            assertEquals(2, limiter.maxPermits());
+            assertTrue(limiter.settingCanRaiseLimit());
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    public void testLimiterForSchemeExplicitMaxIsUnraisable() {
+        Settings settings = Settings.builder().put("esql.external.max_concurrent_requests", 500).build();
+        ExternalSourceSettings.BlobStoreConcurrency expected = ExternalSourceSettings.blobStoreConcurrencyInfo(settings);
+        try (StorageProviderRegistry registry = new StorageProviderRegistry(settings)) {
+            ConcurrencyLimiter limiter = registry.limiterForScheme("gs");
+            assertEquals("gs", limiter.scheme());
+            assertEquals(expected.permits(), limiter.maxPermits());
+            assertFalse(limiter.settingCanRaiseLimit());
         } catch (IOException e) {
             throw new AssertionError(e);
         }
@@ -80,6 +106,11 @@ public class StorageProviderRegistryTests extends ESTestCase {
 
     /** Minimal no-op storage provider; only the scheme + lifecycle matter for the wrap-order assertion. */
     private static class StubStorageProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         @Override
         public StorageObject newObject(StoragePath path) {
             throw new UnsupportedOperationException();
@@ -150,6 +181,11 @@ public class StorageProviderRegistryTests extends ESTestCase {
 
     // A no-op StorageProviderFactory / StorageProvider for the file scheme used by gate tests.
     private static final StorageProvider NOOP_PROVIDER = new StorageProvider() {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         @Override
         public StorageObject newObject(StoragePath path) {
             throw new UnsupportedOperationException("noop");

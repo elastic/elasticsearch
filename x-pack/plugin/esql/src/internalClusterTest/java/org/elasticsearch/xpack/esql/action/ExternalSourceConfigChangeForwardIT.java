@@ -41,8 +41,7 @@ import static org.hamcrest.Matchers.not;
  *
  * <p>{@code TransportMasterNodeAction} re-enters {@code doExecute} on the master. A listener wrapped
  * there would fire on both the forwarding coordinator and the master, and phone-home sums nodes.
- * Coord pre-check records locally and must not wrap the forwarded listener; success and CAS refusal
- * record on the master's acked listener only.
+ * Success and CAS refusal record on the master's acked listener only.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2, numClientNodes = 0, supportsDedicatedMasters = false)
 public class ExternalSourceConfigChangeForwardIT extends AbstractEsqlIntegTestCase {

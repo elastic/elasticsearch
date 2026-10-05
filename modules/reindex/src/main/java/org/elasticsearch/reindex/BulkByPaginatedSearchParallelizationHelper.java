@@ -141,7 +141,7 @@ class BulkByPaginatedSearchParallelizationHelper {
             client.execute(
                 TransportClusterSearchShardsAction.TYPE,
                 new ClusterSearchShardsRequest(request.getTimeout(), searchRequest.indices()).routing(searchRequest.routing())
-                    .searchSlice(searchRequest.searchSlice()),
+                    .setRoutingFromSlice(searchRequest.isRoutingFromSlice()),
                 listener.safeMap(response -> {
                     setWorkerCount(request, task, countSlicesBasedOnShards(response));
                     return null;

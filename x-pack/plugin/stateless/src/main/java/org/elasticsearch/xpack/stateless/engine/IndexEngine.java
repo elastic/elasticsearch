@@ -243,28 +243,34 @@ public class IndexEngine extends InternalEngine {
     }
 
     /**
-     * Prefetches the min/max {@code _id} .tim blocks in each segment so the first id lookups after a primary relocation do not
-     * block on a cold read from the object store. Best-effort: only boundary blocks are prefetched; interior lookups will still
-     * cold-read on first access.
+     * Prefetches the min/max {@code _id} .tim blocks in the last {@code maxSegments} segments so the first id
+     * lookups after a primary relocation do not block on a cold read from the object store. Best-effort: only boundary blocks of
+     * the most recent segments are prefetched; other lookups will still cold-read on first access. Segments without {@code _id}
+     * terms still count towards {@code maxSegments}, as the bound limits how far back the leaves are visited.
      */
-    public void prewarmIdLookups() {
+    public void prewarmIdLookups(int maxSegments) {
         performActionWithDirectoryReader(SearcherScope.INTERNAL, reader -> {
-            for (LeafReaderContext leaf : reader.leaves()) {
-                var terms = leaf.reader().terms(IdFieldMapper.NAME);
-                if (terms == null) {
-                    continue; // no-op segment
-                }
-                BytesRef min = terms.getMin();
-                if (min != null) {
-                    terms.iterator().prepareSeekExact(min);
-                }
-                BytesRef max = terms.getMax();
-                if (max != null) {
-                    terms.iterator().prepareSeekExact(max);
-                }
-            }
+            prewarmIdLookups(reader.leaves(), maxSegments);
             return null;
         });
+    }
+
+    static void prewarmIdLookups(List<LeafReaderContext> leaves, int maxSegments) throws IOException {
+        final int lowestLeaf = Math.max(0, leaves.size() - maxSegments);
+        for (int i = leaves.size() - 1; i >= lowestLeaf; i--) {
+            var terms = leaves.get(i).reader().terms(IdFieldMapper.NAME);
+            if (terms == null) {
+                continue; // no-op segment
+            }
+            BytesRef min = terms.getMin();
+            if (min != null) {
+                terms.iterator().prepareSeekExact(min);
+            }
+            BytesRef max = terms.getMax();
+            if (max != null) {
+                terms.iterator().prepareSeekExact(max);
+            }
+        }
     }
 
     /**
@@ -696,15 +702,8 @@ public class IndexEngine extends InternalEngine {
     }
 
     @Override
-    protected RefreshResult refreshInternalSearcher(OperationPurpose purpose, String source, boolean block) throws EngineException {
-        /// [org.elasticsearch.action.get.TransportGetFromTranslogAction] relies on the flush below being done
-        /// because it reads [lastUnsafeSegmentGenerationForGets] that is bumped in [getVersionFromMap].
-        /// This flush can happen in two scenarios:
-        /// 1. Live version map is unsafe
-        /// 2. Translog locations are not being tracked
-        /// We don't need to flush in the second case since `lastUnsafeSegmentGenerationForGets` is not bumped
-        /// and the read is performed on the index shard.
-        if (purpose == OperationPurpose.GET_FROM_TRANSLOG && source.equals(UNSAFE_VERSION_MAP_REFRESH_SOURCE)) {
+    protected RefreshResult refreshInternalSearcher(String source, boolean block) throws EngineException {
+        if (source.equals(REAL_TIME_GET_REFRESH_SOURCE) || source.equals(UNSAFE_VERSION_MAP_REFRESH_SOURCE)) {
             try {
                 IS_FLUSH_BY_REFRESH.set(true);
                 // TODO: Eventually the Refresh API will also need to transition (maybe) to an async API here.
@@ -714,7 +713,7 @@ public class IndexEngine extends InternalEngine {
             }
         }
         // TODO: could we avoid this refresh if we have flushed above?
-        return super.refreshInternalSearcher(purpose, source, block);
+        return super.refreshInternalSearcher(source, block);
     }
 
     // visible for testing

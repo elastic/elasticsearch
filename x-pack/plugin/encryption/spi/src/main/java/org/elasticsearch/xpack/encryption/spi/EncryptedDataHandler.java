@@ -36,6 +36,17 @@ public interface EncryptedDataHandler<T extends Metadata.ProjectCustom> {
     T reEncrypt(T current, EncryptionService encryptionService, String activeKeyId);
 
     /**
+     * Returns {@code true} if {@code current} contains data that is encrypted under the project encryption key.
+     * Defaults to {@code current != null}; override when a non-null custom can still be logically empty
+     * (e.g., a container whose collection has been cleared but whose cluster-state entry persists).
+     *
+     * @param current the current value of the custom in cluster state, or {@code null} if absent
+     */
+    default boolean hasData(T current) {
+        return current != null;
+    }
+
+    /**
      * Decides what happens to this handler's custom when the project encryption key is destructively reset (via
      * {@code POST /_encryption/_reset}). After reset, every entry encrypted under the previous PEK is unrecoverable.
      *

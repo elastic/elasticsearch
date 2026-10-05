@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
@@ -693,10 +694,9 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         List<IndexableField> modified = new ArrayList<>();
         for (IndexableField field : parsed.rootDoc()) {
             if (field instanceof MultiValuedBinaryDocValuesField && field.name().equals("kwd")) {
-                var replacement = new MultiValuedBinaryDocValuesField.SeparateCount(
-                    "kwd",
-                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
-                );
+                MultiValuedBinaryDocValuesField replacement = ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()
+                    ? new ColumnarBinaryDocValuesField("kwd", MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED)
+                    : new MultiValuedBinaryDocValuesField.SeparateCount("kwd", MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE);
                 replacement.add(new BytesRef("docvalues_value"));
                 modified.add(replacement);
             } else {
@@ -835,9 +835,12 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             b.field("kwd", "long_ignored_value");
         }));
         LuceneDocument rootDoc = doc.rootDoc();
-        // Fallback fields for synthetic-source reconstruction must have been pruned
+        // Fallback fields for synthetic-source reconstruction must have been pruned.
+        // In COLUMNAR mode, ignore_malformed routes to ._on_failure (not ._ignore_malformed), and COLUMNAR_STORED prunes both.
         assertNull("._ignore_malformed field should have been pruned", rootDoc.getField("num._ignore_malformed"));
         assertNull("._ignore_malformed.counts field should have been pruned", rootDoc.getField("num._ignore_malformed.counts"));
+        assertNull("._on_failure field should have been pruned", rootDoc.getField("num._on_failure"));
+        assertNull("._on_failure.counts field should have been pruned", rootDoc.getField("num._on_failure.counts"));
         assertNull("._original field should have been pruned", rootDoc.getField("kwd._original"));
         assertNull("._original.counts field should have been pruned", rootDoc.getField("kwd._original.counts"));
         // The whole-document _ignored_source blob and the queryable _ignored meta-field must still be present

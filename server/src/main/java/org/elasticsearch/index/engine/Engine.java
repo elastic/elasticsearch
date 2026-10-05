@@ -75,11 +75,11 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.FieldInfosWithUsages;
 import org.elasticsearch.index.codec.TrackingPostingsInMemoryBytesCodec;
 import org.elasticsearch.index.mapper.DocumentParser;
+import org.elasticsearch.index.mapper.DocumentSource;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
@@ -2013,7 +2013,7 @@ public abstract class Engine implements Closeable {
             return this.doc.docs();
         }
 
-        public SourceToParse.Source source() {
+        public DocumentSource source() {
             return this.doc.source();
         }
 
@@ -2773,24 +2773,6 @@ public abstract class Engine implements Closeable {
         @Override
         public void afterRefresh(boolean didRefresh) throws IOException {
             assert engineLock.isReadLockedByCurrentThread() : Thread.currentThread();
-        }
-    }
-
-    /// Specifies what high lever client request caused this engine operation
-    /// or in other words the purpose of this engine operation.
-    /// This is different from [org.elasticsearch.index.engine.Engine.Operation] because
-    /// `Operation` only captures mutating operations.
-    public enum OperationPurpose {
-        SEARCHABLE_DOCS_CHECK,
-        REALTIME_GET,
-        GET_FROM_TRANSLOG,
-        // Index, update, delete, or the same on replica.
-        // We don't need to precisely distinguish these right now.
-        MUTATION,
-        RECOVERY;
-
-        static OperationPurpose from(Operation ignored) {
-            return OperationPurpose.MUTATION;
         }
     }
 }

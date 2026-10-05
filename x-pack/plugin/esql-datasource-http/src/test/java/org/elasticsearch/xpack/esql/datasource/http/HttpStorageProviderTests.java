@@ -12,6 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
 
 /**
@@ -25,6 +26,7 @@ public class HttpStorageProviderTests extends ESTestCase {
 
         assertEquals(Duration.ofSeconds(30), config.connectTimeout());
         assertEquals(Duration.ofMinutes(5), config.requestTimeout());
+        assertEquals(Duration.ofSeconds(30), config.idleTimeout());
         assertTrue(config.followRedirects());
         assertTrue(config.customHeaders().isEmpty());
         assertEquals(3, config.maxRetries());
@@ -34,6 +36,7 @@ public class HttpStorageProviderTests extends ESTestCase {
         HttpConfiguration config = HttpConfiguration.builder()
             .connectTimeout(Duration.ofSeconds(15))
             .requestTimeout(Duration.ofMinutes(3))
+            .idleTimeout(Duration.ofSeconds(10))
             .followRedirects(false)
             .customHeaders(Map.of("Authorization", "Bearer token"))
             .maxRetries(2)
@@ -41,6 +44,7 @@ public class HttpStorageProviderTests extends ESTestCase {
 
         assertEquals(Duration.ofSeconds(15), config.connectTimeout());
         assertEquals(Duration.ofMinutes(3), config.requestTimeout());
+        assertEquals(Duration.ofSeconds(10), config.idleTimeout());
         assertFalse(config.followRedirects());
         assertEquals("Bearer token", config.customHeaders().get("Authorization"));
         assertEquals(2, config.maxRetries());
@@ -78,6 +82,19 @@ public class HttpStorageProviderTests extends ESTestCase {
         assertTrue(e.getMessage().contains("customHeaders"));
     }
 
+    public void testConfigurationBuilderNullIdleTimeout() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> { HttpConfiguration.builder().idleTimeout(null); });
+        assertTrue(e.getMessage().contains("idleTimeout"));
+    }
+
+    public void testConfigurationBuilderNegativeIdleTimeout() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HttpConfiguration.builder().idleTimeout(Duration.ofSeconds(-1))
+        );
+        assertTrue(e.getMessage().contains("idleTimeout"));
+    }
+
     public void testStoragePathParsing() {
         StoragePath path = StoragePath.of("https://example.com:8080/data/file.csv");
 
@@ -103,6 +120,21 @@ public class HttpStorageProviderTests extends ESTestCase {
             StoragePath prefix = StoragePath.of("https://example.com/data/");
             expectThrows(UnsupportedOperationException.class, () -> provider.listObjects(prefix, false));
             expectThrows(UnsupportedOperationException.class, () -> provider.listObjects(prefix, true));
+        } finally {
+            provider.close();
+        }
+    }
+
+    public void testObjectsCarryTheProviderIdentity() {
+        HttpConfiguration config = HttpConfiguration.builder().customHeaders(Map.of("Authorization", "Bearer alice")).build();
+        HttpStorageProvider provider = new HttpStorageProvider(config, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        try {
+            StoragePath path = StoragePath.of("https://example.com/data/file.parquet");
+            // Every overload shares the one identity the provider computed, and it matches what the
+            // config-only constructors derive, so provider-built and directly built objects share entries.
+            assertEquals(HttpConfigIdentity.of(config), provider.newObject(path).storageIdentity());
+            assertSame(provider.newObject(path).storageIdentity(), provider.newObject(path, 10).storageIdentity());
+            assertSame(provider.newObject(path).storageIdentity(), provider.newObject(path, 10, Instant.EPOCH).storageIdentity());
         } finally {
             provider.close();
         }

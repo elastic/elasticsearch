@@ -104,6 +104,12 @@ final class PrometheusPlanBuilderUtils {
     static List<InstantSelector> parseInstantSelectors(List<String> matchSelectors) {
         List<InstantSelector> result = new ArrayList<>();
         PromqlParser parser = new PromqlParser();
+        try {
+            // Guard the batch total: each selector is also guarded individually when parsed below.
+            PromqlParser.validateBatch(matchSelectors);
+        } catch (ParsingException e) {
+            throw new IllegalArgumentException("Invalid match[] selectors: " + e.getMessage(), e);
+        }
         for (String selector : matchSelectors) {
             LogicalPlan parsed;
             try {

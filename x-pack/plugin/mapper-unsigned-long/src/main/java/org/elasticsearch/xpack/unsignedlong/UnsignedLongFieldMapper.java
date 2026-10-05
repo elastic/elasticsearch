@@ -977,12 +977,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     (b, value) -> b.value(DocValueFormat.UNSIGNED_LONG_SHIFTED.format(value))
                 )
             );
-            if (ignoreMalformed.value()) {
-                layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
-            }
-            if (onFailureColumnEnabled()) {
-                layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
-            }
+            CompositeSyntheticFieldLoader.addFallbackLayers(layers, this, indexSettings);
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         } else {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
@@ -992,12 +987,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     (b, value) -> b.value(DocValueFormat.UNSIGNED_LONG_SHIFTED.format(value))
                 )
             );
-            if (ignoreMalformed()) {
-                layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
-            }
-            if (onFailureColumnEnabled()) {
-                layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
-            }
+            CompositeSyntheticFieldLoader.addFallbackLayers(layers, this, indexSettings);
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         }
     }

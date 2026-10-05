@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical;
 
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -51,7 +52,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
-import org.elasticsearch.xpack.esql.plugin.RemoteFetchHandle;
+import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchHandle;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
@@ -233,6 +234,11 @@ public final class PlanRemoteFetch extends ParameterizedRule<PhysicalPlan, Physi
     }
 
     private static boolean isFetchable(Attribute attribute) {
+        if (attribute.getClass() == MetadataAttribute.class
+            && attribute.dataType() == DataType.SOURCE
+            && SourceFieldMapper.NAME.equals(attribute.name())) {
+            return true;
+        }
         if (isDirectFetchType(attribute.dataType()) == false) {
             return false;
         }

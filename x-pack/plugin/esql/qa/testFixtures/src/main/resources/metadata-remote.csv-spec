@@ -169,3 +169,22 @@ FROM ul_logs, apps METADATA _index, _version
 14       |remote_cluster:ul_logs  |1              |remote_cluster:ul_logs_14     
     
 ;
+
+classAndNameOnARemoteIndex
+required_capability: metadata_class_and_name
+required_capability: metadata_fields_remote_test
+from employees metadata _index, _class, _name | sort _index desc, emp_no | limit 2 | keep emp_no, _index, _class, _name;
+
+emp_no:integer |_index:keyword           |_class:keyword |_name:keyword
+10001          |remote_cluster:employees |index          |remote_cluster:employees
+10002          |remote_cluster:employees |index          |remote_cluster:employees
+;
+
+nameAgreesWithIndexOnARemoteIndex
+required_capability: metadata_class_and_name
+required_capability: metadata_fields_remote_test
+from employees metadata _index, _name | where _name != _index | stats disagreements = count(*);
+
+disagreements:long
+0
+;

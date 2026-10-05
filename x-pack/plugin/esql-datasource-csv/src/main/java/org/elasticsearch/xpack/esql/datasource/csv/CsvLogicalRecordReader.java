@@ -467,6 +467,18 @@ final class CsvLogicalRecordReader {
         return bytesRead;
     }
 
+    /**
+     * Seeds the cumulative byte counter to {@code offset} before any records are read. Used when
+     * bytes have been consumed from the underlying stream before this reader was constructed (e.g.
+     * a UTF-8 BOM stripped from the raw stream) so that {@code splitStartByte + bytesRead() -
+     * lastRecordBytes()} still yields the correct file-global byte position for every record.
+     * Must be called before the first {@link #readRecord} invocation.
+     */
+    void setInitialByteOffset(long offset) {
+        assert bytesRead == 0L : "initial offset must be set before any records are read";
+        bytesRead = offset;
+    }
+
     private int addBytes(int recordBytes, int ch) throws CsvRecordTooLargeException, IOException {
         // Hot ASCII fast path: under UTF-8 every code unit <= 0x7f is exactly one byte, which is the
         // overwhelming majority of CSV content, so skip the encodedLength/charset call chain for it.
@@ -475,7 +487,7 @@ final class CsvLogicalRecordReader {
             // Oversized record. Drain to the end of the physical line so the reader is left at the
             // next record's first byte and bytesRead counts the whole line. The lenient error policy
             // skips this record and resumes from the next read; without draining it would resume
-            // mid-line and every later _rowPosition/_id offset would be short by the undrained tail
+            // mid-line and every later _rowPosition offset would be short by the undrained tail
             // (and could collide with an earlier record's offset). lastRecordBytes is left untouched:
             // the caller's exception handler treats this as "no record produced". The drain reads
             // through readChar()/pushBack(), not the underlying reader directly, so in bulk mode it

@@ -10,16 +10,24 @@ package org.elasticsearch.xpack.oteldata.otlp;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.Meter;
+import io.opentelemetry.api.trace.SpanContext;
+import io.opentelemetry.api.trace.TraceFlags;
+import io.opentelemetry.api.trace.TraceState;
+import io.opentelemetry.exporter.internal.otlp.metrics.MetricsRequestMarshaler;
 import io.opentelemetry.exporter.otlp.http.metrics.OtlpHttpMetricExporter;
+import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse;
 import io.opentelemetry.sdk.common.Clock;
 import io.opentelemetry.sdk.common.CompletableResultCode;
+import io.opentelemetry.sdk.common.InstrumentationScopeInfo;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.data.AggregationTemporality;
+import io.opentelemetry.sdk.metrics.data.DoubleExemplarData;
 import io.opentelemetry.sdk.metrics.data.ExponentialHistogramBuckets;
 import io.opentelemetry.sdk.metrics.data.HistogramData;
 import io.opentelemetry.sdk.metrics.data.HistogramPointData;
 import io.opentelemetry.sdk.metrics.data.MetricData;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
+import io.opentelemetry.sdk.metrics.internal.data.ImmutableDoubleExemplarData;
 import io.opentelemetry.sdk.metrics.internal.data.ImmutableDoublePointData;
 import io.opentelemetry.sdk.metrics.internal.data.ImmutableExponentialHistogramData;
 import io.opentelemetry.sdk.metrics.internal.data.ImmutableExponentialHistogramPointData;
@@ -29,12 +37,16 @@ import io.opentelemetry.sdk.metrics.internal.data.ImmutableMetricData;
 import io.opentelemetry.sdk.metrics.internal.data.ImmutableSumData;
 import io.opentelemetry.sdk.resources.Resource;
 
+import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.entity.ContentType;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
@@ -51,13 +63,17 @@ import static org.elasticsearch.xpack.oteldata.otlp.OTLPMetricsIndexingRestIT.Mo
 import static org.elasticsearch.xpack.oteldata.otlp.OTLPMetricsIndexingRestIT.Monotonicity.NON_MONOTONIC;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isA;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
+
+    private static final FeatureFlag METRIC_EXEMPLARS_FEATURE_FLAG = new FeatureFlag("metric_exemplars");
 
     private OtlpHttpMetricExporter exporter;
     private SdkMeterProvider meterProvider;
@@ -71,7 +87,7 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
     public void initMetricExporter() throws Exception {
         exporter = OtlpHttpMetricExporter.builder()
             .setEndpoint(getClusterHosts().getFirst().toURI() + "/_otlp/v1/metrics")
-            .addHeader("Authorization", "ApiKey " + createApiKey("metrics-*"))
+            .addHeader("Authorization", "ApiKey " + createApiKey("metrics-*", "exemplars-*"))
             .build();
         meterProvider = SdkMeterProvider.builder()
             .registerMetricReader(
@@ -177,6 +193,41 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
         assertThat(path.toString(), path.evaluate("hits.total.value"), equalTo(4));
     }
 
+    public void testStaleTimestampRedirectsToFailureStore() throws Exception {
+        long now = Clock.getDefault().now();
+        // Default TSDB look_back_time is 2h, so a 3h-old timestamp is outside every writable range.
+        long staleTimestamp = now - TimeUnit.HOURS.toNanos(3);
+        Request request = new Request("POST", otlpEndpointPath());
+        request.setEntity(
+            new ByteArrayEntity(
+                marshalMetrics(
+                    List.of(
+                        createDoubleGauge(TEST_RESOURCE, Attributes.empty(), "fresh_gauge", 1.0, "By", now),
+                        createDoubleGauge(TEST_RESOURCE, Attributes.empty(), "stale_gauge", 1.0, "By", staleTimestamp)
+                    )
+                ),
+                ContentType.create("application/x-protobuf")
+            )
+        );
+        var response = client().performRequest(request);
+        assertOK(response);
+
+        ExportMetricsServiceResponse otlpResponse = ExportMetricsServiceResponse.parseFrom(responseAsBytes(response).array());
+        assertThat(otlpResponse.hasPartialSuccess(), equalTo(true));
+        assertThat(otlpResponse.getPartialSuccess().getRejectedDataPoints(), equalTo(1L));
+        assertThat(otlpResponse.getPartialSuccess().getErrorMessage(), equalTo("Redirected 1 documents to the failure store.\n"));
+
+        refreshMetricsIndices();
+        assertOK(client().performRequest(new Request("GET", "metrics-generic.otel-default::failures/_refresh")));
+
+        ObjectPath dataStreamSearch = search("metrics-generic.otel-default::data");
+        assertThat(dataStreamSearch.evaluate("hits.total.value"), equalTo(1));
+
+        ObjectPath failureSearch = search("metrics-generic.otel-default::failures");
+        assertThat(failureSearch.evaluate("hits.total.value"), equalTo(1));
+        assertThat(failureSearch.evaluate("hits.hits.0._source.error.type"), equalTo("timestamp_error"));
+    }
+
     public void testGauge() throws Exception {
         long now = Clock.getDefault().now();
         export(
@@ -192,6 +243,76 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
         assertThat(evaluate(metrics, "long_gauge.type"), equalTo("long"));
         assertThat(evaluate(metrics, "long_gauge.meta.unit"), equalTo("By"));
         assertThat(evaluate(metrics, "long_gauge.time_series_metric"), equalTo("gauge"));
+    }
+
+    public void testExemplars() throws Exception {
+        assumeTrue("requires metric exemplar ingestion", METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
+        long dataPointTimestamp = Clock.getDefault().now();
+        long exemplarTimestamp = dataPointTimestamp - TimeUnit.MILLISECONDS.toNanos(1);
+        SpanContext spanContext = SpanContext.create(
+            "00112233445566778899aabbccddeeff",
+            "0011223344556677",
+            TraceFlags.getSampled(),
+            TraceState.getDefault()
+        );
+        DoubleExemplarData exemplar = ImmutableDoubleExemplarData.create(
+            Attributes.of(AttributeKey.longKey("thread.id"), 42L),
+            exemplarTimestamp,
+            spanContext,
+            0.42
+        );
+        MetricData metric = ImmutableMetricData.createDoubleGauge(
+            Resource.create(Attributes.of(stringKey("service.name"), "checkout-service")),
+            InstrumentationScopeInfo.create("io.opentelemetry.http"),
+            "request.duration",
+            "",
+            "s",
+            ImmutableGaugeData.create(
+                List.of(
+                    ImmutableDoublePointData.create(
+                        dataPointTimestamp,
+                        dataPointTimestamp,
+                        Attributes.of(stringKey("route"), "/checkout"),
+                        1.0,
+                        List.of(exemplar, ImmutableDoubleExemplarData.create(Attributes.empty(), exemplarTimestamp, spanContext, 0.43))
+                    )
+                )
+            )
+        );
+
+        Request request = new Request("POST", otlpEndpointPath());
+        request.setEntity(new ByteArrayEntity(marshalMetrics(List.of(metric)), ContentType.create("application/x-protobuf")));
+        var response = client().performRequest(request);
+        assertOK(response);
+        ExportMetricsServiceResponse otlpResponse = ExportMetricsServiceResponse.parseFrom(responseAsBytes(response).array());
+        assertThat(otlpResponse.hasPartialSuccess(), equalTo(true));
+        assertThat(otlpResponse.getPartialSuccess().getRejectedDataPoints(), equalTo(0L));
+        assertThat(
+            otlpResponse.getPartialSuccess().getErrorMessage(),
+            equalTo("1 exemplars were dropped due to duplicate timestamps and series identity")
+        );
+        assertOK(client().performRequest(new Request("GET", "metrics-*,exemplars-*/_refresh")));
+
+        ObjectPath metricSearch = search("metrics-generic.otel-default");
+        ObjectPath exemplarSearch = search("exemplars-generic.otel-default");
+        assertThat(metricSearch.evaluate("hits.total.value"), equalTo(1));
+        assertThat(exemplarSearch.evaluate("hits.total.value"), equalTo(1));
+        Map<String, Object> exemplarSource = exemplarSearch.evaluate("hits.hits.0._source");
+        assertThat(evaluate(exemplarSource, "data_stream.type"), equalTo("exemplars"));
+        assertThat(evaluate(exemplarSource, "resource.attributes.service\\.name"), equalTo("checkout-service"));
+        assertThat(evaluate(exemplarSource, "scope.name"), equalTo("io.opentelemetry.http"));
+        assertThat(evaluate(exemplarSource, "attributes.route"), equalTo("/checkout"));
+        assertThat(evaluate(exemplarSource, "filtered_attributes.thread\\.id"), equalTo(42));
+        assertThat(evaluate(exemplarSource, "trace_id"), equalTo("00112233445566778899aabbccddeeff"));
+        assertThat(evaluate(exemplarSource, "span_id"), equalTo("0011223344556677"));
+        assertThat(evaluate(exemplarSource, "metric_name"), equalTo("request.duration"));
+        assertThat(ObjectPath.<Number>evaluate(exemplarSource, "value").doubleValue(), closeTo(0.42, 0.000001));
+        assertThat(evaluate(exemplarSource, "_metric_names_hash"), nullValue());
+
+        Map<String, Object> exemplarMapping = evaluate(getMapping("exemplars-generic.otel-default"), "properties");
+        assertThat(evaluate(exemplarMapping, "metric_name.type"), equalTo("keyword"));
+        assertThat(evaluate(exemplarMapping, "metric_name.time_series_dimension"), equalTo(true));
+        assertThat(evaluate(exemplarMapping, "value.type"), equalTo("double"));
     }
 
     public void testCounterTemporality() throws Exception {
@@ -662,6 +783,12 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
 
     private static void refreshMetricsIndices() throws IOException {
         assertOK(client().performRequest(new Request("GET", "metrics-*/_refresh")));
+    }
+
+    private static byte[] marshalMetrics(List<MetricData> metrics) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        MetricsRequestMarshaler.create(metrics).writeBinaryTo(out);
+        return out.toByteArray();
     }
 
     private static MetricData createDoubleGauge(

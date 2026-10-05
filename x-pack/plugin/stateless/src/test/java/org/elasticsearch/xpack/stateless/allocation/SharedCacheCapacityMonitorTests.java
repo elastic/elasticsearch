@@ -49,7 +49,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
  * watermark boundary. The clock is a manually-advanced {@link AtomicLong}, never a real time source, so throttling assertions are
  * deterministic.
  */
-@TestLogging(value = "org.elasticsearch.xpack.stateless.allocation.SharedCacheCapacityMonitor:DEBUG", reason = "debug log for test")
+@TestLogging(value = "org.elasticsearch.xpack.stateless.allocation.SharedCacheCapacityMonitor:TRACE", reason = "trace log for test")
 public class SharedCacheCapacityMonitorTests extends ESTestCase {
 
     private static final long CACHE_SIZE_IN_BYTES = 1000L;

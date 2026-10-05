@@ -2,6 +2,6 @@ area: Search
 issues:
  - 160320
 pr: 160724
-summary: Fail gracefully phase queries and phrase prefix queries over `match_only_text`
+summary: Fail gracefully phrase queries and phrase prefix queries over `match_only_text`
   when index=false
 type: bug

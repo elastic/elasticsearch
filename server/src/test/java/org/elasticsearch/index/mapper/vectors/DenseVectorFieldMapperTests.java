@@ -27,6 +27,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOConsumer;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.Build;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -901,75 +902,33 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     public void testAutoCalibrateParsing() throws IOException {
-        Settings experimentalEnabled = Settings.builder()
-            .put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), true)
-            .build();
-        Settings experimentalDisabled = Settings.builder()
-            .put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), false)
-            .build();
-        {
-            DocumentMapper mapperService = createMapperService(experimentalEnabled, fieldMapping(b -> {
-                b.field("type", "dense_vector");
-                b.field("dims", 128);
-                b.field("index", true);
-                b.field("similarity", "dot_product");
-                b.startObject("index_options");
-                b.field("type", "bbq_disk");
-                b.field("auto_calibrate", true);
-                b.endObject();
-            })).documentMapper();
+        CheckedBiConsumer<Object, IvfAutoCalibrationProfile, IOException> assertParsing = (autoCalibrate, expectedProfile) -> {
+            String message = "auto_calibrate [" + autoCalibrate + "]";
+            MapperService mapperService = createMapperService(EXPERIMENTAL_ENABLED, autoCalibrateMapping(autoCalibrate));
+            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = getIndexOptions(
+                mapperService,
+                "field",
+                DenseVectorFieldMapper.BBQIVFIndexOptions.class
+            );
+            assertEquals(message, expectedProfile != IvfAutoCalibrationProfile.DISABLED, indexOptions.autoCalibrate());
+            assertEquals(message, expectedProfile, indexOptions.autoCalibrationProfile());
 
-            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
-            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldMapper
-                .fieldType()
-                .getIndexOptions();
-            assertTrue(indexOptions.autoCalibrate());
-            assertEquals(IvfAutoCalibrationProfile.ISO_SIZING, indexOptions.autoCalibrationProfile());
-            assertTrue(mapperService.mappingSource().toString().contains("auto_calibrate"));
-        }
-        {
-            DocumentMapper mapperService = createMapperService(experimentalEnabled, fieldMapping(b -> {
-                b.field("type", "dense_vector");
-                b.field("dims", 128);
-                b.field("index", true);
-                b.field("similarity", "dot_product");
-                b.startObject("index_options");
-                b.field("type", "bbq_disk");
-                b.endObject();
-            })).documentMapper();
+            String mappingSource = mapperService.documentMapper().mappingSource().toString();
+            if (autoCalibrate == null) {
+                assertThat(message, mappingSource, not(containsString("auto_calibrate")));
+            } else {
+                String expectedSource = autoCalibrate instanceof String
+                    ? "\"auto_calibrate\":\"" + autoCalibrate + "\""
+                    : "\"auto_calibrate\":" + autoCalibrate;
+                assertThat(message, mappingSource, containsString(expectedSource));
+            }
+        };
 
-            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
-            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldMapper
-                .fieldType()
-                .getIndexOptions();
-            assertFalse(indexOptions.autoCalibrate());
-            assertEquals(IvfAutoCalibrationProfile.DISABLED, indexOptions.autoCalibrationProfile());
-            assertFalse(mapperService.mappingSource().toString().contains("auto_calibrate"));
-        }
-
+        assertParsing.accept(null, IvfAutoCalibrationProfile.DISABLED);
+        assertParsing.accept(true, IvfAutoCalibrationProfile.ISO_SIZING);
+        assertParsing.accept(false, IvfAutoCalibrationProfile.DISABLED);
         for (IvfAutoCalibrationProfile profile : IvfAutoCalibrationProfile.values()) {
-            MapperService mapperService = createMapperService(experimentalEnabled, autoCalibrateMapping(profile.toString()));
-            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = getIndexOptions(
-                mapperService,
-                "field",
-                DenseVectorFieldMapper.BBQIVFIndexOptions.class
-            );
-
-            assertEquals(profile != IvfAutoCalibrationProfile.DISABLED, indexOptions.autoCalibrate());
-            assertEquals(profile, indexOptions.autoCalibrationProfile());
-            assertThat(mapperService.documentMapper().mappingSource().toString(), containsString("\"auto_calibrate\":\"" + profile + "\""));
-        }
-        {
-            MapperService mapperService = createMapperService(experimentalEnabled, autoCalibrateMapping(false));
-            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = getIndexOptions(
-                mapperService,
-                "field",
-                DenseVectorFieldMapper.BBQIVFIndexOptions.class
-            );
-
-            assertFalse(indexOptions.autoCalibrate());
-            assertEquals(IvfAutoCalibrationProfile.DISABLED, indexOptions.autoCalibrationProfile());
-            assertThat(mapperService.documentMapper().mappingSource().toString(), containsString("\"auto_calibrate\":false"));
+            assertParsing.accept(profile.toString(), profile);
         }
     }
 

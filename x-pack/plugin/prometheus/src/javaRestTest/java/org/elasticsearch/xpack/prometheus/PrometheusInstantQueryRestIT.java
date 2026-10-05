@@ -475,6 +475,27 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertBinopInstantGroups("sum by (host, __name__) (tx) / on (host) sum by (host, __name__) (rx)", "host", txRxRatios());
     }
 
+    /**
+     * Prometheus treats a label with an empty value as absent: a label function that empties a label drops it from the series,
+     * so {@code label_replace(tx, "host", "", "host", "a")} leaves host a with no {@code host} label and its own group.
+     */
+    public void testInstantEmptyLabelValueIsAbsent() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        List<PromqlResponseSeries> counted = PromqlResponseSeries.ofInstant(
+            executeBinopInstantQuery("count by (dst) (label_replace(tx, \"dst\", \"\", \"host\", \".*\"))")
+        );
+        assertThat(counted, hasSize(1));
+        assertThat(counted.getFirst().labels(), equalTo(Map.of()));
+        assertThat(counted.getFirst().value(), closeTo(3.0, 1e-10));
+        Map<String, Double> byHost = new HashMap<>();
+        for (PromqlResponseSeries series : PromqlResponseSeries.ofInstant(
+            executeBinopInstantQuery("sum by (host) (label_replace(tx, \"host\", \"\", \"host\", \"a\"))")
+        )) {
+            assertNull("duplicate output group", byHost.put(series.labels().getOrDefault("host", "<absent>"), series.value()));
+        }
+        assertThat(byHost, equalTo(Map.of("<absent>", 10.0, "b", 30.0, "c", 12.0)));
+    }
+
     private ObjectPath executeBinopInstantQuery(String expression) throws IOException {
         Request request = prometheusReadRequest(
             "/_prometheus/api/v1/query",
@@ -521,4 +542,12 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertThat(error.getMessage(), containsString("duplicate"));
     }
 
+    /** Prometheus converts k with an integer cast: {@code topk(1.5, tx)} keeps one series and {@code topk(0.5, tx)} none. */
+    public void testInstantFractionalKIsTruncated() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("topk(1.5, tx)", 30);
+        assertBinopInstantValues("bottomk(1.5, tx)", 10);
+        assertBinopInstantValues("topk(2.9, tx)", 30, 12);
+        assertBinopInstantValues("topk(0.5, tx)");
+    }
 }

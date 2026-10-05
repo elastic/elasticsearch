@@ -461,6 +461,24 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertBinopRangeGroups("sum by (host, __name__) (tx) / on (host) sum by (host, __name__) (rx)", "host", txRxRatios());
     }
 
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantEmptyLabelValueIsAbsent}. */
+    public void testRangeEmptyLabelValueIsAbsent() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        List<PromqlResponseSeries> counted = PromqlResponseSeries.ofRange(
+            executeBinopRangeQuery("count by (dst) (label_replace(tx, \"dst\", \"\", \"host\", \".*\"))")
+        );
+        assertThat(counted, hasSize(1));
+        assertThat(counted.getFirst().labels(), equalTo(Map.of()));
+        assertThat(counted.getFirst().value(), closeTo(3.0, 1e-10));
+        Map<String, Double> byHost = new HashMap<>();
+        for (PromqlResponseSeries series : PromqlResponseSeries.ofRange(
+            executeBinopRangeQuery("sum by (host) (label_replace(tx, \"host\", \"\", \"host\", \"a\"))")
+        )) {
+            assertNull("duplicate output group", byHost.put(series.labels().getOrDefault("host", "<absent>"), series.value()));
+        }
+        assertThat(byHost, equalTo(Map.of("<absent>", 10.0, "b", 30.0, "c", 12.0)));
+    }
+
     private ObjectPath executeBinopRangeQuery(String expression) throws IOException {
         Request request = prometheusReadRequest(
             "/_prometheus/api/v1/query_range",
@@ -509,4 +527,12 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertThat(error.getMessage(), containsString("duplicate"));
     }
 
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantFractionalKIsTruncated}. */
+    public void testRangeFractionalKIsTruncated() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeValues("topk(1.5, tx)", 30);
+        assertBinopRangeValues("bottomk(1.5, tx)", 10);
+        assertBinopRangeValues("topk(2.9, tx)", 30, 12);
+        assertBinopRangeValues("topk(0.5, tx)");
+    }
 }

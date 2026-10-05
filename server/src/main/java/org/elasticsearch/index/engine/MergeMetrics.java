@@ -15,7 +15,6 @@ import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.metric.MetricAttributes;
 
@@ -52,13 +51,13 @@ public class MergeMetrics {
             MERGE_SEGMENTS_QUEUED_USAGE,
             "Total usage of segments queued to be merged",
             "bytes",
-            () -> new LongWithAttributes(queuedMergeSizeInBytes.get())
+            queuedMergeSizeInBytes::get
         );
         meterRegistry.registerLongAsyncGauge(
             MERGE_SEGMENTS_RUNNING_USAGE,
             "Total usage of segments currently being merged",
             "bytes",
-            () -> new LongWithAttributes(runningMergeSizeInBytes.get())
+            runningMergeSizeInBytes::get
         );
         mergeMergedSegmentSizeInBytes = meterRegistry.registerLongCounter(
             MERGE_SEGMENTS_MERGED_SIZE,
@@ -81,7 +80,7 @@ public class MergeMetrics {
             MERGE_QUEUED_ESTIMATED_MEMORY_SIZE,
             "Estimated memory usage for queued merges",
             "bytes",
-            () -> new LongWithAttributes(queuedEstimatedMergeMemoryInBytes.get())
+            queuedEstimatedMergeMemoryInBytes::get
         );
     }
 

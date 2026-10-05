@@ -493,11 +493,15 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     };
 
-    private static AssertionError markClusterUnavailable(String message, Throwable pingFailure, Throwable originalFailure) {
+    /**
+     * Records that the cluster is unavailable so the remaining tests in the suite are skipped, and attaches the reason to the
+     * failure that exposed it. The original failure is returned unchanged so that it stays the reported failure, with the cluster
+     * diagnosis available alongside it rather than in place of it.
+     */
+    private static Throwable markClusterUnavailable(String message, Throwable cause, Throwable originalFailure) {
         clusterUnavailable = true;
-        AssertionError e = new AssertionError(message, pingFailure);
-        e.addSuppressed(originalFailure);
-        return e;
+        originalFailure.addSuppressed(new AssertionError(message, cause));
+        return originalFailure;
     }
 
     @Before

@@ -72,12 +72,13 @@ public class ESRestTestCaseTests extends ESTestCase {
         assertFalse(ESRestTestCase.clusterUnavailable);
     }
 
-    public void testNullClientSetsUnavailableWithOriginalFailureSuppressed() throws Throwable {
+    public void testNullClientSetsUnavailableWithDiagnosisSuppressed() throws Throwable {
         RuntimeException original = new RuntimeException("test failure");
-        AssertionError thrown = expectThrows(AssertionError.class, () -> evaluateRule(original));
-        assertThat(thrown.getMessage(), containsString("initialization failed"));
-        assertNull(thrown.getCause());
-        assertSame(original, thrown.getSuppressed()[0]);
+        RuntimeException thrown = expectThrows(RuntimeException.class, () -> evaluateRule(original));
+        assertSame(original, thrown);
+        Throwable diagnosis = thrown.getSuppressed()[0];
+        assertThat(diagnosis.getMessage(), containsString("initialization failed"));
+        assertNull(diagnosis.getCause());
         assertTrue(ESRestTestCase.clusterUnavailable);
     }
 
@@ -101,10 +102,11 @@ public class ESRestTestCaseTests extends ESTestCase {
         ESRestTestCase.adminClient = mockClient;
 
         RuntimeException original = new RuntimeException("test failure");
-        AssertionError thrown = expectThrows(AssertionError.class, () -> evaluateRule(original));
-        assertEquals("Test cluster is unreachable", thrown.getMessage());
-        assertSame(pingFailure, thrown.getCause());
-        assertSame(original, thrown.getSuppressed()[0]);
+        RuntimeException thrown = expectThrows(RuntimeException.class, () -> evaluateRule(original));
+        assertSame(original, thrown);
+        Throwable diagnosis = thrown.getSuppressed()[0];
+        assertEquals("Test cluster is unreachable", diagnosis.getMessage());
+        assertSame(pingFailure, diagnosis.getCause());
         assertTrue(ESRestTestCase.clusterUnavailable);
     }
 
@@ -116,10 +118,11 @@ public class ESRestTestCaseTests extends ESTestCase {
         ESRestTestCase.adminClient = mockClient;
 
         RuntimeException original = new RuntimeException("test failure");
-        AssertionError thrown = expectThrows(AssertionError.class, () -> evaluateRule(original));
-        assertEquals("Test cluster is unreachable", thrown.getMessage());
-        assertSame(pingFailure, thrown.getCause());
-        assertSame(original, thrown.getSuppressed()[0]);
+        RuntimeException thrown = expectThrows(RuntimeException.class, () -> evaluateRule(original));
+        assertSame(original, thrown);
+        Throwable diagnosis = thrown.getSuppressed()[0];
+        assertEquals("Test cluster is unreachable", diagnosis.getMessage());
+        assertSame(pingFailure, diagnosis.getCause());
         assertTrue(ESRestTestCase.clusterUnavailable);
     }
 
@@ -131,10 +134,11 @@ public class ESRestTestCaseTests extends ESTestCase {
         ESRestTestCase.adminClient = mockClient;
 
         RuntimeException original = new RuntimeException("test failure");
-        AssertionError thrown = expectThrows(AssertionError.class, () -> evaluateRule(original));
-        assertEquals("Test cluster is in a bad state", thrown.getMessage());
-        assertSame(pingFailure, thrown.getCause());
-        assertSame(original, thrown.getSuppressed()[0]);
+        RuntimeException thrown = expectThrows(RuntimeException.class, () -> evaluateRule(original));
+        assertSame(original, thrown);
+        Throwable diagnosis = thrown.getSuppressed()[0];
+        assertEquals("Test cluster is in a bad state", diagnosis.getMessage());
+        assertSame(pingFailure, diagnosis.getCause());
         assertTrue(ESRestTestCase.clusterUnavailable);
     }
 

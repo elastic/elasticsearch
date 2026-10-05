@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.glob;
 
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.compute.operator.SuppressedFailures;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -164,7 +165,7 @@ public final class GlobExpander {
             try {
                 return doExpandGlob(pattern, provider, fileHintsOnly, partitionConfig, maxDiscoveredFiles, maxGlobExpansion);
             } catch (IOException retryFailure) {
-                retryFailure.addSuppressed(e);
+                SuppressedFailures.attach(retryFailure, e);
                 throw retryFailure;
             }
         }

@@ -43,7 +43,7 @@ env:
 
 steps:
   # ── Run archimedes ───────────────────────────────────────────────────────────
-  - label: ":robot_face: Archimedes — :workflow:"
+  - label: ":robot_face: Archimedes — review graph acceptance"
     key: archimedes-run
     timeout_in_minutes: 60
     env:
@@ -62,11 +62,28 @@ steps:
       automatic:
         - exit_status: "*"
           limit: 1
-    # Single entry point: `archimedes ci` owns the whole CI envelope — input
-    # validation, session download/upload (spot-preemption resume), the in-process
-    # sandbox, dispatch to the analyze/fix-pr/create workflow, and the start/finish
-    # progress annotations. It reads WORKFLOW/ISSUE_URL/PR_URL from the step env
-    # (set above), so no YAML interpolation is needed. This is all a consuming
-    # repo (e.g. elasticsearch-serverless) needs beyond activating the baked
-    # archimedes runtime.
-    command: archimedes ci
+    # Dedicated acceptance branch: use the installed graph launcher with comments
+    # disabled. Trigger this pipeline on this branch with ISSUE_URL set to a
+    # closed Elasticsearch issue that received a prior test-analysis comment.
+    # Optional ARCHIMEDES_ACCEPTANCE_GH_TOKEN overrides the hook's admin token
+    # after secret provisioning; supply a SAML-authorized read-only token.
+    # Double dollars defer expansion until job execution, after pre-command.
+    command: |
+      set -euo pipefail
+      : "$${ISSUE_URL:?Set ISSUE_URL to the closed issue to review}"
+
+      bin="$$(readlink -f "$$(command -v archimedes)")"
+      runtime="$$(dirname "$$(dirname "$$bin")")"
+
+      unset ARCHIMEDES_PROVIDER ARCHIMEDES_MODEL
+      unset ARCHIMEDES_FALLBACK ARCHIMEDES_FALLBACKS
+
+      if [[ -n "$${ARCHIMEDES_ACCEPTANCE_GH_TOKEN:-}" ]]; then
+        export GH_TOKEN="$$ARCHIMEDES_ACCEPTANCE_GH_TOKEN"
+        unset ARCHIMEDES_ACCEPTANCE_GH_TOKEN
+      fi
+
+      node "$$runtime/workflows/review-test-analysis/graph/ci-acceptance.mjs" \
+        --issue-url "$$ISSUE_URL" \
+        --checkout-dir "$$BUILDKITE_BUILD_CHECKOUT_PATH" \
+        --run-dir "/tmp/archimedes-review-acceptance-$$BUILDKITE_JOB_ID-$${BUILDKITE_RETRY_COUNT:-0}"

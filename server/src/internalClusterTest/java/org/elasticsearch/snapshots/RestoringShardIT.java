@@ -392,14 +392,24 @@ public class RestoringShardIT extends AbstractSnapshotIntegTestCase {
      * INITIALIZING. The behaviour is identical to {@code _search}: the request hangs until the
      * shard becomes search-ready.
      *
-     * <p>This only holds for a single-shard target: {@code TransportSearchAction#adjustSearchType}
-     * always forces {@code DFS_QUERY_THEN_FETCH} when a kNN clause is present, which is otherwise
-     * harmless, but if the index has more than one shard it also makes
-     * {@code TransportSearchAction#shouldPreFilterSearchShards} run a {@code canMatch} pre-filter
-     * phase. That phase fails fast on a restoring shard (rather than parking) and, since
-     * {@code allow_partial_search_results} defaults to {@code true}, the overall search then
-     * completes immediately with zero hits instead of hanging. Hence {@code KNN_INDEX} is pinned to
-     * {@link #SINGLE_SHARD_NO_REPLICA} here, matching {@code INDEX}.
+     * <p>This test exists for the search phase it exercises, not for kNN-specific logic.
+     * {@code TransportSearchAction#adjustSearchType} forces {@code QUERY_THEN_FETCH} for any
+     * single-shard search, so the single-shard {@code _search} tests in this class never run the DFS
+     * phase; a kNN clause is the exception and forces {@code DFS_QUERY_THEN_FETCH} even on one shard.
+     * This is therefore the only test here that deterministically covers a DFS phase against a
+     * restoring shard. {@code executeDfsPhase} also goes through {@code rewriteAndFetchShardRequest},
+     * so it parks the same way. This relies on the top-level {@code knn} section:
+     * {@code SearchRequest#hasKnnSearch} checks only {@code source.knnSearch()}, so a {@code knn}
+     * query or retriever would not force DFS and the test would no longer cover that phase.
+     *
+     * <p>{@code KNN_INDEX} is pinned to {@link #SINGLE_SHARD_NO_REPLICA}. Left to the randomized
+     * index template it may get several shards but holds a single document, and only the shard holding
+     * that document reads data blobs during restore: empty shards restore without hitting the
+     * {@code blockAllDataNodes} block. If the search arrives while the document's shard is still
+     * UNASSIGNED (throttled by {@code node_initial_primaries_recoveries}, or not yet allocated), that
+     * shard has no copy to route to, the empty shards answer, and with the default
+     * {@code allow_partial_search_results=true} the search completes immediately with zero hits
+     * instead of parking. This is not kNN-specific: a plain {@code _search} behaves the same way.
      */
     public void testKnnSearchWhileRestoringParks() throws Exception {
         blockAndStartRestore(REPO, SNAPSHOT, KNN_INDEX);

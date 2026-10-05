@@ -4536,19 +4536,53 @@ public class ExternalSourceResolver {
             throwIfCancelled();
             // Skipped when nothing will be read: this opens a file to catch a declared type a columnar reader would
             // null out instead of failing on, and a query that discards every row never performs that cast. It only
-            // throws, never alters the schema, and every query that reads rows still runs it.
-            if (demand.isSchemaDiscovery() == false) {
-                rejectStrictColumnarUncoercibleTypes(
+            // throws, never alters the schema, and every query that reads rows still runs it. The footer read is
+            // async: this may be running on a listing thread, which must not block on a read that pool also serves.
+            final PartitionMetadata finalPartitionMetadata = partitionMetadata;
+            ActionListener<Void> footerChecked = ActionListener.wrap(
+                ignored -> finishStrictMultiFile(
+                    listing,
+                    path,
+                    config,
+                    declaredMapping,
+                    sourceType,
+                    logicalSchema,
+                    finalPartitionMetadata,
+                    listener
+                ),
+                listener::onFailure
+            );
+            if (demand.isSchemaDiscovery()) {
+                footerChecked.onResponse(null);
+            } else {
+                rejectStrictColumnarUncoercibleTypesAsync(
                     sourceType,
                     provider,
                     storageIdentity,
                     listing.path(0),
-                    listing.lastModifiedMillis(0),
+                    new ListingHint(listing.size(0), listing.lastModifiedMillis(0)),
                     config,
-                    declaredMapping
+                    declaredMapping,
+                    footerChecked
                 );
             }
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
 
+    /** The part of strict multi-file resolution that needs no I/O: builds the resolved source from the checked listing. */
+    private void finishStrictMultiFile(
+        FileList listing,
+        String path,
+        Map<String, Object> config,
+        DatasetMapping declaredMapping,
+        String sourceType,
+        List<Attribute> logicalSchema,
+        @Nullable PartitionMetadata partitionMetadata,
+        ActionListener<ExternalSourceResolution.ResolvedSource> listener
+    ) {
+        try {
             ExternalSourceMetadata extMetadata = wrapAsExternalSourceMetadata(
                 new SimpleSourceMetadata(logicalSchema, sourceType, path),
                 config,
@@ -4688,6 +4722,36 @@ public class ExternalSourceResolver {
                         + "path-derived and must not be declared under [properties]"
                 );
             }
+        }
+    }
+
+    /**
+     * Async counterpart of {@link #rejectStrictColumnarUncoercibleTypes}: the same check, but the anchor's footer is
+     * read on the async footer path (through the schema cache when the provider is cacheable) so no thread is pinned
+     * across the read. The listing's size and mtime seed a {@link ListingHint}, which also skips the existence probe.
+     */
+    private void rejectStrictColumnarUncoercibleTypesAsync(
+        String sourceType,
+        StorageProvider provider,
+        String storageIdentity,
+        StoragePath anchor,
+        ListingHint anchorHint,
+        Map<String, Object> config,
+        DatasetMapping declaredMapping,
+        ActionListener<Void> listener
+    ) {
+        if (sourceType == null || FILE_TYPED_FORMATS.contains(sourceType) == false || declaredMapping.mappings() == null) {
+            listener.onResponse(null);
+            return;
+        }
+        ActionListener<SourceMetadata> checked = ActionListener.wrap(metadata -> {
+            rejectUncoercibleFileTypedRetypes(metadata.schema(), sourceType, declaredMapping);
+            listener.onResponse(null);
+        }, listener::onFailure);
+        if (isCacheable(provider)) {
+            cachedResolveSingleSourceAsync(anchor, anchorHint, storageIdentity, config, null, checked);
+        } else {
+            resolveSingleSourceAsync(anchor.toString(), anchorHint, config, checked);
         }
     }
 

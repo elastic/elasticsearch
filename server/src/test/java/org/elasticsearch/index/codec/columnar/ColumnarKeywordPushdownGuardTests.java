@@ -396,12 +396,65 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
         Function<String, Object> expected
     ) throws IOException {
         try (BlockLoader.ColumnAtATimeReader reader = loader.reader(NOOP, leaf)) {
-            final TestBlock block = (TestBlock) reader.read(TestBlock.factory(), docs(wanted), 0, false);
-            assertEquals(label + " positions", wanted.length, block.size());
-            for (int i = 0; i < wanted.length; i++) {
-                final String value = values[wanted[i]];
-                assertEquals(label + " document " + wanted[i], value == null ? null : expected.apply(value), block.get(i));
-            }
+            assertRead(label, reader, wanted, values, expected);
+        }
+    }
+
+    private static void assertRead(
+        String label,
+        BlockLoader.ColumnAtATimeReader reader,
+        int[] wanted,
+        String[] values,
+        Function<String, Object> expected
+    ) throws IOException {
+        final TestBlock block = (TestBlock) reader.read(TestBlock.factory(), docs(wanted), 0, false);
+        assertEquals(label + " positions", wanted.length, block.size());
+        for (int i = 0; i < wanted.length; i++) {
+            final String value = values[wanted[i]];
+            assertEquals(label + " document " + wanted[i], value == null ? null : expected.apply(value), block.get(i));
+        }
+    }
+
+    /**
+     * One reader over several pages, as a query reads them: what the reader and the column keep between pages carries
+     * from each to the next. A page may start at or before the last document of the one before it, and may be larger
+     * than any before it.
+     */
+    public void testOneReaderAcrossPages() throws IOException {
+        for (Framing framing : Framing.values()) {
+            assertOneReaderAcrossPages(framing, framing.valueLoader(), false, value -> new BytesRef(value));
+            assertOneReaderAcrossPages(
+                framing,
+                new ByteLengthFromBytesRefDocValuesBlockLoader(new MockWarnings(), FIELD, framing.format),
+                true,
+                value -> new BytesRef(value).length
+            );
+        }
+    }
+
+    private void assertOneReaderAcrossPages(
+        Framing framing,
+        BlockDocValuesReader.DocValuesBlockLoader loader,
+        boolean lengthsOnly,
+        Function<String, Object> expected
+    ) throws IOException {
+        for (boolean repeating : new boolean[] { true, false }) {
+            final String[] values = values(repeating);
+            final int n = values.length;
+            // { from, count }: growing, starting on the last document of the page before, starting before it, every
+            // document at once, and a small page after the largest.
+            final int[][] pages = { { 0, 5 }, { 5, 40 }, { 44, 30 }, { 20, 60 }, { 0, n }, { n - 3, 3 }, { between(0, n - 2), 2 } };
+            withSegment(values, framing, leaf -> {
+                try (BlockLoader.ColumnAtATimeReader reader = loader.reader(NOOP, guarded(leaf, lengthsOnly))) {
+                    for (int[] page : pages) {
+                        final int[] wanted = new int[page[1]];
+                        for (int i = 0; i < wanted.length; i++) {
+                            wanted[i] = page[0] + i;
+                        }
+                        assertRead(framing + " " + loader + " page from " + page[0] + " of " + page[1], reader, wanted, values, expected);
+                    }
+                }
+            });
         }
     }
 

@@ -17,7 +17,11 @@ import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -135,6 +139,8 @@ public class S3RequestCountingTests extends ESTestCase {
             new ResponseInputStream<>(resp, AbortableInputStream.create(new ByteArrayInputStream(new byte[(int) rangeBytes])))
         );
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH, FILE_SIZE);
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        obj.attachMetrics(new ExternalSourceMetrics(registry), "s3");
 
         assertEquals(0L, obj.metrics().requestCount());
         obj.newStream(0, rangeBytes).close();
@@ -142,6 +148,7 @@ public class S3RequestCountingTests extends ESTestCase {
         StorageObjectMetrics metrics = obj.metrics();
         assertEquals(1L, metrics.requestCount());
         assertEquals(rangeBytes, metrics.bytesRead());
+        assertEquals("close-with-no-read must publish drained leftover to APM", rangeBytes, apmBytesReadTotal(registry));
         assertTrue("requestNanos should be > 0", metrics.requestNanos() > 0);
         assertEquals(0L, metrics.retryCount());
     }
@@ -158,6 +165,8 @@ public class S3RequestCountingTests extends ESTestCase {
             new ResponseInputStream<>(resp, AbortableInputStream.create(new ByteArrayInputStream(new byte[(int) rangeBytes])))
         );
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH, FILE_SIZE);
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        obj.attachMetrics(new ExternalSourceMetrics(registry), "s3");
         InputStream stream = obj.newStream(0, rangeBytes);
         assertEquals(drained, stream.read(new byte[drained]));
         obj.abortStream(stream);
@@ -165,6 +174,7 @@ public class S3RequestCountingTests extends ESTestCase {
         StorageObjectMetrics metrics = obj.metrics();
         assertEquals(1L, metrics.requestCount());
         assertEquals(drained, metrics.bytesRead());
+        assertEquals("abort skips leftover; APM matches drained bytes", drained, apmBytesReadTotal(registry));
     }
 
     /**
@@ -289,5 +299,13 @@ public class S3RequestCountingTests extends ESTestCase {
         assertTrue(obj.exists());
         verify(mockS3, times(1)).getObject(any(GetObjectRequest.class));
         verify(mockS3, times(1)).headObject(any(HeadObjectRequest.class));
+    }
+
+    private static long apmBytesReadTotal(RecordingMeterRegistry registry) {
+        return registry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_BYTES_READ_TOTAL)
+            .stream()
+            .mapToLong(Measurement::getLong)
+            .sum();
     }
 }

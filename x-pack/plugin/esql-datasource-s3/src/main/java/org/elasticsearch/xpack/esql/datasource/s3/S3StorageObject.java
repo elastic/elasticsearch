@@ -240,13 +240,14 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             // Wrap so a transient fault DURING the read surfaces as a typed ExternalUnavailableException the
             // resume loop can act on; the SDK throws a raw (unchecked) S3Exception/SdkException mid-body.
             // contentLength of this response body (or -1 if unknown) so close() can abort a large leftover
-            // and count a small drain.
-            long expectedLength = metadata.contentLength() != null ? metadata.contentLength() : -1L;
+            // and count a small drain. Metered publishes delivered-to-caller; drain leftover is a second
+            // APM bytes event via publishDrainedBytes. Abort skips leftover.
+            long expectedLength = contentLengthOrUnknown(metadata);
             TransientTypingInputStream typed = new TransientTypingInputStream(
                 response,
                 path,
                 expectedLength,
-                leftover -> counters.addBytes(leftover)
+                leftover -> counters.publishDrainedBytes(leftover)
             );
             return metered(typed, typed::abort);
         } catch (Exception e) {
@@ -559,6 +560,11 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         return etag.regionMatches(true, 0, "W/", 0, 2) == false;
     }
 
+    /** Response body length, or -1 if Content-Length is missing (close() then aborts). */
+    private static long contentLengthOrUnknown(GetObjectResponse metadata) {
+        return metadata.contentLength() != null ? metadata.contentLength() : -1L;
+    }
+
     @Override
     public InputStream newStream(long position, long length) throws IOException {
         if (position < 0) {
@@ -579,12 +585,13 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             GetObjectResponse metadata = response.response();
             observeResponse(metadata, position, toEnd == false);
             // contentLength of this response body (the range size), or -1 if unknown.
-            long expectedLength = metadata.contentLength() != null ? metadata.contentLength() : -1L;
+            // Metered publishes delivered-to-caller; drain leftover is a second APM bytes event.
+            long expectedLength = contentLengthOrUnknown(metadata);
             TransientTypingInputStream typed = new TransientTypingInputStream(
                 response,
                 path,
                 expectedLength,
-                leftover -> counters.addBytes(leftover)
+                leftover -> counters.publishDrainedBytes(leftover)
             );
             return metered(typed, typed::abort);
         } catch (Exception e) {

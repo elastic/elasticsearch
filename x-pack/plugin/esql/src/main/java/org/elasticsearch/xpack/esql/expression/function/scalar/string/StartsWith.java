@@ -181,7 +181,7 @@ public class StartsWith extends EsqlScalarFunction implements TranslationAware.S
         return str;
     }
 
-    Expression str() {
+    public Expression str() {
         return str;
     }
 

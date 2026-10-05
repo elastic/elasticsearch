@@ -129,8 +129,7 @@ public class S3RepositoryTests extends ESTestCase {
             s3Registry,
             threadPool,
             client,
-            List.of(),
-            SnapshotMetrics.NOOP
+            List.of()
         );
         clusterService.start();
         repositoriesService.start();

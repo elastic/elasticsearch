@@ -1,0 +1,6 @@
+area: Inference
+issues:
+ - 159760
+pr: 160167
+summary: "[Inference API] Add support for thought signature for Gemini 3.x models"
+type: bug

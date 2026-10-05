@@ -1,0 +1,4 @@
+FROM employees METADATA _source
+| SORT emp_no
+| LIMIT 3
+| KEEP emp_no, _source

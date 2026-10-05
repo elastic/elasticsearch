@@ -88,6 +88,10 @@ public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<Ph
 
         if (isLocal == false) {
             checkExchangeScopes(optimizedPlan, false, failures, depFailures);
+            // the planner adds document references and must remove them before the results go back
+            if (optimizedPlan.output().stream().anyMatch(a -> a.dataType() == DataType.DOC_REF)) {
+                failures.add(fail(optimizedPlan, "document references cannot be returned, found {}", optimizedPlan.output()));
+            }
         }
     }
 

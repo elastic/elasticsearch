@@ -456,7 +456,9 @@ public class Driver implements Releasable, Describable {
      *                           arrive on a transport worker, and closing operators can block while releasing Lucene readers,
      *                           so the driver must not run on the calling thread. This executor must differ from
      *                           {@code executor}: that one is bounded and shared with other drivers, so a cancelled driver would
-     *                           wait in its queue, or be rejected by it and run on the cancelling thread.
+     *                           wait in its queue, or be rejected by it and run on the cancelling thread. It also fails a
+     *                           driver whose {@code executor} rejected it. It must only reject tasks once shut down: a
+     *                           rejected completion task runs on the calling thread, which may be a transport worker.
      */
     public static void start(
         ThreadContext threadContext,

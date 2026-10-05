@@ -149,10 +149,30 @@ public class DriverSchedulerTests extends ESTestCase {
         Executor shutDown = command -> ((AbstractRunnable) command).onRejection(new EsRejectedExecutionException("shut down", true));
         RecordingTask task = new RecordingTask();
         scheduler.runPendingTasks();
-        scheduler.scheduleOrRunTask(shutDown, shutDown, task);
+        scheduler.scheduleOrRunTask(command -> fail("driver executor must not be used once completing"), shutDown, task);
         assertThat(task.runs.get(), equalTo(1));
         assertThat(task.failures.get(), equalTo(0));
         assertThat(task.runThread.get(), equalTo(Thread.currentThread()));
+    }
+
+    /**
+     * When the driver's executor rejects a driver that is not completing, the driver is failed on the completion executor:
+     * failing it closes its operators, and the rejecting thread may be a transport worker.
+     */
+    public void testRejectionFailsTaskOnCompletionExecutor() throws Exception {
+        DriverScheduler scheduler = new DriverScheduler();
+        var threadPool = threadPool();
+        try {
+            RecordingTask task = new RecordingTask();
+            Executor rejecting = command -> ((AbstractRunnable) command).onRejection(new EsRejectedExecutionException("full", false));
+            scheduler.scheduleOrRunTask(rejecting, threadPool.generic(), task);
+            task.awaitRun();
+            assertThat(task.runs.get(), equalTo(0));
+            assertThat(task.failures.get(), equalTo(1));
+            assertThat(EsExecutors.executorName(task.runThread.get()), equalTo(ThreadPool.Names.GENERIC));
+        } finally {
+            terminate(threadPool);
+        }
     }
 
     private static class RecordingTask extends AbstractRunnable {
@@ -163,6 +183,7 @@ public class DriverSchedulerTests extends ESTestCase {
 
         @Override
         public void onFailure(Exception e) {
+            runThread.set(Thread.currentThread());
             failures.incrementAndGet();
             ran.countDown();
         }

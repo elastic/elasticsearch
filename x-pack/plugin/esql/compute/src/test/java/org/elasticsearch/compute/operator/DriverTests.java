@@ -12,13 +12,16 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.data.Block;
@@ -536,7 +539,7 @@ public class DriverTests extends ESTestCase {
      * Cancelling a waiting driver must resume it on the completion executor, not on the cancelling thread. Task bans run
      * cancellation on a transport worker, and closing operators can release Lucene readers, which can block for seconds.
      */
-    public void testCancelClosesOperatorsOnDriverExecutor() throws Exception {
+    public void testCancelClosesOperatorsOnCompletionExecutor() throws Exception {
         DriverContext driverContext = driverContext();
         ThreadPool threadPool = threadPool();
         try {
@@ -553,7 +556,7 @@ public class DriverTests extends ESTestCase {
      * Finishing the exchange sink early must resume a waiting driver on the completion executor, not on the thread that finished
      * the sink. A failed exchange request finishes the sink from its cancellation listener on a transport worker.
      */
-    public void testEarlyFinishClosesOperatorsOnDriverExecutor() throws Exception {
+    public void testEarlyFinishClosesOperatorsOnCompletionExecutor() throws Exception {
         DriverContext driverContext = driverContext();
         ThreadPool threadPool = threadPool();
         try {
@@ -567,8 +570,8 @@ public class DriverTests extends ESTestCase {
     }
 
     /**
-     * Cancelling a driver must not wait behind other work in the driver's executor. Cancellation used to be moved onto the
-     * driver pool, where it could queue for a long time behind long-running drivers, delaying the release of resources.
+     * Cancelling a driver must not wait behind other work in the driver's executor, which can be saturated by long-running
+     * drivers. Waiting there would delay the release of the cancelled driver's resources.
      */
     public void testCancelDoesNotWaitForSaturatedDriverExecutor() throws Exception {
         DriverContext driverContext = driverContext();
@@ -610,6 +613,76 @@ public class DriverTests extends ESTestCase {
             );
             assertThat(e.getMessage(), equalTo("the completion executor must differ from the driver executor"));
             driver.close();
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    /**
+     * A driver woken on a transport worker whose executor then rejects it must not close its operators on that worker.
+     * Async operators can complete their blocked future from a transport response handler.
+     */
+    public void testRejectedWakeUpOnTransportThreadClosesOperatorsOnCompletionExecutor() throws Exception {
+        DriverContext driverContext = driverContext();
+        ThreadPool threadPool = threadPool();
+        try {
+            SubscribableListener<Void> blocked = new SubscribableListener<>();
+            SourceOperator source = new SourceOperator() {
+                private boolean finished;
+
+                @Override
+                public void finish() {
+                    finished = true;
+                }
+
+                @Override
+                public boolean isFinished() {
+                    return finished;
+                }
+
+                @Override
+                public Page getOutput() {
+                    finished = blocked.isDone();
+                    return null;
+                }
+
+                @Override
+                public IsBlockedResult isBlocked() {
+                    return blocked.isDone() ? NOT_BLOCKED : new IsBlockedResult(blocked, "test");
+                }
+
+                @Override
+                public void close() {}
+            };
+            AtomicReference<Thread> closeThread = new AtomicReference<>();
+            Operator closeRecorder = new PassThroughOperator() {
+                @Override
+                public void close() {
+                    closeThread.set(Thread.currentThread());
+                    super.close();
+                }
+            };
+            Driver driver = TestDriverFactory.create(driverContext, source, List.of(closeRecorder), new PageConsumerOperator(page -> {}));
+            Executor esql = threadPool.executor("esql");
+            AtomicInteger submissions = new AtomicInteger();
+            // Accepts the driver's first run, then behaves like a full queue.
+            Executor rejectingAfterFirst = command -> {
+                if (submissions.getAndIncrement() == 0) {
+                    esql.execute(command);
+                } else {
+                    ((AbstractRunnable) command).onRejection(new EsRejectedExecutionException("queue is full", false));
+                }
+            };
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            Driver.start(threadPool.getThreadContext(), rejectingAfterFirst, threadPool.generic(), driver, between(1, 1000), future);
+            assertBusy(() -> assertThat(driver.status().status(), equalTo(DriverStatus.Status.ASYNC)));
+            // The status turns ASYNC before the driver registers its wake-up listener, so also wait for the driver thread to go idle.
+            assertBusy(() -> assertThat(((ThreadPoolExecutor) esql).getActiveCount(), equalTo(0)));
+            Thread transportWorker = new Thread(() -> blocked.onResponse(null), "[node][transport_worker][T#1]");
+            transportWorker.start();
+            transportWorker.join();
+            expectThrows(EsRejectedExecutionException.class, () -> future.actionGet(10, TimeUnit.SECONDS));
+            assertThat(EsExecutors.executorName(closeThread.get()), equalTo(ThreadPool.Names.GENERIC));
         } finally {
             terminate(threadPool);
         }

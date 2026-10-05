@@ -58,7 +58,8 @@ final class DriverScheduler {
             public void onFailure(Exception e) {
                 assert e instanceof EsRejectedExecutionException : new AssertionError(e);
                 if (scheduledTask.getAndUpdate(t -> t == task ? null : t) == task) {
-                    task.onFailure(e);
+                    // Failing the task closes the driver's operators, and the rejecting thread may be a transport worker.
+                    failOnCompletionExecutor(task, e);
                 }
             }
 
@@ -74,8 +75,9 @@ final class DriverScheduler {
 
     /**
      * Wakes up a sleeping driver so it can observe cancellation or early finishing, and takes over a task that is still waiting
-     * in the driver's executor. Either way the driver is resumed on the completion executor, never on the calling thread.
-     * The entry left in the driver's executor becomes a no-op.
+     * in the driver's executor. The sleeping driver's blocked future is completed on the calling thread, but the driver itself
+     * resumes on the completion executor, unless that executor is shut down. The entry left in the driver's executor becomes
+     * a no-op.
      */
     void runPendingTasks() {
         completing.set(true);
@@ -102,6 +104,22 @@ final class DriverScheduler {
             @Override
             protected void doRun() {
                 task.run();
+            }
+        });
+    }
+
+    private void failOnCompletionExecutor(AbstractRunnable task, Exception rejection) {
+        completionExecutor.execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                // Only a shut-down executor rejects the task. Fail the driver here rather than leave it unclosed.
+                rejection.addSuppressed(e);
+                task.onFailure(rejection);
+            }
+
+            @Override
+            protected void doRun() {
+                task.onFailure(rejection);
             }
         });
     }

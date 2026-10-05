@@ -755,9 +755,9 @@ public class ExchangeServiceTests extends ESTestCase {
     /**
      * Reproduces the stack from a production stall: a task ban arrives on a transport worker, the exchange request's
      * cancellation listener fails the sink, and the sink's driver finishes early. Closing that driver's operators can
-     * release Lucene readers and block, so it has to happen on the driver's executor and not on the transport worker.
+     * release Lucene readers and block, so it has to happen on the completion executor and not on the transport worker.
      */
-    public void testBanClosesSinkDriverOnDriverExecutor() throws Exception {
+    public void testBanClosesSinkDriverOnCompletionExecutor() throws Exception {
         MockTransportService node0 = newTransportService();
         ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
         exchange0.registerTransportHandler(node0);

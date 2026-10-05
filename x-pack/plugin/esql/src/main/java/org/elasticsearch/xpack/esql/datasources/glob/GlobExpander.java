@@ -1077,6 +1077,57 @@ public final class GlobExpander {
                 && valueFilter != PartitionValueFilter.NONE;
         } while (relistUnfiltered);
 
+        return finishListing(
+            pattern,
+            prefixStr,
+            matched,
+            valueExcluded,
+            fileHintAnchor,
+            fileHints,
+            excludedCount,
+            globKeptCount,
+            excludedExample,
+            excludedExampleEntry,
+            truncated,
+            reserved,
+            hints,
+            partitionConfig,
+            maxDiscoveredFiles,
+            fileOrder,
+            extents,
+            memory,
+            cancelled
+        );
+    }
+
+    /**
+     * Turns what a drain kept into the listing: the exclusion notice, the value filter's proof check, the schema anchor,
+     * the folder post-filters, the heap reservation and the partition detection. Shared by the flat drain and the
+     * fan-out so the two cannot disagree about what a listing is; they differ only in how the entries were gathered.
+     *
+     * @param reserved how many of the retained entries the drain has already reserved heap for
+     */
+    private static FileList finishListing(
+        String pattern,
+        String prefixStr,
+        List<StorageEntry> matched,
+        List<StorageEntry> valueExcluded,
+        @Nullable StorageEntry fileHintAnchor,
+        List<PartitionFilterHint> fileHints,
+        int excludedCount,
+        int globKeptCount,
+        @Nullable String excludedExample,
+        @Nullable String excludedExampleEntry,
+        boolean truncated,
+        int reserved,
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig,
+        int maxDiscoveredFiles,
+        FileOrderConfig fileOrder,
+        ListingExtents extents,
+        PlanningMemory memory,
+        BooleanSupplier cancelled
+    ) {
         // The exclusion notice rides the listing only when this segment lists nothing, where the resolver's
         // "matched no files" error names it as the reason. A segment with files logs it and carries nothing.
         List<String> listingWarnings = new ArrayList<>();
@@ -1273,8 +1324,13 @@ public final class GlobExpander {
     /**
      * Async counterpart of {@link #doExpandGlob}. All paths except the parallel fan-out run synchronously on
      * the calling thread and complete the listener inline. When the fan-out is eligible
-     * ({@link StorageProvider#listsInKeyOrder()}, concurrency &gt; 1, unbounded, and at least two folder slots),
-     * work is dispatched to {@code fanOutExecutor} and the listener fires on the executor thread that finishes last.
+     * ({@link StorageProvider#listsInKeyOrder()}, concurrency &gt; 1, unbounded, a glob that descends, and no
+     * partition value filter), work is dispatched to {@code fanOutExecutor} and the listener fires on the executor thread that finishes last.
+     *
+     * <p>A glob with an active partition value filter deliberately stays on the flat drain, even though that costs the
+     * fan-out: the flat drain runs the partition walk, applies the filter, and re-lists unfiltered to keep a schema
+     * anchor when the filter keeps nothing, and the folder drains do none of it. The walk usually leaves little to
+     * list; doing the filter's proof checks per folder would duplicate the flat drain's most delicate logic.
      *
      * <p>Fan-out eligibility is checked after the enumerable-probe and walk early-exits (via
      * {@link #doExpandGlob}), since those paths produce a complete result without needing fan-out.
@@ -1424,20 +1480,21 @@ public final class GlobExpander {
         // Fan-out: try to build slots for the parallel drain.
         StoragePath prefix = storagePath.patternPrefix();
         boolean recursive = matcher.needsRecursion();
-        List<PartitionFilterHint> fileHints = fileMetadataHints(hints);
+        List<PartitionFilterHint> fileHints = resolveModifiedHints(fileMetadataHints(hints));
 
         // Count objects seen during slot construction so fan-out drains start from a correct baseline.
         AtomicInteger sharedListedCount = new AtomicInteger();
         List<Slot> slots = null;
         // The folder drain does not apply the partition value filter (nor re-list unfiltered for a schema anchor),
-        // so an active value filter keeps the flat listing, which does both.
+        // so an active value filter keeps the flat listing, which does both. Nor does fanning out buy anything for a
+        // glob that does not descend: the flat listing is then one request for the prefix.
         boolean valueFilterActive = PartitionValueFilter.forGlob(
             storagePath.globPart(),
             hints,
             partitionConfig
         ) != PartitionValueFilter.NONE;
         try {
-            if (valueFilterActive == false) {
+            if (valueFilterActive == false && recursive) {
                 slots = buildSlots(provider, prefix, PartitionPruningWalk.MAX_DIRECTORY_LISTINGS, sharedListedCount);
             }
         } catch (IOException e) {
@@ -1460,6 +1517,7 @@ public final class GlobExpander {
                 matcher,
                 nameFilter,
                 slots,
+                hints,
                 fileHints,
                 maxDiscoveredFiles,
                 maxListedObjects,
@@ -1522,7 +1580,8 @@ public final class GlobExpander {
                 // Provider does not support listChildren
                 return null;
             }
-            listedCount.addAndGet(children.files().size() + children.directories().size());
+            // Only objects count toward the cap: a folder is a prefix, which the flat listing never sees as a key.
+            listedCount.addAndGet(children.files().size());
             List<StorageEntry> files = children.files();
             List<StoragePath> dirs = children.directories();
 
@@ -1532,6 +1591,8 @@ public final class GlobExpander {
                 for (StorageEntry f : files) {
                     prefixFileSlots.add(new Slot.File(f));
                 }
+                // Files collected from the ancestors tunnelled through sort anywhere relative to this level's.
+                prefixFileSlots.sort(GlobExpander::compareSlotKeys);
                 return prefixFileSlots;
             }
 
@@ -1555,15 +1616,43 @@ public final class GlobExpander {
             for (StoragePath d : dirs) {
                 slots.add(new Slot.Folder(d));
             }
-            slots.sort((a, b) -> {
-                String ka = a instanceof Slot.File f ? f.entry().path().toString() : ((Slot.Folder) a).prefix().toString() + "/";
-                String kb = b instanceof Slot.File f ? f.entry().path().toString() : ((Slot.Folder) b).prefix().toString() + "/";
-                return ka.compareTo(kb);
-            });
+            slots.sort(GlobExpander::compareSlotKeys);
             return slots;
         }
         // Budget exhausted
         return null;
+    }
+
+    /**
+     * Orders slots as the provider orders the keys they stand for: a file by its key, a folder by its prefix and the
+     * separator, since every key under the folder sorts together right there. Object stores order keys by UTF-8 bytes,
+     * which is code point order, not the UTF-16 order of {@link String#compareTo}: they differ between a supplementary
+     * character and one in the range above the surrogates.
+     */
+    private static int compareSlotKeys(Slot a, Slot b) {
+        return compareByCodePoint(slotKey(a), slotKey(b));
+    }
+
+    private static String slotKey(Slot slot) {
+        return switch (slot) {
+            case Slot.File file -> file.entry().path().toString();
+            case Slot.Folder folder -> folder.prefix().toString() + StoragePath.PATH_SEPARATOR;
+        };
+    }
+
+    private static int compareByCodePoint(String a, String b) {
+        int i = 0;
+        int j = 0;
+        while (i < a.length() && j < b.length()) {
+            int ca = a.codePointAt(i);
+            int cb = b.codePointAt(j);
+            if (ca != cb) {
+                return Integer.compare(ca, cb);
+            }
+            i += Character.charCount(ca);
+            j += Character.charCount(cb);
+        }
+        return Integer.compare(a.length() - i, b.length() - j);
     }
 
     /**
@@ -1687,6 +1776,7 @@ public final class GlobExpander {
         GlobMatcher matcher,
         ExclusionConfig.NameFilter nameFilter,
         List<Slot> slots,
+        @Nullable List<PartitionFilterHint> hints,
         List<PartitionFilterHint> fileHints,
         int maxDiscoveredFiles,
         int maxListedObjects,
@@ -1787,6 +1877,18 @@ public final class GlobExpander {
                 listener.onFailure(e);
                 return;
             }
+            // Every slot must have produced a result by now. A missing one means a drain ended without recording either
+            // one or a failure; merging would silently drop a folder's files, so refuse rather than return a short listing.
+            for (int i = 0; i < size; i++) {
+                if (results.get(i) == null) {
+                    listener.onFailure(
+                        isCancelled.getAsBoolean()
+                            ? new TaskCancelledException("listing cancelled")
+                            : new IllegalStateException("listing of [" + pattern + "] ended without a result for slot [" + i + "]")
+                    );
+                    return;
+                }
+            }
             // Merge slot results in slot order (= flat listing key order for key-ordered providers).
             // Pre-allocate the combined list to avoid O(N²) copies from repeated ArrayList construction.
             int totalMatched = 0;
@@ -1819,32 +1921,35 @@ public final class GlobExpander {
                 mergedExcludedExample,
                 mergedExcludedExampleEntry
             );
-            List<String> listingWarnings = new ArrayList<>();
-            List<StorageEntry> matched = merged.matched();
-            if (merged.excludedCount() > 0) {
-                listingWarnings.add(
-                    exclusionNotice(
+            try {
+                // Every drain has already reserved heap for what it kept, so the rest of the listing is the flat
+                // drain's own: same notice, anchor, folder post-filters and partition detection.
+                listener.onResponse(
+                    finishListing(
+                        pattern,
+                        rootPrefixStr,
+                        merged.matched(),
+                        new ArrayList<>(),
+                        merged.fileHintAnchor(),
+                        fileHints,
                         merged.excludedCount(),
                         merged.globKeptCount(),
-                        rootPrefixStr,
                         merged.excludedExample(),
-                        merged.excludedExampleEntry()
+                        merged.excludedExampleEntry(),
+                        false,
+                        merged.matched().size(),
+                        hints,
+                        partitionConfig,
+                        maxDiscoveredFiles,
+                        fileOrder,
+                        ListingExtents.UNBOUNDED,
+                        memory,
+                        isCancelled
                     )
                 );
+            } catch (Exception finishFailure) {
+                listener.onFailure(finishFailure);
             }
-            StorageEntry fileHintAnchor = merged.fileHintAnchor();
-            if (matched.isEmpty() && fileHintAnchor != null && maxDiscoveredFiles > 0) {
-                matched.add(fileHintAnchor);
-            }
-            if (matched.isEmpty()) {
-                listener.onResponse(
-                    listingWarnings.isEmpty() ? FileList.EMPTY : new GenericFileList(List.of(), pattern, null, listingWarnings, false)
-                );
-                return;
-            }
-            fileOrder.apply(matched);
-            PartitionMetadata partitionMetadata = detectPartitions(matched, partitionConfig, listingWarnings::add);
-            listener.onResponse(new GenericFileList(matched, pattern, partitionMetadata, listingWarnings, false));
         }, fanOutExecutor, e -> {
             if (failure.compareAndSet(null, e) == false) {
                 logger.debug("Additional failure during fan-out drain (suppressed by first failure)", e);

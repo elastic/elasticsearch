@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
 
@@ -216,9 +217,10 @@ public final class DatasetListingService {
             // intentional raw config: only reads partition-filter keys, not auth/connection params from _datasource
             GlobExpander.listingCacheDiscriminator(path, hints, config)
         );
-        boolean[] computedHere = { false };
+        // Set by whichever thread runs the compute and read by whichever completes the listing.
+        AtomicBoolean computedHere = new AtomicBoolean();
         cacheService.getOrComputeListingAsync(listingKey, innerListener -> {
-            computedHere[0] = true;
+            computedHere.set(true);
             expandAsync(
                 path,
                 provider,
@@ -241,7 +243,7 @@ public final class DatasetListingService {
             try {
                 // Caps are not part of the listing key; see cachedListing.
                 GlobExpander.checkDiscoveredFilesLimit(listing.fileCount(), maxDiscoveredFiles.getAsInt());
-                if (computedHere[0] == false) {
+                if (computedHere.get() == false) {
                     memory.reserve(listing.fileCount() * FileList.LISTING_BYTES_PER_ENTRY);
                 }
             } catch (Exception e) {

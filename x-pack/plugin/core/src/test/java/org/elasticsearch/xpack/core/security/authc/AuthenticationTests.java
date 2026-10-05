@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContext
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.hamcrest.Matchers;
 
@@ -1107,6 +1108,26 @@ public class AuthenticationTests extends ESTestCase {
             actual.getEffectiveSubject().getRealm().getDomain(),
             equalTo(authentication.getEffectiveSubject().getRealm().getDomain())
         );
+    }
+
+    public void testMaybeRewriteForOlderVersionDowngradesEnrichUser() {
+        final String nodeName = randomAlphaOfLength(8);
+        final Authentication enrichAuth = Authentication.newInternalAuthentication(
+            InternalUsers.ENRICH_USER,
+            TransportVersion.current(),
+            nodeName
+        );
+
+        // Rewriting for a version that supports the enrich user: unchanged
+        final TransportVersion newVersion = TransportVersionUtils.randomVersionSupporting(Authentication.SECURITY_ENRICH_INTERNAL_USER);
+        final Authentication rewrittenNew = enrichAuth.maybeRewriteForOlderVersion(newVersion);
+        assertThat(rewrittenNew.getEffectiveSubject().getUser(), equalTo(InternalUsers.ENRICH_USER));
+
+        // Rewriting for an older version: must become _xpack so the older node can decode it
+        final TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(Authentication.SECURITY_ENRICH_INTERNAL_USER);
+        final Authentication rewrittenOld = enrichAuth.maybeRewriteForOlderVersion(oldVersion);
+        assertThat(rewrittenOld.getEffectiveSubject().getUser(), equalTo(InternalUsers.XPACK_USER));
+        assertThat(rewrittenOld.getEffectiveSubject().getTransportVersion(), equalTo(oldVersion));
     }
 
     public void testToCrossClusterAccess() {

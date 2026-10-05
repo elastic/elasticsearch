@@ -11,6 +11,8 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -24,16 +26,17 @@ import org.elasticsearch.telemetry.metric.LongAsyncGauge;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
-import java.io.Closeable;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 /// Collects and emits recovery metrics.
-public class RecoveryMetricsCollector implements IndexEventListener, RecoverySchedulingListener, Closeable {
+public class RecoveryMetricsCollector extends AbstractLifecycleComponent implements IndexEventListener, RecoverySchedulingListener {
 
     private static final Logger logger = LogManager.getLogger(RecoveryMetricsCollector.class);
 
@@ -76,27 +79,47 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     private final LongUpDownCounter queuedPeerRecoveriesAsTargetMetric;
     private final LongUpDownCounter activeStoreRecoveriesMetric;
     private final LongUpDownCounter queuedStoreRecoveriesMetric;
-    private final LongAsyncGauge queuedRecoveryLatencyMetric;
 
     private final LongCounter shardRecoveryDirectCancellationsMetric;
     private final LongHistogram shardRecoveryDirectCancellationsWorkTimeMetric;
     private final LongCounter recoveryGateBlockedMetric;
     private final LongHistogram recoveryGateBlockedDurationMetric;
 
-    private final LongAsyncGauge recoveryGateBlockedCurrentMetric;
-    private final LongAsyncGauge recoveryGateBlockedCurrentDurationMetric;
+    private final List<LongAsyncGauge> asyncGauges;
+    private final Supplier<BlockedState> blockedState;
+    private final LongSupplier queueLatencyMillis;
+    private final LongSupplier relativeTimeInMillis;
+    private final MeterRegistry meterRegistry;
 
     /// @param telemetryProvider telemetry provider
-    /// @param blockedState supplies the current recovery blocked state, or null when unblocked
-    /// @param queueLatencyMillis supplies the current queue latency in milliseconds
-    /// @param relativeTimeInMillis supplies relative time in milliseconds; must use the same clock as [BlockedState#sinceRelativeMillis()]
+    /// @param throttlingRecoveryService the [ThrottlingRecoveryService]
+    /// @param relativeTimeInMillisSupplier supplies relative time in milliseconds; must use the same clock as
+    /// [BlockedState#sinceRelativeMillis()] for the [BlockedState] returned by [ThrottlingRecoveryService#blockedState()]
     public RecoveryMetricsCollector(
         TelemetryProvider telemetryProvider,
-        Supplier<BlockedState> blockedState,
-        LongSupplier queueLatencyMillis,
-        LongSupplier relativeTimeInMillis
+        ThrottlingRecoveryService throttlingRecoveryService,
+        LongSupplier relativeTimeInMillisSupplier
     ) {
-        final MeterRegistry meterRegistry = telemetryProvider.getMeterRegistry();
+        this(
+            telemetryProvider,
+            throttlingRecoveryService::blockedState,
+            throttlingRecoveryService::queueLatencyMillis,
+            relativeTimeInMillisSupplier
+        );
+    }
+
+    /// @param telemetryProvider telemetry provider
+    /// @param blockedStateSupplier supplies the current recovery blocked state, or null when unblocked
+    /// @param queueLatencyMillisSupplier supplies the current queue latency in milliseconds
+    /// @param relativeTimeInMillisSupplier supplies relative time in milliseconds; must use the same clock as
+    /// [BlockedState#sinceRelativeMillis()]
+    public RecoveryMetricsCollector(
+        TelemetryProvider telemetryProvider,
+        Supplier<BlockedState> blockedStateSupplier,
+        LongSupplier queueLatencyMillisSupplier,
+        LongSupplier relativeTimeInMillisSupplier
+    ) {
+        this.meterRegistry = telemetryProvider.getMeterRegistry();
         shardRecoveryTotalMetric = meterRegistry.registerLongCounter(
             RECOVERY_TOTAL_COUNT_METRIC,
             "Number of times shard recovery has happened",
@@ -147,12 +170,6 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
             "Number of currently queued non-peer recoveries",
             "unit"
         );
-        queuedRecoveryLatencyMetric = meterRegistry.registerLongAsyncGauge(
-            QUEUED_RECOVERY_LATENCY,
-            "The maximum time any recovery currently on the queue has been there",
-            "ms",
-            () -> new LongWithAttributes(queueLatencyMillis.getAsLong())
-        );
         shardRecoveryDirectCancellationsMetric = meterRegistry.registerLongCounter(
             RECOVERY_DIRECT_CANCELLATIONS_METRIC,
             "Number of shard recoveries that have been directly cancelled by the master, while queued or started",
@@ -164,23 +181,6 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
                 + "the elapsed time between starting and cancelling, i.e. the lost work time",
             "ms"
         );
-        recoveryGateBlockedCurrentMetric = meterRegistry.registerLongAsyncGauge(
-            RECOVERY_GATE_BLOCKED_CURRENT_METRIC,
-            "Whether recovery dispatch is currently blocked by recovery gates",
-            "unit",
-            () -> new LongWithAttributes(blockedState.get() == null ? 0L : 1L)
-        );
-        recoveryGateBlockedCurrentDurationMetric = meterRegistry.registerLongAsyncGauge(
-            RECOVERY_GATE_BLOCKED_CURRENT_DURATION_METRIC,
-            "Elapsed time recovery dispatch has been blocked by recovery gates, or zero when unblocked",
-            "ms",
-            () -> {
-                final BlockedState state = blockedState.get();
-                final long blockedTimeMillis = state == null ? 0L : relativeTimeInMillis.getAsLong() - state.sinceRelativeMillis();
-                assert blockedTimeMillis >= 0L;
-                return new LongWithAttributes(blockedTimeMillis);
-            }
-        );
         recoveryGateBlockedMetric = meterRegistry.registerLongCounter(
             RECOVERY_GATE_BLOCKED_TOTAL_METRIC,
             "Number of times recovery dispatch entered the blocked state",
@@ -191,6 +191,10 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
             "Duration recovery dispatch remained blocked by recovery gates",
             "ms"
         );
+        this.asyncGauges = new ArrayList<>();
+        this.blockedState = blockedStateSupplier;
+        this.queueLatencyMillis = queueLatencyMillisSupplier;
+        this.relativeTimeInMillis = relativeTimeInMillisSupplier;
     }
 
     @Override
@@ -333,13 +337,45 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     }
 
     @Override
-    public void close() {
-        // Only the asynchronous gauges are closeable; the synchronous counters and histograms need no cleanup.
-        Releasables.close(
-            queuedRecoveryLatencyMetric::close,
-            recoveryGateBlockedCurrentMetric::close,
-            recoveryGateBlockedCurrentDurationMetric::close
+    protected void doStart() {
+        asyncGauges.add(
+            meterRegistry.registerLongAsyncGauge(
+                QUEUED_RECOVERY_LATENCY,
+                "The maximum time any recovery currently on the queue has been there",
+                "ms",
+                queueLatencyMillis
+            )
         );
+        asyncGauges.add(
+            meterRegistry.registerLongAsyncGauge(
+                RECOVERY_GATE_BLOCKED_CURRENT_METRIC,
+                "Whether recovery dispatch is currently blocked by recovery gates",
+                "unit",
+                () -> blockedState.get() == null ? 0L : 1L
+            )
+        );
+        asyncGauges.add(
+            meterRegistry.registerLongAsyncGauge(
+                RECOVERY_GATE_BLOCKED_CURRENT_DURATION_METRIC,
+                "Elapsed time recovery dispatch has been blocked by recovery gates, or zero when unblocked",
+                "ms",
+                () -> {
+                    final BlockedState state = blockedState.get();
+                    final long blockedTimeMillis = state == null ? 0L : relativeTimeInMillis.getAsLong() - state.sinceRelativeMillis();
+                    assert blockedTimeMillis >= 0L;
+                    return blockedTimeMillis;
+                }
+            )
+        );
+    }
+
+    @Override
+    protected void doStop() {}
+
+    @Override
+    protected void doClose() throws IOException {
+        // Only the asynchronous gauges are closeable; the synchronous counters and histograms need no cleanup.
+        Releasables.close(asyncGauges.stream().map(gauge -> (Releasable) gauge::close).toList());
     }
 
     private static Map<String, Object> storeRecoveryTargetLifecycleMetricLabels(RecoverySource.Type type, PriorityGroup priorityGroup) {

@@ -136,6 +136,8 @@ public final class Authentication implements ToXContentObject, Accountable {
         "security_cloud_service_account_and_limited_by_roles"
     );
 
+    public static final TransportVersion SECURITY_ENRICH_INTERNAL_USER = TransportVersion.fromName("security_enrich_internal_user");
+
     private final AuthenticationType type;
     private final Subject authenticatingSubject;
     private final Subject effectiveSubject;
@@ -350,6 +352,12 @@ public final class Authentication implements ToXContentObject, Accountable {
                     + olderVersion.toReleaseVersion()
                     + "]"
             );
+        }
+
+        // _enrich internal user is unknown to older nodes; downgrade to _xpack so they can decode it
+        if (InternalUsers.ENRICH_USER.equals(getEffectiveSubject().getUser())
+            && olderVersion.supports(SECURITY_ENRICH_INTERNAL_USER) == false) {
+            return newInternalAuthentication(InternalUsers.XPACK_USER, olderVersion, getEffectiveSubject().getRealm().getNodeName());
         }
 
         final Map<String, Object> newMetadata = maybeRewriteMetadata(olderVersion, this);

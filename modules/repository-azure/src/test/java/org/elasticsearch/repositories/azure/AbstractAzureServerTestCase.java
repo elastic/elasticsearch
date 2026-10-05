@@ -141,6 +141,32 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
         @Nullable String dataAccessTier,
         @Nullable String metadataAccessTier
     ) {
+        return createBlobContainer(
+            maxRetries,
+            tryTimeout,
+            readTimeout,
+            null,
+            secondaryHost,
+            locationMode,
+            clientName,
+            secureSettings,
+            dataAccessTier,
+            metadataAccessTier
+        );
+    }
+
+    protected BlobContainer createBlobContainer(
+        final int maxRetries,
+        final TimeValue tryTimeout,
+        @Nullable final TimeValue readTimeout,
+        @Nullable final TimeValue writeTimeout,
+        String secondaryHost,
+        final LocationMode locationMode,
+        String clientName,
+        SecureSettings secureSettings,
+        @Nullable String dataAccessTier,
+        @Nullable String metadataAccessTier
+    ) {
         final Settings.Builder clientSettings = Settings.builder();
 
         String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + getEndpointForServer(httpServer, ACCOUNT);
@@ -152,6 +178,12 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
         clientSettings.put(TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), tryTimeout);
         if (readTimeout != null) {
             clientSettings.put(AzureStorageSettings.READ_TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), readTimeout);
+        }
+        if (writeTimeout != null) {
+            clientSettings.put(
+                AzureStorageSettings.WRITE_TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
+                writeTimeout
+            );
         }
 
         clientSettings.setSecureSettings(secureSettings);
@@ -277,6 +309,8 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
         @Nullable
         private TimeValue readTimeout;
         @Nullable
+        private TimeValue writeTimeout;
+        @Nullable
         private String secondaryHost;
         private LocationMode locationMode = LocationMode.PRIMARY_ONLY;
         private String clientName = randomIdentifier();
@@ -304,6 +338,11 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
 
         public BlobContainerBuilder withReadTimeout(TimeValue readTimeout) {
             this.readTimeout = readTimeout;
+            return this;
+        }
+
+        public BlobContainerBuilder withWriteTimeout(TimeValue writeTimeout) {
+            this.writeTimeout = writeTimeout;
             return this;
         }
 
@@ -345,6 +384,7 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
                 maxRetries,
                 tryTimeout,
                 readTimeout,
+                writeTimeout,
                 secondaryHost,
                 locationMode,
                 clientName,

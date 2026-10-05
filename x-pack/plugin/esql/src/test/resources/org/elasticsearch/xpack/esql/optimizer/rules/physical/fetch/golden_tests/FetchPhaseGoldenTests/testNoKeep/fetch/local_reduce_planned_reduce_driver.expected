@@ -1,0 +1,4 @@
+ExchangeSinkExec[[$$doc_ref{r$}#0, emp_no{f}#1],false]
+\_DocRefEncodeExec[_doc{f}#2,$$doc_ref{r$}#0]
+  \_TopNExec[[Order[emp_no{f}#1,ASC,LAST]],5[INTEGER],null]
+    \_ExchangeSourceExec[[_doc{f}#2, emp_no{f}#1],false]

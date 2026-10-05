@@ -1,0 +1,4 @@
+ExchangeSinkExec[[$$doc_ref{r$}#0, _score{m}#1],false]
+\_DocRefEncodeExec[_doc{f}#2,$$doc_ref{r$}#0]
+  \_TopNExec[[Order[_score{m}#1,DESC,FIRST]],10[INTEGER],null]
+    \_ExchangeSourceExec[[_doc{f}#2, _score{m}#1],false]

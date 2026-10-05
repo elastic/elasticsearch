@@ -295,6 +295,47 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", "cluster")));
     }
 
+    /**
+     * {@code vector(1)} has no labels, so {@code without} over it keeps the empty label set: one series {@code {}} per
+     * step. The result declares no {@code _timeseries}, otherwise the command projection references a column the plan
+     * never produces.
+     */
+    public void testWithoutOverLabelLessVectorProducesNoTimeSeriesOutput() {
+        for (String expr : List.of(
+            "sum without (pod) (vector(1))",
+            "sum without () (vector(1))",
+            "sum without (pod) (vector(1) + vector(2))",
+            "sum without (pod) (vector(scalar(sum(network.cost))))"
+        )) {
+            var plan = planPromql("PROMQL index=k8s step=1h result=(" + expr + ")");
+            assertThat(expr, plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
+        }
+    }
+
+    public void testWithoutOverLabelLessVectorWithBoundsProducesNoTimeSeriesOutput() {
+        var plan = planPromql("PROMQL index=k8s start=$now-1h end=$now step=5m result=(sum without (pod) (vector(1)))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
+    }
+
+    public void testWithoutOverLabelLessVectorOnEmptyIndexProducesNoTimeSeriesOutput() {
+        var plan = planPromql("PROMQL index=empty_index time=\"2025-01-01T00:00:00Z\" result=(sum without (pod) (vector(1)))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
+    }
+
+    /**
+     * A concrete-output aggregate keeps its concrete labels through label-preserving wrappers, so {@code without} over the
+     * wrapper re-groups those labels like it does directly over the aggregate.
+     */
+    public void testWithoutOverWrappedByProducesConcreteOutput() {
+        for (String expr : List.of(
+            "sum without (pod) (abs(sum by (cluster, pod) (network.cost)))",
+            "sum without (pod) (topk(2, sum by (cluster, pod) (network.cost)))"
+        )) {
+            var plan = planPromql("PROMQL index=k8s step=1h result=(" + expr + ")");
+            assertThat(expr, plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", "cluster")));
+        }
+    }
+
     public void testAvgOverWithoutRangeAggregationPlans() {
         planPromql("PROMQL index=k8s step=1h result=(avg(sum without (pod, region) (avg_over_time(network.cost[1h]))))");
     }

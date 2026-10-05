@@ -407,6 +407,11 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             // A constant vector is one `{}` series per step whatever the source holds: the aggregate regroups its
             // compile-time table (`sum(vector(1))` is 1), never one copy of it per stored series.
             ir = doTranslateTryInline(ir);
+            if (ir.kind().afterInitialAggregation == false && dependsOnlyOnStep(ir)) {
+                // Without a start and end there is no table of the query's steps to regroup: collapse the value, which
+                // reads nothing but the step, to its one series per step so the operator aggregates across it alone.
+                ir = collapse(ir, ir.header(), ir.value());
+            }
             Header header = switch (agg.grouping()) {
                 case BY -> finite(mapFinite(agg.output()));
                 case WITHOUT -> regroupWithout(ir.header(), keys);
@@ -1223,6 +1228,11 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
      */
     private static boolean hasConcreteLabels(LogicalPlan operand) {
         return operand.output().stream().noneMatch(attribute -> MetadataAttribute.isTimeSeriesAttributeName(attribute.name()));
+    }
+
+    /** Whether the table's value reads no source column but the step, i.e. it is the same for every series. */
+    private static boolean dependsOnlyOnStep(IntermediateResult table) {
+        return table.value().references().stream().allMatch(ref -> ref.semanticEquals(table.step()));
     }
 
     /** Flattens a left-associative top-level {@code or} chain into branches; branch 0 has the highest precedence. */

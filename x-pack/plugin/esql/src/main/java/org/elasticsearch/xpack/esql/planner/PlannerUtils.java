@@ -255,6 +255,8 @@ public class PlannerUtils {
          */
         PhysicalPlan coordinatorPlan = plan.transformDownSkipBranch((p, skipBranch) -> {
             if (p instanceof ExchangeExec e) {
+                // NODE exchanges are always below a CLUSTER exchange and are split on the data node
+                assert e.scope() == ExchangeExec.Scope.CLUSTER : "expected a CLUSTER exchange at the coordinator split but found " + e;
                 if (dataNodePlan.get() != null) {
                     // Multiple exchange points are not supported by this split helper.
                     throw new EsqlIllegalArgumentException("expected a single ExchangeExec when splitting coordinator and data node plans");

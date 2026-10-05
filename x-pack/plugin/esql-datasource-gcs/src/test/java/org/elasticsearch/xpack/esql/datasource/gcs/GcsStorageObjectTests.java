@@ -24,6 +24,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
@@ -134,9 +135,7 @@ public class GcsStorageObjectTests extends ESTestCase {
     public void testToString() {
         StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
-        String str = obj.toString();
-        assertTrue(str.contains("my-bucket"));
-        assertTrue(str.contains("data/file.parquet"));
+        assertEquals("GcsStorageObject[file.parquet]", obj.toString());
     }
 
     public void testNewStreamWithNegativePositionThrows() {
@@ -181,14 +180,15 @@ public class GcsStorageObjectTests extends ESTestCase {
         verify(mockReader).limit(60);
     }
 
-    public void testNewStreamWraps404AsIOException() {
+    public void testNewStreamWraps404AsObjectNotFound() {
         when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(404, "Not Found"));
 
         StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
 
-        IOException e = expectThrows(IOException.class, obj::newStream);
-        assertTrue(e.getMessage().contains("Object not found"));
+        ExternalClientException e = expectThrows(ExternalClientException.class, obj::newStream);
+        assertTrue(e.getMessage().contains("External data object not found"));
+        assertTrue(e.getMessage().contains(path.objectName()));
     }
 
     public void testNewStreamWrapsOtherStorageExceptionAsIOException() {
@@ -378,7 +378,7 @@ public class GcsStorageObjectTests extends ESTestCase {
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
 
         ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, obj::newStream);
-        assertTrue(e.getMessage().contains("GCS store unavailable"));
+        assertTrue(e.getMessage().contains("External store throttled"));
     }
 
     public void testNewStreamClassifies429AsThrottling() {
@@ -524,8 +524,9 @@ public class GcsStorageObjectTests extends ESTestCase {
         StoragePath path = StoragePath.of("gs://my-bucket/data/missing.parquet");
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/missing.parquet", path);
 
-        IOException e = expectThrows(IOException.class, obj::length);
-        assertTrue(e.getMessage().contains("Object not found"));
+        ExternalClientException e = expectThrows(ExternalClientException.class, obj::length);
+        assertTrue(e.getMessage().contains("External data object not found"));
+        assertTrue(e.getMessage().contains(path.objectName()));
     }
 
     public void testLastModifiedFetchesMetadata() throws IOException {
@@ -559,8 +560,10 @@ public class GcsStorageObjectTests extends ESTestCase {
         StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
 
-        IOException e = expectThrows(IOException.class, obj::length);
+        ExternalClientException e = expectThrows(ExternalClientException.class, obj::length);
         assertTrue(e.getMessage().contains("Failed to get metadata for"));
+        assertTrue(e.getMessage().contains(path.objectName()));
+        assertTrue(e.getMessage().contains("HTTP 500"));
     }
 
     public void testPreknownLengthSkipsMetadataFetch() throws IOException {
@@ -619,15 +622,16 @@ public class GcsStorageObjectTests extends ESTestCase {
         verify(mockReader).close();
     }
 
-    public void testReadBytesWraps404AsIOException() {
+    public void testReadBytesWraps404AsObjectNotFound() {
         when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(404, "Not Found"));
 
         StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
 
         ByteBuffer target = ByteBuffer.allocate(10);
-        IOException e = expectThrows(IOException.class, () -> obj.readBytes(0, target));
-        assertTrue(e.getMessage().contains("Object not found"));
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> obj.readBytes(0, target));
+        assertTrue(e.getMessage().contains("External data object not found"));
+        assertTrue(e.getMessage().contains(path.objectName()));
     }
 
     public void testReadBytesWrapsOtherStorageExceptionAsIOException() {
@@ -650,7 +654,7 @@ public class GcsStorageObjectTests extends ESTestCase {
 
         ByteBuffer target = ByteBuffer.allocate(10);
         ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, () -> obj.readBytes(0, target));
-        assertTrue(e.getMessage().contains("GCS store unavailable"));
+        assertTrue(e.getMessage().contains("External store throttled"));
     }
 
     // === readBytesAsync tests ===
@@ -782,8 +786,8 @@ public class GcsStorageObjectTests extends ESTestCase {
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertNotNull(error.get());
-        assertTrue(error.get() instanceof IOException);
-        assertTrue(error.get().getMessage().contains("Object not found"));
+        assertTrue(error.get() instanceof ExternalClientException);
+        assertTrue(error.get().getMessage().contains("External data object not found"));
     }
 
     public void testCancelInFlightClosesReadChannel() throws Exception {
@@ -910,9 +914,8 @@ public class GcsStorageObjectTests extends ESTestCase {
     }
 
     /**
-     * newStream(pos, length) increments {@link StorageObjectMetrics} request counters and records
-     * the requested byte count. GCS ReadChannel does not expose content length on open, so the
-     * implementation records the requested range length as bytesRead.
+     * newStream(pos, length) increments {@link StorageObjectMetrics} request counters. Bytes are
+     * received-body, so a close with no read books 0.
      */
     public void testRangeNewStreamIncrementsMetrics() throws IOException {
         long rangeBytes = 1024L;
@@ -927,10 +930,36 @@ public class GcsStorageObjectTests extends ESTestCase {
 
         StorageObjectMetrics metrics = obj.metrics();
         assertEquals(1L, metrics.requestCount());
-        assertTrue("bytesRead should be >= 0", metrics.bytesRead() >= 0);
-        assertEquals(rangeBytes, metrics.bytesRead());
+        assertEquals(0L, metrics.bytesRead());
         assertTrue("requestNanos should be > 0", metrics.requestNanos() > 0);
         assertEquals(0L, metrics.retryCount());
+    }
+
+    public void testRangeNewStreamDrainCountsReceivedBytes() throws IOException {
+        byte[] payload = randomByteArrayOfLength(between(8, 64));
+        ReadChannel mockReader = mock(ReadChannel.class);
+        when(mockStorage.reader(any(BlobId.class))).thenReturn(mockReader);
+        AtomicInteger offset = new AtomicInteger();
+        doAnswer(invocation -> {
+            ByteBuffer buf = invocation.getArgument(0);
+            int pos = offset.get();
+            if (pos >= payload.length) {
+                return -1;
+            }
+            int n = Math.min(buf.remaining(), payload.length - pos);
+            buf.put(payload, pos, n);
+            offset.addAndGet(n);
+            return n;
+        }).when(mockReader).read(any(ByteBuffer.class));
+
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path, 100_000L);
+        int drained = between(1, payload.length);
+        try (InputStream stream = obj.newStream(0, payload.length)) {
+            assertEquals(drained, stream.read(new byte[drained]));
+        }
+        assertEquals(1L, obj.metrics().requestCount());
+        assertEquals(drained, obj.metrics().bytesRead());
     }
 
     // --- Retry-After hint extraction tests ---

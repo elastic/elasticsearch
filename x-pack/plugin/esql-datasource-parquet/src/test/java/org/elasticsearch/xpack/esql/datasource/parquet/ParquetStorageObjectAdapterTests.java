@@ -27,6 +27,7 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -121,11 +122,15 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         );
         assertEquals(0, watermark.used());
         try (SeekableInputStream stream = adapter.newStream()) {
-            assertEquals("window is charged at open, not lazily per miss", data.length, watermark.used());
-            assertEquals(data.length, limited.getUsed());
+            assertEquals(0, watermark.used());
+            assertEquals(0, limited.getUsed());
             byte[] buf = new byte[64];
             stream.readFully(buf);
-            assertEquals("fill reuses the ctor array; D (lazy/per-miss alloc) is not in this change", data.length, watermark.used());
+            assertEquals(data.length, watermark.used());
+            assertEquals(data.length, limited.getUsed());
+            stream.readFully(buf);
+            assertEquals(data.length, watermark.used());
+            assertEquals(data.length, limited.getUsed());
         }
         assertEquals(0, watermark.used());
         assertEquals(0, limited.getUsed());
@@ -157,7 +162,8 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
     /**
      * A fully-read window must still {@code close()} the range GET. Abort-after-success would
-     * handshake every 4–16 MiB parquet window.
+     * handshake every 4–16 MiB parquet window. Remainder is 0, so close-time abort-on-large-leftover
+     * must also stay off.
      */
     public void testCompleteWindowFillClosesRatherThanAborts() throws IOException {
         byte[] data = new byte[ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1024];
@@ -250,7 +256,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
     }
 
     /**
-     * Window construction charges the breaker. parquet-mr may open the stream on a generic
+     * The first read charges the parent breaker. parquet-mr may open the stream on a generic
      * thread while the driver holds {@link LocalCircuitBreaker#assertBeginRunLoop()}.
      */
     public void testNewStreamFromOtherThreadChargesParentBreaker() throws Exception {
@@ -267,10 +273,15 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         try {
             byte[] data = new byte[100];
             randomBytes(data);
-            ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(createStorageObject(data), footerByteCache, local);
+            ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(
+                createRangeReadStorageObject(data),
+                footerByteCache,
+                local
+            );
             try (SeekableInputStream stream = adapter.newStream()) {
+                assertEquals(0, parent.getUsed());
+                stream.readFully(new byte[data.length]);
                 assertEquals(data.length, parent.getUsed());
-                assertNotNull(stream);
             }
             assertEquals(0, parent.getUsed());
         } finally {
@@ -284,10 +295,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         byte[] data = new byte[100];
         randomBytes(data);
         LimitedBreaker limited = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
-        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(createStorageObject(data), footerByteCache, limited);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(createRangeReadStorageObject(data), footerByteCache, limited);
         try (SeekableInputStream stream = adapter.newStream()) {
+            assertEquals(0, limited.getUsed());
+            stream.readFully(new byte[data.length]);
             assertEquals(data.length, limited.getUsed());
-            assertNotNull(stream);
         }
         assertEquals(0, limited.getUsed());
     }
@@ -303,9 +315,10 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             limited
         );
         try (SeekableInputStream stream = adapter.newStream()) {
-            assertEquals(data.length, limited.getUsed());
+            assertEquals(0, limited.getUsed());
             byte[] buf = new byte[data.length];
             stream.readFully(buf);
+            assertEquals(data.length, limited.getUsed());
             assertArrayEquals(data, buf);
         }
         assertEquals(0, limited.getUsed());
@@ -318,8 +331,181 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         LimitedBreaker limited = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
         ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(createRangeReadStorageObject(data), footerByteCache, limited);
         try (SeekableInputStream stream = adapter.newStream()) {
+            assertEquals(0, limited.getUsed());
+            assertEquals(data[0] & 0xFF, stream.read());
             assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, limited.getUsed());
         }
+        assertEquals(0, limited.getUsed());
+    }
+
+    public void testOpenSeekToEndAndCloseDoesNotCharge() throws IOException {
+        byte[] data = new byte[256];
+        randomBytes(data);
+        LimitedBreaker limited = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
+        ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(
+            createRangeReadStorageObject(data),
+            footerByteCache,
+            limited,
+            watermark
+        );
+        try (SeekableInputStream stream = adapter.newStream()) {
+            assertEquals(0, stream.getPos());
+            stream.seek(data.length);
+            assertEquals(-1, stream.read());
+            assertEquals(0, limited.getUsed());
+            assertEquals(0, watermark.used());
+        }
+        assertEquals(0, limited.getUsed());
+        assertEquals(0, watermark.used());
+    }
+
+    public void testFirstReadChargesOnceAcrossAWindowSlide() throws IOException {
+        int size = ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 123;
+        byte[] data = new byte[size];
+        randomBytes(data);
+        LimitedBreaker limited = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
+        ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(
+            createRangeReadStorageObject(data),
+            footerByteCache,
+            limited,
+            watermark
+        );
+        try (SeekableInputStream stream = adapter.newStream()) {
+            assertEquals(0, limited.getUsed());
+            assertEquals(data[0] & 0xFF, stream.read());
+            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, limited.getUsed());
+            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, watermark.used());
+            stream.readFully(new byte[ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 63]);
+            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, limited.getUsed());
+            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, watermark.used());
+        }
+        assertEquals(0, limited.getUsed());
+        assertEquals(0, watermark.used());
+    }
+
+    public void testPreWarmedHitChargesWindowWithoutARangeGet() throws IOException {
+        byte[] data = new byte[1024];
+        randomBytes(data);
+        AtomicInteger rangeReadCount = new AtomicInteger();
+        StorageObject storage = createCountingRangeReadStorageObject(data, rangeReadCount);
+        LimitedBreaker limited = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
+        ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage, footerByteCache, limited, watermark);
+
+        java.util.NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = new java.util.TreeMap<>();
+        ByteBuffer warm = ByteBuffer.wrap(data, 200, 200).slice();
+        chunks.put(200L, new ColumnChunkPrefetcher.PrefetchedChunk(200L, 200L, warm));
+        adapter.installPreWarmedChunks(chunks);
+
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.seek(200);
+            stream.readFully(new byte[200]);
+            assertEquals(0, rangeReadCount.get());
+            assertEquals(data.length, limited.getUsed());
+            assertEquals(data.length, watermark.used());
+        }
+        assertEquals(0, limited.getUsed());
+        assertEquals(0, watermark.used());
+    }
+
+    public void testTailCacheHitChargesOnTheCopy() throws IOException {
+        byte[] data = new byte[ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1024];
+        randomBytes(data);
+        AtomicInteger rangeReadCount = new AtomicInteger();
+        StorageObject storage = createCountingRangeReadStorageObject(data, rangeReadCount);
+        LimitedBreaker limited = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
+        ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage, footerByteCache, limited, watermark);
+        long tailStart = data.length - 1024;
+        byte[] tail = new byte[1024];
+
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.seek(tailStart);
+            stream.readFully(tail);
+            assertEquals(1, rangeReadCount.get());
+            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, limited.getUsed());
+            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, watermark.used());
+        }
+        assertEquals(0, limited.getUsed());
+        assertEquals(0, watermark.used());
+
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.seek(tailStart);
+            stream.readFully(new byte[1024]);
+            assertEquals(1, rangeReadCount.get());
+            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, limited.getUsed());
+            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, watermark.used());
+        }
+        assertEquals(0, limited.getUsed());
+        assertEquals(0, watermark.used());
+    }
+
+    public void testIncompleteFillKeepsTheChargeUntilClose() throws IOException {
+        byte[] data = new byte[ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1024];
+        randomBytes(data);
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject failing = incompleteWindowStorage(DrainSimulatingStorageObject.create(data, tracking));
+        LimitedBreaker limited = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
+        ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(failing, footerByteCache, limited, watermark);
+        try (SeekableInputStream stream = adapter.newStream()) {
+            expectThrows(IOException.class, () -> stream.readFully(new byte[1024]));
+            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, limited.getUsed());
+            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, watermark.used());
+        }
+        assertEquals(0, limited.getUsed());
+        assertEquals(0, watermark.used());
+    }
+
+    public void testChargeTripDoesNotTouchTheWatermark() throws IOException {
+        byte[] data = new byte[100];
+        randomBytes(data);
+        LimitedBreaker limited = new LimitedBreaker("test", ByteSizeValue.ofBytes(50));
+        ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(
+            createRangeReadStorageObject(data),
+            footerByteCache,
+            limited,
+            watermark
+        );
+        try (SeekableInputStream stream = adapter.newStream()) {
+            expectThrows(CircuitBreakingException.class, stream::read);
+            assertEquals(0, watermark.used());
+            assertEquals(0, limited.getUsed());
+        }
+        assertEquals(0, watermark.used());
+        assertEquals(0, limited.getUsed());
+    }
+
+    /**
+     * A breaker trip on a cold footer tail must happen in {@code getOrAllocateWindow} before
+     * {@code getOrLoad} / {@code newStream}. {@link #testChargeTripDoesNotTouchTheWatermark}
+     * is a whole-file fill ({@code isTailRead} false) and does not count GETs, so a GET-then-charge
+     * reorder would still throw with watermark 0.
+     */
+    public void testColdTailChargeTripDoesNotIssueARangeGet() throws IOException {
+        byte[] data = new byte[ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1024];
+        randomBytes(data);
+        AtomicInteger rangeReadCount = new AtomicInteger();
+        StorageObject storage = createCountingRangeReadStorageObject(data, rangeReadCount);
+        LimitedBreaker limited = new LimitedBreaker("test", ByteSizeValue.ofBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE - 1L));
+        ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage, footerByteCache, limited, watermark);
+        long tailStart = data.length - 1024;
+
+        try (SeekableInputStream stream = adapter.newStream()) {
+            expectThrows(CircuitBreakingException.class, () -> {
+                stream.seek(tailStart);
+                stream.readFully(new byte[1024]);
+            });
+            assertEquals(0, rangeReadCount.get());
+            assertEquals(0, watermark.used());
+            assertEquals(0, limited.getUsed());
+        }
+        assertEquals(0, rangeReadCount.get());
+        assertEquals(0, watermark.used());
         assertEquals(0, limited.getUsed());
     }
 

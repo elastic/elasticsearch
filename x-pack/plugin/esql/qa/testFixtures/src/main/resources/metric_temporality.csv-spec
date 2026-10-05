@@ -337,3 +337,31 @@ my_temporality:keyword | avg_ot:double | min_ot:double | max_ot:double | cnt_ot:
 delta                  | 523.18        | 11.0          | 998.0         | 667         | 348963.0      | 503.0..603.0
 null                   | 523.18        | 11.0          | 998.0         | 667         | 348963.0      | 503.0..603.0
 ;
+
+
+// ---------------------------------------------------------------------------------
+
+// Cumulative exponential histograms cast to tdigest cannot be merged over time. Instead of failing the query,
+// those values are ignored with a warning, so only the cumulative group yields null.
+
+tdigestSumIgnoresCumulativeTemporality
+skip_flattened_rewrite: metric_temporality
+required_capability: ts_command_v0
+required_capability: tsdb_temporality_support_v9
+required_capability: tsdb_temporality_cumulative_tdigest_warning
+
+TS metric_temporality
+ | STATS total = SUM(bytes_per_request::tdigest) BY my_temporality
+ | KEEP my_temporality, total
+ | SORT my_temporality
+;
+
+warningRegex:Line 2:21 \[bytes_per_request::tdigest\]: T-Digests with unsupported cumulative temporality were encountered and ignored\. You are probably converting data stored as exponential_histogram using ::tdigest or TO_TDIGEST\. Please use ::exponential_histogram or TO_EXPONENTIAL_HISTOGRAM instead\. See https://www\.elastic\.co/docs/reference/query-languages/esql/esql-histogram-fields\?version=.*#query-historical-data-alongside-new-data for more information\.
+
+my_temporality:keyword | total:double
+cumulative             | null
+delta                  | 348963.0
+null                   | 348963.0
+;
+
+// ---------------------------------------------------------------------------------

@@ -496,7 +496,14 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
     ) {
         final PointInTimeBuilder pointInTimeBuilder = request.pointInTimeBuilder();
         if (pointInTimeBuilder != null) {
-            return request.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry).contains(contextId);
+            try {
+                return request.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry).contains(contextId);
+            } catch (IllegalArgumentException e) {
+                // Can occur when the PIT was encoded by a coordinator running a newer version than this data node.
+                // Since the PIT cannot be decoded, membership cannot be determined, so return true as the
+                // conservative fallback.
+                return true;
+            }
         } else {
             return false;
         }
@@ -594,7 +601,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                         if (results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
                             Exception reductionFailure = response.getReductionFailure();
                             if (reductionFailure != null) {
-                                queryPhaseResultConsumer.failure.compareAndSet(null, reductionFailure);
+                                queryPhaseResultConsumer.setFailure(reductionFailure);
                             } else {
                                 queryPhaseResultConsumer.addBatchedPartialResult(response.topDocsStats, response.mergeResult);
                             }
@@ -660,7 +667,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                             // Remote failure that wasn't due to networking or cancellation means that the data node was unable to reduce
                             // its local results. Failure to reduce always fails the phase without exception so we fail the phase here.
                             if (results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
-                                queryPhaseResultConsumer.failure.compareAndSet(null, cause);
+                                queryPhaseResultConsumer.setFailure(cause);
                             }
                             onPhaseFailure(getName(), "", cause);
                         }
@@ -955,7 +962,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             out.setTransportVersion(channel.getVersion());
             boolean success = false;
             try (queryPhaseResultConsumer) {
-                Exception reductionFailure = queryPhaseResultConsumer.failure.get();
+                Exception reductionFailure = queryPhaseResultConsumer.getFailure();
                 if (reductionFailure == null) {
                     writeSuccessfulResponse(out);
                 } else {
@@ -1049,7 +1056,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             RecyclerBytesStreamOutput out = null;
             boolean success = false;
             try (queryPhaseResultConsumer) {
-                var failure = queryPhaseResultConsumer.failure.get();
+                var failure = queryPhaseResultConsumer.getFailure();
                 if (failure != null) {
                     throw failure;
                 }

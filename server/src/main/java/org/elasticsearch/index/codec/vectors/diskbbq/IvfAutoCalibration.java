@@ -188,6 +188,7 @@ public class IvfAutoCalibration {
      * Returns an {@link IvfMergeConfigResolver} that runs merge-time auto-calibration for the given cluster size using the
      * {@link IvfAutoCalibrationProfile#QUALITY} profile.
      */
+    // TODO: Remove
     public static IvfMergeConfigResolver mergeConfigResolver(int vectorsPerCluster) {
         return mergeConfigResolver(vectorsPerCluster, IvfAutoCalibrationProfile.QUALITY);
     }

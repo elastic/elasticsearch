@@ -513,6 +513,29 @@ public class NdJsonFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * A field confirmed {@code LONG} by a modest value (past int32, nowhere near 2^53) must still
+     * report the merge once a <em>later</em> {@code LONG} value crosses the precision threshold —
+     * even though {@code LONG} is already a member of {@code types} by then, so the usual
+     * "added the second of LONG/DOUBLE" check never runs for that call. Catches a regression where
+     * the precision-loss latch flipping on an already-seen type was silently dropped by the early
+     * return in {@code FieldInfo#addType}.
+     */
+    public void testLongDoubleMergeReportedWhenLaterLongCrossesThreshold() throws IOException {
+        // 3000000000 is past int32 but nowhere near 2^53: no precision lost by itself.
+        // 1152921504606846976 is 2^60, well past 2^53: the value that actually crosses the threshold.
+        byte[] bytes = "{\"a\":1.5}\n{\"a\":3000000000}\n{\"a\":1152921504606846976}\n".getBytes(StandardCharsets.UTF_8);
+        SourceMetadata metadata = new NdJsonFormatReader(null, blockFactory).metadata(new BytesObject(bytes));
+
+        assertEquals(DataType.DOUBLE, metadata.schema().get(0).dataType());
+        assertEquals(1, metadata.widenedColumns().size());
+        WidenedColumn widened = metadata.widenedColumns().get(0);
+        assertEquals(DataType.LONG, widened.fromType());
+        assertEquals(DataType.DOUBLE, widened.toType());
+        assertEquals("1152921504606846976", widened.value());
+        assertEquals(3, widened.sampleRow());
+    }
+
+    /**
      * A field mixing whole numbers and decimals entirely within the range a double represents
      * exactly (e.g. {@code 1}, {@code 2}, {@code 1.5}) must not be flagged — nothing is lost there.
      */

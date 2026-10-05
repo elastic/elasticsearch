@@ -551,30 +551,38 @@ public class NdJsonSchemaInferrer {
          * {@code updated != previous} below only ever holds on a genuinely new type: {@code previous}
          * already absorbed every type seen so far, so joining it with one of those again is a no-op.
          * <p>
-         * The long/double merge check is deliberately membership-based ({@code hadBothLongAndDouble},
-         * computed from {@link #types} before this call's type is added) rather than keyed off whether
-         * {@code updated} itself changed: a field already resolved to {@code DOUBLE} from a genuine
-         * decimal, that later sees a value that is <em>also</em> exactly long-representable, has
-         * {@code updated == previous == DOUBLE} — the join is a no-op — even though this is exactly the
-         * cross-file-equivalent case ({@code DOUBLE} unified from both {@code LONG} and {@code DOUBLE}
-         * contributors). Checking {@code previous}/{@code type} against the two rungs directly (as a
-         * transition-only check once did) misses that order. {@code fromType} reports {@code LONG} (this
-         * value's own shape) rather than {@code previous} whenever {@code previous} already equals
-         * {@code updated}, since reporting {@code fromType == toType == DOUBLE} would say nothing useful.
+         * A long/double merge is only reported when {@code sawPrecisionLosingLong} is true: a field
+         * mixing whole numbers and decimals entirely within the range a double represents exactly (e.g.
+         * {@code 1}, {@code 2}, {@code 1.5}) must not be flagged, since nothing is actually lost there.
+         * The merge usually surfaces on the call that adds the second of {@code LONG}/{@code DOUBLE} to
+         * {@link #types} — adding any other type leaves their joint membership unchanged, so
+         * {@code type == LONG || type == DOUBLE} is equivalent to a before/after membership comparison,
+         * and cheaper: it folds into the {@code contains} calls already needed below instead of taking a
+         * separate pre-add snapshot on every call, including the repeat-value common case that returns
+         * before reaching here. {@code fromType} reports {@code LONG} (this value's own shape) rather
+         * than {@code previous} whenever {@code previous} already equals {@code updated}, since reporting
+         * {@code fromType == toType == DOUBLE} would say nothing useful.
          * <p>
-         * The "became both present" transition can only happen on the call that adds the second of
-         * {@code LONG}/{@code DOUBLE} to {@link #types} — adding any other type leaves their joint
-         * membership unchanged, so {@code type == LONG || type == DOUBLE} is equivalent to the original
-         * before/after membership comparison, and cheaper: it folds into the {@code contains} calls
-         * already needed below instead of taking a separate pre-add snapshot on every call, including
-         * the repeat-value common case that returns before reaching here.
+         * Membership alone isn't the whole story, though: {@code sawPrecisionLosingLong} can flip on a
+         * call whose type is already a member — a second, larger {@code LONG} crossing 2^53 after a
+         * smaller one already settled the field on {@code LONG} — and {@code types.add} returning
+         * {@code false} for that call would otherwise hide the merge behind the early return below.
+         * Handled there explicitly.
          */
         void addType(DataType type, int row, String value) {
             fieldsSeen.set(idx);
+            boolean precisionLatchJustSet = false;
             if (type == DataType.LONG && sawPrecisionLosingLong == false) {
                 sawPrecisionLosingLong = isPrecisionLosingLong(value);
+                precisionLatchJustSet = sawPrecisionLosingLong;
             }
             if (types.add(type) == false) {
+                // type was already a member, so the "became both present" check below never runs for
+                // this call — but a value crossing the precision threshold can arrive on exactly such a
+                // call (see the javadoc above), and that merge must still be reported once, here.
+                if (precisionLatchJustSet && types.contains(DataType.DOUBLE)) {
+                    widenings.add(new Widening(fullName(), DataType.LONG, DataType.DOUBLE, value, row));
+                }
                 return;
             }
             DataType previous = runningType;

@@ -43,7 +43,7 @@ public class QuerySamplingServiceTests extends ESTestCase {
 
     public void testNothingHappenedYet() {
         QuerySamplingService service = service(filter(1.0), handoff(Runnable::run, new Random(0L)));
-        assertThat(service.stats(), equalTo(new QuerySamplingStats(0, 0, 0, 0, 0, 0, 0, 0)));
+        assertThat(service.stats(), equalTo(new QuerySamplingStats(0, 0, 0, 0, 0, 0, 0, 0, 0)));
     }
 
     public void testGateCountersOnlyCountEligibleKnnSearches() {

@@ -66,6 +66,13 @@ public final class Tier1Buffer implements SampleListener {
         return queries.values().stream().filter(query -> query.groundTruth() == null).limit(limit).toList();
     }
 
+    /**
+     * Number of buffered queries whose ground truth has been computed.
+     */
+    public long withGroundTruth() {
+        return queries.values().stream().filter(query -> query.groundTruth() != null).count();
+    }
+
     public int size() {
         return queries.size();
     }

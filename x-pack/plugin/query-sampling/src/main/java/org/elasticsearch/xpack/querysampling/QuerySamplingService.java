@@ -43,6 +43,7 @@ public class QuerySamplingService {
             tracker.untracked(),
             buffered + rejected,
             buffered,
+            buffer.withGroundTruth(),
             rejected
         );
     }

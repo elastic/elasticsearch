@@ -26,6 +26,7 @@ import java.io.IOException;
  * @param untrackedArrivals  arrivals of queries that could not be counted because the counter was full
  * @param picked             distinct queries picked for the sample
  * @param buffered           picked queries currently held in Tier 1
+ * @param withGroundTruth    of those, queries whose ground truth has been computed
  * @param rejected           picked queries turned away because Tier 1 was full
  */
 public record QuerySamplingStats(
@@ -36,11 +37,13 @@ public record QuerySamplingStats(
     long untrackedArrivals,
     long picked,
     long buffered,
+    long withGroundTruth,
     long rejected
 ) implements Writeable, ToXContentFragment {
 
     public QuerySamplingStats(StreamInput in) throws IOException {
         this(
+            in.readVLong(),
             in.readVLong(),
             in.readVLong(),
             in.readVLong(),
@@ -61,6 +64,7 @@ public record QuerySamplingStats(
         out.writeVLong(untrackedArrivals);
         out.writeVLong(picked);
         out.writeVLong(buffered);
+        out.writeVLong(withGroundTruth);
         out.writeVLong(rejected);
     }
 
@@ -73,6 +77,7 @@ public record QuerySamplingStats(
         builder.field("untracked_arrivals", untrackedArrivals);
         builder.field("picked", picked);
         builder.field("buffered", buffered);
+        builder.field("with_ground_truth", withGroundTruth);
         builder.field("rejected", rejected);
         return builder;
     }

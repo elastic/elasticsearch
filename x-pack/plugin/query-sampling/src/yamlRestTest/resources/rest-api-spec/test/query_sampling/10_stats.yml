@@ -15,6 +15,7 @@
   - match: { nodes.$node_id.distinct_queries: 0 }
   - match: { nodes.$node_id.picked: 0 }
   - match: { nodes.$node_id.buffered: 0 }
+  - match: { nodes.$node_id.with_ground_truth: 0 }
 
   - do:
       indices.create:

@@ -47,6 +47,18 @@ public class Tier1BufferTests extends ESTestCase {
         assertThat(buffer.pendingGroundTruth(10), equalTo(List.of(pending)));
     }
 
+    public void testCountsTheQueriesThatHaveGroundTruth() {
+        Tier1Buffer buffer = new Tier1Buffer(10);
+        SampledQuery done = sampled(1);
+        buffer.add(done);
+        buffer.add(sampled(2));
+        assertThat(buffer.withGroundTruth(), equalTo(0L));
+
+        done.groundTruth(new GroundTruth(List.of()));
+
+        assertThat(buffer.withGroundTruth(), equalTo(1L));
+    }
+
     public void testPendingGroundTruthIsLimited() {
         Tier1Buffer buffer = new Tier1Buffer(10);
         for (int i = 0; i < 5; i++) {

@@ -58,12 +58,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     private long escapeCursorAddress = -1;
     private long escapeCursorRank;
 
-    /** A page's view of the dictionary: which ordinals it holds and where each one's value landed. */
-    private int[] touched = new int[0];
-    private int[] slotByOrdinal = new int[0];
-    private int[] stampByOrdinal = new int[0];
-    private int generation;
-    private boolean directSlots;
+    private final PageTerms pageTerms = new PageTerms();
 
     DictionaryStringColumnReader(StringColumnMetadata.Dictionary column, ColumnInputs inputs) throws IOException {
         // The ordinals are what this column addresses in blocks; the dictionary keeps one term to a block.
@@ -540,8 +535,8 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
             }
         }
 
-        // The ordinals this page holds, each once and in order, so a slot can be found by bisecting them.
-        final int distinct = distinctOrdinals(values, dictionarySize);
+        // The terms this page holds, each once and in term order: a term's place among them is its slot.
+        final int distinct = pageTerms.collect(values);
 
         // The page takes a slot for each of those and at least one more if anything escaped. Where that alone is
         // too many for ordinals to be worth it, the page is going to be handed over as values whatever the escaped
@@ -568,14 +563,14 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         pageBytesLength = 0;
         int slot = 0;
         for (; slot < distinct; slot++) {
-            termAt(touched[slot], scratch);
+            termAt(pageTerms.ordinalAt(slot), scratch);
             appendToPage(slot, scratch);
         }
         startPageSlots(escapedInPage);
         for (int i = 0; i < values; i++) {
             final int ordinal = pageOrdinals[i];
             if (ordinal < escapeOrdinal) {
-                pageOrdinals[i] = slotOf(ordinal, distinct);
+                pageOrdinals[i] = pageTerms.slotOf(ordinal);
             } else {
                 // Nothing names an escaped value but its bytes, so two documents holding the same ones are
                 // found to share a slot by those bytes. They cannot be found among the terms: a value
@@ -603,71 +598,127 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     }
 
     /**
-     * The distinct dictionary ordinals the page holds, ascending, left in {@link #touched}, returning how
-     * many there are. A dictionary no larger than the page is indexed directly and stamped with the page it
-     * was written for, so it never has to be cleared; a larger one is not indexed at all and the page's own
-     * ordinals are sorted instead. Either way nothing here grows with the dictionary beyond the page.
-     *
-     * <p>{@link #touched} holds column ordinals, which is what {@link #slotOf} bisects and what reads a term.
-     * The direct index is the one thing in term-index space, so it stays the size of the dictionary rather
-     * than of the ordinal space around it.
+     * The terms a page holds and the slot the page gives each, found by the term's ordinal. The slots follow term
+     * order. A dictionary no larger than the page is indexed directly and a larger one is hashed, so neither grows
+     * past the page, and both are stamped with the page they were filled for rather than cleared between pages.
      */
-    private int distinctOrdinals(int count, int dictionarySize) {
-        if (touched.length < count) {
-            charge((long) (count - touched.length) * Integer.BYTES);
-            touched = new int[count];
-        }
-        int distinct = 0;
-        if (dictionarySize <= count) {
-            if (slotByOrdinal.length < dictionarySize) {
-                charge(2L * (dictionarySize - slotByOrdinal.length) * Integer.BYTES);
-                slotByOrdinal = new int[dictionarySize];
-                stampByOrdinal = new int[dictionarySize];
-                generation = 0;
+    private final class PageTerms {
+        /** The page's distinct term ordinals, ascending: the ordinal at an index is the term in that slot. */
+        private int[] ordinals = new int[0];
+
+        /** Indexed by term, for a dictionary no larger than the page. */
+        private int[] slotByTerm = new int[0];
+        private int[] stampByTerm = new int[0];
+
+        /** Open addressing over a power of two entries at most half full, for a larger dictionary. */
+        private int[] hashedOrdinal = new int[0];
+        private int[] hashedSlot = new int[0];
+        private int[] hashedStamp = new int[0];
+        private int hashShift;
+
+        private int generation;
+        private boolean direct;
+
+        /** Finds the distinct terms among {@code pageOrdinals[0..count)}, gives each its slot, and answers how many. */
+        int collect(int count) {
+            if (ordinals.length < count) {
+                charge((long) (count - ordinals.length) * Integer.BYTES);
+                ordinals = new int[count];
+            }
+            direct = dictionarySize <= count;
+            if (direct) {
+                growDirect();
+            } else {
+                growHashed(count);
             }
             if (++generation == Integer.MAX_VALUE) {
-                Arrays.fill(stampByOrdinal, 0);
+                Arrays.fill(stampByTerm, 0);
+                Arrays.fill(hashedStamp, 0);
                 generation = 1;
             }
+            int distinct = 0;
             for (int i = 0; i < count; i++) {
                 final int ordinal = pageOrdinals[i];
-                if (ordinal >= escapeOrdinal) {
-                    continue;
-                }
-                final int term = ordinal - StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
-                if (stampByOrdinal[term] != generation) {
-                    stampByOrdinal[term] = generation;
-                    touched[distinct++] = ordinal;
+                if (ordinal < escapeOrdinal && mark(ordinal)) {
+                    ordinals[distinct++] = ordinal;
                 }
             }
-            Arrays.sort(touched, 0, distinct);
-            for (int i = 0; i < distinct; i++) {
-                slotByOrdinal[touched[i] - StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL] = i;
+            Arrays.sort(ordinals, 0, distinct);
+            for (int slot = 0; slot < distinct; slot++) {
+                place(ordinals[slot], slot);
             }
-            directSlots = true;
             return distinct;
         }
-        for (int i = 0; i < count; i++) {
-            if (pageOrdinals[i] < escapeOrdinal) {
-                touched[distinct++] = pageOrdinals[i];
-            }
-        }
-        Arrays.sort(touched, 0, distinct);
-        int unique = 0;
-        for (int i = 0; i < distinct; i++) {
-            if (i == 0 || touched[i] != touched[i - 1]) {
-                touched[unique++] = touched[i];
-            }
-        }
-        directSlots = false;
-        return unique;
-    }
 
-    /** Where the page put the value for {@code ordinal}, which {@link #distinctOrdinals} accounted for. */
-    private int slotOf(int ordinal, int distinct) {
-        return directSlots
-            ? slotByOrdinal[ordinal - StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL]
-            : Arrays.binarySearch(touched, 0, distinct, ordinal);
+        int ordinalAt(int slot) {
+            return ordinals[slot];
+        }
+
+        /** The slot of a term {@link #collect} found in the page. */
+        int slotOf(int ordinal) {
+            return direct ? slotByTerm[termOf(ordinal)] : hashedSlot[find(ordinal)];
+        }
+
+        /** Marks a term as held by the page and answers whether this is the first time. */
+        private boolean mark(int ordinal) {
+            if (direct) {
+                final int term = termOf(ordinal);
+                if (stampByTerm[term] == generation) {
+                    return false;
+                }
+                stampByTerm[term] = generation;
+                return true;
+            }
+            final int at = find(ordinal);
+            if (hashedStamp[at] == generation) {
+                return false;
+            }
+            hashedStamp[at] = generation;
+            hashedOrdinal[at] = ordinal;
+            return true;
+        }
+
+        private void place(int ordinal, int slot) {
+            if (direct) {
+                slotByTerm[termOf(ordinal)] = slot;
+            } else {
+                hashedSlot[find(ordinal)] = slot;
+            }
+        }
+
+        /** The entry holding {@code ordinal} for this page, or the free one it would take. */
+        private int find(int ordinal) {
+            final int mask = hashedOrdinal.length - 1;
+            int at = (ordinal * 0x9E3779B9) >>> hashShift;
+            while (hashedStamp[at] == generation && hashedOrdinal[at] != ordinal) {
+                at = (at + 1) & mask;
+            }
+            return at;
+        }
+
+        private int termOf(int ordinal) {
+            return ordinal - StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
+        }
+
+        private void growDirect() {
+            if (slotByTerm.length < dictionarySize) {
+                charge(2L * (dictionarySize - slotByTerm.length) * Integer.BYTES);
+                slotByTerm = new int[dictionarySize];
+                stampByTerm = new int[dictionarySize];
+            }
+        }
+
+        private void growHashed(int count) {
+            // At least two entries a value, so a probe is short.
+            final int capacity = Math.max(16, Integer.highestOneBit(count) << 2);
+            if (hashedOrdinal.length < capacity) {
+                charge(3L * (capacity - hashedOrdinal.length) * Integer.BYTES);
+                hashedOrdinal = new int[capacity];
+                hashedSlot = new int[capacity];
+                hashedStamp = new int[capacity];
+                hashShift = Integer.SIZE - Integer.numberOfTrailingZeros(capacity);
+            }
+        }
     }
 
     /**

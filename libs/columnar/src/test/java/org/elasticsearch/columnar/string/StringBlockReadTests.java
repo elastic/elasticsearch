@@ -702,6 +702,41 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
     }
 
     /**
+     * Pages smaller than the dictionary, which find a term's slot by hashing its ordinal rather than by indexing the
+     * dictionary. Each term sits in a short run, so a page repeats enough to come back as ordinals.
+     */
+    public void testPageSmallerThanTheDictionary() throws IOException {
+        final int terms = between(600, 3000);
+        final BytesRef[] docValues = new BytesRef[terms * between(4, 8)];
+        final int run = between(2, 4);
+        for (int d = 0; d < docValues.length; d++) {
+            // Out of term order from one run to the next, so slots are not handed out in the order terms arrive.
+            docValues[d] = new BytesRef("term-" + ((d / run) * 7919L % terms));
+        }
+        withColumn(
+            singleValued(docValues),
+            randomValidBlockSize(),
+            randomChunkCodec(),
+            randomTargetChunkBytes(),
+            ROOMY,
+            (metadata, reader) -> {
+                assertTrue("the terms earn a dictionary", reader.hasDictionary());
+                final int[] docs = new int[docValues.length];
+                for (int d = 0; d < docs.length; d++) {
+                    docs[d] = d;
+                }
+                for (int page : new int[] { 2, 16, 100, between(101, 500) }) {
+                    assertTrue("the dictionary is larger than the page", reader.dictionarySize() > page);
+                    for (int from = 0; from < docs.length; from += page) {
+                        final int count = Math.min(page, docs.length - from);
+                        assertPage(reader, docValues, docs, from, count, count >= 2 * run ? Shape.ORDINALS : Shape.ANY);
+                    }
+                }
+            }
+        );
+    }
+
+    /**
      * A column whose values do not repeat, which its writer found, hands a page over a value at a time to a sink that takes them so, and
      * gathers nothing for it. Some documents hold no value, which the counts beside the values say.
      */

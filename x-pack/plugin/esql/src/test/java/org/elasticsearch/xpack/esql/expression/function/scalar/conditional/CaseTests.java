@@ -797,6 +797,10 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
     }
 
     public void testPartialFold() {
+        if (testCase.expectedType() == DataType.NULL) {
+            // The all-null CASE is never partially folded: FoldNull replaces it first.
+            return;
+        }
         if (extra().foldable()) {
             // Nothing to do
             return;

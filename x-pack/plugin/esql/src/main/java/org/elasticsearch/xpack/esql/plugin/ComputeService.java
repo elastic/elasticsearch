@@ -337,6 +337,11 @@ public class ComputeService {
     /**
      * Starts Phase-2 split discovery without joining. Completes {@code listener} with the rewritten plan.
      * The inbound thread returns immediately; object-store IO runs on {@code esql_external_io}.
+     * <p>
+     * Production {@code FROM | LIMIT} is wrapped in {@code FragmentExec}, so this walk sees no
+     * {@link org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec} and is a no-op for demand.
+     * The row limit reaches discovery on the fragment path via
+     * {@link org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase#guardedRelations}.
      */
     void startSplitDiscovery(
         PhysicalPlan plan,
@@ -366,6 +371,7 @@ public class ComputeService {
                     List.of(),
                     FormatReader.NO_LIMIT,
                     discoveryMemory(run),
+                    configuration.pragmas().taskConcurrency(),
                     ioExecutor,
                     ActionListener.wrap(result -> {
                         try {
@@ -391,11 +397,6 @@ public class ComputeService {
     }
 
     /**
-     * Adds the post-prune external scan accounting to the query profile. The counts are captured
-     * before split coalescing, so {@code splits_scanned} reflects the pre-coalesce discovered split
-     * count rather than the smaller post-coalesce count.
-     */
-    /**
      * Raises what split discovery found onto the response.
      * <p>
      * A partition value the dataset's own type cannot hold reads null in the rows a query gets back, and the node
@@ -409,6 +410,11 @@ public class ComputeService {
         }
     }
 
+    /**
+     * Adds the post-prune external scan accounting to the query profile. The counts are captured
+     * before split coalescing, so {@code splits_scanned} reflects the pre-coalesce discovered split
+     * count rather than the smaller post-coalesce count.
+     */
     private static void recordExternalScanStats(EsqlExecutionInfo execInfo, SplitDiscoveryPhase.Result result) {
         raiseDiscoveryWarnings(result);
         if (execInfo != null && result.splitsScanned() > 0) {
@@ -416,6 +422,9 @@ public class ComputeService {
         }
         if (execInfo != null && result.cpuNanos() > 0) {
             execInfo.queryProfile().addSplitDiscoveryCpuNanos(result.cpuNanos());
+        }
+        if (execInfo != null && result.splitDiscoveryProbes() > 0) {
+            execInfo.queryProfile().addSplitDiscoveryProbes(result.splitDiscoveryProbes());
         }
         if (execInfo != null) {
             execInfo.queryProfile().foldPlanningIo(execInfo.externalPlanning());
@@ -651,6 +660,7 @@ public class ComputeService {
             execInfo,
             isCancelled,
             run,
+            configuration.pragmas().taskConcurrency(),
             ActionListener.wrap(rewritten -> {
                 if (SplitCoalescer.shouldCoalesce(splits.size())) {
                     List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits, externalCoalesceFloor(configuration));
@@ -849,6 +859,7 @@ public class ComputeService {
         EsqlExecutionInfo execInfo,
         BooleanSupplier isCancelled,
         ExternalPlanningReservation.Run run,
+        int taskConcurrency,
         ActionListener<PhysicalPlan> listener
     ) {
         if (operatorFactoryRegistry == null) {
@@ -880,6 +891,7 @@ public class ComputeService {
             execInfo,
             isCancelled,
             run,
+            taskConcurrency,
             ioExecutor,
             ActionListener.wrap(ignored -> listener.onResponse(rewriteSettledFragments(plan, settled)), listener::onFailure)
         );
@@ -894,6 +906,7 @@ public class ComputeService {
         EsqlExecutionInfo execInfo,
         BooleanSupplier isCancelled,
         ExternalPlanningReservation.Run run,
+        int taskConcurrency,
         Executor ioExecutor,
         ActionListener<Void> listener
     ) {
@@ -917,6 +930,7 @@ public class ComputeService {
                 work.guarded().filters(),
                 work.guarded().rowLimit(),
                 discoveryMemory(run),
+                taskConcurrency,
                 ioExecutor,
                 ActionListener.wrap(result -> {
                     try {
@@ -939,6 +953,7 @@ public class ComputeService {
                         execInfo,
                         isCancelled,
                         run,
+                        taskConcurrency,
                         ioExecutor,
                         listener
                     );

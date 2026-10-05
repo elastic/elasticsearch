@@ -285,12 +285,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.RestartIT
   method: testRestart {targetCluster=FOLLOWER}
   issue: https://github.com/elastic/elasticsearch/issues/155609
-- class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
-  method: testLookupJoinSame {p0=null}
-  issue: https://github.com/elastic/elasticsearch/issues/155665
-- class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
-  method: testOutputSupportedTypes {p0=LT}
-  issue: https://github.com/elastic/elasticsearch/issues/155694
 - class: org.elasticsearch.search.vectors.IVFKnnByteVectorQueryTests
   method: testScoreMIP
   issue: https://github.com/elastic/elasticsearch/issues/155783
@@ -497,9 +491,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/158881
 - class: org.elasticsearch.xpack.esql.datasource.s3.S3StorageObjectAsyncTests
   issue: https://github.com/elastic/elasticsearch/issues/159417
-- class: org.elasticsearch.index.store.FieldInfoCachingDirectoryTests
-  method: testWeakReferenceReclaimsCanonical
-  issue: https://github.com/elastic/elasticsearch/issues/159154
 - class: org.elasticsearch.xpack.security.apikey.ApiKeyRestIT
   method: testGrantTargetCanUpdateApiKey
   issue: https://github.com/elastic/elasticsearch/issues/159567
@@ -589,8 +580,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT
   method: testStopNestedSubquery
   issue: https://github.com/elastic/elasticsearch/issues/160115
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToExponentialHistogramTests
-  issue: https://github.com/elastic/elasticsearch/issues/160168
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testDeleteAndRecreateIndexDuringReshard
   issue: https://github.com/elastic/elasticsearch/issues/160169
@@ -684,3 +673,15 @@ tests:
 - class: org.elasticsearch.indices.recovery.IndexRecoveryIT
   method: testCancelNewShardRecoveryAndUsesExistingShardCopy
   issue: https://github.com/elastic/elasticsearch/issues/160953
+- class: org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT
+  method: testGetAsyncWhileQueryTaskIsBeingCancelled
+  issue: https://github.com/elastic/elasticsearch/issues/160983
+- class: org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT
+  method: testDeleteNestedSubquery
+  issue: https://github.com/elastic/elasticsearch/issues/160984
+- class: org.elasticsearch.xpack.transform.integration.RestoringShardTransformIT
+  method: testPutTransformValidationWhileRestoringParks
+  issue: https://github.com/elastic/elasticsearch/issues/160991
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
+  method: testStatsBlowupNdjson
+  issue: https://github.com/elastic/elasticsearch/issues/161026

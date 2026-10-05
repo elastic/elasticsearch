@@ -178,7 +178,8 @@ public final class SplitDiscoveryPhase {
         long cpuNanos,
         // What discovery has to tell the query's author, gathered from every relation it resolved. The caller
         // raises these on the request's own thread context; nothing here can.
-        List<String> warnings
+        List<String> warnings,
+        int splitDiscoveryProbes
     ) {
         /** Backwards-compatible constructor without cpuNanos (defaults to 0). */
         public Result(PhysicalPlan plan, int filesScanned, int splitsScanned, long bytesScanned) {
@@ -186,7 +187,11 @@ public final class SplitDiscoveryPhase {
         }
 
         public Result(PhysicalPlan plan, int filesScanned, int splitsScanned, long bytesScanned, long cpuNanos) {
-            this(plan, filesScanned, splitsScanned, bytesScanned, cpuNanos, List.of());
+            this(plan, filesScanned, splitsScanned, bytesScanned, cpuNanos, List.of(), 0);
+        }
+
+        public Result(PhysicalPlan plan, int filesScanned, int splitsScanned, long bytesScanned, long cpuNanos, List<String> warnings) {
+            this(plan, filesScanned, splitsScanned, bytesScanned, cpuNanos, warnings, 0);
         }
     }
 
@@ -197,6 +202,7 @@ public final class SplitDiscoveryPhase {
         private int splitsScanned;
         private long bytesScanned;
         private long cpuNanos;
+        private int splitDiscoveryProbes;
     }
 
     public static PhysicalPlan resolveExternalSplits(PhysicalPlan plan, Map<String, ExternalSourceFactory> sourceFactories) {
@@ -290,8 +296,31 @@ public final class SplitDiscoveryPhase {
         int seedRowLimit,
         PlanningMemory listingMemory
     ) {
+        return resolveExternalSplitsWithStats(
+            plan,
+            sourceFactories,
+            maxRecordBytes,
+            isCancelled,
+            seedFilters,
+            seedRowLimit,
+            listingMemory,
+            0
+        );
+    }
+
+    /** As above, carrying {@code task_concurrency} so discovery sizes LIMIT cuts to the planner's drivers. */
+    public static Result resolveExternalSplitsWithStats(
+        PhysicalPlan plan,
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled,
+        List<Expression> seedFilters,
+        int seedRowLimit,
+        PlanningMemory listingMemory,
+        int taskConcurrency
+    ) {
         ScanStats stats = new ScanStats();
-        Traversal traversal = new Traversal(sourceFactories, maxRecordBytes, stats, isCancelled, listingMemory);
+        Traversal traversal = new Traversal(sourceFactories, maxRecordBytes, stats, isCancelled, listingMemory, taskConcurrency);
         ExternalPlanningIo planningIo = ExternalPlanningIo.current();
         PhysicalPlan resolved;
         try (Releasable ignored = ExternalPlanningIo.activate(planningIo)) {
@@ -303,7 +332,8 @@ public final class SplitDiscoveryPhase {
             stats.splitsScanned,
             stats.bytesScanned,
             stats.cpuNanos,
-            List.copyOf(stats.warnings)
+            List.copyOf(stats.warnings),
+            stats.splitDiscoveryProbes
         );
     }
 
@@ -346,6 +376,33 @@ public final class SplitDiscoveryPhase {
         Executor executor,
         ActionListener<Result> listener
     ) {
+        resolveExternalSplitsWithStatsAsync(
+            plan,
+            sourceFactories,
+            maxRecordBytes,
+            isCancelled,
+            seedFilters,
+            seedRowLimit,
+            listingMemory,
+            0,
+            executor,
+            listener
+        );
+    }
+
+    /** As above, carrying {@code task_concurrency} so discovery sizes LIMIT cuts to the planner's drivers. */
+    public static void resolveExternalSplitsWithStatsAsync(
+        PhysicalPlan plan,
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled,
+        List<Expression> seedFilters,
+        int seedRowLimit,
+        PlanningMemory listingMemory,
+        int taskConcurrency,
+        Executor executor,
+        ActionListener<Result> listener
+    ) {
         ActionListener.run(listener, l -> {
             ScanStats stats = new ScanStats();
             ExternalPlanningIo planningIo = ExternalPlanningIo.current();
@@ -353,7 +410,7 @@ public final class SplitDiscoveryPhase {
                 plan,
                 seedFilters,
                 seedRowLimit,
-                new Traversal(sourceFactories, maxRecordBytes, stats, isCancelled, listingMemory),
+                new Traversal(sourceFactories, maxRecordBytes, stats, isCancelled, listingMemory, taskConcurrency),
                 wrapPlanningIo(executor, planningIo),
                 l.map(
                     resolved -> new Result(
@@ -362,7 +419,8 @@ public final class SplitDiscoveryPhase {
                         stats.splitsScanned,
                         stats.bytesScanned,
                         stats.cpuNanos,
-                        List.copyOf(stats.warnings)
+                        List.copyOf(stats.warnings),
+                        stats.splitDiscoveryProbes
                     )
                 )
             );
@@ -395,7 +453,8 @@ public final class SplitDiscoveryPhase {
         int maxRecordBytes,
         ScanStats stats,
         BooleanSupplier isCancelled,
-        PlanningMemory listingMemory
+        PlanningMemory listingMemory,
+        int taskConcurrency
     ) {}
 
     private static void resolveRecursiveAsync(
@@ -568,7 +627,8 @@ public final class SplitDiscoveryPhase {
             metadataColumnNames,
             PartitionValueLayout.retainedKeys(querySchema, partitionInfo, metadataColumnNames),
             rowLimit,
-            traversal.listingMemory()
+            traversal.listingMemory(),
+            traversal.taskConcurrency()
         );
 
         SplitDiscoveryResult result;
@@ -622,7 +682,8 @@ public final class SplitDiscoveryPhase {
             metadataColumnNames,
             PartitionValueLayout.retainedKeys(querySchema, partitionInfo, metadataColumnNames),
             rowLimit,
-            traversal.listingMemory()
+            traversal.listingMemory(),
+            traversal.taskConcurrency()
         );
 
         splitProvider.discoverSplitsAsync(context, executor, ActionListener.wrap(result -> {
@@ -726,6 +787,7 @@ public final class SplitDiscoveryPhase {
         stats.filesScanned += result.filesScanned();
         stats.splitsScanned += splits.size();
         stats.cpuNanos += result.cpuNanos();
+        stats.splitDiscoveryProbes += result.splitDiscoveryProbes();
         for (ExternalSplit split : splits) {
             long sizeInBytes = split.estimatedSizeInBytes();
             if (sizeInBytes > 0) {

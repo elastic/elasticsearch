@@ -36,6 +36,25 @@
       "enabled": true
     },
     {
+      "description": "Explicitly enable selected Gradle plugin updates managed by the built-in Gradle manager on main only, with automatic backports to all active release branches.",
+      "matchManagers": [
+        "gradle"
+      ],
+      "matchBaseBranches": [
+        "main"
+      ],
+      "matchPackageNames": [
+        "/^com\\.google\\.protobuf:(com\\.google\\.protobuf\\.gradle\\.plugin|protobuf-gradle-plugin)$/",
+        "/^com\\.diffplug\\.spotless:(com\\.diffplug\\.spotless\\.gradle\\.plugin|spotless-plugin-gradle)$/"
+      ],
+      "enabled": true,
+      "automerge": false,
+      "labels": [
+        ":Delivery/Build",
+        ">non-issue"
+      ]
+    },
+    {
       "description": "Gradle wrapper: one rolling PR per release train (e.g. 9.5.x patch lane and 9.6.x minor/RC lane). Only the root gradle/wrapper/gradle-wrapper.properties is managed via managerFilePatterns; build-tools-internal and plugins/examples wrappers are kept in sync manually via ./gradlew wrapper. respectLatest: false lets the same PR keep rolling forward through Gradle RCs/milestones until GA.",
       "matchManagers": [
         "gradle-wrapper"

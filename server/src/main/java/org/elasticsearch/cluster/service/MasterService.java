@@ -54,7 +54,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -266,12 +265,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
     private void registerLongGaugeMetric(String name, String unit, String description, LongSupplier valueSupplier) {
         @SuppressWarnings("resource")
-        final var longGauge = meterRegistry.registerLongAsyncGauge(
-            name,
-            description,
-            unit,
-            () -> new LongWithAttributes(valueSupplier.getAsLong())
-        );
+        final var longGauge = meterRegistry.registerLongAsyncGauge(name, description, unit, valueSupplier);
         metricsToUnregister.add(() -> {
             try {
                 longGauge.close();

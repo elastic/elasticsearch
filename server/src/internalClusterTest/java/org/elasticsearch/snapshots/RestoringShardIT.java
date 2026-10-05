@@ -87,7 +87,7 @@ import static org.hamcrest.Matchers.instanceOf;
  * directly via {@code TransportSingleShardAction}, hit the read-allowed-states check, and return
  * HTTP 404 ({@link IllegalIndexShardStateException}) wrapped in an
  * {@code ElasticsearchException}. Search paths ({@code _search}, {@code _msearch}) are different
- * again: {@code SearchReadyGate} parks the request rather than failing immediately.str
+ * again: {@code SearchReadyGate} parks the request rather than failing immediately.
  *
  * <p>Setup: a single-shard, no-replica index is deleted before restore so that chunk-blob reads
  * are required, which is what {@code blockAllDataNodes} actually blocks.

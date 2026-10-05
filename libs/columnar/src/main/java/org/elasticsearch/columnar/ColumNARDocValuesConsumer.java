@@ -84,7 +84,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
 
     private boolean closed = false;
 
-    private record FieldEntry(int fieldNumber, byte fieldTypeId, ColumnMetadata metadata) {}
+    private record FieldEntry(int fieldNumber, ColumnarFieldType type, boolean singleValued, ColumnMetadata metadata) {}
 
     ColumNARDocValuesConsumer(
         SegmentWriteState state,
@@ -143,13 +143,15 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 () -> ColumnarNumericBinaryDocValues.decodePayloads(valuesProducer.getBinary(field))
             );
             case STRING -> {
-                final boolean singleValued = ColumNARDocValuesFormat.isSingleValued(field);
+                final StringColumnOptions options = stringSelector.select(field.name, type);
                 writeStringColumn(
                     field,
                     type,
-                    singleValued
+                    options,
+                    options.singleValued()
                         ? () -> ColumnarStringBinaryDocValues.decodeRawValues(valuesProducer.getBinary(field))
-                        : () -> ColumnarStringBinaryDocValues.decodePayloads(valuesProducer.getBinary(field))
+                        : () -> ColumnarStringBinaryDocValues.decodePayloads(valuesProducer.getBinary(field)),
+                    null
                 );
             }
         }
@@ -169,8 +171,13 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             case STRING -> {
                 final StringColumnOptions options = stringSelector.select(field.name, type);
                 final Vocabulary.Terms vocabulary = mergedVocabulary(field, mergeState, options.dictionary(), options.summary()).terms();
-                final boolean singleValued = ColumNARDocValuesFormat.isSingleValued(field);
-                writeStringColumn(field, type, () -> stringMergeCursor(field, mergeState, vocabulary, singleValued), vocabulary);
+                writeStringColumn(
+                    field,
+                    type,
+                    options,
+                    () -> stringMergeCursor(field, mergeState, vocabulary, options.singleValued()),
+                    vocabulary
+                );
             }
         }
     }
@@ -661,7 +668,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             outputs,
             skipIndex
         );
-        fields.add(new FieldEntry(field.number, type.id(), metadata));
+        fields.add(new FieldEntry(field.number, type, false, metadata));
     }
 
     /**
@@ -673,12 +680,13 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
      * them instead and the pass is skipped. The writer's own asserts still check the totals against what it
      * is handed, so a cursor that mis-reports them does not go unnoticed.
      */
-    private void writeStringColumn(FieldInfo field, ColumnarFieldType type, IOSupplier<StringColumnValues> cursors) throws IOException {
-        writeStringColumn(field, type, cursors, null);
-    }
-
-    private void writeStringColumn(FieldInfo field, ColumnarFieldType type, IOSupplier<StringColumnValues> cursors, Vocabulary.Terms known)
-        throws IOException {
+    private void writeStringColumn(
+        FieldInfo field,
+        ColumnarFieldType type,
+        StringColumnOptions options,
+        IOSupplier<StringColumnValues> cursors,
+        Vocabulary.Terms known
+    ) throws IOException {
         StringColumnValues counter = cursors.get();
         StringColumnValues.Totals totals = counter.totals();
         if (totals == null) {
@@ -708,9 +716,8 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             totals = new StringColumnValues.Totals(numDocsWithField, numValues, numNullSlots, minLength, maxLength, oneSlotADocument);
         }
 
-        final StringColumnOptions options = stringSelector.select(field.name, type);
         StringColumnMetadata metadata = StringColumnWriter.write(maxDoc, totals, cursors, options, known, directory, context, outputs);
-        fields.add(new FieldEntry(field.number, type.id(), metadata));
+        fields.add(new FieldEntry(field.number, type, options.singleValued(), metadata));
     }
 
     @Override
@@ -751,7 +758,10 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         try {
             for (FieldEntry entry : fields) {
                 meta.writeInt(entry.fieldNumber());
-                meta.writeByte(entry.fieldTypeId());
+                meta.writeByte(entry.type().id());
+                if (entry.type() == ColumnarFieldType.STRING) {
+                    meta.writeByte(entry.singleValued() ? ColumNARDocValuesFormat.PLAIN : ColumNARDocValuesFormat.COLUMNAR_PAYLOAD);
+                }
                 entry.metadata().writeTo(meta);
             }
             meta.writeInt(-1);

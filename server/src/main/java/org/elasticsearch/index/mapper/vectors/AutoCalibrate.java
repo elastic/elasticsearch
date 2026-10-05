@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.vectors;
 
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibrationProfile;
@@ -19,6 +20,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.function.Predicate;
 
 /** Parsed {@code auto_calibrate} index option: the resolved profile plus the value the user originally supplied. */
 public record AutoCalibrate(@Nullable Object originalValue, IvfAutoCalibrationProfile profile) implements ToXContentFragment {
@@ -36,7 +38,12 @@ public record AutoCalibrate(@Nullable Object originalValue, IvfAutoCalibrationPr
     }
 
     /** Accepts a boolean, a boolean string, or a profile name. */
-    static AutoCalibrate parse(@Nullable Object node, IndexVersion indexVersion, String fieldName) {
+    static AutoCalibrate parse(
+        @Nullable Object node,
+        IndexVersion indexVersion,
+        Predicate<NodeFeature> clusterSupportsFeature,
+        String fieldName
+    ) {
         if (node == null) {
             return defaultAutoCalibrate(indexVersion);
         }

@@ -292,7 +292,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 INDEX_OPTIONS_FIELD,
                 true,
                 () -> null,
-                (n, c, o) -> parseIndexOptionsFromMap(n, o, c.indexVersionCreated(), experimentalFeaturesEnabled),
+                (n, c, o) -> parseIndexOptionsFromMap(n, o, c, experimentalFeaturesEnabled),
                 mapper -> ((SemanticFieldType) mapper.fieldType()).indexOptions,
                 (b, n, v) -> {
                     throw new IllegalStateException("Serializer for [" + INDEX_OPTIONS_FIELD + "] should not be called");
@@ -1286,7 +1286,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
     protected static SemanticIndexOptions parseIndexOptionsFromMap(
         String fieldName,
         Object node,
-        IndexVersion indexVersion,
+        MappingParserContext context,
         boolean experimentalFeaturesEnabled
     ) {
         if (node == null) {
@@ -1303,7 +1303,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         Map<String, Object> indexOptionsMap = (Map<String, Object>) entry.getValue();
         return new SemanticIndexOptions(
             indexOptions,
-            indexOptions.parseIndexOptions(fieldName, indexOptionsMap, indexVersion, experimentalFeaturesEnabled)
+            indexOptions.parseIndexOptions(fieldName, indexOptionsMap, context, experimentalFeaturesEnabled)
         );
     }
 

@@ -20,14 +20,19 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.RetryingInputStream;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
@@ -43,6 +48,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.OptionalInt;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -66,22 +73,37 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
     protected static final long MAX_RANGE_VAL = Long.MAX_VALUE - 1;
 
     protected HttpServer httpServer;
+    private ExecutorService httpServerExecutor;
 
     @Before
     public void startHttpServer() throws Exception {
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        // Use an executor with up to 10 threads for the HTTP server:
+        httpServerExecutor = EsExecutors.newScaling(
+            getTestName(),
+            0,
+            10,
+            60,
+            TimeUnit.SECONDS,
+            true,
+            TestEsExecutors.testOnlyDaemonThreadFactory(getTestName()),
+            new ThreadContext(Settings.EMPTY)
+        );
+        httpServer.setExecutor(httpServerExecutor);
         httpServer.start();
     }
 
     @After
     public void stopHttpServer() throws Exception {
         httpServer.stop(0);
+        ThreadPool.terminate(httpServerExecutor, 10, TimeUnit.SECONDS);
     }
 
     protected void restartHttpServer() throws IOException {
         InetSocketAddress currentAddress = httpServer.getAddress();
         httpServer.stop(0);
         httpServer = MockHttpServer.createHttp(currentAddress, 0);
+        httpServer.setExecutor(httpServerExecutor);
         httpServer.start();
     }
 

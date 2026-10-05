@@ -32,8 +32,11 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -113,8 +116,15 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
 
         final int seconds = (TEST_NIGHTLY && rarely()) == false ? 1 : 5;
         final TimeValue timeout = TimeValue.timeValueSeconds(seconds);
-
-        final List<String> nodes = startCluster(rarely() ? 5 : 3);
+        Settings extraSettings = randomBoolean()
+            ? Settings.builder()
+                .put(
+                    IndexingPressure.MAX_INDEXING_BYTES.getKey(),
+                    ByteSizeValue.ofBytes(randomLongBetween(1, ByteSizeUnit.MB.toBytes(1))).toString()
+                )
+                .build()
+            : Settings.EMPTY;
+        final List<String> nodes = startCluster(rarely() ? 5 : 3, extraSettings);
 
         assertAcked(
             prepareCreate("test").setSettings(

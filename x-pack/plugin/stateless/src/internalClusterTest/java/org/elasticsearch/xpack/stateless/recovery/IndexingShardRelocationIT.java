@@ -481,10 +481,10 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         assertEquals(Set.of(indexNodes.get(1)), internalCluster().nodesInclude(indexName));
     }
 
-    /// A primary relocation can fail after [StatelessCommitService#markRelocationStarting] has installed the upload bound
+    /// A primary relocation can fail after [StatelessCommitService#installUploadBoundListener] has installed the upload bound
     /// listener but before `markRelocating` pins the bound. Here the source shard fails while the handoff consumer
-    /// is parked in `markRelocationStarting`, so the consumer then throws synchronously. The upload bound listener passed to
-    /// `markRelocationStarting` must be cleared on that path too, before `IndexShard#relocated` releases the operation permits.
+    /// is parked in `installUploadBoundListener`, so the consumer then throws synchronously. The upload bound listener passed to
+    /// `installUploadBoundListener` must be cleared on that path too, before `IndexShard#relocated` releases the operation permits.
     public void testRelocationFailureBeforeMarkRelocating() throws Exception {
         final Settings nodeSettings = disableIndexingDiskAndMemoryControllersNodeSettings();
         startMasterOnlyNode(nodeSettings);
@@ -504,16 +504,16 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         final ShardId shardId = indexShard.shardId();
         final var commitService = (TestStatelessCommitService) ((IndexEngine) indexShard.getEngineOrNull()).getStatelessCommitService();
 
-        // Park inside the handoff consumer at markRelocationStarting, before markRelocating pins the bound, and record how
+        // Park inside the handoff consumer at installUploadBoundListener, before markRelocating pins the bound, and record how
         // the upload bound listener is resolved.
-        final var enteredRelocationStarting = new CountDownLatch(1);
+        final var enteredInstallUploadBoundListener = new CountDownLatch(1);
         final var resumeRelocation = new CountDownLatch(1);
         final var relocationDone = new CountDownLatch(1);
         final var unwindException = new AtomicReference<Exception>();
         final var firstAttempt = new AtomicBoolean(true);
         commitService.setStrategy(new TestStatelessCommitService.Strategy() {
             @Override
-            public void markRelocationStarting(Runnable originalRunnable, ShardId sid, SubscribableListener<Long> uploadBoundListener) {
+            public void installUploadBoundListener(Runnable originalRunnable, ShardId sid, SubscribableListener<Long> uploadBoundListener) {
                 originalRunnable.run();
                 if (firstAttempt.compareAndSet(true, false)) {
                     uploadBoundListener.addListener(
@@ -522,7 +522,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                             relocationDone::countDown
                         )
                     );
-                    enteredRelocationStarting.countDown();
+                    enteredInstallUploadBoundListener.countDown();
                     safeAwait(resumeRelocation);
                 }
             }
@@ -533,7 +533,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
 
         try {
             ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, indexNode, newIndexNode));
-            safeAwait(enteredRelocationStarting);
+            safeAwait(enteredInstallUploadBoundListener);
             assertThat(
                 "markRelocating has not run, so no bound is pinned yet",
                 commitService.getMaxGenerationToUpload(shardId),

@@ -352,15 +352,15 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                 return;
             }
             // Completed with the pinned upload bound by markRelocating, failed below if the handoff never gets that far.
-            // See StatelessCommitService#markRelocationStarting
+            // See StatelessCommitService#installUploadBoundListener
             final var uploadBoundListener = new SubscribableListener<Long>();
             final CheckedBiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>, Exception> handoffConsumer = (
                 primaryContext,
                 handoffResultListener) -> {
                 threadDumpListener.onResponse(null);
-                // markRelocationStarting before the final flush, so that a registering search shard cannot pick up a
+                // Install the upload bound listener before the final flush, so that a registering search shard cannot pick up a
                 // commit above the upload bound that markRelocating pins after it.
-                statelessCommitServiceProvider.get().markRelocationStarting(indexShard.shardId(), uploadBoundListener);
+                statelessCommitServiceProvider.get().installUploadBoundListener(indexShard.shardId(), uploadBoundListener);
                 Engine engine = ensureIndexTierAllowedEngine(indexShard.getEngineOrNull(), indexShard.state(), indexShard.routingEntry());
                 logShardStats("obtained primary context", indexShard, engine);
                 logger.debug("[{}] obtained primary context: [{}]", request.shardId(), primaryContext);

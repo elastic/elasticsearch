@@ -363,7 +363,7 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTes
             });
 
         // Hold the handoff response so that the old primary stays in RELOCATING while the force merge and the
-        // search shard registration runs.
+        // search shard registration run.
         final var pauseHandoff = new CountDownLatch(1);
         final var resumeHandoff = new CountDownLatch(1);
         MockTransportService.getInstance(newIndexNode)

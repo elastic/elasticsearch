@@ -432,8 +432,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         commitState.setTrackedSearchNodesPerCommitOnRelocationTarget(searchNodesPerCommit);
     }
 
-    /// Marks the beginning of a primary relocation handoff, before the final flush. Installs the `uploadBoundListener`,
-    /// which [#markRelocating] later completes with the `maxGenerationToUpload` it pins.
+    /// Installs the `uploadBoundListener` at the beginning of a primary relocation handoff, before the final flush.
+    /// [#markRelocating] later completes it with the `maxGenerationToUpload` it pins.
     ///
     /// Must be called from the relocation handoff consumer, while all primary operation permits are held. This serializes
     /// relocation attempts on the shard: the permits are only released once the previous attempt's handoff outcome is
@@ -442,8 +442,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     /// The caller owns `uploadBoundListener` and must fail it if the handoff is abandoned before [#markRelocating]
     /// completes it.
     ///
-    public void markRelocationStarting(ShardId shardId, SubscribableListener<Long> uploadBoundListener) {
-        getSafe(shardsCommitsStates, shardId).markRelocationStarting(uploadBoundListener);
+    public void installUploadBoundListener(ShardId shardId, SubscribableListener<Long> uploadBoundListener) {
+        if (Assertions.ENABLED) {
+            // So that FakeStatelessNode + unit tests don't have to always stub indexService
+            final var shard = Optional.ofNullable(indicesService.indexService(shardId.getIndex()))
+                .map(indexService -> indexService.getShardOrNull(shardId.id()));
+            assert shard.map(s -> s.getActiveOperationsCount() == IndexShard.OPERATIONS_BLOCKED).orElse(true);
+        }
+        getSafe(shardsCommitsStates, shardId).installUploadBoundListener(uploadBoundListener);
     }
 
     /// This method will mark the shard as relocating. It will calculate the max(minRelocatedGeneration, all pending uploads, max
@@ -453,8 +459,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     /// We have implemented this mechanism opposed to using operation permits as we must push a flush after blocking all operations. If we
     /// used operation permits, the final flush would not be able to proceed.
     ///
-    /// [#markRelocationStarting] must have been invoked before this method is called. This method resolves the upload bound
-    /// listener provided to [#markRelocationStarting] with the calculated generation. If it throws, the listener is left
+    /// [#installUploadBoundListener] must have been invoked before this method is called. This method resolves the upload bound
+    /// listener provided to [#installUploadBoundListener] with the calculated generation. If it throws, the listener is left
     /// unresolved and the caller must fail it.
     ///
     /// This method returns an ActionListener which must be triggered when the relocation either fails or succeeds.
@@ -741,7 +747,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         .toList()
                 );
                 // TODO: the commit should wait on `relocationUploadBoundListener` to close the race window between
-                // `markRelocationStarting` and `markRelocating`.
+                // `installUploadBoundListener` and `markRelocating`.
                 commitAfterRelocationStarted = commitState.isRelocating() && reference.getGeneration() > commitState.maxGenerationToUpload;
             }
             success = true;
@@ -1456,7 +1462,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private final AtomicLong uploadedGenerationNotified = new AtomicLong(EMPTY_GENERATION_NOTIFIED_SENTINEL);
         private volatile long maxGenerationToUpload = Long.MAX_VALUE;
         /// The upload bound listener of the relocation handoff in progress, or `null` if there is none.
-        /// It is installed by [StatelessCommitService#markRelocationStarting] before the final flush. [#markRelocating]
+        /// It is installed by [StatelessCommitService#installUploadBoundListener] before the final flush. [#markRelocating]
         /// completes it with the `maxGenerationToUpload` it pins.
         ///
         /// It is cleared when the relocation source fails it, or when [#markRelocationFailed] moves the shard back to
@@ -2899,15 +2905,16 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
         }
 
-        /// Installs `uploadBoundListener` as [#relocationUploadBoundListener]. See [StatelessCommitService#markRelocationStarting].
-        private void markRelocationStarting(SubscribableListener<Long> uploadBoundListener) {
+        /// Installs `uploadBoundListener` as [#relocationUploadBoundListener]. See [StatelessCommitService#installUploadBoundListener].
+        private void installUploadBoundListener(SubscribableListener<Long> uploadBoundListener) {
             synchronized (this) {
+                assert state == State.RUNNING || state == State.CLOSED : "unexpected state during installUploadBoundListener: " + state;
+                assert relocationUploadBoundListener == null
+                    : "existing relocation upload bound listener during installUploadBoundListener";
                 if (state == State.CLOSED) {
                     // shard was closed, markRelocating will throw and the relocation source fails the listener.
                     return;
                 }
-                assert state == State.RUNNING : "unexpected state during markRelocationStarting: " + state;
-                assert relocationUploadBoundListener == null : "existing relocation upload bound listener during markRelocationStarting";
                 relocationUploadBoundListener = uploadBoundListener;
             }
             // Clear the relocationUploadBoundListener if the relocation source abandons the handoff before markRelocating.
@@ -2916,6 +2923,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 synchronized (this) {
                     if (relocationUploadBoundListener == uploadBoundListener) {
                         relocationUploadBoundListener = null;
+                    } else {
+                        assert false : "relocation upload bound listener was replaced or cleared before being failed";
                     }
                 }
             }));
@@ -2931,15 +2940,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 }
 
                 if (state != State.RUNNING || relocationUploadBoundListener == null || relocationUploadBoundListener.isDone()) {
-                    throw new IllegalStateException(
-                        "shard ["
-                            + shardId
-                            + "] cannot be marked as relocating: state ["
-                            + state
-                            + "], upload bound listener ["
-                            + (relocationUploadBoundListener == null ? "absent" : "already completed")
-                            + "]"
-                    );
+                    final String message = "shard ["
+                        + shardId
+                        + "] cannot be marked as relocating: state ["
+                        + state
+                        + "], upload bound listener ["
+                        + (relocationUploadBoundListener == null ? "absent" : "already completed")
+                        + "]";
+                    assert false : message;
+                    throw new IllegalStateException(message);
                 }
                 // We wait for the max generation we see at the moment to be uploaded. Generations are always uploaded in order so this
                 // logic works. Additionally, at minimum we wait for minRelocatedGeneration to be uploaded. It is possible it has already
@@ -2947,15 +2956,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 ensureMaxGenerationToUploadForFlush(minRelocatedGeneration);
                 // Also include the max uploaded generation, so that a merge uploaded after the final flush but before this lock is
                 // taken cannot leave the bound below an already-uploaded generation.
-                toWaitFor = Math.max(
-                    getMaxPendingUploadBcc().map(VirtualBatchedCompoundCommit::getMaxGeneration).orElse(minRelocatedGeneration),
-                    getMaxUploadedGeneration()
-                );
+                toWaitFor = Math.max(getMaxPendingOrUploadedGeneration(), minRelocatedGeneration);
                 assert toWaitFor >= minRelocatedGeneration : toWaitFor + " < " + minRelocatedGeneration;
                 assert assertGenerationIsUploadedOrPending(toWaitFor);
 
                 maxGenerationToUpload = toWaitFor;
-                assert state == State.RUNNING;
                 state = State.RELOCATING;
                 final var old = deferredStaleBlobDeletions.getAndSet(List.of());
                 assert old == null : "found non-null deferred stale blob deletions before relocating " + old;
@@ -3014,6 +3019,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     assert state == State.RELOCATING;
                     maxGenerationToUpload = Long.MAX_VALUE;
                     state = State.RUNNING;
+
+                    assert relocationUploadBoundListener != null && relocationUploadBoundListener.isDone()
+                        : "relocation upload bound listener should have been completed by markRelocating";
                     // Cleared last, as getLatestVirtualBccForUnpromotableRecovery hands out the current VBCC once this is null
                     relocationUploadBoundListener = null;
                 }

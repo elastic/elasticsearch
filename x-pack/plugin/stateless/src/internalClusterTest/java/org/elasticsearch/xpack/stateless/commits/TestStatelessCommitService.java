@@ -58,9 +58,9 @@ public class TestStatelessCommitService extends StatelessCommitService {
     }
 
     @Override
-    public void markRelocationStarting(ShardId shardId, SubscribableListener<Long> uploadBoundListener) {
-        getStrategy().markRelocationStarting(
-            () -> super.markRelocationStarting(shardId, uploadBoundListener),
+    public void installUploadBoundListener(ShardId shardId, SubscribableListener<Long> uploadBoundListener) {
+        getStrategy().installUploadBoundListener(
+            () -> super.installUploadBoundListener(shardId, uploadBoundListener),
             shardId,
             uploadBoundListener
         );
@@ -77,7 +77,7 @@ public class TestStatelessCommitService extends StatelessCommitService {
     }
 
     public static class Strategy {
-        public void markRelocationStarting(Runnable originalRunnable, ShardId shardId, SubscribableListener<Long> uploadBoundListener) {
+        public void installUploadBoundListener(Runnable originalRunnable, ShardId shardId, SubscribableListener<Long> uploadBoundListener) {
             originalRunnable.run();
         }
 

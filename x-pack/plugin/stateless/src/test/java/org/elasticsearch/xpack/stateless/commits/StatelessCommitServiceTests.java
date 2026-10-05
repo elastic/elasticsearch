@@ -673,7 +673,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 equalTo(secondCommit.getGeneration())
             );
             PlainActionFuture<Void> listener = new PlainActionFuture<>();
-            testHarness.commitService.markRelocationStarting(testHarness.shardId, new SubscribableListener<>());
+            testHarness.commitService.installUploadBoundListener(testHarness.shardId, new SubscribableListener<>());
             ActionListener<Void> relocationListener = testHarness.commitService.markRelocating(testHarness.shardId, 1, listener);
             assertThat(
                 testHarness.commitService.getMaxPendingOrUploadedGeneration(testHarness.shardId),
@@ -742,7 +742,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             testHarness.commitService.onCommitCreation(secondCommit);
 
             PlainActionFuture<Void> listener = new PlainActionFuture<>();
-            testHarness.commitService.markRelocationStarting(testHarness.shardId, new SubscribableListener<>());
+            testHarness.commitService.installUploadBoundListener(testHarness.shardId, new SubscribableListener<>());
             ActionListener<Void> relocationListener = testHarness.commitService.markRelocating(testHarness.shardId, 1, listener);
 
             // Third commit is created after relocation started, so its generation > maxGenerationToUpload
@@ -833,7 +833,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             assertThat(uploadedBlobs, not(hasItems(secondCommitFile.get())));
 
             PlainActionFuture<Void> listener = new PlainActionFuture<>();
-            testHarness.commitService.markRelocationStarting(testHarness.shardId, new SubscribableListener<>());
+            testHarness.commitService.installUploadBoundListener(testHarness.shardId, new SubscribableListener<>());
             ActionListener<Void> handoffListener = testHarness.commitService.markRelocating(testHarness.shardId, 1, listener);
 
             testHarness.commitService.onCommitCreation(thirdCommit);
@@ -899,7 +899,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             flushThreadPoolExecutor(testHarness.threadPool, StatelessPlugin.SHARD_WRITE_THREAD_POOL);
 
             final var future = new PlainActionFuture<Void>();
-            testHarness.commitService.markRelocationStarting(testHarness.shardId, new SubscribableListener<>());
+            testHarness.commitService.installUploadBoundListener(testHarness.shardId, new SubscribableListener<>());
             ActionListener<Void> relocationListener = testHarness.commitService.markRelocating(
                 testHarness.shardId,
                 mergedCommit.getGeneration(),
@@ -2469,7 +2469,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             // Start the relocation handoff
             final var markedRelocating = new PlainActionFuture<Void>();
-            commitService.markRelocationStarting(shardId, new SubscribableListener<>());
+            commitService.installUploadBoundListener(shardId, new SubscribableListener<>());
             final var handoffListener = commitService.markRelocating(shardId, lastUploadedCommit.getGeneration(), markedRelocating);
             markedRelocating.actionGet();
 
@@ -2499,7 +2499,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
-    public void testRegisterCommitForUnpromotableRecoveryDoesNotGiveCurrentVbccOnceRelocationStarting() throws Exception {
+    public void testRegisterCommitForUnpromotableRecoveryDoesNotGiveCurrentVbccOnceUploadBoundListenerInstalled() throws Exception {
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm)) {
             final var shardId = testHarness.shardId;
             final var commitService = testHarness.commitService;
@@ -2522,7 +2522,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             // Relocation has begun, but the final flush has not happened and no bound is pinned yet.
             final var uploadBoundListener = new SubscribableListener<Long>();
-            commitService.markRelocationStarting(shardId, uploadBoundListener);
+            commitService.installUploadBoundListener(shardId, uploadBoundListener);
             assertThat(commitService.getMaxGenerationToUpload(shardId), equalTo(Long.MAX_VALUE));
 
             // A merge commits in that window, opening a VBCC that markRelocating will leave above the bound.
@@ -2599,7 +2599,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
                 // maxGenerationToUpload becomes the pending commit's generation
                 final var markedRelocating = new PlainActionFuture<Void>();
-                commitService.markRelocationStarting(shardId, new SubscribableListener<>());
+                commitService.installUploadBoundListener(shardId, new SubscribableListener<>());
                 final var handoffListener = commitService.markRelocating(shardId, pendingCommit.getGeneration(), markedRelocating);
                 assertFalse("the handoff waits for the pending upload", markedRelocating.isDone());
 
@@ -2740,7 +2740,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             final var commit = uploadSingleCommit(testHarness);
 
             final var uploadBoundListener = new SubscribableListener<Long>();
-            commitService.markRelocationStarting(shardId, uploadBoundListener);
+            commitService.installUploadBoundListener(shardId, uploadBoundListener);
             assertFalse("the bound is undecided until markRelocating runs", uploadBoundListener.isDone());
 
             final var markedRelocating = new PlainActionFuture<Void>();
@@ -2757,15 +2757,15 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
-    public void testMarkRelocatingThrowsWithoutAnUndecidedUploadBoundListener() throws Exception {
+    public void testMarkRelocatingAssertsWithoutAnUndecidedUploadBoundListener() throws Exception {
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm)) {
             final var shardId = testHarness.shardId;
             final var commitService = testHarness.commitService;
             final var commit = uploadSingleCommit(testHarness);
 
-            // markRelocationStarting was never called
+            // installUploadBoundListener was never called
             final var neverStarted = expectThrows(
-                IllegalStateException.class,
+                AssertionError.class,
                 () -> commitService.markRelocating(shardId, commit.getGeneration(), new PlainActionFuture<>())
             );
             assertThat(neverStarted.getMessage(), containsString("upload bound listener [absent]"));
@@ -2773,10 +2773,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             // The upload bound listener was failed before markRelocating, which clears it
             final var uploadBoundListener = new SubscribableListener<Long>();
-            commitService.markRelocationStarting(shardId, uploadBoundListener);
+            commitService.installUploadBoundListener(shardId, uploadBoundListener);
             uploadBoundListener.onFailure(new RuntimeException("simulated abandoned handoff"));
             final var abandoned = expectThrows(
-                IllegalStateException.class,
+                AssertionError.class,
                 () -> commitService.markRelocating(shardId, commit.getGeneration(), new PlainActionFuture<>())
             );
             assertThat(abandoned.getMessage(), containsString("upload bound listener [absent]"));
@@ -2801,7 +2801,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             // The first attempt is abandoned before markRelocating pins a bound.
             final var abandonedListener = new SubscribableListener<Long>();
-            commitService.markRelocationStarting(shardId, abandonedListener);
+            commitService.installUploadBoundListener(shardId, abandonedListener);
             final var newCommit = testHarness.generateIndexCommits(1).getFirst();
             commitService.onCommitCreation(newCommit);
             assertThat(newCommit.getGeneration(), greaterThan(uploadedCommit.getGeneration()));
@@ -2824,7 +2824,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             // A second attempt installs its own listener, which markRelocating completes with the pinned bound.
             final var uploadBoundListener = new SubscribableListener<Long>();
-            commitService.markRelocationStarting(shardId, uploadBoundListener);
+            commitService.installUploadBoundListener(shardId, uploadBoundListener);
             final var markedRelocating = new PlainActionFuture<Void>();
             final var handoffListener = commitService.markRelocating(shardId, newCommit.getGeneration(), markedRelocating);
             markedRelocating.actionGet();

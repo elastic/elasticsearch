@@ -3757,6 +3757,494 @@ FROM filtered_partial_mapping_view
 2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42              | 2                     | e                       | 1232383                         | 43
 ;
 
+loadAllViewGapLiteralKeepCount
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, partial_mapping_view_keep_messages
+| STATS c = COUNT(*), d = COUNT(unmapped_event_duration)
+;
+
+c:long | d:long
+14     | 7
+;
+
+loadAllSubqueryGapLiteralKeepCount
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | KEEP message, unmapped_message)
+| STATS c = COUNT(*), d = COUNT(unmapped_event_duration)
+;
+
+c:long | d:long
+14     | 7
+;
+
+loadAllViewGapLiteralKeepOnlyOmittedField
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, partial_mapping_view_keep_messages
+| WHERE message == "42"
+| KEEP message, unmapped_event_duration
+;
+ignoreOrder:true
+
+message:keyword | unmapped_event_duration:keyword
+42              | 1232383
+42              | null
+;
+
+loadAllSubqueryGapLiteralKeepOnlyOmittedField
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | KEEP message, unmapped_message)
+| WHERE message == "42"
+| KEEP message, unmapped_event_duration
+;
+ignoreOrder:true
+
+message:keyword | unmapped_event_duration:keyword
+42              | 1232383
+42              | null
+;
+
+loadAllViewGapDropOneField
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, partial_mapping_view_drop_duration
+| WHERE message == "42"
+| KEEP message, unmapped_event_duration
+;
+ignoreOrder:true
+
+message:keyword | unmapped_event_duration:keyword
+42              | 1232383
+42              | null
+;
+
+loadAllSubqueryGapDropOneField
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | DROP unmapped_event_duration)
+| WHERE message == "42"
+| KEEP message, unmapped_event_duration
+;
+ignoreOrder:true
+
+message:keyword | unmapped_event_duration:keyword
+42              | 1232383
+42              | null
+;
+
+loadAllViewGapDropWildcard
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, partial_mapping_view_drop_duration_wildcard
+| WHERE message == "42"
+| KEEP message, unmapped_event_duration
+;
+ignoreOrder:true
+
+message:keyword | unmapped_event_duration:keyword
+42              | 1232383
+42              | null
+;
+
+loadAllSubqueryGapDropWildcard
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | DROP unmapped_e*)
+| WHERE message == "42"
+| KEEP message, unmapped_event_duration
+;
+ignoreOrder:true
+
+message:keyword | unmapped_event_duration:keyword
+42              | 1232383
+42              | null
+;
+
+loadAllViewGapRename
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, partial_mapping_view_rename_duration
+| WHERE message == "42"
+| KEEP message, unmapped_event_duration, renamed_duration
+;
+ignoreOrder:true
+
+message:keyword | unmapped_event_duration:keyword | renamed_duration:keyword
+42              | 1232383                         | null
+42              | null                            | 1232383
+;
+
+loadAllSubqueryGapRename
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | RENAME unmapped_event_duration AS renamed_duration)
+| WHERE message == "42"
+| KEEP message, unmapped_event_duration, renamed_duration
+;
+ignoreOrder:true
+
+message:keyword | unmapped_event_duration:keyword | renamed_duration:keyword
+42              | 1232383                         | null
+42              | null                            | 1232383
+;
+
+loadAllViewGapStats
+required_capability: optional_fields_load_all_views
+required_capability: optional_fields_load_all_stats
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, partial_mapping_view_stats_rows
+| WHERE message == "42" OR rows == 7
+| KEEP message, unmapped_event_duration, rows
+| SORT message NULLS LAST
+;
+
+message:keyword | unmapped_event_duration:keyword | rows:long
+42              | 1232383                         | null
+null            | null                            | 7
+;
+
+loadAllSubqueryGapStats
+required_capability: optional_fields_load_all_subqueries
+required_capability: optional_fields_load_all_stats
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | STATS rows = COUNT(*))
+| WHERE message == "42" OR rows == 7
+| KEEP message, unmapped_event_duration, rows
+| SORT message NULLS LAST
+;
+
+message:keyword | unmapped_event_duration:keyword | rows:long
+42              | 1232383                         | null
+null            | null                            | 7
+;
+
+loadAllViewGapSumMinDroppedLong
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, partial_mapping_view_message_wildcard
+| STATS s = SUM(event_duration), m = MIN(event_duration)
+;
+
+s:long   | m:long
+23231320 | 725447
+;
+
+loadAllSubqueryGapSumMinDroppedLong
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | KEEP *message*)
+| STATS s = SUM(event_duration), m = MIN(event_duration)
+;
+
+s:long   | m:long
+23231320 | 725447
+;
+
+loadAllViewGapWhereRemovedField
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, partial_mapping_view_message_wildcard
+| WHERE message == "42" AND unmapped_event_duration IS NOT NULL
+| KEEP message, unmapped_event_duration
+;
+
+message:keyword | unmapped_event_duration:keyword
+42              | 1232383
+;
+
+loadAllSubqueryGapWhereRemovedField
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | KEEP *message*)
+| WHERE message == "42" AND unmapped_event_duration IS NOT NULL
+| KEEP message, unmapped_event_duration
+;
+
+message:keyword | unmapped_event_duration:keyword
+42              | 1232383
+;
+
+loadAllViewGapSortRemovedField
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, partial_mapping_view_message_wildcard
+| WHERE message == "42"
+| SORT unmapped_event_duration DESC NULLS LAST
+| LIMIT 2
+| KEEP message, unmapped_event_duration
+;
+
+message:keyword | unmapped_event_duration:keyword
+42              | 1232383
+42              | null
+;
+
+loadAllSubqueryGapSortRemovedField
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | KEEP *message*)
+| WHERE message == "42"
+| SORT unmapped_event_duration DESC NULLS LAST
+| LIMIT 2
+| KEEP message, unmapped_event_duration
+;
+
+message:keyword | unmapped_event_duration:keyword
+42              | 1232383
+42              | null
+;
+
+loadAllViewGapNarrowKeep
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, partial_mapping_view_message_wildcard
+| WHERE message == "42"
+| KEEP unmapped_event_duration
+;
+ignoreOrder:true
+
+unmapped_event_duration:keyword
+1232383
+null
+;
+
+loadAllSubqueryGapNarrowKeep
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | KEEP *message*)
+| WHERE message == "42"
+| KEEP unmapped_event_duration
+;
+ignoreOrder:true
+
+unmapped_event_duration:keyword
+1232383
+null
+;
+
+loadAllViewGapWideKeep
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, partial_mapping_view_message_wildcard
+| WHERE message == "42"
+| KEEP message, unmapped_message, unmapped_event_duration
+;
+ignoreOrder:true
+
+message:keyword | unmapped_message:keyword | unmapped_event_duration:keyword
+42              | 43                       | 1232383
+42              | 43                       | null
+;
+
+loadAllSubqueryGapWideKeep
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | KEEP *message*)
+| WHERE message == "42"
+| KEEP message, unmapped_message, unmapped_event_duration
+;
+ignoreOrder:true
+
+message:keyword | unmapped_message:keyword | unmapped_event_duration:keyword
+42              | 43                       | 1232383
+42              | 43                       | null
+;
+
+loadAllViewGapRestrictingViewInMiddle
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, partial_mapping_view_message_wildcard, partial_mapping_view
+| WHERE message == "42"
+| KEEP message, unmapped_event_duration
+;
+ignoreOrder:true
+
+message:keyword | unmapped_event_duration:keyword
+42              | 1232383
+42              | null
+42              | 1232383
+;
+
+loadAllSubqueryGapRestrictingViewInMiddle
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | KEEP *message*), (FROM partial_mapping_sample_data)
+| WHERE message == "42"
+| KEEP message, unmapped_event_duration
+;
+ignoreOrder:true
+
+message:keyword | unmapped_event_duration:keyword
+42              | 1232383
+42              | null
+42              | 1232383
+;
+
+loadAllViewGapNestedKeep
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, nested_message_wildcard_view
+| WHERE message == "42"
+| KEEP message, unmapped_event_duration
+;
+ignoreOrder:true
+
+message:keyword | unmapped_event_duration:keyword
+42              | 1232383
+42              | 1232383
+42              | null
+;
+
+loadAllSubqueryGapNestedKeep
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | KEEP *message*)
+| WHERE message == "42"
+| KEEP message, unmapped_event_duration
+;
+ignoreOrder:true
+
+message:keyword | unmapped_event_duration:keyword
+42              | 1232383
+42              | null
+;
+
+loadAllViewGapDropText
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM text_state_mapped, text_state_unmapped_drop_txt_view
+| KEEP doc_id, txt
+| SORT doc_id
+;
+
+doc_id:keyword | txt:text
+mapped-1       | William Faulkner
+mapped-2       | Jane Austen
+unmapped-1     | null
+;
+
+loadAllSubqueryGapDropText
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM text_state_mapped, (FROM text_state_unmapped | DROP txt)
+| KEEP doc_id, txt
+| SORT doc_id
+;
+
+doc_id:keyword | txt:text
+mapped-1       | William Faulkner
+mapped-2       | Jane Austen
+unmapped-1     | null
+;
+
+loadAllViewGapDropAggregateMetric
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: aggregate_metric_double_v0
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM k8s-downsampled | WHERE cluster == "qa" AND pod == "three" AND @timestamp == "2024-05-09T23:30:00.000Z"),
+     (FROM k8s_unmapped_drop_tx_view | WHERE cluster == "qa" AND pod == "three" | SORT @timestamp | LIMIT 1)
+| KEEP network.eth0.tx
+;
+ignoreOrder:true
+
+network.eth0.tx:aggregate_metric_double
+{"min":605.0,"max":605.0,"sum":605.0,"value_count":1}
+null
+;
+
+loadAllSubqueryGapDropAggregateMetric
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: aggregate_metric_double_v0
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM k8s-downsampled | WHERE cluster == "qa" AND pod == "three" AND @timestamp == "2024-05-09T23:30:00.000Z"),
+     (FROM k8s_unmapped | DROP network.eth0.tx | WHERE cluster == "qa" AND pod == "three" | SORT @timestamp | LIMIT 1)
+| KEEP network.eth0.tx
+;
+ignoreOrder:true
+
+network.eth0.tx:aggregate_metric_double
+{"min":605.0,"max":605.0,"sum":605.0,"value_count":1}
+null
+;
+
 ###########################################################
 # Object and array expansion: flatten to leaf columns     #
 ###########################################################

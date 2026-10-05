@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -127,7 +128,8 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
 
         ColumnChunkPrefetcher.PrefetchedChunks prefetched = ColumnChunkPrefetcher.fetchSync(storage, block, null, breaker);
         try {
-            assertEquals(160L, breaker.getUsed());
+            // col_a and col_b coalesce into one 160-byte read [100, 260)
+            assertEquals(HeapFootprint.byteArrayBytes(160), breaker.getUsed());
             NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> result = prefetched.chunks();
             assertThat(result.size(), greaterThanOrEqualTo(2));
 
@@ -649,7 +651,7 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
             try {
                 assertEquals(1, fetched.chunks().size());
                 assertNotNull(fetched.chunks().get(1000L));
-                assertEquals(32L, breaker.getUsed());
+                assertEquals(HeapFootprint.byteArrayBytes(32), breaker.getUsed());
             } finally {
                 fetched.release().close();
             }

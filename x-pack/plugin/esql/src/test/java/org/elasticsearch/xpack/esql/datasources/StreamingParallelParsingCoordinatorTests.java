@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
@@ -1588,7 +1589,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             drainParallelRead(new LineFormatReader(requested), stream, decompressing, breaker, executor, parallelism);
             assertEquals(compressed.length, StreamingParallelParsingCoordinator.streamingFillHint(decompressing));
             assertThat(breaker.peakUsed(), Matchers.greaterThan(0L));
-            assertThat(breaker.peakUsed(), Matchers.lessThanOrEqualTo((long) compressed.length * (parallelism + 1)));
+            assertThat(breaker.peakUsed(), Matchers.lessThanOrEqualTo(HeapFootprint.byteArrayBytes(compressed.length) * (parallelism + 1)));
             assertThat(breaker.peakUsed(), Matchers.lessThan((long) requested));
         } finally {
             executor.shutdownNow();
@@ -2002,7 +2003,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         CountDownLatch resumeAllocation = new CountDownLatch(1);
         AtomicInteger growCharges = new AtomicInteger();
         AtomicInteger schemaCharges = new AtomicInteger();
-        LimitedBreaker breaker = new LimitedBreaker("close-race", ByteSizeValue.ofMb(5)) {
+        LimitedBreaker breaker = new LimitedBreaker("close-race", growScenarioLimit()) {
             @Override
             public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
                 if (label.equals("csv_schema_inference")) {
@@ -2020,7 +2021,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         SegmentableFormatReader reader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(
             Map.of("header_row", false, "schema_sample_size", 1)
         );
-        byte[] bytes = ("x".repeat(1792 * 1024) + "\n").getBytes(StandardCharsets.UTF_8);
+        assertEquals(GROW_SCENARIO_CHUNK, reader.minimumSegmentSize());
+        byte[] bytes = ("x".repeat(GROW_SCENARIO_RECORD) + "\n").getBytes(StandardCharsets.UTF_8);
         ExecutorService executor = Executors.newSingleThreadExecutor();
         try (
             CloseableIterator<Page> iterator = parallelReadWithBreaker(
@@ -2052,12 +2054,22 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     public void testGrowBufferIsRefundedWhenFirstChunkPreparationFails() throws Exception {
-        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(5));
+        ByteSizeValue limit = growScenarioLimit();
+        // CsvFormatReader#estimateRowBytes of the single-column sample row: what schema inference charges for it
+        long inferenceCharge = 16L + 8L + 40L + 2L * GROW_SCENARIO_RECORD;
+        long headroomAfterTrim = limit.getBytes() - HeapFootprint.byteArrayBytes(GROW_SCENARIO_CHUNK) - HeapFootprint.byteArrayBytes(
+            GROW_SCENARIO_RECORD + 1
+        );
+        // At G1 region sizes that round the 2 MiB grow buffer up to 4 MiB, surviving the grow loop's peak leaves enough
+        // headroom for schema inference to succeed, so the failure this test needs cannot be provoked by a breaker limit.
+        assumeTrue("grow buffer footprint leaves room for schema inference at this region size", headroomAfterTrim < inferenceCharge);
+        CircuitBreaker breaker = newLimitedBreaker(limit);
         BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
         SegmentableFormatReader reader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(
             Map.of("header_row", false, "schema_sample_size", 1)
         );
-        byte[] bytes = ("x".repeat(1792 * 1024) + "\n").getBytes(StandardCharsets.UTF_8);
+        assertEquals(GROW_SCENARIO_CHUNK, reader.minimumSegmentSize());
+        byte[] bytes = ("x".repeat(GROW_SCENARIO_RECORD) + "\n").getBytes(StandardCharsets.UTF_8);
         ExecutorService executor = Executors.newSingleThreadExecutor();
         try (
             CloseableIterator<Page> iterator = parallelReadWithBreaker(
@@ -2073,11 +2085,30 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
             ExternalClientException ex = expectThrows(ExternalClientException.class, iterator::hasNext);
             assertThat(ExceptionsHelper.stackTrace(ex), Matchers.containsString(CircuitBreakingException.class.getSimpleName()));
-            assertEquals(reader.minimumSegmentSize(), breaker.getUsed());
+            assertEquals(HeapFootprint.byteArrayBytes(reader.minimumSegmentSize()), breaker.getUsed());
         } finally {
             executor.shutdownNow();
         }
         assertEquals(0L, breaker.getUsed());
+    }
+
+    /** CSV's chunk size: the {@link SegmentableFormatReader#minimumSegmentSize()} default. */
+    private static final int GROW_SCENARIO_CHUNK = 1024 * 1024;
+    /** A single record between one and two chunks, so the grow loop allocates a 2-chunk buffer and then trims it. */
+    private static final int GROW_SCENARIO_RECORD = 1792 * 1024;
+
+    /**
+     * Breaker limit for the single {@link #GROW_SCENARIO_RECORD} CSV record: the 5 MiB these tests were written
+     * against, plus what footprint charging adds on top of each array live at the grow loop's peak (the pool chunk,
+     * the 2-chunk grow buffer and the trimmed record copy, newline included). Keeps the peak's slack the same at
+     * every G1 region size.
+     */
+    private static ByteSizeValue growScenarioLimit() {
+        long overhead = 0;
+        for (long length : new long[] { GROW_SCENARIO_CHUNK, 2L * GROW_SCENARIO_CHUNK, GROW_SCENARIO_RECORD + 1L }) {
+            overhead += HeapFootprint.byteArrayBytes(length) - length;
+        }
+        return ByteSizeValue.ofBytes(ByteSizeValue.ofMb(5).getBytes() + overhead);
     }
 
     public void testGrowCrDelimitedRecordsBelowRecordCap() throws Exception {
@@ -2149,7 +2180,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         ExecutorService executor = Executors.newFixedThreadPool(4);
         try {
             for (int maxRecordBytes : new int[] { 64, 128, 130 }) {
-                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(maxRecordBytes == 64 ? 64 : 1024 * 1024));
+                CircuitBreaker breaker = newLimitedBreaker(
+                    ByteSizeValue.ofBytes(maxRecordBytes == 64 ? HeapFootprint.byteArrayBytes(64) : 1024 * 1024)
+                );
                 for (String terminator : List.of("", "\n")) {
                     byte[] bytes = ("x".repeat(maxRecordBytes + 1 - terminator.length()) + terminator).getBytes(StandardCharsets.UTF_8);
                     RuntimeException ex = expectThrows(

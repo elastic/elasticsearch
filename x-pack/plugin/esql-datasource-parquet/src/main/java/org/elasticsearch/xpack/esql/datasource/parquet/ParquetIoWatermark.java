@@ -13,6 +13,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 
 import java.util.concurrent.TimeUnit;
@@ -295,8 +296,10 @@ final class ParquetIoWatermark {
     }
 
     /**
-     * Factory that charges this watermark with the actual allocated length beside the REQUEST
-     * breaker, and releases both on {@link DirectReadBuffer#close()}. {@code admitHold} is a
+     * Factory that charges this watermark with the allocated buffer's
+     * {@linkplain HeapFootprint#byteArrayBytes(long) heap footprint} beside the REQUEST breaker
+     * (which {@link DirectReadBuffer#allocate(CircuitBreaker, int)} charges the same figure), and
+     * releases both on {@link DirectReadBuffer#close()}. {@code admitHold} is a
      * {@link #tryAdmit} estimate; each alloc drops that many leftover estimate bytes so a
      * coalesced group of many GETs does not open a look-ahead hole after the first buffer.
      * {@link AdmitHold#drop()} clears any remainder when the prefetch future settles.
@@ -307,9 +310,10 @@ final class ParquetIoWatermark {
             DirectReadBuffer allocated = inner.allocate(len);
             DirectReadBuffer wrapped = null;
             try {
-                wrapped = account(allocated, len);
+                long footprint = HeapFootprint.byteArrayBytes(len);
+                wrapped = account(allocated, footprint);
                 if (admitHold != null) {
-                    admitHold.drop(len);
+                    admitHold.drop(footprint);
                 }
                 return wrapped;
             } catch (Throwable t) {
@@ -327,18 +331,18 @@ final class ParquetIoWatermark {
         };
     }
 
-    private DirectReadBuffer account(DirectReadBuffer inner, int length) {
+    private DirectReadBuffer account(DirectReadBuffer inner, long footprint) {
         AtomicBoolean released = new AtomicBoolean();
         DirectReadBuffer wrapped = new DirectReadBuffer(inner.buffer(), () -> {
             try {
                 inner.close();
             } finally {
                 if (released.compareAndSet(false, true)) {
-                    release(length);
+                    release(footprint);
                 }
             }
         });
-        forceAdd(length);
+        forceAdd(footprint);
         return wrapped;
     }
 

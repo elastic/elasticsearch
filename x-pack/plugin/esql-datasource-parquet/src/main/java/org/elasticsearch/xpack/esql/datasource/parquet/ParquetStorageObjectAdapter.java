@@ -17,6 +17,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
@@ -70,8 +71,12 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
      */
     private volatile NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> preWarmedChunks;
 
-    /** Default window size (4MB) for the sliding range cache. */
-    static final int DEFAULT_WINDOW_SIZE = 4 * 1024 * 1024;
+    /**
+     * Default window size for the sliding range cache: just under 4 MiB so the window's {@code byte[]}, header
+     * included, fits in 4 MiB. An exact 4 MiB array is humongous at 4 MiB G1 regions and occupies 8 MiB.
+     * Do not round it back up; see {@link HeapFootprint#regionFriendlyLength(int)}.
+     */
+    static final int DEFAULT_WINDOW_SIZE = HeapFootprint.regionFriendlyLength(4 * 1024 * 1024);
 
     /**
      * Maximum window size (10MB). Caps adaptive window hints so large {@code forRange} splits do not allocate
@@ -245,6 +250,8 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         private final FooterByteCache tailCache;
         private final long length;
         private final int windowSize;
+        /** {@link HeapFootprint#byteArrayBytes(long)} of {@link #windowSize}; charged and released as one figure. */
+        private final long windowCharge;
         private final CircuitBreaker breaker;
         @Nullable
         private final ParquetIoWatermark ioWatermark;
@@ -279,6 +286,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             this.tailCache = tailCache;
             this.length = length;
             this.windowSize = windowSize;
+            this.windowCharge = HeapFootprint.byteArrayBytes(windowSize);
             this.breaker = LocalCircuitBreaker.forAsyncIo(breaker);
             this.ioWatermark = ioWatermark;
             this.window = null;
@@ -611,17 +619,17 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             // CBE escapes here. LimitedBreaker throws before its compare-and-set;
             // ChildMemoryCircuitBreaker undoes a parent-limit trip before rethrowing.
             // Do not catch this call: forceAdd has not run, and a catch would refund a rolled-back add.
-            breaker.addEstimateBytesAndMaybeBreak(windowSize, WINDOW_BREAKER_LABEL);
+            breaker.addEstimateBytesAndMaybeBreak(windowCharge, WINDOW_BREAKER_LABEL);
             if (ioWatermark != null) {
-                ioWatermark.forceAdd(windowSize);
+                ioWatermark.forceAdd(windowCharge);
             }
             try {
                 window = UninitializedArrays.newByteArray(windowSize);
             } catch (Throwable t) {
                 if (ioWatermark != null) {
-                    ioWatermark.release(windowSize);
+                    ioWatermark.release(windowCharge);
                 }
-                breaker.addWithoutBreaking(-windowSize);
+                breaker.addWithoutBreaking(-windowCharge);
                 throw t;
             }
         }
@@ -631,9 +639,9 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
          */
         private void releaseWindowCharge() {
             if (window != null) {
-                breaker.addWithoutBreaking(-windowSize);
+                breaker.addWithoutBreaking(-windowCharge);
                 if (ioWatermark != null) {
-                    ioWatermark.release(windowSize);
+                    ioWatermark.release(windowCharge);
                 }
                 window = null;
             }

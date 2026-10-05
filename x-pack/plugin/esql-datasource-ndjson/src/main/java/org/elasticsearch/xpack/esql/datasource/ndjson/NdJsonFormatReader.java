@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
@@ -71,7 +72,9 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     public static final String SEGMENT_SIZE_SETTING = "esql.external.ndjson.segment_size";
 
     /**
-     * 4 MiB, larger than the SPI's 1 MiB. Each NDJSON segment pays a fixed Java/Jackson setup cost
+     * Just under 4 MiB, larger than the SPI's 1 MiB. The streaming coordinator allocates one array of this size per
+     * in-flight chunk; trimmed by the array header so each array occupies 4 MiB of heap instead of a 4 MiB array's
+     * 8 MiB at 4 MiB G1 regions (see {@link HeapFootprint#regionFriendlyLength(int)}). Do not round it back up. Each NDJSON segment pays a fixed Java/Jackson setup cost
      * (schema lookup, {@link FormatReadContext} creation, {@link NdJsonPageIterator} +
      * {@link NdJsonPageDecoder} construction, range-stream wrapping, queue coordination), so cutting
      * the segment count by 4x cuts that overhead by ~4x. ClickHouse's 1 MiB sweet spot does not
@@ -79,7 +82,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
      * the C++ path). Files below {@code 2 * segment_size} (~8 MiB at the default) parse
      * single-threaded; that matches where per-chunk setup actually amortises.
      */
-    public static final ByteSizeValue DEFAULT_SEGMENT_SIZE = ByteSizeValue.ofMb(4);
+    public static final ByteSizeValue DEFAULT_SEGMENT_SIZE = ByteSizeValue.ofBytes(HeapFootprint.regionFriendlyLength(4 * 1024 * 1024));
 
     /** Below 64 KiB, per-chunk overhead dominates parse cost; reject silly configurations early. */
     static final ByteSizeValue MIN_SEGMENT_SIZE = ByteSizeValue.ofKb(64);

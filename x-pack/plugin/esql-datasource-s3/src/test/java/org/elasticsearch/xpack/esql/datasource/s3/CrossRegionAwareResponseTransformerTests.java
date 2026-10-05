@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.reactivestreams.Subscription;
 
@@ -147,7 +148,7 @@ public class CrossRegionAwareResponseTransformerTests extends ESTestCase {
         wrapper.onStream(syncPublisher(List.of(ByteBuffer.wrap(payload))));
 
         assertTrue(future.isDone());
-        assertEquals(payload.length, breaker.getUsed());
+        assertEquals(HeapFootprint.byteArrayBytes(payload.length), breaker.getUsed());
         wrapper.discard();
         assertEquals(0L, breaker.getUsed());
     }

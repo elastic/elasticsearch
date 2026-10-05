@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -280,7 +281,7 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
         DirectReadBuffer result = future.get();
         transformer.exceptionOccurred(new IOException("late transport failure"));
         assertArrayEquals(payload, toByteArray(result.buffer()));
-        assertEquals(payload.length, breaker.getUsed());
+        assertEquals(HeapFootprint.byteArrayBytes(payload.length), breaker.getUsed());
         result.close();
         assertEquals(0L, breaker.getUsed());
     }
@@ -346,7 +347,7 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
 
         assertTrue(future.isDone());
         assertFalse(future.isCompletedExceptionally());
-        assertEquals(payload.length, breaker.getUsed());
+        assertEquals(HeapFootprint.byteArrayBytes(payload.length), breaker.getUsed());
         transformer.discard();
         assertEquals(0L, breaker.getUsed());
     }

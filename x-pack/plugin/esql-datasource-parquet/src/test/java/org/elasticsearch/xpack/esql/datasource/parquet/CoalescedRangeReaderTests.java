@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIoAffinity;
@@ -1109,7 +1110,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
             );
         }
         try {
-            assertEquals("admitWait plus alloc must swap, not stack, the charge", 64, watermark.used());
+            assertEquals("admitWait plus alloc must swap, not stack, the charge", HeapFootprint.byteArrayBytes(64), watermark.used());
         } finally {
             result.release().close();
         }
@@ -1235,7 +1236,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
             ParquetIoWatermark.ByteGate.UNGATED
         );
         try {
-            assertEquals(96, watermark.used());
+            assertEquals(80 + HeapFootprint.byteArrayBytes(16), watermark.used());
         } finally {
             result.release().close();
         }

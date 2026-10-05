@@ -1910,7 +1910,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         .append("\n");
                 }
             } catch (Exception e) {
-                logger.error("exception capturing pending tasks on [{}]", nodeName, e);
+                logger.error(() -> Strings.format("exception capturing pending tasks on [%s]", nodeName), e);
                 pendingTasks.append("[").append(nodeName).append("] exception capturing pending tasks: ").append(e).append("\n");
             }
         }

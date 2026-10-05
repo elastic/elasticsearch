@@ -13,11 +13,17 @@ import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -29,6 +35,8 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BFLO
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BFLOAT16_DEFAULT_INDEX_OPTIONS_BACKPORT;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ES_VERSION_94;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class DenseVectorFieldMapperTestUtils {
     private DenseVectorFieldMapperTestUtils() {}
@@ -84,8 +92,62 @@ public class DenseVectorFieldMapperTestUtils {
         return Collections.unmodifiableSet(elementTypes);
     }
 
-    private static Random random() {
-        return RandomizedContext.current().getRandom();
+    /**
+     * Adds a {@code dense_vector} field named {@code fieldName} to {@code builder}. Null {@code similarity} or
+     * {@code indexOptions} are omitted.
+     */
+    public static XContentBuilder addDenseVectorField(
+        XContentBuilder builder,
+        String fieldName,
+        int dims,
+        boolean index,
+        @Nullable DenseVectorFieldMapper.VectorSimilarity similarity,
+        @Nullable DenseVectorFieldMapper.DenseVectorIndexOptions indexOptions
+    ) throws IOException {
+        return addDenseVectorField(builder, fieldName, dims, index, similarity, b -> {
+            if (indexOptions != null) {
+                b.field("index_options", indexOptions);
+            }
+        });
+    }
+
+    /**
+     * Adds a {@code dense_vector} field named {@code fieldName} to {@code builder}, calling {@code buildRest} to write any
+     * further field parameters. A null {@code similarity} is omitted.
+     */
+    public static XContentBuilder addDenseVectorField(
+        XContentBuilder builder,
+        String fieldName,
+        int dims,
+        boolean index,
+        @Nullable DenseVectorFieldMapper.VectorSimilarity similarity,
+        CheckedConsumer<XContentBuilder, IOException> additionalParamBuilder
+    ) throws IOException {
+        builder.startObject(fieldName);
+        builder.field("type", DenseVectorFieldMapper.CONTENT_TYPE);
+        builder.field("dims", dims);
+        builder.field("index", index);
+        if (similarity != null) {
+            builder.field("similarity", similarity.toString());
+        }
+        additionalParamBuilder.accept(builder);
+        return builder.endObject();
+    }
+
+    /**
+     * Gets the index options of the named {@code dense_vector} field, asserting that they are of the expected type.
+     */
+    public static <T extends DenseVectorFieldMapper.DenseVectorIndexOptions> T getIndexOptions(
+        MapperService mapperService,
+        String fieldName,
+        Class<T> indexOptionsClass
+    ) {
+        MappedFieldType fieldType = mapperService.fieldType(fieldName);
+        assertThat(fieldType, instanceOf(DenseVectorFieldMapper.DenseVectorFieldType.class));
+        DenseVectorFieldMapper.DenseVectorIndexOptions indexOptions = ((DenseVectorFieldMapper.DenseVectorFieldType) fieldType)
+            .getIndexOptions();
+        assertThat(indexOptions, instanceOf(indexOptionsClass));
+        return indexOptionsClass.cast(indexOptions);
     }
 
     /**
@@ -149,5 +211,9 @@ public class DenseVectorFieldMapperTestUtils {
         }
 
         return null;
+    }
+
+    private static Random random() {
+        return RandomizedContext.current().getRandom();
     }
 }

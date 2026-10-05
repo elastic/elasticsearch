@@ -26,6 +26,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOConsumer;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -33,6 +34,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -40,6 +43,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.codec.vectors.BFloat16;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibrationProfile;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
@@ -86,12 +90,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Supplier;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomNormalizedVector;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils.addDenseVectorField;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils.getIndexOptions;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
@@ -917,6 +924,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 .fieldType()
                 .getIndexOptions();
             assertTrue(indexOptions.autoCalibrate());
+            assertEquals(IvfAutoCalibrationProfile.ISO_SIZING, indexOptions.autoCalibrationProfile());
             assertTrue(mapperService.mappingSource().toString().contains("auto_calibrate"));
         }
         {
@@ -935,7 +943,33 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 .fieldType()
                 .getIndexOptions();
             assertFalse(indexOptions.autoCalibrate());
+            assertEquals(IvfAutoCalibrationProfile.DISABLED, indexOptions.autoCalibrationProfile());
             assertFalse(mapperService.mappingSource().toString().contains("auto_calibrate"));
+        }
+
+        for (IvfAutoCalibrationProfile profile : IvfAutoCalibrationProfile.values()) {
+            MapperService mapperService = createMapperService(experimentalEnabled, autoCalibrateMapping(profile.toString()));
+            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = getIndexOptions(
+                mapperService,
+                "field",
+                DenseVectorFieldMapper.BBQIVFIndexOptions.class
+            );
+
+            assertEquals(profile != IvfAutoCalibrationProfile.DISABLED, indexOptions.autoCalibrate());
+            assertEquals(profile, indexOptions.autoCalibrationProfile());
+            assertThat(mapperService.documentMapper().mappingSource().toString(), containsString("\"auto_calibrate\":\"" + profile + "\""));
+        }
+        {
+            MapperService mapperService = createMapperService(experimentalEnabled, autoCalibrateMapping(false));
+            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = getIndexOptions(
+                mapperService,
+                "field",
+                DenseVectorFieldMapper.BBQIVFIndexOptions.class
+            );
+
+            assertFalse(indexOptions.autoCalibrate());
+            assertEquals(IvfAutoCalibrationProfile.DISABLED, indexOptions.autoCalibrationProfile());
+            assertThat(mapperService.documentMapper().mappingSource().toString(), containsString("\"auto_calibrate\":false"));
         }
     }
 
@@ -1026,6 +1060,155 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             b.endObject();
             b.endObject();
         })));
+    }
+
+    private static final Settings EXPERIMENTAL_ENABLED = Settings.builder()
+        .put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), true)
+        .build();
+
+    public void testAutoCalibrateDefaultEnabledProfile() throws IOException {
+        IndexVersion qualityVersion = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.DISK_BBQ_AUTO_CALIBRATE_DEFAULT_ISO_SIZING)
+        );
+        IndexVersion isoSizingVersion = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.DISK_BBQ_AUTO_CALIBRATE_DEFAULT_ISO_SIZING);
+        List<Tuple<IndexVersion, IvfAutoCalibrationProfile>> testCases = List.of(
+            Tuple.tuple(qualityVersion, IvfAutoCalibrationProfile.QUALITY),
+            Tuple.tuple(isoSizingVersion, IvfAutoCalibrationProfile.ISO_SIZING)
+        );
+
+        for (Tuple<IndexVersion, IvfAutoCalibrationProfile> testCase : testCases) {
+            IndexVersion version = testCase.v1();
+            MapperService mapperService = createMapperService(version, EXPERIMENTAL_ENABLED, autoCalibrateMapping(true));
+            assertEquals(
+                testCase.v2(),
+                getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrationProfile()
+            );
+
+            // The stored mapping keeps the boolean, so recovery must resolve it against the same index version
+            String mappingSource = mapperService.documentMapper().mappingSource().string();
+            assertThat(mappingSource, containsString("\"auto_calibrate\":true"));
+            MapperService recovered = new TestMapperServiceBuilder().indexVersion(version).settings(EXPERIMENTAL_ENABLED).build();
+            merge(recovered, MapperService.MergeReason.MAPPING_RECOVERY, mappingSource);
+            assertEquals(
+                testCase.v2(),
+                getIndexOptions(recovered, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrationProfile()
+            );
+        }
+    }
+
+    public void testAutoCalibrateMappingUpdates() throws IOException {
+        IndexVersion current = IndexVersion.current();
+        IndexVersion oldVersion = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.DISK_BBQ_AUTO_CALIBRATE_DEFAULT_ISO_SIZING)
+        );
+
+        assertAutoCalibrateUpdate(current, null, false, true);
+        assertAutoCalibrateUpdate(current, false, "disabled", true);
+        assertAutoCalibrateUpdate(current, true, "iso_sizing", true);
+        assertAutoCalibrateUpdate(oldVersion, true, "quality", true);
+        assertAutoCalibrateUpdate(oldVersion, true, "iso_sizing", false);
+        assertAutoCalibrateUpdate(current, "quality", "iso_sizing", false);
+        assertAutoCalibrateUpdate(current, "iso_sizing", "quality", false);
+        assertAutoCalibrateUpdate(current, null, "quality", false);
+    }
+
+    private void assertAutoCalibrateUpdate(IndexVersion version, Object from, Object to, boolean accepted) throws IOException {
+        String message = "index version [" + version + "], from [" + from + "] to [" + to + "]";
+        MapperService mapperService = createMapperService(version, EXPERIMENTAL_ENABLED, autoCalibrateMapping(from));
+        if (accepted) {
+            merge(mapperService, autoCalibrateMapping(to));
+            DenseVectorAutoCalibrate expected = DenseVectorAutoCalibrate.parse(to, version, f -> true, "field");
+            assertEquals(
+                message,
+                expected.profile(),
+                getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrationProfile()
+            );
+            String expectedSource = to instanceof String ? "\"auto_calibrate\":\"" + to + "\"" : "\"auto_calibrate\":" + to;
+            assertThat(message, mapperService.documentMapper().mappingSource().toString(), containsString(expectedSource));
+        } else {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                message,
+                () -> merge(mapperService, autoCalibrateMapping(to))
+            );
+            assertThat(message, e.getMessage(), containsString("Cannot update parameter [index_options]"));
+        }
+    }
+
+    public void testAutoCalibrateProfilesRequireClusterFeature() throws IOException {
+        final Supplier<MapperService> createMapperService = () -> new TestMapperServiceBuilder().settings(EXPERIMENTAL_ENABLED)
+            .clusterSupportsFeature(f -> false)
+            .build();
+
+        {
+            MapperService mapperService = createMapperService.get();
+            XContentBuilder mapping = autoCalibrateMapping("quality");
+            Exception e = expectThrows(MapperParsingException.class, () -> merge(mapperService, mapping));
+            assertThat(e.getMessage(), containsString("'auto_calibrate' must be a boolean, got [quality]"));
+
+            // Recovery assumes all features are supported, so existing mappings that use profile names still load
+            merge(mapperService, MapperService.MergeReason.MAPPING_RECOVERY, mapping);
+            assertEquals(
+                IvfAutoCalibrationProfile.QUALITY,
+                getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrationProfile()
+            );
+        }
+
+        // Boolean values always work
+        for (Object enabled : List.of(true, false, "true", "false")) {
+            MapperService mapperService = createMapperService.get();
+            merge(mapperService, autoCalibrateMapping(enabled));
+            assertEquals(
+                Boolean.parseBoolean(enabled.toString()),
+                getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrate()
+            );
+        }
+    }
+
+    public void testAutoCalibrateWithAsh() throws IOException {
+        assumeTrue("ash requires a snapshot build", Build.current().isSnapshot());
+
+        for (Object value : List.of(false, "disabled")) {
+            MapperService mapperService = createMapperService(
+                EXPERIMENTAL_ENABLED,
+                autoCalibrateMapping(value, DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType.ASH)
+            );
+            assertFalse(getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrate());
+        }
+
+        for (Object value : List.of(true, "quality", "iso_sizing")) {
+            Exception e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(
+                    EXPERIMENTAL_ENABLED,
+                    autoCalibrateMapping(value, DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType.ASH)
+                )
+            );
+            assertThat(e.getMessage(), containsString("'auto_calibrate' is not supported with 'quantization_type' 'ash'"));
+        }
+    }
+
+    private static XContentBuilder autoCalibrateMapping(@Nullable Object autoCalibrate) throws IOException {
+        return autoCalibrateMapping(autoCalibrate, DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType.OSQ);
+    }
+
+    private static XContentBuilder autoCalibrateMapping(
+        @Nullable Object autoCalibrate,
+        DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType quantizationType
+    ) throws IOException {
+        return mapping(b -> addDenseVectorField(b, "field", 128, true, DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT, fb -> {
+            fb.startObject("index_options");
+            fb.field("type", "bbq_disk");
+            if (quantizationType != DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType.OSQ) {
+                fb.field("quantization_type", quantizationType.toString());
+            }
+            if (autoCalibrate != null) {
+                fb.field("auto_calibrate", autoCalibrate);
+            }
+            fb.endObject();
+        }));
     }
 
     public void testRescoreVectorForNonQuantized() {

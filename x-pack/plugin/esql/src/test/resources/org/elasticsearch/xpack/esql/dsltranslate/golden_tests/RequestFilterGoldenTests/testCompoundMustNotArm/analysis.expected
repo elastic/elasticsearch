@@ -1,3 +1,3 @@
 Limit[1000[INTEGER],false,false]
 \_Filter[MVCONTAINS(i{r}#0,5[INTEGER])]
-  \_ExternalRelation[s3://bucket/every_type.parquet][parquet][kw{r}#1, txt{r}#2, i{r}#0, l{r}#3, d{r}#4, b{r}#5, dt{r}#6, dn{r}#7, ul{r}#8, ip{r}#9, v{r}#10]
+  \_ExternalRelation[every_type.parquet][parquet][kw{r}#1, txt{r}#2, i{r}#0, l{r}#3, d{r}#4, b{r}#5, dt{r}#6, dn{r}#7, ul{r}#8, ip{r}#9, v{r}#10]

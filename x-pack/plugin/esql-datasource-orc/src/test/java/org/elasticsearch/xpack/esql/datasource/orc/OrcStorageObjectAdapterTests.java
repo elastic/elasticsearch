@@ -13,10 +13,12 @@ import org.apache.hadoop.fs.Path;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -87,6 +89,28 @@ public class OrcStorageObjectAdapterTests extends ESTestCase {
             assertEquals(1, stream.getPos());
             assertEquals(20, stream.read());
         }
+    }
+
+    public void testSeekBackwardAbortsToEofGetRatherThanDraining() throws IOException {
+        byte[] data = new byte[128 * 1024];
+        for (int i = 0; i < data.length; i++) {
+            data[i] = (byte) i;
+        }
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject storageObject = DrainSimulatingStorageObject.create(data, tracking, StoragePath.of("s3://bucket/test.orc"));
+        OrcStorageObjectAdapter adapter = new OrcStorageObjectAdapter(storageObject, footerByteCache);
+
+        try (FSDataInputStream stream = adapter.open(new Path("s3://bucket/test.orc"))) {
+            assertEquals(data[0] & 0xFF, stream.read());
+            assertEquals(data[1] & 0xFF, stream.read());
+            assertEquals(data[2] & 0xFF, stream.read());
+            stream.seek(1);
+            assertEquals(1, stream.getPos());
+            assertEquals(data[1] & 0xFF, stream.read());
+        }
+
+        assertTrue("backward seek must abort the to-EOF GET, not drain it", tracking.aborted.get());
+        assertThat(tracking.bytesConsumed.get(), Matchers.lessThan((long) data.length / 2));
     }
 
     public void testStreamSeekNegativeThrows() throws IOException {

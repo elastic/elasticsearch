@@ -58,6 +58,7 @@ import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.hamcrest.Matcher;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
@@ -65,6 +66,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -114,6 +116,48 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         assertEquals(LongPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1, 2.1), MOCK_CONTEXT));
         assertEquals(LongPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1.0, 2.1), MOCK_CONTEXT));
         assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+    }
+
+    public void testLongTermsQueryWithIntegralBoxedTypes() {
+        MappedFieldType ft = new NumberFieldType("field", NumberType.LONG);
+        List<Number> values = new ArrayList<>();
+        values.add(Integer.MIN_VALUE);
+        values.add(Integer.MAX_VALUE);
+        values.add(Short.MIN_VALUE);
+        values.add(Short.MAX_VALUE);
+        values.add(Byte.MIN_VALUE);
+        values.add(Byte.MAX_VALUE);
+        int randomValues = randomIntBetween(0, 100);
+        for (int i = 0; i < randomValues; i++) {
+            values.add(randomFrom(Integer.valueOf(randomInt()), Short.valueOf(randomShort()), Byte.valueOf(randomByte())));
+        }
+        long[] expected = values.stream().mapToLong(Number::longValue).toArray();
+
+        assertEquals(LongPoint.newSetQuery("field", expected), ft.termsQuery(values, MOCK_CONTEXT));
+    }
+
+    public void testLongTermsQueryWithMixedValueTypes() {
+        MappedFieldType ft = new NumberFieldType("field", NumberType.LONG);
+        List<Object> values = Arrays.asList(
+            1,
+            2.5d,
+            3L,
+            (short) 4,
+            (byte) 5,
+            6.0f,
+            new BigDecimal("7.5"),
+            "8",
+            new BytesRef("9"),
+            9007199254740993L,
+            Double.NaN
+        );
+        assertEquals(LongPoint.newSetQuery("field", 1, 3, 4, 5, 6, 8, 9, 9007199254740993L), ft.termsQuery(values, MOCK_CONTEXT));
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ft.termsQuery(Arrays.asList(1, new BigInteger("18446744073709551616")), MOCK_CONTEXT)
+        );
+        assertThat(e.getMessage(), equalTo("Value [18446744073709551616] is out of range for a long"));
     }
 
     public void testLongTermQueryRejectsOversizedString() {
@@ -845,6 +889,103 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         // these will lose precision if they get treated as a double
         assertEquals(-4115420654264075766L, NumberType.LONG.parse("-4115420654264075766", true));
         assertEquals(-4115420654264075766L, NumberType.LONG.parse(-4115420654264075766L, true));
+    }
+
+    public void testObjectToLongWithIntegralBoxedTypes() {
+        for (boolean coerce : new boolean[] { true, false }) {
+            assertEquals(Integer.MIN_VALUE, NumberType.objectToLong(Integer.MIN_VALUE, coerce));
+            assertEquals(Integer.MAX_VALUE, NumberType.objectToLong(Integer.MAX_VALUE, coerce));
+            assertEquals(Short.MIN_VALUE, NumberType.objectToLong(Short.MIN_VALUE, coerce));
+            assertEquals(Short.MAX_VALUE, NumberType.objectToLong(Short.MAX_VALUE, coerce));
+            assertEquals(Byte.MIN_VALUE, NumberType.objectToLong(Byte.MIN_VALUE, coerce));
+            assertEquals(Byte.MAX_VALUE, NumberType.objectToLong(Byte.MAX_VALUE, coerce));
+
+            int intValue = randomInt();
+            assertEquals(intValue, NumberType.objectToLong(intValue, coerce));
+            short shortValue = randomShort();
+            assertEquals(shortValue, NumberType.objectToLong(shortValue, coerce));
+            byte byteValue = randomByte();
+            assertEquals(byteValue, NumberType.objectToLong(byteValue, coerce));
+        }
+    }
+
+    public void testObjectToLongWithOtherValueTypes() {
+        for (boolean coerce : new boolean[] { true, false }) {
+            assertObjectToLong(Long.MAX_VALUE, coerce, Long.MAX_VALUE);
+            assertObjectToLong(Long.MIN_VALUE, coerce, Long.MIN_VALUE);
+            assertObjectToLong(9007199254740993L, coerce, 9007199254740993L);
+            assertObjectToLong(new BigInteger("9007199254740993"), coerce, 9007199254740993L);
+            assertObjectToLong(2.0d, coerce, 2L);
+            assertObjectToLong(6.0f, coerce, 6L);
+            assertObjectToLong("42", coerce, 42L);
+            assertObjectToLong("-9223372036854775808", coerce, Long.MIN_VALUE);
+            assertObjectToLong(new BytesRef("42"), coerce, 42L);
+
+            assertObjectToLongFails(
+                new BigInteger("9223372036854775808"),
+                coerce,
+                IllegalArgumentException.class,
+                equalTo("Value [9223372036854775808] is out of range for a long")
+            );
+            assertObjectToLongFails(
+                new BigInteger("18446744073709551616"),
+                coerce,
+                IllegalArgumentException.class,
+                equalTo("Value [18446744073709551616] is out of range for a long")
+            );
+            assertObjectToLongFails(1e19d, coerce, IllegalArgumentException.class, equalTo("Value [1.0E19] is out of range for a long"));
+            assertObjectToLongFails(
+                Double.POSITIVE_INFINITY,
+                coerce,
+                IllegalArgumentException.class,
+                equalTo("Value [Infinity] is out of range for a long")
+            );
+            assertObjectToLongFails(
+                Float.NEGATIVE_INFINITY,
+                coerce,
+                IllegalArgumentException.class,
+                equalTo("Value [-Infinity] is out of range for a long")
+            );
+            assertObjectToLongFails("abc", coerce, NumberFormatException.class, containsString("abc"));
+            assertObjectToLongFails(new BytesRef("abc"), coerce, NumberFormatException.class, containsString("abc"));
+        }
+
+        assertObjectToLong(3.5f, true, 3L);
+        assertObjectToLong(-3.5d, true, -3L);
+        assertObjectToLong(new BigDecimal("3.5"), true, 3L);
+        assertObjectToLong("42.7", true, 42L);
+        assertObjectToLong(new BytesRef("42.7"), true, 42L);
+        assertObjectToLongFails(Double.NaN, true, IllegalArgumentException.class, equalTo("For input string: \"NaN\""));
+        assertObjectToLongFails(Float.NaN, true, IllegalArgumentException.class, equalTo("For input string: \"NaN\""));
+
+        assertObjectToLongFails(3.5f, false, IllegalArgumentException.class, equalTo("Value [3.5] has a decimal part"));
+        assertObjectToLongFails(-3.5d, false, IllegalArgumentException.class, equalTo("Value [-3.5] has a decimal part"));
+        assertObjectToLongFails(new BigDecimal("3.5"), false, IllegalArgumentException.class, equalTo("Value [3.5] has a decimal part"));
+        assertObjectToLongFails("42.7", false, IllegalArgumentException.class, equalTo("Value [42.7] has a decimal part"));
+        BytesRef fractionalBytes = new BytesRef("42.7");
+        assertObjectToLongFails(
+            fractionalBytes,
+            false,
+            IllegalArgumentException.class,
+            equalTo("Value [" + fractionalBytes + "] has a decimal part")
+        );
+        assertObjectToLongFails(Double.NaN, false, IllegalArgumentException.class, equalTo("Value [NaN] has a decimal part"));
+        assertObjectToLongFails(Float.NaN, false, IllegalArgumentException.class, equalTo("Value [NaN] has a decimal part"));
+    }
+
+    private static void assertObjectToLong(Object value, boolean coerce, long expected) {
+        assertEquals("objectToLong(" + value + ", " + coerce + ")", expected, NumberType.objectToLong(value, coerce));
+    }
+
+    private static void assertObjectToLongFails(
+        Object value,
+        boolean coerce,
+        Class<? extends IllegalArgumentException> expectedType,
+        Matcher<String> expectedMessage
+    ) {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> NumberType.objectToLong(value, coerce));
+        assertSame("objectToLong(" + value + ", " + coerce + ")", expectedType, e.getClass());
+        assertThat("objectToLong(" + value + ", " + coerce + ")", e.getMessage(), expectedMessage);
     }
 
     public void testHalfFloatRange() throws IOException {

@@ -39,6 +39,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.compute.operator.SuppressedFailures;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -2115,9 +2116,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                         );
                 }
             } catch (Throwable retryFailure) {
-                if (retryFailure != asyncFailure) {
-                    retryFailure.addSuppressed(asyncFailure);
-                }
+                SuppressedFailures.attach(retryFailure, asyncFailure);
                 throw retryFailure;
             }
         }

@@ -154,7 +154,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         // Zero-length objects still need a 1-byte array; fetchWindowAt returns before any read
         // (pos >= length). For length > 0 this equals min(requested, length), so
         // length <= windowSize iff the object fits in the window (whole-file fill below).
-        this.windowSize = (int) Math.min(windowSize, Math.max(1L, this.length));
+        this.windowSize = ExternalSourceSettings.ioFillBytes(windowSize, this.length);
     }
 
     /**

@@ -89,7 +89,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
                 "jvm.memory.heap.used",
                 "The amount of used heap memory in bytes.",
                 "By",
-                () -> new LongWithAttributes(MEMORY_BEAN.getHeapMemoryUsage().getUsed(), INTERNAL_DATASET)
+                measurement -> measurement.record(MEMORY_BEAN.getHeapMemoryUsage().getUsed(), INTERNAL_DATASET)
             )
         );
         metrics.add(
@@ -97,7 +97,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
                 "jvm.memory.heap.committed",
                 "The amount of heap memory in bytes that is committed for the JVM to use.",
                 "By",
-                () -> new LongWithAttributes(MEMORY_BEAN.getHeapMemoryUsage().getCommitted(), INTERNAL_DATASET)
+                measurement -> measurement.record(MEMORY_BEAN.getHeapMemoryUsage().getCommitted(), INTERNAL_DATASET)
             )
         );
         registerLongGaugeUnlessNegative(
@@ -112,7 +112,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
                 "jvm.memory.non_heap.used",
                 "The amount of used non-heap memory in bytes.",
                 "By",
-                () -> new LongWithAttributes(MEMORY_BEAN.getNonHeapMemoryUsage().getUsed(), INTERNAL_DATASET)
+                measurement -> measurement.record(MEMORY_BEAN.getNonHeapMemoryUsage().getUsed(), INTERNAL_DATASET)
             )
         );
         metrics.add(
@@ -120,7 +120,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
                 "jvm.memory.non_heap.committed",
                 "The amount of non-heap memory in bytes that is committed for the JVM to use.",
                 "By",
-                () -> new LongWithAttributes(MEMORY_BEAN.getNonHeapMemoryUsage().getCommitted(), INTERNAL_DATASET)
+                measurement -> measurement.record(MEMORY_BEAN.getNonHeapMemoryUsage().getCommitted(), INTERNAL_DATASET)
             )
         );
         registerLongGaugeUnlessNegative(
@@ -238,7 +238,10 @@ public class SystemMetrics extends AbstractLifecycleComponent {
                 "jvm.gc.alloc",
                 "An approximation of the total amount of memory, in bytes, allocated in heap memory.",
                 "By",
-                ALLOCATED_BYTES_METRICS::readAllocatedBytes
+                measurement -> {
+                    LongWithAttributes observed = ALLOCATED_BYTES_METRICS.readAllocatedBytes();
+                    measurement.record(observed.value(), observed.attributes());
+                }
             )
         );
     }
@@ -251,7 +254,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
                 "jvm.thread.count",
                 "The current number of live threads including both daemon and non-daemon threads.",
                 "{thread}",
-                () -> new LongWithAttributes(THREAD_BEAN.getThreadCount(), INTERNAL_DATASET)
+                measurement -> measurement.record(THREAD_BEAN.getThreadCount(), INTERNAL_DATASET)
             )
         );
     }
@@ -300,7 +303,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
                 "system.memory.actual.free",
                 "Actual free memory in bytes.",
                 "By",
-                () -> new LongWithAttributes(OsProbe.getInstance().getActualFreePhysicalMemorySize(), INTERNAL_DATASET)
+                measurement -> measurement.record(OsProbe.getInstance().getActualFreePhysicalMemorySize(), INTERNAL_DATASET)
             )
         );
         metrics.add(
@@ -308,7 +311,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
                 "system.memory.total",
                 "Total memory.",
                 "By",
-                () -> new LongWithAttributes(OsProbe.getInstance().getTotalPhysicalMemorySizeFromMeminfo(), INTERNAL_DATASET)
+                measurement -> measurement.record(OsProbe.getInstance().getTotalPhysicalMemorySizeFromMeminfo(), INTERNAL_DATASET)
             )
         );
         registerLongGaugeUnlessNegative(
@@ -326,7 +329,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
                 "system.process.cgroup.memory.mem.usage.bytes",
                 "Memory usage in current cgroup slice.",
                 "By",
-                () -> new LongWithAttributes(OsProbe.getInstance().getCgroupMemoryUsageInBytes().orElse(0L), INTERNAL_DATASET)
+                measurement -> measurement.record(OsProbe.getInstance().getCgroupMemoryUsageInBytes().orElse(0L), INTERNAL_DATASET)
             )
         );
         metrics.add(
@@ -334,7 +337,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
                 "system.process.cgroup.memory.mem.limit.bytes",
                 "Memory limit for current cgroup slice.",
                 "By",
-                () -> new LongWithAttributes(OsProbe.getInstance().getCgroupMemoryLimitInBytes().orElse(0L), INTERNAL_DATASET)
+                measurement -> measurement.record(OsProbe.getInstance().getCgroupMemoryLimitInBytes().orElse(0L), INTERNAL_DATASET)
             )
         );
     }
@@ -370,7 +373,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
             return;
         }
         metrics.add(
-            registry.registerLongAsyncGauge(name, description, unit, () -> new LongWithAttributes(supplier.getAsLong(), attributes))
+            registry.registerLongAsyncGauge(name, description, unit, measurement -> measurement.record(supplier.getAsLong(), attributes))
         );
     }
 

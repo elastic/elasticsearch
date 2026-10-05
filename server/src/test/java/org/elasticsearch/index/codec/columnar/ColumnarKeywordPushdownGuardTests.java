@@ -22,6 +22,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -39,6 +40,9 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.fielddata.ColumnarPayloadSortableBinaryDocValues;
+import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.SingleValuedColumnarBinaryDocValuesField;
@@ -90,6 +94,11 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
             BlockDocValuesReader.DocValuesBlockLoader valueLoader() {
                 return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(FIELD, format);
             }
+
+            @Override
+            SortableBinaryDocValues fieldData(LeafReader leaf) throws IOException {
+                return ColumnarPayloadSortableBinaryDocValues.from(leaf, FIELD);
+            }
         },
         SINGLE_VALUED(BinaryDocValuesFormat.PLAIN) {
             @Override
@@ -100,6 +109,11 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
             @Override
             BlockDocValuesReader.DocValuesBlockLoader valueLoader() {
                 return new BytesRefsFromBinaryBlockLoader(FIELD);
+            }
+
+            @Override
+            SortableBinaryDocValues fieldData(LeafReader leaf) throws IOException {
+                return MultiValuedSortableBinaryDocValues.fromPlain(leaf, FIELD);
             }
         };
 
@@ -112,6 +126,8 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
         abstract Field field(String value);
 
         abstract BlockDocValuesReader.DocValuesBlockLoader valueLoader();
+
+        abstract SortableBinaryDocValues fieldData(LeafReader leaf) throws IOException;
     }
 
     public void testValues() throws IOException {
@@ -160,6 +176,31 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
             false,
             value -> value.codePointCount(0, value.length())
         );
+    }
+
+    /**
+     * A column says that its documents hold at most one value and whether every document holds one. A query that checks
+     * a field is single-valued is dropped where both hold, and otherwise runs beside every filter on the field.
+     */
+    public void testFieldDataReportsSingleValuedAndDensity() throws IOException {
+        for (Framing framing : Framing.values()) {
+            final String[] dense = values(randomBoolean());
+            for (int d = 0; d < dense.length; d++) {
+                if (dense[d] == null) {
+                    dense[d] = "term-0";
+                }
+            }
+            withSegment(dense, framing, leaf -> {
+                final SortableBinaryDocValues fieldData = framing.fieldData(leaf.reader());
+                assertEquals(framing.toString(), SortableBinaryDocValues.ValueMode.SINGLE_VALUED, fieldData.getValueMode());
+                assertEquals(framing.toString(), SortableBinaryDocValues.Sparsity.DENSE, fieldData.getSparsity());
+            });
+            withSegment(values(randomBoolean()), framing, leaf -> {
+                final SortableBinaryDocValues fieldData = framing.fieldData(leaf.reader());
+                assertEquals(framing.toString(), SortableBinaryDocValues.ValueMode.SINGLE_VALUED, fieldData.getValueMode());
+                assertEquals(framing.toString(), SortableBinaryDocValues.Sparsity.SPARSE, fieldData.getSparsity());
+            });
+        }
     }
 
     /** Each query shape matches the same documents over the guarded column as over the column itself. */

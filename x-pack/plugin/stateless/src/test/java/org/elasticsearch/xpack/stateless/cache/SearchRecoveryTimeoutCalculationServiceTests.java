@@ -193,7 +193,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
     }
 
     /// [SearchRecoveryTimeoutCalculationService#searchRecoveryTimeout] applies to non-promotable search replicas only.
-    /// Index-only primary and a single [ShardRoutingState#INITIALIZING] [ShardRouting.Role#SEARCH_ONLY]
+    /// Index-only primary and a single [org.elasticsearch.cluster.routing.ShardRoutingState#INITIALIZING] [ShardRouting.Role#SEARCH_ONLY]
     /// replica: no other active search copy to wait on.
     public void testSearchRecoverySkipsWhenOnlyPrimaryActive() {
         try (var threadPool = new TestThreadPool(getTestName(), StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true))) {
@@ -207,8 +207,8 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         }
     }
 
-    /// Non-relocation recovery of an [ShardRoutingState#INITIALIZING] [ShardRouting.Role#SEARCH_ONLY] replica while a started
-    /// search peer exists ([ShardRouting.Role#INDEX_ONLY] primary).
+    /// Non-relocation recovery of an [org.elasticsearch.cluster.routing.ShardRoutingState#INITIALIZING] [ShardRouting.Role#SEARCH_ONLY]
+    /// replica while a started search peer exists ([ShardRouting.Role#INDEX_ONLY] primary).
     public void testSearchRecoveryNonRelocationWaitsWhenAnotherActiveCopy() {
         try (var threadPool = new TestThreadPool(getTestName(), StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true))) {
             var service = newCalculationService(threadPool);
@@ -701,7 +701,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             var service = newCalculationService(threadPool);
             ClusterState state = clusterStateReshardTargetInitializingSearchShard("idx");
             ShardId shard1 = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 1);
-            ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID).shardRoutingTable(shard1).replicaShards().get(0);
+            ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID).shardRoutingTable(shard1).replicaShards().getFirst();
             var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L);
             assertThat(plan.awaitWarming(), is(true));
             assertThat(
@@ -722,7 +722,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             ClusterState state = withActiveShutdownNodeMetadata(base, null);
             assertThat(state.metadata().nodeShutdowns().getAll().isEmpty(), is(false));
             ShardId shard1 = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 1);
-            ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID).shardRoutingTable(shard1).replicaShards().get(0);
+            ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID).shardRoutingTable(shard1).replicaShards().getFirst();
             var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L);
             assertThat(plan.awaitWarming(), is(true));
             assertThat(

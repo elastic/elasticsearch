@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.LongConsumer;
 
 /**
  * Wraps an S3 object-read stream so that a failure <em>while reading raw bytes</em> is typed for the
@@ -31,21 +33,55 @@ import java.io.InputStream;
  * Classification is by exception type and AWS error code, not message text.
  * <p>
  * Remains {@link Abortable} so a caller's abort fast-path still reaches the underlying S3 stream rather than
- * falling back to a draining {@code close()}.
+ * falling back to a draining {@code close()}. {@link #close()} itself aborts when the unread remainder is
+ * larger than {@link #MAX_TRAILING_DRAIN_BYTES} (or the body length is unknown) so uncompressed
+ * {@code LIMIT} teardown does not drain a 64 MiB GET. A small leftover is drained by the inner close
+ * and reported to {@code onDrained} so received-byte counters include those bytes.
  */
 final class TransientTypingInputStream extends FilterInputStream implements Abortable {
 
+    /**
+     * Leftover GET bytes at or below this still drain on {@code close()} so Apache can return the
+     * connection to the pool. Larger leftover (or unknown length) aborts the connection instead.
+     * Keep in sync with {@code DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES} (64 KiB) and
+     * Hadoop S3A readahead. Different package; do not import that package-private field.
+     */
+    static final int MAX_TRAILING_DRAIN_BYTES = 64 * 1024;
+
     private final StoragePath path;
+    /** {@code < 0} means unknown length: {@link #close()} always aborts. */
+    private final long expectedLength;
+    /**
+     * Bytes delivered to the caller. A single reader thread updates this; a close from another
+     * thread may see a stale count and bias toward drain, which is harmless for LIMIT remainders.
+     */
+    private volatile long bytesRead;
+    private final AtomicBoolean terminal = new AtomicBoolean();
+    private final LongConsumer onDrained;
 
     TransientTypingInputStream(InputStream delegate, StoragePath path) {
+        this(delegate, path, -1L, leftover -> {});
+    }
+
+    TransientTypingInputStream(InputStream delegate, StoragePath path, long expectedLength) {
+        this(delegate, path, expectedLength, leftover -> {});
+    }
+
+    TransientTypingInputStream(InputStream delegate, StoragePath path, long expectedLength, LongConsumer onDrained) {
         super(delegate);
         this.path = path;
+        this.expectedLength = expectedLength;
+        this.onDrained = onDrained == null ? leftover -> {} : onDrained;
     }
 
     @Override
     public int read() throws IOException {
         try {
-            return in.read();
+            int b = in.read();
+            if (b >= 0) {
+                bytesRead++;
+            }
+            return b;
         } catch (IOException | SdkException e) {
             throw wrap(e);
         }
@@ -54,7 +90,28 @@ final class TransientTypingInputStream extends FilterInputStream implements Abor
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
         try {
-            return in.read(b, off, len);
+            int n = in.read(b, off, len);
+            if (n > 0) {
+                bytesRead += n;
+            }
+            return n;
+        } catch (IOException | SdkException e) {
+            throw wrap(e);
+        }
+    }
+
+    /**
+     * {@link FilterInputStream#skip} calls {@code in.skip} and bypasses {@link #read()}, so skip
+     * bytes must be counted here. bzip2 uses {@code skipNBytes}, which calls {@code skip}.
+     */
+    @Override
+    public long skip(long n) throws IOException {
+        try {
+            long skipped = in.skip(n);
+            if (skipped > 0) {
+                bytesRead += skipped;
+            }
+            return skipped;
         } catch (IOException | SdkException e) {
             throw wrap(e);
         }
@@ -65,8 +122,6 @@ final class TransientTypingInputStream extends FilterInputStream implements Abor
         if (expired != null) {
             return expired;
         }
-        // Remaining mid-body faults are transport (the GET already succeeded). Flag throttling for a
-        // rare 503/429 on the body so it shares the throttle budget.
         long retryAfterMs = 0L;
         boolean throttling = false;
         for (Throwable current = e; current != null; current = current.getCause()) {
@@ -92,9 +147,39 @@ final class TransientTypingInputStream extends FilterInputStream implements Abor
     }
 
     @Override
+    public void close() throws IOException {
+        long leftover = expectedLength < 0 ? Long.MAX_VALUE : expectedLength - bytesRead;
+        // Unknown length always aborts, including leftover 0: without Content-Length we cannot
+        // treat EOF as a complete window. S3 almost always sends length; callers that need pool
+        // reuse on a fully-read window must pass expectedLength.
+        if (expectedLength < 0 || leftover > MAX_TRAILING_DRAIN_BYTES) {
+            abort();
+            return;
+        }
+        if (terminal.getAndSet(true)) {
+            return;
+        }
+        if (leftover > 0) {
+            onDrained.accept(leftover);
+        }
+        super.close();
+    }
+
+    @Override
     public void abort() {
-        if (in instanceof Abortable abortable) {
-            abortable.abort();
+        if (terminal.getAndSet(true) == false) {
+            if (in instanceof Abortable abortable) {
+                abortable.abort();
+            } else {
+                try {
+                    // Production S3 inner is AWS Abortable (drop conn). A non-Abortable test
+                    // double falls through to close(), which may drain — keep S3 unit tests on
+                    // Abortable inners.
+                    in.close();
+                } catch (IOException ignored) {
+                    // abort is best-effort; a noisy close must not fail the caller
+                }
+            }
         }
     }
 }

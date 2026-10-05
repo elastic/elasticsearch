@@ -309,7 +309,7 @@ abstract class BinaryDvConfirmedQuery extends Query implements BinaryDocValuesSc
 
         @Override
         protected BinaryDVMatcher getBinaryDVMatcher() {
-            final ByteRunAutomaton byteRunAutomaton = new ByteRunAutomaton(automatonProvider.getAutomaton(field));
+            final ByteRunAutomaton byteRunAutomaton = automatonProvider.getRunAutomaton(field);
             return (values) -> {
                 int count = values.docValueCount();
                 for (int i = 0; i < count; i++) {
@@ -412,6 +412,10 @@ abstract class BinaryDvConfirmedQuery extends Query implements BinaryDocValuesSc
 
     private interface AutomatonProvider {
         Automaton getAutomaton(String field);
+
+        default ByteRunAutomaton getRunAutomaton(String field) {
+            return new ByteRunAutomaton(getAutomaton(field));
+        }
     }
 
     private record PatternAutomatonProvider(String matchPattern, boolean caseInsensitive) implements AutomatonProvider {
@@ -453,7 +457,12 @@ abstract class BinaryDvConfirmedQuery extends Query implements BinaryDocValuesSc
     private record FuzzyQueryAutomatonProvider(String searchTerm, FuzzyQuery fuzzyQuery) implements AutomatonProvider {
         @Override
         public Automaton getAutomaton(String field) {
-            return fuzzyQuery.getAutomata().automaton;
+            throw new UnsupportedOperationException("Call getRunAutomaton instead");
+        }
+
+        @Override
+        public ByteRunAutomaton getRunAutomaton(String field) {
+            return fuzzyQuery.getAutomata().runAutomaton;
         }
     }
 

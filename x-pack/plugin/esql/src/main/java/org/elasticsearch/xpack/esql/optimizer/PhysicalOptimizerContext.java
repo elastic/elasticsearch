@@ -8,6 +8,17 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
-public record PhysicalOptimizerContext(Configuration configuration, TransportVersion minimumVersion) {}
+/**
+ * @param flags the cluster settings that physical rules read, such as whether the fetch phase is on
+ */
+public record PhysicalOptimizerContext(Configuration configuration, TransportVersion minimumVersion, EsqlFlags flags) {
+    /**
+     * For callers that leave every flag at its default.
+     */
+    public PhysicalOptimizerContext(Configuration configuration, TransportVersion minimumVersion) {
+        this(configuration, minimumVersion, EsqlFlags.DEFAULTS);
+    }
+}

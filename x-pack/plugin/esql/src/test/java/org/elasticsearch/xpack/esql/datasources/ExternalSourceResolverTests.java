@@ -4696,6 +4696,37 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * A rejection or breaker that carries a storage-client cause keeps its 429, and drops the cause: the REST layer
+     * would otherwise render the remote's refusal under {@code caused_by}.
+     */
+    public void testARejectionOrBreakerWithAStorageCauseIsDetached() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        String iam = "User: arn:aws:sts::123456789012:assumed-role/reader/session is not authorized";
+
+        EsRejectedExecutionException rejected = new EsRejectedExecutionException("Interrupted while acquiring permit", true);
+        rejected.initCause(builtBySdk(new RuntimeException(iam)));
+        RuntimeException mappedRejected = resolver.mapResolveFailure("s3://b/x.parquet", new ExecutionException(rejected));
+        assertThat(mappedRejected, instanceOf(EsRejectedExecutionException.class));
+        assertNull(mappedRejected.getCause());
+        assertTrue(((EsRejectedExecutionException) mappedRejected).isExecutorShutdown());
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(mappedRejected));
+
+        CircuitBreakingException breaking = new CircuitBreakingException("over limit", 100, 50, CircuitBreaker.Durability.TRANSIENT);
+        breaking.initCause(builtBySdk(new RuntimeException(iam)));
+        RuntimeException mappedBreaking = resolver.mapResolveFailure("s3://b/x.parquet", new ExecutionException(breaking));
+        assertThat(mappedBreaking, instanceOf(CircuitBreakingException.class));
+        assertNull(mappedBreaking.getCause());
+        assertEquals(100, ((CircuitBreakingException) mappedBreaking).getBytesWanted());
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(mappedBreaking));
+
+        TaskCancelledException cancelled = new TaskCancelledException("cancelled");
+        cancelled.initCause(builtBySdk(new RuntimeException(iam)));
+        RuntimeException mappedCancelled = resolver.mapResolveFailure("s3://b/x.parquet", cancelled);
+        assertThat(mappedCancelled, instanceOf(TaskCancelledException.class));
+        assertNull(mappedCancelled.getCause());
+    }
+
+    /**
      * A bare compression suffix implies no data format. Query-time {@code datasetFormat} refuses before
      * the registry's codec diagnosis; set {@code format} or use an inner extension such as {@code .csv.gz}.
      */

@@ -15,6 +15,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.LogThrottle;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
@@ -63,6 +65,13 @@ import java.util.concurrent.atomic.AtomicReference;
 public final class HttpStorageObject extends AbstractMeteredStorageObject {
 
     private static final Logger logger = LogManager.getLogger(HttpStorageObject.class);
+
+    /**
+     * Bounds WARN lines for HTTP error-response bodies: the body is withheld from the user-facing message (it often
+     * names the bucket or object), so the node log is the only place it survives. Shared across every HTTP object on
+     * the node — anyone who can query a failing dataset can repeat the failure.
+     */
+    static final LogThrottle ERROR_BODY_WARN = new LogThrottle(TimeValue.timeValueMinutes(1));
 
     private final HttpClient client;
     private final StoragePath path;
@@ -189,13 +198,17 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      * any other status becomes an {@link IOException}, which the external source operator classifies as
      * a client-class 400. {@code detail} is an optional truncated error-response body: a store's error body
      * routinely names the bucket or object in plain text (e.g. a GCS {@code {"error":{"message":"No such object:
-     * bucket/key"}}}), so it is logged here for the admin at DEBUG and never forwarded. {@code retryAfterMs}
-     * is the parsed {@code Retry-After} hint (0 when absent). Returns (never throws) so both the
-     * synchronous and async read paths can route it.
+     * bucket/key"}}}), so it is never forwarded and is logged here for the admin — at WARN at most once a minute
+     * per node ({@link #ERROR_BODY_WARN}), otherwise at DEBUG. {@code retryAfterMs} is the parsed {@code Retry-After}
+     * hint (0 when absent). Returns (never throws) so both the synchronous and async read paths can route it.
      */
     private Exception mapReadFailure(String context, int statusCode, String detail, long retryAfterMs) {
         if (detail != null && detail.isEmpty() == false) {
-            logger.debug("HTTP {} error body reading [{}]: {}", statusCode, path.objectName(), detail);
+            if (ERROR_BODY_WARN.tryAcquire()) {
+                logger.warn("HTTP {} error body reading [{}]: {}", statusCode, path.objectName(), detail);
+            } else {
+                logger.debug("HTTP {} error body reading [{}]: {}", statusCode, path.objectName(), detail);
+            }
         }
         if (ExternalUnavailableException.isRetryableStatus(statusCode)) {
             boolean throttling = ExternalUnavailableException.isThrottlingStatus(statusCode);

@@ -630,10 +630,11 @@ public class HttpStorageObjectTests extends ESTestCase {
     /**
      * A store's error body routinely names the bucket or object in plain text, with no storage-URI scheme and no
      * absolute path for {@code safeForUserMessage} to catch. It must never reach the exception message; it is
-     * logged at DEBUG for the admin instead.
+     * logged at WARN for the admin (at most once a minute per node), and at DEBUG otherwise.
      */
-    @TestLogging(value = "org.elasticsearch.xpack.esql.datasource.http.HttpStorageObject:DEBUG", reason = "asserts the DEBUG body log")
+    @TestLogging(value = "org.elasticsearch.xpack.esql.datasource.http.HttpStorageObject:DEBUG", reason = "asserts the body log")
     public void testErrorBodyIsLoggedNotForwarded() throws Exception {
+        HttpStorageObject.ERROR_BODY_WARN.reset();
         String body = "{\"error\":{\"code\":404,\"message\":\"No such object: my-bucket/tenant-a/x.csv\"}}";
 
         MockLog.assertThatLogger(() -> {
@@ -645,9 +646,18 @@ public class HttpStorageObjectTests extends ESTestCase {
             new MockLog.SeenEventExpectation(
                 "error body",
                 HttpStorageObject.class.getCanonicalName(),
-                Level.DEBUG,
+                Level.WARN,
                 "*my-bucket/tenant-a/x.csv*"
             )
+        );
+
+        MockLog.assertThatLogger(() -> {
+            for (int i = 0; i < 10; i++) {
+                expectThrows(IOException.class, () -> objectAnsweringWithBody(HttpStatus.SC_NOT_FOUND, body).newStream());
+            }
+        },
+            HttpStorageObject.class,
+            new MockLog.UnseenEventExpectation("throttled", HttpStorageObject.class.getCanonicalName(), Level.WARN, "*")
         );
     }
 

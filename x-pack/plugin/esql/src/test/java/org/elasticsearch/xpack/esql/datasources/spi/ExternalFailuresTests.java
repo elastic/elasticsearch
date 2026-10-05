@@ -77,11 +77,11 @@ public class ExternalFailuresTests extends ESTestCase {
     public void testRejectedExecutionIsBackpressureNotServerError() {
         // A saturated thread pool (or the node shutting down) can reject work as an EsRejectedExecutionException.
         // That is load-shed backpressure (429), not a broken invariant in our reading code (500): classify must
-        // return it unchanged so its self-carried 429 survives, rather than wrapping it as an ExternalServerException.
+        // return it (detached) so its self-carried 429 survives, rather than wrapping it as an ExternalServerException.
         // Storage concurrency permit exhaustion is a separate case: it is raised as a 503-class
         // ExternalUnavailableException at the concurrency-limiter boundary so the storage retry layer engages, so it
         // does not reach classify() as an EsRejectedExecutionException.
-        var rejected = new EsRejectedExecutionException("rejected execution while reading external source");
+        var rejected = new EsRejectedExecutionException("rejected execution while reading external source", true);
         RuntimeException classified = ExternalFailures.classify(rejected);
         assertSame(rejected, classified);
         assertEquals(
@@ -89,6 +89,19 @@ public class ExternalFailuresTests extends ESTestCase {
             RestStatus.TOO_MANY_REQUESTS,
             ExceptionsHelper.status(classified)
         );
+
+        rejected.initCause(new RuntimeException("User: arn:aws:sts::123456789012:assumed-role/reader/session"));
+        RuntimeException detached = ExternalFailures.classify(rejected);
+        assertThat(detached, instanceOf(EsRejectedExecutionException.class));
+        assertNotSame(rejected, detached);
+        assertNull(detached.getCause());
+        assertTrue(((EsRejectedExecutionException) detached).isExecutorShutdown());
+        assertArrayEquals(
+            "the original stack is kept so DEBUG and origin checks still see it",
+            rejected.getStackTrace(),
+            detached.getStackTrace()
+        );
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(detached));
     }
 
     public void testGenericElasticsearchExceptionPassesThrough() {
@@ -734,6 +747,12 @@ public class ExternalFailuresTests extends ESTestCase {
             ExternalFailures.rootDetail(builtBySdk(new RuntimeException(IAM_DENIAL)))
         );
         assertThat(ExternalFailures.classify(copied).getMessage(), not(containsString("arn:aws")));
+        // Elasticsearch wrapping the SDK with a new message that includes the remote's text: rootCause stops at the
+        // wrapper, so composedByStorageClient would miss it; forwardableDetail walks the chain.
+        IOException sdk = builtBySdk(new IOException(IAM_DENIAL));
+        IOException laundered = new IOException("listing failed: " + sdk.getMessage(), sdk);
+        assertNull(ExternalFailures.forwardableDetail(laundered));
+        assertThat(ExternalFailures.classify(laundered).getMessage(), not(containsString("arn:aws")));
     }
 
     /**

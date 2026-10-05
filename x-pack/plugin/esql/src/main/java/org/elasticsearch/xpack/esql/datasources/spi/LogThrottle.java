@@ -41,8 +41,11 @@ public final class LogThrottle {
         return now - next >= 0 && nextAllowedNanos.compareAndSet(next, now + intervalNanos);
     }
 
-    /** Lets the next call log at the loud level; for tests that assert on a throttled site. */
-    void reset() {
+    /**
+     * Lets the next call log at the loud level. Tests that own a {@code static} throttle in another package (HTTP
+     * error-body WARN) call this; production code must not.
+     */
+    public void reset() {
         nextAllowedNanos.set(nanoClock.getAsLong());
     }
 }

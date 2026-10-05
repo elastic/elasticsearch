@@ -54,8 +54,8 @@ import java.util.regex.Pattern;
  *     {@link #detach(ElasticsearchException) detached}.</li>
  *     <li>An {@link EsRejectedExecutionException} — a thread pool refusing the task (e.g. the node shutting
  *     down) — is client-actionable backpressure, not a server fault. It already maps to 429 (TOO_MANY_REQUESTS)
- *     via {@code ExceptionsHelper.status}, so it is returned unchanged rather than mistaken for a broken
- *     invariant and reported as 500.</li>
+ *     via {@code ExceptionsHelper.status}, so it is returned (detached from any cause) rather than mistaken for a
+ *     broken invariant and reported as 500.</li>
  *     <li>An {@link IllegalArgumentException} from a format reader may embed a full storage URI; it is wrapped
  *     in an {@link ExternalClientException} (400) with a path-free message and no cause chain, so the IAE
  *     message never appears in {@code caused_by}. The original is logged on this node.</li>
@@ -285,7 +285,7 @@ public final class ExternalFailures {
             return detached;
         }
         if (t instanceof EsRejectedExecutionException rejected) {
-            return rejected;
+            return detach(rejected);
         }
         if (t instanceof IllegalArgumentException iae) {
             // IAE from format readers may embed storage URIs or library text in the message. Log on this node for
@@ -372,6 +372,21 @@ public final class ExternalFailures {
      */
     public static ElasticsearchException detach(ElasticsearchException e) {
         return detach(e, Level.WARN);
+    }
+
+    /**
+     * {@code e} without its cause chain and suppressed failures, after logging them on this node. Keeps the message
+     * and {@link EsRejectedExecutionException#isExecutorShutdown()}; returns {@code e} when there is nothing to drop.
+     * Not an {@link ElasticsearchException}, so it cannot go through {@link #detach(ElasticsearchException)}.
+     */
+    public static EsRejectedExecutionException detach(EsRejectedExecutionException e) {
+        if (e.getCause() == null && e.getSuppressed().length == 0) {
+            return e;
+        }
+        logger.log(Level.DEBUG, () -> "Failure detached from its cause (cause logged, not forwarded)", e);
+        EsRejectedExecutionException copy = new EsRejectedExecutionException(e.getMessage(), e.isExecutorShutdown());
+        copy.setStackTrace(e.getStackTrace());
+        return copy;
     }
 
     private static ElasticsearchException detach(ElasticsearchException e, Level serverFailureLevel) {
@@ -541,14 +556,37 @@ public final class ExternalFailures {
 
     /**
      * The message of the first exception in {@code failure}'s chain that someone wrote (see {@link #rootCause}), when it
-     * may be shown to whoever runs the query: no storage client composed it (see {@link #composedByStorageClient}) and
-     * it names no location (see {@link #safeForUserMessage}). {@code null} otherwise.
+     * may be shown to whoever runs the query: no storage client composed it (see {@link #composedByStorageClient}), it
+     * names no location (see {@link #safeForUserMessage}), and it does not contain a storage client's own message from
+     * further down the chain. {@code null} otherwise.
+     * <p>
+     * The last check catches Elasticsearch code that pastes a client's message into its own
+     * ({@code new IOException("listing failed: " + sdk.getMessage(), sdk)}): {@link #rootCause} stops at that wrapper
+     * because the message is not {@code cause.toString()}, so {@link #composedByStorageClient} would otherwise see only
+     * the wrapper.
      */
     @Nullable
     public static String forwardableDetail(Throwable failure) {
         Throwable root = rootCause(failure);
         String message = root.getMessage();
-        return message != null && composedByStorageClient(root) == false && safeForUserMessage(message) ? message : null;
+        if (message == null || composedByStorageClient(root) || safeForUserMessage(message) == false) {
+            return null;
+        }
+        Throwable current = root;
+        for (int depth = 0; depth < MAX_CAUSE_DEPTH; depth++) {
+            Throwable cause = current.getCause();
+            if (cause == null || cause == current) {
+                break;
+            }
+            if (composedByStorageClient(cause)) {
+                String causeMessage = cause.getMessage();
+                if (causeMessage != null && causeMessage.isEmpty() == false && message.contains(causeMessage)) {
+                    return null;
+                }
+            }
+            current = cause;
+        }
+        return message;
     }
 
     /**
@@ -579,7 +617,8 @@ public final class ExternalFailures {
     /**
      * Whether a storage client composed {@code t}'s own message: its class, or the frame that constructed it, is in one
      * of {@link #STORAGE_CLIENT_PACKAGES}. The frame catches a JDK exception a client built (an {@code IOException}
-     * carrying the response). Best-effort: Elasticsearch code that pastes a client's message into its own is not caught.
+     * carrying the response). Elasticsearch code that pastes a client's message into its own is caught by
+     * {@link #forwardableDetail}, which withholds a wrapper message that contains a storage-client cause's text.
      */
     public static boolean composedByStorageClient(Throwable t) {
         if (isStorageClientClass(t.getClass().getName())) {

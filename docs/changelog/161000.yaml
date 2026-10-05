@@ -1,0 +1,5 @@
+pr: 161000
+summary: Detect partition columns for a dataset resource naming one file
+area: ES|QL
+type: bug
+issues: []

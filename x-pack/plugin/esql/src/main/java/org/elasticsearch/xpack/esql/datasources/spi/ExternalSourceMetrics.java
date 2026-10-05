@@ -187,6 +187,39 @@ public final class ExternalSourceMetrics {
     public static final String OUTCOME_CANCELLED = "cancelled";
 
     /**
+     * CPU-component dimension on {@link #QUERY_CPU_TOTAL}, a closed set:
+     * {@code execution}, {@code read}, {@code planning}, {@code split_discovery}.
+     */
+    public static final String CPU_COMPONENT_ATTRIBUTE = "es_datasource_cpu_component";
+
+    /** Real per-thread CPU time spent by drivers executing the query (via {@code ThreadMXBean}). */
+    public static final String CPU_COMPONENT_EXECUTION = "execution";
+
+    /** Real per-thread CPU time spent by format-reader producer threads (via {@code ThreadMXBean}). */
+    public static final String CPU_COMPONENT_READ = "read";
+
+    /**
+     * Planning-phase duration included for parity with the Serverless billing formula.
+     * <p>
+     * <b>This is wall time ({@code System.nanoTime} delta), not real CPU time.</b> No per-thread CPU
+     * measurement exists for the planning phase yet. This component must be replaced with a real
+     * planning CPU measurement once {@code EsqlQueryProfile} tracks it.
+     * TODO: replace with real planning CPU once EsqlQueryProfile tracks planning CPU.
+     */
+    public static final String CPU_COMPONENT_PLANNING = "planning";
+
+    /** Real per-thread CPU time spent by split-discovery (via {@code ThreadMXBean}). */
+    public static final String CPU_COMPONENT_SPLIT_DISCOVERY = "split_discovery";
+
+    /**
+     * Total CPU consumed by successful external-source queries, broken down by
+     * {@link #CPU_COMPONENT_ATTRIBUTE}. Unit: nanoseconds. Intended to approximate the Serverless
+     * billing signal; exact alignment may drift as the billing formula evolves. Note: the
+     * {@code planning} component is currently wall time — see {@link #CPU_COMPONENT_PLANNING}.
+     */
+    public static final String QUERY_CPU_TOTAL = "es.esql.datasources.query.cpu.total";
+
+    /**
      * No-op holder backed by {@link MeterRegistry#NOOP}, used where no node registry is available
      * (decorators with no attached holder, tests) so call sites never branch on null. The
      * {@link DataSourceUsageAccumulator} is null on this singleton so it never accumulates shared
@@ -231,6 +264,18 @@ public final class ExternalSourceMetrics {
         Map.of(OUTCOME_ATTRIBUTE, OUTCOME_CANCELLED)
     );
 
+    /** Pre-built, immutable single-entry {@link #CPU_COMPONENT_ATTRIBUTE} attribute maps for the closed CPU-component set. */
+    private static final Map<String, Map<String, Object>> CPU_COMPONENT_ATTRIBUTES = Map.of(
+        CPU_COMPONENT_EXECUTION,
+        Map.of(CPU_COMPONENT_ATTRIBUTE, CPU_COMPONENT_EXECUTION),
+        CPU_COMPONENT_READ,
+        Map.of(CPU_COMPONENT_ATTRIBUTE, CPU_COMPONENT_READ),
+        CPU_COMPONENT_PLANNING,
+        Map.of(CPU_COMPONENT_ATTRIBUTE, CPU_COMPONENT_PLANNING),
+        CPU_COMPONENT_SPLIT_DISCOVERY,
+        Map.of(CPU_COMPONENT_ATTRIBUTE, CPU_COMPONENT_SPLIT_DISCOVERY)
+    );
+
     private final LongCounter requestsTotal;
     private final LongHistogram requestDuration;
     private final LongCounter bytesReadTotal;
@@ -254,6 +299,7 @@ public final class ExternalSourceMetrics {
     private final LongCounter readerPoolRejectedTotal;
     private final LongCounter breakerTrippedTotal;
     private final LongCounter configChangesTotal;
+    private final LongCounter queryCpuTotal;
 
     public ExternalSourceMetrics(MeterRegistry meterRegistry) {
         this(meterRegistry, null);
@@ -381,6 +427,13 @@ public final class ExternalSourceMetrics {
             CONFIG_CHANGES_TOTAL,
             "ES|QL data-source or dataset configuration changes (create, update, delete, rejected)",
             "unit"
+        );
+        this.queryCpuTotal = meterRegistry.registerLongCounter(
+            QUERY_CPU_TOTAL,
+            "CPU consumed by successful ES|QL queries that scanned an external data source, "
+                + "broken down by component (execution, read, planning, split_discovery). "
+                + "The planning component is currently wall time pending a real planning-CPU measurement.",
+            "ns"
         );
     }
 
@@ -668,6 +721,37 @@ public final class ExternalSourceMetrics {
     @Nullable
     public DataSourceUsageAccumulator usageAccumulator() {
         return usageAccumulator;
+    }
+
+    /**
+     * Records the CPU consumed by one successful external-source query, broken down by component.
+     * Clamps negative values to zero. Skips zero-valued components to avoid noise.
+     * <p>
+     * {@code execution}, {@code read}, and {@code splitDiscovery} are real per-thread CPU time
+     * (via {@code ThreadMXBean#getCurrentThreadCpuTime}). {@code planning} is currently wall time
+     * ({@code System.nanoTime} delta) because no CPU measurement exists for the planning phase yet;
+     * it is included because the Serverless billing formula uses {@code planning} nanos; exact
+     * alignment with the billing signal may drift as the formula evolves.
+     * TODO: replace planning wall time with real CPU time once EsqlQueryProfile tracks planning CPU.
+     * <p>
+     * Best-effort (self-guarded).
+     */
+    public void recordQueryCpu(long execution, long read, long planning, long splitDiscovery) {
+        try {
+            long e = Math.max(0L, execution);
+            long r = Math.max(0L, read);
+            long p = Math.max(0L, planning);
+            long sd = Math.max(0L, splitDiscovery);
+            if (e > 0) queryCpuTotal.incrementBy(e, CPU_COMPONENT_ATTRIBUTES.get(CPU_COMPONENT_EXECUTION));
+            if (r > 0) queryCpuTotal.incrementBy(r, CPU_COMPONENT_ATTRIBUTES.get(CPU_COMPONENT_READ));
+            if (p > 0) queryCpuTotal.incrementBy(p, CPU_COMPONENT_ATTRIBUTES.get(CPU_COMPONENT_PLANNING));
+            if (sd > 0) queryCpuTotal.incrementBy(sd, CPU_COMPONENT_ATTRIBUTES.get(CPU_COMPONENT_SPLIT_DISCOVERY));
+            if (usageAccumulator != null) {
+                usageAccumulator.recordQueryCpu(e, r, p, sd);
+            }
+        } catch (Exception ex) {
+            logger.trace("telemetry: recordQueryCpu failed", ex);
+        }
     }
 
     /**

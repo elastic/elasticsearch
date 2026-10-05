@@ -325,9 +325,7 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
      * assignment planner, the autoscaling resource tracker and {@code NodeLoadDetector} consistent with one another.
      */
     public long observedOrConfiguredPerAllocationMemoryBytes() {
-        return observedPerAllocationMemoryBytes != null
-            ? observedPerAllocationMemoryBytes
-            : taskParams.getPerAllocationMemoryBytes();
+        return observedPerAllocationMemoryBytes != null ? observedPerAllocationMemoryBytes : taskParams.getPerAllocationMemoryBytes();
     }
 
     /**

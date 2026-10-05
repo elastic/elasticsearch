@@ -54,6 +54,22 @@ public final class RowGroupIo {
     }
 
     /**
+     * Drops {@code n} GETs that were counted in {@link #addUnissued} but will never start
+     * (for example after {@code admitWait} fails and remaining misses are not issued).
+     * Does not change in-flight; those GETs never called {@link #onGetStart}.
+     */
+    public void forgetUnissued(int n) {
+        if (n < 0) {
+            throw new IllegalArgumentException("unissued GET count must be non-negative, got: " + n);
+        }
+        if (n == 0) {
+            return;
+        }
+        unissued.updateAndGet(v -> v > n ? v - n : 0);
+        outstanding.updateAndGet(v -> v > n ? v - n : 0);
+    }
+
+    /**
      * Moves one GET from unissued to in-flight. Called under the budget lock on async acquire.
      * Does not change {@link #outstanding()}.
      */

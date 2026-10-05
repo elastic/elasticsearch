@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -254,6 +255,11 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
 
         assertEquals(1, guarded.size());
         assertEquals("a projection cannot change how many rows arrive", 5, guarded.get(0).rowLimit());
+
+        LogicalPlan evaled = new Eval(SRC, relation, List.of(new Alias(SRC, "x", relation.output().get(0))));
+        assertTrue("EVAL is Streaming", evaled instanceof Streaming);
+        LogicalPlan evalFragment = new Limit(SRC, new Literal(SRC, 5, DataType.INTEGER), evaled);
+        assertEquals("an EVAL cannot change how many rows arrive", 5, SplitDiscoveryPhase.guardedRelations(evalFragment).get(0).rowLimit());
     }
 
     /**

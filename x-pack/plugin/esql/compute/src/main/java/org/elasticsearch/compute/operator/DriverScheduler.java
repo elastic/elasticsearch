@@ -29,7 +29,7 @@ final class DriverScheduler {
     private final AtomicReference<Runnable> delayedTask = new AtomicReference<>();
     private final AtomicReference<AbstractRunnable> scheduledTask = new AtomicReference<>();
     private final AtomicBoolean completing = new AtomicBoolean();
-    private volatile Executor completionExecutor;
+    private Executor completionExecutor;
 
     void addOrRunDelayedTask(Runnable task) {
         delayedTask.set(task);

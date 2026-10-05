@@ -308,6 +308,24 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
     }
 
     /**
+     * A later failure that already suppresses the first one (because both are shared with another split that attached
+     * them in the opposite order) must not be suppressed back onto it. The first failure is still the one surfaced, so
+     * the operator classifies it by its own type.
+     */
+    public void testSecondFailureDoesNotCreateACycle() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        CircuitBreakingException a = new CircuitBreakingException("[parquet reader]", CircuitBreaker.Durability.TRANSIENT);
+        CircuitBreakingException b = new CircuitBreakingException("[parquet sliding window]", CircuitBreaker.Durability.TRANSIENT);
+        b.addSuppressed(a);
+
+        buffer.onFailure(a);
+        buffer.onFailure(b);
+
+        assertSame(a, buffer.failure());
+        assertArrayEquals("b already reaches a, so suppressing it onto a would loop", new Throwable[0], a.getSuppressed());
+    }
+
+    /**
      * Losers arriving at {@link AsyncExternalSourceBuffer#onFailure} after the winner is stored must
      * be classified before being added to the suppressed list. Storage-URI messages in raw SDK
      * exceptions (e.g. {@link IOException} from an S3 read) must not surface through the
@@ -386,6 +404,17 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         assertNull(buffer.formatReaderStatus());
     }
 
+    public void testUntrackedBytesDoNotDropTrackedObject() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        MutableMetricsStorageObject object = new MutableMetricsStorageObject();
+        buffer.trackStorageObject(object);
+        object.setBytesRead(250);
+        buffer.addBytesRead(46);
+        assertEquals("schema fold plus live split bytes", 296L, buffer.bytesRead());
+        object.setBytesRead(300);
+        assertEquals("tracked object must still contribute live growth", 346L, buffer.bytesRead());
+    }
+
     public void testBytesReadAccumulatesPositiveDeltas() {
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
         assertEquals(0L, buffer.bytesRead());
@@ -398,6 +427,35 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         buffer.addBytesRead(0);
         buffer.addBytesRead(-50);
         assertEquals(350L, buffer.bytesRead());
+    }
+
+    public void testRequestAndRetryCountsAccumulatePositiveDeltas() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        buffer.addRequestCount(2);
+        buffer.addRetryCount(1);
+        buffer.addRequestCount(3);
+        buffer.addRetryCount(4);
+        assertEquals(5L, buffer.requestCount());
+        assertEquals(5L, buffer.retryCount());
+        buffer.addRequestCount(0);
+        buffer.addRetryCount(-1);
+        assertEquals(5L, buffer.requestCount());
+        assertEquals(5L, buffer.retryCount());
+    }
+
+    public void testInFlightRequestsVisibleBeforeCommit() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        MutableMetricsStorageObject object = new MutableMetricsStorageObject();
+        object.setRequests(1);
+        buffer.trackStorageObject(object);
+        object.setRequests(3);
+        object.setRetries(2);
+        assertEquals(2L, buffer.requestCount());
+        assertEquals(2L, buffer.retryCount());
+        buffer.commitInFlightBytes();
+        assertEquals(2L, buffer.requestCount());
+        buffer.commitInFlightBytes();
+        assertEquals("the same live request delta must not be added twice", 2L, buffer.requestCount());
     }
 
     public void testInFlightBytesVisibleBeforeCommit() {
@@ -728,10 +786,20 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
      */
     private static final class MutableMetricsStorageObject extends AbstractTestStorageObject {
         private volatile long bytesRead;
+        private volatile long requestCount;
+        private volatile long retryCount;
         private volatile boolean throwOnMetrics;
 
         void setBytesRead(long bytes) {
             this.bytesRead = bytes;
+        }
+
+        void setRequests(long requests) {
+            this.requestCount = requests;
+        }
+
+        void setRetries(long retries) {
+            this.retryCount = retries;
         }
 
         void failMetrics() {
@@ -747,7 +815,7 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
             if (throwOnMetrics) {
                 throw new IllegalStateException("metrics failed");
             }
-            return new StorageObjectMetrics(0L, 0L, bytesRead, 0L);
+            return new StorageObjectMetrics(requestCount, 0L, bytesRead, retryCount);
         }
 
         @Override

@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -78,6 +79,36 @@ public class SearchTaskWatchdog extends AbstractLifecycleComponent {
         Setting.Property.Dynamic
     );
 
+    /// Sampling interval of the hot threads dump. The dump sleeps this long before taking any stack snapshot, so a short value gets
+    /// stacks closer to the moment of detection at the cost of a meaningless CPU percentage column.
+    public static final Setting<TimeValue> HOT_THREADS_INTERVAL = Setting.timeSetting(
+        "search.task_watchdog.hot_threads.interval",
+        TimeValue.timeValueMillis(500),
+        TimeValue.timeValueMillis(1),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<Integer> HOT_THREADS_SNAPSHOTS = Setting.intSetting(
+        "search.task_watchdog.hot_threads.snapshots",
+        10,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /// Delay between consecutive stack snapshots of the hot threads dump. Together with [#HOT_THREADS_SNAPSHOTS] this defines how
+    /// much of the slow task's execution one dump spans.
+    public static final Setting<TimeValue> HOT_THREADS_SNAPSHOT_DELAY = Setting.timeSetting(
+        "search.task_watchdog.hot_threads.snapshot_delay",
+        TimeValue.timeValueMillis(10),
+        TimeValue.ZERO,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    private static final int MAX_DESCRIPTION_LENGTH = 256;
+
     private final TaskManager taskManager;
     private final ThreadPool threadPool;
 
@@ -87,6 +118,9 @@ public class SearchTaskWatchdog extends AbstractLifecycleComponent {
     private volatile long minThresholdNanos;
     private volatile TimeValue interval;
     private volatile long cooldownPeriodNanos;
+    private volatile TimeValue hotThreadsInterval;
+    private volatile int hotThreadsSnapshots;
+    private volatile TimeValue hotThreadsSnapshotDelay;
     private volatile long lastLoggedNanos = 0;
     private final AtomicBoolean scheduled = new AtomicBoolean(false);
 
@@ -98,6 +132,9 @@ public class SearchTaskWatchdog extends AbstractLifecycleComponent {
         clusterSettings.initializeAndWatch(COORDINATOR_THRESHOLD, v -> setCoordinatorThreshold(v.nanos()));
         clusterSettings.initializeAndWatch(DATA_NODE_THRESHOLD, v -> setDataNodeThreshold(v.nanos()));
         clusterSettings.initializeAndWatch(COOLDOWN_PERIOD, v -> this.cooldownPeriodNanos = v.nanos());
+        clusterSettings.initializeAndWatch(HOT_THREADS_INTERVAL, v -> this.hotThreadsInterval = v);
+        clusterSettings.initializeAndWatch(HOT_THREADS_SNAPSHOTS, v -> this.hotThreadsSnapshots = v);
+        clusterSettings.initializeAndWatch(HOT_THREADS_SNAPSHOT_DELAY, v -> this.hotThreadsSnapshotDelay = v);
         clusterSettings.initializeAndWatch(ENABLED, this::setEnabled);
     }
 
@@ -194,11 +231,17 @@ public class SearchTaskWatchdog extends AbstractLifecycleComponent {
         lastLoggedNanos = now;
 
         long taskId = info.task().getId();
+        String description = Strings.cleanTruncate(info.task().getDescription(), MAX_DESCRIPTION_LENGTH);
         HotThreads.logLocalHotThreads(
             logger,
             Level.INFO,
-            format("slow search %s task [%d] parent [%s]", type, taskId, info.task().getParentTaskId()),
-            ReferenceDocs.SEARCH_TASK_WATCHDOG
+            format("slow search %s task [%d] parent [%s] description [%s]", type, taskId, info.task().getParentTaskId(), description),
+            ReferenceDocs.SEARCH_TASK_WATCHDOG,
+            new HotThreads().busiestThreads(500)
+                .ignoreIdleThreads(false)
+                .interval(hotThreadsInterval)
+                .threadElementsSnapshotCount(hotThreadsSnapshots)
+                .threadElementsSnapshotDelay(hotThreadsSnapshotDelay)
         );
     }
 }

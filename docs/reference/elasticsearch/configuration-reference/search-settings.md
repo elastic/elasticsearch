@@ -129,4 +129,19 @@ $$$search-task-watchdog-cooldown-period$$$
 `search.task_watchdog.cooldown_period`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), [time value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) Minimum time between hot threads logging on this node. This prevents flooding the logs when many tasks are slow simultaneously. Defaults to `30s`.
 
+$$$search-task-watchdog-hot-threads-interval$$$
+
+`search.task_watchdog.hot_threads.interval`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), [time value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) Sampling interval of the hot threads dump logged for a slow task. The dump waits this long after detection before capturing stack traces, so lower values capture stacks closer to the moment of detection but make the reported CPU percentages less meaningful. Minimum value is `1ms`. Defaults to `500ms`.
+
+$$$search-task-watchdog-hot-threads-snapshots$$$
+
+`search.task_watchdog.hot_threads.snapshots`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), integer) Number of stack trace snapshots captured per thread in the hot threads dump logged for a slow task. Minimum value is `1`. Defaults to `10`.
+
+$$$search-task-watchdog-hot-threads-snapshot-delay$$$
+
+`search.task_watchdog.hot_threads.snapshot_delay`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), [time value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) Delay between consecutive stack trace snapshots in the hot threads dump logged for a slow task. Together with `search.task_watchdog.hot_threads.snapshots` this controls how much of the slow task's execution a single dump covers. Defaults to `10ms`.
+
 

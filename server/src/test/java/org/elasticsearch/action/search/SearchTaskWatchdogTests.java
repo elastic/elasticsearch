@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.tasks.TaskId;
@@ -27,12 +28,26 @@ import static org.elasticsearch.action.search.SearchTaskWatchdog.COOLDOWN_PERIOD
 import static org.elasticsearch.action.search.SearchTaskWatchdog.COORDINATOR_THRESHOLD;
 import static org.elasticsearch.action.search.SearchTaskWatchdog.DATA_NODE_THRESHOLD;
 import static org.elasticsearch.action.search.SearchTaskWatchdog.ENABLED;
+import static org.elasticsearch.action.search.SearchTaskWatchdog.HOT_THREADS_INTERVAL;
+import static org.elasticsearch.action.search.SearchTaskWatchdog.HOT_THREADS_SNAPSHOTS;
+import static org.elasticsearch.action.search.SearchTaskWatchdog.HOT_THREADS_SNAPSHOT_DELAY;
 import static org.elasticsearch.action.search.SearchTaskWatchdog.INTERVAL;
 import static org.hamcrest.Matchers.is;
 
 public class SearchTaskWatchdogTests extends ESTestCase {
 
     private static final String WATCHDOG_LOGGER = "org.elasticsearch.action.search.SearchTaskWatchdog";
+
+    private static final Set<Setting<?>> WATCHDOG_SETTINGS = Set.of(
+        ENABLED,
+        COORDINATOR_THRESHOLD,
+        DATA_NODE_THRESHOLD,
+        INTERVAL,
+        COOLDOWN_PERIOD,
+        HOT_THREADS_INTERVAL,
+        HOT_THREADS_SNAPSHOTS,
+        HOT_THREADS_SNAPSHOT_DELAY
+    );
 
     public void testCoordinatorOnlyLogsWhenNoOutstandingChildren() {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
@@ -49,10 +64,7 @@ public class SearchTaskWatchdogTests extends ESTestCase {
             .put(COOLDOWN_PERIOD.getKey(), "0s")
             .build();
 
-        final var clusterSettings = new ClusterSettings(
-            settings,
-            Set.of(ENABLED, COORDINATOR_THRESHOLD, DATA_NODE_THRESHOLD, INTERVAL, COOLDOWN_PERIOD)
-        );
+        final var clusterSettings = new ClusterSettings(settings, WATCHDOG_SETTINGS);
 
         final var mockTaskManager = new TaskManager(Settings.EMPTY, deterministicTaskQueue.getThreadPool(), Set.of()) {
             @Override
@@ -107,6 +119,7 @@ public class SearchTaskWatchdogTests extends ESTestCase {
 
         final long thresholdMillis = 3000;
         final long intervalMillis = 1000;
+        final String description = "shardId[[" + randomAlphaOfLength(10) + "][" + randomIntBetween(0, 10) + "]]";
 
         final var settings = Settings.builder()
             .put(ENABLED.getKey(), true)
@@ -114,12 +127,12 @@ public class SearchTaskWatchdogTests extends ESTestCase {
             .put(DATA_NODE_THRESHOLD.getKey(), thresholdMillis + "ms")
             .put(INTERVAL.getKey(), intervalMillis + "ms")
             .put(COOLDOWN_PERIOD.getKey(), "0s")
+            .put(HOT_THREADS_INTERVAL.getKey(), randomIntBetween(1, 50) + "ms")
+            .put(HOT_THREADS_SNAPSHOTS.getKey(), randomIntBetween(1, 5))
+            .put(HOT_THREADS_SNAPSHOT_DELAY.getKey(), randomIntBetween(0, 10) + "ms")
             .build();
 
-        final var clusterSettings = new ClusterSettings(
-            settings,
-            Set.of(ENABLED, COORDINATOR_THRESHOLD, DATA_NODE_THRESHOLD, INTERVAL, COOLDOWN_PERIOD)
-        );
+        final var clusterSettings = new ClusterSettings(settings, WATCHDOG_SETTINGS);
 
         final var taskExceedsThreshold = new AtomicBoolean(false);
 
@@ -131,7 +144,7 @@ public class SearchTaskWatchdogTests extends ESTestCase {
                         2L,
                         "transport",
                         "indices:data/read/search[phase/query]",
-                        "test shard task",
+                        description,
                         TaskId.EMPTY_TASK_ID,
                         Map.of()
                     );
@@ -158,7 +171,70 @@ public class SearchTaskWatchdogTests extends ESTestCase {
         MockLog.assertThatLogger(
             deterministicTaskQueue::runAllRunnableTasks,
             SearchTaskWatchdog.class,
-            new MockLog.SeenEventExpectation("shard task logs", WATCHDOG_LOGGER, Level.INFO, "slow search shard task*")
+            new MockLog.SeenEventExpectation(
+                "shard task logs",
+                WATCHDOG_LOGGER,
+                Level.INFO,
+                "slow search shard task [2] parent [*] description [" + description + "]*"
+            )
+        );
+
+        watchdog.stop();
+        deterministicTaskQueue.runAllTasksInTimeOrder();
+    }
+
+    public void testLongDescriptionIsTruncatedInLogPrefix() {
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+
+        final long thresholdMillis = 3000;
+        final String description = randomAlphaOfLength(randomIntBetween(257, 2000));
+
+        final var settings = Settings.builder()
+            .put(ENABLED.getKey(), true)
+            .put(COORDINATOR_THRESHOLD.getKey(), "-1")
+            .put(DATA_NODE_THRESHOLD.getKey(), thresholdMillis + "ms")
+            .put(INTERVAL.getKey(), "1s")
+            .put(COOLDOWN_PERIOD.getKey(), "0s")
+            .put(HOT_THREADS_INTERVAL.getKey(), "1ms")
+            .put(HOT_THREADS_SNAPSHOTS.getKey(), 1)
+            .build();
+
+        final var clusterSettings = new ClusterSettings(settings, WATCHDOG_SETTINGS);
+
+        final var mockTaskManager = new TaskManager(Settings.EMPTY, deterministicTaskQueue.getThreadPool(), Set.of()) {
+            @Override
+            public void forEachCancellableTask(long minElapsedNanos, Predicate<CancellableTaskInfo> processor) {
+                var mockTask = new SearchShardTask(
+                    3L,
+                    "transport",
+                    "indices:data/read/search[phase/query]",
+                    description,
+                    TaskId.EMPTY_TASK_ID,
+                    Map.of()
+                );
+                processor.test(new CancellableTaskInfo(mockTask, thresholdMillis * 1_000_000L + 1, false));
+            }
+        };
+
+        final var watchdog = new SearchTaskWatchdog(clusterSettings, mockTaskManager, deterministicTaskQueue.getThreadPool());
+        watchdog.start();
+
+        deterministicTaskQueue.advanceTime();
+        MockLog.assertThatLogger(
+            deterministicTaskQueue::runAllRunnableTasks,
+            SearchTaskWatchdog.class,
+            new MockLog.SeenEventExpectation(
+                "truncated description",
+                WATCHDOG_LOGGER,
+                Level.INFO,
+                "slow search shard task [3] parent [*] description [" + description.substring(0, 256) + "]*"
+            ),
+            new MockLog.UnseenEventExpectation(
+                "full description",
+                WATCHDOG_LOGGER,
+                Level.INFO,
+                "*description [" + description.substring(0, 257) + "*"
+            )
         );
 
         watchdog.stop();
@@ -175,10 +251,7 @@ public class SearchTaskWatchdogTests extends ESTestCase {
             .put(INTERVAL.getKey(), "1s")
             .build();
 
-        final var clusterSettings = new ClusterSettings(
-            settings,
-            Set.of(ENABLED, COORDINATOR_THRESHOLD, DATA_NODE_THRESHOLD, INTERVAL, COOLDOWN_PERIOD)
-        );
+        final var clusterSettings = new ClusterSettings(settings, WATCHDOG_SETTINGS);
 
         final var taskManagerCalled = new AtomicBoolean(false);
         final var mockTaskManager = new TaskManager(Settings.EMPTY, deterministicTaskQueue.getThreadPool(), Set.of()) {

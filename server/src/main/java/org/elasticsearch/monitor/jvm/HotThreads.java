@@ -91,6 +91,18 @@ public class HotThreads {
      * @param referenceDocs A link to the docs describing how to decode the logging.
      */
     public static void logLocalHotThreads(Logger logger, Level level, String prefix, ReferenceDocs referenceDocs) {
+        logLocalHotThreads(logger, level, prefix, referenceDocs, new HotThreads().busiestThreads(500).ignoreIdleThreads(false));
+    }
+
+    /// Capture and log the hot threads on the local node using a caller-configured [HotThreads] instance, e.g. to shorten the
+    /// sampling interval or widen the span of the stack snapshots. See [#logLocalHotThreads(Logger, Level, String, ReferenceDocs)].
+    ///
+    /// @param logger        The logger to use for the logging
+    /// @param level         The log level to use for the logging.
+    /// @param prefix        The prefix to emit on each chunk of the logging.
+    /// @param referenceDocs A link to the docs describing how to decode the logging.
+    /// @param hotThreads    The configured instance used to capture the hot threads.
+    public static void logLocalHotThreads(Logger logger, Level level, String prefix, ReferenceDocs referenceDocs, HotThreads hotThreads) {
         if (logger.isEnabled(level) == false) {
             return;
         }
@@ -99,7 +111,7 @@ public class HotThreads {
             var stream = ChunkedLoggingStream.create(logger, level, prefix, referenceDocs);
             var writer = new OutputStreamWriter(stream, StandardCharsets.UTF_8)
         ) {
-            new HotThreads().busiestThreads(500).ignoreIdleThreads(false).detect(writer);
+            hotThreads.detect(writer);
         } catch (Exception e) {
             logger.error(() -> org.elasticsearch.common.Strings.format("failed to write local hot threads with prefix [%s]", prefix), e);
         }
@@ -206,6 +218,11 @@ public class HotThreads {
 
     public HotThreads threadElementsSnapshotCount(int threadElementsSnapshotCount) {
         this.threadElementsSnapshotCount = threadElementsSnapshotCount;
+        return this;
+    }
+
+    public HotThreads threadElementsSnapshotDelay(TimeValue threadElementsSnapshotDelay) {
+        this.threadElementsSnapshotDelay = threadElementsSnapshotDelay;
         return this;
     }
 

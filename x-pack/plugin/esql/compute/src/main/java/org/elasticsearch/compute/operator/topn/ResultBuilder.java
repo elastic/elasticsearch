@@ -65,6 +65,7 @@ interface ResultBuilder extends Releasable {
             case DOUBLE -> new ResultBuilderForDouble(blockFactory, encoder, inKey, positions);
             case NULL -> new ResultBuilderForNull(blockFactory);
             case DOC -> new ResultBuilderForDoc(blockFactory, (DocVectorEncoder) encoder, positions);
+            case DOC_REF -> new ResultBuilderForDocRef(blockFactory, encoder, positions);
             case AGGREGATE_METRIC_DOUBLE -> new ResultBuilderForAggregateMetricDouble(blockFactory, positions);
             case LONG_RANGE -> new ResultBuilderForLongRange(blockFactory, positions);
             case DOUBLE_RANGE -> new ResultBuilderForDoubleRange(blockFactory, positions);

@@ -22,6 +22,7 @@ import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.test.BlockTestUtils;
+import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
 
@@ -48,8 +49,19 @@ public class ExtractorTests extends ESTestCase {
                     supportsNull = false;
                 }
                 case DOC_REF -> {
-                    // the block comes with the fetch phase runtime
                     supportsNull = false;
+                    TopNEncoder registry = DocRefEncoder.PROTOTYPE.forOperator(NoopCircuitBreaker.INSTANCE);
+                    cases.add(
+                        new Object[] {
+                            new TestCase(
+                                "doc_ref",
+                                e,
+                                registry,
+                                false,
+                                () -> RandomBlock.randomDocRefBlock(blockFactory, 1, 1).block(),
+                                b -> b
+                            ) }
+                    );
                 }
                 case COMPOSITE -> {
                     // TODO: add later

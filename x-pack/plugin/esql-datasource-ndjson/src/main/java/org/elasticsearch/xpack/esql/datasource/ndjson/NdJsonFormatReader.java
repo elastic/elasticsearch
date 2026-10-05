@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -16,7 +17,6 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -32,11 +33,11 @@ import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
-import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
+import org.elasticsearch.xpack.esql.datasources.spi.WithinFileWideningWarnings;
 
 import java.io.BufferedInputStream;
 import java.io.Closeable;
@@ -299,7 +300,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             // metadata(), which the coordinator consults during planning), so there is no widenedColumns()
             // for schema_resolution: strict to read here — only the warning, so a user reading through
             // this path is told the same thing a cold metadata() resolve would have told them.
-            reportWidenings(widenings, object.path().objectName(), warningSink);
+            reportWidenings(widenings, ExternalFailures.redactHttpUrl(object.path().toString()), warningSink);
             return schema;
         }
     }
@@ -478,9 +479,10 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
                 widenings
             );
             List<Attribute> schema = sampled.schema();
-            String location = object.path().objectName();
+            String location = object.path().toString();
+            String sourceLocation = ExternalFailures.redactHttpUrl(location);
             List<String> warnings = new ArrayList<>();
-            List<WidenedColumn> widenedColumns = reportWidenings(widenings, location, warnings::add);
+            List<WidenedColumn> widenedColumns = reportWidenings(widenings, sourceLocation, warnings::add);
             long mtimeMillis;
             try {
                 Instant mtime = object.lastModified();
@@ -535,46 +537,16 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             return List.of();
         }
         List<WidenedColumn> resolved = new ArrayList<>(widenings.size());
-        SkipWarnings keywordWarnings = null;
-        SkipWarnings precisionWarnings = null;
         for (NdJsonSchemaInferrer.Widening widening : widenings) {
-            resolved.add(
-                new WidenedColumn(widening.columnName(), widening.fromType(), widening.toType(), widening.value(), widening.row())
-            );
-            String detail = "column ["
-                + widening.columnName()
-                + "] at sample record ["
-                + widening.row()
-                + "] of ["
-                + sourceLocation
-                + "]: value ["
-                + widening.value()
-                + "] forced type ["
-                + widening.toType().typeName()
-                + "] (was ["
-                + widening.fromType().typeName()
-                + "])";
-            if (widening.toType() == DataType.KEYWORD) {
-                if (keywordWarnings == null) {
-                    keywordWarnings = new SkipWarnings(WIDENED_TO_KEYWORD_SUMMARY, warningSink);
-                }
-                keywordWarnings.add(detail);
-            } else {
-                if (precisionWarnings == null) {
-                    precisionWarnings = new SkipWarnings(WIDENED_TO_DOUBLE_SUMMARY, warningSink);
-                }
-                precisionWarnings.add(detail);
-            }
+            // Cap before either consumer: value is unbounded user data, and both the warning text and
+            // the WidenedColumn (cached, and replayed into a schema_resolution: strict exception) must
+            // not carry it through verbatim. See WidenedColumn.MAX_VALUE_LENGTH.
+            String value = Strings.cleanTruncate(widening.value(), WidenedColumn.MAX_VALUE_LENGTH);
+            resolved.add(new WidenedColumn(widening.columnName(), widening.fromType(), widening.toType(), value, widening.row()));
         }
+        WithinFileWideningWarnings.report(resolved, sourceLocation, "field", "record", warningSink);
         return resolved;
     }
-
-    private static final String WIDENED_TO_KEYWORD_SUMMARY =
-        "A field's inferred type changed partway through the schema sample and is read as [keyword]; "
-            + "set [schema_resolution] to [strict] to fail instead";
-    private static final String WIDENED_TO_DOUBLE_SUMMARY =
-        "A field mixing [long] and [double] within the schema sample is read as [double], losing precision above 2^53; "
-            + "set [schema_resolution] to [strict] to fail instead";
 
     /**
      * Node-stable identity of the row-interpretation-affecting {@code WITH} config — the same

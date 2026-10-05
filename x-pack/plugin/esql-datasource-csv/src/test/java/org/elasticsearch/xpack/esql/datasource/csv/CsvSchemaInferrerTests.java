@@ -281,7 +281,8 @@ public class CsvSchemaInferrerTests extends ESTestCase {
 
     public void testLongDoubleMergeReportsWidening() {
         String[] cols = { "value" };
-        List<String[]> rows = List.of(new String[] { "9999999999" }, new String[] { "1.5" });
+        // 9007199254740993 is 2^53 + 1, the smallest long a double cannot represent exactly.
+        List<String[]> rows = List.of(new String[] { "9007199254740993" }, new String[] { "1.5" });
         List<CsvSchemaInferrer.Widening> widenings = new ArrayList<>();
         List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows, null, new boolean[cols.length], widenings);
 
@@ -290,6 +291,20 @@ public class CsvSchemaInferrerTests extends ESTestCase {
         assertEquals(DataType.LONG, widenings.get(0).fromType());
         assertEquals(DataType.DOUBLE, widenings.get(0).toType());
         assertEquals("1.5", widenings.get(0).value());
+    }
+
+    /**
+     * A column mixing whole numbers and decimals entirely within the range a double represents
+     * exactly (a price column: "9.99", "10", "12.5") must not be flagged — nothing is lost there.
+     */
+    public void testOrdinaryWholeNumberAndDecimalMixReportsNoWidening() {
+        String[] cols = { "value" };
+        List<String[]> rows = List.of(new String[] { "9.99" }, new String[] { "10" }, new String[] { "12.5" });
+        List<CsvSchemaInferrer.Widening> widenings = new ArrayList<>();
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows, null, new boolean[cols.length], widenings);
+
+        assertEquals(DataType.DOUBLE, schema.get(0).dataType());
+        assertEquals(List.of(), widenings);
     }
 
     /**
@@ -305,7 +320,8 @@ public class CsvSchemaInferrerTests extends ESTestCase {
      */
     public void testLongDoubleMergeReversedOrderReportsWidening() {
         String[] cols = { "value" };
-        List<String[]> rows = List.of(new String[] { "1.5" }, new String[] { "9999999999" });
+        // 9007199254740993 is 2^53 + 1, the smallest long a double cannot represent exactly.
+        List<String[]> rows = List.of(new String[] { "1.5" }, new String[] { "9007199254740993" });
         List<CsvSchemaInferrer.Widening> widenings = new ArrayList<>();
         List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows, null, new boolean[cols.length], widenings);
 
@@ -313,14 +329,14 @@ public class CsvSchemaInferrerTests extends ESTestCase {
         assertEquals(1, widenings.size());
         assertEquals(DataType.LONG, widenings.get(0).fromType());
         assertEquals(DataType.DOUBLE, widenings.get(0).toType());
-        assertEquals("9999999999", widenings.get(0).value());
+        assertEquals("9007199254740993", widenings.get(0).value());
         assertEquals(2, widenings.get(0).row());
     }
 
     /** A confirmed-DOUBLE column seeing more than one long-shaped value reports the merge only once. */
     public void testLongDoubleMergeReversedOrderReportsOnlyOnce() {
         String[] cols = { "value" };
-        List<String[]> rows = List.of(new String[] { "1.5" }, new String[] { "9999999999" }, new String[] { "8888888888" });
+        List<String[]> rows = List.of(new String[] { "1.5" }, new String[] { "9007199254740993" }, new String[] { "9007199254740994" });
         List<CsvSchemaInferrer.Widening> widenings = new ArrayList<>();
         CsvSchemaInferrer.inferSchema(cols, rows, null, new boolean[cols.length], widenings);
 

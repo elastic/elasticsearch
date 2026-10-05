@@ -499,7 +499,8 @@ public class NdJsonFormatReaderTests extends ESTestCase {
      * since the latter would say {@code fromType == toType}.
      */
     public void testLongDoubleMergeReversedOrderIsReported() throws IOException {
-        byte[] bytes = "{\"a\":1.5}\n{\"a\":9999999999}\n".getBytes(StandardCharsets.UTF_8);
+        // 9007199254740993 is 2^53 + 1, the smallest long a double cannot represent exactly.
+        byte[] bytes = "{\"a\":1.5}\n{\"a\":9007199254740993}\n".getBytes(StandardCharsets.UTF_8);
         SourceMetadata metadata = new NdJsonFormatReader(null, blockFactory).metadata(new BytesObject(bytes));
 
         assertEquals(DataType.DOUBLE, metadata.schema().get(0).dataType());
@@ -507,8 +508,20 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         WidenedColumn widened = metadata.widenedColumns().get(0);
         assertEquals(DataType.LONG, widened.fromType());
         assertEquals(DataType.DOUBLE, widened.toType());
-        assertEquals("9999999999", widened.value());
+        assertEquals("9007199254740993", widened.value());
         assertEquals(2, widened.sampleRow());
+    }
+
+    /**
+     * A field mixing whole numbers and decimals entirely within the range a double represents
+     * exactly (e.g. {@code 1}, {@code 2}, {@code 1.5}) must not be flagged — nothing is lost there.
+     */
+    public void testOrdinaryWholeNumberAndDecimalMixReportsNoWidening() throws IOException {
+        byte[] bytes = "{\"a\":1.5}\n{\"a\":2}\n".getBytes(StandardCharsets.UTF_8);
+        SourceMetadata metadata = new NdJsonFormatReader(null, blockFactory).metadata(new BytesObject(bytes));
+
+        assertEquals(DataType.DOUBLE, metadata.schema().get(0).dataType());
+        assertEquals(List.of(), metadata.widenedColumns());
     }
 
     /**

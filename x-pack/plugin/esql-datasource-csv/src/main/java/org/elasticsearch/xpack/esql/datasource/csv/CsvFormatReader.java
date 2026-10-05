@@ -19,6 +19,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.network.InetAddresses;
@@ -82,6 +83,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
+import org.elasticsearch.xpack.esql.datasources.spi.WithinFileWideningWarnings;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.BufferedReader;
@@ -1489,45 +1491,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
             return List.of();
         }
         List<WidenedColumn> resolved = new ArrayList<>(widenings.size());
-        SkipWarnings keywordWarnings = null;
-        SkipWarnings precisionWarnings = null;
         for (CsvSchemaInferrer.Widening widening : widenings) {
             String name = columnNames[widening.column()].trim();
-            resolved.add(new WidenedColumn(name, widening.fromType(), widening.toType(), widening.value(), widening.row()));
-            String detail = "column ["
-                + name
-                + "] at sample row ["
-                + widening.row()
-                + "] of ["
-                + sourceLocation
-                + "]: value ["
-                + widening.value()
-                + "] forced type ["
-                + widening.toType().typeName()
-                + "] (was ["
-                + widening.fromType().typeName()
-                + "])";
-            if (widening.toType() == DataType.KEYWORD) {
-                if (keywordWarnings == null) {
-                    keywordWarnings = new SkipWarnings(WIDENED_TO_KEYWORD_SUMMARY, warningSink);
-                }
-                keywordWarnings.add(detail);
-            } else {
-                if (precisionWarnings == null) {
-                    precisionWarnings = new SkipWarnings(WIDENED_TO_DOUBLE_SUMMARY, warningSink);
-                }
-                precisionWarnings.add(detail);
-            }
+            // Cap before either consumer: value is unbounded user data, and both the warning text and
+            // the WidenedColumn (cached, and replayed into a schema_resolution: strict exception) must
+            // not carry it through verbatim. See WidenedColumn.MAX_VALUE_LENGTH.
+            String value = Strings.cleanTruncate(widening.value(), WidenedColumn.MAX_VALUE_LENGTH);
+            resolved.add(new WidenedColumn(name, widening.fromType(), widening.toType(), value, widening.row()));
         }
+        WithinFileWideningWarnings.report(resolved, sourceLocation, "column", "row", warningSink);
         return resolved;
     }
-
-    private static final String WIDENED_TO_KEYWORD_SUMMARY =
-        "A column's inferred type changed partway through the schema sample and is read as [keyword]; "
-            + "set [schema_resolution] to [strict] to fail instead";
-    private static final String WIDENED_TO_DOUBLE_SUMMARY =
-        "A column mixing [long] and [double] within the schema sample is read as [double], losing precision above 2^53; "
-            + "set [schema_resolution] to [strict] to fail instead";
 
     /**
      * Visibility for the escape-decode foot-guns of the independent-knobs model: whenever C-style

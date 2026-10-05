@@ -107,10 +107,9 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * drift apart again. Whether values ABOVE the default should be accepted is a separate question this does not
      * settle — it only makes the default reachable.
      * <p>
-     * Raised from {@code 20_000} to {@code 40_000} alongside {@code CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE}
-     * (elastic/esql-planning#2134): CSV/TSV merged a second, separate {@code 20_000}-row "widening window" into
-     * this one setting, so a user who wants the row depth type inference already effectively sampled must be able
-     * to configure it directly.
+     * Raised from {@code 20_000} to {@code 40_000} alongside {@code CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE}:
+     * CSV/TSV merged a second, separate {@code 20_000}-row "widening window" into this one setting, so a user
+     * who wants the row depth type inference already effectively sampled must be able to configure it directly.
      */
     private static final int SCHEMA_SAMPLE_SIZE_MAX = 40_000;
 

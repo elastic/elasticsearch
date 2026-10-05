@@ -58,9 +58,9 @@ public class CsvSchemaInferrer {
     /**
      * The single schema-sampling window, for both the column type and (headerless) column count
      * decisions. Was {@code 20_000} with a second, separate {@code 20_000}-row "widening window" layered
-     * on top for the type decision only (see elastic/elasticsearch#157409); the two were merged into one
-     * window to put both decisions on the same boundary (elastic/esql-planning#2134), and the default
-     * raised to {@code 40_000} to preserve the row depth type inference already effectively sampled.
+     * on top for the type decision only; the two were merged into one window to put both decisions on
+     * the same boundary, and the default raised to {@code 40_000} to preserve the row depth type
+     * inference already effectively sampled.
      */
     static final int DEFAULT_SAMPLE_SIZE = 40_000;
 
@@ -140,6 +140,12 @@ public class CsvSchemaInferrer {
         // "already DOUBLE" branch, which can fire on more than one row for the same column and must only
         // report the first.
         boolean[] sawLongDoubleMerge = new boolean[numCols];
+        // Whether this column has seen a long-shaped value whose magnitude a double cannot represent
+        // exactly (see isPrecisionLosingLong). Gates the long/double merge report so an ordinary column
+        // mixing whole numbers and decimals (e.g. a price column: "9.99", "10", "12.5") does not get
+        // flagged — nothing is actually lost there, since every value involved round-trips through
+        // double exactly.
+        boolean[] sawPrecisionLosingLong = new boolean[numCols];
         // Columns not yet pinned to the terminal KEYWORD rung. Once this hits zero nothing left in the
         // sample can move anything, so the rest of it is not worth walking — the same short-circuit the
         // pre-merge widenSchema used over its own window (see nonKeywordCount there, before the two
@@ -161,6 +167,9 @@ public class CsvSchemaInferrer {
                     continue;
                 }
                 seenValue[col] = true;
+                if (sawPrecisionLosingLong[col] == false) {
+                    sawPrecisionLosingLong[col] = isPrecisionLosingLong(value);
+                }
                 int newIdx = narrowCandidate(
                     candidateIdx[col],
                     typeConfirmed[col],
@@ -168,6 +177,7 @@ public class CsvSchemaInferrer {
                     datetimeFormatter,
                     sawUndecodableTemporal,
                     sawLongDoubleMerge,
+                    sawPrecisionLosingLong,
                     col,
                     rowNumber,
                     widenings
@@ -233,6 +243,9 @@ public class CsvSchemaInferrer {
      * @param sawLongDoubleMerge per-column latch: true once a long/double merge has been reported for
      *                   this column, so a confirmed-{@code DOUBLE} column seeing further long-shaped
      *                   values (see below) does not re-report on every one of them
+     * @param sawPrecisionLosingLong per-column latch: true once a long-shaped value outside the range a
+     *                   double represents exactly has been seen, so a merge is only ever reported when
+     *                   something could actually be lost — see {@link #isPrecisionLosingLong}
      * @param row        1-based row number within the sample or window being walked, used only to
      *                   label a reported {@link Widening}
      * @param widenings  widenings worth reporting to the user (a move to {@code keyword}, or a
@@ -245,6 +258,7 @@ public class CsvSchemaInferrer {
         @Nullable DateFormatter datetimeFormatter,
         boolean[] sawUndecodableTemporal,
         boolean[] sawLongDoubleMerge,
+        boolean[] sawPrecisionLosingLong,
         int col,
         int row,
         List<Widening> widenings
@@ -260,11 +274,14 @@ public class CsvSchemaInferrer {
             //
             // One case still needs a look even though nothing moves: recognise starts its walk at the
             // accepted rung, so a confirmed DOUBLE column never re-walks the LONG rung below it — every
-            // numeric string parses as DOUBLE, so a long-shaped value (e.g. one past 2^53, where DOUBLE
-            // already silently loses precision) returns here having never been distinguished from a
-            // genuine decimal. That hides exactly the merge emitPrecisionLossWarnings reports cross-file:
-            // this column's unified type is DOUBLE and both LONG and DOUBLE shapes contributed to it.
-            if (sawLongDoubleMerge[col] == false && TYPE_CANDIDATES[currentIdx] == DataType.DOUBLE && canParseLong(value)) {
+            // numeric string parses as DOUBLE, so a long-shaped value past 2^53 (where DOUBLE already
+            // silently loses precision) returns here having never been distinguished from a genuine
+            // decimal. That hides exactly the merge emitPrecisionLossWarnings reports cross-file: this
+            // column's unified type is DOUBLE and both LONG and DOUBLE shapes contributed to it. Gated on
+            // sawPrecisionLosingLong rather than merely "is long-shaped": an ordinary column mixing whole
+            // numbers and decimals (a price column: "9.99", "10", "12.5") must not be flagged, since every
+            // value there round-trips through double exactly.
+            if (sawLongDoubleMerge[col] == false && TYPE_CANDIDATES[currentIdx] == DataType.DOUBLE && sawPrecisionLosingLong[col]) {
                 sawLongDoubleMerge[col] = true;
                 widenings.add(new Widening(col, DataType.LONG, DataType.DOUBLE, value, row));
             }
@@ -283,8 +300,11 @@ public class CsvSchemaInferrer {
         // integer -> long. Only (accepted == LONG && evidence == DOUBLE) is reachable here: recognise never
         // walks backward from the accepted rung, and DOUBLE sits after LONG in TYPE_CANDIDATES, so evidence
         // can never resolve to LONG once accepted is DOUBLE — that case is instead the one the branch above
-        // this one catches (evidenceIdx == currentIdx, DOUBLE already accepting a long-shaped value).
-        boolean isLongDoubleMerge = accepted == DataType.LONG && evidence == DataType.DOUBLE;
+        // this one catches (evidenceIdx == currentIdx, DOUBLE already accepting a long-shaped value). Also
+        // gated on sawPrecisionLosingLong: a column confirmed LONG purely from modest values (e.g. a few
+        // billion, past int32 but nowhere near 2^53) that later sees a genuine decimal loses nothing by
+        // becoming DOUBLE either.
+        boolean isLongDoubleMerge = accepted == DataType.LONG && evidence == DataType.DOUBLE && sawPrecisionLosingLong[col];
         DataType newType = TYPE_CANDIDATES[newIdx];
         if (newType == DataType.KEYWORD || isLongDoubleMerge) {
             widenings.add(new Widening(col, accepted, newType, value, row));
@@ -387,6 +407,19 @@ public class CsvSchemaInferrer {
         try {
             Double.parseDouble(value);
             return true;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    /** Every {@code long} at or below this magnitude round-trips through {@code double} exactly. */
+    private static final long MAX_SAFE_DOUBLE_INTEGER = 1L << 53;
+
+    /** Whether {@code value} is long-shaped and large enough that reading it as {@code double} loses precision. */
+    private static boolean isPrecisionLosingLong(String value) {
+        try {
+            long parsed = Long.parseLong(value);
+            return parsed > MAX_SAFE_DOUBLE_INTEGER || parsed < -MAX_SAFE_DOUBLE_INTEGER;
         } catch (NumberFormatException e) {
             return false;
         }

@@ -481,6 +481,13 @@ public class NdJsonSchemaInferrer {
          * first non-null value.
          */
         DataType runningType;
+        /**
+         * Whether a long-shaped value outside the range a double represents exactly has been seen for
+         * this field. Gates a reported long/double merge so an ordinary field mixing whole numbers and
+         * decimals (e.g. {@code 1}, {@code 2}, {@code 1.5}) is not flagged — nothing is actually lost
+         * there, since every value round-trips through double exactly. See {@link #isPrecisionLosingLong}.
+         */
+        boolean sawPrecisionLosingLong;
 
         FieldInfo(FieldInfo parent, String name) {
             // fields holds the root too, so this admits exactly maxFields fields below it.
@@ -554,10 +561,19 @@ public class NdJsonSchemaInferrer {
          * transition-only check once did) misses that order. {@code fromType} reports {@code LONG} (this
          * value's own shape) rather than {@code previous} whenever {@code previous} already equals
          * {@code updated}, since reporting {@code fromType == toType == DOUBLE} would say nothing useful.
+         * <p>
+         * The "became both present" transition can only happen on the call that adds the second of
+         * {@code LONG}/{@code DOUBLE} to {@link #types} — adding any other type leaves their joint
+         * membership unchanged, so {@code type == LONG || type == DOUBLE} is equivalent to the original
+         * before/after membership comparison, and cheaper: it folds into the {@code contains} calls
+         * already needed below instead of taking a separate pre-add snapshot on every call, including
+         * the repeat-value common case that returns before reaching here.
          */
         void addType(DataType type, int row, String value) {
             fieldsSeen.set(idx);
-            boolean hadBothLongAndDouble = types.contains(DataType.LONG) && types.contains(DataType.DOUBLE);
+            if (type == DataType.LONG && sawPrecisionLosingLong == false) {
+                sawPrecisionLosingLong = isPrecisionLosingLong(value);
+            }
             if (types.add(type) == false) {
                 return;
             }
@@ -566,9 +582,10 @@ public class NdJsonSchemaInferrer {
             if (previous != null) {
                 boolean becameKeyword = updated == DataType.KEYWORD && updated != previous;
                 boolean becameLongDoubleMerge = updated == DataType.DOUBLE
-                    && hadBothLongAndDouble == false
+                    && (type == DataType.LONG || type == DataType.DOUBLE)
                     && types.contains(DataType.LONG)
-                    && types.contains(DataType.DOUBLE);
+                    && types.contains(DataType.DOUBLE)
+                    && sawPrecisionLosingLong;
                 if (becameKeyword) {
                     widenings.add(new Widening(fullName(), previous, updated, value, row));
                 } else if (becameLongDoubleMerge) {
@@ -581,6 +598,19 @@ public class NdJsonSchemaInferrer {
 
         DataType resolveType() {
             return resolveObservedTypes(types);
+        }
+    }
+
+    /** Every {@code long} at or below this magnitude round-trips through {@code double} exactly. */
+    private static final long MAX_SAFE_DOUBLE_INTEGER = 1L << 53;
+
+    /** Whether {@code value} (already known to parse as a JSON integer token) loses precision as {@code double}. */
+    private static boolean isPrecisionLosingLong(String value) {
+        try {
+            long parsed = Long.parseLong(value);
+            return parsed > MAX_SAFE_DOUBLE_INTEGER || parsed < -MAX_SAFE_DOUBLE_INTEGER;
+        } catch (NumberFormatException e) {
+            return false;
         }
     }
 

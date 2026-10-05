@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 /**
@@ -20,7 +21,20 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
  * @param columnName the widened column's name
  * @param fromType   the type the column held before this value
  * @param toType     the type the column widened to
- * @param value      the sampled value that forced the move
+ * @param value      the sampled value that forced the move, truncated to {@link #MAX_VALUE_LENGTH}
  * @param sampleRow  1-based row number, within the inference sample, that carried {@code value}
  */
-public record WidenedColumn(String columnName, DataType fromType, DataType toType, String value, long sampleRow) {}
+public record WidenedColumn(String columnName, DataType fromType, DataType toType, String value, long sampleRow) {
+
+    /**
+     * Cap on the retained value. {@code value} is unbounded user data (a raw cell or field) reproduced
+     * verbatim in warnings, a {@code schema_resolution: strict} exception message, and the schema cache
+     * ({@code SchemaCacheEntry}) — truncating once here, at construction, is the one place that bounds
+     * it for every consumer instead of relying on each to do so.
+     */
+    public static final int MAX_VALUE_LENGTH = 256;
+
+    public WidenedColumn {
+        value = Strings.cleanTruncate(value, MAX_VALUE_LENGTH);
+    }
+}

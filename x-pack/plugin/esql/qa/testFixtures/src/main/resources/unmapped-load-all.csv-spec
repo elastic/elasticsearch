@@ -3466,6 +3466,7 @@ required_capability: views_crud_as_index_actions
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data, partial_mapping_view_message_wildcard | WHERE message == "42"
 ;
+ignoreOrder:true
 
 @timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
 null                     | null         | null                | 42              | null                  | null                    | null                            | 43
@@ -3498,6 +3499,7 @@ SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_view, partial_mapping_view_message_wildcard
 | WHERE message == "42"
 ;
+ignoreOrder:true
 
 @timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
 null                     | null         | null                | 42              | null                  | null                    | null                            | 43
@@ -3513,6 +3515,7 @@ SET unmapped_fields="LOAD_ALL"\;
 FROM no_mapping_sample_data, partial_mapping_view_message_wildcard
 | WHERE message == "42"
 ;
+ignoreOrder:true
 
 message:keyword | @timestamp:keyword       | client_ip:keyword | event_duration:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
 42              | null                     | null              | null                   | null                  | null                    | null                            | 43
@@ -3596,6 +3599,33 @@ message:keyword | unmapped_message:keyword | event_duration:long | unmapped_even
 42              | 43                       | 1232381             | 1232383
 ;
 
+loadAllViewAndSubqueryKeepStarMessageCountUnmappedDuration
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, partial_mapping_view_message_wildcard
+| STATS c = COUNT(*), u = COUNT(unmapped_message), d = COUNT(unmapped_event_duration)
+;
+
+c:long | u:long | d:long
+14     | 14     | 7
+;
+
+loadAllSubqueryKeepStarMessageCountUnmappedDuration
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | KEEP *message*)
+| STATS c = COUNT(*), u = COUNT(unmapped_message), d = COUNT(unmapped_event_duration)
+;
+
+c:long | u:long | d:long
+14     | 14     | 7
+;
+
 loadAllReviewKeepDropsNonMatchingUnmapped
 required_capability: optional_fields_load_all_views
 required_capability: views_with_branching
@@ -3610,7 +3640,7 @@ ignoreOrder:true
 
 message:keyword | unmapped_event_duration:keyword
 42              | 1232383
-42              | 1232383
+42              | null
 ;
 
 loadAllReviewStatsByNullEventDuration

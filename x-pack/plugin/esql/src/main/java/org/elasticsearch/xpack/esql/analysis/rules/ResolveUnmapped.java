@@ -37,12 +37,15 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.util.ArrayList;
@@ -249,10 +252,15 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         Holder<Boolean> changed = new Holder<>(false);
         MergePlan transformed = (MergePlan) mergePlan.transformDownSkipBranch((plan, skip) -> {
             if (plan instanceof Project project) {
-                skip.set(true); // process top Project only (merge-injected)
-                plan = patchMergeProject(project);
-                if (plan != project) {
+                Project patched = patchMergeProject(project);
+                if (patched != project) {
                     changed.set(Boolean.TRUE);
+                    plan = patched;
+                }
+                // A subquery object is not a stopping point: keep walking so the KEEP under it is patched by the same
+                // rule as a bare KEEP. Stop once that KEEP is patched, and stop when this branch has no subquery.
+                if (project instanceof ResolvingProject || project.anyMatch(p -> p instanceof Subquery) == false) {
+                    skip.set(true);
                 }
             }
             return plan;
@@ -262,22 +270,26 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     }
 
     /**
-     * Add any missing attributes that are found in the child's output but not in the Project's output. These have been injected before
-     * by the evalUnresolvedAtopXXX methods and need to be "let through" the Project.
+     * Add attributes present on the child but missing from this projection. A {@link ResolvingProject} has already chosen
+     * its columns, so a name it excluded stays excluded. A plain alignment projection still receives the columns.
      */
-    // Maybe using ResolvingProjects at the top of the merge branches would be a more simple solution; adding the `*` pattern
-    // would let any newly introduced attribute through without the need to patch the Projects, we'd just have to refresh the merge output.
     private static Project patchMergeProject(Project project) {
         List<Attribute> projectOutput = project.output();
         List<Attribute> childOutput = project.child().output();
-        if (projectOutput.equals(childOutput) == false) {
-            List<Attribute> delta = new ArrayList<>(childOutput);
-            delta.removeAll(projectOutput);
-            if (delta.isEmpty() == false) {
-                project = project.withProjections(mergeOutputAttributes(delta, projectOutput));
-            }
+        if (projectOutput.equals(childOutput)) {
+            return project;
         }
-        return project;
+        List<Attribute> delta = new ArrayList<>(childOutput);
+        delta.removeAll(projectOutput);
+        if (project instanceof ResolvingProject resolving) {
+            delta.removeIf(
+                attr -> attr instanceof UnmappedFieldsAttribute == false && resolving.admitsLateUnmappedField(attr.name()) == false
+            );
+        }
+        if (delta.isEmpty()) {
+            return project;
+        }
+        return project.withProjections(mergeOutputAttributes(delta, projectOutput));
     }
 
     /**

@@ -28,9 +28,11 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
@@ -634,6 +636,43 @@ public class ScanningBinaryDocValuesAutomatonQueryTests extends ESTestCase {
         // tests both case sensitive and insensitive, randomly
         ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", COMPLEX_WILDCARD, randomBoolean(), SEPARATE_COUNT, breaker);
         assertTrue("circuit breaker should be consulted during case-sensitive wildcard automaton construction", breaker.wasCalled());
+    }
+
+    /**
+     * Building the {@code ByteRunAutomaton} re-expands the DFA to UTF-8 and determinizes again, so the breaker must have been charged
+     * at least twice the DFA's RAM at some point, and everything must be released afterwards.
+     */
+    public void testWildcardChargesBreakerForByteRunAutomatonBuild() {
+        final boolean caseInsensitive = randomBoolean();
+        final String pattern = "h*l?o*" + randomAlphaOfLength(5);
+        final Term term = new Term("field", pattern);
+        final Automaton dfa = caseInsensitive
+            ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(term)
+            : WildcardQuery.toAutomaton(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", pattern, caseInsensitive, SEPARATE_COUNT, breaker);
+        assertThat(breaker.peak(), greaterThanOrEqualTo(2 * dfa.ramBytesUsed()));
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testRegexpChargesBreakerForByteRunAutomatonBuild() {
+        final String pattern = "h.*l[a-z]o" + randomAlphaOfLength(5);
+        final Automaton dfa = Operations.determinize(
+            new RegExp(pattern, RegExp.ALL, 0).toAutomaton(),
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+        );
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        new ScanningBinaryDocValuesRegexpQuery(
+            "field",
+            pattern,
+            RegExp.ALL,
+            0,
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+            SEPARATE_COUNT,
+            breaker
+        );
+        assertThat(breaker.peak(), greaterThanOrEqualTo(2 * dfa.ramBytesUsed()));
+        assertThat(breaker.getUsed(), equalTo(0L));
     }
 
     public void testCircuitBreakerTripsForComplexWildcard() {

@@ -10,6 +10,30 @@ Prior to version *8.16.0*, the connector release notes were published as part of
 ====
 
 [discrete]
+[[es-connectors-release-notes-8-19-23]]
+=== 8.19.23
+
+[discrete]
+[[es-connectors-release-notes-8-19-23-enhancements]]
+==== Enhancements
+
+* Added a *Sync all mail folders* advanced option to the Outlook connector (default off). When enabled, the connector also indexes mail folders beyond Inbox, Sent, Junk, and Archive as `Mail` documents with a `folder_name` field.
+See: https://github.com/elastic/connectors/pull/4504[*PR 4504*]
+
+[discrete]
+[[es-connectors-release-notes-8-19-23-bug-fixes]]
+===== Bug fixes
+
+* Fixed the Outlook connector failing long syncs when Exchange temporarily returned `ErrorMailboxStoreUnavailable` while reading mail, calendar, task, or contact folders. These reads are now retried with exponential backoff before the sync fails.
+See: https://github.com/elastic/connectors/pull/4539[*PR 4539*]
+* Fixed SharePoint Online Document Level Security exhausting Elasticsearch memory when large site groups were expanded onto each document's access control list. An opt-in compact mode stores a site group token instead: disable *Expand site group members* to enable it. Changing the setting requires a full content sync and access control sync.
+See: https://github.com/elastic/connectors/pull/4501[*PR 4501*]
+* Fixed ServiceNow access control syncs in compact Document Level Security mode stalling for days on large tenants. User role assignments are now fetched with keyset pagination, and progress is logged every 10,000 rows.
+See: https://github.com/elastic/connectors/pull/4518[*PR 4518*]
+* Fixed the connectors CLI failing to show `--help` output before a local `.cli/config.yml` exists. Commands that need a configuration now point users to `connectors login`.
+See: https://github.com/elastic/connectors/pull/4533[*PR 4533*]
+
+[discrete]
 [[es-connectors-release-notes-8-19-22]]
 === 8.19.22
 

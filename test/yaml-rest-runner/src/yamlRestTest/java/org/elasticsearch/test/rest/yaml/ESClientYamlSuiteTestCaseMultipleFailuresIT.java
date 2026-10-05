@@ -9,6 +9,7 @@
 
 package org.elasticsearch.test.rest.yaml;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -30,7 +31,7 @@ public class ESClientYamlSuiteTestCaseMultipleFailuresIT extends ESClientYamlSui
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local().build();
 
-    public ESClientYamlSuiteTestCaseMultipleFailuresIT(final ClientYamlTestCandidate testCandidate) {
+    public ESClientYamlSuiteTestCaseMultipleFailuresIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

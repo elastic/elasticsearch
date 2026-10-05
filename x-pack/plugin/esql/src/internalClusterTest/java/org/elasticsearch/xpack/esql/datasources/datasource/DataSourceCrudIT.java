@@ -333,7 +333,7 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         final String dsName = "persists_across_restart";
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "us-west-2"))));
 
-        // Full-cluster restart. DataSourceMetadata.context() is GATEWAY-only, so the metadata is persisted to disk and survives restart.
+        // Full-cluster restart — metadata must survive via GATEWAY persistence.
         internalCluster().fullRestart();
         ensureYellow();
 
@@ -343,6 +343,116 @@ public class DataSourceCrudIT extends ESIntegTestCase {
 
         // Cleanup so subsequent tests start from a clean slate in a SUITE-scoped cluster.
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
+    }
+
+    public void testSnapshotRestoreOmitsSecrets() throws Exception {
+        final String dsName = "snap_test_ds";
+        final String datasetName = "snap_test_dataset";
+        final String repoName = "ds-snap-repo";
+        final String snapshotName = "ds-snapshot";
+
+        // Create a datasource with a non-secret setting and a credential (secret_* prefix → marked secret by TestValidator).
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                putDataSourceRequest(dsName, Map.of("region", "eu-west-1", "secret_access_key", "SUPER_SECRET"))
+            )
+        );
+        assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(datasetName, dsName, "test://logs/*.parquet", Map.of())));
+
+        // Register a filesystem snapshot repo and take a full snapshot including global state.
+        assertAcked(
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
+                .setType("fs")
+                .setSettings(Settings.builder().put("location", randomRepoPath()))
+        );
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+            .setIncludeGlobalState(true)
+            .setWaitForCompletion(true)
+            .get();
+
+        // Remove both so restore has something to put back.
+        assertAcked(client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(datasetName)));
+        assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
+
+        clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+            .setRestoreGlobalState(true)
+            .setWaitForCompletion(true)
+            .get();
+
+        // The datasource exists with its non-secret setting intact but without credentials.
+        GetDataSourceAction.Response resp = client().execute(GetDataSourceAction.INSTANCE, getDataSourceRequest(dsName)).get();
+        assertThat(resp.getDataSources(), hasSize(1));
+        DataSource restored = resp.getDataSources().iterator().next();
+        assertThat(
+            "non-secret setting must survive snapshot/restore",
+            restored.settings().get("region").nonSecretValue(),
+            equalTo("eu-west-1")
+        );
+        assertNull("secret credential must not be present after restore", restored.settings().get("secret_access_key"));
+
+        // The dataset also survives restore.
+        GetDatasetAction.Response datasetResp = client().execute(GetDatasetAction.INSTANCE, getDatasetRequest(datasetName)).get();
+        assertThat(datasetResp.getDatasets(), hasSize(1));
+        assertThat(datasetResp.getDatasets().iterator().next().name(), equalTo(datasetName));
+
+        // Cleanup.
+        assertAcked(client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(datasetName)));
+        assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
+        assertAcked(clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName));
+    }
+
+    public void testSnapshotRestoreReplacesExisting() throws Exception {
+        final String dsInSnapshot = "snap_ds_in";
+        final String dsNotInSnapshot = "snap_ds_out";
+        final String datasetInSnapshot = "snap_dataset_in";
+        final String datasetNotInSnapshot = "snap_dataset_out";
+        final String repoName = "ds-replace-repo";
+        final String snapshotName = "ds-replace-snapshot";
+
+        // Create the data source and dataset that will be captured in the snapshot.
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsInSnapshot, Map.of("region", "eu-west-1"))));
+        assertAcked(
+            client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(datasetInSnapshot, dsInSnapshot, "test://in/*.parquet", Map.of()))
+        );
+
+        assertAcked(
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
+                .setType("fs")
+                .setSettings(Settings.builder().put("location", randomRepoPath()))
+        );
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+            .setIncludeGlobalState(true)
+            .setWaitForCompletion(true)
+            .get();
+
+        // Add a data source and dataset that were NOT in the snapshot.
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsNotInSnapshot, Map.of("region", "ap-east-1"))));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest(datasetNotInSnapshot, dsNotInSnapshot, "test://out/*.parquet", Map.of())
+            )
+        );
+
+        clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+            .setRestoreGlobalState(true)
+            .setWaitForCompletion(true)
+            .get();
+
+        // Data source that was in the snapshot survives.
+        assertThat(client().execute(GetDataSourceAction.INSTANCE, getDataSourceRequest(dsInSnapshot)).get().getDataSources(), hasSize(1));
+        // Data source that was NOT in the snapshot is wiped — restore replaces the entire custom.
+        expectDataSourceMissing(dsNotInSnapshot);
+
+        // Same for datasets.
+        assertThat(client().execute(GetDatasetAction.INSTANCE, getDatasetRequest(datasetInSnapshot)).get().getDatasets(), hasSize(1));
+        expectDatasetMissing(datasetNotInSnapshot);
+
+        // Cleanup.
+        assertAcked(client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(datasetInSnapshot)));
+        assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsInSnapshot)));
+        assertAcked(clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName));
     }
 
     public void testConcurrentPutSameDataSource() throws Exception {
@@ -912,6 +1022,14 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         } catch (Exception other) {
             return other;
         }
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put("xpack.license.self_generated.type", "trial")
+            .build();
     }
 
     public static class LocalStateDataSource extends LocalStateCompositeXPackPlugin {

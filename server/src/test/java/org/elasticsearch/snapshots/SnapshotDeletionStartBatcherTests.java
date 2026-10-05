@@ -73,7 +73,6 @@ import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
-import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.tasks.TaskManager;
@@ -195,8 +194,7 @@ public class SnapshotDeletionStartBatcherTests extends ESTestCase {
             Map.of(),
             threadPool,
             new NodeClient(settings, threadPool, DefaultProjectResolver.INSTANCE),
-            List.of(),
-            SnapshotMetrics.NOOP
+            List.of()
         );
         repositoriesService.start();
 

@@ -497,9 +497,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/158881
 - class: org.elasticsearch.xpack.esql.datasource.s3.S3StorageObjectAsyncTests
   issue: https://github.com/elastic/elasticsearch/issues/159417
-- class: org.elasticsearch.index.store.FieldInfoCachingDirectoryTests
-  method: testWeakReferenceReclaimsCanonical
-  issue: https://github.com/elastic/elasticsearch/issues/159154
 - class: org.elasticsearch.xpack.security.apikey.ApiKeyRestIT
   method: testGrantTargetCanUpdateApiKey
   issue: https://github.com/elastic/elasticsearch/issues/159567

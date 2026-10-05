@@ -139,7 +139,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
@@ -2256,8 +2255,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
 
                 boolean doPrecondition = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("precondition"), false);
-                AutoCalibrate autoCalibrate = AutoCalibrate.parse(
-                    indexOptionsMap.remove(AutoCalibrate.NAME),
+                DenseVectorAutoCalibrate autoCalibrate = DenseVectorAutoCalibrate.parse(
+                    indexOptionsMap.remove(DenseVectorAutoCalibrate.NAME),
                     indexVersion,
                     context::clusterHasFeature,
                     fieldName
@@ -3005,7 +3004,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         final int bits;
         final boolean doPrecondition;
         final boolean experimentalFeaturesEnabled;
-        final AutoCalibrate autoCalibrate;
+        final DenseVectorAutoCalibrate autoCalibrate;
         final QuantizationType quantizationType;
 
         public enum QuantizationType {
@@ -3045,7 +3044,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             boolean doPrecondition,
             int bits,
             boolean experimentalFeaturesEnabled,
-            @Nullable AutoCalibrate autoCalibrate,
+            @Nullable DenseVectorAutoCalibrate autoCalibrate,
             QuantizationType quantizationType,
             boolean onDiskMerge
         ) {
@@ -3058,7 +3057,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.bits = bits;
             this.doPrecondition = doPrecondition;
             this.experimentalFeaturesEnabled = experimentalFeaturesEnabled;
-            this.autoCalibrate = autoCalibrate == null ? AutoCalibrate.defaultAutoCalibrate(indexVersionCreated) : autoCalibrate;
+            this.autoCalibrate = autoCalibrate == null ? DenseVectorAutoCalibrate.defaultAutoCalibrate(indexVersionCreated) : autoCalibrate;
             this.quantizationType = quantizationType;
         }
 

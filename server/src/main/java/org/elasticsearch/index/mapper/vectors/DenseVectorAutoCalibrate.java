@@ -23,10 +23,10 @@ import java.util.Arrays;
 import java.util.function.Predicate;
 
 /** Parsed {@code auto_calibrate} index option: the resolved profile plus the value the user originally supplied. */
-public record AutoCalibrate(@Nullable Object originalValue, IvfAutoCalibrationProfile profile) implements ToXContentFragment {
+public record DenseVectorAutoCalibrate(@Nullable Object originalValue, IvfAutoCalibrationProfile profile) implements ToXContentFragment {
     public static final NodeFeature AUTO_CALIBRATE_PROFILES = new NodeFeature("mapper.dense_vector.auto_calibrate_profiles");
     static final String NAME = "auto_calibrate";
-    static final AutoCalibrate DEFAULT = new AutoCalibrate(null, IvfAutoCalibrationProfile.DISABLED);
+    static final DenseVectorAutoCalibrate DEFAULT = new DenseVectorAutoCalibrate(null, IvfAutoCalibrationProfile.DISABLED);
 
     public static IvfAutoCalibrationProfile defaultEnabledProfile(IndexVersion indexVersion) {
         return indexVersion.onOrAfter(IndexVersions.DISK_BBQ_AUTO_CALIBRATE_DEFAULT_ISO_SIZING)
@@ -34,12 +34,12 @@ public record AutoCalibrate(@Nullable Object originalValue, IvfAutoCalibrationPr
             : IvfAutoCalibrationProfile.QUALITY;
     }
 
-    static AutoCalibrate defaultAutoCalibrate(IndexVersion indexVersion) {
+    static DenseVectorAutoCalibrate defaultAutoCalibrate(IndexVersion indexVersion) {
         return DEFAULT;
     }
 
     /** Accepts a boolean, a boolean string, or a profile name. */
-    static AutoCalibrate parse(
+    static DenseVectorAutoCalibrate parse(
         @Nullable Object node,
         IndexVersion indexVersion,
         Predicate<NodeFeature> clusterSupportsFeature,
@@ -72,7 +72,7 @@ public record AutoCalibrate(@Nullable Object originalValue, IvfAutoCalibrationPr
                 );
         }
 
-        return new AutoCalibrate(node, profile);
+        return new DenseVectorAutoCalibrate(node, profile);
     }
 
     boolean enabled() {

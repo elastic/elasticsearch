@@ -14,7 +14,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibrationProfile;
-import org.elasticsearch.index.mapper.vectors.AutoCalibrate;
+import org.elasticsearch.index.mapper.vectors.DenseVectorAutoCalibrate;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQIVFIndexOptions;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
@@ -83,9 +83,9 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
 
     private static DenseVectorFieldType bbqIvfField(ElementSpec spec, boolean autoCalibrateEnabled, float postFilterThreshold) {
         IndexVersion indexVersion = IndexVersion.current();
-        AutoCalibrate autoCalibrate = autoCalibrateEnabled
-            ? new AutoCalibrate(null, AutoCalibrate.defaultEnabledProfile(indexVersion))
-            : new AutoCalibrate(null, IvfAutoCalibrationProfile.DISABLED);
+        DenseVectorAutoCalibrate autoCalibrate = autoCalibrateEnabled
+            ? new DenseVectorAutoCalibrate(null, DenseVectorAutoCalibrate.defaultEnabledProfile(indexVersion))
+            : new DenseVectorAutoCalibrate(null, IvfAutoCalibrationProfile.DISABLED);
 
         return new DenseVectorFieldType(
             "f",

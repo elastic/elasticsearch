@@ -21,6 +21,9 @@ import static org.elasticsearch.inference.InferenceRequestMetadata.Field.INTERAC
 import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_FEATURE;
 import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_SOLUTION;
 import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_USE_CASE;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.SPACE_ID;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.TRACE_ID;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.USER_ID;
 import static org.hamcrest.Matchers.equalTo;
 
 public class InferenceContextTests extends AbstractWireSerializingTestCase<InferenceContext> {
@@ -35,7 +38,15 @@ public class InferenceContextTests extends AbstractWireSerializingTestCase<Infer
     }
 
     public static InferenceContext createRandom() {
-        return context(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        return context(
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10)
+        );
     }
 
     @Override
@@ -44,10 +55,13 @@ public class InferenceContextTests extends AbstractWireSerializingTestCase<Infer
             valueOrEmpty(instance, PRODUCT_USE_CASE),
             valueOrEmpty(instance, PRODUCT_SOLUTION),
             valueOrEmpty(instance, PRODUCT_FEATURE),
-            valueOrEmpty(instance, INTERACTION_ID) };
+            valueOrEmpty(instance, INTERACTION_ID),
+            valueOrEmpty(instance, TRACE_ID),
+            valueOrEmpty(instance, USER_ID),
+            valueOrEmpty(instance, SPACE_ID) };
         var i = randomIntBetween(0, components.length - 1);
         components[i] = randomValueOtherThan(components[i], () -> randomAlphaOfLength(10));
-        return context(components[0], components[1], components[2], components[3]);
+        return context(components[0], components[1], components[2], components[3], components[4], components[5], components[6]);
     }
 
     public void testOneArgConstructorKeepsOnlyUseCase() {
@@ -56,6 +70,9 @@ public class InferenceContextTests extends AbstractWireSerializingTestCase<Infer
         assertThat(context.metadata().get(PRODUCT_SOLUTION), equalTo(null));
         assertThat(context.metadata().get(PRODUCT_FEATURE), equalTo(null));
         assertThat(context.metadata().get(INTERACTION_ID), equalTo(null));
+        assertThat(context.metadata().get(TRACE_ID), equalTo(null));
+        assertThat(context.metadata().get(USER_ID), equalTo(null));
+        assertThat(context.metadata().get(SPACE_ID), equalTo(null));
     }
 
     public void testOneArgConstructorRejectsNull() {
@@ -67,7 +84,10 @@ public class InferenceContextTests extends AbstractWireSerializingTestCase<Infer
             new InferenceContext("esql").toXContent(builder, ToXContent.EMPTY_PARAMS);
             assertThat(
                 Strings.toString(builder),
-                equalTo("{\"product_use_case\":\"esql\",\"product_solution\":\"\",\"product_feature\":\"\",\"interaction_id\":\"\"}")
+                equalTo(
+                    "{\"product_use_case\":\"esql\",\"product_solution\":\"\",\"product_feature\":\"\",\"interaction_id\":\"\","
+                        + "\"trace_id\":\"\",\"user_id\":\"\",\"space_id\":\"\"}"
+                )
             );
         }
     }
@@ -78,12 +98,27 @@ public class InferenceContextTests extends AbstractWireSerializingTestCase<Infer
     }
 
     public static InferenceContext context(String productUseCase, String productSolution, String productFeature, String interactionId) {
+        return context(productUseCase, productSolution, productFeature, interactionId, "", "", "");
+    }
+
+    public static InferenceContext context(
+        String productUseCase,
+        String productSolution,
+        String productFeature,
+        String interactionId,
+        String traceId,
+        String userId,
+        String spaceId
+    ) {
         return new InferenceContext(
             InferenceRequestMetadata.builder()
                 .put(PRODUCT_USE_CASE, productUseCase)
                 .put(PRODUCT_SOLUTION, productSolution)
                 .put(PRODUCT_FEATURE, productFeature)
                 .put(INTERACTION_ID, interactionId)
+                .put(TRACE_ID, traceId)
+                .put(USER_ID, userId)
+                .put(SPACE_ID, spaceId)
                 .build()
         );
     }

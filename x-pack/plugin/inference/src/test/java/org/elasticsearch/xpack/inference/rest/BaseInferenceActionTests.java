@@ -165,11 +165,27 @@ public class BaseInferenceActionTests extends RestActionTestCase {
                 "X-elastic-product-feature",
                 List.of("attack_discovery"),
                 "X-Elastic-Inference-Interaction-Id",
-                List.of("interaction-id")
+                List.of("interaction-id"),
+                "X-Elastic-Trace-Id",
+                List.of("trace-id"),
+                "X-Elastic-User-Id",
+                List.of("user-id"),
+                "X-Elastic-Space-Id",
+                List.of("space-id")
             ),
             context -> assertThat(
                 context,
-                equalTo(InferenceContextTests.context("product-use-case", "security", "attack_discovery", "interaction-id"))
+                equalTo(
+                    InferenceContextTests.context(
+                        "product-use-case",
+                        "security",
+                        "attack_discovery",
+                        "interaction-id",
+                        "trace-id",
+                        "user-id",
+                        "space-id"
+                    )
+                )
             )
         );
     }

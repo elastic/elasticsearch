@@ -21,6 +21,9 @@ import static org.elasticsearch.inference.InferenceRequestMetadata.Field.INTERAC
 import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_FEATURE;
 import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_SOLUTION;
 import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_USE_CASE;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.SPACE_ID;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.TRACE_ID;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.USER_ID;
 
 /**
  * Transport and XContent adapter for {@link InferenceRequestMetadata}.
@@ -61,11 +64,17 @@ public final class InferenceContext implements Writeable, ToXContent {
         var productSolution = in.readString();
         var productFeature = in.readString();
         var interactionId = in.readString();
+        var traceId = in.readString();
+        var userId = in.readString();
+        var spaceId = in.readString();
         return InferenceRequestMetadata.builder()
             .put(PRODUCT_USE_CASE, productUseCase)
             .put(PRODUCT_SOLUTION, productSolution)
             .put(PRODUCT_FEATURE, productFeature)
             .put(INTERACTION_ID, interactionId)
+            .put(TRACE_ID, traceId)
+            .put(USER_ID, userId)
+            .put(SPACE_ID, spaceId)
             .build();
     }
 
@@ -82,6 +91,9 @@ public final class InferenceContext implements Writeable, ToXContent {
         out.writeString(valueOrEmpty(PRODUCT_SOLUTION));
         out.writeString(valueOrEmpty(PRODUCT_FEATURE));
         out.writeString(valueOrEmpty(INTERACTION_ID));
+        out.writeString(valueOrEmpty(TRACE_ID));
+        out.writeString(valueOrEmpty(USER_ID));
+        out.writeString(valueOrEmpty(SPACE_ID));
     }
 
     @Override

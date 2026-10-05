@@ -33,7 +33,10 @@ public final class InferenceRequestMetadata {
         PRODUCT_USE_CASE("X-elastic-product-use-case", "product_use_case", true),
         PRODUCT_SOLUTION("X-elastic-product-solution", "product_solution", false),
         PRODUCT_FEATURE("X-elastic-product-feature", "product_feature", false),
-        INTERACTION_ID("X-Elastic-Inference-Interaction-Id", "interaction_id", false);
+        INTERACTION_ID("X-Elastic-Inference-Interaction-Id", "interaction_id", false),
+        TRACE_ID("X-Elastic-Trace-Id", "trace_id", false),
+        USER_ID("X-Elastic-User-Id", "user_id", false),
+        SPACE_ID("X-Elastic-Space-Id", "space_id", false);
 
         private final String httpHeader;
         private final String xContentName;

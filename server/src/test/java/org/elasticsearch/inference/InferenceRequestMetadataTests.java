@@ -18,6 +18,9 @@ import static org.elasticsearch.inference.InferenceRequestMetadata.Field.INTERAC
 import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_FEATURE;
 import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_SOLUTION;
 import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_USE_CASE;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.SPACE_ID;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.TRACE_ID;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.USER_ID;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -41,6 +44,18 @@ public class InferenceRequestMetadataTests extends ESTestCase {
         assertThat(INTERACTION_ID.httpHeader(), equalTo("X-Elastic-Inference-Interaction-Id"));
         assertThat(INTERACTION_ID.xContentName(), equalTo("interaction_id"));
         assertThat(INTERACTION_ID.allowsMultipleRestValues(), equalTo(false));
+
+        assertThat(TRACE_ID.httpHeader(), equalTo("X-Elastic-Trace-Id"));
+        assertThat(TRACE_ID.xContentName(), equalTo("trace_id"));
+        assertThat(TRACE_ID.allowsMultipleRestValues(), equalTo(false));
+
+        assertThat(USER_ID.httpHeader(), equalTo("X-Elastic-User-Id"));
+        assertThat(USER_ID.xContentName(), equalTo("user_id"));
+        assertThat(USER_ID.allowsMultipleRestValues(), equalTo(false));
+
+        assertThat(SPACE_ID.httpHeader(), equalTo("X-Elastic-Space-Id"));
+        assertThat(SPACE_ID.xContentName(), equalTo("space_id"));
+        assertThat(SPACE_ID.allowsMultipleRestValues(), equalTo(false));
     }
 
     public void testEmptyOmitsEveryField() {

@@ -111,6 +111,12 @@ public class InferencePluginTests extends ESTestCase {
                         "X-elastic-product-solution",
                         false,
                         "X-elastic-product-feature",
+                        false,
+                        "X-Elastic-Trace-Id",
+                        false,
+                        "X-Elastic-User-Id",
+                        false,
+                        "X-Elastic-Space-Id",
                         false
                     )
                 )
@@ -126,7 +132,10 @@ public class InferencePluginTests extends ESTestCase {
                     "X-elastic-product-use-case",
                     "X-Elastic-Inference-Interaction-Id",
                     "X-elastic-product-solution",
-                    "X-elastic-product-feature"
+                    "X-elastic-product-feature",
+                    "X-Elastic-Trace-Id",
+                    "X-Elastic-User-Id",
+                    "X-Elastic-Space-Id"
                 )
             );
         }

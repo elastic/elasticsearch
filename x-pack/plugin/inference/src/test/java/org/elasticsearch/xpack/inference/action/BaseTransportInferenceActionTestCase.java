@@ -354,14 +354,28 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         String interactionId = "interaction-id";
         String productSolution = "security";
         String productFeature = "attack_discovery";
+        String traceId = "trace-id";
+        String userId = "user-id";
+        String spaceId = "space-id";
 
-        InferenceContext context = InferenceContextTests.context(productUseCase, productSolution, productFeature, interactionId);
+        InferenceContext context = InferenceContextTests.context(
+            productUseCase,
+            productSolution,
+            productFeature,
+            interactionId,
+            traceId,
+            userId,
+            spaceId
+        );
         ThreadContext threadContext = executeWithInferenceContext(context, new ThreadContext(Settings.EMPTY));
 
         assertThat(threadContext.getHeader("X-elastic-product-use-case"), is(productUseCase));
         assertThat(threadContext.getHeader("X-Elastic-Inference-Interaction-Id"), is(interactionId));
         assertThat(threadContext.getHeader("X-elastic-product-solution"), is(productSolution));
         assertThat(threadContext.getHeader("X-elastic-product-feature"), is(productFeature));
+        assertThat(threadContext.getHeader("X-Elastic-Trace-Id"), is(traceId));
+        assertThat(threadContext.getHeader("X-Elastic-User-Id"), is(userId));
+        assertThat(threadContext.getHeader("X-Elastic-Space-Id"), is(spaceId));
     }
 
     public void testExistingThreadContextHeadersTakePrecedenceOverInferenceContext() {

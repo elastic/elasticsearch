@@ -31,6 +31,9 @@ import static org.elasticsearch.inference.InferenceRequestMetadata.Field.INTERAC
 import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_FEATURE;
 import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_SOLUTION;
 import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_USE_CASE;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.SPACE_ID;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.TRACE_ID;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.USER_ID;
 import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_ES_VERSION;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.apiKey;
 import static org.hamcrest.Matchers.equalTo;
@@ -72,7 +75,10 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
             new Case(PRODUCT_USE_CASE, "ai assistant"),
             new Case(PRODUCT_SOLUTION, "security"),
             new Case(PRODUCT_FEATURE, "attack_discovery"),
-            new Case(INTERACTION_ID, "interaction-id")
+            new Case(INTERACTION_ID, "interaction-id"),
+            new Case(TRACE_ID, "trace-id"),
+            new Case(USER_ID, "user-id"),
+            new Case(SPACE_ID, "space-id")
         )) {
             var metadata = new ElasticInferenceServiceRequestMetadata(
                 InferenceRequestMetadata.builder().put(testCase.field(), testCase.expectedValue()).build(),
@@ -96,6 +102,9 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
         assertNull(httpRequest.httpRequestBase().getFirstHeader(PRODUCT_SOLUTION.httpHeader()));
         assertNull(httpRequest.httpRequestBase().getFirstHeader(PRODUCT_FEATURE.httpHeader()));
         assertNull(httpRequest.httpRequestBase().getFirstHeader(INTERACTION_ID.httpHeader()));
+        assertNull(httpRequest.httpRequestBase().getFirstHeader(TRACE_ID.httpHeader()));
+        assertNull(httpRequest.httpRequestBase().getFirstHeader(USER_ID.httpHeader()));
+        assertNull(httpRequest.httpRequestBase().getFirstHeader(SPACE_ID.httpHeader()));
     }
 
     public void testElasticInferenceServiceRequestSubclasses_Decorate_HttpRequest_WithEsVersion() {
@@ -211,11 +220,17 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
         var productSolution = randomAlphaOfLength(10);
         var productFeature = randomAlphaOfLength(10);
         var interactionId = randomAlphaOfLength(10);
+        var traceId = randomAlphaOfLength(10);
+        var userId = randomAlphaOfLength(10);
+        var spaceId = randomAlphaOfLength(10);
         threadContext.putHeader(PRODUCT_USE_CASE.httpHeader(), productUseCase);
         threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, productOrigin);
         threadContext.putHeader(PRODUCT_SOLUTION.httpHeader(), productSolution);
         threadContext.putHeader(PRODUCT_FEATURE.httpHeader(), productFeature);
         threadContext.putHeader(INTERACTION_ID.httpHeader(), interactionId);
+        threadContext.putHeader(TRACE_ID.httpHeader(), traceId);
+        threadContext.putHeader(USER_ID.httpHeader(), userId);
+        threadContext.putHeader(SPACE_ID.httpHeader(), spaceId);
 
         var metadata = ElasticInferenceServiceRequest.extractRequestMetadataFromThreadContext(threadContext);
 
@@ -227,6 +242,9 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
                     .put(PRODUCT_SOLUTION, productSolution)
                     .put(PRODUCT_FEATURE, productFeature)
                     .put(INTERACTION_ID, interactionId)
+                    .put(TRACE_ID, traceId)
+                    .put(USER_ID, userId)
+                    .put(SPACE_ID, spaceId)
                     .build()
             )
         );

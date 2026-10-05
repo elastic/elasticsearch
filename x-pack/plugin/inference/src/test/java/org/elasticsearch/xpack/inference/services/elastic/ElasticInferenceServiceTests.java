@@ -912,10 +912,16 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             String productSolution = "security";
             String productFeature = "attack_discovery";
             String interactionId = "interaction-id";
+            String traceId = "trace-id";
+            String userId = "user-id";
+            String spaceId = "space-id";
             threadPool.getThreadContext().putHeader("X-elastic-product-use-case", productUseCase);
             threadPool.getThreadContext().putHeader("X-elastic-product-solution", productSolution);
             threadPool.getThreadContext().putHeader("X-elastic-product-feature", productFeature);
             threadPool.getThreadContext().putHeader("X-Elastic-Inference-Interaction-Id", interactionId);
+            threadPool.getThreadContext().putHeader("X-Elastic-Trace-Id", traceId);
+            threadPool.getThreadContext().putHeader("X-Elastic-User-Id", userId);
+            threadPool.getThreadContext().putHeader("X-Elastic-Space-Id", spaceId);
 
             var model = ElasticInferenceServiceRerankModelTests.createModel(elasticInferenceServiceURL, "my-model-id");
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
@@ -946,6 +952,9 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             assertThat(request.getHeaders().get("X-elastic-product-solution"), contains(productSolution));
             assertThat(request.getHeaders().get("X-elastic-product-feature"), contains(productFeature));
             assertThat(request.getHeaders().get("X-Elastic-Inference-Interaction-Id"), contains(interactionId));
+            assertThat(request.getHeaders().get("X-Elastic-Trace-Id"), contains(traceId));
+            assertThat(request.getHeaders().get("X-Elastic-User-Id"), contains(userId));
+            assertThat(request.getHeaders().get("X-Elastic-Space-Id"), contains(spaceId));
         }
     }
 

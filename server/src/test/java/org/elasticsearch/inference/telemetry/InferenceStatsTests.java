@@ -503,6 +503,9 @@ public class InferenceStatsTests extends ESTestCase {
         threadContext.putHeader("X-elastic-product-solution", "security");
         threadContext.putHeader("X-elastic-product-feature", "attack_discovery");
         threadContext.putHeader("X-Elastic-Inference-Interaction-Id", randomAlphaOfLength(20));
+        threadContext.putHeader("X-Elastic-Trace-Id", randomAlphaOfLength(20));
+        threadContext.putHeader("X-Elastic-User-Id", randomAlphaOfLength(20));
+        threadContext.putHeader("X-Elastic-Space-Id", randomAlphaOfLength(20));
         var ctx = InferenceProductContext.create(threadContext);
 
         stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withProductContext(ctx).incrementBy(1);

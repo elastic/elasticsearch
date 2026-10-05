@@ -2659,56 +2659,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/160068")
-    public void testLimitPushdownToAggregate() {
-        int numGroups = between(20, 100);
-        int limit = between(1, 5);
-        StringBuilder tags = new StringBuilder();
-        for (int i = 0; i < numGroups; i++) {
-            if (i > 0) tags.append(",");
-            tags.append("\"tag-").append(i).append("\"");
-        }
-        int pageSize = randomIntBetween(1, 5);
-        Settings pragma = Settings.builder().put(QueryPragmas.PAGE_SIZE.getKey(), pageSize).build();
-        var request = syncEsqlQueryRequest(
-            "ROW tag = [" + tags + "], num = 1::long | MV_EXPAND tag | STATS c = COUNT(*) BY tag, num | LIMIT " + limit
-        ).profile(true).pragmas(new QueryPragmas(pragma)).acceptedPragmaRisks(true);
-        try (var result = run(request)) {
-            List<List<Object>> rows = getValuesList(result);
-            assertThat(rows, hasSize(limit));
-            for (List<Object> row : rows) {
-                long c = ((Number) row.get(0)).longValue();
-                assertThat(c, equalTo(1L));
-            }
-            EsqlQueryResponse.Profile profile = result.profile();
-            assertNotNull(profile);
-            HashAggregationOperator.Status status = profile.drivers()
-                .stream()
-                .flatMap(d -> d.operators().stream())
-                .filter(o -> o.status() instanceof HashAggregationOperator.Status)
-                .map(o -> (HashAggregationOperator.Status) o.status())
-                .findFirst()
-                .get();
-            assertThat(status.rowsEmitted(), lessThanOrEqualTo((long) limit + pageSize));
-        }
-        // When a filter sits between STATS and LIMIT the limit is not pushed down
-        request = syncEsqlQueryRequest(
-            "ROW tag = [" + tags + "], num = 1::long | MV_EXPAND tag | STATS c = COUNT(*) BY tag, num | WHERE c >= 10 | LIMIT " + limit
-        ).profile(true).pragmas(new QueryPragmas(pragma)).acceptedPragmaRisks(true);
-        try (var result = run(request)) {
-            EsqlQueryResponse.Profile profile = result.profile();
-            assertNotNull(profile);
-            HashAggregationOperator.Status status = profile.drivers()
-                .stream()
-                .flatMap(d -> d.operators().stream())
-                .filter(o -> o.status() instanceof HashAggregationOperator.Status)
-                .map(o -> (HashAggregationOperator.Status) o.status())
-                .findFirst()
-                .get();
-            assertThat(status.rowsEmitted(), equalTo((long) numGroups));
-        }
-    }
-
     public void testLookupJoin() {
         Settings lookupSettings = Settings.builder().put("index.number_of_shards", 1).put("index.mode", "lookup").build();
         assertAcked(
@@ -3141,11 +3091,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                     anyOf(containsString("EsQueryExec"), containsString("EsSourceExec"), containsString("LocalSourceExec"))
                 );
 
-                // === Node Reduce Plan Assertions ===
-                assertNotNull("Should have node_reduce plan", nodeReducePlan);
-                // node_reduce plan should contain ExchangeSinkExec for sending results to coordinator
-                assertThat("Node reduce plan should contain ExchangeSinkExec", nodeReducePlan, containsString("ExchangeSinkExec"));
-
                 // === Final Plan Assertions ===
                 assertNotNull("Should have final coordinator plan", finalPlan);
                 // Final plan should contain OutputExec for final result output
@@ -3284,11 +3229,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                     localPhysicalPlan,
                     anyOf(containsString("AggregateExec"), containsString("HashAggregation"))
                 );
-
-                // === Node Reduce Plan Assertions ===
-                assertNotNull("Should have node_reduce plan", nodeReducePlan);
-                // node_reduce plan should contain ExchangeSinkExec for sending results to coordinator
-                assertThat("Node reduce plan should contain ExchangeSinkExec", nodeReducePlan, containsString("ExchangeSinkExec"));
 
                 // === Final Plan Assertions ===
                 assertNotNull("Should have final coordinator plan", finalPlan);

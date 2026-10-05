@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -82,13 +83,20 @@ public class RetryPolicyTests extends ESTestCase {
         RetryPolicy policy = RetryPolicy.DEFAULT;
         // Providers classify transient transport faults and retryable server responses (500 / 503 / 429) by
         // type and status code, then raise this typed marker; the retry layer reacts to the type, not text.
-        assertTrue(policy.isRetryable(new ExternalUnavailableException("transient transport fault", (Throwable) null)));
-        assertTrue(policy.isRetryable(new ExternalUnavailableException(true, "throttled")));
+        assertTrue(policy.isRetryable(new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "", "", false, 0L)));
+        assertTrue(policy.isRetryable(new ExternalUnavailableException(Condition.STORE_THROTTLED, StoragePath.NONE, "", "", true, 0L)));
     }
 
     public void testWrappedTransientMarkerIsRetryable() {
         RetryPolicy policy = RetryPolicy.DEFAULT;
-        assertTrue(policy.isRetryable(new RuntimeException("wrapper", new ExternalUnavailableException("transient", (Throwable) null))));
+        assertTrue(
+            policy.isRetryable(
+                new RuntimeException(
+                    "wrapper",
+                    new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "", "", false, 0L)
+                )
+            )
+        );
     }
 
     public void testNonTransientErrorIsNotRetryable() {
@@ -99,8 +107,8 @@ public class RetryPolicyTests extends ESTestCase {
         assertFalse(policy.isRetryable(new IOException("NoSuchKey")));
         assertFalse(policy.isRetryable(new IOException("Service Unavailable")));
         assertFalse(policy.isRetryable(new SecurityException("forbidden")));
-        assertFalse(policy.isRetryable(new ExternalCredentialsExpiredException("Session credentials expired")));
-        assertFalse(policy.isRetryable(new RuntimeException("wrapper", new ExternalCredentialsExpiredException("expired"))));
+        assertFalse(policy.isRetryable(new ExternalCredentialsExpiredException(StoragePath.NONE, "", "")));
+        assertFalse(policy.isRetryable(new RuntimeException("wrapper", new ExternalCredentialsExpiredException(StoragePath.NONE, "", ""))));
     }
 
     public void testNullMessageIsNotRetryable() {
@@ -174,7 +182,7 @@ public class RetryPolicyTests extends ESTestCase {
 
         String result = policy.execute(() -> {
             if (calls.incrementAndGet() < 3) {
-                throw new ExternalUnavailableException("at admission capacity", (Throwable) null);
+                throw new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "", "", false, 0L);
             }
             return "ok";
         }, "test", path);
@@ -189,7 +197,14 @@ public class RetryPolicyTests extends ESTestCase {
         // higher throttle budget does not apply, and the cross-request adaptive backoff is never fed.
         AdaptiveBackoff backoff = new AdaptiveBackoff(AdaptiveBackoff.MAX_MULTIPLIER, () -> 0L);
         RetryPolicy policy = new RetryPolicy(2, 1, 10, 8, 1, 10, RetryPolicy.NO_BUDGET, null).withAdaptiveBackoff(backoff);
-        ExternalUnavailableException permitExhaustion = new ExternalUnavailableException("at admission capacity", (Throwable) null);
+        ExternalUnavailableException permitExhaustion = new ExternalUnavailableException(
+            Condition.STORE_UNAVAILABLE,
+            StoragePath.NONE,
+            "",
+            "",
+            false,
+            0L
+        );
 
         assertTrue("within the normal budget it must retry", policy.decide(permitExhaustion, 0, System.nanoTime()).retry());
         assertFalse(
@@ -301,7 +316,7 @@ public class RetryPolicyTests extends ESTestCase {
 
         String result = policy.execute(() -> {
             if (calls.incrementAndGet() <= 6) {
-                throw new ExternalUnavailableException(true, "throttled");
+                throw new ExternalUnavailableException(Condition.STORE_THROTTLED, StoragePath.NONE, "", "", true, 0L);
             }
             return "ok";
         }, "test", path);
@@ -337,11 +352,24 @@ public class RetryPolicyTests extends ESTestCase {
     public void testIsThrottlingErrorClassification() {
         // Throttling is decided by the provider (from the HTTP status) and flagged on the typed marker; it is
         // no longer inferred from message text. The throttling marker is recognized through the cause chain.
-        assertTrue(RetryPolicy.isThrottlingError(new ExternalUnavailableException(true, "throttled")));
-        assertTrue(RetryPolicy.isThrottlingError(new RuntimeException("wrapper", new ExternalUnavailableException(true, "throttled"))));
+        assertTrue(
+            RetryPolicy.isThrottlingError(new ExternalUnavailableException(Condition.STORE_THROTTLED, StoragePath.NONE, "", "", true, 0L))
+        );
+        assertTrue(
+            RetryPolicy.isThrottlingError(
+                new RuntimeException(
+                    "wrapper",
+                    new ExternalUnavailableException(Condition.STORE_THROTTLED, StoragePath.NONE, "", "", true, 0L)
+                )
+            )
+        );
 
         // A plain transient marker is retryable but not throttling.
-        assertFalse(RetryPolicy.isThrottlingError(new ExternalUnavailableException(false, "transient transport")));
+        assertFalse(
+            RetryPolicy.isThrottlingError(
+                new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "", "", false, 0L)
+            )
+        );
         assertFalse(RetryPolicy.isThrottlingError(new SocketTimeoutException("timeout")));
         assertFalse(RetryPolicy.isThrottlingError(new ConnectException("refused")));
         assertFalse(RetryPolicy.isThrottlingError(new IOException("Service Unavailable")));
@@ -366,7 +394,14 @@ public class RetryPolicyTests extends ESTestCase {
         AtomicLong clock = new AtomicLong(0);
         AdaptiveBackoff backoff = new AdaptiveBackoff(AdaptiveBackoff.MAX_MULTIPLIER, clock::get);
         RetryPolicy policy = RetryPolicy.DEFAULT.withAdaptiveBackoff(backoff);
-        ExternalUnavailableException throttle = new ExternalUnavailableException(true, (Throwable) null, "throttled (HTTP 503)");
+        ExternalUnavailableException throttle = new ExternalUnavailableException(
+            Condition.STORE_THROTTLED,
+            StoragePath.NONE,
+            "HTTP 503",
+            "",
+            true,
+            0L
+        );
 
         // Sanity cap reached (attempt == THROTTLE_RETRIES_SANITY_CAP) -> GIVE_UP,
         // and the backoff must stay at baseline.
@@ -404,7 +439,7 @@ public class RetryPolicyTests extends ESTestCase {
             TaskCancelledException.class,
             () -> StorageRetryCancellation.runWithCancellation(() -> true, () -> policy.execute(() -> {
                 calls.incrementAndGet();
-                throw new ExternalUnavailableException(true, "throttled");
+                throw new ExternalUnavailableException(Condition.STORE_THROTTLED, StoragePath.NONE, "", "", true, 0L);
             }, "test", path))
         );
 
@@ -443,7 +478,7 @@ public class RetryPolicyTests extends ESTestCase {
         long startNanos = System.nanoTime();
         expectThrows(TaskCancelledException.class, () -> StorageRetryCancellation.callWithCancellation(cancel, () -> policy.execute(() -> {
             calls.incrementAndGet();
-            throw new ExternalUnavailableException(true, "throttled");
+            throw new ExternalUnavailableException(Condition.STORE_THROTTLED, StoragePath.NONE, "", "", true, 0L);
         }, "test", path)));
         long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
 
@@ -463,7 +498,7 @@ public class RetryPolicyTests extends ESTestCase {
                 StorageRetryCancellation.runWithCancellation(cancelled::get, () -> policy.execute(() -> {
                     // Signal that we have entered the operation (which fails and parks in backoff next).
                     sleeping.countDown();
-                    throw new ExternalUnavailableException(true, "throttled");
+                    throw new ExternalUnavailableException(Condition.STORE_THROTTLED, StoragePath.NONE, "", "", true, 0L);
                 }, "test", path));
             } catch (Throwable t) {
                 thrown.set(t);
@@ -510,7 +545,14 @@ public class RetryPolicyTests extends ESTestCase {
         AtomicLong clockNanos = new AtomicLong(0L);
         RetryPolicy policy = RetryPolicy.DEFAULT.withTotalDurationBudget(30_000).withClock(clockNanos::get);
         long startNanos = 0L;
-        ExternalUnavailableException throttle = new ExternalUnavailableException(true, "throttled");
+        ExternalUnavailableException throttle = new ExternalUnavailableException(
+            Condition.STORE_THROTTLED,
+            StoragePath.NONE,
+            "",
+            "",
+            true,
+            0L
+        );
         int retries = 0;
         RetryPolicy.RetryDecision decision;
         do {
@@ -539,7 +581,14 @@ public class RetryPolicyTests extends ESTestCase {
         AtomicLong clockNanos = new AtomicLong(0L);
         RetryPolicy policy = RetryPolicy.DEFAULT.withTotalDurationBudget(300_000).withClock(clockNanos::get);
         long startNanos = 0L;
-        ExternalUnavailableException throttle = new ExternalUnavailableException(true, "throttled");
+        ExternalUnavailableException throttle = new ExternalUnavailableException(
+            Condition.STORE_THROTTLED,
+            StoragePath.NONE,
+            "",
+            "",
+            true,
+            0L
+        );
         int retries = 0;
         RetryPolicy.RetryDecision decision;
         do {
@@ -565,7 +614,14 @@ public class RetryPolicyTests extends ESTestCase {
         AtomicLong clockNanos = new AtomicLong(0L);
         RetryPolicy policy = RetryPolicy.DEFAULT.withTotalDurationBudget(30_000).withClock(clockNanos::get);
         long hint = 5_000L;
-        ExternalUnavailableException throttle = new ExternalUnavailableException(true, hint, "throttled with hint");
+        ExternalUnavailableException throttle = new ExternalUnavailableException(
+            Condition.STORE_THROTTLED,
+            StoragePath.NONE,
+            "",
+            "",
+            true,
+            hint
+        );
 
         RetryPolicy.RetryDecision decision = policy.decide(throttle, 0, 0L);
 
@@ -581,7 +637,14 @@ public class RetryPolicyTests extends ESTestCase {
         long budget = 10_000L;
         RetryPolicy policy = RetryPolicy.DEFAULT.withTotalDurationBudget(budget).withClock(clockNanos::get);
         long hint = 20_000L;
-        ExternalUnavailableException throttle = new ExternalUnavailableException(true, hint, "throttled with large hint");
+        ExternalUnavailableException throttle = new ExternalUnavailableException(
+            Condition.STORE_THROTTLED,
+            StoragePath.NONE,
+            "",
+            "",
+            true,
+            hint
+        );
 
         RetryPolicy.RetryDecision decision = policy.decide(throttle, 0, 0L);
 
@@ -594,7 +657,14 @@ public class RetryPolicyTests extends ESTestCase {
         AtomicLong clockNanos = new AtomicLong(0L);
         RetryPolicy policy = RetryPolicy.DEFAULT.withClock(clockNanos::get);
         long hint = 86_400_000L;
-        ExternalUnavailableException throttle = new ExternalUnavailableException(true, hint, "throttled with huge hint");
+        ExternalUnavailableException throttle = new ExternalUnavailableException(
+            Condition.STORE_THROTTLED,
+            StoragePath.NONE,
+            "",
+            "",
+            true,
+            hint
+        );
 
         RetryPolicy.RetryDecision decision = policy.decide(throttle, 0, 0L);
 
@@ -612,7 +682,14 @@ public class RetryPolicyTests extends ESTestCase {
         AtomicLong clockNanos = new AtomicLong(0L);
         RetryPolicy policy = RetryPolicy.DEFAULT.withTotalDurationBudget(30_000).withClock(clockNanos::get);
         long hint = 5_000L;
-        ExternalUnavailableException inner = new ExternalUnavailableException(true, hint, "throttled");
+        ExternalUnavailableException inner = new ExternalUnavailableException(
+            Condition.STORE_THROTTLED,
+            StoragePath.NONE,
+            "",
+            "",
+            true,
+            hint
+        );
         RuntimeException wrapper = new RuntimeException("outer wrapper", inner);
 
         RetryPolicy.RetryDecision decision = policy.decide(wrapper, 0, 0L);
@@ -628,7 +705,14 @@ public class RetryPolicyTests extends ESTestCase {
         long elapsed = 29_000L;  // 1s remaining
         AtomicLong clockNanos = new AtomicLong(elapsed * 1_000_000L);
         RetryPolicy policy = RetryPolicy.DEFAULT.withTotalDurationBudget(budget).withClock(clockNanos::get);
-        ExternalUnavailableException throttle = new ExternalUnavailableException(true, "throttled");
+        ExternalUnavailableException throttle = new ExternalUnavailableException(
+            Condition.STORE_THROTTLED,
+            StoragePath.NONE,
+            "",
+            "",
+            true,
+            0L
+        );
 
         // At attempt 5, the computed delay would be ~16s — far beyond the 1s remaining.
         RetryPolicy.RetryDecision decision = policy.decide(throttle, 5, 0L);
@@ -650,7 +734,14 @@ public class RetryPolicyTests extends ESTestCase {
         assertEquals("backoff must be at the cap for this test", AdaptiveBackoff.MAX_MULTIPLIER, backoff.currentMultiplier());
 
         RetryPolicy policy = RetryPolicy.DEFAULT.withTotalDurationBudget(30_000).withAdaptiveBackoff(backoff).withClock(clockNanos::get);
-        ExternalUnavailableException throttle = new ExternalUnavailableException(true, "throttled");
+        ExternalUnavailableException throttle = new ExternalUnavailableException(
+            Condition.STORE_THROTTLED,
+            StoragePath.NONE,
+            "",
+            "",
+            true,
+            0L
+        );
         int retries = 0;
         RetryPolicy.RetryDecision decision;
         do {
@@ -677,7 +768,14 @@ public class RetryPolicyTests extends ESTestCase {
         // retryAfterMs == 0 means absent — must use the computed exponential backoff.
         AtomicLong clockNanos = new AtomicLong(0L);
         RetryPolicy policy = RetryPolicy.DEFAULT.withTotalDurationBudget(30_000).withClock(clockNanos::get);
-        ExternalUnavailableException noHint = new ExternalUnavailableException(true, 0L, "throttled no hint");
+        ExternalUnavailableException noHint = new ExternalUnavailableException(
+            Condition.STORE_THROTTLED,
+            StoragePath.NONE,
+            "",
+            "",
+            true,
+            0L
+        );
 
         RetryPolicy.RetryDecision decision = policy.decide(noHint, 0, 0L);
 
@@ -707,8 +805,22 @@ public class RetryPolicyTests extends ESTestCase {
         AtomicLong clockNanos = new AtomicLong(0L);
         RetryPolicy policy = RetryPolicy.DEFAULT.withTotalDurationBudget(300_000).withClock(clockNanos::get);
         long startNanos = 0L;
-        ExternalUnavailableException withHint = new ExternalUnavailableException(true, 1_000L, "throttled with hint");
-        ExternalUnavailableException noHint = new ExternalUnavailableException(true, "throttled no hint");
+        ExternalUnavailableException withHint = new ExternalUnavailableException(
+            Condition.STORE_THROTTLED,
+            StoragePath.NONE,
+            "",
+            "",
+            true,
+            1_000L
+        );
+        ExternalUnavailableException noHint = new ExternalUnavailableException(
+            Condition.STORE_THROTTLED,
+            StoragePath.NONE,
+            "",
+            "",
+            true,
+            0L
+        );
 
         int attempt = 0;
         for (; attempt < 55; attempt++) {

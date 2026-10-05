@@ -87,7 +87,9 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
         buffer.finish(true);
         assertNull(operator.getOutput());
 
+        assertTrue(operator.finalStatusAfterAsyncActions());
         operator.close();
+        assertNotNull("status() must stay readable after close", operator.status());
         driverContext.finish();
 
         // time_to_first_row recorded exactly once (on the first page), tagged with type and format. The value is

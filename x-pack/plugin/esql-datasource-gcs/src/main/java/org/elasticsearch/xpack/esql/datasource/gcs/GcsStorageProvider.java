@@ -26,7 +26,9 @@ import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -73,10 +75,12 @@ import java.util.NoSuchElementException;
 public class GcsStorageProvider implements StorageProvider {
     private volatile Storage storage;
     private final GcsConfiguration config;
+    private final StorageIdentity storageIdentity;
 
     @SuppressWarnings("this-escape")
     public GcsStorageProvider(GcsConfiguration config) {
         this.config = config;
+        this.storageIdentity = identityOf(config);
         // With a configuration present, build the client eagerly so misconfigurations are caught early (every
         // validated config resolves to a mode). When there is no configuration (config is null), defer client
         // creation to first use so the plugin can load; the missing-config error then surfaces only when a gs://
@@ -92,6 +96,7 @@ public class GcsStorageProvider implements StorageProvider {
      */
     public GcsStorageProvider(Storage storage) {
         this.config = null;
+        this.storageIdentity = identityOf(null);
         this.storage = storage;
     }
 
@@ -102,7 +107,12 @@ public class GcsStorageProvider implements StorageProvider {
      */
     GcsStorageProvider(GcsConfiguration config, Storage storage) {
         this.config = config;
+        this.storageIdentity = identityOf(config);
         this.storage = storage;
+    }
+
+    private static StorageIdentity identityOf(GcsConfiguration config) {
+        return config == null ? StorageIdentity.unique() : GcsCredentialIdentity.of(config);
     }
 
     /**
@@ -262,7 +272,7 @@ public class GcsStorageProvider implements StorageProvider {
         validateGcsScheme(path);
         String bucket = path.host();
         String objectName = extractObjectName(path);
-        return new GcsStorageObject(storage(), bucket, objectName, path);
+        return new GcsStorageObject(storageIdentity, storage(), bucket, objectName, path);
     }
 
     @Override
@@ -270,7 +280,7 @@ public class GcsStorageProvider implements StorageProvider {
         validateGcsScheme(path);
         String bucket = path.host();
         String objectName = extractObjectName(path);
-        return new GcsStorageObject(storage(), bucket, objectName, path, length);
+        return new GcsStorageObject(storageIdentity, storage(), bucket, objectName, path, length);
     }
 
     @Override
@@ -278,7 +288,7 @@ public class GcsStorageProvider implements StorageProvider {
         validateGcsScheme(path);
         String bucket = path.host();
         String objectName = extractObjectName(path);
-        return new GcsStorageObject(storage(), bucket, objectName, path, length, lastModified);
+        return new GcsStorageObject(storageIdentity, storage(), bucket, objectName, path, length, lastModified);
     }
 
     @Override
@@ -307,6 +317,7 @@ public class GcsStorageProvider implements StorageProvider {
         List<StoragePath> directories = new ArrayList<>();
         String pathPrefix = bucketPathPrefix(prefix.scheme(), bucket);
         try {
+            ExternalPlanningIo.addMetadataGet(0);
             var page = storage().list(bucket, Storage.BlobListOption.prefix(objectPrefix), Storage.BlobListOption.currentDirectory());
             for (Blob blob : page.iterateAll()) {
                 if (files.size() + directories.size() >= limit) {
@@ -324,10 +335,7 @@ public class GcsStorageProvider implements StorageProvider {
                 files.add(toStorageEntry(blob, pathPrefix));
             }
         } catch (Exception e) {
-            throw new IOException(
-                "Failed to list children in bucket [" + bucket + "] with prefix [" + objectPrefix + "]: " + GcsFailureDetail.of(e),
-                e
-            );
+            throw new IOException("Failed to list children in the configured path: " + GcsFailureDetail.of(e), e);
         }
         return new StorageChildren(files, directories);
     }
@@ -359,7 +367,7 @@ public class GcsStorageProvider implements StorageProvider {
             if (e.getCode() == 403) {
                 return existsViaRead(bucket, objectName, path);
             }
-            throw new IOException("Failed to check existence of " + path + ": " + GcsFailureDetail.of(e) + credentialHint(), e);
+            throw new IOException("Failed to check existence of external data: " + GcsFailureDetail.of(e) + credentialHint(), e);
         }
     }
 
@@ -371,9 +379,7 @@ public class GcsStorageProvider implements StorageProvider {
                 return false;
             }
             throw new IOException(
-                "Failed to check existence of "
-                    + path
-                    + " (metadata denied, read also failed): "
+                "Failed to check existence of external data (metadata denied, read also failed): "
                     + GcsFailureDetail.of(e)
                     + credentialHint(),
                 e
@@ -509,18 +515,15 @@ public class GcsStorageProvider implements StorageProvider {
                         Storage.BlobListOption.currentDirectory() };
                 }
 
+                ExternalPlanningIo.addMetadataGet(0);
                 com.google.api.gax.paging.Page<Blob> page = storage.list(bucket, options);
                 currentIterator = page.iterateAll().iterator();
             } catch (Exception e) {
                 String msg = (e instanceof StorageException se && se.getCode() == 403)
-                    ? "Access denied listing objects in bucket ["
-                        + bucket
-                        + "] with prefix ["
-                        + prefix
-                        + "]. "
+                    ? "Access denied listing objects in the configured path. "
                         + "Verify that the configured credentials have storage.objects.list permission, "
                         + "or use exact file paths instead of glob patterns."
-                    : "Failed to list objects in bucket [" + bucket + "] with prefix [" + prefix + "]";
+                    : "Failed to list objects in the configured path";
                 throw new UncheckedIOException(new IOException(msg, e));
             }
         }

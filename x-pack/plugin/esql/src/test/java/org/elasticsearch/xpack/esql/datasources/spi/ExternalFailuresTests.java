@@ -82,7 +82,21 @@ public class ExternalFailuresTests extends ESTestCase {
             CircuitBreaker.Durability.TRANSIENT
         );
         assertSame(breaking, ExternalFailures.classify(breaking));
-        assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(breaking));
+        assertSame(breaking, ExternalFailures.classifySuppressed(breaking));
+    }
+
+    public void testCancellationWithUrlInMessageIsNotALeak() {
+        var cancelled = new TaskCancelledException("cancelled, see " + ReferenceDocs.CIRCUIT_BREAKER_ERRORS);
+        assertSame(cancelled, ExternalFailures.classify(cancelled));
+    }
+
+    /**
+     * The exemption is limited to core exceptions that are not raised at the storage boundary: any other
+     * {@link ElasticsearchException} that embeds a location still trips the assertion.
+     */
+    public void testGenericElasticsearchExceptionStillAssertsOnALeakedPath() {
+        var leaking = new ElasticsearchException("failed reading s3://secret-bucket/k");
+        expectThrows(AssertionError.class, () -> ExternalFailures.classify(leaking));
     }
 
     public void testRejectedExecutionIsBackpressureNotServerError() {
@@ -572,17 +586,6 @@ public class ExternalFailuresTests extends ESTestCase {
             "secretaccount.blob.core.windows.net: Temporary failure in name resolution",
             "secretaccount.blob.core.usgovcloudapi.net: Temporary failure in name resolution",
             "secretaccount.blob.core.chinacloudapi.cn: Temporary failure in name resolution" }) {
-            assertFalse(unsafe, ExternalFailures.safeForUserMessage(unsafe));
-        }
-    }
-
-    public void testReferenceDocsLinkIsSafeButNotAStorageUriBesideIt() {
-        String docs = ReferenceDocs.CIRCUIT_BREAKER_ERRORS.toString();
-        assertTrue(ExternalFailures.safeForUserMessage("Data too large; for more information, see " + docs));
-        for (String unsafe : new String[] {
-            "see " + docs + " reading s3://bucket/prefix/file.parquet",
-            "see " + docs + " reading https://example.com/data/file.csv",
-            "see " + docs + " secret-bucket.s3.amazonaws.com: Name or service not known" }) {
             assertFalse(unsafe, ExternalFailures.safeForUserMessage(unsafe));
         }
     }

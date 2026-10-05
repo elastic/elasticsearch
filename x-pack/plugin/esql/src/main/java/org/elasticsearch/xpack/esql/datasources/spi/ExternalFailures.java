@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -164,18 +166,10 @@ public final class ExternalFailures {
         "(?:^|[\\s\\[(<'\"=,])/[^\\s/\\[\\]()<>'\",]+|(?:^|[\\s\\[(<'\"=,])[A-Za-z]:[\\\\/]"
     );
 
-    /**
-     * Prefix of the reference-docs links that core exceptions append to their messages (see
-     * {@link org.elasticsearch.common.ReferenceDocs}), e.g. {@code CircuitBreakingException}. Such a link is an
-     * Elastic documentation page, not a storage location, so it must not be mistaken for an {@code https://} endpoint.
-     */
-    private static final String REFERENCE_DOCS_PREFIX = "https://www.elastic.co/docs/";
-
     private static boolean containsStoragePath(String msg) {
         if (msg == null) {
             return false;
         }
-        msg = msg.replace(REFERENCE_DOCS_PREFIX, "");
         for (String scheme : STORAGE_URI_SCHEMES) {
             if (msg.contains(scheme)) {
                 return true;
@@ -256,7 +250,11 @@ public final class ExternalFailures {
             return detached;
         }
         if (t instanceof ElasticsearchException ese) {
-            assert noStoragePathLeaked(ese) : "storage path leaked in ElasticsearchException: " + ese.getMessage();
+            // Core exceptions are not raised at the storage boundary and their messages can legitimately carry URLs
+            // (e.g. the reference-docs link every CircuitBreakingException ends with), which the guard would mistake for a
+            // storage location and, under -ea, turn into a fatal AssertionError.
+            assert ese instanceof CircuitBreakingException || ese instanceof TaskCancelledException || noStoragePathLeaked(ese)
+                : "storage path leaked in ElasticsearchException: " + ese.getMessage();
             return ese;
         }
         if (t instanceof EsRejectedExecutionException rejected) {

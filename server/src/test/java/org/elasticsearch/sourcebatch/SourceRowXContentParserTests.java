@@ -376,6 +376,42 @@ public class SourceRowXContentParserTests extends ESTestCase {
         }
     }
 
+    public void testAbsentObjectNodeIsNotEmitted() throws IOException {
+        BytesReference withUser = new BytesArray("""
+            {"title": "doc1", "user": {"name": "alice"}}""");
+        BytesReference withoutUser = new BytesArray("""
+            {"title": "doc2"}""");
+        try (EscfBatch batch = EscfEncoder.encode(List.of(withUser, withoutUser), XContentType.JSON)) {
+            SourceRowXContentParser.SchemaNode tree = SourceRowXContentParser.buildSchemaTree(batch.schema());
+
+            try (SourceRowXContentParser parser = new SourceRowXContentParser(tree, batch.row(0))) {
+                assertToken(parser, Token.START_OBJECT);
+                // buildObjectNode adds object children before leaf children, so "user" appears before "title"
+                assertFieldName(parser, "user");
+                assertToken(parser, Token.START_OBJECT);
+                assertFieldName(parser, "name");
+                assertToken(parser, Token.VALUE_STRING);
+                assertEquals("alice", parser.text());
+                assertToken(parser, Token.END_OBJECT);
+                assertFieldName(parser, "title");
+                assertToken(parser, Token.VALUE_STRING);
+                assertEquals("doc1", parser.text());
+                assertToken(parser, Token.END_OBJECT);
+                assertNull(parser.nextToken());
+            }
+
+            // Row 1 has no user field: the parser must not emit "user": {} for the absent object.
+            try (SourceRowXContentParser parser = new SourceRowXContentParser(tree, batch.row(1))) {
+                assertToken(parser, Token.START_OBJECT);
+                assertFieldName(parser, "title");
+                assertToken(parser, Token.VALUE_STRING);
+                assertEquals("doc2", parser.text());
+                assertToken(parser, Token.END_OBJECT);
+                assertNull(parser.nextToken());
+            }
+        }
+    }
+
     private static void assertToken(SourceRowXContentParser parser, Token expected) throws IOException {
         assertEquals(expected, parser.nextToken());
     }

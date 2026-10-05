@@ -1542,6 +1542,11 @@ public class EsqlCapabilities {
         NESTED_SUBQUERY_IN_FROM_COMMAND_PLANNER_FIX,
 
         /**
+         * Support nested non-correlated subqueries, views with Fork and dataset.
+         */
+        NESTED_SUBQUERY_IN_FROM_COMMAND_WITH_VIEW_FORK_DATASET,
+
+        /**
          * Support IN non-correlated subqueries in WHERE command.
          */
         WHERE_IN_SUBQUERY,
@@ -1763,6 +1768,15 @@ public class EsqlCapabilities {
          * {@code datasources.config.datasets.changes.by_op.*})?
          */
         USAGE_CONTAINS_DATASOURCE_CONFIG_CHANGES,
+
+        /**
+         * Does the usage information for ESQL contain per-component CPU counters for successful
+         * external-source queries ({@code datasources.queries.cpu_nanos.execution},
+         * {@code .read}, {@code .planning}, {@code .split_discovery}, {@code .total})?
+         * Note: the {@code planning} component is currently wall time pending a real planning-CPU
+         * measurement in {@code EsqlQueryProfile}.
+         */
+        USAGE_CONTAINS_DATASOURCES_QUERY_CPU,
 
         /**
          * Support loading of ip fields if they are not indexed.
@@ -4232,6 +4246,19 @@ public class EsqlCapabilities {
          * {@code TS} source. Only fields from the right-hand side of a {@code LOOKUP JOIN} are rejected.
          */
         FULL_TEXT_FUNCTIONS_ON_TIME_SERIES_SOURCE,
+
+        /**
+         * {@code SORT _score ASC} pushed down to Lucene sorts ascending. Before this fix the pushed-down sort was always
+         * descending, so with a {@code LIMIT} smaller than the number of matches Lucene kept the highest-scoring documents.
+         */
+        FIX_SCORE_SORT_ASC_PUSHDOWN,
+
+        /**
+         * {@code _score} on an external relation seeds {@code 0.0} instead of {@code null}, so a runtime {@code MATCH},
+         * {@code MATCH_PHRASE} over it adds its per-row score rather than returning {@code null}. Older nodes still
+         * answer {@code null}.
+         */
+        EXTERNAL_SOURCE_SCORE_FIX,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

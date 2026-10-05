@@ -12,6 +12,8 @@ package org.elasticsearch.telemetry.metric;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.DoubleSupplier;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -53,23 +55,12 @@ public interface MeterRegistry {
      * @param name name of the gauge
      * @param description description of purpose
      * @param unit the unit (bytes, sec, hour)
-     * @param observer callback to use. This is called once during reporting period.
-     *                 Must not throw an exception and must be safe to call from different threads.
+     * @param measuredValue callback to use. This is called once during reporting period.
+     *                      Must not throw an exception and must be safe to call from different threads.
      * @return the registered meter.
      */
-    default DoubleAsyncGauge registerDoubleAsyncGauge(
-        String name,
-        String description,
-        String unit,
-        Supplier<DoubleWithAttributes> observer
-    ) {
-        return registerDoubleAsyncGauge(name, description, unit, measurement -> {
-            DoubleWithAttributes observed = observer.get();
-            assert observed != null : "must not pass null values to async instruments: metric " + name;
-            if (observed != null) {
-                measurement.record(observed.value(), observed.attributes());
-            }
-        });
+    default DoubleAsyncGauge registerDoubleAsyncGauge(String name, String description, String unit, DoubleSupplier measuredValue) {
+        return registerDoubleAsyncGauge(name, description, unit, measurement -> measurement.record(measuredValue.getAsDouble()));
     }
 
     /**
@@ -152,14 +143,8 @@ public interface MeterRegistry {
      * @param unit the unit (bytes, sec, hour)
      * @param observer a callback to provide a metric value upon observation (metric interval)
      */
-    default LongAsyncCounter registerLongAsyncCounter(String name, String description, String unit, Supplier<LongWithAttributes> observer) {
-        return registerLongAsyncCounter(name, description, unit, measurement -> {
-            LongWithAttributes observed = observer.get();
-            assert observed != null : "must not pass null values to async instruments: metric " + name;
-            if (observed != null) {
-                measurement.record(observed.value(), observed.attributes());
-            }
-        });
+    default LongAsyncCounter registerLongAsyncCounter(String name, String description, String unit, LongSupplier observer) {
+        return registerLongAsyncCounter(name, description, unit, measurement -> measurement.record(observer.getAsLong()));
     }
 
     /**
@@ -210,19 +195,8 @@ public interface MeterRegistry {
      * @param unit the unit (bytes, sec, hour)
      * @param observer a callback to provide a metric value upon observation (metric interval)
      */
-    default DoubleAsyncCounter registerDoubleAsyncCounter(
-        String name,
-        String description,
-        String unit,
-        Supplier<DoubleWithAttributes> observer
-    ) {
-        return registerDoubleAsyncCounter(name, description, unit, measurement -> {
-            DoubleWithAttributes observed = observer.get();
-            assert observed != null : "must not pass null values to async instruments: metric " + name;
-            if (observed != null) {
-                measurement.record(observed.value(), observed.attributes());
-            }
-        });
+    default DoubleAsyncCounter registerDoubleAsyncCounter(String name, String description, String unit, DoubleSupplier observer) {
+        return registerDoubleAsyncCounter(name, description, unit, measurement -> measurement.record(observer.getAsDouble()));
     }
 
     /**
@@ -293,14 +267,8 @@ public interface MeterRegistry {
      *                 Must not throw an exception and must be safe to call from different threads.
      * @return the registered meter.
      */
-    default LongAsyncGauge registerLongAsyncGauge(String name, String description, String unit, Supplier<LongWithAttributes> observer) {
-        return registerLongAsyncGauge(name, description, unit, measurement -> {
-            LongWithAttributes observed = observer.get();
-            assert observed != null : "must not pass null values to async instruments: metric " + name;
-            if (observed != null) {
-                measurement.record(observed.value(), observed.attributes());
-            }
-        });
+    default LongAsyncGauge registerLongAsyncGauge(String name, String description, String unit, LongSupplier observer) {
+        return registerLongAsyncGauge(name, description, unit, measurement -> measurement.record(observer.getAsLong()));
     }
 
     /**

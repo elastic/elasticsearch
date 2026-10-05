@@ -2127,7 +2127,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                     nullElementSeenThisDoc = false;
                 }
                 BytesRef binaryValue = cursor.value();
-                if (emptyStringAsNull && binaryValue != null && binaryValue.length == 0) {
+                final boolean emptyStringReadAsNull = emptyStringAsNull && binaryValue != null && binaryValue.length == 0;
+                if (emptyStringReadAsNull) {
                     binaryValue = null;
                 }
                 if (binaryValue == null) {
@@ -2135,6 +2136,12 @@ public final class KeywordFieldMapper extends FieldMapper {
                         binaryValue = nullValueBytes;  // substitute, fall through to normal processing
                     } else {
                         nullElementSeenThisDoc = true;
+                        if (emptyStringReadAsNull && values == null && emitSharedColumn) {
+                            // An empty string is a value in the source column, unlike a null, so the output cannot
+                            // be that column itself: build one that leaves this value out, as an ignored one does.
+                            values = pending.add(mergeStringColumn());
+                            EscfColumnTransforms.backfillUtf8Before(values, source, currentDoc, elementsThisDoc);
+                        }
                         continue;  // null without null_value -> absent (row-path parity)
                     }
                 }

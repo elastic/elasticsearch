@@ -250,7 +250,7 @@ public class ComputeService {
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
         this.remoteFetchService = new RemoteFetchService(transportActionServices, this.bigArrays, blockFactory);
-        this.fetchPhaseServices = FetchPhaseServices.NOOP;
+        this.fetchPhaseServices = FetchPhaseServices.create();
         this.inferenceService = transportActionServices.inferenceService();
         this.userAgentParserRegistry = transportActionServices.userAgentParserRegistry();
         this.ipLocationService = transportActionServices.ipLocationService();

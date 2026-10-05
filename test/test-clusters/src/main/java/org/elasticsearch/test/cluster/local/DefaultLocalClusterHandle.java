@@ -17,15 +17,21 @@ import org.elasticsearch.test.cluster.local.model.User;
 import org.elasticsearch.test.cluster.util.ExceptionUtils;
 import org.elasticsearch.test.cluster.util.Version;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.net.MalformedURLException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ForkJoinPool;
@@ -42,6 +48,14 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
 
     private static final Logger LOGGER = LogManager.getLogger(DefaultLocalClusterHandle.class);
     private static final Duration CLUSTER_UP_TIMEOUT = Duration.ofMinutes(5);
+    private static final int LOG_TAIL_LINES = 20;
+    private static final List<String> LOG_MESSAGES_TO_IGNORE = List.of(
+        "Option UseConcMarkSweepGC was deprecated",
+        "is a pre-release version of Elasticsearch",
+        "max virtual memory areas vm.max_map_count",
+        "Test features are enabled",
+        "did not find, a dynamic hosts list"
+    );
 
     public final ForkJoinPool executor = new ForkJoinPool(
         Math.max(Runtime.getRuntime().availableProcessors(), 4),
@@ -226,6 +240,101 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
     @Override
     public void updateStoredSecureSettings() {
         execute(() -> nodes.parallelStream().forEach(Node::updateStoredSecureSettings));
+    }
+
+    @Override
+    public void checkHealth() throws IOException {
+        String sep = System.lineSeparator();
+        List<String> deadNodes = new ArrayList<>();
+        for (Node node : nodes) {
+            long pid;
+            try {
+                pid = node.getPid();
+            } catch (IllegalStateException e) {
+                continue;
+            }
+            if (ProcessHandle.of(pid).map(ProcessHandle::isAlive).orElse(false) == false) {
+                deadNodes.add("Node [" + node.getName() + "] (pid=" + pid + ") has died." + sep + logTail(node));
+            }
+        }
+        if (deadNodes.isEmpty() == false) {
+            throw new IOException("One or more nodes in cluster [" + name + "] have died:" + sep + String.join(sep, deadNodes));
+        }
+    }
+
+    private String logTail(Node node) {
+        Map<String, String> errorsAndWarnings = new LinkedHashMap<>();
+        Map<String, Integer> errorCounts = new LinkedHashMap<>();
+        LinkedList<String> ring = new LinkedList<>();
+        try (
+            InputStream log = node.getLog(LogType.SERVER);
+            BufferedReader reader = new BufferedReader(new InputStreamReader(log, StandardCharsets.UTF_8))
+        ) {
+            for (String line = reader.readLine(); line != null; line = reader.readLine()) {
+                String lineToAdd;
+                if (ring.isEmpty() || line.startsWith("[")) {
+                    if (ring.isEmpty() == false) {
+                        recordIfErrorOrWarning(ring.getLast(), errorsAndWarnings, errorCounts);
+                    }
+                    lineToAdd = line;
+                } else {
+                    lineToAdd = ring.removeLast() + System.lineSeparator() + line;
+                }
+                ring.add(lineToAdd);
+                if (ring.size() >= LOG_TAIL_LINES) {
+                    ring.removeFirst();
+                }
+            }
+            // the final entry has no following entry to trigger the check above, and for a crashed node it is often the fatal error
+            if (ring.isEmpty() == false) {
+                recordIfErrorOrWarning(ring.getLast(), errorsAndWarnings, errorCounts);
+            }
+        } catch (Exception e) {
+            return "(could not read log: " + e.getMessage() + ")";
+        }
+
+        ring.removeIf(line -> LOG_MESSAGES_TO_IGNORE.stream().anyMatch(line::contains));
+
+        String sep = System.lineSeparator();
+        StringBuilder sb = new StringBuilder();
+        if (errorsAndWarnings.isEmpty() == false) {
+            sb.append("Errors and warnings:").append(sep);
+            errorsAndWarnings.forEach((normalized, original) -> {
+                sb.append(original).append(sep);
+                int count = errorCounts.get(normalized);
+                if (count > 1) {
+                    sb.append("  (repeated ").append(count).append(" times)").append(sep);
+                }
+            });
+        }
+        if (ring.isEmpty() == false) {
+            sb.append("Last ").append(LOG_TAIL_LINES).append(" log messages:").append(sep);
+            for (String message : ring) {
+                if (errorsAndWarnings.containsKey(normalizeLogLine(message)) == false) {
+                    sb.append(message).append(sep);
+                }
+            }
+        }
+        return sb.isEmpty() ? "(log is empty)" : sb.toString();
+    }
+
+    private static void recordIfErrorOrWarning(String entry, Map<String, String> errorsAndWarnings, Map<String, Integer> errorCounts) {
+        String normalized = normalizeLogLine(entry);
+        if (LOG_MESSAGES_TO_IGNORE.stream().noneMatch(normalized::contains)
+            && (normalized.contains("ERROR") || normalized.contains("WARN"))) {
+            errorsAndWarnings.putIfAbsent(normalized, entry);
+            errorCounts.merge(normalized, 1, Integer::sum);
+        }
+    }
+
+    private static String normalizeLogLine(String line) {
+        if (line.contains("ERROR")) {
+            return line.substring(line.indexOf("ERROR"));
+        }
+        if (line.contains("WARN")) {
+            return line.substring(line.indexOf("WARN"));
+        }
+        return line;
     }
 
     protected void waitUntilReady() {

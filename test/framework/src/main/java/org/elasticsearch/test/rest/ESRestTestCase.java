@@ -84,6 +84,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IntOrLongMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -98,6 +99,7 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.TestRule;
@@ -107,6 +109,8 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -288,6 +292,55 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     static boolean clusterUnavailable;
 
+    /**
+     * The clusters this suite runs against, gathered from its {@code @ClassRule} fields before any test runs. Used by
+     * {@link #clusterDeadRule} to check whether a node has died after a test failure.
+     */
+    static List<ElasticsearchCluster> testClusters = List.of();
+
+    /**
+     * Gathers the suite's {@link ElasticsearchCluster} instances so {@link #clusterDeadRule} can check them for dead nodes.
+     */
+    @ClassRule
+    public static final TestRule gatherClustersRule = (base, description) -> new Statement() {
+        @Override
+        public void evaluate() throws Throwable {
+            testClusters = gatherClusters(description.getTestClass());
+            try {
+                base.evaluate();
+            } finally {
+                testClusters = List.of();
+            }
+        }
+    };
+
+    /**
+     * Collects the clusters declared as {@code @ClassRule} fields on {@code testClass} and its superclasses. JUnit requires
+     * {@code @ClassRule} fields to be public, so no field needs to be made accessible to read them.
+     *
+     * <p>Clusters a suite keeps elsewhere are not found, most notably those chained together with a {@link org.junit.rules.RuleChain},
+     * which holds its rules privately. Such clusters are simply excluded from the dead node check.
+     */
+    private static List<ElasticsearchCluster> gatherClusters(Class<?> testClass) {
+        List<ElasticsearchCluster> clusters = new ArrayList<>();
+        // stop at ESRestTestCase, since everything above it is test framework infrastructure that never declares clusters
+        for (Class<?> cls = testClass; ESRestTestCase.class.isAssignableFrom(cls); cls = cls.getSuperclass()) {
+            for (Field field : cls.getDeclaredFields()) {
+                if (field.isAnnotationPresent(ClassRule.class) == false || Modifier.isStatic(field.getModifiers()) == false) {
+                    continue;
+                }
+                try {
+                    if (field.get(null) instanceof ElasticsearchCluster cluster) {
+                        clusters.add(cluster);
+                    }
+                } catch (IllegalAccessException e) {
+                    throw new AssertionError("@ClassRule [" + cls.getName() + "#" + field.getName() + "] must be public", e);
+                }
+            }
+        }
+        return clusters;
+    }
+
     private static boolean multiProjectEnabled;
     private static String activeProject;
     private static Set<String> extraProjects;
@@ -416,6 +469,14 @@ public abstract class ESRestTestCase extends ESTestCase {
             } catch (AssumptionViolatedException e) {
                 throw e;
             } catch (Throwable originalFailure) {
+                // check the node processes first, since a dead node gives a far more precise diagnosis than a failed request
+                for (ElasticsearchCluster cluster : testClusters) {
+                    try {
+                        cluster.checkHealth();
+                    } catch (IOException e) {
+                        throw markClusterUnavailable("Test cluster node has died", e, originalFailure);
+                    }
+                }
                 RestClient c = adminClient();
                 if (c == null) {
                     throw markClusterUnavailable("Test cluster client initialization failed", null, originalFailure);

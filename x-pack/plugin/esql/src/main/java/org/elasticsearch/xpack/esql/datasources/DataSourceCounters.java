@@ -72,6 +72,17 @@ public final class DataSourceCounters {
             counters.inc("datasources.queries.by_outcome." + DataSourceUsageAccumulator.OUTCOME_NAMES.get(i), acc.queries(i));
         }
 
+        // ---- per-component CPU counters (ns) ----
+        // Note: execution, read, and split_discovery are real per-thread CPU time; planning is wall
+        // time. The total therefore mixes the two measurement kinds.
+        long cpuTotal = 0;
+        for (int i = 0; i < DataSourceUsageAccumulator.CPU_COMPONENT_COUNT; i++) {
+            long v = acc.queryCpuNanos(i);
+            counters.inc("datasources.queries.cpu_nanos." + DataSourceUsageAccumulator.CPU_COMPONENT_NAMES.get(i), v);
+            cpuTotal += v;
+        }
+        counters.inc("datasources.queries.cpu_nanos.total", cpuTotal);
+
         // ---- time histograms (no type/format attribute) ----
         List<String> ts = DataSourceUsageAccumulator.TIME_SUFFIXES;
         for (int b = 0; b < DataSourceUsageAccumulator.BUCKET_COUNT; b++) {

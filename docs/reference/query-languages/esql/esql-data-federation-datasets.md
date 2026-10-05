@@ -447,7 +447,7 @@ A file that starts with two prose lines then `state,ip,user_agent` is read with 
 
 | Setting | Default | Description |
 |---|---|---|
-| `segment_size` | Just under `4mb` | The unit a file is divided into for parallel reading. Minimum 64 KiB. The default is a few bytes below 4 MiB so that each segment buffer, including its JVM array header, fits in 4 MiB of heap. |
+| `segment_size` | `4mb` | The unit a file is divided into for parallel reading. Minimum 64 KiB. The effective segment is a few bytes under the value you set, so that each segment buffer, including its JVM array header, fits in that much heap. |
 | `datetime_format` | `strict_date_optional_time` | The pattern used to infer and parse date and time values. |
 | `schema_max_fields` {applies_to}`stack: experimental 9.6+` | `1000` | The maximum number of fields schema inference can create, counting objects as well as leaf fields. Each segment of a dotted key counts as a field. If a file's inferred schema exceeds this limit, the query fails. Range 1–100,000. The default comes from the `esql.external.schema_max_fields` node setting. |
 

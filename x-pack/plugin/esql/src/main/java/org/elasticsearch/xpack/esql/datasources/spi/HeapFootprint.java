@@ -58,12 +58,22 @@ public final class HeapFootprint {
         if (powerOfTwo <= 0 || Integer.bitCount(powerOfTwo) != 1) {
             throw new IllegalArgumentException("expected a positive power of two, got: " + powerOfTwo);
         }
-        long length = powerOfTwo - RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
+        return (int) lengthFittingIn(powerOfTwo);
+    }
+
+    /**
+     * Largest {@code byte[]} length whose header-and-alignment size is at most {@code heapBytes}: a few bytes under
+     * it. Use it for a buffer size a user configures, so a value they pick as a power of two (as sizes like
+     * {@code 4mb} are) gets {@link #regionFriendlyLength(int)}'s waste-free size. Other values only lose the header;
+     * if they are humongous they still waste a region tail, and are charged for it by {@link #byteArrayBytes(long)}.
+     */
+    public static long lengthFittingIn(long heapBytes) {
+        long length = heapBytes - RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
         length -= length % RamUsageEstimator.NUM_BYTES_OBJECT_ALIGNMENT;
         if (length <= 0) {
-            throw new IllegalArgumentException("power of two too small for a byte[] header: " + powerOfTwo);
+            throw new IllegalArgumentException("too small for a byte[] header: " + heapBytes);
         }
-        return (int) length;
+        return length;
     }
 
     /** {@link #byteArrayBytes(long)} for an explicit region size; {@code regionSize <= 0} disables region rounding. */

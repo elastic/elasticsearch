@@ -109,9 +109,8 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
      * This allows all column chunks within a small row-group split to be fetched in a single I/O
      * instead of incurring multiple range GETs with the default 4 MiB window.
      *
-     * @param rangeBytes byte span of the range being read; floored at {@link #DEFAULT_WINDOW_SIZE} and
-     *                   capped at {@link #MAX_WINDOW_SIZE} as a hint. The constructor then clamps the
-     *                   window to the file length.
+     * @param rangeBytes byte span of the range being read, a hint for {@link #windowSizeForRange(long)}.
+     *                   The constructor then clamps the window to the file length.
      * @param footerBytes the footer byte cache shared with the owning format reader (see the
      *                    default-window constructor)
      */
@@ -121,8 +120,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         FooterByteCache footerBytes,
         CircuitBreaker breaker
     ) {
-        int windowSize = (int) Math.min(Math.max(rangeBytes, DEFAULT_WINDOW_SIZE), MAX_WINDOW_SIZE);
-        return new ParquetStorageObjectAdapter(storageObject, footerBytes, windowSize, breaker, null);
+        return new ParquetStorageObjectAdapter(storageObject, footerBytes, windowSizeForRange(rangeBytes), breaker, null);
     }
 
     static ParquetStorageObjectAdapter forRange(
@@ -132,8 +130,18 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         CircuitBreaker breaker,
         ParquetIoWatermark ioWatermark
     ) {
-        int windowSize = (int) Math.min(Math.max(rangeBytes, DEFAULT_WINDOW_SIZE), MAX_WINDOW_SIZE);
-        return new ParquetStorageObjectAdapter(storageObject, footerBytes, windowSize, breaker, ioWatermark);
+        return new ParquetStorageObjectAdapter(storageObject, footerBytes, windowSizeForRange(rangeBytes), breaker, ioWatermark);
+    }
+
+    /**
+     * Window for a range of {@code rangeBytes}: {@link #DEFAULT_WINDOW_SIZE} when the range fits in it, otherwise
+     * {@link #MAX_WINDOW_SIZE}. Snapped to those two region-friendly sizes rather than sized to the range: a window
+     * in between (say 6 MiB) is humongous and occupies 8 MiB of heap at 4 MiB and 8 MiB G1 regions anyway, so the
+     * cap holds more data for the same heap and needs fewer GETs. Only at 16 MiB+ regions does it cost up to
+     * 2 MiB more heap than the in-between size would.
+     */
+    static int windowSizeForRange(long rangeBytes) {
+        return rangeBytes <= DEFAULT_WINDOW_SIZE ? DEFAULT_WINDOW_SIZE : MAX_WINDOW_SIZE;
     }
 
     private ParquetStorageObjectAdapter(

@@ -578,8 +578,9 @@ public final class StreamingParallelParsingCoordinator {
         private final AtomicInteger buffersAllocated;
         /**
          * Arrays the grow loop allocated for a record larger than {@link #chunkSize}, each charged to
-         * {@link #breaker} at its {@linkplain HeapFootprint#byteArrayBytes(long) heap footprint}. Identity-keyed: membership makes {@link GrowBuffer#release()} single-shot
-         * against {@link #close()}, which releases whatever is still here.
+         * {@link #breaker} at its {@linkplain HeapFootprint#byteArrayBytes(long) heap footprint}. Identity-keyed:
+         * membership makes {@link GrowBuffer#release()} single-shot against {@link #close()}, which releases
+         * whatever is still here.
          */
         private final Set<GrowBuffer> growBuffers = ConcurrentHashMap.newKeySet();
         private final CircuitBreaker breaker;

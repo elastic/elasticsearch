@@ -2271,4 +2271,22 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         assert enabled = true;
         return enabled;
     }
+
+    /**
+     * Split windows snap to the two region-friendly sizes: a range that fits the default gets the default, any larger
+     * range gets the cap. An in-between window (say 6 MiB) would be humongous and occupy 8 MiB of heap at 4 MiB and
+     * 8 MiB G1 regions anyway.
+     */
+    public void testForRangeWindowSnapsToRegionFriendlySizes() {
+        int defaultWindow = ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE;
+        int maxWindow = ParquetStorageObjectAdapter.MAX_WINDOW_SIZE;
+        assertEquals(HeapFootprint.regionFriendlyLength(4 * 1024 * 1024), defaultWindow);
+        assertEquals(HeapFootprint.regionFriendlyLength(8 * 1024 * 1024), maxWindow);
+        assertEquals(defaultWindow, ParquetStorageObjectAdapter.windowSizeForRange(0));
+        assertEquals(defaultWindow, ParquetStorageObjectAdapter.windowSizeForRange(randomLongBetween(1, defaultWindow)));
+        assertEquals(maxWindow, ParquetStorageObjectAdapter.windowSizeForRange(defaultWindow + 1L));
+        assertEquals(maxWindow, ParquetStorageObjectAdapter.windowSizeForRange(randomLongBetween(defaultWindow + 1L, maxWindow)));
+        assertEquals(maxWindow, ParquetStorageObjectAdapter.windowSizeForRange(randomLongBetween(maxWindow, Long.MAX_VALUE)));
+    }
+
 }

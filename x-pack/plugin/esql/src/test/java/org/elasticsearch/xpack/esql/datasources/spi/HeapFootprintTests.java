@@ -86,6 +86,17 @@ public class HeapFootprintTests extends ESTestCase {
         }
     }
 
+    public void testLengthFittingIn() {
+        long heapBytes = randomLongBetween(HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_ALIGNMENT, 64 * MB);
+        long length = HeapFootprint.lengthFittingIn(heapBytes);
+        assertThat(length % RamUsageEstimator.NUM_BYTES_OBJECT_ALIGNMENT, equalTo(0L));
+        assertThat(aligned(length), lessThanOrEqualTo(heapBytes));
+        assertThat(aligned(length + RamUsageEstimator.NUM_BYTES_OBJECT_ALIGNMENT), greaterThan(heapBytes));
+        int shift = between(10, 26);
+        assertThat(HeapFootprint.lengthFittingIn(1L << shift), equalTo((long) HeapFootprint.regionFriendlyLength(1 << shift)));
+        expectThrows(IllegalArgumentException.class, () -> HeapFootprint.lengthFittingIn(HEADER));
+    }
+
     public void testRegionFriendlyLengthRejectsNonPowerOfTwo() {
         expectThrows(IllegalArgumentException.class, () -> HeapFootprint.regionFriendlyLength(0));
         expectThrows(IllegalArgumentException.class, () -> HeapFootprint.regionFriendlyLength(-4));

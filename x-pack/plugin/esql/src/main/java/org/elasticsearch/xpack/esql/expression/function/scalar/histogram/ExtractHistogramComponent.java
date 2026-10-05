@@ -75,10 +75,14 @@ public class ExtractHistogramComponent extends EsqlScalarFunction implements Any
 
     public static final PromqlFunctionDefinition PROMQL_HISTOGRAM_AVG = PromqlFunctionDefinition.def()
         .histogramUnary(
+            // A histogram holding no observations divides 0 by 0, which PromQL reports as NaN rather than dropping the
+            // series, so the division must preserve non-finite results.
             (source, field) -> new Div(
                 source,
                 ExtractHistogramComponent.create(source, field, ExponentialHistogramBlock.Component.SUM),
-                ExtractHistogramComponent.create(source, field, ExponentialHistogramBlock.Component.COUNT)
+                ExtractHistogramComponent.create(source, field, ExponentialHistogramBlock.Component.COUNT),
+                null,
+                true
             )
         )
         .description("Returns the arithmetic average of observations stored in a native histogram.")

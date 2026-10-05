@@ -139,6 +139,31 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
         buffer.finish(true);
     }
 
+    public void testDrainPagesAsyncStopsWhenPredicateTrue() throws Exception {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+        List<Page> pages = List.of(createTestPage(1, 10), createTestPage(1, 10), createTestPage(1, 10), createTestPage(1, 10));
+        AtomicInteger delivered = new AtomicInteger();
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        ExternalSourceDrainUtils.drainPagesAsync(iteratorOf(pages), buffer, exec, () -> false, () -> delivered.get() >= 2, page -> {
+            page.allowPassingToDifferentDriver();
+            buffer.addPage(page);
+            delivered.incrementAndGet();
+        }, ActionListener.wrap(v -> latch.countDown(), e -> {
+            error.set(e);
+            latch.countDown();
+        }));
+
+        assertTrue(latch.await(10, TimeUnit.SECONDS));
+        assertNull(error.get());
+        assertEquals(2, buffer.size());
+        assertEquals(2, delivered.get());
+        buffer.finish(true);
+        for (int i = 2; i < pages.size(); i++) {
+            pages.get(i).releaseBlocks();
+        }
+    }
+
     public void testDrainAsyncRespectsPagesBackpressure() throws Exception {
         int totalPages = 20;
         long maxBufferBytes = 1500;

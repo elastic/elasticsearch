@@ -23,6 +23,7 @@ import org.hamcrest.Matchers;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -130,6 +131,6 @@ public class SemanticClusterMetadataTests extends ESSingleNodeTestCase {
     private static List<MetadataMappingService.PutMappingClusterStateUpdateTask> singleTask(PutMappingClusterStateUpdateRequest request) {
         return Collections.singletonList(new MetadataMappingService.PutMappingClusterStateUpdateTask(request, ActionListener.running(() -> {
             throw new AssertionError("task should not complete publication");
-        })));
+        }), new HashMap<>()));
     }
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -265,6 +266,35 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         assertEquals("finish(true) must discard the page onFailure left queued", 0, buffer.size());
         assertEquals(0, buffer.bytesInBuffer());
         assertTrue("the page's blocks must be released, not leaked", block.isReleased());
+    }
+
+    /**
+     * {@code addPage} consumes the page on entry. A throw from {@code notifyNotEmpty} (a
+     * {@code waitForReading} listener) must not return ownership: the page stays pollable with
+     * live blocks.
+     */
+    public void testAddPageThrowAfterEnqueueLeavesPagePollable() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+        Page page = createTestPage(2, 5);
+        IntBlock block = page.getBlock(0);
+        IsBlockedResult blocked = buffer.waitForReading();
+        assertFalse(blocked.listener().isDone());
+        blocked.listener().addListener(new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                throw new RuntimeException("notifyNotEmpty");
+            }
+
+            @Override
+            public void onFailure(Exception e) {}
+        });
+        expectThrows(AssertionError.class, () -> buffer.addPage(page));
+        Page polled = buffer.pollPage();
+        assertSame(page, polled);
+        assertFalse("blocks must stay live after addPage throws", block.isReleased());
+        assertEquals(5, polled.getPositionCount());
+        polled.releaseBlocks();
+        buffer.finish(true);
     }
 
     /**

@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -1157,11 +1159,33 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * {@code withSchema} from that inference. Mixed-version coordinators ship {@code readSchema == null}.
      */
     public void testEmptyProjectionNonLeadingSplitWithoutReadSchemaStillBinds() throws Exception {
-        CountingBindAndSplitReader formatReader = runEmptyProjectionNonLeadingMacroSplit(null);
+        CountingBindAndSplitReader formatReader = runEmptyProjectionNonLeadingMacroSplit((List<Attribute>) null);
 
         assertEquals("unpinned empty-projection split still infers via metadata()", 1, formatReader.metadataCalls());
         assertNotNull(formatReader.withSchemaReceived());
         assertEquals(CountingBindAndSplitReader.INFERRED_SCHEMA.size(), formatReader.withSchemaReceived().size());
+        for (int i = 0; i < CountingBindAndSplitReader.INFERRED_SCHEMA.size(); i++) {
+            assertEquals(CountingBindAndSplitReader.INFERRED_SCHEMA.get(i).name(), formatReader.withSchemaReceived().get(i).name());
+            assertEquals(CountingBindAndSplitReader.INFERRED_SCHEMA.get(i).dataType(), formatReader.withSchemaReceived().get(i).dataType());
+        }
+        assertEquals("read() still emits a page", 1, formatReader.readCalls());
+    }
+
+    /**
+     * StreamInput can deserialize {@code readSchema = []} even though {@link FileSplit#withReadSchema}
+     * collapses empty to null. The empty-projection bind must treat that like null (infer), not
+     * {@code withSchema} width 0.
+     */
+    public void testEmptyProjectionNonLeadingSplitEmptyReadSchemaStillBinds() throws Exception {
+        CountingBindAndSplitReader formatReader = runEmptyProjectionNonLeadingMacroSplit(fileSplitWithDeserializedEmptyReadSchema());
+
+        assertEquals("empty List.of() pin must still infer via metadata()", 1, formatReader.metadataCalls());
+        assertNotNull(formatReader.withSchemaReceived());
+        assertEquals(
+            "withSchema must receive inferred schema, not width 0",
+            CountingBindAndSplitReader.INFERRED_SCHEMA.size(),
+            formatReader.withSchemaReceived().size()
+        );
         for (int i = 0; i < CountingBindAndSplitReader.INFERRED_SCHEMA.size(); i++) {
             assertEquals(CountingBindAndSplitReader.INFERRED_SCHEMA.get(i).name(), formatReader.withSchemaReceived().get(i).name());
             assertEquals(CountingBindAndSplitReader.INFERRED_SCHEMA.get(i).dataType(), formatReader.withSchemaReceived().get(i).dataType());
@@ -1185,6 +1209,42 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             null,
             readSchema
         );
+        return runEmptyProjectionNonLeadingMacroSplit(split);
+    }
+
+    /**
+     * Compact ctor nulls empty lists. StreamInput keeps {@code []} so mixed-version coordinators
+     * can still ship a present-but-empty pin into the operator.
+     */
+    private static FileSplit fileSplitWithDeserializedEmptyReadSchema() throws IOException {
+        StoragePath path = StoragePath.of("s3://bucket/data.csv");
+        Map<String, Object> config = Map.of(
+            FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY,
+            "true",
+            FileSplitProvider.FIRST_SPLIT_KEY,
+            "false"
+        );
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeString("file");
+        out.writeString(path.toString());
+        out.writeVLong(1024L);
+        out.writeVLong(2048L);
+        out.writeOptionalString(".csv");
+        out.writeGenericMap(config);
+        out.writeGenericMap(Map.of());
+        out.writeBoolean(false);
+        out.writeBoolean(false);
+        out.writeBoolean(true);
+        out.writeVInt(0);
+        try (StreamInput in = out.bytes().streamInput()) {
+            FileSplit split = new FileSplit(in);
+            assertNotNull("deserialized empty list must not collapse to null", split.readSchema());
+            assertTrue(split.readSchema().isEmpty());
+            return split;
+        }
+    }
+
+    private CountingBindAndSplitReader runEmptyProjectionNonLeadingMacroSplit(FileSplit split) throws Exception {
         CountingBindAndSplitReader formatReader = new CountingBindAndSplitReader();
         DriverContext driverContext = mock(DriverContext.class);
         when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
@@ -1194,7 +1254,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             new StubMultiFileStorageProvider(),
             formatReader,
-            path,
+            split.path(),
             List.of(),
             100,
             10,

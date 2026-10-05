@@ -11,6 +11,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -20,6 +22,7 @@ import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -53,14 +56,19 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -570,6 +578,126 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             IllegalArgumentException.class,
             () -> EsPhysicalOperationProviders.DefaultShardContext.buildSourceFilter(complexPaths, mappingLookup, idxSettings)
         );
+    }
+
+    /** INITIAL mode, single plain field-attribute key matching the shard's primary index sort field, no competing sort pushdown. */
+    public void testIsGroupKeyPrimarySortFieldHappyPath() throws IOException {
+        var provider = providerWithSortedField(sortedFieldSettings("counter_id"), "counter_id");
+        FieldAttribute counterId = fieldAttribute("counter_id", DataType.INTEGER);
+        AggregateExec aggregateExec = aggregateExec(AggregatorMode.INITIAL, counterId, esQueryExec(null));
+        assertTrue(provider.isGroupKeyPrimarySortField(counterId, aggregateExec));
+    }
+
+    /**
+     * A {@code STATS AVG(fn(field)) BY key} plan has an {@link EvalExec} computing the aggregated expression
+     * between the {@link AggregateExec} and the {@link EsQueryExec} (e.g. a surrogate feeding SUM/COUNT). It must
+     * not block the walk to the underlying {@link EsQueryExec}: {@link EvalExec} never reorders or drops rows.
+     */
+    public void testIsGroupKeyPrimarySortFieldSkipsIntermediateEvalExec() throws IOException {
+        var provider = providerWithSortedField(sortedFieldSettings("counter_id"), "counter_id");
+        FieldAttribute counterId = fieldAttribute("counter_id", DataType.INTEGER);
+        PhysicalPlan child = new EvalExec(Source.EMPTY, esQueryExec(null), List.of());
+        AggregateExec aggregateExec = aggregateExec(AggregatorMode.INITIAL, counterId, child);
+        assertTrue(provider.isGroupKeyPrimarySortField(counterId, aggregateExec));
+    }
+
+    /** A coordinator-side (FINAL) aggregation merges intermediate state from other nodes; there is no sort guarantee to rely on. */
+    public void testIsGroupKeyPrimarySortFieldDisabledForFinalMode() throws IOException {
+        var provider = providerWithSortedField(sortedFieldSettings("counter_id"), "counter_id");
+        FieldAttribute counterId = fieldAttribute("counter_id", DataType.INTEGER);
+        AggregateExec aggregateExec = aggregateExec(AggregatorMode.FINAL, counterId, esQueryExec(null));
+        assertFalse(provider.isGroupKeyPrimarySortField(counterId, aggregateExec));
+    }
+
+    /** A competing ORDER BY pushed down as a Lucene sort means rows are not read in the index's native sort order. */
+    public void testIsGroupKeyPrimarySortFieldDisabledForCompetingSortPushdown() throws IOException {
+        var provider = providerWithSortedField(sortedFieldSettings("counter_id"), "counter_id");
+        FieldAttribute counterId = fieldAttribute("counter_id", DataType.INTEGER);
+        List<EsQueryExec.Sort> competingSort = List.of(
+            new EsQueryExec.FieldSort(counterId, Order.OrderDirection.ASC, Order.NullsPosition.LAST)
+        );
+        AggregateExec aggregateExec = aggregateExec(AggregatorMode.INITIAL, counterId, esQueryExec(competingSort));
+        assertFalse(provider.isGroupKeyPrimarySortField(counterId, aggregateExec));
+    }
+
+    /** The grouping key is not the field the index is actually sorted on. */
+    public void testIsGroupKeyPrimarySortFieldDisabledForNonMatchingField() throws IOException {
+        var provider = providerWithSortedField(sortedFieldSettings("counter_id"), "counter_id", "other_field");
+        FieldAttribute otherField = fieldAttribute("other_field", DataType.INTEGER);
+        AggregateExec aggregateExec = aggregateExec(AggregatorMode.INITIAL, otherField, esQueryExec(null));
+        assertFalse(provider.isGroupKeyPrimarySortField(otherField, aggregateExec));
+    }
+
+    /** No index sort configured at all. */
+    public void testIsGroupKeyPrimarySortFieldDisabledWhenIndexIsNotSorted() throws IOException {
+        var provider = providerWithSortedField(Settings.EMPTY, "counter_id");
+        FieldAttribute counterId = fieldAttribute("counter_id", DataType.INTEGER);
+        AggregateExec aggregateExec = aggregateExec(AggregatorMode.INITIAL, counterId, esQueryExec(null));
+        assertFalse(provider.isGroupKeyPrimarySortField(counterId, aggregateExec));
+    }
+
+    /** Decided once per fragment: if any shard contributing to it lacks the matching primary sort, the whole fragment is disabled. */
+    public void testIsGroupKeyPrimarySortFieldDisabledWhenAnyShardDoesNotMatch() throws IOException {
+        var sortedShard = shardContext(sortedFieldSettings("counter_id"), "counter_id");
+        var unsortedShard = shardContext(Settings.EMPTY, "counter_id");
+        var provider = new EsPhysicalOperationProviders(
+            FoldContext.small(),
+            new IndexedByShardIdFromList<>(List.of(sortedShard, unsortedShard)),
+            null,
+            PlannerSettings.DEFAULTS,
+            () -> 0L,
+            QueryWarnings.EMIT
+        );
+        FieldAttribute counterId = fieldAttribute("counter_id", DataType.INTEGER);
+        AggregateExec aggregateExec = aggregateExec(AggregatorMode.INITIAL, counterId, esQueryExec(null));
+        assertFalse(provider.isGroupKeyPrimarySortField(counterId, aggregateExec));
+    }
+
+    private static Settings sortedFieldSettings(String sortedFieldName) {
+        return Settings.builder().put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), sortedFieldName).build();
+    }
+
+    private EsPhysicalOperationProviders.DefaultShardContext shardContext(Settings indexSettings, String... integerFields)
+        throws IOException {
+        var mapperService = createMapperService(indexSettings, mapping(b -> {
+            for (String field : integerFields) {
+                b.startObject(field).field("type", "integer").endObject();
+            }
+        }));
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService, null);
+        return new EsPhysicalOperationProviders.DefaultShardContext(0, new NoOpReleasable(), searchExecutionContext, AliasFilter.EMPTY);
+    }
+
+    private EsPhysicalOperationProviders providerWithSortedField(Settings indexSettings, String... integerFields) throws IOException {
+        return new EsPhysicalOperationProviders(
+            FoldContext.small(),
+            new IndexedByShardIdFromSingleton<>(shardContext(indexSettings, integerFields)),
+            null,
+            PlannerSettings.DEFAULTS,
+            () -> 0L,
+            QueryWarnings.EMIT
+        );
+    }
+
+    private static FieldAttribute fieldAttribute(String name, DataType type) {
+        return new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
+    }
+
+    private static EsQueryExec esQueryExec(List<EsQueryExec.Sort> sorts) {
+        return new EsQueryExec(
+            Source.EMPTY,
+            "test",
+            IndexMode.STANDARD,
+            List.of(),
+            null,
+            sorts,
+            10,
+            List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
+        );
+    }
+
+    private static AggregateExec aggregateExec(AggregatorMode mode, Expression grouping, PhysicalPlan child) {
+        return new AggregateExec(Source.EMPTY, child, List.of(grouping), List.of(), mode, List.of(), null);
     }
 
     private static BlockLoader blockLoader(SearchExecutionContext searchExecutionContext, String fieldName) {

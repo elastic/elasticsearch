@@ -156,6 +156,51 @@ public class BlockHashTests extends BlockHashTestCase {
         }
     }
 
+    /**
+     * Verifies {@code primarySorted} is a pure optimization: feeding the exact same (deliberately
+     * unsorted, non-adjacent-repeat) values as {@link #testIntHash} directly into an
+     * {@link IntBlockHash} built with {@code primarySorted=true} must produce byte-identical ords,
+     * entries and keys to the plain hash. Reusing a value's existing group id only when it is the
+     * immediately preceding row never changes which group id a value resolves to - it only skips
+     * redundant hash table work for adjacent duplicates.
+     */
+    public void testIntHashPrimarySortedMatchesPlainHash() {
+        assumeFalse("primarySorted only applies to IntBlockHash, not the packed path", forcePackedHash);
+        int[] values = new int[] { 1, 2, 3, 1, 2, 3, 1, 2, 3 };
+        try (
+            BlockHash hash = new IntBlockHash(0, blockFactory, true);
+            IntBlock block = blockFactory.newIntArrayVector(values, values.length).asBlock()
+        ) {
+            hash(true, hash, ordsAndKeys -> {
+                assertThat(ordsAndKeys.description(), equalTo("IntBlockHash{channel=0, entries=3, seenNull=false}"));
+                assertOrds(ordsAndKeys.ords(), 1, 2, 3, 1, 2, 3, 1, 2, 3);
+                assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(1, 4)));
+                assertKeys(ordsAndKeys.keys(), 1, 2, 3);
+            }, block);
+        }
+    }
+
+    /**
+     * The intended use case: long adjacent runs of the same value, as Lucene would hand back when
+     * the grouping key is the shard's primary index sort field. {@code 5} reappears non-adjacently
+     * (after the {@code 7} run) to also confirm a later, non-adjacent repeat still resolves to its
+     * original group id via the underlying hash table, not a new one.
+     */
+    public void testIntHashPrimarySortedWithRuns() {
+        assumeFalse("primarySorted only applies to IntBlockHash, not the packed path", forcePackedHash);
+        int[] values = new int[] { 5, 5, 5, 5, 5, 5, 7, 7, 7, 5, 5 };
+        try (
+            BlockHash hash = new IntBlockHash(0, blockFactory, true);
+            IntBlock block = blockFactory.newIntArrayVector(values, values.length).asBlock()
+        ) {
+            hash(true, hash, ordsAndKeys -> {
+                assertThat(ordsAndKeys.description(), equalTo("IntBlockHash{channel=0, entries=2, seenNull=false}"));
+                assertOrds(ordsAndKeys.ords(), 1, 1, 1, 1, 1, 1, 2, 2, 2, 1, 1);
+                assertKeys(ordsAndKeys.keys(), 5, 7);
+            }, block);
+        }
+    }
+
     public void testLongHash() {
         long[] values = new long[] { 2, 1, 4, 2, 4, 1, 3, 4 };
 
@@ -279,6 +324,151 @@ public class BlockHashTests extends BlockHashTestCase {
                 assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 4)));
             }, builder);
         }
+    }
+
+    /**
+     * Verifies {@code primarySorted} is a pure optimization: feeding the exact same (deliberately
+     * unsorted, non-adjacent-repeat) values as {@link #testLongHash} directly into a
+     * {@link LongBlockHash} built with {@code primarySorted=true} must produce byte-identical ords,
+     * entries and keys to the plain hash. Reusing a value's existing group id only when it is the
+     * immediately preceding row never changes which group id a value resolves to - it only skips
+     * redundant hash table work for adjacent duplicates.
+     */
+    public void testLongHashPrimarySortedMatchesPlainHash() {
+        assumeFalse("primarySorted only applies to LongBlockHash, not the packed path", forcePackedHash);
+        long[] values = new long[] { 2, 1, 4, 2, 4, 1, 3, 4 };
+        try (
+            BlockHash hash = new LongBlockHash(0, blockFactory, true);
+            LongBlock block = blockFactory.newLongArrayVector(values, values.length).asBlock()
+        ) {
+            hash(true, hash, ordsAndKeys -> {
+                assertThat(ordsAndKeys.description(), equalTo("LongBlockHash{channel=0, entries=4, seenNull=false}"));
+                assertOrds(ordsAndKeys.ords(), 1, 2, 3, 1, 3, 2, 4, 3);
+                assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(1, 5)));
+                assertKeys(ordsAndKeys.keys(), 2L, 1L, 4L, 3L);
+            }, block);
+        }
+    }
+
+    /**
+     * The intended use case: long adjacent runs of the same value, as Lucene would hand back when
+     * the grouping key is the shard's primary index sort field. {@code 5} reappears non-adjacently
+     * (after the {@code 7} run) to also confirm a later, non-adjacent repeat still resolves to its
+     * original group id via the underlying hash table, not a new one.
+     */
+    public void testLongHashPrimarySortedWithRuns() {
+        assumeFalse("primarySorted only applies to LongBlockHash, not the packed path", forcePackedHash);
+        long[] values = new long[] { 5, 5, 5, 5, 5, 5, 7, 7, 7, 5, 5 };
+        try (
+            BlockHash hash = new LongBlockHash(0, blockFactory, true);
+            LongBlock block = blockFactory.newLongArrayVector(values, values.length).asBlock()
+        ) {
+            hash(true, hash, ordsAndKeys -> {
+                assertThat(ordsAndKeys.description(), equalTo("LongBlockHash{channel=0, entries=2, seenNull=false}"));
+                assertOrds(ordsAndKeys.ords(), 1, 1, 1, 1, 1, 1, 2, 2, 2, 1, 1);
+                assertKeys(ordsAndKeys.keys(), 5L, 7L);
+            }, block);
+        }
+    }
+
+    /**
+     * Confirms the "page-scoped" contract: {@code primarySorted} tracks the previous value only
+     * within a single {@link BlockHash#add} call, so the same {@link LongBlockHash} instance can be
+     * fed a value across two separate pages (simulating adjacent pages from the same sorted segment)
+     * without needing any cross-page state - each page independently (and correctly) resolves its
+     * values against the shared underlying hash table.
+     */
+    public void testLongHashPrimarySortedAcrossPages() {
+        assumeFalse("primarySorted only applies to LongBlockHash, not the packed path", forcePackedHash);
+        try (BlockHash hash = new LongBlockHash(0, blockFactory, true)) {
+            long[] firstPage = new long[] { 9, 9, 9 };
+            try (LongBlock block = blockFactory.newLongArrayVector(firstPage, firstPage.length).asBlock()) {
+                hash(true, hash, ordsAndKeys -> {
+                    assertOrds(ordsAndKeys.ords(), 1, 1, 1);
+                    assertKeys(ordsAndKeys.keys(), 9L);
+                }, block);
+            }
+            long[] secondPage = new long[] { 9, 9, 3, 3 };
+            try (LongBlock block = blockFactory.newLongArrayVector(secondPage, secondPage.length).asBlock()) {
+                hash(true, hash, ordsAndKeys -> {
+                    assertThat(ordsAndKeys.description(), equalTo("LongBlockHash{channel=0, entries=2, seenNull=false}"));
+                    assertOrds(ordsAndKeys.ords(), 1, 1, 2, 2);
+                    assertKeys(ordsAndKeys.keys(), 9L, 3L);
+                }, block);
+            }
+        }
+    }
+
+    /**
+     * A key built as the index's primary sort field hands its group ids to the aggregators as runs; any other key hands them
+     * over plain. Only a page of single values has ids that can arrive as a vector, so a page with a missing value never does.
+     */
+    public void testPrimarySortedHandsGroupIdsOverAsRuns() {
+        assumeFalse("primarySorted only applies to the long and int hashes, not the packed path", forcePackedHash);
+        for (boolean primarySorted : new boolean[] { true, false }) {
+            final List<String> longCalls = new ArrayList<>();
+            long[] longs = new long[] { 1, 1, 2, 2, 2, 3 };
+            try (
+                BlockHash hash = new LongBlockHash(0, blockFactory, primarySorted);
+                LongBlock block = blockFactory.newLongArrayVector(longs, longs.length).asBlock()
+            ) {
+                hash.add(new Page(block), recordingAddInput(longCalls));
+            }
+            assertThat("long keys, primarySorted=" + primarySorted, longCalls, equalTo(List.of(primarySorted ? "addRuns" : "add")));
+
+            final List<String> intCalls = new ArrayList<>();
+            int[] ints = new int[] { 1, 1, 2, 2, 2, 3 };
+            try (
+                BlockHash hash = new IntBlockHash(0, blockFactory, primarySorted);
+                IntBlock block = blockFactory.newIntArrayVector(ints, ints.length).asBlock()
+            ) {
+                hash.add(new Page(block), recordingAddInput(intCalls));
+            }
+            assertThat("int keys, primarySorted=" + primarySorted, intCalls, equalTo(List.of(primarySorted ? "addRuns" : "add")));
+
+            final List<String> nullCalls = new ArrayList<>();
+            try (
+                BlockHash hash = new LongBlockHash(0, blockFactory, primarySorted);
+                LongBlock.Builder builder = blockFactory.newLongBlockBuilder(3)
+            ) {
+                builder.appendLong(1);
+                builder.appendNull();
+                builder.appendLong(1);
+                try (LongBlock block = builder.build()) {
+                    hash.add(new Page(block), recordingAddInput(nullCalls));
+                }
+            }
+            assertThat("long keys with a null, primarySorted=" + primarySorted, nullCalls.size(), equalTo(1));
+            assertThat("long keys with a null, primarySorted=" + primarySorted, nullCalls.contains("addRuns"), equalTo(false));
+        }
+    }
+
+    /** An {@link GroupingAggregatorFunction.AddInput} that notes which way the group ids were handed over. */
+    private static GroupingAggregatorFunction.AddInput recordingAddInput(List<String> calls) {
+        return new GroupingAggregatorFunction.AddInput() {
+            @Override
+            public void add(int positionOffset, IntArrayBlock groupIds) {
+                calls.add("add block");
+            }
+
+            @Override
+            public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                calls.add("add big block");
+            }
+
+            @Override
+            public void add(int positionOffset, IntVector groupIds) {
+                calls.add("add");
+            }
+
+            @Override
+            public void addRuns(int positionOffset, IntVector groupIds) {
+                calls.add("addRuns");
+            }
+
+            @Override
+            public void close() {}
+        };
     }
 
     public void testDoubleHash() {

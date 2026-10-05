@@ -69,6 +69,16 @@ $endif$
      */
     private boolean seenNull;
 
+$if(long || int)$
+    /**
+     * When {@code true}, the input to {@link #add($Type$Vector)} is known to arrive from Lucene already
+     * ordered by this field (it is the shard's primary {@code index.sort.field}), so adjacent rows within
+     * a page sharing the same value are guaranteed to belong to the same group. This lets us skip the
+     * hash computation/probe for repeated values, reusing the previous row's group id instead.
+     */
+    private final boolean primarySorted;
+$endif$
+
 $if(BytesRef)$
     private static final int PREFETCH_BATCH = 128;
     private final PrefetchBarrier prefetchBarrier = new PrefetchBarrier();
@@ -87,11 +97,24 @@ $if(long)$
     private final int[] batchHashes = new int[PREFETCH_BATCH];
 $endif$
 
+$if(long || int)$
+    $Type$BlockHash(int channel, BlockFactory blockFactory, boolean primarySorted) {
+        super(blockFactory);
+        this.channel = channel;
+        this.hash = HashImplFactory.new$Hash$(blockFactory);
+        this.primarySorted = primarySorted;
+    }
+
+    $Type$BlockHash(int channel, BlockFactory blockFactory) {
+        this(channel, blockFactory, false);
+    }
+$else$
     $Type$BlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
         this.hash = HashImplFactory.new$Hash$(blockFactory);
     }
+$endif$
 
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
@@ -114,7 +137,15 @@ $if(hasVector)$
             return;
         }
         try (IntVector groupIds = add(vector)) {
+$if(long || int)$
+            if (primarySorted) {
+                addInput.addRuns(0, groupIds);
+            } else {
+                addInput.add(0, groupIds);
+            }
+$else$
             addInput.add(0, groupIds);
+$endif$
         }
 $else$
         try (IntBlock groupIds = add(castBlock)) {
@@ -128,6 +159,11 @@ $if(hasVector)$
      *  Adds the vector values to the hash, and returns a new vector with the group IDs for those positions.
      */
     IntVector add($Type$Vector vector) {
+$if(long || int)$
+        if (primarySorted) {
+            return addSorted(vector);
+        }
+$endif$
 $if(BytesRef)$
         if (vector.isConstant()) {
             BytesRef v = vector.getBytesRef(0, new BytesRef());
@@ -159,6 +195,33 @@ $else$
                 $type$ v = vector.get$Type$(i);
 $endif$
                 builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(hash.add(v))));
+            }
+            return builder.build();
+        }
+    }
+$endif$
+
+$if(long || int)$
+    /**
+     * Fast path for {@link #add($Type$Vector)} used when {@link #primarySorted} is {@code true}. Rows
+     * sharing the same value as the immediately preceding row in this page reuse that row's group id
+     * instead of hashing and probing the hash table again.
+     */
+    private IntVector addSorted($Type$Vector vector) {
+        int positions = vector.getPositionCount();
+        try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
+            if (positions > 0) {
+                $type$ prevValue = vector.get$Type$(0);
+                int prevGroupId = Math.toIntExact(hashOrdToGroupNullReserved(hash.add(prevValue)));
+                builder.appendInt(prevGroupId);
+                for (int i = 1; i < positions; i++) {
+                    $type$ v = vector.get$Type$(i);
+                    if (v != prevValue) {
+                        prevGroupId = Math.toIntExact(hashOrdToGroupNullReserved(hash.add(v)));
+                        prevValue = v;
+                    }
+                    builder.appendInt(prevGroupId);
+                }
             }
             return builder.build();
         }

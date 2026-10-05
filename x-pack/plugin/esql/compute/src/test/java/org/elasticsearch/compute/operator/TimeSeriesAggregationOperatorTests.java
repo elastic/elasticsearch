@@ -81,8 +81,8 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             oneMinBucket,
             false,
             List.of(
-                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
-                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null, false),
+                new BlockHash.GroupSpec(1, ElementType.LONG, null, null, false)
             ),
             AggregatorMode.INITIAL,
             List.of(rate),
@@ -208,8 +208,8 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             fiveMinBucket,
             false,
             List.of(
-                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
-                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null, false),
+                new BlockHash.GroupSpec(1, ElementType.LONG, null, null, false)
             ),
             AggregatorMode.SINGLE,
             aggregatorFactories,
@@ -291,8 +291,8 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             fiveMinBucket,
             false,
             List.of(
-                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
-                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null, false),
+                new BlockHash.GroupSpec(1, ElementType.LONG, null, null, false)
             ),
             AggregatorMode.SINGLE,
             aggregatorFactories,
@@ -352,8 +352,8 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             oneMinBucket,
             false,
             List.of(
-                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
-                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null, false),
+                new BlockHash.GroupSpec(1, ElementType.LONG, null, null, false)
             ),
             AggregatorMode.INITIAL,
             List.of(new SumIntAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(2))),
@@ -435,8 +435,8 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             oneMinBucket,
             false,
             List.of(
-                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
-                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null, false),
+                new BlockHash.GroupSpec(1, ElementType.LONG, null, null, false)
             ),
             AggregatorMode.INITIAL,
             List.of(
@@ -517,8 +517,8 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
                 oneMinBucket,
                 false,
                 List.of(
-                    new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
-                    new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+                    new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null, false),
+                    new BlockHash.GroupSpec(1, ElementType.LONG, null, null, false)
                 ),
                 AggregatorMode.INTERMEDIATE,
                 List.of(new SumIntAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INTERMEDIATE, List.of(2, 3))),
@@ -544,8 +544,8 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
                 oneMinBucket,
                 false,
                 List.of(
-                    new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
-                    new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+                    new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null, false),
+                    new BlockHash.GroupSpec(1, ElementType.LONG, null, null, false)
                 ),
                 AggregatorMode.FINAL,
                 List.of(new SumIntAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(2, 3))),
@@ -753,8 +753,8 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             oneMinBucket,
             false,
             List.of(
-                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
-                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null, false),
+                new BlockHash.GroupSpec(1, ElementType.LONG, null, null, false)
             ),
             AggregatorMode.FINAL,
             List.of(new SumIntAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(2, 3))),
@@ -796,8 +796,8 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             timeBucket,
             false,
             List.of(
-                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
-                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null, false),
+                new BlockHash.GroupSpec(1, ElementType.LONG, null, null, false)
             ),
             AggregatorMode.SINGLE,
             aggregators,
@@ -954,8 +954,8 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             timeBucket,
             false,
             List.of(
-                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
-                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null, false),
+                new BlockHash.GroupSpec(1, ElementType.LONG, null, null, false)
             ),
             AggregatorMode.SINGLE,
             List.of(aggregatorFactory),
@@ -1057,8 +1057,8 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             oneMinBucket,
             false,
             List.of(
-                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
-                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null, false),
+                new BlockHash.GroupSpec(1, ElementType.LONG, null, null, false)
             ),
             AggregatorMode.INITIAL,
             List.of(new SumIntAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(2))),
@@ -1099,8 +1099,8 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             oneMinBucket,
             false,
             List.of(
-                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
-                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null, false),
+                new BlockHash.GroupSpec(1, ElementType.LONG, null, null, false)
             ),
             AggregatorMode.INITIAL,
             List.of(new SumIntAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(2))),

@@ -661,7 +661,9 @@ public class GroupingAggregatorImplementer {
             requireName("wrapAddInput"),
             requireArgs(
                 Stream.concat(
-                    Stream.of(requireType(GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT), requireType(aggState.declaredType())),
+                    // The state the generated function holds: the aggregator's own class, or for a primitive state the array
+                    // class generated to hold it, which is what the wrapper is handed.
+                    Stream.of(requireType(GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT), requireType(aggState.type())),
                     aggParams.stream().map(a -> {
                         if (a instanceof BlockArgument) {
                             return requireType(a.type());

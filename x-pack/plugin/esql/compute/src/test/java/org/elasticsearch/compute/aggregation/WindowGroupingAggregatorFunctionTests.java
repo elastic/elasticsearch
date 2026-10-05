@@ -48,8 +48,8 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
             timeBucket,
             false,
             List.of(
-                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
-                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null, false),
+                new BlockHash.GroupSpec(1, ElementType.LONG, null, null, false)
             ),
             mode,
             List.of(aggregatorFunction().groupingAggregatorFactory(mode, channels(mode))),
@@ -253,8 +253,8 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
             fiveMinBucket,
             false,
             List.of(
-                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
-                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null, false),
+                new BlockHash.GroupSpec(1, ElementType.LONG, null, null, false)
             ),
             AggregatorMode.SINGLE,
             List.of(
@@ -366,8 +366,8 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
             bucket,
             false,
             List.of(
-                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
-                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null, false),
+                new BlockHash.GroupSpec(1, ElementType.LONG, null, null, false)
             ),
             AggregatorMode.SINGLE,
             List.of(

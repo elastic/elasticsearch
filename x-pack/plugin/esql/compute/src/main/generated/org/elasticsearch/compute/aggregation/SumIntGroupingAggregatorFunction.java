@@ -90,7 +90,7 @@ public final class SumIntGroupingAggregatorFunction implements GroupingAggregato
         }
       };
     }
-    return new GroupingAggregatorFunction.AddInput() {
+    var addInput = new GroupingAggregatorFunction.AddInput() {
       @Override
       public void add(int positionOffset, IntArrayBlock groupIds) {
         addRawInput(positionOffset, groupIds, vVector);
@@ -110,6 +110,7 @@ public final class SumIntGroupingAggregatorFunction implements GroupingAggregato
       public void close() {
       }
     };
+    return SumIntAggregator.wrapAddInput(addInput, state, vVector);
   }
 
   private void addRawInput(int positionOffset, IntArrayBlock groups, IntBlock vBlock) {

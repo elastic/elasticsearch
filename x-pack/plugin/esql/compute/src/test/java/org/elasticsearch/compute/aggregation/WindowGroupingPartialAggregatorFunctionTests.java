@@ -83,8 +83,8 @@ public class WindowGroupingPartialAggregatorFunctionTests extends WindowGrouping
             timeBucket,
             false,
             List.of(
-                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
-                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null, false),
+                new BlockHash.GroupSpec(1, ElementType.LONG, null, null, false)
             ),
             mode,
             aggregators,

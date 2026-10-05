@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.mapper.vectors.AutoCalibrate;
 
 import java.util.Set;
 
@@ -179,7 +180,7 @@ public class MapperFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(TSDB_METRIC_TEMPORALITY_SUPPORT);
+        return Set.of(TSDB_METRIC_TEMPORALITY_SUPPORT, AutoCalibrate.AUTO_CALIBRATE_PROFILES);
     }
 
     @Override

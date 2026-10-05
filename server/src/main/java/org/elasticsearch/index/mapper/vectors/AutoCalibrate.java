@@ -24,6 +24,7 @@ import java.util.function.Predicate;
 
 /** Parsed {@code auto_calibrate} index option: the resolved profile plus the value the user originally supplied. */
 public record AutoCalibrate(@Nullable Object originalValue, IvfAutoCalibrationProfile profile) implements ToXContentFragment {
+    public static final NodeFeature AUTO_CALIBRATE_PROFILES = new NodeFeature("mapper.dense_vector.auto_calibrate_profiles");
     static final String NAME = "auto_calibrate";
     static final AutoCalibrate DEFAULT = new AutoCalibrate(null, IvfAutoCalibrationProfile.DISABLED);
 
@@ -49,9 +50,13 @@ public record AutoCalibrate(@Nullable Object originalValue, IvfAutoCalibrationPr
         }
 
         String value = node.toString();
-        IvfAutoCalibrationProfile profile = Booleans.isBoolean(value)
-            ? (Booleans.parseBoolean(value) ? defaultEnabledProfile(indexVersion) : IvfAutoCalibrationProfile.DISABLED)
-            : IvfAutoCalibrationProfile.fromString(value)
+        IvfAutoCalibrationProfile profile;
+        if (Booleans.isBoolean(value)) {
+            profile = Booleans.parseBoolean(value) ? defaultEnabledProfile(indexVersion) : IvfAutoCalibrationProfile.DISABLED;
+        } else if (clusterSupportsFeature.test(AUTO_CALIBRATE_PROFILES) == false) {
+            throw new IllegalArgumentException("'" + NAME + "' must be a boolean, got [" + node + "] for field [" + fieldName + "]");
+        } else {
+            profile = IvfAutoCalibrationProfile.fromString(value)
                 .orElseThrow(
                     () -> new IllegalArgumentException(
                         "'"
@@ -65,6 +70,7 @@ public record AutoCalibrate(@Nullable Object originalValue, IvfAutoCalibrationPr
                             + "]"
                     )
                 );
+        }
 
         return new AutoCalibrate(node, profile);
     }

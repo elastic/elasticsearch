@@ -575,7 +575,8 @@ public final class Def {
             return linkReference(methodHandlesLookup, ref, factoryMethodType, -1, null);
         }
         if (needsScriptInstance && ref.isScriptAware && chargesAllocation == false) {
-            // Pushed first for a @script_aware target. It lands on the target's own PainlessScript parameter.
+            // Pushed first for a @script_aware target. FunctionRef already put a PainlessScript parameter first for such a target,
+            // so the pushed script lands on it. No extra slot.
             return linkReference(methodHandlesLookup, ref, factoryMethodType, -1, null);
         }
 

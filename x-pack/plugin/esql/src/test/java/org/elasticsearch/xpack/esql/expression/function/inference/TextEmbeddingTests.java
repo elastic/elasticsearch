@@ -14,8 +14,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
-import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matchers;
@@ -28,18 +26,10 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- * Extends {@link AbstractFunctionTestCase} directly rather than {@link AbstractScalarFunctionTestCase}:
- * {@link TextEmbedding} has no per-row evaluator and is never executed as an ordinary scalar function. It can only be
- * folded, via a dedicated pre-optimizer pass ({@code FoldInferenceFunctions}) that runs a real inference call outside
- * {@link org.elasticsearch.xpack.esql.core.expression.Expression#fold}, so the evaluator-based test machinery in
- * {@link AbstractScalarFunctionTestCase} does not apply here. That folding behavior is already covered end-to-end in
- * {@code InferenceFunctionEvaluatorTests}; this class is limited to exercising {@link TextEmbedding#resolveType}.
- */
 @FunctionName("text_embedding")
-public class TextEmbeddingTests extends AbstractFunctionTestCase {
+public class TextEmbeddingTests extends AbstractInferenceFunctionTestCase {
     public TextEmbeddingTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
-        this.testCase = testCaseSupplier.get();
+        super(testCaseSupplier);
     }
 
     @ParametersFactory
@@ -83,12 +73,7 @@ public class TextEmbeddingTests extends AbstractFunctionTestCase {
     }
 
     @Override
-    protected Expression build(Source source, List<Expression> args) {
-        return new TextEmbedding(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null);
-    }
-
-    @Override
-    protected boolean canSerialize() {
-        return false;
+    protected Expression buildFunction(Source source, Expression inputText, Expression inferenceId, Expression options) {
+        return new TextEmbedding(source, inputText, inferenceId, options);
     }
 }

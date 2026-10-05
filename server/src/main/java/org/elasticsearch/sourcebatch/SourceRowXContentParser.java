@@ -238,10 +238,11 @@ public final class SourceRowXContentParser extends AbstractXContentParser {
                 childIdxStack[stackDepth - 1]++;
 
                 if (child.isLeaf()) {
-                    int colIdx = child.leafColumnIndex;
-                    if (row.isAbsent(colIdx)) {
+                    if (row.isAbsent(child.leafColumnIndex)) {
                         continue;
                     }
+                } else if (hasAnyPresent(child) == false) {
+                    continue;
                 }
 
                 // Emit FIELD_NAME, defer content to next call
@@ -260,6 +261,18 @@ public final class SourceRowXContentParser extends AbstractXContentParser {
         // Stack empty — done
         currentToken = null;
         return null;
+    }
+
+    private boolean hasAnyPresent(SchemaNode node) {
+        if (node.isLeaf()) {
+            return row.isAbsent(node.leafColumnIndex) == false;
+        }
+        for (SchemaNode child : node.children) {
+            if (hasAnyPresent(child)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private Token emitLeafValue(int colIdx) {

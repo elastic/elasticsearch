@@ -154,12 +154,13 @@ public interface FileList {
 
     /**
      * Whether listing stopped at a caller-supplied bound rather than reaching the end of the glob, so this
-     * list is a prefix of the files the pattern matches and {@link #fileCount()} is a floor, not a total.
+     * list is a prefix of the files the pattern (and any partition filters) matches and {@link #fileCount()} is
+     * a floor, not a total.
      * <p>
-     * Only resolution ever asks for a bound, and it asks on the dataset's behalf rather than the query's: what
-     * defines a dataset's columns is its {@code schema_resolution} mode, so under {@code first_file_wins} or a
-     * declared mapping one page answers that whatever the query goes on to do. A query that reads rows can
-     * therefore be handed one. Turning it into the query's own file set is split discovery's job
+     * Only resolution ever asks for a bound. Under inferred {@code first_file_wins} and a declared mapping
+     * that prefix is of the files this query's filters keep, large enough for one file to define the schema
+     * (or, for a declaration, to count files and derive partition columns). Turning a truncated listing into
+     * the query's own file set is split discovery's job
      * ({@code FileSplitProvider#overTheQuerysFileSet}), and everything resolution derived per file from the bounded
      * listing — partition values, per-file read schemas — moves with the file set when it does
      * ({@code SplitDiscoveryContext#withScanFileSet}).
@@ -203,8 +204,8 @@ public interface FileList {
      * or size) yields a different one. This makes the fingerprint a content-addressed cache key for
      * dataset-level derived state (e.g. the warm COUNT(*) aggregate): keys derived from it are
      * correct-or-miss by construction, with no separate invalidation protocol — and they survive listing
-     * refreshes (the 30s listing TTL) as long as the underlying files are unchanged, because the
-     * fingerprint derives from listing CONTENT, not listing object identity.
+     * refreshes (the listing TTL, five minutes by default) as long as the underlying files are unchanged,
+     * because the fingerprint derives from listing CONTENT, not listing object identity.
      * <p>
      * {@code null} for the sentinels and for implementations that do not compute one.
      */

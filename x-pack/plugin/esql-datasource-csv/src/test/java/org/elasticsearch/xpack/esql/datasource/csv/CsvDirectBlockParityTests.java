@@ -93,7 +93,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of("max_field_size", 10),
             null,
             "k:keyword\nhelloworld12\n",
-            "Row [1] of [mem://csv-direct-block-parity-tests]: field of [12] characters exceeds [10]; row: <unparsed>; "
+            "Row [1] of [csv-direct-block-parity-tests]: field of [12] characters exceeds [10]; row: <unparsed>; "
                 + "set [error_mode] to [skip_row] to skip the row instead"
         );
     }
@@ -105,7 +105,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of("max_field_size", 5),
             null,
             "k:keyword\n\"helloworld\"\n",
-            "Row [1] of [mem://csv-direct-block-parity-tests]: field of [10] characters exceeds [5]; row: <unparsed>; "
+            "Row [1] of [csv-direct-block-parity-tests]: field of [10] characters exceeds [5]; row: <unparsed>; "
                 + "set [error_mode] to [skip_row] to skip the row instead"
         );
     }
@@ -117,7 +117,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of("max_field_size", 5),
             List.of("a"),
             "a:keyword,b:keyword\nshort,helloworld\n",
-            "Row [1] of [mem://csv-direct-block-parity-tests]: field of [10] characters exceeds [5]; row: <unparsed>; "
+            "Row [1] of [csv-direct-block-parity-tests]: field of [10] characters exceeds [5]; row: <unparsed>; "
                 + "set [error_mode] to [skip_row] to skip the row instead"
         );
     }
@@ -137,7 +137,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of(),
             null,
             "k:keyword\n\"x\"y\n",
-            "Row [1] of [mem://csv-direct-block-parity-tests]: unexpected content after a closing quote; row: <unparsed>; "
+            "Row [1] of [csv-direct-block-parity-tests]: unexpected content after a closing quote; row: <unparsed>; "
                 + "set [error_mode] to [skip_row] to skip the row instead"
         );
     }
@@ -757,7 +757,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     public void testDatetimeFormatUnparseableValueFailFast() throws IOException {
         String content = "id:long,ts:datetime\n1,not-a-date\n";
         CsvFormatReader base = (CsvFormatReader) baseReader(false).withConfig(Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"));
-        String expected = "Row [1] of [mem://csv-direct-block-parity-tests]: cannot read [not-a-date] as [datetime]; row: ";
+        String expected = "Row [1] of [csv-direct-block-parity-tests]: cannot read [not-a-date] as [datetime]; row: ";
         for (boolean directBlock : List.of(false, true)) {
             String message = captureFailFastMessage(base.withDirectBlockEnabled(directBlock), null, content);
             assertTrue("direct_block=" + directBlock + " message: " + message, message.startsWith(expected));
@@ -1901,7 +1901,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
 
         @Override
         public StoragePath path() {
-            return StoragePath.of("mem://csv-direct-block-parity-tests");
+            return StoragePath.of("mem://host/csv-direct-block-parity-tests");
         }
 
         @Override

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
@@ -101,10 +102,13 @@ public interface LucenePushdownPredicates {
         if (isPushableAttribute(exp)) {
             return true;
         }
-        // A field the block loader synthesizes, or one that may be unmapped on a shard, keeps no values of its own.
+        // A field the block loader synthesizes, or one that may be unmapped on a shard, keeps no values of its own. A
+        // union-typed field keeps values of the type each index mapped, and the plan asks about the type they are
+        // converted to on load, so the values a column holds are not the ones the predicate names.
         return exp instanceof FieldAttribute fa
             && fa.field() instanceof PotentiallyUnmappedKeywordEsField == false
             && fa.field() instanceof FunctionEsField == false
+            && fa.field() instanceof UnionTypeEsField == false
             && hasValueQueries(fa);
     }
 

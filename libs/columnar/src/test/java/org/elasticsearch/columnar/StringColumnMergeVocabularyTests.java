@@ -694,9 +694,16 @@ public class StringColumnMergeVocabularyTests extends ESTestCase {
             final List<String> values = new ArrayList<>();
             for (int i = 0; i < TERMS_PER_SEGMENT; i++) {
                 final String term = paddedTerm(segment, i);
-                values.add(term);
-                values.add(term);
-                values.add(term);
+                // NOTE: the dictionary may hold a fifth of the column's bytes, so a term held n times puts
+                // at most n fifths of the values within reach. Three leaves the shipped bar unreachable.
+                for (int held = 0; held < 5; held++) {
+                    values.add(term);
+                }
+            }
+            // NOTE: a segment whose own dictionary names every value lets the merge union the dictionaries
+            // instead of reading the summaries, which is not the path this test is about.
+            for (int i = 0; i < ESCAPES_PER_SEGMENT; i++) {
+                values.add(paddedTerm(segment, TERMS_PER_SEGMENT + i));
             }
             segments.add(values);
         }
@@ -712,7 +719,7 @@ public class StringColumnMergeVocabularyTests extends ESTestCase {
             flushSegments(dir, segments, policy, StringColumnOptions.DEFAULT_SUMMARY);
             assertTrue("with nothing lost from any input summary", every(dir, StringColumnReader::hasSummaryTerms));
             assertEquals(
-                "a third puts the same dictionary under half the values",
+                "a third puts the same dictionary under the bar",
                 MergedVocabulary.Source.SUMMARY_REFUSAL,
                 settledBy(dir, policy, StringColumnOptions.DEFAULT_SUMMARY)
             );
@@ -724,7 +731,8 @@ public class StringColumnMergeVocabularyTests extends ESTestCase {
         }
     }
 
-    private static final int TERMS_PER_SEGMENT = 512;
+    private static final int TERMS_PER_SEGMENT = 256;
+    private static final int ESCAPES_PER_SEGMENT = 16;
 
     /** A term of a kilobyte, so a segment's vocabulary lands just under the default summary cap. */
     private static String paddedTerm(int segment, int index) {

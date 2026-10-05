@@ -50,7 +50,7 @@ public class StringColumnGenerationalMergeTests extends ESTestCase {
     private static final int GENERATIONS = 8;
     private static final int POOL_TERMS = 6_000;
     private static final int POOL_TERM_PERCENT = 30;
-    private static final int POOL_SHARE_PERCENT = 60;
+    private static final int POOL_SHARE_PERCENT = 92;
 
     // NOTE: summing counts alone drops a term only one segment held, which is what the wider quota exists
     // to prevent.
@@ -58,6 +58,7 @@ public class StringColumnGenerationalMergeTests extends ESTestCase {
         try (Directory dir = newDirectory()) {
             final Random random = new Random(11);
             int document = 0;
+            int earnedAt = 0;
             for (int generation = 1; generation <= GENERATIONS; generation++) {
                 document = flushRecurringGeneration(dir, random, document);
                 forceMerge(dir);
@@ -65,11 +66,15 @@ public class StringColumnGenerationalMergeTests extends ESTestCase {
                 if (generation == 1) {
                     assertFalse("nothing has repeated yet", merged.hasDictionary());
                     assertThat("but the terms are written down", merged.summaryTerms(), greaterThan(POOL_TERMS / 2));
-                } else {
-                    assertTrue("the terms written down then repeat and earn a dictionary", merged.hasDictionary());
+                }
+                if (merged.hasDictionary()) {
+                    earnedAt = earnedAt == 0 ? generation : earnedAt;
                     assertThat("a value only one segment held is never named", merged.coverage(), lessThan(1.0));
+                } else {
+                    assertEquals("a dictionary once earned is not given up again", 0, earnedAt);
                 }
             }
+            assertThat("the terms written down repeat and earn a dictionary", earnedAt, greaterThan(1));
         }
     }
 

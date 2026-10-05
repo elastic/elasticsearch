@@ -24,12 +24,14 @@ import java.math.BigDecimal;
  * <p>Whether to keep it is then two questions. {@link #minCoverage} asks what share of the column's values
  * a read can answer through an ordinal. The rest escape, and escaped values share one ordinal, so a filter
  * for a term the dictionary names rules them all out by it while a filter for one that escaped has to read
- * and compare their bytes. {@link #maxShareOfColumn} asks whether the dictionary is small against the data
- * it describes, since a dictionary as large as the values it stands in for has bought nothing, however well
- * it covers them.
+ * and compare their bytes. Read the other way the bar is a budget for the rest: a dictionary admitted at a
+ * coverage of {@code b} leaves at most {@code 1 - b} of the column's values in that stream.
+ * {@link #maxShareOfColumn} asks whether the dictionary is small against the data it describes, since a
+ * dictionary as large as the values it stands in for has bought nothing, however well it covers them.
  *
  * @param maxBytes         the most term bytes a dictionary may hold
- * @param minCoverage      the share of a column's values the dictionary must name
+ * @param minCoverage      the share of a column's values the dictionary must name, so that at most
+ *                         one minus this share of them escape
  * @param maxShareOfColumn the largest share of the column's value bytes the dictionary may occupy
  */
 public record DictionaryPolicy(int maxBytes, double minCoverage, double maxShareOfColumn) {

@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -64,6 +65,9 @@ public class SearchResponseSections implements Releasable {
     private List<SearchHits> topHitsToRelease;
     // Completion suggestion option hits (refs taken in merge before fetch result is released); cleared when transferred
     private List<SearchHit> completionOptionHitsToRelease;
+    // Coordinator fetch-breaker charge for the hits above; cleared when transferred
+    @Nullable
+    private Releasable coordinatorFetchCharge;
 
     public SearchResponseSections(
         SearchHits hits,
@@ -135,6 +139,26 @@ public class SearchResponseSections implements Releasable {
         return list;
     }
 
+    /**
+     * Takes a charge already made for these hits, released by {@link #close()} unless it is transferred first.
+     */
+    void adoptCoordinatorFetchCharge(@Nullable Releasable charge) {
+        assert coordinatorFetchCharge == null : "a coordinator fetch charge was already adopted";
+        this.coordinatorFetchCharge = charge;
+    }
+
+    /**
+     * Hands the charge to the caller, who releases it in place of {@link #close()}.
+     *
+     * @return the charge, or {@code null} if there is none
+     */
+    @Nullable
+    public final Releasable transferCoordinatorFetchCharge() {
+        Releasable charge = coordinatorFetchCharge;
+        coordinatorFetchCharge = null;
+        return charge;
+    }
+
     public final SearchHits hits() {
         return hits;
     }
@@ -181,5 +205,7 @@ public class SearchResponseSections implements Releasable {
             completionOptionHitsToRelease = null;
         }
         hits.decRef();
+        Releasables.closeExpectNoException(coordinatorFetchCharge);
+        coordinatorFetchCharge = null;
     }
 }

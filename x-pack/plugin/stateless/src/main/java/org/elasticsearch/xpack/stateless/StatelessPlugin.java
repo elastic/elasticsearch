@@ -645,11 +645,7 @@ public class StatelessPlugin extends Plugin
         snapshotRestoreAllocationDecider = new SnapshotRestoreAllocationDecider(settings, snapshotRestoreDiskPressure);
     }
 
-    /**
-     * Unmet restore-disk shortfalls recorded during live allocation, for autoscaling metrics.
-     * Prefer {@link SnapshotRestoreDiskPressure#unmetTotalDiskBytes()} when converting to memory
-     * via storage ratio; that value already folds in the indexing shared-cache carve-out.
-     */
+    /** Unmet restore-disk demand from live allocation, for autoscaling */
     public SnapshotRestoreDiskPressure getSnapshotRestoreDiskPressure() {
         return snapshotRestoreDiskPressure;
     }

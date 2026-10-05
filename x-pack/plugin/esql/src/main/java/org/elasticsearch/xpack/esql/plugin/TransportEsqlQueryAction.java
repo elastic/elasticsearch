@@ -457,6 +457,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         executionInfo.externalPlanning().close();
     }
 
+    // Note: this gate differs from the by_outcome.success gate (PlanTelemetry.externalSource()). A
+    // query that prunes all splits (splitsScanned=0, externalWarmAggregates=0) counts as a success
+    // in by_outcome but does not trigger CPU recording — it consumed no external CPU.
     private boolean hasExternalSources(Result result) {
         if (result.executionInfo() == null) {
             return false;
@@ -466,35 +469,49 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     void collectMetrics(Result result) {
-        // Currently, the metrics are only collected when the query has federated sources, since we are not planning
-        // to do any per-query billing otherwise, so no point in collecting the metrics.
-        if (metricsCollector.equals(QueryMetricsListener.NOOP) || hasExternalSources(result) == false) {
-            // don't even bother to create a map
+        if (hasExternalSources(result) == false) {
             return;
         }
+        // APM and phone-home CPU recording — independent of the billing listener so that a failure
+        // here never silently suppresses the billing call below.
         try {
             var ci = result.completionInfo();
             var qp = result.executionInfo().queryProfile();
-            metricsCollector.onQueryCompleted(
-                Map.of(
-                    QueryMetricsListener.PLANNING_NANOS,
-                    qp.planning().timeSpan().durationInNanos(),
-                    QueryMetricsListener.CPU_NANOS,
-                    ci.cpuNanos(),
-                    QueryMetricsListener.READ_NANOS,
-                    ci.readNanos(),
-                    QueryMetricsListener.READ_CPU_NANOS,
-                    ci.readCpuNanos(),
-                    QueryMetricsListener.SPLIT_DISCOVERY_NANOS,
-                    qp.splitDiscoveryNanos(),
-                    QueryMetricsListener.SPLIT_DISCOVERY_CPU_NANOS,
-                    qp.splitDiscoveryCpuNanos(),
-                    QueryMetricsListener.BYTES_READ,
-                    ci.bytesRead()
-                )
-            );
+            var planningSpan = qp.planning().timeSpan();
+            long planningNanos = planningSpan != null ? planningSpan.durationInNanos() : 0L;
+            planExecutor.dataSourceModule()
+                .externalSourceMetrics()
+                .recordQueryCpu(ci.cpuNanos(), ci.readCpuNanos(), planningNanos, qp.splitDiscoveryCpuNanos());
         } catch (Exception ex) {
-            logger.warn("failed to collect query metrics", ex);
+            logger.warn("failed to record query CPU metrics", ex);
+        }
+        // Billing listener — unchanged from before; kept in its own try so a CPU-recording failure
+        // above never silently skips this call.
+        if (metricsCollector.equals(QueryMetricsListener.NOOP) == false) {
+            try {
+                var ci = result.completionInfo();
+                var qp = result.executionInfo().queryProfile();
+                metricsCollector.onQueryCompleted(
+                    Map.of(
+                        QueryMetricsListener.PLANNING_NANOS,
+                        qp.planning().timeSpan().durationInNanos(),
+                        QueryMetricsListener.CPU_NANOS,
+                        ci.cpuNanos(),
+                        QueryMetricsListener.READ_NANOS,
+                        ci.readNanos(),
+                        QueryMetricsListener.READ_CPU_NANOS,
+                        ci.readCpuNanos(),
+                        QueryMetricsListener.SPLIT_DISCOVERY_NANOS,
+                        qp.splitDiscoveryNanos(),
+                        QueryMetricsListener.SPLIT_DISCOVERY_CPU_NANOS,
+                        qp.splitDiscoveryCpuNanos(),
+                        QueryMetricsListener.BYTES_READ,
+                        ci.bytesRead()
+                    )
+                );
+            } catch (Exception ex) {
+                logger.warn("failed to collect query metrics", ex);
+            }
         }
     }
 

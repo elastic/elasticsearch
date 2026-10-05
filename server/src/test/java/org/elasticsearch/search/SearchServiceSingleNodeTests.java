@@ -139,7 +139,9 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
@@ -188,8 +190,10 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
 public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
@@ -208,8 +212,46 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             CustomScriptPlugin.class,
             ReaderWrapperCountPlugin.class,
             InternalOrPrivateSettingsPlugin.class,
-            MockSearchService.TestPlugin.class
+            MockSearchService.TestPlugin.class,
+            ReaderContextListenerPlugin.class
         );
+    }
+
+    /**
+     * Forwards the reader context events of every index to the listener a test installs. A listener on an index is the
+     * way a caller of {@link SearchService#openOwnedReaderContext} keeps state per context and checks later callers.
+     */
+    public static class ReaderContextListenerPlugin extends Plugin {
+        static volatile SearchOperationListener installed = null;
+
+        @Override
+        public void onIndexModule(IndexModule indexModule) {
+            indexModule.addSearchOperationListener(new SearchOperationListener() {
+                @Override
+                public void onNewReaderContext(ReaderContext readerContext) {
+                    SearchOperationListener listener = installed;
+                    if (listener != null) {
+                        listener.onNewReaderContext(readerContext);
+                    }
+                }
+
+                @Override
+                public void onFreeReaderContext(ReaderContext readerContext) {
+                    SearchOperationListener listener = installed;
+                    if (listener != null) {
+                        listener.onFreeReaderContext(readerContext);
+                    }
+                }
+
+                @Override
+                public void validateReaderContext(ReaderContext readerContext, TransportRequest transportRequest) {
+                    SearchOperationListener listener = installed;
+                    if (listener != null) {
+                        listener.validateReaderContext(readerContext, transportRequest);
+                    }
+                }
+            });
+        }
     }
 
     public static class ReaderWrapperCountPlugin extends Plugin {
@@ -2397,6 +2439,249 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             assertTrue(searchService.freeReaderContext(readerA));
             assertTrue(searchService.freeReaderContext(readerB));
         }
+    }
+
+    public void testOwnedReaderContextIsRegisteredUntilItsOwnerFreesIt() {
+        createIndex("index");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        IndexShard shard = indexShard("index");
+        ShardSearchRequest request = ownedRequest(shard.shardId());
+
+        ReaderContext readerContext = searchService.openOwnedReaderContext(request, TimeValue.timeValueMinutes(1), null);
+        assertFalse(readerContext.singleSession());
+        assertThat(searchService.getActiveContexts(), equalTo(1));
+        assertThat(shard.searchStats().getOpenContexts(), equalTo(1L));
+        assertThat(searchService.findReaderContext(readerContext.id(), request, shard.shardId()), sameInstance(readerContext));
+
+        assertTrue(searchService.freeReaderContext(readerContext.id()));
+        assertThat(searchService.getActiveContexts(), equalTo(0));
+        assertThat(shard.searchStats().getOpenContexts(), equalTo(0L));
+        expectThrows(
+            SearchContextMissingException.class,
+            () -> searchService.findReaderContext(readerContext.id(), request, shard.shardId())
+        );
+        assertFalse("a second free finds nothing", searchService.freeReaderContext(readerContext.id()));
+    }
+
+    public void testOwnedReaderContextKeepAliveIsLimited() {
+        createIndex("index");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        IndexShard shard = indexShard("index");
+        TimeValue tooLong = TimeValue.timeValueMillis(searchService.getMaxKeepAliveInMillis() + 1);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> searchService.openOwnedReaderContext(ownedRequest(shard.shardId()), tooLong, null)
+        );
+        assertThat(e.getMessage(), containsString(SearchService.MAX_KEEPALIVE_SETTING.getKey()));
+        assertThat(searchService.getActiveContexts(), equalTo(0));
+    }
+
+    public void testOwnedReaderContextExpiresAfterItsKeepAlive() throws Exception {
+        createIndex("index");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        IndexShard shard = indexShard("index");
+
+        searchService.openOwnedReaderContext(ownedRequest(shard.shardId()), TimeValue.timeValueMillis(1), null);
+        assertThat(searchService.getActiveContexts(), equalTo(1));
+        assertBusy(() -> {
+            searchService.new Reaper().run();
+            assertThat(searchService.getActiveContexts(), equalTo(0));
+        });
+        assertThat("the free listener ran, so the stats count the context as closed", shard.searchStats().getOpenContexts(), equalTo(0L));
+    }
+
+    public void testSearchContextPinsOwnedReaderContext() throws Exception {
+        createIndex("index");
+        prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        IndexShard shard = indexShard("index");
+        ShardSearchRequest request = ownedRequest(shard.shardId());
+
+        ReaderContext readerContext = searchService.openOwnedReaderContext(request, TimeValue.timeValueMillis(1), null);
+        long openedAt = shard.getThreadPool().relativeTimeInMillis();
+        try (SearchContext searchContext = searchService.createSearchContext(readerContext, request, SearchService.NO_TIMEOUT)) {
+            // let the keep-alive elapse, so only the search context keeps the reader context
+            assertBusy(() -> assertThat(shard.getThreadPool().relativeTimeInMillis(), greaterThan(openedAt + 1)));
+            searchService.new Reaper().run();
+            assertThat("an open search context pins its reader context", searchService.getActiveContexts(), equalTo(1));
+            assertThat(searchContext.searcher().count(Queries.ALL_DOCS_INSTANCE), equalTo(1));
+        }
+        assertThat("closing the search context does not free the reader context", searchService.getActiveContexts(), equalTo(1));
+        assertBusy(() -> {
+            searchService.new Reaper().run();
+            assertThat(searchService.getActiveContexts(), equalTo(0));
+        });
+    }
+
+    public void testCreateSearchContextOnFreedOwnedReaderContextFails() {
+        createIndex("index");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        IndexShard shard = indexShard("index");
+        ShardSearchRequest request = ownedRequest(shard.shardId());
+
+        ReaderContext readerContext = searchService.openOwnedReaderContext(request, TimeValue.timeValueMinutes(1), null);
+        assertTrue(searchService.freeReaderContext(readerContext.id()));
+        expectThrows(
+            SearchContextMissingException.class,
+            () -> searchService.createSearchContext(readerContext, request, SearchService.NO_TIMEOUT)
+        );
+    }
+
+    public void testFreedOwnedReaderContextClosesWhenItsLastSearchContextCloses() throws IOException {
+        createIndex("index");
+        prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        IndexShard shard = indexShard("index");
+        ShardSearchRequest request = ownedRequest(shard.shardId());
+
+        ReaderContext readerContext = searchService.openOwnedReaderContext(request, TimeValue.timeValueMinutes(1), null);
+        AtomicBoolean readerClosed = new AtomicBoolean();
+        readerContext.addOnClose(() -> readerClosed.set(true));
+        try (SearchContext searchContext = searchService.createSearchContext(readerContext, request, SearchService.NO_TIMEOUT)) {
+            assertTrue(searchService.freeReaderContext(readerContext.id()));
+            assertThat("a freed context is not found any more", searchService.getActiveContexts(), equalTo(0));
+            assertFalse("the open search context still reads from it", readerClosed.get());
+            assertThat(searchContext.searcher().count(Queries.ALL_DOCS_INSTANCE), equalTo(1));
+        }
+        assertTrue(readerClosed.get());
+    }
+
+    public void testOwnedReaderContextIsFreedWhenItsIndexIsDeleted() {
+        createIndex("index");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        IndexShard shard = indexShard("index");
+        AtomicInteger freed = new AtomicInteger();
+        ReaderContextListenerPlugin.installed = new SearchOperationListener() {
+            @Override
+            public void onFreeReaderContext(ReaderContext readerContext) {
+                freed.incrementAndGet();
+            }
+        };
+        try {
+            searchService.openOwnedReaderContext(ownedRequest(shard.shardId()), TimeValue.timeValueMinutes(1), null);
+            assertThat(searchService.getActiveContexts(), equalTo(1));
+            assertAcked(indicesAdmin().prepareDelete("index"));
+            awaitIndexShardCloseAsyncTasks();
+            assertThat(searchService.getActiveContexts(), equalTo(0));
+            assertThat("the free listener runs on this path too", freed.get(), equalTo(1));
+        } finally {
+            ReaderContextListenerPlugin.installed = null;
+        }
+    }
+
+    public void testListenerSeesOwnedReaderContextBeforeItIsPublished() {
+        createIndex("index");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        IndexShard shard = indexShard("index");
+        ShardSearchRequest request = ownedRequest(shard.shardId());
+        AtomicInteger activeWhenOpened = new AtomicInteger(-1);
+        AtomicInteger freed = new AtomicInteger();
+        ReaderContextListenerPlugin.installed = new SearchOperationListener() {
+            @Override
+            public void onNewReaderContext(ReaderContext readerContext) {
+                activeWhenOpened.set(searchService.getActiveContexts());
+                readerContext.putInContext("owner", "the test");
+            }
+
+            @Override
+            public void onFreeReaderContext(ReaderContext readerContext) {
+                freed.incrementAndGet();
+            }
+        };
+        try {
+            ReaderContext opened = searchService.openOwnedReaderContext(request, TimeValue.timeValueMinutes(1), null);
+            assertThat("nobody can find the context before the listener ran", activeWhenOpened.get(), equalTo(0));
+            String owner = searchService.findReaderContext(opened.id(), request, shard.shardId()).getFromContext("owner");
+            assertThat(owner, equalTo("the test"));
+            assertTrue(searchService.freeReaderContext(opened.id()));
+            assertThat(freed.get(), equalTo(1));
+        } finally {
+            ReaderContextListenerPlugin.installed = null;
+        }
+    }
+
+    public void testOwnedReaderContextIsPublishedWhenAListenerFails() {
+        createIndex("index");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        IndexShard shard = indexShard("index");
+        ReaderContextListenerPlugin.installed = new SearchOperationListener() {
+            @Override
+            public void onNewReaderContext(ReaderContext readerContext) {
+                throw new IllegalStateException("listener failure");
+            }
+        };
+        try {
+            // listener failures on open are logged and swallowed, so a caller that relies on its listener checks the context
+            ReaderContext opened = searchService.openOwnedReaderContext(ownedRequest(shard.shardId()), TimeValue.timeValueMinutes(1), null);
+            assertThat(searchService.getActiveContexts(), equalTo(1));
+            assertTrue(searchService.freeReaderContext(opened.id()));
+        } finally {
+            ReaderContextListenerPlugin.installed = null;
+        }
+    }
+
+    public void testRejectedLookupDoesNotFreeOwnedReaderContext() {
+        createIndex("index");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        IndexShard shard = indexShard("index");
+        ShardSearchRequest request = ownedRequest(shard.shardId());
+
+        ReaderContext opened = searchService.openOwnedReaderContext(request, TimeValue.timeValueMinutes(1), null);
+        ReaderContextListenerPlugin.installed = new SearchOperationListener() {
+            @Override
+            public void validateReaderContext(ReaderContext readerContext, TransportRequest transportRequest) {
+                throw new IllegalStateException("not the owner");
+            }
+        };
+        try {
+            expectThrows(IllegalStateException.class, () -> searchService.findReaderContext(opened.id(), request, shard.shardId()));
+            assertThat("only the owner frees the context", searchService.getActiveContexts(), equalTo(1));
+        } finally {
+            ReaderContextListenerPlugin.installed = null;
+        }
+        assertTrue(searchService.freeReaderContext(opened.id()));
+    }
+
+    @TestLogging(
+        reason = "reader contexts are logged at DEBUG when they open and close",
+        value = "org.elasticsearch.search.SearchService:DEBUG"
+    )
+    public void testOwnedReaderContextIsLoggedAsOwned() {
+        createIndex("index");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        IndexShard shard = indexShard("index");
+
+        try (var mockLog = MockLog.capture(SearchService.class)) {
+            mockLog.addExpectation(
+                new MockLog.PatternSeenEventExpectation(
+                    "opened",
+                    SearchService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "opened reader context \\[.*\\] kind \\[owned\\] creator_task \\[unknown\\]"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.PatternSeenEventExpectation(
+                    "freed",
+                    SearchService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "removing reader context \\[.*\\] kind \\[owned\\] creator_task \\[unknown\\] reason \\[explicit free request\\]"
+                )
+            );
+            ReaderContext opened = searchService.openOwnedReaderContext(ownedRequest(shard.shardId()), TimeValue.timeValueMinutes(1), null);
+            assertTrue(searchService.freeReaderContext(opened.id()));
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    private IndexShard indexShard(String index) {
+        return getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(index)).getShard(0);
+    }
+
+    /** A shard request like the one ES|QL builds for each shard it reads. */
+    private static ShardSearchRequest ownedRequest(ShardId shardId) {
+        return new ShardSearchRequest(shardId, System.currentTimeMillis(), AliasFilter.EMPTY, null, SplitShardCountSummary.IRRELEVANT);
     }
 
     private static ShardSearchContextId openReaderContext(SearchService searchService, ShardId shardId) {

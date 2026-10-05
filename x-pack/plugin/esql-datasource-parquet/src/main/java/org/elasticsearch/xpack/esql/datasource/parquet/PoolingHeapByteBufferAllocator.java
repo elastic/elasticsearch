@@ -42,7 +42,7 @@ import java.util.concurrent.atomic.AtomicLongArray;
  * cover everything parquet-mr routes through the read-options allocator: chunk reads come in
  * {@code maxAllocationSize} slabs (just under 8 MiB, see {@code PlainParquetReadOptions}) and footer parses
  * allocate the exact serialized footer length, which the footer fetch window bounds at
- * {@code ParquetFormatReader#MAX_FOOTER_READ_BYTES} (10 MiB). Each size class additionally keeps
+ * {@code ParquetFormatReader#MAX_FOOTER_READ_BYTES} (just under 8 MiB). Each size class additionally keeps
  * at most a quarter of the cap idle, so a burst of footer-sized arrays cannot evict every smaller
  * class.
  *
@@ -83,7 +83,7 @@ final class PoolingHeapByteBufferAllocator implements ByteBufferAllocator {
      * Heap footprint of the largest size class, the largest array that may enter the free list.
      * Sized above the two large allocation classes parquet-mr sends through the read-options
      * allocator — just-under-8 MiB {@code maxAllocationSize} chunk
-     * slabs and footer buffers of up to the 10 MiB fetch window — so the very allocations that
+     * slabs and footer buffers of up to the just-under-8 MiB footer cap — so the very allocations that
      * scale with file count do not bypass the pool. Anything larger (rare) is exact-sized and
      * dropped on release.
      */

@@ -79,8 +79,8 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
     static final int DEFAULT_WINDOW_SIZE = HeapFootprint.regionFriendlyLength(4 * 1024 * 1024);
 
     /**
-     * Maximum window size (10MB). Caps adaptive window hints so large {@code forRange} splits do not allocate
-     * 16 MiB arrays; matches {@link ExternalSourceSettings#BLOB_STORE_GET_SIZE_BYTES}.
+     * Maximum window size, just under 8 MiB. Caps adaptive window hints so large {@code forRange} splits do not
+     * allocate larger arrays; matches {@link ExternalSourceSettings#BLOB_STORE_GET_SIZE_BYTES}.
      */
     static final int MAX_WINDOW_SIZE = ExternalSourceSettings.BLOB_STORE_GET_SIZE_BYTES;
 

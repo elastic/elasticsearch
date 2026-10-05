@@ -1,5 +1,7 @@
 area: ES|QL
-issues: []
+issues:
+ - 158957
 pr: 157956
-summary: Fold nested CASE without recursion
+summary: "Fix `CASE` with a single-value list condition, and report multivalued conditions with the standard\
+  \ `single-value function encountered multi-value` warning"
 type: bug

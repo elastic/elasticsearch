@@ -282,6 +282,7 @@ public class IndexVersions {
     public static final IndexVersion DENSE_VECTOR_ON_DISK_MERGE = def(9_116_0_00, Version.LUCENE_10_5_1);
     public static final IndexVersion IGNORE_ABOVE_NO_OP_IN_COLUMNAR = def(9_117_0_00, Version.LUCENE_10_5_1);
     public static final IndexVersion COLUMNAR_CODEC_ENABLED_BY_DEFAULT_FF = def(9_118_0_00, Version.LUCENE_10_5_1);
+    public static final IndexVersion DISK_BBQ_AUTO_CALIBRATE_DEFAULT_ISO_SIZING = def(9_119_0_00, Version.LUCENE_10_5_1);
 
     /*
      * STOP! READ THIS FIRST! No, really,

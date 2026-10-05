@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.vectors;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibrationProfile;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -25,7 +26,9 @@ public record AutoCalibrate(@Nullable Object originalValue, IvfAutoCalibrationPr
     static final AutoCalibrate DEFAULT = new AutoCalibrate(null, IvfAutoCalibrationProfile.DISABLED);
 
     public static IvfAutoCalibrationProfile defaultEnabledProfile(IndexVersion indexVersion) {
-        return IvfAutoCalibrationProfile.QUALITY;
+        return indexVersion.onOrAfter(IndexVersions.DISK_BBQ_AUTO_CALIBRATE_DEFAULT_ISO_SIZING)
+            ? IvfAutoCalibrationProfile.ISO_SIZING
+            : IvfAutoCalibrationProfile.QUALITY;
     }
 
     static AutoCalibrate defaultAutoCalibrate(IndexVersion indexVersion) {

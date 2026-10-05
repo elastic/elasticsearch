@@ -49,8 +49,7 @@ import static org.elasticsearch.common.util.set.Sets.haveNonEmptyIntersection;
  *   <li>{@link #postIndexResolution(LogicalPlan, boolean)} — runs as an analyzer rule after {@code ResolveTable}.
  *       Strips any {@link ViewShadowRelation} that lenient field-caps did not fold into a sibling
  *       {@code EsRelation} (in Phase A this is all of them, since lenient field-caps is not yet
- *       wired up — see esql-planning#543), then flattens nested {@link ViewUnionAll}s and unwraps
- *       remaining {@link NamedSubquery} wrappers.</li>
+ *       wired up — see esql-planning#543), then flattens nested {@link ViewUnionAll}s.</li>
  * </ol>
  * <p>
  * The split is what lets a colleague implement lenient field-caps purely as a Phase B analyzer
@@ -69,7 +68,8 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
 
     /**
      * Backward-compatible helper: runs {@link #preIndexResolution(LogicalPlan)} followed by
-     * {@link #postIndexResolution(LogicalPlan, boolean)}. Production code calls the two phases separately;
+     * {@link #postIndexResolution(LogicalPlan, boolean)} and the {@link NamedSubquery} unwrap the analyzer
+     * performs right after ({@code Analyzer.UnwrapNamedSubqueries}). Production code calls the phases separately;
      * tests that exercise the compaction logic without going through the full analyzer call
      * this to get the same end state as the live pipeline produces.
      * <p>
@@ -84,7 +84,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      */
     @Override
     public LogicalPlan apply(LogicalPlan plan) {
-        return postIndexResolution(preIndexResolution(plan), false);
+        return postIndexResolution(preIndexResolution(plan), false).transformDown(NamedSubquery.class, UnaryPlan::child);
     }
 
     /**
@@ -104,8 +104,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
     /**
      * Phase 2, runs as an analyzer rule after {@code ResolveTable}. Strips
      * {@link ViewShadowRelation} siblings that lenient field-caps did not resolve, then flattens
-     * nested {@link ViewUnionAll} structures and unwraps remaining {@link NamedSubquery}
-     * wrappers. By the time this runs, all reachable {@link UnresolvedRelation}s have been
+     * nested {@link ViewUnionAll} structures. By the time this runs, all reachable {@link UnresolvedRelation}s have been
      * replaced by {@code EsRelation}s, so the {@link UnresolvedRelation}-merge step inside
      * {@link #compactNestedViewUnionAlls} is effectively a no-op — sibling {@code EsRelation}s
      * stay separate (Strategy A from esql-planning#543).
@@ -129,7 +128,6 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         // to {@link ViewUnionAll}, so we re-run the rewrite after the strip.
         plan = rewriteUnionAllsWithNamedSubqueries(plan);
         plan = compactNestedViewUnionAlls(plan, preserveViewBoundaries);
-        plan = plan.transformDown(NamedSubquery.class, UnaryPlan::child);
         return plan;
     }
 

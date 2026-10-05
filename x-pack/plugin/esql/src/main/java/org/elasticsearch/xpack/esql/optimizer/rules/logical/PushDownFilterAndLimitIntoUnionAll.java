@@ -300,16 +300,11 @@ public class PushDownFilterAndLimitIntoUnionAll extends OptimizerRules.Parameter
     }
 
     /**
-     * Filter can be pushed down safely when ubquery does not create any new attributes
+     * Subquery does not create any new attributes, so filter can be pushed down safely.
      */
     private static LogicalPlan pushFilterPastSubquery(Filter filter) {
         LogicalPlan child = filter.child();
         if (child instanceof Subquery subquery) {
-            // TODO Stops pushdown if _class/_name was requested.
-            //  Not not very efficient for e.g. "WHERE language_code > 2 AND _class == "subquery"
-            if (subquery.child().outputSet().containsAll(filter.condition().references()) == false) {
-                return filter;
-            }
             Filter newFilter = filter.replaceChild(subquery.child());
             return subquery.replaceChild(newFilter);
         }

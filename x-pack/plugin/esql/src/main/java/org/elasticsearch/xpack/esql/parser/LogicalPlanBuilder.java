@@ -408,14 +408,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 throw new ParsingException(source, "Subqueries are not supported in TS command");
             }
 
-            List<Attribute> relationAttrs = metadataFields.stream()
-                .filter(f -> MetadataAttribute.RELATION_CLASS.equals(f.name()) || MetadataAttribute.RELATION_NAME.equals(f.name()))
-                .map(NamedExpression::toAttribute)
-                .toList();
-            if (relationAttrs.isEmpty() == false) {
-                subqueries = subqueries.stream().map(sq -> new Subquery(sq.source(), sq.child(), relationAttrs)).toList();
-            }
-
             List<LogicalPlan> mainQueryAndSubqueries = new ArrayList<>(subqueries.size() + 1);
             if (table.indexPattern().isEmpty() == false) {
                 mainQueryAndSubqueries.add(unresolvedRelation);
@@ -426,7 +418,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             if (mainQueryAndSubqueries.size() == 1) {
                 Subquery only = subqueries.get(0);
                 // if there is only one child without subquery-specific metadata - return it directly, no need for UnionAll
-                inner = only.ownMetadata().isEmpty() ? only.plan() : only;
+                // TODO potential to reduce to class/name only? I have a method for this but
+                // may be premature optimization
+                inner = metadataFields.isEmpty() ? only.plan() : only;
             } else {
                 // the output of UnionAll is resolved by analyzer
                 inner = new UnionAll(source(ctxs.getFirst(), ctxs.getLast()), mainQueryAndSubqueries, List.of());

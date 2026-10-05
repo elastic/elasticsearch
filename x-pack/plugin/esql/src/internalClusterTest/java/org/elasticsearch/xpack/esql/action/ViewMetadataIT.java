@@ -25,6 +25,7 @@ import java.util.List;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -350,6 +351,138 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
             assertThat(rows.get(0).get(1), equalTo("view_it_logs_a"));
             assertThat(rows.get(1).get(0), equalTo("view_it_logs_b"));
             assertThat(rows.get(1).get(1), equalTo("view_it_logs_b"));
+        }
+    }
+
+    public void testClassIsViewForSingleView() {
+        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
+        createView("view_langs_class_it", "FROM languages");
+        try (var response = run("FROM view_langs_class_it METADATA _class | KEEP language_code, _class | SORT language_code")) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(4));
+            assertThat(rows.stream().map(r -> r.get(1)).toList(), everyItem(equalTo("view")));
+        }
+    }
+
+    public void testNameIsViewNameForSingleView() {
+        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
+        createView("view_langs_name_it", "FROM languages");
+        try (var response = run("FROM view_langs_name_it METADATA _name | KEEP language_code, _name | SORT language_code")) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(4));
+            assertThat(rows.stream().map(r -> r.get(1)).toList(), everyItem(equalTo("view_langs_name_it")));
+        }
+    }
+
+    public void testBothClassAndNameForSingleView() {
+        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
+        createView("view_langs_both_it", "FROM languages");
+        try (
+            var response = run("FROM view_langs_both_it METADATA _class, _name | KEEP language_code, _class, _name | SORT language_code")
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(4));
+            assertThat(rows.stream().map(r -> r.get(1)).toList(), everyItem(equalTo("view")));
+            assertThat(rows.stream().map(r -> r.get(2)).toList(), everyItem(equalTo("view_langs_both_it")));
+        }
+    }
+
+    public void testClassAndNameViaWildcardPattern() {
+        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
+        createView("view_langs_wildcard_it", "FROM languages");
+        try (
+            var response = run("FROM view_langs_wildcard_it METADATA _cl*, _na* | KEEP language_code, _class, _name | SORT language_code")
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(4));
+            assertThat(rows.stream().map(r -> r.get(1)).toList(), everyItem(equalTo("view")));
+            assertThat(rows.stream().map(r -> r.get(2)).toList(), everyItem(equalTo("view_langs_wildcard_it")));
+        }
+    }
+
+    public void testClassAnsweredWhileIndexNullFilledOnView() {
+        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
+        createView("view_langs_nullfill_it", "FROM languages");
+        try (
+            var response = run(
+                "FROM view_langs_nullfill_it METADATA _class, _name, _index | KEEP language_code, _class, _name, _index | SORT language_code"
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(4));
+            assertThat(rows.stream().map(r -> r.get(1)).toList(), everyItem(equalTo("view")));
+            assertThat(rows.stream().map(r -> r.get(2)).toList(), everyItem(equalTo("view_langs_nullfill_it")));
+            assertThat(rows.stream().map(r -> r.get(3)).toList(), everyItem(nullValue()));
+        }
+    }
+
+    public void testClassAndNameOnViewEndingInWildcardKeep() {
+        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
+        createView("view_langs_keep_star_it", "FROM languages | KEEP *");
+        try (
+            var response = run(
+                "FROM view_langs_keep_star_it METADATA _class, _name | KEEP language_code, _class, _name | SORT language_code"
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(4));
+            assertThat(rows.stream().map(r -> r.get(1)).toList(), everyItem(equalTo("view")));
+            assertThat(rows.stream().map(r -> r.get(2)).toList(), everyItem(equalTo("view_langs_keep_star_it")));
+        }
+    }
+
+    public void testOuterWildcardKeepExposesClassAndName() {
+        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
+        createView("view_langs_outer_star_it", "FROM languages");
+        List<String> indexColumns;
+        try (var response = run("FROM languages METADATA _class, _name | KEEP * | SORT language_code")) {
+            indexColumns = response.columns().stream().map(ColumnInfoImpl::name).toList();
+        }
+        try (var response = run("FROM view_langs_outer_star_it METADATA _class, _name | KEEP * | SORT language_code")) {
+            List<String> columns = response.columns().stream().map(ColumnInfoImpl::name).toList();
+            assertThat(columns, equalTo(indexColumns));
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(4));
+            int classAt = columns.indexOf("_class");
+            int nameAt = columns.indexOf("_name");
+            assertThat(rows.stream().map(r -> r.get(classAt)).toList(), everyItem(equalTo("view")));
+            assertThat(rows.stream().map(r -> r.get(nameAt)).toList(), everyItem(equalTo("view_langs_outer_star_it")));
+        }
+    }
+
+    public void testClassViewBesideIndex() {
+        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
+        assumeTrue("requires VIEWS_WITH_BRANCHING", Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        createView("view_langs_beside_it", "FROM languages | WHERE language_code <= 2");
+        try (
+            var response = run(
+                "FROM languages, view_langs_beside_it" + " METADATA _class | STATS n = COUNT(*) BY _class | KEEP _class, n | SORT _class"
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, equalTo(List.of(List.of("index", 4L), List.of("view", 2L))));
+        }
+    }
+
+    public void testNameViewBesideIndex() {
+        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
+        assumeTrue("requires VIEWS_WITH_BRANCHING", Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        createView("view_langs_name_beside_it", "FROM languages | WHERE language_code <= 2");
+        try (
+            var response = run(
+                "FROM languages, view_langs_name_beside_it"
+                    + " METADATA _class, _name | WHERE _class == \"index\" | KEEP language_code, _name"
+            )
+        ) {
+            assertThat(getValuesList(response).stream().map(r -> r.get(1)).toList(), everyItem(equalTo("languages")));
+        }
+        try (
+            var response = run(
+                "FROM languages, view_langs_name_beside_it"
+                    + " METADATA _class, _name | WHERE _class == \"view\" | KEEP language_code, _name"
+            )
+        ) {
+            assertThat(getValuesList(response).stream().map(r -> r.get(1)).toList(), everyItem(equalTo("view_langs_name_beside_it")));
         }
     }
 

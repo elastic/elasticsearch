@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.RelationClass;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedMetadataAttributeExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
@@ -171,10 +172,12 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -293,6 +296,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 new ResolveDatasetShadow(),
                 new StripDatasetShadowRelations(),
                 new ViewCompactionPostIndexResolution(),
+                new ResolveSubqueryRelationColumns(),
+                new UnwrapNamedSubqueries(),
                 new ResolveExternalRelations(),
                 new PruneEmptyUnionAllBranch(),
                 new ResolveEnrich(),
@@ -603,6 +608,76 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
             return ViewCompaction.postIndexResolution(plan, context.preserveViewBoundaries());
+        }
+    }
+
+    private static class ResolveSubqueryRelationColumns extends ParameterizedAnalyzerRule<UnresolvedMetadata, AnalyzerContext> {
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+
+        @Override
+        protected LogicalPlan rule(UnresolvedMetadata unresolvedMetadata, AnalyzerContext context) {
+            LogicalPlan child = unresolvedMetadata.child();
+            if (child instanceof ExternalRelation) {
+                return unresolvedMetadata;
+            }
+
+            List<NamedExpression> metadataFields = ResolveTable.resolveMetadata(unresolvedMetadata.metadataFields(), context);
+            if (metadataFields.stream().anyMatch(f -> f.resolved() == false)) {
+                return unresolvedMetadata; // unknown name or pattern (e.g. METADATA _bogus): left for the Verifier
+            }
+            List<NamedExpression> relationColumns = metadataFields.stream()
+                .filter(f -> MetadataAttribute.isRelationColumn(f.name()))
+                .toList();
+            Source src = unresolvedMetadata.source();
+
+            LogicalPlan answered;
+            if (child instanceof UnionAll unionAll) {
+                List<LogicalPlan> branches = unionAll.children().stream().map(b -> answer(b, relationColumns, src, false)).toList();
+                answered = branches.equals(unionAll.children()) ? child : unionAll.replaceChildren(branches);
+            } else {
+                answered = answer(child, relationColumns, src, true);
+            }
+            return answered == child ? unresolvedMetadata : new UnresolvedMetadata(src, answered, metadataFields);
+        }
+
+        private static LogicalPlan answer(LogicalPlan branch, List<NamedExpression> relationColumns, Source src, boolean lone) {
+            if (branch instanceof Subquery == false) {
+                return branch;
+            }
+            Subquery subquery = (Subquery) branch;
+            boolean view = subquery instanceof NamedSubquery;
+            // TODO unwraps a lone subquery just like LogicalPlanBuilder did before
+            LogicalPlan base = lone && view == false ? subquery.child() : subquery;
+            if (relationColumns.isEmpty()) {
+                return base;
+            }
+
+            RelationClass relationClass = view ? RelationClass.VIEW : RelationClass.SUBQUERY;
+            String relationName = view ? ((NamedSubquery) subquery).name() : null;
+            List<Alias> values = new ArrayList<>(relationColumns.size());
+            for (NamedExpression column : relationColumns) {
+                Expression value = switch (column.name()) {
+                    case MetadataAttribute.RELATION_CLASS -> Literal.keyword(src, relationClass.value());
+                    case MetadataAttribute.RELATION_NAME -> relationName == null
+                        ? new Literal(src, null, KEYWORD)
+                        : Literal.keyword(src, relationName);
+                    default -> throw new IllegalStateException("unexpected relation column: " + column.name());
+                };
+                values.add(new Alias(src, column.name(), value));
+            }
+            return new Eval(src, base, values);
+        }
+    }
+
+    private static class UnwrapNamedSubqueries extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+            return plan.transformDown(NamedSubquery.class, UnaryPlan::child);
         }
     }
 

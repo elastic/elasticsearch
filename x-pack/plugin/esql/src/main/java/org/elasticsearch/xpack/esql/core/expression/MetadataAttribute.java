@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.core.expression;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -205,6 +207,24 @@ public final class MetadataAttribute extends TypedAttribute {
 
     public static boolean isSupported(String name) {
         return ATTRIBUTES_MAP.containsKey(name);
+    }
+
+    /** Whether {@code name} is {@link #RELATION_CLASS} or {@link #RELATION_NAME}: a column the relation itself answers. */
+    public static boolean isRelationColumn(String name) {
+        return RELATION_CLASS.equals(name) || RELATION_NAME.equals(name);
+    }
+
+    /**
+     * Whether a {@code METADATA} clause asks for a relation column, either by name or through a wildcard that covers one.
+     */
+    public static boolean requestsRelationColumn(List<? extends NamedExpression> requested) {
+        for (NamedExpression field : requested) {
+            String nameOrPattern = metadataName(field);
+            if (Regex.simpleMatch(nameOrPattern, RELATION_CLASS) || Regex.simpleMatch(nameOrPattern, RELATION_NAME)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static boolean isScoreAttribute(Expression a) {

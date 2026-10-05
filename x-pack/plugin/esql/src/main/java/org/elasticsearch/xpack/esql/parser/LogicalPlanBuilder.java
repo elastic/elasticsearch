@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
+import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -1086,7 +1087,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
             metadataFields.add(new UnresolvedAttribute(source, name));
         }
-        return new UnresolvedExternalRelation(source, tablePath, config, metadataFields);
+        // The config is whatever the user typed. Framework keys are stripped here because the unknown-key check
+        // deliberately ignores them, so nothing else would reject one a user supplied -- and a supplied
+        // _definition_version would otherwise address a registered dataset's cache entries.
+        return new UnresolvedExternalRelation(source, tablePath, ConfigKeyValidator.withoutFrameworkKeys(config), metadataFields);
     }
 
     /**

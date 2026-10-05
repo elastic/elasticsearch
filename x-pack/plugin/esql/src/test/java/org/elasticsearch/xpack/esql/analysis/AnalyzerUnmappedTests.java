@@ -453,12 +453,12 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             """), containsString("Only a single FORK command is supported, but found multiple"));
     }
 
-    public void testLoadModeRejectsSubqueryUnionForkWithDroppedUnmappedField() {
+    public void testLoadModeAllowsSubqueryUnionForkWithDroppedUnmappedField() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        partialMappingTest().statementError(setUnmappedLoad("""
+        partialMappingTest().statement(setUnmappedLoad("""
             FROM (FROM partial_mapping_sample_data),(FROM partial_mapping_sample_data)
             | FORK (DROP unmapped_message) (WHERE true)
-            """), containsString("FORK after subquery is not supported"));
+            """));
     }
 
     public void testNullifyLookupJoinExpressionWithNullifiedFields() {
@@ -627,8 +627,11 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
      * same-named column) — a loaded {@link FieldAttribute}, or a {@code ReferenceAttribute} to it once above a FORK/union. #142033.
      */
     private void expectInSubqueryLeftKeyResolved(String column, String query) {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
-        LogicalPlan plan = partialMappingTest().statement(setUnmappedLoad(query));
+        expectInSubqueryLeftKeyPlan(column, setUnmappedLoad(query));
+    }
+
+    private void expectInSubqueryLeftKeyPlan(String column, String queryWithSet) {
+        LogicalPlan plan = partialMappingTest().statement(queryWithSet);
         assertThat("plan should be fully resolved once the IN left key loads from _source", plan.resolved(), is(true));
         assertThat("column [" + column + "] should be present in the resolved output", Expressions.names(plan.output()), hasItem(column));
         plan.forEachDown(AbstractSubqueryJoin.class, join -> {
@@ -715,8 +718,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         test().statement(setUnmappedLoad("FROM (FROM test),(FROM test),(FROM test)"));
     }
 
-    // Nested subqueries are rejected by checkNestedUnionAlls, which runs at post-optimization (not during analysis), so the
-    // analyzer no longer fails this statement once the subquery+load restriction is lifted (#142033).
+    // Nested subqueries and their optional fields are resolved bottom-up.
     public void testLoadModeAllowsNestedSubqueriesAtAnalysis() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         test().addLanguages()
@@ -742,35 +744,18 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         test().statement(setUnmappedLoad("FROM (FROM test) | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)"));
     }
 
-    // The subquery+load restriction is lifted (#142033), but FORK after a subquery is still rejected (checkFork, post-analysis).
-    public void testLoadModeDisallowsMultipleSubqueriesPlusFork() {
+    public void testLoadModeAllowsMultipleSubqueriesPlusFork() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        test().statementError(
-            setUnmappedLoad("FROM (FROM test),(FROM test) | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)"),
-            allOf(
-                containsString("Found 2 problems"),
-                // error below appears twice
-                containsString("line 1:34: FORK after subquery is not supported")
-            )
-        );
+        test().statement(setUnmappedLoad("FROM (FROM test),(FROM test) | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)"));
     }
 
-    // The subquery+load restriction is lifted (#142033), but FORK after a subquery is still rejected (checkFork, post-analysis).
-    public void testLoadModeDisallowsSubqueryAndFork() {
+    public void testLoadModeAllowsSubqueryAndFork() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var query = setUnmappedLoad("""
             FROM test, (FROM languages | WHERE language_code > 1)
             | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
             """);
-        test().addLanguages()
-            .statementError(
-                query,
-                allOf(
-                    containsString("Found 2 problems"),
-                    // error below appears twice
-                    containsString("line 1:34: FORK after subquery is not supported")
-                )
-            );
+        test().addLanguages().statement(query);
     }
 
     public void testLoadModeAllowsNonBranchingViewEquivalent() {
@@ -1537,26 +1522,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             Tuple.tuple("| DISSECT first_name \"%{a}\"", "DISSECT"),
             Tuple.tuple("| GROK first_name \"%{WORD:a}\"", "GROK"),
             Tuple.tuple("| MV_EXPAND first_name", "MV_EXPAND")
-        )) {
-            test().statementError(
-                setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
-                containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ["
-                        + commandAndLabel.v2()
-                        + "] is not supported yet"
-                )
-            );
-        }
-    }
-
-    /**
-     * WHERE IN / NOT IN rewrite to SemiJoin / AntiJoin; the LOAD_ALL allow-list admits LookupJoin only.
-     */
-    public void testLoadAllModeRejectsInAndNotInSubqueries() {
-        for (var commandAndLabel : List.of(
-            Tuple.tuple("| WHERE emp_no IN (FROM test | KEEP emp_no)", "SemiJoin"),
-            Tuple.tuple("| WHERE emp_no NOT IN (FROM test | KEEP emp_no)", "AntiJoin")
         )) {
             test().statementError(
                 setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),

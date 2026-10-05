@@ -1300,14 +1300,30 @@ public final class GlobExpander {
         // Count objects seen during slot construction so fan-out drains start from a correct baseline.
         AtomicInteger sharedListedCount = new AtomicInteger();
         List<Slot> slots = null;
+        // The folder drain does not apply the partition value filter (nor re-list unfiltered for a schema anchor),
+        // so an active value filter keeps the flat listing, which does both.
+        boolean valueFilterActive = PartitionValueFilter.forGlob(
+            storagePath.globPart(),
+            hints,
+            partitionConfig
+        ) != PartitionValueFilter.NONE;
         try {
-            slots = buildSlots(provider, prefix, PartitionPruningWalk.MAX_DIRECTORY_LISTINGS, sharedListedCount);
+            if (valueFilterActive == false) {
+                slots = buildSlots(provider, prefix, PartitionPruningWalk.MAX_DIRECTORY_LISTINGS, sharedListedCount);
+            }
         } catch (IOException e) {
             logger.debug(() -> "Prefix fan-out for [" + pattern + "] could not build slots; falling back to flat listing", e);
         }
 
-        long folderSlotCount = slots == null ? 0 : slots.stream().filter(s -> s instanceof Slot.Folder).count();
-        if (slots != null && folderSlotCount >= 2) {
+        // buildSlots yields either no folder slots (files only: the slots are the whole listing, so reuse them rather
+        // than listing the prefix again) or at least two.
+        if (slots != null) {
+            try {
+                checkListedObjectsLimit(sharedListedCount.get(), maxListedObjects);
+            } catch (Exception e) {
+                listener.onFailure(e);
+                return;
+            }
             fanOutAsync(
                 pattern,
                 prefix.toString(),
@@ -1328,7 +1344,7 @@ public final class GlobExpander {
                 sharedListedCount
             );
         } else {
-            // Too few directories for fan-out: use the flat drain.
+            // Slots unavailable (listChildren unsupported, budget exhausted, or a value filter): use the flat drain.
             try {
                 listener.onResponse(
                     doExpandGlob(
@@ -1595,6 +1611,9 @@ public final class GlobExpander {
                                         isCancelled
                                     )
                                 );
+                            } else {
+                                // Skipped: record cancellation, or the merge would read the null slot as "no files".
+                                failure.compareAndSet(null, new TaskCancelledException("listing cancelled"));
                             }
                         } catch (Exception e) {
                             failure.compareAndSet(null, e);

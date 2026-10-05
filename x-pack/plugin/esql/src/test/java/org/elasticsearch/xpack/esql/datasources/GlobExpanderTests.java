@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -42,6 +43,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 
@@ -4682,6 +4684,87 @@ public class GlobExpanderTests extends ESTestCase {
         );
         assertThat(e.getMessage(), containsString("esql.external.max_discovered_files"));
         assertThat("cap must fire across workers, not per-worker", totalPulled.get(), lessThan(40));
+    }
+
+    /**
+     * A cancel that lands after every folder drain was submitted, but before any of them runs, must fail the listing
+     * as cancelled. The drains skip their work, so without recording the cancellation the merge would read the empty
+     * slots as "matched no files".
+     */
+    public void testCancelWhileEveryFolderDrainIsInFlightFailsAsCancelled() {
+        TreeStubProvider provider = new TreeStubProvider(wideHiveTree(4, 2, 2));
+        AtomicBoolean cancelled = new AtomicBoolean();
+        List<Runnable> submitted = new ArrayList<>();
+        PlainActionFuture<FileList> future = new PlainActionFuture<>();
+
+        @SuppressWarnings("RegexpMultiline")
+        String pattern = "s3://bucket/data/**/*.parquet";
+        // Concurrency above the folder count: all four drains are submitted (and none has run) before the cancel.
+        GlobExpander.expandAsync(pattern, provider, null, HIVE_ON, MAX, MAX, MAX, MAX, 16, cancelled::get, submitted::add, future);
+        assertEquals("one drain per year= folder", 4, submitted.size());
+        assertFalse(future.isDone());
+
+        cancelled.set(true);
+        submitted.forEach(Runnable::run);
+
+        expectThrows(TaskCancelledException.class, future::actionGet);
+    }
+
+    /**
+     * The folder drain applies no partition value filter, so a glob with an active filter must keep the flat listing:
+     * fanning out would keep every {@code year=} the query excludes.
+     */
+    public void testPartitionValueFilterKeepsTheFlatListingInsteadOfFanningOut() throws Exception {
+        List<StorageEntry> tree = wideHiveTree(4, 2, 2);
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2021));
+        String pattern = "s3://bucket/data/year=*/*/*.parquet";
+
+        TreeStubProvider serial = new TreeStubProvider(tree);
+        serial.childrenUnsupported = true;
+        FileList expected = expandSync(pattern, serial, hints, HIVE_ON, MAX, MAX, MAX, MAX, 4, () -> false);
+
+        TreeStubProvider provider = new TreeStubProvider(tree);
+        FileList actual = expandSync(pattern, provider, hints, HIVE_ON, MAX, MAX, MAX, MAX, 4, () -> false);
+
+        assertFalse(paths(actual).isEmpty());
+        assertTrue("only year=2021 may survive", paths(actual).stream().allMatch(p -> p.contains("/year=2021/")));
+        assertEquals(paths(expected), paths(actual));
+    }
+
+    /** With no subfolder the slots built to probe the prefix are the whole listing: the prefix is not listed again. */
+    public void testFilesOnlyPrefixReusesTheProbedSlotsWithoutAFlatList() throws Exception {
+        TreeStubProvider provider = new TreeStubProvider(
+            List.of(entry("s3://bucket/data/a.parquet", 10), entry("s3://bucket/data/b.parquet", 10), entry("s3://bucket/data/c.csv", 10))
+        );
+
+        FileList result = expandSync("s3://bucket/data/*.parquet", provider, null, HIVE_ON, MAX, MAX, MAX, MAX, 4, () -> false);
+
+        assertEquals(List.of("s3://bucket/data/a.parquet", "s3://bucket/data/b.parquet"), paths(result));
+        assertEquals("no flat LIST of the prefix", List.of(), provider.listedPrefixes);
+    }
+
+    /** Files that sort before, between and after the folders keep their key-order position without any sort of entries. */
+    public void testFilesBesideFoldersKeepKeyOrder() throws Exception {
+        List<StorageEntry> tree = List.of(
+            entry("s3://bucket/data/a.parquet", 10),
+            entry("s3://bucket/data/b/x.parquet", 10),
+            entry("s3://bucket/data/b/y.parquet", 10),
+            entry("s3://bucket/data/c.parquet", 10),
+            entry("s3://bucket/data/d/z.parquet", 10),
+            entry("s3://bucket/data/e.parquet", 10)
+        );
+        TreeStubProvider serial = new TreeStubProvider(tree);
+        serial.childrenUnsupported = true;
+        TreeStubProvider fanOut = new TreeStubProvider(tree);
+
+        @SuppressWarnings("RegexpMultiline")
+        String pattern = "s3://bucket/data/**/*.parquet";
+        FileList expected = expandSync(pattern, serial, null, HIVE_ON, MAX, MAX, MAX, MAX, 4, () -> false);
+        FileList actual = expandSync(pattern, fanOut, null, HIVE_ON, MAX, MAX, MAX, MAX, 4, () -> false);
+
+        assertEquals(6, actual.fileCount());
+        assertEquals(paths(expected), paths(actual));
+        assertEquals("one drain per folder", 2, fanOut.listedPrefixes.size());
     }
 
     /**

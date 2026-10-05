@@ -7,11 +7,14 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -118,6 +121,92 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             });
             assertSame(listing1, listing2);
             assertEquals(1, loaderCalls.get());
+        }
+    }
+
+    /** Concurrent cold misses for one key share a single compute; both callers get the leader's result. */
+    public void testAsyncListingCoalescesConcurrentMisses() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", Map.of(), "");
+            AtomicInteger computeCalls = new AtomicInteger();
+            AtomicReference<ActionListener<FileList>> leaderCompletion = new AtomicReference<>();
+            PlainActionFuture<FileList> leader = new PlainActionFuture<>();
+            PlainActionFuture<FileList> follower = new PlainActionFuture<>();
+
+            service.getOrComputeListingAsync(key, l -> {
+                computeCalls.incrementAndGet();
+                leaderCompletion.set(l);
+            }, leader);
+            service.getOrComputeListingAsync(key, l -> computeCalls.incrementAndGet(), follower);
+            assertEquals("the follower must not start its own listing", 1, computeCalls.get());
+            assertFalse(follower.isDone());
+
+            FileList result = testCompactFileList();
+            leaderCompletion.get().onResponse(result);
+            assertSame(result, leader.actionGet());
+            assertSame(result, follower.actionGet());
+        }
+    }
+
+    /** A cancelled leader fails only itself: the follower re-runs the listing instead of inheriting the cancellation. */
+    public void testAsyncListingFollowerRetriesWhenLeaderIsCancelled() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", Map.of(), "");
+            AtomicReference<ActionListener<FileList>> leaderCompletion = new AtomicReference<>();
+            AtomicInteger followerComputeCalls = new AtomicInteger();
+            PlainActionFuture<FileList> leader = new PlainActionFuture<>();
+            PlainActionFuture<FileList> follower = new PlainActionFuture<>();
+            FileList followerResult = testCompactFileList();
+
+            service.getOrComputeListingAsync(key, leaderCompletion::set, leader);
+            service.getOrComputeListingAsync(key, l -> {
+                followerComputeCalls.incrementAndGet();
+                l.onResponse(followerResult);
+            }, follower);
+            assertFalse(follower.isDone());
+
+            leaderCompletion.get().onFailure(new TaskCancelledException("leader cancelled"));
+
+            expectThrows(TaskCancelledException.class, leader::actionGet);
+            assertSame(followerResult, follower.actionGet());
+            assertEquals(1, followerComputeCalls.get());
+        }
+    }
+
+    /** A non-cancellation failure reaches the follower unchanged, and is neither cached nor left in flight. */
+    public void testAsyncListingFailureIsSharedButNotCachedOrLeaked() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", Map.of(), "");
+            AtomicReference<ActionListener<FileList>> leaderCompletion = new AtomicReference<>();
+            PlainActionFuture<FileList> leader = new PlainActionFuture<>();
+            PlainActionFuture<FileList> follower = new PlainActionFuture<>();
+            service.getOrComputeListingAsync(key, leaderCompletion::set, leader);
+            service.getOrComputeListingAsync(key, l -> fail("follower must not compute"), follower);
+
+            leaderCompletion.get().onFailure(new IllegalStateException("boom"));
+            assertEquals("boom", expectThrows(IllegalStateException.class, leader::actionGet).getMessage());
+            assertEquals("boom", expectThrows(IllegalStateException.class, follower::actionGet).getMessage());
+
+            // A later caller becomes a fresh leader: nothing was cached and no in-flight entry leaked.
+            FileList fresh = testCompactFileList();
+            PlainActionFuture<FileList> next = new PlainActionFuture<>();
+            service.getOrComputeListingAsync(key, l -> l.onResponse(fresh), next);
+            assertSame(fresh, next.actionGet());
+        }
+    }
+
+    /** A compute that throws synchronously must fail its listener and release the key for the next caller. */
+    public void testAsyncListingSynchronousThrowDoesNotLeakInFlightEntry() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", Map.of(), "");
+            PlainActionFuture<FileList> first = new PlainActionFuture<>();
+            service.getOrComputeListingAsync(key, l -> { throw new IllegalStateException("sync boom"); }, first);
+            expectThrows(IllegalStateException.class, first::actionGet);
+
+            FileList fresh = testCompactFileList();
+            PlainActionFuture<FileList> second = new PlainActionFuture<>();
+            service.getOrComputeListingAsync(key, l -> l.onResponse(fresh), second);
+            assertSame(fresh, second.actionGet());
         }
     }
 

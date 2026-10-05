@@ -28,6 +28,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.core.Nullable;
@@ -403,11 +404,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
     }
 
     private interface AutomatonProvider {
-        Automaton getAutomaton(String field);
-
-        default ByteRunAutomaton getRunAutomaton(String field) {
-            return new ByteRunAutomaton(getAutomaton(field));
-        }
+        ByteRunAutomaton getAutomaton(String field, @Nullable CircuitBreaker breaker);
     }
 
     private record PatternAutomatonProvider(String matchPattern, boolean caseInsensitive) implements AutomatonProvider {
@@ -440,18 +437,17 @@ abstract class BinaryDvConfirmedQuery extends Query {
             AutomatonProvider {
         @Override
         public ByteRunAutomaton getAutomaton(String field, @Nullable CircuitBreaker breaker) {
-            return new ByteRunAutomaton(TermRangeQuery.toAutomaton(lower, upper, includeLower, includeUpper));
+            return AutomatonQueries.toByteRunAutomaton(
+                TermRangeQuery.toAutomaton(lower, upper, includeLower, includeUpper),
+                breaker,
+                ChildMemoryCircuitBreaker.CATEGORY_RANGE
+            );
         }
     }
 
     private record FuzzyQueryAutomatonProvider(String searchTerm, FuzzyQuery fuzzyQuery) implements AutomatonProvider {
         @Override
-        public Automaton getAutomaton(String field) {
-            throw new UnsupportedOperationException("Call getRunAutomaton instead");
-        }
-
-        @Override
-        public ByteRunAutomaton getRunAutomaton(String field) {
+        public ByteRunAutomaton getAutomaton(String field, @Nullable CircuitBreaker breaker) {
             return fuzzyQuery.getAutomata().runAutomaton;
         }
     }

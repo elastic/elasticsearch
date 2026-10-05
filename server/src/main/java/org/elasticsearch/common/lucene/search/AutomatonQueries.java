@@ -138,13 +138,7 @@ public class AutomatonQueries {
             ? toCaseInsensitiveWildcardAutomaton(wildcardquery, circuitBreaker)
             : toWildcardAutomaton(wildcardquery, circuitBreaker);
         String label = ChildMemoryCircuitBreaker.CATEGORY_WILDCARD + (caseInsensitive ? "[ci]:" : ":") + wildcardquery.field();
-        long reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
-        circuitBreaker.addEstimateBytesAndMaybeBreak(reservation, label);
-        try {
-            return new ByteRunAutomaton(dfa);
-        } finally {
-            circuitBreaker.addWithoutBreaking(-reservation, label);
-        }
+        return toByteRunAutomaton(dfa, circuitBreaker, label);
     }
 
     /**
@@ -195,12 +189,19 @@ public class AutomatonQueries {
             circuitBreaker,
             ChildMemoryCircuitBreaker.CATEGORY_REGEXP
         );
-        long reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
-        circuitBreaker.addEstimateBytesAndMaybeBreak(reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+        return toByteRunAutomaton(dfa, circuitBreaker, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+    }
+
+    public static ByteRunAutomaton toByteRunAutomaton(Automaton automaton, @Nullable CircuitBreaker circuitBreaker, String category) {
+        if (circuitBreaker == null) {
+            return new ByteRunAutomaton(automaton);
+        }
+        long reservation = new AutomatonQueryCostEstimator(automaton.ramBytesUsed()).estimate();
+        circuitBreaker.addEstimateBytesAndMaybeBreak(reservation, category);
         try {
-            return new ByteRunAutomaton(dfa);
+            return new ByteRunAutomaton(automaton);
         } finally {
-            circuitBreaker.addWithoutBreaking(-reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+            circuitBreaker.addWithoutBreaking(-reservation, category);
         }
     }
 

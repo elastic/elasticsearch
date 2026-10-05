@@ -130,6 +130,26 @@ public class DecompressingStorageObjectTests extends ESTestCase {
         assertEquals(path, decompressing.path());
     }
 
+    public void testKnownLengthStaysReadToEnd() throws IOException {
+        byte[] compressed = gzip("hello\n".getBytes(StandardCharsets.UTF_8));
+        StorageObject rawObject = new BytesStorageObject(compressed, StoragePath.of("file:///data.csv.gz"));
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, new GzipDecompressionCodec());
+        assertEquals(StorageObject.READ_TO_END, decompressing.knownLength());
+        assertEquals(compressed.length, decompressing.delegateKnownLength());
+    }
+
+    public void testDelegateKnownLengthUnknownWhenDelegateUnknown() {
+        StorageObject rawObject = new BytesStorageObject(new byte[] { 1, 2, 3 }, StoragePath.of("file:///data.csv.gz")) {
+            @Override
+            public long knownLength() {
+                return StorageObject.READ_TO_END;
+            }
+        };
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, new GzipDecompressionCodec());
+        assertEquals(StorageObject.READ_TO_END, decompressing.knownLength());
+        assertEquals(StorageObject.READ_TO_END, decompressing.delegateKnownLength());
+    }
+
     public void testMetricsDelegatesToWrapped() {
         StorageObjectMetrics snapshot = new StorageObjectMetrics(3, 555, 1024, 0);
         StorageObject rawObject = new BytesStorageObject(new byte[0], StoragePath.of("file:///x.gz")) {

@@ -23,7 +23,6 @@ import org.gradle.api.problems.Problem;
 import org.gradle.api.problems.ProblemId;
 import org.gradle.api.problems.ProblemReporter;
 import org.gradle.api.problems.Problems;
-import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.SetProperty;
 import org.gradle.api.tasks.CacheableTask;
@@ -128,8 +127,6 @@ public class SplitPackagesAuditTask extends DefaultTask {
     public RegularFileProperty getMarkerFile() {
         return markerFile;
     }
-
-
 
     public abstract static class SplitPackagesAuditAction implements WorkAction<Parameters> {
 
@@ -348,7 +345,6 @@ public class SplitPackagesAuditTask extends DefaultTask {
 
     interface Parameters extends WorkParameters {
         Property<String> getProjectPath();
-
 
         ConfigurableFileCollection getClasspath();
 

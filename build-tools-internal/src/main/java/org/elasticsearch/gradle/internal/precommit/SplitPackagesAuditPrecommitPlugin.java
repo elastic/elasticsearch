@@ -17,7 +17,6 @@ import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 
-
 public class SplitPackagesAuditPrecommitPlugin extends PrecommitPlugin {
     public static final String TASK_NAME = "splitPackagesAudit";
 

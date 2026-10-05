@@ -81,7 +81,15 @@ If you’re using the RPM or Debian packages, you can specify `ES_JAVA_OPTS` in 
 
 ## Set the JVM heap size [set-jvm-heap-size]
 
-By default, {{es}} automatically sets the JVM heap size based on a node’s [roles](/reference/elasticsearch/configuration-reference/node-settings.md#node-roles) and total memory. Using the default sizing is recommended for most production environments.
+By default, {{es}} automatically sets the JVM heap size based on a node’s [roles](/reference/elasticsearch/configuration-reference/node-settings.md#node-roles) and total memory. Using the default sizing is recommended for most production environments.  The default heap sizing uses the following formulas, with a maximum heap limit of 31GB:
+
+* Master-only node
+  * 60% of total system memory
+* Machine Learning-only node
+  * 40% of the first 16GB plus 10% of memory above that when total system memory is more than 16GB
+* Data-only node
+  * 40% of total system memory when less than 1GB, with a minimum of 128MB
+  * 50% of total system memory when 1GB or more
 
 To override the default heap size, set the minimum and maximum heap size settings, `Xms` and `Xmx`. The minimum and maximum values must be the same.
 
@@ -134,7 +142,6 @@ The `ES_JAVA_OPTS` variable overrides all other JVM options. We do not recommend
 ::::{note}
 If you are running {{es}} as a Windows service, you can change the heap size using the service manager. See [Install and run {{es}} as a service on Windows](docs-content://deploy-manage/deploy/self-managed/install-elasticsearch-with-zip-on-windows.md#windows-service).
 ::::
-
 
 
 ## JVM heap dump path setting [heap-dump-path-setting]

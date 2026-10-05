@@ -4669,7 +4669,7 @@ public class GlobExpanderTests extends ESTestCase {
         assertFalse("year=2024 must not be enumerated", provider.enumeratedFiles.stream().anyMatch(p -> p.contains("year=2024")));
     }
 
-    // -- Parallel prefix fan-out (esql-planning#2051) --
+    // -- Parallel prefix fan-out --
 
     /**
      * A wide Hive-shaped tree with a file directly under the root and one directly under each year= folder,

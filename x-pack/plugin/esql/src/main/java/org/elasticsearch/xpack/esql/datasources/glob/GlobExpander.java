@@ -275,7 +275,9 @@ public final class GlobExpander {
     }
 
     /**
-     * Async equivalent of {@link #expandAndCompact(String, StorageProvider, List, Map, StoragePath, int, int, int, ListingExtents, PlanningMemory, BooleanSupplier)}.
+     * Async equivalent of
+     * {@link #expandAndCompact(String, StorageProvider, List, Map, StoragePath, int, int, int, ListingExtents, PlanningMemory,
+     * BooleanSupplier)}.
      * Uses a parallel prefix fan-out (via {@link ThrottledIterator}) when the provider supports key-ordered listing
      * ({@link StorageProvider#listsInKeyOrder()}) and the listing is unbounded. The fan-out submits each folder drain
      * to {@code fanOutExecutor}, so the calling thread is not blocked waiting for the drains to complete; the
@@ -441,7 +443,8 @@ public final class GlobExpander {
     }
 
     /**
-     * Async equivalent of {@link #expand(String, StorageProvider, List, Map, int, int, int, ListingExtents, PlanningMemory, BooleanSupplier)}.
+     * Async equivalent of
+     * {@link #expand(String, StorageProvider, List, Map, int, int, int, ListingExtents, PlanningMemory, BooleanSupplier)}.
      * Uses a parallel prefix fan-out (via {@link ThrottledIterator}) when the provider supports key-ordered listing
      * and the listing is unbounded. Comma-separated paths are always handled synchronously on the calling thread.
      */
@@ -1325,7 +1328,8 @@ public final class GlobExpander {
      * Async counterpart of {@link #doExpandGlob}. All paths except the parallel fan-out run synchronously on
      * the calling thread and complete the listener inline. When the fan-out is eligible
      * ({@link StorageProvider#listsInKeyOrder()}, concurrency &gt; 1, unbounded, a glob that descends, and no
-     * partition value filter), work is dispatched to {@code fanOutExecutor} and the listener fires on the executor thread that finishes last.
+     * partition value filter), work is dispatched to {@code fanOutExecutor} and the listener fires on the executor thread
+     * that finishes last.
      *
      * <p>A glob with an active partition value filter deliberately stays on the flat drain, even though that costs the
      * fan-out: the flat drain runs the partition walk, applies the filter, and re-lists unfiltered to keep a schema

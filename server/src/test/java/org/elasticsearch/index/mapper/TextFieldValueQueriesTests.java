@@ -29,8 +29,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
- * The queries a {@code text} field answers over the values its doc values hold, which match a document's value whole
- * rather than the tokens that value analyzes into.
+ * The queries a {@code text} field answers over the values it keeps as the columnar codec's payload, which match a
+ * document's value whole rather than the tokens that value analyzes into.
  */
 public class TextFieldValueQueriesTests extends MapperServiceTestCase {
 
@@ -40,12 +40,17 @@ public class TextFieldValueQueriesTests extends MapperServiceTestCase {
         assertWholeValueSemantics(columnar(b -> b.field("type", "text")));
     }
 
-    /** A {@code text} field keeping its values outside the columnar modes answers them the same way. */
-    public void testDocValuesTextAnswersOverItsValues() throws IOException {
-        assertWholeValueSemantics(mapper(b -> {
+    /**
+     * Keeping values is not enough: outside the columnar modes they are framed so that a query reads them a document
+     * at a time, which is no better than reading the rows, so the field answers nothing here.
+     */
+    public void testOutsideTheColumnarModesThereAreNoValueQueries() throws IOException {
+        final MapperService mapperService = mapper(b -> {
             b.field("type", "text");
             b.field("doc_values", true);
-        }));
+        });
+        assertTrue(mapperService.fieldType("field").hasDocValues());
+        assertThat(((TextFamilyFieldType) mapperService.fieldType("field")).valueQueries(), nullValue());
     }
 
     /** A field keeping no values has none to answer over. */

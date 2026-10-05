@@ -948,8 +948,9 @@ public final class TextFieldMapper extends FieldMapper {
 
         @Override
         public BinaryDocValuesQueries valueQueries() {
-            // Only the binary framings carry a document's value for a query to read; a sorted set holds its terms.
-            return usesBinaryDocValues() ? BinaryDocValuesQueries.forFormat(binaryFormat()) : null;
+            // The strictly columnar modes write the values as the codec's payload, which a query reads a page at a
+            // time. Any other framing is read a document at a time, which is no better than reading the rows.
+            return usesColumnarPayload() ? BinaryDocValuesQueries.forFormat(binaryFormat()) : null;
         }
 
         /** How this field's binary doc values are framed, and so which decoder reads them back. */

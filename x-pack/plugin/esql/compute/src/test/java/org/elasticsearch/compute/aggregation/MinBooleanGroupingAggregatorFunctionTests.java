@@ -11,12 +11,10 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.operator.blocksource.ListRowsBlockSourceOperator;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.IntStream;
 
@@ -44,23 +42,7 @@ public class MinBooleanGroupingAggregatorFunctionTests extends PartitionedGroupi
 
     @Override
     public void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
-        List<Boolean> values = new ArrayList<>();
-        for (Page page : input) {
-            LongBlock groups = page.getBlock(0);
-            BooleanBlock bools = page.getBlock(1);
-            for (int p = 0; p < page.getPositionCount(); p++) {
-                boolean inGroup = group == null
-                    ? groups.isNull(p)
-                    : groups.isNull(p) == false && groups.getLong(groups.getFirstValueIndex(p)) == group;
-                if (inGroup == false || bools.isNull(p)) {
-                    continue;
-                }
-                int start = bools.getFirstValueIndex(p);
-                for (int i = start; i < start + bools.getValueCount(p); i++) {
-                    values.add(bools.getBoolean(i));
-                }
-            }
-        }
+        List<Boolean> values = input.stream().flatMap(p -> allBooleans(p, group)).toList();
         if (values.isEmpty()) {
             assertThat(result.isNull(position), equalTo(true));
             return;

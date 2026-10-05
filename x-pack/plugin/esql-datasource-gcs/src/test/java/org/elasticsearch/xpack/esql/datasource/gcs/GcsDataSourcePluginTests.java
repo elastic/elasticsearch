@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
+import com.google.cloud.storage.StorageException;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
@@ -140,5 +142,13 @@ public class GcsDataSourcePluginTests extends ESTestCase {
 
     public void testSchemesAreRejectedBySafeForUserMessage() {
         assertFalse(ExternalFailures.safeForUserMessage("gs://bucket/path/file.parquet"));
+    }
+
+    /**
+     * {@link ExternalFailures#composedByStorageClient} withholds this client's text by package; a client exception it
+     * does not recognise would put the remote's refusal (the service account it was refused) in the response.
+     */
+    public void testClientExceptionsAreStorageClientText() {
+        assertTrue(ExternalFailures.composedByStorageClient(new StorageException(403, "Forbidden")));
     }
 }

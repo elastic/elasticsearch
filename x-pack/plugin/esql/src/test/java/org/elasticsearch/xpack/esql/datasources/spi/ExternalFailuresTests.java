@@ -814,6 +814,9 @@ public class ExternalFailuresTests extends ESTestCase {
 
         ElasticsearchException causeless = new ElasticsearchStatusException("throttled", RestStatus.TOO_MANY_REQUESTS);
         assertSame(causeless, ExternalFailures.classify(causeless));
+
+        ElasticsearchException messageless = new ElasticsearchStatusException(null, RestStatus.BAD_REQUEST, new IOException("root"));
+        assertEquals("ElasticsearchStatusException", ExternalFailures.classify(messageless).getMessage());
     }
 
     /**

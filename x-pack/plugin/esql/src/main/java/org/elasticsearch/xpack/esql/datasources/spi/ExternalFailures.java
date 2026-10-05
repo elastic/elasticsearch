@@ -383,17 +383,18 @@ public final class ExternalFailures {
         }
         Level level = e.status().getStatus() >= 500 ? serverFailureLevel : Level.DEBUG;
         logger.log(level, () -> "Failure detached from its cause (cause logged, not forwarded)", e);
+        String message = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
         ElasticsearchException copy;
         if (e instanceof CircuitBreakingException cbe) {
             copy = new CircuitBreakingException(cbe.getMessage(), cbe.getBytesWanted(), cbe.getByteLimit(), cbe.getDurability());
         } else if (e instanceof TaskCancelledException) {
             copy = new TaskCancelledException(e.getMessage());
         } else if (e.status() == RestStatus.BAD_REQUEST) {
-            copy = new ExternalClientException("{}", e.getMessage());
+            copy = new ExternalClientException("{}", message);
         } else if (e.status() == RestStatus.INTERNAL_SERVER_ERROR) {
-            copy = new ExternalServerException("{}", e.getMessage());
+            copy = new ExternalServerException("{}", message);
         } else {
-            copy = new ElasticsearchStatusException("{}", e.status(), e.getMessage());
+            copy = new ElasticsearchStatusException("{}", e.status(), message);
         }
         for (String key : e.getMetadataKeys()) {
             copy.addMetadata(key, e.getMetadata(key));
@@ -554,6 +555,10 @@ public final class ExternalFailures {
      * Packages of the storage and catalog clients the data sources talk to. Their exceptions relay what the remote
      * answered, and a remote's refusal names the identity it was refused: an S3 or KMS denial carries the principal's
      * and the resource's ARNs, a GCS or Azure one the service account or tenant.
+     * <p>
+     * A client missing here has its text forwarded. A data source that adds a storage or catalog client must add its
+     * packages, and pin them with a {@code testClientExceptionsAreStorageClientText} in its module, as the S3, GCS,
+     * Azure and Flight modules do.
      */
     private static final List<String> STORAGE_CLIENT_PACKAGES = List.of(
         "software.amazon.awssdk.",

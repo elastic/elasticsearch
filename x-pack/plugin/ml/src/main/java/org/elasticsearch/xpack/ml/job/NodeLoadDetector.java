@@ -164,7 +164,11 @@ public class NodeLoadDetector {
                     .orElse(RoutingState.STOPPED)
                     .consumesMemory()) {
                     nodeLoad.incNumAssignedNativeInferenceModels();
-                    nodeLoad.incAssignedNativeInferenceMemory(assignment.getTaskParams().estimateMemoryUsageBytes());
+                    // Use the observed-memory-aware estimate so node load reflects real per-allocation usage and stays
+                    // consistent with the assignment planner and the autoscaling resource tracker.
+                    nodeLoad.incAssignedNativeInferenceMemory(
+                        assignment.estimateMemoryUsageBytes(assignment.getTaskParams().getNumberOfAllocations())
+                    );
                 }
             }
         }

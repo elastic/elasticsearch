@@ -136,12 +136,23 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
 
         int findOptimalAllocations(int maxAllocations, long availableMemoryBytes) {
             // As soon as we know the per-allocation memory (whether from model metadata or from observed runtime memory)
-            // we can bound the number of allocations by the memory available on the node. A zero per-deployment base is fine.
+            // we can bound the number of allocations by the memory available on the node.
             if (perAllocationMemoryBytes > 0) {
-                return (int) Math.max(
-                    Math.min(maxAllocations, Math.floorDiv(availableMemoryBytes - estimateMemoryUsageBytes(0), perAllocationMemoryBytes)),
+                // The allocation-independent footprint (per-deployment base + the model definition) must be reserved before
+                // dividing the remaining headroom by the per-allocation cost. estimateMemoryUsageBytes(0) returns 0, so it
+                // cannot be used for this; subtracting it ignored the base and let the bound exceed what canAssign accepts.
+                long fixedOverheadBytes = perDeploymentMemoryBytes + memoryBytes;
+                int candidate = (int) Math.max(
+                    Math.min(maxAllocations, Math.floorDiv(availableMemoryBytes - fixedOverheadBytes, perAllocationMemoryBytes)),
                     0
                 );
+                // estimateMemoryUsageBytes floors the result at the model's base footprint (overhead + 2 * model), so the
+                // linear bound above can still overshoot for small allocation counts. Step down until the full estimate fits,
+                // keeping this guard consistent with the plan's memory constraint (canAssign).
+                while (candidate > 0 && estimateMemoryUsageBytes(candidate) > availableMemoryBytes) {
+                    candidate--;
+                }
+                return candidate;
             }
             return maxAllocations;
         }

@@ -20,6 +20,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class AssignmentPlanTests extends ESTestCase {
 
@@ -75,6 +76,26 @@ public class AssignmentPlanTests extends ESTestCase {
         // regardless of available memory.
         assertThat(m.findOptimalAllocations(7, 1L), equalTo(7));
         assertThat(m.findExcessAllocations(7, 1L), equalTo(7));
+    }
+
+    public void testFindOptimalAllocations_ConsistentWithCanAssign_Issue160923() {
+        // A deployment with a non-zero per-deployment base and model definition, so the allocation-independent footprint
+        // is significant. The previous bound subtracted estimateMemoryUsageBytes(0) (which is 0), ignoring that base, and
+        // could therefore return more allocations than the plan's memory constraint (estimateMemoryUsageBytes / canAssign)
+        // actually allows. See https://github.com/elastic/elasticsearch/issues/160923.
+        long perDeployment = ByteSizeValue.ofMb(100).getBytes();
+        long perAllocation = ByteSizeValue.ofMb(100).getBytes();
+        long modelBytes = ByteSizeValue.ofMb(20).getBytes();
+        Deployment m = new AssignmentPlan.Deployment("m_1", "m_1", modelBytes, 10, 1, Map.of(), 0, null, perDeployment, perAllocation);
+
+        // Exactly enough memory for two allocations; a third would not fit.
+        long availableForTwo = m.estimateMemoryUsageBytes(2);
+        assertThat(m.estimateMemoryUsageBytes(3), greaterThan(availableForTwo));
+
+        int optimal = m.findOptimalAllocations(10, availableForTwo);
+        assertThat(optimal, equalTo(2));
+        // The returned count must never require more memory than is available (i.e. it must be assignable).
+        assertThat(m.estimateMemoryUsageBytes(optimal), lessThanOrEqualTo(availableForTwo));
     }
 
     public void testBuilderCtor_GivenDuplicateNode() {

@@ -170,16 +170,15 @@ class TrainedModelAssignmentRebalancer {
                 // Prefer the per-allocation memory observed at runtime over the a priori estimate from the task params.
                 // This makes the plan's memory guards bound by real usage (which is what prevents ELSER over-allocation).
                 // In mixed-version clusters the observed value is absent (null) and we fall back to the task params to keep
-                // plans stable.
+                // plans stable. The same accessor is used by MlAutoscalingResourceTracker and NodeLoadDetector so that
+                // placement and scaling agree on per-allocation memory.
                 //
                 // Note: the observed value is peak process RSS on the busiest node divided by that node's allocation
                 // count, so it already includes a share of the deployment base overhead. The planner still adds
                 // getPerDeploymentMemoryBytes() (the base) separately, so once observed memory engages the base is
                 // counted slightly more than once. This is an intentional conservative (OOM-safe) bias: it packs models
                 // a little less densely rather than risking under-provisioning from a base that real usage may exceed.
-                long perAllocationMemoryBytes = assignment.getObservedPerAllocationMemoryBytes() != null
-                    ? assignment.getObservedPerAllocationMemoryBytes()
-                    : assignment.getTaskParams().getPerAllocationMemoryBytes();
+                long perAllocationMemoryBytes = assignment.observedOrConfiguredPerAllocationMemoryBytes();
                 return new AssignmentPlan.Deployment(
                     assignment.getDeploymentId(),
                     assignment.getModelId(),

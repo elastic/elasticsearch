@@ -1969,6 +1969,100 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
         );
     }
 
+    /**
+     * Regression test for https://github.com/elastic/elasticsearch/issues/160923. A deployment that is bound by memory
+     * (its observed per-allocation RSS fills a node before its processors do) must keep requesting extra hardware. Each
+     * 2-processor node here runs only a single allocation, so there are spare processors cluster-wide; without the
+     * memory-aware capacity check the tracker would assume the two missing allocations can be placed on those spare
+     * processors and request nothing, leaving the deployment stuck below its target. With the memory check it recognises
+     * that no further allocation fits in the remaining memory and asks for more processors (which brings more nodes, and
+     * therefore more memory).
+     */
+    public void testGetMemoryAndProcessors_MemoryBoundDeploymentRequestsExtraHardware_Issue160923() throws InterruptedException {
+        Map<String, String> nodeAttr = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            "2000000000",
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            "400000000",
+            MachineLearning.ML_CONFIG_VERSION_NODE_ATTR,
+            "7.2.0",
+            MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR,
+            "2.0"
+        );
+
+        long observedPerAllocationMemoryBytes = ByteSizeValue.ofMb(900).getBytes();
+
+        MlAutoscalingContext mlAutoscalingContext = new MlAutoscalingContext(
+            List.of(),
+            List.of(),
+            List.of(),
+            Map.of(
+                "model-1",
+                TrainedModelAssignment.Builder.empty(
+                    new StartTrainedModelDeploymentAction.TaskParams(
+                        "model-1",
+                        "model-1-deployment",
+                        1000, // model bytes
+                        4, // requested allocations
+                        1, // threads per allocation
+                        100,
+                        null,
+                        Priority.NORMAL,
+                        0L,
+                        0L
+                    ),
+                    new AdaptiveAllocationsSettings(true, 1, 4)
+                )
+                    .setObservedPerAllocationMemoryBytes(observedPerAllocationMemoryBytes)
+                    .addRoutingEntry("ml-node-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+                    .addRoutingEntry("ml-node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+                    .build()
+            ),
+            List.of(
+                DiscoveryNodeUtils.builder("ml-node-1")
+                    .name("ml-node-name-1")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                    .attributes(nodeAttr)
+                    .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
+                    .build(),
+                DiscoveryNodeUtils.builder("ml-node-2")
+                    .name("ml-node-name-2")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                    .attributes(nodeAttr)
+                    .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
+                    .build()
+            ),
+            PersistentTasksCustomMetadata.builder().build()
+        );
+        MlMemoryTracker mockTracker = mock(MlMemoryTracker.class);
+
+        long memory = 2000000000;
+        // Per-node model memory that the two already-placed allocations (at the observed per-allocation memory) fully
+        // commit, so no additional allocation can fit in memory even though each node runs only one allocation.
+        long perNodeAvailableModelMemoryInBytes = ByteSizeValue.ofMb(1000).getBytes();
+
+        this.<MlAutoscalingStats>assertAsync(
+            listener -> MlAutoscalingResourceTracker.getMemoryAndProcessors(
+                mlAutoscalingContext,
+                mockTracker,
+                Map.of("ml-node-1", memory, "ml-node-2", memory),
+                perNodeAvailableModelMemoryInBytes,
+                2,
+                MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
+                MlDummyAutoscalingEntity.of(0L, 0),
+                1,
+                listener
+            ),
+            stats -> {
+                assertTrue(
+                    "memory-bound deployment should request extra processors, but got " + stats.wantedExtraProcessors(),
+                    stats.wantedExtraProcessors() > 0
+                );
+                assertTrue(stats.wantedExtraPerNodeNodeProcessors() > 0);
+            }
+        );
+    }
+
     private <T> void assertAsync(Consumer<ActionListener<T>> function, Consumer<T> furtherTests) throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean listenerCalled = new AtomicBoolean(false);

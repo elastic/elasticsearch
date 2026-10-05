@@ -237,7 +237,8 @@ public final class MlAutoscalingResourceTracker {
             TrainedModelAssignment assignment = modelAssignment.getValue();
             final int numberOfRequestedAllocations = assignment.getTaskParams().getNumberOfAllocations();
             final int numberOfThreadsPerAllocation = assignment.getTaskParams().getThreadsPerAllocation();
-            final long estimatedMemoryUsage = assignment.getTaskParams().estimateMemoryUsageBytes();
+            // Use the observed-memory-aware estimate so the tracker's memory accounting matches the assignment planner's.
+            final long estimatedMemoryUsage = assignment.estimateMemoryUsageBytes(numberOfRequestedAllocations);
             final int numberOfTargetAllocationsOnExistingNodes = assignment.totalTargetAllocations();
             final int numMissingAllocations = numberOfRequestedAllocations - numberOfTargetAllocationsOnExistingNodes;
             final int numMissingProcessors = numMissingAllocations * numberOfThreadsPerAllocation;
@@ -264,7 +265,36 @@ public final class MlAutoscalingResourceTracker {
 
             // if not low priority, check processor requirements.
             if (Priority.LOW.equals(modelAssignment.getValue().getTaskParams().getPriority()) == false) {
-                if (numMissingProcessors > numberOfAvailableProcessors) {
+                // Spare processors on existing nodes can only host more allocations if those nodes also have spare memory.
+                // When the per-allocation memory is known (observed at runtime, or configured a priori), cap the existing
+                // processors we treat as usable by what the remaining ML memory can actually host. Without this a
+                // memory-bound deployment (e.g. ELSER whose observed RSS fills a node before its processors) sees spare
+                // processors, requests no extra hardware, and stalls below its target. Adding a node restores both memory
+                // and processors, so capping here keeps extraProcessors positive until the allocations can really fit.
+                // This is a reactive, cluster-wide safeguard that treats free memory as fungible across nodes; the
+                // assignment planner remains authoritative for per-node placement.
+                long perAllocationMemoryBytes = assignment.observedOrConfiguredPerAllocationMemoryBytes();
+                if (perNodeAvailableModelMemoryBytes > 0 && perAllocationMemoryBytes > 0) {
+                    // Reserve only the memory actually committed by already-placed allocations. existingModelMemoryBytes
+                    // includes this deployment's full *requested* footprint (accumulated above), so for an existing
+                    // deployment swap in the footprint of its placed allocations only; otherwise the deployment's own
+                    // not-yet-placed allocations would be reserved against themselves and understate the free memory
+                    // available to host them. Other deployments remain at their requested footprint, a deliberately
+                    // conservative simplification.
+                    long committedModelMemoryBytes = existingModelMemoryBytes;
+                    if (assignment.getNodeRoutingTable().isEmpty() == false) {
+                        committedModelMemoryBytes = committedModelMemoryBytes - estimatedMemoryUsage + assignment.estimateMemoryUsageBytes(
+                            numberOfTargetAllocationsOnExistingNodes
+                        );
+                    }
+                    long freeModelMemoryBytes = Math.max(0L, perNodeAvailableModelMemoryBytes * numberMlNodes - committedModelMemoryBytes);
+                    int memoryAllowedAllocations = (int) Math.min(numMissingAllocations, freeModelMemoryBytes / perAllocationMemoryBytes);
+                    numExistingProcessorsToBeUsed = Math.min(
+                        numExistingProcessorsToBeUsed,
+                        memoryAllowedAllocations * numberOfThreadsPerAllocation
+                    );
+                }
+                if (numMissingProcessors > numExistingProcessorsToBeUsed) {
                     // as assignments can be placed on different nodes, we only need numberOfThreadsPerAllocation here
                     extraProcessors += numMissingProcessors - numExistingProcessorsToBeUsed;
                     extraPerNodeProcessors = Math.max(extraPerNodeProcessors, 1); // if extra processors >0, we need at least 1

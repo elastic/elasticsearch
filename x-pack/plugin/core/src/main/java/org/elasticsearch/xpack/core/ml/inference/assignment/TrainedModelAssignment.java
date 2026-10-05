@@ -319,6 +319,45 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         return observedPerAllocationMemoryBytes;
     }
 
+    /**
+     * @return the per-allocation memory to use for placement and scaling decisions: the memory observed at runtime when
+     * it is available, otherwise the a priori estimate from the task parameters. Using a single accessor keeps the
+     * assignment planner, the autoscaling resource tracker and {@code NodeLoadDetector} consistent with one another.
+     */
+    public long observedOrConfiguredPerAllocationMemoryBytes() {
+        return observedPerAllocationMemoryBytes != null
+            ? observedPerAllocationMemoryBytes
+            : taskParams.getPerAllocationMemoryBytes();
+    }
+
+    /**
+     * Estimates the native memory, in bytes, required to run {@code numberOfAllocations} allocations of this deployment,
+     * preferring the per-allocation memory observed at runtime over the a priori estimate (see
+     * {@link #observedOrConfiguredPerAllocationMemoryBytes()}). This is the shared, observed-memory-aware counterpart of
+     * {@link StartTrainedModelDeploymentAction.TaskParams#estimateMemoryUsageBytes()} and must be used wherever placement
+     * and scaling need memory requirements to agree. The cache adjustment mirrors {@code TaskParams} so behaviour is
+     * unchanged for deployments configured with a cache larger than the model.
+     */
+    public long estimateMemoryUsageBytes(int numberOfAllocations) {
+        if (numberOfAllocations == 0) {
+            return 0;
+        }
+        long estimate = StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
+            taskParams.getModelId(),
+            taskParams.getModelBytes(),
+            taskParams.getPerDeploymentMemoryBytes(),
+            observedOrConfiguredPerAllocationMemoryBytes(),
+            numberOfAllocations
+        );
+        // The estimate already reserves 2x the model bytes; when a larger cache is configured the extra bytes beyond the
+        // model size must be reserved on top (identical to TaskParams#estimateMemoryUsageBytes).
+        long cacheSizeBytes = taskParams.getCacheSizeBytes();
+        if (cacheSizeBytes > taskParams.getModelBytes()) {
+            estimate += cacheSizeBytes - taskParams.getModelBytes();
+        }
+        return estimate;
+    }
+
     public boolean isSatisfied(Set<String> assignableNodeIds) {
         int allocations = nodeRoutingTable.entrySet()
             .stream()

@@ -389,6 +389,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
     private final long slowTranslogUploadLogThresholdMillis;
 
+    private final ThrottledTaskRunner bccMultipartUploadTaskRunner;
+
     public ObjectStoreService(
         Settings settings,
         RepositoriesService repositoriesService,
@@ -420,6 +422,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         this.concurrentMultipartUploads = OBJECT_STORE_CONCURRENT_MULTIPART_UPLOADS.get(settings);
         this.cacheSearchRecoveryBcc = CACHE_SEARCH_RECOVERY_BCC_ENABLED_SETTING.get(settings);
         this.slowTranslogUploadLogThresholdMillis = OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING.get(settings).getMillis();
+        this.bccMultipartUploadTaskRunner = new ThrottledTaskRunner(
+            "bcc-concurrent-multipart-upload",
+            Math.max(1, threadPool.info(StatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax()),
+            threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL)
+        );
     }
 
     @Override
@@ -1742,11 +1749,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                             ),
                             false,
                             // Ensure that one large upload doesn't starve other uploads
-                            new ThrottledTaskRunner(
-                                "bcc-concurrent-multipart-upload",
-                                Math.max(1, threadPool.info(StatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax() / 2),
-                                threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL)
-                            ).asExecutor()
+                            bccMultipartUploadTaskRunner.asExecutor()
+
                         );
                     } finally {
                         virtualBatchedCompoundCommit.decRef();

@@ -157,19 +157,18 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
             .aggregation(AggregationBuilders.terms("agg").field("field.keyword"));
 
         // initial request fills the cache
-        long initialBytesRead = assertBytesReadHeader(new SearchRequest(indexName).source(source).requestCache(true));
-        assertThat(initialBytesRead, greaterThan(0L));
+        long storeBytesReadOnMiss = assertBytesReadHeader(new SearchRequest(indexName).source(source).requestCache(true));
+        assertThat(storeBytesReadOnMiss, greaterThan(0L));
 
-        long cachedBytesRead = assertBytesReadHeader(new SearchRequest(indexName).source(source).requestCache(true));
+        long storeBytesReadOnHit = assertBytesReadHeader(new SearchRequest(indexName).source(source).requestCache(true));
         RequestCacheStats requestCacheStats = indicesAdmin().prepareStats(indexName)
             .setRequestCache(true)
             .get()
             .getTotal()
             .getRequestCache();
-        // the cachedBytesRead search must be the hit, and the initialBytesRead search must be the miss
         assertEquals(1L, requestCacheStats.getHitCount());
         assertEquals(1L, requestCacheStats.getMissCount());
-        assertThat(cachedBytesRead, equalTo(0L));
+        assertThat(storeBytesReadOnHit, equalTo(0L));
     }
 
     public void testDfsQueryThenFetchReadsMoreDataThanQueryThenFetch() throws InterruptedException {

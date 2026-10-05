@@ -155,6 +155,23 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
         assertThat(source.evaluate("data_stream.namespace"), equalTo("default"));
     }
 
+    /** Prometheus treats a label with an empty value as absent: the document carries no such label. A blank value is a value. */
+    public void testRemoteWriteDropsEmptyLabelValues() throws Exception {
+        long timestamp = System.currentTimeMillis();
+        String metricName = "test_empty_label_metric";
+
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(timeSeries(metricName, Map.of("job", "test_job", "missing", "", "blank", " "), sample(1.0, timestamp)))
+            .build();
+
+        sendAndAssertSuccess(writeRequest);
+
+        ObjectPath source = searchSingleDoc(metricName);
+        assertThat(source.evaluate("labels.job"), equalTo("test_job"));
+        assertThat(source.evaluate("labels.missing"), nullValue());
+        assertThat(source.evaluate("labels.blank"), equalTo(" "));
+    }
+
     public void testRemoteWriteIndexesCounterMetric() throws Exception {
         long timestamp = System.currentTimeMillis();
         String metricName = "http_requests_total";

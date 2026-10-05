@@ -13,17 +13,20 @@ import java.io.InputStream;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Counts physical bytes delivered by a leaf {@link StorageObject#newStream} into the profile
- * {@link StorageObjectMetricsCounters} and publishes one APM bytes event at close or abort.
+ * Counts physical bytes delivered to the caller by a leaf {@link StorageObject#newStream} into the
+ * profile {@link StorageObjectMetricsCounters} and publishes those delivered bytes as one APM bytes
+ * event at close or abort.
  * <p>
  * The tally is a plain {@code long} on the producer thread — no per-byte atomics. Live
  * {@code _tasks} snapshots may trail by one {@link #PUBLISH_CHUNK_BYTES} chunk; close/abort
  * flushes the remainder so the query profile is exact. Abort-in-flight slack (bytes sitting
  * in an SDK buffer that never reached {@code read}) is unobservable and excluded.
  * <p>
- * {@link #abort()} publishes the same totals, then runs the optional {@code onAbort} callback
- * instead of {@link InputStream#close()}. S3 sets that callback so the HTTP connection is
+ * {@link #abort()} publishes the same delivered totals, then runs the optional {@code onAbort}
+ * callback instead of {@link InputStream#close()}. S3 sets that callback so the HTTP connection is
  * discarded without draining; other providers omit it and abort falls through to close.
+ * S3 leftover drain after {@code close()} is a second APM bytes event via
+ * {@link StorageObjectMetricsCounters#publishDrainedBytes}; abort skips leftover (no {@code onDrained}).
  */
 public final class MeteredInputStream extends FilterInputStream {
 

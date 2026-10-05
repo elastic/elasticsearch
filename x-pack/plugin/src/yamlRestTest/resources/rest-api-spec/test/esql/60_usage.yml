@@ -573,6 +573,25 @@ took:
   - match: { esql.datasources.config.datasets.count: 0 }
 
 ---
+"Datasource query CPU telemetry":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_contains_datasources_query_cpu ]
+      reason: "Datasource per-component CPU counters present in /_xpack/usage"
+
+  - do: { xpack.usage: { } }
+  # per-component CPU counters (ns); always emitted, values are 0 if no external-source queries ran
+  - exists: esql.datasources.queries.cpu_nanos.execution
+  - exists: esql.datasources.queries.cpu_nanos.read
+  - exists: esql.datasources.queries.cpu_nanos.planning
+  - exists: esql.datasources.queries.cpu_nanos.split_discovery
+  - exists: esql.datasources.queries.cpu_nanos.total
+
+---
 "Datasource inventory marginals":
   - requires:
       test_runner_features: [ capabilities ]

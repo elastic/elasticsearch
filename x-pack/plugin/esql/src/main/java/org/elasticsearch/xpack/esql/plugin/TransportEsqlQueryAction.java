@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.action.EsqlFailureBounds;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -68,6 +69,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.datasources.FederationLicense;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.enrich.AbstractLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
@@ -149,7 +151,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         ActionLoggingFieldsProvider fieldProvider,
         ActivityLogWriterProvider logWriterProvider,
         CrossProjectModeDecider crossProjectModeDecider,
-        QueryMetricsListener metricsCollector
+        QueryMetricsListener metricsCollector,
+        FederationLicense federationLicense
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -162,7 +165,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             client,
             requestExecutor,
             crossProjectModeDecider,
-            Federation.isAvailable(clusterService.getSettings())
+            Federation.isAvailable(clusterService.getSettings()),
+            federationLicense
         );
         exchangeService.registerTransportHandler(transportService);
         this.exchangeService = exchangeService;
@@ -373,7 +377,11 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private void innerExecuteWithLogging(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
-        activityLogger.wrapAndRun(listener, new EsqlLogContextBuilder(task, request), (l) -> innerExecute(task, request, l));
+        activityLogger.wrapAndRun(
+            listener,
+            new EsqlLogContextBuilder(task, request),
+            (l) -> ActionListener.run(EsqlFailureBounds.wrap(l, request.query()), bounded -> innerExecute(task, request, bounded))
+        );
     }
 
     private void innerExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
@@ -457,6 +465,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         executionInfo.externalPlanning().close();
     }
 
+    // Note: this gate differs from the by_outcome.success gate (PlanTelemetry.externalSource()). A
+    // query that prunes all splits (splitsScanned=0, externalWarmAggregates=0) counts as a success
+    // in by_outcome but does not trigger CPU recording — it consumed no external CPU.
     private boolean hasExternalSources(Result result) {
         if (result.executionInfo() == null) {
             return false;
@@ -466,35 +477,49 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     void collectMetrics(Result result) {
-        // Currently, the metrics are only collected when the query has federated sources, since we are not planning
-        // to do any per-query billing otherwise, so no point in collecting the metrics.
-        if (metricsCollector.equals(QueryMetricsListener.NOOP) || hasExternalSources(result) == false) {
-            // don't even bother to create a map
+        if (hasExternalSources(result) == false) {
             return;
         }
+        // ci and qp are safe to fetch here: hasExternalSources() confirmed executionInfo() != null,
+        // and completionInfo() / queryProfile() are plain getters.
+        var ci = result.completionInfo();
+        var qp = result.executionInfo().queryProfile();
+        // APM and phone-home CPU recording — independent of the billing listener so that a failure
+        // here never silently suppresses the billing call below.
         try {
-            var ci = result.completionInfo();
-            var qp = result.executionInfo().queryProfile();
-            metricsCollector.onQueryCompleted(
-                Map.of(
-                    QueryMetricsListener.PLANNING_NANOS,
-                    qp.planning().timeSpan().durationInNanos(),
-                    QueryMetricsListener.CPU_NANOS,
-                    ci.cpuNanos(),
-                    QueryMetricsListener.READ_NANOS,
-                    ci.readNanos(),
-                    QueryMetricsListener.READ_CPU_NANOS,
-                    ci.readCpuNanos(),
-                    QueryMetricsListener.SPLIT_DISCOVERY_NANOS,
-                    qp.splitDiscoveryNanos(),
-                    QueryMetricsListener.SPLIT_DISCOVERY_CPU_NANOS,
-                    qp.splitDiscoveryCpuNanos(),
-                    QueryMetricsListener.BYTES_READ,
-                    ci.bytesRead()
-                )
-            );
+            // planning().timeSpan() is non-null by the time we reach the success path:
+            // EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning calls planning().stop() before execution starts.
+            planExecutor.dataSourceModule()
+                .externalSourceMetrics()
+                .recordQueryCpu(ci.cpuNanos(), ci.readCpuNanos(), qp.planning().timeSpan().durationInNanos(), qp.splitDiscoveryCpuNanos());
         } catch (Exception ex) {
-            logger.warn("failed to collect query metrics", ex);
+            logger.warn("failed to record query CPU metrics", ex);
+        }
+        // Billing listener — unchanged from before; kept in its own try so a CPU-recording failure
+        // above never silently skips this call.
+        if (metricsCollector.equals(QueryMetricsListener.NOOP) == false) {
+            try {
+                metricsCollector.onQueryCompleted(
+                    Map.of(
+                        QueryMetricsListener.PLANNING_NANOS,
+                        qp.planning().timeSpan().durationInNanos(),
+                        QueryMetricsListener.CPU_NANOS,
+                        ci.cpuNanos(),
+                        QueryMetricsListener.READ_NANOS,
+                        ci.readNanos(),
+                        QueryMetricsListener.READ_CPU_NANOS,
+                        ci.readCpuNanos(),
+                        QueryMetricsListener.SPLIT_DISCOVERY_NANOS,
+                        qp.splitDiscoveryNanos(),
+                        QueryMetricsListener.SPLIT_DISCOVERY_CPU_NANOS,
+                        qp.splitDiscoveryCpuNanos(),
+                        QueryMetricsListener.BYTES_READ,
+                        ci.bytesRead()
+                    )
+                );
+            } catch (Exception ex) {
+                logger.warn("failed to collect query metrics", ex);
+            }
         }
     }
 

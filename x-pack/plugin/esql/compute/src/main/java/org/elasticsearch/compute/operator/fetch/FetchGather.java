@@ -91,7 +91,7 @@ public final class FetchGather {
                         concatenate(blockFactory, fetchedPages, c, type, responseRowCount, null),
                         mayContainDuplicates
                     );
-                    case DOC, COMPOSITE, UNKNOWN -> throw new IllegalArgumentException("[" + type + "] columns can't be fetched");
+                    case DOC, DOC_REF, COMPOSITE, UNKNOWN -> throw new IllegalArgumentException("[" + type + "] columns can't be fetched");
                 };
             }
             int rowStart = 0;

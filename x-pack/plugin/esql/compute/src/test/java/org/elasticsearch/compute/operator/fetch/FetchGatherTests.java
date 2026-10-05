@@ -143,7 +143,7 @@ public class FetchGatherTests extends ComputeTestCase {
         return switch (type) {
             case BOOLEAN, INT, LONG, FLOAT, DOUBLE, BYTES_REF -> 3;
             case AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE, DOUBLE_RANGE -> 1;
-            case NULL, DOC, COMPOSITE, UNKNOWN -> throw new AssertionError("random blocks are never [" + type + "]");
+            case NULL, DOC, DOC_REF, COMPOSITE, UNKNOWN -> throw new AssertionError("random blocks are never [" + type + "]");
         };
     }
 

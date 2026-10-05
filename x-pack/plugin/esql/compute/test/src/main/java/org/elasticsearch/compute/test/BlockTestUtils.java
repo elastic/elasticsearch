@@ -110,7 +110,7 @@ public class BlockTestUtils {
             case TDIGEST -> randomTDigest();
             case NULL -> null;
             case COMPOSITE -> throw new IllegalArgumentException("can't make random values for composite");
-            case UNKNOWN -> throw new IllegalArgumentException("can't make random values for [" + e + "]");
+            case DOC_REF, UNKNOWN -> throw new IllegalArgumentException("can't make random values for [" + e + "]");
         };
     }
 

@@ -996,7 +996,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         encoders.add(DEFAULT_SORTABLE);
 
         for (ElementType e : ElementType.values()) {
-            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == EXPONENTIAL_HISTOGRAM || e == TDIGEST) {
+            if (e == ElementType.UNKNOWN || e == ElementType.DOC_REF || e == COMPOSITE || e == EXPONENTIAL_HISTOGRAM || e == TDIGEST) {
                 continue;
             }
             elementTypes.add(e);
@@ -1110,7 +1110,12 @@ public class TopNOperatorTests extends OperatorTestCase {
 
         for (int type = 0; type < blocksCount; type++) {
             ElementType e = randomFrom(ElementType.values());
-            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == AGGREGATE_METRIC_DOUBLE || e == EXPONENTIAL_HISTOGRAM || e == TDIGEST) {
+            if (e == ElementType.UNKNOWN
+                || e == ElementType.DOC_REF
+                || e == COMPOSITE
+                || e == AGGREGATE_METRIC_DOUBLE
+                || e == EXPONENTIAL_HISTOGRAM
+                || e == TDIGEST) {
                 continue;
             }
             elementTypes.add(e);
@@ -1565,6 +1570,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             ElementType e = randomValueOtherThanMany(
                 t -> t == ElementType.UNKNOWN
                     || t == ElementType.DOC
+                    || t == ElementType.DOC_REF
                     || t == COMPOSITE
                     || t == AGGREGATE_METRIC_DOUBLE
                     || t == EXPONENTIAL_HISTOGRAM
@@ -2467,6 +2473,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             ElementType e = randomValueOtherThanMany(
                 t -> t == ElementType.UNKNOWN
                     || t == ElementType.DOC
+                    || t == ElementType.DOC_REF
                     || t == COMPOSITE
                     || t == AGGREGATE_METRIC_DOUBLE
                     || t == EXPONENTIAL_HISTOGRAM
@@ -2597,6 +2604,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             ElementType e = randomValueOtherThanMany(
                 t -> t == ElementType.UNKNOWN
                     || t == ElementType.DOC
+                    || t == ElementType.DOC_REF
                     || t == COMPOSITE
                     || t == AGGREGATE_METRIC_DOUBLE
                     || t == EXPONENTIAL_HISTOGRAM
@@ -2971,6 +2979,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             ElementType e = randomValueOtherThanMany(
                 t -> t == ElementType.UNKNOWN
                     || t == ElementType.DOC
+                    || t == ElementType.DOC_REF
                     || t == ElementType.COMPOSITE
                     || t == ElementType.AGGREGATE_METRIC_DOUBLE
                     || t == ElementType.EXPONENTIAL_HISTOGRAM

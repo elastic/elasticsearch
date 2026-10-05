@@ -506,6 +506,8 @@ public class CsvTestsDataLoader {
         new ViewConfig("text_state_unmapped_view"),
         new ViewConfig("partial_mapping_view"),
         new ViewConfig("partial_mapping_view_message_wildcard"),
+        new ViewConfig("nested_partial_mapping_view"),
+        new ViewConfig("filtered_partial_mapping_view"),
         new ViewConfig("partial_mapping_mv_view"),
         new ViewConfig("view_with_subquery"),
         new ViewConfig("view_row_constants", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),

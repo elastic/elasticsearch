@@ -158,7 +158,10 @@ public class ViewUnionAll extends UnionAll {
             int v = Objects.hashCode(entry.getValue());
             h += k * (v + 1);
         }
-        return Objects.hash(ViewUnionAll.class, h, viewBranchKeys);
+        // Same as UnionAll: once $$unmapped_fields is in the output, output is part of identity.
+        return outputCarriesUnmappedFields()
+            ? Objects.hash(ViewUnionAll.class, h, viewBranchKeys, output())
+            : Objects.hash(ViewUnionAll.class, h, viewBranchKeys);
     }
 
     @Override
@@ -172,6 +175,21 @@ public class ViewUnionAll extends UnionAll {
         }
         ViewUnionAll other = (ViewUnionAll) o;
 
-        return Objects.equals(namedSubqueries, other.namedSubqueries()) && Objects.equals(viewBranchKeys, other.viewBranchKeys);
+        if (Objects.equals(namedSubqueries, other.namedSubqueries()) == false
+            || Objects.equals(viewBranchKeys, other.viewBranchKeys) == false) {
+            return false;
+        }
+        // LOAD_ALL alignment rewrites output without changing children. A parent transformUp drops that
+        // node when equals ignores the output, so the union keeps the pre-alignment schema. Same contract as UnionAll.
+        return (outputCarriesUnmappedFields() || other.outputCarriesUnmappedFields()) == false || Objects.equals(output(), other.output());
+    }
+
+    private boolean outputCarriesUnmappedFields() {
+        for (Attribute attr : output()) {
+            if (attr instanceof UnmappedFieldsAttribute) {
+                return true;
+            }
+        }
+        return false;
     }
 }

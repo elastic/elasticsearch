@@ -18,7 +18,8 @@ public class ParamsUtils {
 
     public static Property<BuildParameterExtension> loadBuildParams(Project project) {
         project.getPluginManager().apply(GlobalBuildInfoPlugin.class);
-        return project.getObjects().property(BuildParameterExtension.class)
+        return project.getObjects()
+            .property(BuildParameterExtension.class)
             .value(project.getExtensions().getByType(BuildParameterExtension.class));
     }
 

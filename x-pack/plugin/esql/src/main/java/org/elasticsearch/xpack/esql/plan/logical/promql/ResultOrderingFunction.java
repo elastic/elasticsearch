@@ -24,6 +24,14 @@ public interface ResultOrderingFunction {
     ResultOrdering resultOrdering(List<Attribute> commandOutput, Configuration configuration);
 
     /**
+     * Columns the function adds to its own output only so that {@link #resultOrdering} can bind an order to them.
+     * Ordering a result must not change its schema, so these are projected away above the injected sort.
+     */
+    default List<Attribute> orderingOnlyColumns() {
+        return List.of();
+    }
+
+    /**
      * @param syntheticKeys aliases to place in an Eval below the OrderBy; all must be synthetic
      */
     record ResultOrdering(List<Alias> syntheticKeys, List<Order> orders) {}

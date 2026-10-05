@@ -14,10 +14,14 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
+import org.elasticsearch.xpack.esql.plan.physical.DocRefEncodeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
+import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
+import org.elasticsearch.xpack.esql.plan.physical.FetchSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 
 import java.util.List;
 
@@ -59,6 +63,13 @@ public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<Ph
                         p.nodeName()
                     )
                 );
+            }
+
+            if (p instanceof DocRefEncodeExec encode) {
+                checkDocRefEncode(encode, failures);
+            }
+            if (p instanceof FetchExec fetch) {
+                checkFetch(fetch, failures);
             }
 
             PlanConsistencyChecker.checkPlan(p, depFailures);
@@ -121,6 +132,42 @@ public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<Ph
         } else {
             failures.add(fail(exchange, "a NODE exchange must wrap a fragment, found [{}]", exchange.child().nodeName()));
         }
+    }
+
+    private static void checkDocRefEncode(DocRefEncodeExec encode, Failures failures) {
+        if (encode.doc().dataType() != DataType.DOC_DATA_TYPE || encode.docRef().dataType() != DataType.DOC_REF) {
+            failures.add(fail(encode, "[{}] must replace a [_doc] with a [DOC_REF] attribute", encode.nodeString()));
+        }
+    }
+
+    /**
+     * The fetch plan runs on the nodes that own the documents, exactly as the coordinator built it: it must produce the
+     * fetched columns and nothing but loading may happen in it.
+     */
+    private static void checkFetch(FetchExec fetch, Failures failures) {
+        if (fetch.docRef().dataType() != DataType.DOC_REF) {
+            failures.add(fail(fetch, "[{}] must read a [DOC_REF] attribute", fetch.nodeString()));
+        }
+        if (fetch.stage() < 1) {
+            failures.add(fail(fetch, "[{}] must have a stage of at least 1", fetch.nodeString()));
+        }
+        if (sameIdsAndTypes(fetch.fetchPlan().output(), fetch.fetchedAttributes()) == false) {
+            failures.add(
+                fail(
+                    fetch,
+                    "fetch plan output {} does not match the fetched attributes {}",
+                    fetch.fetchPlan().output(),
+                    fetch.fetchedAttributes()
+                )
+            );
+        }
+        fetch.fetchPlan().forEachDown(node -> {
+            if (node instanceof ProjectExec == false
+                && node instanceof FieldExtractExec == false
+                && node instanceof FetchSourceExec == false) {
+                failures.add(fail(node, "[{}] cannot run in a fetch plan", node.nodeName()));
+            }
+        });
     }
 
     private static boolean sameIdsAndTypes(List<Attribute> left, List<Attribute> right) {

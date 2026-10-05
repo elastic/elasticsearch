@@ -457,9 +457,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
   method: testMixedOperationsDuringSplitWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/159143
-- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=esql/40_tsdb/PromQL missing field outside the command fails under nullify}
-  issue: https://github.com/elastic/elasticsearch/issues/159152
 - class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
   method: testCohereCompletions {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/159162
@@ -469,9 +466,6 @@ tests:
 - class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
   method: testCohereEmbeddings {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/159164
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
-  method: testReshardWithDisruption
-  issue: https://github.com/elastic/elasticsearch/issues/156004
 - class: org.elasticsearch.xpack.esql.qa.mixed.RemoteFetchTopNIT
   issue: https://github.com/elastic/elasticsearch/issues/159173
 - class: org.elasticsearch.xpack.stateless.StatelessResizeIT
@@ -682,3 +676,18 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.RestoringShardTransformIT
   method: testPutTransformValidationWhileRestoringParks
   issue: https://github.com/elastic/elasticsearch/issues/160991
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
+  method: testStatsBlowupNdjson
+  issue: https://github.com/elastic/elasticsearch/issues/161026
+- class: org.elasticsearch.xpack.search.AsyncSearchErrorTraceIT
+  method: testAsyncSearchFailingQueryErrorTraceFalse
+  issue: https://github.com/elastic/elasticsearch/issues/161045
+- class: org.elasticsearch.xpack.stateless.StatelessPersistedStateIT
+  method: testTransportVersions
+  issue: https://github.com/elastic/elasticsearch/issues/161055
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
+  method: testStatsBlowupCsv
+  issue: https://github.com/elastic/elasticsearch/issues/161060
+- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
+  method: "test {yaml=/36_columnar_sorting/field collapse on columnar keyword field}"
+  issue: https://github.com/elastic/elasticsearch/issues/158753

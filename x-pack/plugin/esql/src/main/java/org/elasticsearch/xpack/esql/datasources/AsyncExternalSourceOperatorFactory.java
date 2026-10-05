@@ -1979,18 +1979,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         ActionListener<Void> completionListener
     ) {
         signal.addListener(ActionListener.wrap(v -> {
-            boolean transferred = false;
+            boolean consumed = false;
             try {
                 if (state.buffer.noMoreInputs() || noFurtherCandidates()) {
+                    consumed = true;
                     page.releaseBlocks();
-                    transferred = true;
                 } else {
+                    consumed = true;
                     deliverPage(page, state);
-                    transferred = true;
                 }
                 producerExecutor.execute(() -> runProducerLoop(state, completionListener));
             } catch (Exception e) {
-                if (transferred == false) {
+                if (consumed == false) {
                     page.releaseBlocks();
                 }
                 clearCurrentIterator(state);
@@ -2009,19 +2009,23 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     private void deliverPage(Page page, AsyncExternalSourceBuffer buffer) {
-        if (sourceLimiter == null) {
+        boolean consumed = false;
+        try {
+            if (sourceLimiter != null) {
+                int accepted = sourceLimiter.tryAccumulateHits(page.getPositionCount());
+                if (accepted == 0) {
+                    return;
+                }
+            }
+            // Full page: downstream LimitOperator slices overflow. Do not slice here.
             page.allowPassingToDifferentDriver();
+            consumed = true;
             buffer.addPage(page);
-            return;
+        } finally {
+            if (consumed == false) {
+                page.releaseBlocks();
+            }
         }
-        int accepted = sourceLimiter.tryAccumulateHits(page.getPositionCount());
-        if (accepted == 0) {
-            page.releaseBlocks();
-            return;
-        }
-        // Full page: downstream LimitOperator slices overflow. Do not slice here.
-        page.allowPassingToDifferentDriver();
-        buffer.addPage(page);
     }
 
     /**

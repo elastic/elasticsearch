@@ -141,6 +141,20 @@ public class ExternalSourceMetricsTests extends ESTestCase {
         assertThat(bytes.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("gcs"));
     }
 
+    public void testPublishDrainedBytesDoesNotMintRequests() {
+        StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
+        counters.attach(metrics, "s3");
+        counters.addBytes(100L);
+        counters.publishDrainedBytes(50L);
+
+        assertThat(counters.snapshot().requestCount(), equalTo(0L));
+        assertThat(counters.snapshot().bytesRead(), equalTo(150L));
+        assertThat(measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_REQUESTS_TOTAL), hasSize(0));
+        Measurement bytes = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_BYTES_READ_TOTAL);
+        assertThat(bytes.getLong(), equalTo(50L));
+        assertThat(bytes.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
+    }
+
     public void testRecordBytesEmitsBytesOnly() {
         metrics.recordBytes(4096L, "azure");
 
@@ -447,6 +461,61 @@ public class ExternalSourceMetricsTests extends ESTestCase {
         metrics.recordParse(3L, 1L, 1L, "s3", "gz");
         Measurement rows = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.PARSE_ROWS_TOTAL);
         assertThat(rows.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("other"));
+    }
+
+    public void testRecordQueryCpuEmitsFourComponentsWithAttributes() {
+        metrics.recordQueryCpu(1_000_000L, 500_000L, 200_000L, 300_000L);
+
+        List<Measurement> measurements = measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERY_CPU_TOTAL);
+        assertThat(measurements, hasSize(4));
+        // verify each component is present with the correct attribute and value
+        long execution = 0, read = 0, planning = 0, splitDiscovery = 0;
+        for (Measurement m : measurements) {
+            String component = (String) m.attributes().get(ExternalSourceMetrics.CPU_COMPONENT_ATTRIBUTE);
+            switch (component) {
+                case ExternalSourceMetrics.CPU_COMPONENT_EXECUTION -> execution = m.getLong();
+                case ExternalSourceMetrics.CPU_COMPONENT_READ -> read = m.getLong();
+                case ExternalSourceMetrics.CPU_COMPONENT_PLANNING -> planning = m.getLong();
+                case ExternalSourceMetrics.CPU_COMPONENT_SPLIT_DISCOVERY -> splitDiscovery = m.getLong();
+                default -> fail("unexpected component: " + component);
+            }
+        }
+        assertThat(execution, equalTo(1_000_000L));
+        assertThat(read, equalTo(500_000L));
+        assertThat(planning, equalTo(200_000L));
+        assertThat(splitDiscovery, equalTo(300_000L));
+    }
+
+    public void testRecordQueryCpuClampsNegativesToZeroAndSkipsThem() {
+        metrics.recordQueryCpu(-1L, 0L, 0L, 0L);
+
+        // execution clamped from -1 to 0; read/planning/splitDiscovery are 0 → nothing emitted
+        assertThat(measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERY_CPU_TOTAL), hasSize(0));
+    }
+
+    public void testRecordQueryCpuSkipsZeroComponents() {
+        metrics.recordQueryCpu(1_000L, 0L, 0L, 0L);
+
+        // only the execution component is non-zero → exactly one measurement
+        List<Measurement> measurements = measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERY_CPU_TOTAL);
+        assertThat(measurements, hasSize(1));
+        assertThat(
+            measurements.get(0).attributes().get(ExternalSourceMetrics.CPU_COMPONENT_ATTRIBUTE),
+            equalTo(ExternalSourceMetrics.CPU_COMPONENT_EXECUTION)
+        );
+        assertThat(measurements.get(0).getLong(), equalTo(1_000L));
+    }
+
+    public void testRecordQueryCpuForwardsToDualSink() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        ExternalSourceMetrics dualSink = new ExternalSourceMetrics(new RecordingMeterRegistry(), acc);
+
+        dualSink.recordQueryCpu(1_000L, 2_000L, 3_000L, 4_000L);
+
+        assertThat(acc.queryCpuNanos(DataSourceUsageAccumulator.CPU_EXECUTION), equalTo(1_000L));
+        assertThat(acc.queryCpuNanos(DataSourceUsageAccumulator.CPU_READ), equalTo(2_000L));
+        assertThat(acc.queryCpuNanos(DataSourceUsageAccumulator.CPU_PLANNING), equalTo(3_000L));
+        assertThat(acc.queryCpuNanos(DataSourceUsageAccumulator.CPU_SPLIT_DISCOVERY), equalTo(4_000L));
     }
 
     private List<Measurement> measurements(InstrumentType type, String name) {

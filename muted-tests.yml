@@ -285,12 +285,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.RestartIT
   method: testRestart {targetCluster=FOLLOWER}
   issue: https://github.com/elastic/elasticsearch/issues/155609
-- class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
-  method: testLookupJoinSame {p0=null}
-  issue: https://github.com/elastic/elasticsearch/issues/155665
-- class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
-  method: testOutputSupportedTypes {p0=LT}
-  issue: https://github.com/elastic/elasticsearch/issues/155694
 - class: org.elasticsearch.search.vectors.IVFKnnByteVectorQueryTests
   method: testScoreMIP
   issue: https://github.com/elastic/elasticsearch/issues/155783

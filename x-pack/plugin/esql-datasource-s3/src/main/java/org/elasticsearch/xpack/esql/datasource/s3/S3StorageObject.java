@@ -43,7 +43,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.MeteredInputStream;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
@@ -230,20 +232,28 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     @Override
     public InputStream newStream() throws IOException {
         long startNanos = System.nanoTime();
-        long bytes = 0L;
         try {
             GetObjectRequest.Builder request = GetObjectRequest.builder().bucket(bucket).key(key);
             ResponseInputStream<GetObjectResponse> response = getObject(request);
             GetObjectResponse metadata = response.response();
             observeResponse(metadata, 0L, false);
-            bytes = metadata.contentLength() != null ? metadata.contentLength() : 0L;
             // Wrap so a transient fault DURING the read surfaces as a typed ExternalUnavailableException the
             // resume loop can act on; the SDK throws a raw (unchecked) S3Exception/SdkException mid-body.
-            return new TransientTypingInputStream(response, path);
+            // contentLength of this response body (or -1 if unknown) so close() can abort a large leftover
+            // and count a small drain. Metered publishes delivered-to-caller; drain leftover is a second
+            // APM bytes event via publishDrainedBytes. Abort skips leftover.
+            long expectedLength = contentLengthOrUnknown(metadata);
+            TransientTypingInputStream typed = new TransientTypingInputStream(
+                response,
+                path,
+                expectedLength,
+                leftover -> counters.publishDrainedBytes(leftover)
+            );
+            return metered(typed, typed::abort);
         } catch (Exception e) {
             throw throwReadFailure("Failed to read object from", e);
         } finally {
-            counters.addRequest(System.nanoTime() - startNanos, bytes);
+            counters.addRequest(System.nanoTime() - startNanos, 0L);
         }
     }
 
@@ -550,6 +560,11 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         return etag.regionMatches(true, 0, "W/", 0, 2) == false;
     }
 
+    /** Response body length, or -1 if Content-Length is missing (close() then aborts). */
+    private static long contentLengthOrUnknown(GetObjectResponse metadata) {
+        return metadata.contentLength() != null ? metadata.contentLength() : -1L;
+    }
+
     @Override
     public InputStream newStream(long position, long length) throws IOException {
         if (position < 0) {
@@ -564,16 +579,21 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         String rangeHeader = toEnd ? Strings.format("bytes=%d-", position) : Strings.format("bytes=%d-%d", position, position + length - 1);
 
         long startNanos = System.nanoTime();
-        long requestedBytes = toEnd ? 0L : length;
         try {
             GetObjectRequest.Builder request = GetObjectRequest.builder().bucket(bucket).key(key).range(rangeHeader);
             ResponseInputStream<GetObjectResponse> response = getObject(request);
             GetObjectResponse metadata = response.response();
             observeResponse(metadata, position, toEnd == false);
-            if (toEnd) {
-                requestedBytes = metadata.contentLength() != null ? metadata.contentLength() : 0L;
-            }
-            return new TransientTypingInputStream(response, path);
+            // contentLength of this response body (the range size), or -1 if unknown.
+            // Metered publishes delivered-to-caller; drain leftover is a second APM bytes event.
+            long expectedLength = contentLengthOrUnknown(metadata);
+            TransientTypingInputStream typed = new TransientTypingInputStream(
+                response,
+                path,
+                expectedLength,
+                leftover -> counters.publishDrainedBytes(leftover)
+            );
+            return metered(typed, typed::abort);
         } catch (Exception e) {
             if (toEnd && e instanceof S3Exception s3e && s3e.statusCode() == 416) {
                 // Open-ended read at/after the end of an (empty or shorter) object: nothing to read. The SPI
@@ -582,7 +602,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             }
             throw throwReadFailure("Range request failed for", e);
         } finally {
-            counters.addRequest(System.nanoTime() - startNanos, requestedBytes);
+            counters.addRequest(System.nanoTime() - startNanos, 0L);
         }
     }
 
@@ -615,7 +635,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
 
     @Override
     public void abortStream(InputStream stream) throws IOException {
-        if (stream instanceof Abortable abortable) {
+        if (stream instanceof MeteredInputStream metered) {
+            metered.abort();
+        } else if (stream instanceof Abortable abortable) {
             abortable.abort();
         } else {
             logger.trace(
@@ -642,7 +664,8 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             try (var response = getObject(request)) {
                 // Drain the 1-byte body so the HTTP connection returns to the pool
                 // instead of being aborted on close.
-                response.readAllBytes();
+                byte[] drained = response.readAllBytes();
+                ExternalPlanningIo.addMetadataGet(drained.length);
                 GetObjectResponse metadata = response.response();
                 cachedExists = true;
                 observeResponse(metadata, 0L, true);
@@ -653,8 +676,10 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             // Content-Range missing (unexpected for S3) — fall back to HEAD for length
             fetchMetadataViaHead();
         } catch (NoSuchKeyException e) {
+            ExternalPlanningIo.addMetadataGet(0);
             setNotFound();
         } catch (S3Exception e) {
+            ExternalPlanningIo.addMetadataGet(0);
             if (mapReadFailure("Failed to read object metadata for", e) instanceof ExternalCredentialsExpiredException expired) {
                 throw expired;
             }
@@ -671,6 +696,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 fetchMetadataViaHead();
             }
         } catch (Exception e) {
+            ExternalPlanningIo.addMetadataGet(0);
             throw throwReadFailure("Failed to read object metadata for", e);
         }
     }
@@ -679,6 +705,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         try {
             HeadObjectRequest request = HeadObjectRequest.builder().bucket(bucket).key(key).build();
             HeadObjectResponse response = s3Client.headObject(request);
+            ExternalPlanningIo.addMetadataGet(0);
 
             cachedExists = true;
             // HEAD is not a GET: it reports whatever generation is current, which is not necessarily the
@@ -707,7 +734,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         try {
             GetObjectRequest.Builder request = GetObjectRequest.builder().bucket(bucket).key(key).range("bytes=0-0");
             try (var response = getObject(request)) {
+                byte[] drained = response.readAllBytes();
                 GetObjectResponse metadata = response.response();
+                ExternalPlanningIo.addMetadataGet(drained.length);
                 cachedExists = true;
                 observeResponse(metadata, 0L, true);
                 if (cachedLength == null) {
@@ -763,6 +792,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         Executor executor,
         ActionListener<DirectReadBuffer> listener
     ) {
+        counters.bindPlanningIo();
         if (s3AsyncClient == null) {
             // Must call super.readBytesAsync (the StorageObject default via AbstractMeteredStorageObject),
             // not super.startReadBytesAsync: this class's readBytesAsync delegates here, so the default

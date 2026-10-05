@@ -19,6 +19,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
@@ -31,7 +32,10 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
+import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
+import org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
@@ -54,6 +58,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -73,7 +79,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.zip.GZIPOutputStream;
 
 public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
@@ -99,6 +108,57 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             }
         } finally {
             executor.shutdownNow();
+        }
+    }
+
+    public void testStopSupplierStopsFurtherChunkDispatch() throws Exception {
+        int lineCount = 500;
+        String content = buildContent(lineCount);
+        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+        AtomicBoolean stop = new AtomicBoolean(false);
+        LineFormatReader reader = new LineFormatReader(512);
+        ExecutorService executor = Executors.newFixedThreadPool(6);
+        try {
+            try (
+                CloseableIterator<Page> iter = StreamingParallelParsingCoordinator.parallelRead(
+                    reader,
+                    stream,
+                    null,
+                    List.of("line"),
+                    50,
+                    4,
+                    executor,
+                    ErrorPolicy.STRICT,
+                    null,
+                    0L,
+                    SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                    null,
+                    -1L,
+                    StripeColumnScope.PROJECTED,
+                    StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                    StreamingSegmentatorAdmission.unbounded(),
+                    new NoopCircuitBreaker("test"),
+                    ExternalReadCounters.NOOP,
+                    null,
+                    stop::get
+                )
+            ) {
+                assertTrue(iter.hasNext());
+                Page first = iter.next();
+                int rows = first.getPositionCount();
+                first.releaseBlocks();
+                stop.set(true);
+                while (iter.hasNext()) {
+                    Page page = iter.next();
+                    rows += page.getPositionCount();
+                    page.releaseBlocks();
+                }
+                assertThat(rows, Matchers.greaterThan(0));
+                assertThat(rows, Matchers.lessThan(lineCount));
+            }
+        } finally {
+            executor.shutdownNow();
+            assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS));
         }
     }
 
@@ -267,6 +327,169 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         List<Map<String, Object>> contributions = sink.getOrDefault(path, List.of());
         boolean poisoned = contributions.stream().anyMatch(m -> Boolean.TRUE.equals(m.get(ExternalStats.CHUNK_HAD_ERRORS_KEY)));
         assertTrue("an early close must publish a poison marker so the reconciler discards the incomplete cover", poisoned);
+    }
+
+    /**
+     * A close that stops the segmentator mid-grow must poison the captured stats even when the consumer has
+     * drained every dispatched chunk. Here the first record is larger than a chunk, so the segmentator is
+     * still growing it when the close begins and nothing has been dispatched yet: the consumer is trivially
+     * "caught up" and the close is not an error, so only the missing EOF shows the file was not fully read.
+     */
+    public void testCloseMidGrowPoisonsCapturedStatsWhenConsumerCaughtUp() throws Exception {
+        assertCloseMidGrowPoisonsCapturedStats(false);
+    }
+
+    /**
+     * Like {@link #testCloseMidGrowPoisonsCapturedStatsWhenConsumerCaughtUp}, but the read after the close ends the
+     * record exactly at the grow buffer's size, so the grow finishes without allocating again after the close.
+     */
+    public void testCloseMidGrowPoisonsCapturedStatsWhenRecordFillsGrowBuffer() throws Exception {
+        assertCloseMidGrowPoisonsCapturedStats(true);
+    }
+
+    /**
+     * With a 512-byte chunk and 256-byte reads, the grow buffer is 1024 bytes and the stream parks before its
+     * fourth read. If {@code recordEndsAtGrowBufferFill}, that read ends the first record with a newline.
+     */
+    private void assertCloseMidGrowPoisonsCapturedStats(boolean recordEndsAtGrowBufferFill) throws Exception {
+        CountDownLatch parked = new CountDownLatch(1);
+        CountDownLatch resume = new CountDownLatch(1);
+        InputStream stream = parkingMidGrowStream(parked, resume, recordEndsAtGrowBufferFill);
+        String path = "mem://streaming-close-before-eof-test";
+        StorageObject file = new TestFileStorageObject(path, Instant.parse("2020-01-01T00:00:00Z"));
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> outer = StreamingParallelParsingCoordinator.parallelRead(
+                new StatsPublishingLineReader(512, path),
+                stream,
+                file,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                sink,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE
+            );
+            CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink);
+            safeAwait(parked);
+            // close() waits for the segmentator, so run it on its own thread and resume the stream only once
+            // close is polling: the segmentator must observe the close mid-grow, not race ahead of it.
+            Thread closer = new Thread(() -> {
+                try {
+                    iter.close();
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            });
+            closer.start();
+            assertBusy(() -> assertEquals(Thread.State.TIMED_WAITING, closer.getState()), 10, TimeUnit.SECONDS);
+            resume.countDown();
+            closer.join(TimeUnit.SECONDS.toMillis(30));
+            assertFalse("close() must return once the segmentator exits", closer.isAlive());
+        } finally {
+            resume.countDown();
+            executor.shutdownNow();
+        }
+
+        List<Map<String, Object>> contributions = sink.getOrDefault(path, List.of());
+        boolean poisoned = contributions.stream().anyMatch(m -> Boolean.TRUE.equals(m.get(ExternalStats.CHUNK_HAD_ERRORS_KEY)));
+        assertTrue("a close mid-grow must publish a poison marker even when the consumer is caught up", poisoned);
+    }
+
+    /**
+     * A close mid-grow is a stop, not a failure: a consumer already parked in {@code hasNext()} when the close
+     * lands must see a clean end of iteration, and no error may be recorded for a later {@code tryAdvance()} to
+     * surface. This is the LIMIT / cancellation path, where the query already has its rows and must not fail.
+     */
+    public void testCloseMidGrowStopsParkedConsumerCleanly() throws Exception {
+        CountDownLatch parked = new CountDownLatch(1);
+        CountDownLatch resume = new CountDownLatch(1);
+        InputStream stream = parkingMidGrowStream(parked, resume, randomBoolean());
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> iter = StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(512),
+                stream,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT
+            );
+            safeAwait(parked);
+            // Nothing has been dispatched yet, so the consumer parks in hasNext() until the close wakes it.
+            PlainActionFuture<Boolean> consumerHasNext = new PlainActionFuture<>();
+            Thread consumer = new Thread(() -> ActionListener.completeWith(consumerHasNext, iter::hasNext));
+            consumer.start();
+            assertBusy(() -> assertEquals(Thread.State.WAITING, consumer.getState()), 10, TimeUnit.SECONDS);
+
+            // close() waits for the segmentator, so run it on its own thread and resume the stream only once
+            // close is polling: the segmentator must observe the close mid-grow, not race ahead of it.
+            Thread closer = new Thread(() -> {
+                try {
+                    iter.close();
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            });
+            closer.start();
+            assertBusy(() -> assertEquals(Thread.State.TIMED_WAITING, closer.getState()), 10, TimeUnit.SECONDS);
+            resume.countDown();
+            closer.join(TimeUnit.SECONDS.toMillis(30));
+            assertFalse("close() must return once the segmentator exits", closer.isAlive());
+
+            assertFalse("a consumer parked across a close mid-grow must see a clean end", safeGet(consumerHasNext));
+            consumer.join(TimeUnit.SECONDS.toMillis(30));
+            // tryAdvance checks recorded errors before the closed short-circuit, so it throws if the close was
+            // stored as a failure.
+            assertNull("a close mid-grow must not be recorded as a failure", iter.tryAdvance());
+        } finally {
+            resume.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * An endless record that parks once mid-grow. With a 512-byte chunk and 256-byte reads, the stream parks
+     * before its fourth read, while the segmentator is growing past the first chunk. If
+     * {@code recordEndsAtGrowBufferFill}, that read ends the first record with a newline.
+     */
+    private static InputStream parkingMidGrowStream(CountDownLatch parked, CountDownLatch resume, boolean recordEndsAtGrowBufferFill) {
+        return new InputStream() {
+            long delivered = 0;
+
+            @Override
+            public int read() {
+                throw new AssertionError("segmentator reads in bulk");
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                if (delivered >= 768 && parked.getCount() > 0) {
+                    parked.countDown();
+                    try {
+                        resume.await();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new IOException("interrupted", e);
+                    }
+                }
+                int n = Math.min(len, 256);
+                Arrays.fill(b, off, off + n, (byte) 'x');
+                if (recordEndsAtGrowBufferFill && delivered == 768) {
+                    b[off + n - 1] = '\n';
+                }
+                delivered += n;
+                return n;
+            }
+        };
     }
 
     public void testParserErrorPropagates() throws Exception {
@@ -565,6 +788,58 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    /**
+     * Closing must unblock the segmentator when it is parked on {@code bufferPool.take()}: once close drains
+     * the page queues, each parser exits and releases its pool buffer, and that release wakes the {@code take()}.
+     * <p>
+     * With parallelism 2 (1 falls back to a sequential read) the pool holds three buffers. Each chunk yields
+     * more single-row pages than its page queue holds, and nothing consumes them, so all three parsers park
+     * holding their buffers and the segmentator has to park on the empty pool. We wait for that from its stack rather than a sleep.
+     */
+    public void testCloseWhileSegmentatorParkedOnBufferPool() throws Exception {
+        byte[] payload = "abc\n".repeat(1024).getBytes(StandardCharsets.UTF_8);
+        // Thread.getAllStackTraces() is forbidden, so track the pool's own threads to inspect their stacks.
+        List<Thread> poolThreads = new CopyOnWriteArrayList<>();
+        ExecutorService executor = Executors.newFixedThreadPool(6, runnable -> {
+            Thread thread = new Thread(runnable);
+            poolThreads.add(thread);
+            return thread;
+        });
+        try {
+            CloseableIterator<Page> iterator = StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(256),
+                new ByteArrayInputStream(payload),
+                List.of("line"),
+                1,
+                2,
+                executor,
+                ErrorPolicy.STRICT
+            );
+            assertBusy(
+                () -> assertTrue("segmentator not parked on the buffer pool", isParkedInTakeOrAllocateBuffer(poolThreads)),
+                5,
+                TimeUnit.SECONDS
+            );
+            long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            iterator.close();
+            assertTrue("close() must return within 10s of segmentator being parked", System.nanoTime() <= deadlineNanos);
+            executor.shutdown();
+            assertTrue("segmentator and parsers must exit after close", executor.awaitTermination(10, TimeUnit.SECONDS));
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private static boolean isParkedInTakeOrAllocateBuffer(List<Thread> threads) {
+        for (Thread thread : threads) {
+            if (thread.getState() == Thread.State.WAITING
+                && Arrays.stream(thread.getStackTrace()).anyMatch(frame -> frame.getMethodName().equals("takeOrAllocateBuffer"))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -1271,6 +1546,247 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         assertEquals("concurrent close must not double-refund the breaker", 0L, breaker.getUsed());
     }
 
+    /**
+     * Tiny known objects must not reserve {@code minimumSegmentSize} (NDJSON 4 MiB) per pooled fill
+     * buffer. Peak charge is the object size times the pool depth ({@code parallelism + 1}).
+     */
+    public void testTinyKnownObjectFillClampsBelowMinimumSegmentSize() throws Exception {
+        int requested = 4 * 1024 * 1024;
+        int parallelism = 2;
+        byte[] payload = repeatingLines(5 * 1024);
+        StorageObject object = new KnownLengthBytesObject(payload, payload.length);
+        PeakTrackingBreaker breaker = new PeakTrackingBreaker();
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            drainParallelRead(new LineFormatReader(requested), new ByteArrayInputStream(payload), object, breaker, executor, parallelism);
+            assertEquals(payload.length, StreamingParallelParsingCoordinator.streamingFillHint(object));
+            assertThat(breaker.peakUsed(), Matchers.greaterThan(0L));
+            assertThat(breaker.peakUsed(), Matchers.lessThanOrEqualTo((long) payload.length * (parallelism + 1)));
+            assertThat(breaker.peakUsed(), Matchers.lessThan((long) requested));
+        } finally {
+            executor.shutdownNow();
+        }
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    /**
+     * Gzip wrappers leave {@code knownLength()} as {@code READ_TO_END}. Fill still clamps to the
+     * compressed delegate size, not the format 4 MiB ceiling.
+     */
+    public void testGzipFillClampsToCompressedHint() throws Exception {
+        int requested = 4 * 1024 * 1024;
+        int parallelism = 2;
+        byte[] original = repeatingLines(32 * 1024);
+        byte[] compressed = gzipBytes(original);
+        assertThat((long) compressed.length, Matchers.lessThan((long) requested));
+        StorageObject raw = new KnownLengthBytesObject(compressed, compressed.length);
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(raw, new GzipDecompressionCodec());
+        assertEquals(StorageObject.READ_TO_END, decompressing.knownLength());
+        assertEquals(compressed.length, decompressing.delegateKnownLength());
+        PeakTrackingBreaker breaker = new PeakTrackingBreaker();
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try (InputStream stream = decompressing.newStream()) {
+            drainParallelRead(new LineFormatReader(requested), stream, decompressing, breaker, executor, parallelism);
+            assertEquals(compressed.length, StreamingParallelParsingCoordinator.streamingFillHint(decompressing));
+            assertThat(breaker.peakUsed(), Matchers.greaterThan(0L));
+            assertThat(breaker.peakUsed(), Matchers.lessThanOrEqualTo((long) compressed.length * (parallelism + 1)));
+            assertThat(breaker.peakUsed(), Matchers.lessThan((long) requested));
+        } finally {
+            executor.shutdownNow();
+        }
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    /**
+     * Unknown object length keeps the format fill size (NDJSON 4 MiB). Regression against clamping
+     * every streaming read to the payload that happens to fit in the first chunk.
+     */
+    public void testUnknownLengthKeepsMinimumSegmentSize() throws Exception {
+        int requested = 4 * 1024 * 1024;
+        int parallelism = 2;
+        byte[] payload = repeatingLines(5 * 1024);
+        StorageObject object = new KnownLengthBytesObject(payload, StorageObject.READ_TO_END);
+        PeakTrackingBreaker breaker = new PeakTrackingBreaker();
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            drainParallelRead(new LineFormatReader(requested), new ByteArrayInputStream(payload), object, breaker, executor, parallelism);
+            assertEquals(StorageObject.READ_TO_END, StreamingParallelParsingCoordinator.streamingFillHint(object));
+            // Lazy pool: one 4 MiB fill today. Bound the pool depth, not a single alloc, in case
+            // takeOrAllocateBuffer starts pre-filling.
+            assertThat(breaker.peakUsed(), Matchers.greaterThanOrEqualTo((long) requested));
+            assertThat(breaker.peakUsed(), Matchers.lessThanOrEqualTo((long) requested * (parallelism + 1)));
+        } finally {
+            executor.shutdownNow();
+        }
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    /**
+     * Filling a buffer exactly used to look like more data follows ({@code bytesRead == buf.length}),
+     * so the only chunk went out with {@code last=false}. Warm COUNT(*) then treated the harvest as
+     * PARTIAL_CHUNK and re-scanned. Peek-after-full-buffer marks EOF so {@code statsFileFinal} is true.
+     */
+    public void testExactFillMarksChunkFileFinal() throws Exception {
+        int chunkSize = 64;
+        String line = "x".repeat(31) + "\n";
+        byte[] content = line.repeat(2).getBytes(StandardCharsets.UTF_8);
+        assertEquals(chunkSize, content.length);
+
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            LineFormatReader reader = new LineFormatReader(chunkSize);
+            List<String> lines = collectLines(
+                StreamingParallelParsingCoordinator.parallelRead(
+                    reader,
+                    new ByteArrayInputStream(content),
+                    List.of("line"),
+                    50,
+                    4,
+                    executor,
+                    ErrorPolicy.STRICT
+                )
+            );
+            assertEquals(List.of(line.trim(), line.trim()), lines);
+            List<FormatReadContext> seen;
+            synchronized (reader.seenContexts) {
+                seen = new ArrayList<>(reader.seenContexts);
+            }
+            assertEquals(1, seen.size());
+            assertTrue("exact-fill EOF must mark the chunk file-final", seen.get(0).statsFileFinal());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * Two exact fills: the first chunk carries a peeked leftover into the second, and only the
+     * second chunk is file-final.
+     */
+    public void testExactMultiChunkFillMarksOnlyLastFileFinal() throws Exception {
+        int chunkSize = 64;
+        String line = "x".repeat(31) + "\n";
+        byte[] content = line.repeat(4).getBytes(StandardCharsets.UTF_8);
+        assertEquals(128, content.length);
+
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            LineFormatReader reader = new LineFormatReader(chunkSize);
+            List<String> lines = collectLines(
+                StreamingParallelParsingCoordinator.parallelRead(
+                    reader,
+                    new ByteArrayInputStream(content),
+                    List.of("line"),
+                    50,
+                    4,
+                    executor,
+                    ErrorPolicy.STRICT
+                )
+            );
+            assertEquals(4, lines.size());
+            List<FormatReadContext> seen;
+            synchronized (reader.seenContexts) {
+                seen = new ArrayList<>(reader.seenContexts);
+            }
+            assertEquals(2, seen.size());
+            long fileFinal = seen.stream().filter(FormatReadContext::statsFileFinal).count();
+            assertEquals("exactly one chunk reaches EOF", 1, fileFinal);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * Exact-fill peek is one extra single-byte {@code read()} that returns {@code -1}. Not an extra
+     * bulk GET past the payload.
+     */
+    public void testExactFillPeekIsOneEofRead() throws Exception {
+        int chunkSize = 64;
+        String line = "x".repeat(31) + "\n";
+        byte[] content = line.repeat(2).getBytes(StandardCharsets.UTF_8);
+        assertEquals(chunkSize, content.length);
+        ReadCallCountingStream counting = new ReadCallCountingStream(new ByteArrayInputStream(content));
+
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            LineFormatReader reader = new LineFormatReader(chunkSize);
+            List<String> lines = collectLines(
+                StreamingParallelParsingCoordinator.parallelRead(reader, counting, List.of("line"), 50, 4, executor, ErrorPolicy.STRICT)
+            );
+            assertEquals(List.of(line.trim(), line.trim()), lines);
+        } finally {
+            executor.shutdownNow();
+        }
+        assertEquals("exact-fill peek is one extra single-byte read", 1, counting.singleByteReads);
+        assertEquals(-1, counting.lastSingleByte);
+        assertEquals("bulk reads must not exceed the payload", content.length, counting.bytesRead);
+    }
+
+    /**
+     * Gzip peek is on the decompressed inflater, not a new range GET. Raw compressed bytes consumed
+     * equal the compressed length; peek must not extra-read the raw GET.
+     */
+    public void testGzipPeekDoesNotExtraReadRawGet() throws Exception {
+        int requested = 4 * 1024 * 1024;
+        int parallelism = 2;
+        StringBuilder sb = new StringBuilder();
+        while (sb.length() < 200_000) {
+            sb.append(randomAlphaOfLength(60)).append('\n');
+        }
+        byte[] original = sb.toString().getBytes(StandardCharsets.UTF_8);
+        int expectedLines = 0;
+        for (byte b : original) {
+            if (b == '\n') {
+                expectedLines++;
+            }
+        }
+        byte[] compressed = gzipBytes(original);
+        assertThat(
+            "fixture must exceed gzip's 64 KiB raw inflater so a premature peek cannot already have EOF'd the GET",
+            (long) compressed.length,
+            Matchers.greaterThan(64L * 1024)
+        );
+        CountingKnownLengthBytesObject raw = new CountingKnownLengthBytesObject(compressed);
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(raw, new GzipDecompressionCodec());
+        PeakTrackingBreaker breaker = new PeakTrackingBreaker();
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        long rows = 0;
+        try (
+            InputStream stream = decompressing.newStream();
+            CloseableIterator<Page> it = StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(requested),
+                stream,
+                decompressing,
+                List.of("line"),
+                50,
+                parallelism,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                StreamingSegmentatorAdmission.unbounded(),
+                breaker,
+                ExternalReadCounters.NOOP,
+                null
+            )
+        ) {
+            while (it.hasNext()) {
+                Page page = it.next();
+                rows += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+        assertEquals(expectedLines, rows);
+        assertEquals("gzip peek must not open a second raw GET", 1, raw.opens.size());
+        assertEquals("peek must not pull extra compressed bytes", compressed.length, raw.opens.get(0).bytesRead);
+    }
+
     private static String buildContent(int lineCount) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < lineCount; i++) {
@@ -1448,6 +1964,424 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    public void testGrowLoopStopsReadingAtRecordCapWithoutNewline() throws Exception {
+        int maxRecordBytes = 8 * 1024;
+        byte[] head = "a\nb\n".getBytes(StandardCharsets.UTF_8);
+        long readLimit = 64L * maxRecordBytes;
+        // The hard read guard detects unbounded consumption without requiring an unbounded fixture.
+        CountingInputStream noNewline = new CountingInputStream(new InputStream() {
+            private long pos;
+
+            @Override
+            public int read() throws IOException {
+                byte[] one = new byte[1];
+                return read(one, 0, 1) < 0 ? -1 : one[0];
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                if (pos >= readLimit) {
+                    throw new IOException("read past the record cap");
+                }
+                int n = (int) Math.min(len, readLimit - pos);
+                for (int i = 0; i < n; i++, pos++) {
+                    b[off + i] = pos < head.length ? head[(int) pos] : (byte) 'x';
+                }
+                return n;
+            }
+        });
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(16));
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> it = parallelReadWithBreaker(new LineFormatReader(64), noNewline, maxRecordBytes, breaker, executor);
+            RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(it));
+            String chain = ex.toString() + (ex.getCause() != null ? " | cause: " + ex.getCause() : "");
+            assertThat(chain, Matchers.containsString("record exceeds [8kb]"));
+            assertThat(noNewline.getBytesRead(), Matchers.lessThanOrEqualTo((long) maxRecordBytes + head.length + 1));
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    public void testGrowBufferIsChargedToBreaker() throws Exception {
+        byte[] bytes = ("y".repeat(16 * 1024) + "\ntail\n").getBytes(StandardCharsets.UTF_8);
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofKb(4));
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> it = parallelReadWithBreaker(
+                new LineFormatReader(64),
+                new ByteArrayInputStream(bytes),
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                breaker,
+                executor
+            );
+            // LimitedBreaker's message does not carry the label; the pool alone fits, so the trip is the grow buffer.
+            expectThrows(CircuitBreakingException.class, () -> collectLines(it));
+            assertEquals(0L, breaker.getUsed());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    public void testGrowBufferChargeIsReleasedOnceParsed() throws Exception {
+        int chunkSize = 64;
+        int parallelism = 2;
+        String big = "y".repeat(16 * 1024);
+        byte[] bytes = (big + "\ntail\n").getBytes(StandardCharsets.UTF_8);
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> it = parallelReadWithBreaker(
+                new LineFormatReader(chunkSize),
+                new ByteArrayInputStream(bytes),
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                breaker,
+                executor
+            );
+            List<String> lines = new ArrayList<>();
+            try (it) {
+                BytesRef scratch = new BytesRef();
+                while (it.hasNext()) {
+                    Page page = it.next();
+                    BytesRefBlock block = page.<BytesRefBlock>getBlock(0);
+                    for (int i = 0; i < block.getPositionCount(); i++) {
+                        lines.add(block.getBytesRef(i, scratch).utf8ToString());
+                    }
+                    page.releaseBlocks();
+                }
+                assertThat(
+                    "only pool buffers may remain charged once every chunk is parsed",
+                    breaker.getUsed(),
+                    Matchers.lessThanOrEqualTo((long) (parallelism + 1) * chunkSize)
+                );
+            }
+            assertEquals(List.of(big, "tail"), lines);
+            assertEquals(0L, breaker.getUsed());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    public void testEarlyCloseReleasesGrowBuffers() throws Exception {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 50; i++) {
+            sb.append("z".repeat(1024)).append(i).append('\n');
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> it = parallelReadWithBreaker(
+                new LineFormatReader(64),
+                new ByteArrayInputStream(bytes),
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                breaker,
+                executor
+            );
+            try (it) {
+                assertTrue(it.hasNext());
+                it.next().releaseBlocks();
+            }
+            assertEquals(0L, breaker.getUsed());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    public void testGrowBufferRegisteredAfterInterruptedCloseIsRefunded() throws Exception {
+        CountDownLatch trimmingCharged = new CountDownLatch(1);
+        CountDownLatch resumeAllocation = new CountDownLatch(1);
+        AtomicInteger growCharges = new AtomicInteger();
+        AtomicInteger schemaCharges = new AtomicInteger();
+        LimitedBreaker breaker = new LimitedBreaker("close-race", ByteSizeValue.ofMb(5)) {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+                if (label.equals("csv_schema_inference")) {
+                    schemaCharges.incrementAndGet();
+                }
+                super.addEstimateBytesAndMaybeBreak(bytes, label);
+                if (label.equals("streaming-parse-grow-buffer") && growCharges.incrementAndGet() == 2) {
+                    // Only scheduling is controlled; CSV inference and its breaker failure use the real reader.
+                    trimmingCharged.countDown();
+                    safeAwait(resumeAllocation);
+                }
+            }
+        };
+        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
+        SegmentableFormatReader reader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("header_row", false, "schema_sample_size", 1)
+        );
+        byte[] bytes = ("x".repeat(1792 * 1024) + "\n").getBytes(StandardCharsets.UTF_8);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try (
+            CloseableIterator<Page> iterator = parallelReadWithBreaker(
+                reader,
+                new ByteArrayInputStream(bytes),
+                List.of("c0"),
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                breaker,
+                executor
+            )
+        ) {
+            safeAwait(trimmingCharged);
+            try {
+                Thread.currentThread().interrupt();
+                iterator.close();
+            } finally {
+                Thread.interrupted();
+            }
+            resumeAllocation.countDown();
+            executor.shutdown();
+            assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
+            assertEquals(0L, breaker.getUsed());
+            assertEquals(0, schemaCharges.get());
+        } finally {
+            resumeAllocation.countDown();
+            executor.shutdownNow();
+            assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testGrowBufferIsRefundedWhenFirstChunkPreparationFails() throws Exception {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(5));
+        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
+        SegmentableFormatReader reader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("header_row", false, "schema_sample_size", 1)
+        );
+        byte[] bytes = ("x".repeat(1792 * 1024) + "\n").getBytes(StandardCharsets.UTF_8);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try (
+            CloseableIterator<Page> iterator = parallelReadWithBreaker(
+                reader,
+                new ByteArrayInputStream(bytes),
+                List.of("c0"),
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                breaker,
+                executor
+            )
+        ) {
+            executor.shutdown();
+            assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
+            ExternalClientException ex = expectThrows(ExternalClientException.class, iterator::hasNext);
+            assertThat(ExceptionsHelper.stackTrace(ex), Matchers.containsString(CircuitBreakingException.class.getSimpleName()));
+            assertEquals(reader.minimumSegmentSize(), breaker.getUsed());
+        } finally {
+            executor.shutdownNow();
+        }
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    public void testGrowCrDelimitedRecordsBelowRecordCap() throws Exception {
+        String payload = "x".repeat(128 * 1024);
+        Settings settings = Settings.builder().put(NdJsonFormatReader.SEGMENT_SIZE_SETTING, "64kb").build();
+        NdJsonFormatReader reader = new NdJsonFormatReader(settings, TEST_BLOCK_FACTORY, null);
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(16));
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            for (String terminator : List.of("\n", "\r", "\r\n")) {
+                StringBuilder content = new StringBuilder();
+                for (int i = 0; i < 3; i++) {
+                    content.append("{\"id\":").append(i).append(",\"name\":\"").append(payload).append("\"}").append(terminator);
+                }
+                int rows = 0;
+                try (
+                    CloseableIterator<Page> iterator = parallelReadWithBreaker(
+                        reader,
+                        new ByteArrayInputStream(content.toString().getBytes(StandardCharsets.UTF_8)),
+                        List.of(),
+                        256 * 1024,
+                        breaker,
+                        executor
+                    )
+                ) {
+                    while (iterator.hasNext()) {
+                        Page page = iterator.next();
+                        rows += page.getPositionCount();
+                        page.releaseBlocks();
+                    }
+                }
+                assertEquals(3, rows);
+                assertEquals(0L, breaker.getUsed());
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    public void testGrowRecordsAtRecordCapAreAccepted() throws Exception {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            for (int maxRecordBytes : new int[] { 64, 128, 130 }) {
+                for (String terminator : List.of("", "\n")) {
+                    String line = "x".repeat(maxRecordBytes - terminator.length());
+                    byte[] bytes = (line + terminator).getBytes(StandardCharsets.UTF_8);
+                    assertEquals(
+                        List.of(line),
+                        collectLines(
+                            parallelReadWithBreaker(
+                                new LineFormatReader(64),
+                                new ByteArrayInputStream(bytes),
+                                maxRecordBytes,
+                                breaker,
+                                executor
+                            )
+                        )
+                    );
+                    assertEquals(0L, breaker.getUsed());
+                }
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    public void testGrowRecordsAboveRecordCapAreRejected() throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            for (int maxRecordBytes : new int[] { 64, 128, 130 }) {
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(maxRecordBytes == 64 ? 64 : 1024 * 1024));
+                for (String terminator : List.of("", "\n")) {
+                    byte[] bytes = ("x".repeat(maxRecordBytes + 1 - terminator.length()) + terminator).getBytes(StandardCharsets.UTF_8);
+                    RuntimeException ex = expectThrows(
+                        RuntimeException.class,
+                        () -> collectLines(
+                            parallelReadWithBreaker(
+                                new LineFormatReader(64),
+                                new ByteArrayInputStream(bytes),
+                                maxRecordBytes,
+                                breaker,
+                                executor
+                            )
+                        )
+                    );
+                    assertThat(ex.getMessage(), Matchers.containsString("record exceeds [" + ByteSizeValue.ofBytes(maxRecordBytes) + "]"));
+                    assertEquals(0L, breaker.getUsed());
+                }
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    public void testQuotedCarriageReturnNearRecordCapWithShortReads() throws Exception {
+        int maxRecordBytes = 130;
+        String value = "x".repeat(maxRecordBytes - 4) + "\r";
+        byte[] bytes = ("\"" + value + "\"\n").getBytes(StandardCharsets.UTF_8);
+        InputStream stream = new ByteArrayInputStream(bytes) {
+            @Override
+            public synchronized int read(byte[] b, int off, int len) {
+                return super.read(b, off, Math.min(len, 1));
+            }
+        };
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            assertEquals(
+                List.of(value),
+                collectLines(parallelReadWithBreaker(new QuoteAwareLineFormatReader(64), stream, maxRecordBytes, breaker, executor))
+            );
+            assertEquals(0L, breaker.getUsed());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private static CloseableIterator<Page> parallelReadWithBreaker(
+        SegmentableFormatReader reader,
+        InputStream stream,
+        int maxRecordBytes,
+        CircuitBreaker breaker,
+        Executor executor
+    ) throws IOException {
+        return parallelReadWithBreaker(reader, stream, List.of("line"), maxRecordBytes, breaker, executor);
+    }
+
+    private static CloseableIterator<Page> parallelReadWithBreaker(
+        SegmentableFormatReader reader,
+        InputStream stream,
+        List<String> projectedColumns,
+        int maxRecordBytes,
+        CircuitBreaker breaker,
+        Executor executor
+    ) throws IOException {
+        return StreamingParallelParsingCoordinator.parallelRead(
+            reader,
+            stream,
+            null,
+            projectedColumns,
+            50,
+            2,
+            executor,
+            ErrorPolicy.STRICT,
+            null,
+            0L,
+            maxRecordBytes,
+            null,
+            -1L,
+            StripeColumnScope.PROJECTED,
+            StreamingParallelParsingCoordinator.WarningSinks.NONE,
+            StreamingSegmentatorAdmission.unbounded(),
+            breaker,
+            ExternalReadCounters.NOOP,
+            null
+        );
+    }
+
+    private static void drainParallelRead(
+        SegmentableFormatReader reader,
+        InputStream stream,
+        StorageObject storageObject,
+        CircuitBreaker breaker,
+        Executor executor,
+        int parallelism
+    ) throws IOException {
+        try (
+            CloseableIterator<Page> it = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                stream,
+                storageObject,
+                List.of("line"),
+                50,
+                parallelism,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                StreamingSegmentatorAdmission.unbounded(),
+                breaker,
+                ExternalReadCounters.NOOP,
+                null
+            )
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+    }
+
+    private static byte[] repeatingLines(int minBytes) {
+        StringBuilder sb = new StringBuilder(minBytes + 16);
+        int i = 0;
+        while (sb.length() < minBytes) {
+            sb.append("line-").append(i++).append('\n');
+        }
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static byte[] gzipBytes(byte[] input) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (GZIPOutputStream gz = new GZIPOutputStream(baos)) {
+            gz.write(input);
+        }
+        return baos.toByteArray();
     }
 
     /**
@@ -1825,6 +2759,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 StreamingSegmentatorAdmission.unbounded(),
                 new NoopCircuitBreaker("streaming-parse-test"),
                 ExternalReadCounters.NOOP,
+                null,
                 null
             );
         assertEquals("rejected segmentator must not open the stream", 0, opens.get());
@@ -2691,6 +3626,135 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public void close() {}
+    }
+
+    private static final class PeakTrackingBreaker extends LimitedBreaker {
+        private final AtomicLong peak = new AtomicLong();
+
+        PeakTrackingBreaker() {
+            super("streaming-fill", ByteSizeValue.ofMb(64));
+        }
+
+        long peakUsed() {
+            return peak.get();
+        }
+
+        private void recordPeak() {
+            peak.updateAndGet(p -> Math.max(p, getUsed()));
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+            super.addEstimateBytesAndMaybeBreak(bytes, label);
+            recordPeak();
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes) {
+            super.addWithoutBreaking(bytes);
+            recordPeak();
+        }
+    }
+
+    private static class KnownLengthBytesObject extends AbstractTestStorageObject {
+        private final byte[] data;
+        private final long knownLength;
+        private final StoragePath path = StoragePath.of("mem://fill-hint");
+
+        KnownLengthBytesObject(byte[] data, long knownLength) {
+            this.data = data;
+            this.knownLength = knownLength;
+        }
+
+        @Override
+        public InputStream newStream() {
+            return new ByteArrayInputStream(data);
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            int len = length == StorageObject.READ_TO_END ? data.length - (int) position : (int) length;
+            return new ByteArrayInputStream(data, (int) position, len);
+        }
+
+        @Override
+        public long length() {
+            return data.length;
+        }
+
+        @Override
+        public long knownLength() {
+            return knownLength;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return Instant.EPOCH;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return path;
+        }
+    }
+
+    private static final class CountingKnownLengthBytesObject extends KnownLengthBytesObject {
+        final List<ReadCallCountingStream> opens = new ArrayList<>();
+
+        CountingKnownLengthBytesObject(byte[] data) {
+            super(data, data.length);
+        }
+
+        @Override
+        public InputStream newStream() {
+            ReadCallCountingStream counting = new ReadCallCountingStream(super.newStream());
+            opens.add(counting);
+            return counting;
+        }
+    }
+
+    private static final class ReadCallCountingStream extends FilterInputStream {
+        int singleByteReads;
+        int lastSingleByte = Integer.MIN_VALUE;
+        long bytesRead;
+
+        ReadCallCountingStream(InputStream in) {
+            super(in);
+        }
+
+        @Override
+        public int read() throws IOException {
+            int b = in.read();
+            singleByteReads++;
+            lastSingleByte = b;
+            if (b >= 0) {
+                bytesRead++;
+            }
+            return b;
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            int n = in.read(b, off, len);
+            if (n > 0) {
+                bytesRead += n;
+            }
+            return n;
+        }
+
+        @Override
+        public long skip(long n) throws IOException {
+            long skipped = in.skip(n);
+            if (skipped > 0) {
+                bytesRead += skipped;
+            }
+            return skipped;
+        }
     }
 
     /** Path + mtime only — bytes come from the decompressed stream, not this object. */

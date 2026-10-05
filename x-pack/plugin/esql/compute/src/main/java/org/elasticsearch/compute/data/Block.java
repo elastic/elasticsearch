@@ -525,6 +525,10 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      * This should be paired with {@link #readTypedBlock(BlockStreamInput)}
      */
     static void writeTypedBlock(Block block, StreamOutput out) throws IOException {
+        if (block instanceof DocRefBlock && out.getTransportVersion().supports(DocRefBlock.ESQL_DOC_REF) == false) {
+            // the planner only plans document references when every node can read them, so this is a planner bug
+            throw new IllegalStateException("can't send document references to a node on [" + out.getTransportVersion() + "]");
+        }
         if (false == supportsAggregateMetricDoubleBlock(out.getTransportVersion()) && block instanceof AggregateMetricDoubleArrayBlock a) {
             block = a.asCompositeBlock();
         }

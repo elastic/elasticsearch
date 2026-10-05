@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 161069
+summary: Reject too-complex patterns with 400 wherever queries are built
+type: bug

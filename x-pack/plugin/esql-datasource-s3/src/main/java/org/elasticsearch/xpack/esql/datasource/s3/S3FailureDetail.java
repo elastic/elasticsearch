@@ -11,6 +11,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.util.Set;
 
@@ -77,12 +78,7 @@ final class S3FailureDetail {
         if (s3 == null) {
             return null;
         }
-        return new ExternalCredentialsExpiredException(
-            cause,
-            "Session credentials expired or invalid {}. Refresh the data source credentials and re-run the query. ({})",
-            action,
-            of(s3)
-        );
+        return new ExternalCredentialsExpiredException(StoragePath.NONE, of(s3), "", cause);
     }
 
     static String of(Throwable cause) {
@@ -90,7 +86,7 @@ final class S3FailureDetail {
             String code = s3.awsErrorDetails() != null ? s3.awsErrorDetails().errorCode() : null;
             return code == null || code.isEmpty() ? "HTTP " + s3.statusCode() : "HTTP " + s3.statusCode() + " " + code;
         }
-        // Falls back to the class name so a null-message fault reads as its type rather than as the literal "null".
-        return cause.getMessage() != null ? cause.getMessage() : cause.getClass().getSimpleName();
+        // Use the class name for non-S3Exception causes: getMessage() may embed a full storage URI.
+        return cause.getClass().getSimpleName();
     }
 }

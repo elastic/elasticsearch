@@ -174,6 +174,17 @@ public final class DataSourceUsageAccumulator {
         bucketTime(storageRequestDuration, Math.max(0L, durationMillis));
     }
 
+    /**
+     * Adds received bytes without incrementing {@link #storageRequests}. Pair with a prior
+     * {@link #recordRequest} that booked the GET at {@code bytes = 0}.
+     */
+    public void recordBytes(Type type, long bytes) {
+        if (bytes <= 0) {
+            return;
+        }
+        storageBytesRead[index(type)].add(bytes);
+    }
+
     public void recordRetry() {
         storageRetries.increment();
     }

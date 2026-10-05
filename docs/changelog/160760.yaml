@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160760
+summary: "ES|QL|DS: Prevent looping failures from OOMing node"
+type: enhancement

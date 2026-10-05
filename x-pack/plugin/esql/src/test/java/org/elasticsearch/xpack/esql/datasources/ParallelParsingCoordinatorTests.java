@@ -32,6 +32,7 @@ import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -39,8 +40,10 @@ import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
@@ -856,6 +859,84 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         );
     }
 
+    public void testStopSupplierSkipsAllSegmentReads() throws Exception {
+        byte[] content = repeatedLines(1200);
+        InMemoryStorageObject probe = new InMemoryStorageObject(content);
+        int segmentCount = ParallelParsingCoordinator.computeSegments(
+            new LineFormatReader(blockFactory()),
+            probe,
+            content.length,
+            REPRO_PARALLELISM,
+            1
+        ).size();
+        assertThat("need enough segments that skip-open is observable", segmentCount, Matchers.greaterThan(4));
+
+        CountingLineReader reader = new CountingLineReader(blockFactory());
+        StreamCountingStorageObject obj = new StreamCountingStorageObject(content);
+        ExecutorService exec = Executors.newFixedThreadPool(REPRO_POOL_SIZE);
+        try (
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
+                reader,
+                obj,
+                List.of("line"),
+                50,
+                REPRO_PARALLELISM,
+                exec,
+                2,
+                () -> true
+            )
+        ) {
+            assertFalse(iter.hasNext());
+        } finally {
+            exec.shutdown();
+            assertTrue("executor did not terminate", exec.awaitTermination(60, TimeUnit.SECONDS));
+        }
+        assertEquals(0, reader.reads.get());
+    }
+
+    public void testStopSupplierAfterFirstPageSkipsLaterSegments() throws Exception {
+        byte[] content = repeatedLines(1200);
+        InMemoryStorageObject probe = new InMemoryStorageObject(content);
+        int segmentCount = ParallelParsingCoordinator.computeSegments(
+            new LineFormatReader(blockFactory()),
+            probe,
+            content.length,
+            REPRO_PARALLELISM,
+            1
+        ).size();
+        assertThat("need enough segments that skip-open is observable", segmentCount, Matchers.greaterThan(4));
+
+        CountingLineReader reader = new CountingLineReader(blockFactory());
+        StreamCountingStorageObject obj = new StreamCountingStorageObject(content);
+        AtomicBoolean stop = new AtomicBoolean(false);
+        ExecutorService exec = Executors.newFixedThreadPool(REPRO_POOL_SIZE);
+        try (
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
+                reader,
+                obj,
+                List.of("line"),
+                50,
+                REPRO_PARALLELISM,
+                exec,
+                2,
+                stop::get
+            )
+        ) {
+            assertTrue(iter.hasNext());
+            iter.next().releaseBlocks();
+            stop.set(true);
+            while (iter.hasNext()) {
+                iter.next().releaseBlocks();
+            }
+        } finally {
+            exec.shutdown();
+            assertTrue("executor did not terminate", exec.awaitTermination(60, TimeUnit.SECONDS));
+        }
+        assertThat(reader.reads.get(), Matchers.greaterThan(0));
+        assertThat(reader.reads.get(), Matchers.lessThanOrEqualTo(4));
+        assertThat(reader.reads.get(), Matchers.lessThan(segmentCount));
+    }
+
     /** Runs the parallel read once with the given {@code maxConcurrentOpenSegments} and returns the peak concurrent opens. */
     private int peakConcurrentOpensFor(byte[] content, int parallelism, int maxConcurrentOpenSegments, int poolSize) throws Exception {
         StreamCountingStorageObject obj = new StreamCountingStorageObject(content);
@@ -1227,11 +1308,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 RestStatus.BAD_REQUEST,
                 ExceptionsHelper.status(ex)
             );
-            assertThat(
-                "the original IOException must remain reachable as the cause",
-                ex.getCause(),
-                Matchers.instanceOf(IOException.class)
-            );
+            assertNull("the IOException must not be chained to prevent caused_by leaks", ex.getCause());
             assertThat("the injected detail must survive end-to-end", ex.getMessage(), Matchers.containsString("injected"));
         } finally {
             exec.shutdown();
@@ -1408,6 +1485,66 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 }
             }
             assertTrue(rows > 0);
+        } finally {
+            exec.shutdown();
+        }
+    }
+
+    /**
+     * COUNT(*) on a file-leading split already carries the coordinator pin. Execution must not call
+     * {@code metadata()} (CsvFormatReader.metadata opens no-arg {@code newStream()}). File width then
+     * comes from {@code FormatReadContext.readSchema}; this test does not wrap the reader to observe
+     * {@code withSchema} separately.
+     */
+    public void testParallelReadEmptyProjectionWithReadSchemaSkipsLeaderMetadata() throws Exception {
+        String header = "a,b,c\n";
+        String row = "1,2,3\n";
+        StringBuilder sb = new StringBuilder(header);
+        while (sb.length() < 3 * 1024 * 1024) {
+            sb.append(row);
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        long headerBytes = header.getBytes(StandardCharsets.UTF_8).length;
+        long rowBytes = row.getBytes(StandardCharsets.UTF_8).length;
+        assertEquals("fixture must be complete rows only", 0, (bytes.length - headerBytes) % rowBytes);
+        long expectedRows = (bytes.length - headerBytes) / rowBytes;
+        NoArgStreamCountingStorageObject obj = new NoArgStreamCountingStorageObject(bytes);
+        SegmentableFormatReader reader = (SegmentableFormatReader) new CsvFormatReader(blockFactory()).withConfig(Map.of("mode", "plain"));
+        assertTrue(
+            "payload must exceed 2*minimumSegmentSize so sequential fallback cannot open no-arg newStream",
+            bytes.length > 2L * reader.minimumSegmentSize()
+        );
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, "a", DataType.INTEGER),
+            new ReferenceAttribute(Source.EMPTY, "b", DataType.INTEGER),
+            new ReferenceAttribute(Source.EMPTY, "c", DataType.INTEGER)
+        );
+
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
+                reader,
+                obj,
+                List.of(),
+                500,
+                4,
+                exec,
+                null,
+                true,
+                true,
+                readSchema,
+                0L
+            );
+            long rows = 0;
+            try (iter) {
+                while (iter.hasNext()) {
+                    Page p = iter.next();
+                    rows += p.getPositionCount();
+                    p.releaseBlocks();
+                }
+            }
+            assertEquals("pinned leader must not open no-arg newStream (metadata GET)", 0, obj.noArgOpens());
+            assertEquals(expectedRows, rows);
         } finally {
             exec.shutdown();
         }
@@ -2196,6 +2333,20 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * A line-oriented format reader that reads newline-delimited text and produces
      * single-column pages with keyword blocks. Used for testing parallel parsing.
      */
+    private static class CountingLineReader extends LineFormatReader {
+        final AtomicInteger reads = new AtomicInteger();
+
+        CountingLineReader(BlockFactory blockFactory) {
+            super(blockFactory);
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            reads.incrementAndGet();
+            return super.read(object, context);
+        }
+    }
+
     private static class LineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
@@ -2617,7 +2768,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class InMemoryStorageObject implements StorageObject {
+    private static class InMemoryStorageObject extends AbstractTestStorageObject {
         private final byte[] data;
 
         InMemoryStorageObject(byte[] data) {
@@ -2656,13 +2807,35 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
+     * Counts no-arg {@code newStream()} opens. {@link CsvFormatReader#metadata} uses that overload;
+     * {@link StreamCountingStorageObject} ignores it, so it cannot prove a metadata GET was skipped.
+     */
+    private static class NoArgStreamCountingStorageObject extends InMemoryStorageObject {
+        private final AtomicInteger noArgOpens = new AtomicInteger();
+
+        NoArgStreamCountingStorageObject(byte[] data) {
+            super(data);
+        }
+
+        @Override
+        public InputStream newStream() {
+            noArgOpens.incrementAndGet();
+            return super.newStream();
+        }
+
+        int noArgOpens() {
+            return noArgOpens.get();
+        }
+    }
+
+    /**
      * In-memory {@link StorageObject} that records the peak number of positional range streams
      * ({@code newStream(pos,len)}) open at once. Segment workers always read through the positional overload
      * (via {@link RangeStorageObject}), so this captures the concurrently-open-segment count. Each open
      * lingers a few ms so overlapping threads coincide -- a plain delay, not a barrier, so it cannot
      * deadlock. The whole-file {@code newStream()} overload is not counted (segment workers never use it).
      */
-    private static class StreamCountingStorageObject implements StorageObject {
+    private static class StreamCountingStorageObject extends AbstractTestStorageObject {
         private final byte[] data;
         private final AtomicInteger open = new AtomicInteger();
         private final AtomicInteger peak = new AtomicInteger();
@@ -2739,7 +2912,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * Segment GETs on parser threads park until {@link #abortStream}. Probe opens on the
      * constructing (test) thread read normally so {@code computeSegments} can finish.
      */
-    private static final class HangingSegmentStorageObject implements StorageObject {
+    private static final class HangingSegmentStorageObject extends AbstractTestStorageObject {
         private final byte[] data;
         private final boolean failLeader;
         private final Thread testThread = Thread.currentThread();

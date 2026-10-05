@@ -14,6 +14,6 @@ import org.elasticsearch.xpack.esql.expression.AbstractUnaryScalarSerializationT
 public class AcosSerializationTests extends AbstractUnaryScalarSerializationTests<Acos> {
     @Override
     protected Acos create(Source source, Expression child) {
-        return new Acos(source, child);
+        return new Acos(source, child, randomBoolean());
     }
 }

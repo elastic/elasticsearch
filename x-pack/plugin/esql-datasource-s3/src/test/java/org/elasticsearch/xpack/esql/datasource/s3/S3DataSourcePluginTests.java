@@ -19,6 +19,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderServices;
 import org.junit.Before;
@@ -178,6 +179,12 @@ public class S3DataSourcePluginTests extends ESTestCase {
         }
     }
 
+    public void testSchemesAreRejectedBySafeForUserMessage() {
+        assertFalse(ExternalFailures.safeForUserMessage("s3://bucket/path/file.parquet"));
+        assertFalse(ExternalFailures.safeForUserMessage("s3a://bucket/path/file.parquet"));
+        assertFalse(ExternalFailures.safeForUserMessage("s3n://bucket/path/file.parquet"));
+    }
+
     public void testS3SchemesShareSameFactory() throws IOException {
         try (S3DataSourcePlugin plugin = new S3DataSourcePlugin()) {
             Map<String, StorageProviderFactory> providers = plugin.storageProviders(services());
@@ -236,11 +243,11 @@ public class S3DataSourcePluginTests extends ESTestCase {
                 org.elasticsearch.common.ValidationException.class,
                 () -> factory.create(Settings.EMPTY, stored)
             );
-            assertThat(readException.getMessage(), containsString("endpoint [http://127.0.0.1:9000] must use https"));
+            assertThat(readException.getMessage(), containsString("endpoint must use https"));
             assertThat(readException.getMessage(), containsString(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY));
             // Connection-test probe refuses the stored endpoint for the same reason.
             var testException = expectThrows(org.elasticsearch.common.ValidationException.class, () -> factory.testConnection(stored));
-            assertThat(testException.getMessage(), containsString("endpoint [http://127.0.0.1:9000] must use https"));
+            assertThat(testException.getMessage(), containsString("endpoint must use https"));
             assertThat(testException.getMessage(), containsString(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY));
         }
     }

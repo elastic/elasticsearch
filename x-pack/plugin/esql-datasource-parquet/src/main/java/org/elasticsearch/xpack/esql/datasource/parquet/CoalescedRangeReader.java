@@ -32,6 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -214,7 +215,7 @@ final class CoalescedRangeReader {
         AtomicReference<Exception> firstFailure = new AtomicReference<>();
 
         // GROUP_HOLD reuses the caller's footer-estimate hold. UNGATED forceAdds. PER_GET
-        // waits per miss; a null hold is never treated as PER_GET.
+        // waits once per call, then charges; a null hold is never treated as PER_GET.
         DirectBufferFactory factory = byteGate == ParquetIoWatermark.ByteGate.GROUP_HOLD
             ? ParquetIoWatermark.bufferFactory(breaker, ioWatermark, admitHold)
             : ParquetIoWatermark.bufferFactory(breaker, ioWatermark, null);
@@ -273,6 +274,7 @@ final class CoalescedRangeReader {
         }
         boolean abortUnissued = false;
         int startedGets = 0;
+        long[] remainingWaitNanos = remainingPerGetWaitNanos(byteGate, ioWatermark);
         for (MergedRange mr : gets) {
             if (abortUnissued) {
                 complete(remaining, firstFailure, buffers, results, listener);
@@ -283,7 +285,7 @@ final class CoalescedRangeReader {
             Releasable handle;
             try {
                 if (byteGate == ParquetIoWatermark.ByteGate.PER_GET && ioWatermark != null) {
-                    assignedHold = ioWatermark.admitWait(mr.length(), requireLease(scope), storageObject.admissionWaitTimeoutMs());
+                    assignedHold = admitPerGet(ioWatermark, requireLease(scope), mr.length(), remainingWaitNanos);
                     rangeFactory = ParquetIoWatermark.bufferFactory(breaker, ioWatermark, assignedHold);
                 }
                 final ParquetIoWatermark.AdmitHold holdForGet = assignedHold;
@@ -421,6 +423,7 @@ final class CoalescedRangeReader {
         DirectBufferFactory factory = ParquetIoWatermark.bufferFactory(breaker, ioWatermark);
         DirectBufferFactory cacheFactory = DirectBufferFactory.forBreaker(breaker);
         StorageIoAffinity.Scope scope = StorageIoAffinity.current();
+        long[] remainingWaitNanos = remainingPerGetWaitNanos(byteGate, ioWatermark);
         try {
             for (MergedRange mr : merged) {
                 FooterCacheHit hit = lookupFooterCacheHit(storageObject, mr, footerBytes);
@@ -435,7 +438,7 @@ final class CoalescedRangeReader {
                 DirectBufferFactory rangeFactory = factory;
                 try {
                     if (byteGate == ParquetIoWatermark.ByteGate.PER_GET && ioWatermark != null) {
-                        perGetHold = ioWatermark.admitWait(mr.length(), requireLease(scope), storageObject.admissionWaitTimeoutMs());
+                        perGetHold = admitPerGet(ioWatermark, requireLease(scope), mr.length(), remainingWaitNanos);
                         rangeFactory = ParquetIoWatermark.bufferFactory(breaker, ioWatermark, perGetHold);
                     }
                     DirectReadBuffer result = rangeFactory.allocateWritableWindow(length);
@@ -483,6 +486,29 @@ final class CoalescedRangeReader {
             throw new IllegalStateException("PER_GET admission requires a row-group lease");
         }
         return scope.lease();
+    }
+
+    /**
+     * One wait budget per coalesced call. Remaining nanos are consumed only inside
+     * {@link ParquetIoWatermark#admitWaitUntil}; cache copies and {@code readBytes} must not eat it.
+     */
+    private static long[] remainingPerGetWaitNanos(ParquetIoWatermark.ByteGate byteGate, @Nullable ParquetIoWatermark ioWatermark) {
+        if (byteGate == ParquetIoWatermark.ByteGate.PER_GET && ioWatermark != null) {
+            return new long[] { TimeUnit.MILLISECONDS.toNanos(ioWatermark.admitWaitMs()) };
+        }
+        return new long[] { 0L };
+    }
+
+    private static ParquetIoWatermark.AdmitHold admitPerGet(
+        ParquetIoWatermark ioWatermark,
+        RowGroupIo lease,
+        long bytes,
+        long[] remainingWaitNanos
+    ) {
+        long deadlineNanos = System.nanoTime() + remainingWaitNanos[0];
+        ParquetIoWatermark.AdmitHold hold = ioWatermark.admitWaitUntil(bytes, lease, deadlineNanos);
+        remainingWaitNanos[0] = Math.max(0L, deadlineNanos - System.nanoTime());
+        return hold;
     }
 
     /**

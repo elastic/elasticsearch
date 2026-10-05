@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 160924
+summary: Revert native RSS accounting; keep trained model stats fields
+type: bug

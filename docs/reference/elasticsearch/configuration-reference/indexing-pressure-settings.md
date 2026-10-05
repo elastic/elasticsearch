@@ -24,7 +24,13 @@ External indexing operations go through three stages: coordinating, primary, and
 
 The `indexing_pressure.memory.limit` node setting restricts the number of bytes available for outstanding indexing requests. This setting defaults to 10% of the heap.
 
-At the beginning of each indexing stage, {{es}} accounts for the bytes consumed by an indexing request. {applies_to}`stack: ga 9.6` {applies_to}`serverless: ga` These bytes include the request payload and an estimate of the request context that is retained for as long as the request is in flight, such as its request headers and the security metadata of the authenticated client. This accounting is only released at the end of the indexing stage. This means that upstream stages will account for the request overheard until all downstream stages are complete. For example, the coordinating request will remain accounted for until primary and replica stages are complete. The primary request will remain accounted for until each in-sync replica has responded to enable replica retries if necessary.
+At the beginning of each indexing stage, {{es}} accounts for the bytes consumed by an indexing request. 
+
+The calculation includes the following elements of the request: 
+* {applies_to}`stack: ga 9.6` The request payload, and an estimate of the request context that is retained for as long as the request is in flight, such as its request headers and the security metadata of the authenticated client. 
+* {applies_to}`stack ga 9.0-9.5` The request payload only.
+
+This accounting is only released at the end of the indexing stage. This means that upstream stages account for the request overheard until all downstream stages are complete. For example, the coordinating request will remain accounted for until primary and replica stages are complete. The primary request remains accounted for until each in-sync replica has responded to enable replica retries if necessary.
 
 A node will start rejecting new indexing work at the coordinating or primary stage when the number of outstanding coordinating, primary, and replica indexing bytes exceeds the configured limit.
 

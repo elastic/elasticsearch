@@ -14,6 +14,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.CheckedFunction;
@@ -36,6 +37,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
@@ -50,6 +52,7 @@ import java.util.Objects;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509ExtendedTrustManager;
 import javax.net.ssl.X509TrustManager;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
@@ -333,8 +336,8 @@ public class CommandLineHttpClient {
     }
 
     /**
-     * Returns a TrustManager to be used in a client SSLContext, which trusts all certificates that are signed
-     * by a specific CA certificate ( identified by its SHA256 fingerprint, {@code pinnedCaCertFingerPrint} )
+     * Returns a TrustManager for a client SSLContext that validates the server certificate chain using the CA identified
+     * by the SHA-256 fingerprint {@code caCertFingerprint} as its trust anchor.
      */
     private static TrustManager fingerprintTrustingTrustManager(String caCertFingerprint) {
         final TrustManager trustManager = new X509TrustManager() {
@@ -350,6 +353,14 @@ public class CommandLineHttpClient {
                 if (MessageDigests.toHexString(sha256.digest()).equals(caCertFingerprint) == false) {
                     throw new CertificateException();
                 }
+                // Use the fingerprint-matched CA as the trust anchor for certificate-chain validation.
+                final X509ExtendedTrustManager pkixTrustManager;
+                try {
+                    pkixTrustManager = KeyStoreUtil.createTrustManager(List.of(caCertFromChain));
+                } catch (GeneralSecurityException e) {
+                    throw new CertificateException("Failed to build trust manager for the pinned CA certificate", e);
+                }
+                pkixTrustManager.checkServerTrusted(chain, authType);
             }
 
             @Override

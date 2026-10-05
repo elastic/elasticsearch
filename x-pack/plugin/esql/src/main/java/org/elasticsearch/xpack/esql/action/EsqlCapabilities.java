@@ -4239,6 +4239,12 @@ public class EsqlCapabilities {
         FULL_TEXT_FUNCTIONS_ON_TIME_SERIES_SOURCE,
 
         /**
+         * {@code SORT _score ASC} pushed down to Lucene sorts ascending. Before this fix the pushed-down sort was always
+         * descending, so with a {@code LIMIT} smaller than the number of matches Lucene kept the highest-scoring documents.
+         */
+        FIX_SCORE_SORT_ASC_PUSHDOWN,
+
+        /**
          * {@code _score} on an external relation seeds {@code 0.0} instead of {@code null}, so a runtime {@code MATCH},
          * {@code MATCH_PHRASE} over it adds its per-row score rather than returning {@code null}. Older nodes still
          * answer {@code null}.

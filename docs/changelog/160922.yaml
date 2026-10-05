@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 156942
+pr: 160922
+summary: Test diversify retriever with string-encoded vectors stored in source
+type: bug

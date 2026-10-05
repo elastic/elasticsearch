@@ -257,8 +257,8 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
 
         @Override
         public void assertRewrite(IndexSearcher indexSearcher, Query query) throws IOException {
-            // Neither columnar high-cardinality binary reader exposes value mode / sparsity (the slot count covers nulls and empty
-            // arrays too, so the skipper can't prove every doc has exactly one value), so the query never rewrites away.
+            // The high-cardinality setups write their doc values through the test's own codec rather than as a column, and only a
+            // column says whether its documents each hold one value, so the query never rewrites away.
             final boolean highCardinality = docValuesMode == DocValuesMode.DOC_VALUES_ONLY_HIGH_CARDINALITY
                 || docValuesMode == DocValuesMode.DOC_VALUES_ONLY_HIGH_CARDINALITY_PAYLOAD;
             if (highCardinality == false && empty == false && multivaluedField == false) {

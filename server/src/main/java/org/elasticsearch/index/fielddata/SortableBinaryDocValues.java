@@ -80,6 +80,15 @@ public abstract class SortableBinaryDocValues {
     }
 
     /**
+     * An iterator over exactly the documents holding one value, where the field knows them without visiting each
+     * document; null otherwise. It shares its position with these values, so a caller takes one or the other.
+     */
+    @Nullable
+    public DocIdSetIterator singleValuedDocs() {
+        return null;
+    }
+
+    /**
      * The order {@link #nextValue()} hands a document's values back in.
      */
     public ValueOrder getValueOrder() {

@@ -183,6 +183,11 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
     }
 
     @Override
+    public int docIDRunEnd() throws IOException {
+        return iterator.docIDRunEnd();
+    }
+
+    @Override
     public long cost() {
         return iterator.cost();
     }

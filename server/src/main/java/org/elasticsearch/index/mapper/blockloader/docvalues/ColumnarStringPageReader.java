@@ -77,13 +77,13 @@ final class ColumnarStringPageReader implements Releasable {
     }
 
     /** Turns a page of a string column into a block, in whichever of the shapes the page arrived. */
-    private static final class PageSink implements StringBlockSink {
+    static final class PageSink implements StringBlockSink {
 
         private BlockLoader.BlockFactory factory;
-        private BlockLoader.Block block;
+        BlockLoader.Block block;
 
         /** Points the sink at the factory the next page builds with; held per reader, not per page. */
-        private PageSink forPage(BlockLoader.BlockFactory factory) {
+        PageSink forPage(BlockLoader.BlockFactory factory) {
             this.factory = factory;
             this.block = null;
             return this;

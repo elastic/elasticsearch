@@ -62,6 +62,7 @@ public class ColumnarKeywordSingleValueCheckIT extends AbstractEsqlIntegTestCase
             }
             flushAndMerge(index);
             assertThat(index, pushedQueries(index), everyItem(not(containsString(CHECK))));
+            assertThat(index, matching(index), equalTo(docs - (docs + 3) / 5));
         }
     }
 
@@ -71,15 +72,19 @@ public class ColumnarKeywordSingleValueCheckIT extends AbstractEsqlIntegTestCase
             final String index = "sparse_" + multiValue;
             createIndex(index, multiValue);
             final int docs = between(20, 200);
+            int expected = 0;
             for (int doc = 0; doc < docs; doc++) {
                 if (doc % 4 == 0) {
                     prepareIndex(index).setSource("other", doc).get();
                 } else {
                     prepareIndex(index).setSource("kw", "term-" + (doc % 5)).get();
+                    expected += doc % 5 == 1 ? 0 : 1;
                 }
             }
             flushAndMerge(index);
             assertThat(index, pushedQueries(index), hasItem(containsString(CHECK)));
+            // A document without the field is not one the filter keeps, which is what the check is there to say.
+            assertThat(index, matching(index), equalTo(expected));
         }
     }
 
@@ -99,6 +104,13 @@ public class ColumnarKeywordSingleValueCheckIT extends AbstractEsqlIntegTestCase
     private void flushAndMerge(String index) {
         indicesAdmin().prepareForceMerge(index).setMaxNumSegments(1).setFlush(true).get();
         indicesAdmin().prepareRefresh(index).get();
+    }
+
+    /** How many documents the filter keeps. */
+    private int matching(String index) {
+        try (EsqlQueryResponse response = run("FROM " + index + " | WHERE kw != \"term-1\" | STATS c = COUNT(*)")) {
+            return Math.toIntExact((long) response.values().next().next());
+        }
     }
 
     /** The Lucene queries a filter on the keyword ran as, after rewriting. */

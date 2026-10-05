@@ -272,6 +272,11 @@ public final class SingleValueMatchQuery extends Query {
                 ScoreMode scoreMode
             ) throws IOException {
                 final int maxDoc = context.reader().maxDoc();
+                // Where the field knows the documents holding one value, they are the answer, as a singleton is above.
+                final DocIdSetIterator singleValuedDocs = sortedBinaryDocValues.singleValuedDocs();
+                if (singleValuedDocs != null) {
+                    return new DocIdSetIteratorScorerSupplier(boost, scoreMode, singleValuedDocs);
+                }
                 var approximationIterator = getApproximationIterator(context.reader(), fieldData.getFieldName(), maxDoc);
                 if (FieldData.unwrapSingleton(sortedBinaryDocValues) != null
                     || sortedBinaryDocValues.getValueMode() == ValueMode.SINGLE_VALUED) {

@@ -14,6 +14,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
@@ -266,6 +267,12 @@ public abstract class MultiValuedSortableBinaryDocValues extends SortableBinaryD
         @Override
         public Sparsity getSparsity() {
             return sparsity;
+        }
+
+        /** A blob is one value, so the documents holding a blob are the ones holding one value. */
+        @Override
+        public DocIdSetIterator singleValuedDocs() {
+            return values;
         }
     }
 

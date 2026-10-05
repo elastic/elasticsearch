@@ -312,12 +312,12 @@ public final class PlainStringColumnReader extends StringColumnReader {
      * values do not repeat is read this way instead: runs are still collapsed, which costs no bytes to find,
      * but nothing is hashed.
      *
-     * <p>Only the way the values are found changes. What the sink is given is what it would have been given.
+     * <p>A sink that takes values as they are read is handed each one where the column holds it, and nothing is
+     * gathered for it.
      */
     private boolean appendSingleValuedPageAsValues(int count, int[] counts, int docCount, StringBlockSink sink) throws IOException {
         try (StringBlockSink.Values out = sink.values(count, counts, docCount)) {
             if (out != null) {
-                // Handed over as they are read, so nothing is copied into the page on the way.
                 for (int i = 0; i < count; i++) {
                     values.get(pageRanks[i], scratch);
                     out.append(scratch);

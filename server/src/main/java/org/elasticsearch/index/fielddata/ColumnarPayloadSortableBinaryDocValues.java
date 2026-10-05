@@ -12,6 +12,7 @@ package org.elasticsearch.index.fielddata;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -103,6 +104,19 @@ public final class ColumnarPayloadSortableBinaryDocValues extends SortableBinary
     @Override
     public ValueMode getValueMode() {
         return valueMode;
+    }
+
+    /**
+     * The column's own documents, where each holds one slot and no slot is null: a document it has is then a document
+     * holding one value. A null slot is a document the column has that holds none, which only reading it tells apart.
+     */
+    @Override
+    public DocIdSetIterator singleValuedDocs() {
+        if (source == null) {
+            return null;
+        }
+        final StringColumnReader column = source.reader();
+        return column.hasValueAddresses() == false && column.numNullSlots() == 0 ? binary : null;
     }
 
     @Override

@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
@@ -59,6 +60,7 @@ import org.elasticsearch.lucene.queries.BinaryDocValuesQueries;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -200,6 +202,48 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
                 assertEquals(framing.toString(), SortableBinaryDocValues.ValueMode.SINGLE_VALUED, fieldData.getValueMode());
                 assertEquals(framing.toString(), SortableBinaryDocValues.Sparsity.SPARSE, fieldData.getSparsity());
             });
+        }
+    }
+
+    /**
+     * A column whose documents each hold one value hands over the documents holding one as its own iterator, which is
+     * what a query checking for a single value then runs on, in place of asking about each document.
+     */
+    public void testFieldDataHandsOverSingleValuedDocuments() throws IOException {
+        for (Framing framing : Framing.values()) {
+            final String[] values = values(randomBoolean());
+            withSegment(values, framing, leaf -> {
+                final DocIdSetIterator docs = framing.fieldData(leaf.reader()).singleValuedDocs();
+                assertNotNull(framing.toString(), docs);
+                for (int d = 0; d < values.length; d++) {
+                    if (values[d] != null) {
+                        assertEquals(framing + " document", d, docs.nextDoc());
+                    }
+                }
+                assertEquals(framing.toString(), DocIdSetIterator.NO_MORE_DOCS, docs.nextDoc());
+            });
+        }
+    }
+
+    /** A null slot is a document the column has that holds no value, so its documents are not the ones holding one. */
+    public void testNullSlotKeepsSingleValuedDocumentsUnknown() throws IOException {
+        final FieldType type = new FieldType();
+        type.setDocValuesType(DocValuesType.BINARY);
+        type.freeze();
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec()))) {
+                for (int d = 0; d < 50; d++) {
+                    final Document doc = new Document();
+                    final List<BytesRef> slots = new ArrayList<>();
+                    slots.add(d == 7 ? null : new BytesRef("term-" + d));
+                    doc.add(new Field(FIELD, BytesRef.deepCopyOf(new StringBinaryPayload.Builder().encode(slots)), type));
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                assertNull(Framing.PAYLOAD.fieldData(reader.leaves().get(0).reader()).singleValuedDocs());
+            }
         }
     }
 

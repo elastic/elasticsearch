@@ -594,25 +594,11 @@ public class StringMatchTests extends ColumnarStringTestCase {
                 for (int from = 0; from < docs.length; from += page) {
                     final int count = Math.min(page, docs.length - from);
                     final int at = from;
-                    assertTrue("expected a page", reader.readBlock(docs, from, count, new StringBlockSink() {
+                    assertTrue("expected a page", reader.readBlock(docs, from, count, new ValuesSink() {
                         @Override
-                        public void appendOrdinals(
-                            int[] ordinals,
-                            int n,
-                            int[] valueCounts,
-                            int docCount,
-                            BytesRef[] dictionary,
-                            int dictionarySize
-                        ) {
-                            for (int i = 0; i < n; i++) {
-                                rebuilt.add(dictionary[ordinals[i]].utf8ToString());
-                            }
-                        }
-
-                        @Override
-                        public void appendValues(BytesRef[] values, int n, int[] valueCounts, int docCount) {
-                            for (int i = 0; i < n; i++) {
-                                rebuilt.add(values[i].utf8ToString());
+                        protected void page(List<BytesRef> values, int[] valueCounts, int docCount) {
+                            for (BytesRef value : values) {
+                                rebuilt.add(value.utf8ToString());
                             }
                         }
                     }));
@@ -1254,29 +1240,19 @@ public class StringMatchTests extends ColumnarStringTestCase {
      */
     private static List<List<String>> pageOf(StringColumnReader reader, int[] docs) throws IOException {
         final List<List<String>> rebuilt = new ArrayList<>();
-        final boolean served = reader.readBlock(docs, 0, docs.length, new StringBlockSink() {
+        final boolean served = reader.readBlock(docs, 0, docs.length, new ValuesSink() {
             @Override
-            public void appendOrdinals(int[] ordinals, int count, int[] valueCounts, int docCount, BytesRef[] dictionary, int size) {
-                final BytesRef[] values = new BytesRef[count];
-                for (int i = 0; i < count; i++) {
-                    assertTrue("ordinal in range", ordinals[i] >= 0 && ordinals[i] < size);
-                    values[i] = dictionary[ordinals[i]];
-                }
-                appendValues(values, count, valueCounts, docCount);
-            }
-
-            @Override
-            public void appendValues(BytesRef[] values, int count, int[] valueCounts, int docCount) {
+            protected void page(List<BytesRef> values, int[] valueCounts, int docCount) {
                 int at = 0;
                 for (int d = 0; d < docCount; d++) {
                     final int held = valueCounts == null ? 1 : valueCounts[d];
                     final List<String> doc = new ArrayList<>();
-                    for (int i = 0; i < held; i++) {
-                        doc.add(values[at++].utf8ToString());
+                    for (int v = 0; v < held; v++) {
+                        doc.add(values.get(at++).utf8ToString());
                     }
                     rebuilt.add(doc);
                 }
-                assertEquals("values accounted for", count, at);
+                assertEquals("values accounted for", values.size(), at);
             }
         });
         assertTrue("expected a page", served);

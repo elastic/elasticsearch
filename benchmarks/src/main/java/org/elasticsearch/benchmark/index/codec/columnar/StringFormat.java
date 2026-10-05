@@ -927,11 +927,22 @@ public enum StringFormat {
             }
         }
 
-        @Override
-        public void appendValues(BytesRef[] values, int count, int[] valueCounts, int docCount) {
-            for (int i = 0; i < count; i++) {
-                checksum += StringFormat.group(groups, values[i]);
+        private final Values streamed = new Values() {
+            @Override
+            public void append(BytesRef value) {
+                checksum += StringFormat.group(groups, value);
             }
+
+            @Override
+            public void finish() {}
+
+            @Override
+            public void close() {}
+        };
+
+        @Override
+        public Values values(int count, int[] valueCounts, int docCount) {
+            return streamed;
         }
     }
 
@@ -942,13 +953,6 @@ public enum StringFormat {
         public void appendOrdinals(int[] ordinals, int count, int[] valueCounts, int docCount, BytesRef[] dictionary, int dictionarySize) {
             for (int i = 0; i < count; i++) {
                 checksum += dictionary[ordinals[i]].length;
-            }
-        }
-
-        @Override
-        public void appendValues(BytesRef[] values, int count, int[] valueCounts, int docCount) {
-            for (int i = 0; i < count; i++) {
-                checksum += values[i].length;
             }
         }
 
@@ -991,11 +995,22 @@ public enum StringFormat {
             }
         }
 
-        @Override
-        public void appendValues(BytesRef[] values, int count, int[] valueCounts, int docCount) {
-            for (int i = 0; i < count; i++) {
-                checksum += group(groups, values[i]);
+        private final Values streamed = new Values() {
+            @Override
+            public void append(BytesRef value) {
+                checksum += group(groups, value);
             }
+
+            @Override
+            public void finish() {}
+
+            @Override
+            public void close() {}
+        };
+
+        @Override
+        public Values values(int count, int[] valueCounts, int docCount) {
+            return streamed;
         }
 
         @Override

@@ -544,20 +544,18 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         final long fewestSlots = distinct + (escapedInPage > 0 ? 1 : 0);
         if (fewestSlots * MIN_PAGE_REPEAT > values) {
             try (StringBlockSink.Values out = sink.values(values, counts, docCount)) {
-                if (out != null) {
-                    for (int i = 0; i < values; i++) {
-                        final int ordinal = pageOrdinals[i];
-                        if (ordinal < escapeOrdinal) {
-                            termAt(ordinal, scratch);
-                        } else {
-                            escapes.get(escapeRankOf(pageValueAddresses[i]), scratch);
-                        }
-                        out.append(scratch);
+                for (int i = 0; i < values; i++) {
+                    final int ordinal = pageOrdinals[i];
+                    if (ordinal < escapeOrdinal) {
+                        termAt(ordinal, scratch);
+                    } else {
+                        escapes.get(escapeRankOf(pageValueAddresses[i]), scratch);
                     }
-                    out.finish();
-                    return true;
+                    out.append(scratch);
                 }
+                out.finish();
             }
+            return true;
         }
 
         pageBytesLength = 0;
@@ -590,7 +588,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
             for (int i = 0; i < values; i++) {
                 pageValues[i] = pageDictionary[pageOrdinals[i]];
             }
-            sink.appendValues(pageValues, values, counts, docCount);
+            appendGathered(sink, values, counts, docCount);
             return true;
         }
         sink.appendOrdinals(pageOrdinals, values, counts, docCount, pageDictionary, slot);

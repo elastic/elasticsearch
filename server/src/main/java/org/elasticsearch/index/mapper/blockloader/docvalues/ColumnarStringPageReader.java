@@ -46,7 +46,7 @@ final class ColumnarStringPageReader implements Releasable {
      *
      * <p>A page that repeats comes back as ordinals into its own distinct values, each resolved once however many
      * documents name it, and is handed over without a lookup per value or a remapping. One that does not is appended
-     * a value at a time as the column reads it.
+     * a value at a time.
      *
      * <p>A document the column has no value for arrives holding none, which the block reads as a null.
      *
@@ -107,41 +107,14 @@ final class ColumnarStringPageReader implements Releasable {
         }
 
         @Override
-        public void appendValues(BytesRef[] values, int valueCount, int[] valueCounts, int docCount) {
-            if (valueCount == 0) {
-                block = factory.constantNulls(docCount);
-                return;
-            }
-            // Sized in positions, which is what the block holds - a multi-valued page has more values than those.
-            try (BlockLoader.BytesRefBuilder builder = factory.bytesRefs(docCount)) {
-                int at = 0;
-                for (int doc = 0; doc < docCount; doc++) {
-                    final int held = valueCounts == null ? 1 : valueCounts[doc];
-                    if (held == 0) {
-                        builder.appendNull();
-                    } else if (held == 1) {
-                        builder.appendBytesRef(values[at++]);
-                    } else {
-                        builder.beginPositionEntry();
-                        for (int i = 0; i < held; i++) {
-                            builder.appendBytesRef(values[at++]);
-                        }
-                        builder.endPositionEntry();
-                    }
-                }
-                assert at == valueCount : "read " + at + " values, was given " + valueCount;
-                block = builder.build();
-            }
-        }
-
-        @Override
         public Values values(int valueCount, int[] valueCounts, int docCount) {
-            // A page of no values is a block of nulls, which appendValues says without a builder.
-            return valueCount == 0 ? null : new StreamedValues(valueCounts, docCount);
+            return new StreamedValues(valueCount, valueCounts, docCount);
         }
 
         /** Builds the block a value at a time, placing each in the document {@code valueCounts} says holds it. */
         private final class StreamedValues implements Values {
+            /** Null for a page of no values, which is a block of nulls and needs no builder. */
+            @Nullable
             private final BlockLoader.BytesRefBuilder builder;
             private final int[] valueCounts;
             private final int docCount;
@@ -150,8 +123,9 @@ final class ColumnarStringPageReader implements Releasable {
             private int left;
             private boolean inEntry;
 
-            StreamedValues(int[] valueCounts, int docCount) {
-                this.builder = factory.bytesRefs(docCount);
+            StreamedValues(int valueCount, int[] valueCounts, int docCount) {
+                // Sized in positions, which is what the block holds - a multi-valued page has more values than those.
+                this.builder = valueCount == 0 ? null : factory.bytesRefs(docCount);
                 this.valueCounts = valueCounts;
                 this.docCount = docCount;
             }
@@ -180,6 +154,10 @@ final class ColumnarStringPageReader implements Releasable {
 
             @Override
             public void finish() {
+                if (builder == null) {
+                    block = factory.constantNulls(docCount);
+                    return;
+                }
                 if (valueCounts != null) {
                     assert left == 0 : "a document is still owed " + left + " values";
                     for (; doc < docCount; doc++) {
@@ -192,7 +170,9 @@ final class ColumnarStringPageReader implements Releasable {
 
             @Override
             public void close() {
-                builder.close();
+                if (builder != null) {
+                    builder.close();
+                }
             }
         }
     }

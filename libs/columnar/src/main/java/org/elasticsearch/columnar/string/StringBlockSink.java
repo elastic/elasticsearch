@@ -46,19 +46,10 @@ public interface StringBlockSink {
 
     /**
      * A page as its values, for a page that repeats too little for ordinals into a dictionary as long as the page to
-     * save anything. Shaped as above, and valid until the next call.
+     * save anything. The values are appended to what this returns one at a time, in document order, and are shaped
+     * as above: {@code valueCount} of them across {@code docCount} documents.
      */
-    void appendValues(BytesRef[] values, int valueCount, int[] valueCounts, int docCount);
-
-    /**
-     * Takes a page as its values one at a time, as they are read, in place of {@link #appendValues}. A page that
-     * repeats too little to be named is then never gathered: each value goes from where the column holds it to
-     * wherever the sink puts it. Shaped as {@link #appendValues}. Null, which is the default, asks for the page
-     * gathered instead.
-     */
-    default Values values(int valueCount, int[] valueCounts, int docCount) {
-        return null;
-    }
+    Values values(int valueCount, int[] valueCounts, int docCount);
 
     /** A page's values, taken one at a time in document order. */
     interface Values extends Closeable {

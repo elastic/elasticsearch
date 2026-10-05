@@ -1043,7 +1043,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         this.budgetBound = true;
         this.budget = budget;
         if (count == 0) {
-            sink.appendValues(pageValues, 0, null, 0);
+            appendGathered(sink, 0, null, 0);
             return true;
         }
         growPageDocs(count);
@@ -1087,6 +1087,16 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
                 }
                 counts[i] = found;
             }
+        }
+    }
+
+    /** Hands the sink the first {@code count} of {@link #pageValues}, for a page that was gathered before it proved to be values. */
+    protected final void appendGathered(StringBlockSink sink, int count, int[] counts, int docCount) throws IOException {
+        try (StringBlockSink.Values out = sink.values(count, counts, docCount)) {
+            for (int i = 0; i < count; i++) {
+                out.append(pageValues[i]);
+            }
+            out.finish();
         }
     }
 

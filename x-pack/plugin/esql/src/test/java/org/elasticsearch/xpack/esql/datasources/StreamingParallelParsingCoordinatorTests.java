@@ -78,6 +78,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.GZIPOutputStream;
@@ -106,6 +107,57 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             }
         } finally {
             executor.shutdownNow();
+        }
+    }
+
+    public void testStopSupplierStopsFurtherChunkDispatch() throws Exception {
+        int lineCount = 500;
+        String content = buildContent(lineCount);
+        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+        AtomicBoolean stop = new AtomicBoolean(false);
+        LineFormatReader reader = new LineFormatReader(512);
+        ExecutorService executor = Executors.newFixedThreadPool(6);
+        try {
+            try (
+                CloseableIterator<Page> iter = StreamingParallelParsingCoordinator.parallelRead(
+                    reader,
+                    stream,
+                    null,
+                    List.of("line"),
+                    50,
+                    4,
+                    executor,
+                    ErrorPolicy.STRICT,
+                    null,
+                    0L,
+                    SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                    null,
+                    -1L,
+                    StripeColumnScope.PROJECTED,
+                    StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                    StreamingSegmentatorAdmission.unbounded(),
+                    new NoopCircuitBreaker("test"),
+                    ExternalReadCounters.NOOP,
+                    null,
+                    stop::get
+                )
+            ) {
+                assertTrue(iter.hasNext());
+                Page first = iter.next();
+                int rows = first.getPositionCount();
+                first.releaseBlocks();
+                stop.set(true);
+                while (iter.hasNext()) {
+                    Page page = iter.next();
+                    rows += page.getPositionCount();
+                    page.releaseBlocks();
+                }
+                assertThat(rows, Matchers.greaterThan(0));
+                assertThat(rows, Matchers.lessThan(lineCount));
+            }
+        } finally {
+            executor.shutdownNow();
+            assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS));
         }
     }
 
@@ -2614,6 +2666,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 StreamingSegmentatorAdmission.unbounded(),
                 new NoopCircuitBreaker("streaming-parse-test"),
                 ExternalReadCounters.NOOP,
+                null,
                 null
             );
         assertEquals("rejected segmentator must not open the stream", 0, opens.get());

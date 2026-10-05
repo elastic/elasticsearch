@@ -20,6 +20,7 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.LongConsumer;
 
 /**
  * Wraps an S3 object-read stream so that a failure <em>while reading raw bytes</em> is typed for the
@@ -34,7 +35,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Remains {@link Abortable} so a caller's abort fast-path still reaches the underlying S3 stream rather than
  * falling back to a draining {@code close()}. {@link #close()} itself aborts when the unread remainder is
  * larger than {@link #MAX_TRAILING_DRAIN_BYTES} (or the body length is unknown) so uncompressed
- * {@code LIMIT} teardown does not drain a 64 MiB GET.
+ * {@code LIMIT} teardown does not drain a 64 MiB GET. A small leftover is drained by the inner close
+ * and reported to {@code onDrained} so received-byte counters include those bytes.
  */
 final class TransientTypingInputStream extends FilterInputStream implements Abortable {
 
@@ -55,15 +57,21 @@ final class TransientTypingInputStream extends FilterInputStream implements Abor
      */
     private volatile long bytesRead;
     private final AtomicBoolean terminal = new AtomicBoolean();
+    private final LongConsumer onDrained;
 
     TransientTypingInputStream(InputStream delegate, StoragePath path) {
-        this(delegate, path, -1L);
+        this(delegate, path, -1L, leftover -> {});
     }
 
     TransientTypingInputStream(InputStream delegate, StoragePath path, long expectedLength) {
+        this(delegate, path, expectedLength, leftover -> {});
+    }
+
+    TransientTypingInputStream(InputStream delegate, StoragePath path, long expectedLength, LongConsumer onDrained) {
         super(delegate);
         this.path = path;
         this.expectedLength = expectedLength;
+        this.onDrained = onDrained == null ? leftover -> {} : onDrained;
     }
 
     @Override
@@ -114,8 +122,6 @@ final class TransientTypingInputStream extends FilterInputStream implements Abor
         if (expired != null) {
             return expired;
         }
-        // Remaining mid-body faults are transport (the GET already succeeded). Flag throttling for a
-        // rare 503/429 on the body so it shares the throttle budget.
         long retryAfterMs = 0L;
         boolean throttling = false;
         for (Throwable current = e; current != null; current = current.getCause()) {
@@ -152,6 +158,9 @@ final class TransientTypingInputStream extends FilterInputStream implements Abor
         }
         if (terminal.getAndSet(true)) {
             return;
+        }
+        if (leftover > 0) {
+            onDrained.accept(leftover);
         }
         super.close();
     }

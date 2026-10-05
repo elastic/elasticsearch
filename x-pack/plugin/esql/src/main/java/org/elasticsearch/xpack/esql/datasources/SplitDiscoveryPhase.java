@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -290,7 +292,11 @@ public final class SplitDiscoveryPhase {
     ) {
         ScanStats stats = new ScanStats();
         Traversal traversal = new Traversal(sourceFactories, maxRecordBytes, stats, isCancelled, listingMemory);
-        PhysicalPlan resolved = resolveRecursive(plan, seedFilters, seedRowLimit, traversal);
+        ExternalPlanningIo planningIo = ExternalPlanningIo.current();
+        PhysicalPlan resolved;
+        try (Releasable ignored = ExternalPlanningIo.activate(planningIo)) {
+            resolved = resolveRecursive(plan, seedFilters, seedRowLimit, traversal);
+        }
         return new Result(
             resolved,
             stats.filesScanned,
@@ -342,12 +348,13 @@ public final class SplitDiscoveryPhase {
     ) {
         ActionListener.run(listener, l -> {
             ScanStats stats = new ScanStats();
+            ExternalPlanningIo planningIo = ExternalPlanningIo.current();
             resolveRecursiveAsync(
                 plan,
                 seedFilters,
                 seedRowLimit,
                 new Traversal(sourceFactories, maxRecordBytes, stats, isCancelled, listingMemory),
-                executor,
+                wrapPlanningIo(executor, planningIo),
                 l.map(
                     resolved -> new Result(
                         resolved,
@@ -372,6 +379,17 @@ public final class SplitDiscoveryPhase {
      * the whole traversal shares. The executor is deliberately absent - only the async path has one, and a
      * nullable field here would fuse "which way we traverse" into the values being traversed with.
      */
+    private static Executor wrapPlanningIo(Executor executor, ExternalPlanningIo planningIo) {
+        if (planningIo == null) {
+            return executor;
+        }
+        return ExternalIoExecutors.preserving(executor, command -> {
+            try (var ignored = ExternalPlanningIo.activate(planningIo)) {
+                command.run();
+            }
+        });
+    }
+
     private record Traversal(
         Map<String, ExternalSourceFactory> sourceFactories,
         int maxRecordBytes,

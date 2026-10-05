@@ -40,6 +40,10 @@ import java.util.function.Consumer;
  * queries, not a single read. The submitting executor is supplied per {@link #submit} call rather than stored,
  * so the controller holds no reference to the pool. Use {@link #unbounded()} on test/benchmark paths that run on
  * an isolated, generously-sized pool where segmentator saturation cannot arise.
+ * <p>
+ * Pending work is cancellable: {@link Handle#cancel()} removes a still-queued segmentator so a consumer that
+ * closes the iterator before the work is admitted does not wait for a slot. Cancel of already-dispatched work
+ * is a no-op; that iterator's started {@code close()} path interrupts the running segmentator.
  */
 final class StreamingSegmentatorAdmission {
 
@@ -50,7 +54,54 @@ final class StreamingSegmentatorAdmission {
     /** Segmentators admitted here but not yet handed to the pool because the budget was full. Guarded by {@code this}. */
     private final ArrayDeque<Deferred> pending = new ArrayDeque<>();
 
-    private record Deferred(Runnable segmentator, Executor executor, Consumer<RejectedExecutionException> onReject) {}
+    /**
+     * Ticket for one {@link #submit} call. {@link #cancel()} removes the work from {@link #pending} if it has
+     * not yet been handed to the executor; already-dispatched work is left alone.
+     */
+    interface Handle {
+        /**
+         * Attempts to drop this submission before it occupies a pool thread.
+         *
+         * @return {@code true} if the work was still pending and will never run (caller must account for the
+         *         never-started segmentator itself — this controller does not increment or decrement
+         *         {@code running} for work that was never dispatched); {@code false} if the work was already
+         *         handed to the executor, in which case this is a no-op
+         */
+        boolean cancel();
+    }
+
+    private static final Handle ALREADY_DISPATCHED = () -> false;
+
+    /**
+     * Identity-keyed pending item so {@link Handle#cancel()} can remove exactly this submission. Not a record:
+     * structural equality would let two submissions with equal components cancel each other.
+     */
+    private static final class Deferred {
+        private final Runnable segmentator;
+        private final Executor executor;
+        private final Consumer<RejectedExecutionException> onReject;
+
+        private Deferred(Runnable segmentator, Executor executor, Consumer<RejectedExecutionException> onReject) {
+            this.segmentator = segmentator;
+            this.executor = executor;
+            this.onReject = onReject;
+        }
+    }
+
+    private final class PendingHandle implements Handle {
+        private final Deferred deferred;
+
+        private PendingHandle(Deferred deferred) {
+            this.deferred = deferred;
+        }
+
+        @Override
+        public boolean cancel() {
+            synchronized (StreamingSegmentatorAdmission.this) {
+                return pending.remove(deferred);
+            }
+        }
+    }
 
     /**
      * An effectively-unbounded controller ({@link Integer#MAX_VALUE} budget) that dispatches every segmentator
@@ -72,41 +123,51 @@ final class StreamingSegmentatorAdmission {
      * exactly as the pre-admission direct-{@code execute} path did on a {@link RejectedExecutionException}. All
      * coordinators sharing this controller submit to the same node-level pool, so the executor is stable across
      * calls; it is passed per call so the controller need not hold a reference to it.
+     * <p>
+     * The executor hand-off, {@code onReject}, and any listener run <em>after</em> this monitor is released:
+     * a callback that re-enters {@link #submit} or {@link Handle#cancel()} must not observe the lock held.
      */
-    void submit(Runnable segmentator, Executor executor, Consumer<RejectedExecutionException> onReject) {
+    Handle submit(Runnable segmentator, Executor executor, Consumer<RejectedExecutionException> onReject) {
         Deferred toDispatch;
+        Deferred queued;
         synchronized (this) {
             if (running < maxConcurrentSegmentators) {
                 running++;
                 toDispatch = new Deferred(segmentator, executor, onReject);
+                queued = null;
             } else {
-                pending.add(new Deferred(segmentator, executor, onReject));
-                return;
+                queued = new Deferred(segmentator, executor, onReject);
+                pending.add(queued);
+                toDispatch = null;
             }
         }
-        dispatch(toDispatch);
+        if (toDispatch != null) {
+            dispatch(toDispatch);
+            return ALREADY_DISPATCHED;
+        }
+        return new PendingHandle(queued);
     }
 
     /**
      * Hands {@code d} to its executor, wrapping it so the slot is released and the next pending segmentator promoted
      * when it completes. On a {@link RejectedExecutionException} the reserved slot is freed and any promoted-then-
      * rejected successor is handled in the same loop, so a cascade of rejections (e.g. pool shutdown) unwinds
-     * iteratively rather than recursively.
+     * iteratively rather than recursively. {@code executor.execute} and {@code onReject} run outside the monitor.
      */
     private void dispatch(Deferred d) {
         while (d != null) {
             try {
                 Deferred toRun = d;
-                toRun.executor().execute(() -> {
+                toRun.executor.execute(() -> {
                     try {
-                        toRun.segmentator().run();
+                        toRun.segmentator.run();
                     } finally {
                         dispatch(releaseAndPromote());
                     }
                 });
                 return;
             } catch (RejectedExecutionException e) {
-                d.onReject().accept(e);
+                d.onReject.accept(e);
                 d = releaseAndPromote();
             }
         }

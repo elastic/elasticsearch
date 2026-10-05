@@ -47,9 +47,11 @@ import org.elasticsearch.columnar.ScanBudget;
 import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.DictionaryStringColumnReader;
+import org.elasticsearch.columnar.string.PageBudget;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringBlockSink;
 import org.elasticsearch.columnar.string.StringColumnReader;
+import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.columnar.string.SummaryPolicy;
 import org.elasticsearch.index.codec.Elasticsearch96Codec;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
@@ -353,6 +355,19 @@ public enum StringFormat {
          */
         long readPerDocument() throws IOException;
 
+        /**
+         * The length of every value and none of its bytes, the shape of {@code BYTE_LENGTH(field)}. A format
+         * with no way to answer from lengths alone reads the values.
+         */
+        default long byteLengths() throws IOException {
+            return readPerDocument();
+        }
+
+        /** Every value read one document at a time from where the column holds it, with no payload built. */
+        default long readDirect() throws IOException {
+            return readPerDocument();
+        }
+
         /** Documents whose value is {@code term}, the shape of {@code WHERE field == "..."}. */
         long matchTerm(BytesRef term) throws IOException;
 
@@ -484,6 +499,33 @@ public enum StringFormat {
                 reader.readBlock(docs, start, Math.min(pageSize, docs.length - start), sink);
             }
             return sink.checksum;
+        }
+
+        @Override
+        public long readDirect() throws IOException {
+            long checksum = 0;
+            final BinaryDocValues values = leaf.getBinaryDocValues(FIELD);
+            final StringColumnSource column = (StringColumnSource) values;
+            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                final BytesRef value = column.slotAt(0);
+                checksum += value == null ? 0 : value.length;
+            }
+            return checksum;
+        }
+
+        @Override
+        public long byteLengths() throws IOException {
+            long checksum = 0;
+            final int[] counts = new int[pageSize];
+            final int[] lengths = new int[pageSize];
+            for (int start = 0; start < docs.length; start += pageSize) {
+                final int count = Math.min(pageSize, docs.length - start);
+                reader.readByteLengths(docs, start, count, counts, lengths, PageBudget.UNLIMITED);
+                for (int i = 0; i < count; i++) {
+                    checksum += counts[i] == 1 ? lengths[i] : 0;
+                }
+            }
+            return checksum;
         }
 
         @Override
@@ -908,6 +950,25 @@ public enum StringFormat {
             for (int i = 0; i < count; i++) {
                 checksum += values[i].length;
             }
+        }
+
+        /** Taken as they are read, as a block loader takes them. */
+        private final Values streamed = new Values() {
+            @Override
+            public void append(BytesRef value) {
+                checksum += value.length;
+            }
+
+            @Override
+            public void finish() {}
+
+            @Override
+            public void close() {}
+        };
+
+        @Override
+        public Values values(int count, int[] valueCounts, int docCount) {
+            return streamed;
         }
     }
 

@@ -11,6 +11,9 @@ package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.util.BytesRef;
 
+import java.io.Closeable;
+import java.io.IOException;
+
 /**
  * Where a page of a string column is handed to whoever asked for it.
  *
@@ -46,4 +49,28 @@ public interface StringBlockSink {
      * save anything. Shaped as above, and valid until the next call.
      */
     void appendValues(BytesRef[] values, int valueCount, int[] valueCounts, int docCount);
+
+    /**
+     * Takes a page as its values one at a time, as they are read, in place of {@link #appendValues}. A page that
+     * repeats too little to be named is then never gathered: each value goes from where the column holds it to
+     * wherever the sink puts it. Shaped as {@link #appendValues}. Null, which is the default, asks for the page
+     * gathered instead.
+     */
+    default Values values(int valueCount, int[] valueCounts, int docCount) {
+        return null;
+    }
+
+    /** A page's values, taken one at a time in document order. */
+    interface Values extends Closeable {
+
+        /** The next value, valid only until this returns. */
+        void append(BytesRef value) throws IOException;
+
+        /** Every value has been appended, so the page is complete. */
+        void finish();
+
+        /** Releases what a page that was not finished holds. */
+        @Override
+        void close();
+    }
 }

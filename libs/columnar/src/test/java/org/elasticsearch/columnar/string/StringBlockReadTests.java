@@ -701,9 +701,43 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
         });
     }
 
+    /**
+     * A column whose values do not repeat, which its writer found, hands a page over a value at a time to a sink that takes them so, and
+     * gathers nothing for it. Some documents hold no value, which the counts beside the values say.
+     */
+    public void testPageOfDistinctValuesIsStreamed() throws IOException {
+        final BytesRef[][] docSlots = new BytesRef[between(300, 3000)][];
+        final List<BytesRef> expected = new ArrayList<>();
+        for (int d = 0; d < docSlots.length; d++) {
+            if (d % 7 != 3) {
+                docSlots[d] = new BytesRef[] { new BytesRef("unique-value-" + d) };
+                expected.add(docSlots[d][0]);
+            }
+        }
+        withColumn(
+            docSlots,
+            randomValidBlockSize(),
+            randomChunkCodec(),
+            randomTargetChunkBytes(),
+            StringColumnOptions.DEFAULT_DICTIONARY,
+            (metadata, reader) -> {
+                assertFalse("values that do not repeat earn no dictionary", reader.hasDictionary());
+                final int[] docs = new int[docSlots.length];
+                for (int d = 0; d < docs.length; d++) {
+                    docs[d] = d;
+                }
+                final Rebuilt rebuilt = new Rebuilt(true);
+                assertTrue("page served", reader.readBlock(docs, 0, docs.length, rebuilt));
+                assertFalse("the page was gathered rather than streamed", rebuilt.wasGathered || rebuilt.wasOrdinals);
+                assertEquals(expected, rebuilt.values);
+            }
+        );
+    }
+
     private void assertPage(StringColumnReader reader, BytesRef[] docValues, int[] docs, int offset, int count, Shape shape)
         throws IOException {
-        final Rebuilt rebuilt = new Rebuilt();
+        // Half the time the sink takes its values as they are read, which has to rebuild the same page.
+        final Rebuilt rebuilt = new Rebuilt(randomBoolean());
         assertTrue("page served", reader.readBlock(docs, offset, count, rebuilt));
         if (shape == Shape.ORDINALS) {
             assertTrue("expected ordinals at page " + offset, rebuilt.wasOrdinals);
@@ -721,7 +755,47 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
     private static final class Rebuilt implements StringBlockSink {
 
         private final List<BytesRef> values = new ArrayList<>();
+        private final boolean streams;
         private boolean wasOrdinals;
+        private boolean wasGathered;
+
+        Rebuilt() {
+            this(false);
+        }
+
+        /** @param streams whether a page handed over as values is taken a value at a time, as it is read */
+        Rebuilt(boolean streams) {
+            this.streams = streams;
+        }
+
+        @Override
+        public Values values(int count, int[] valueCounts, int docCount) {
+            if (streams == false) {
+                return null;
+            }
+            return new Values() {
+                private int appended;
+                private boolean finished;
+
+                @Override
+                public void append(BytesRef value) {
+                    assertFalse("appended to a finished page", finished);
+                    appended++;
+                    values.add(BytesRef.deepCopyOf(value));
+                }
+
+                @Override
+                public void finish() {
+                    assertEquals("values handed over", count, appended);
+                    finished = true;
+                }
+
+                @Override
+                public void close() {
+                    assertTrue("a page was closed without being finished", finished);
+                }
+            };
+        }
 
         @Override
         public void appendOrdinals(int[] ordinals, int count, int[] valueCounts, int docCount, BytesRef[] dictionary, int dictionarySize) {
@@ -734,6 +808,7 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
 
         @Override
         public void appendValues(BytesRef[] pageValues, int count, int[] valueCounts, int docCount) {
+            wasGathered = true;
             for (int i = 0; i < count; i++) {
                 values.add(BytesRef.deepCopyOf(pageValues[i]));
             }

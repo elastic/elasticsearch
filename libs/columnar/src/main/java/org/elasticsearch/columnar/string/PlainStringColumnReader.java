@@ -315,6 +315,17 @@ public final class PlainStringColumnReader extends StringColumnReader {
      * <p>Only the way the values are found changes. What the sink is given is what it would have been given.
      */
     private boolean appendSingleValuedPageAsValues(int count, int[] counts, int docCount, StringBlockSink sink) throws IOException {
+        try (StringBlockSink.Values out = sink.values(count, counts, docCount)) {
+            if (out != null) {
+                // Handed over as they are read, so nothing is copied into the page on the way.
+                for (int i = 0; i < count; i++) {
+                    values.get(pageRanks[i], scratch);
+                    out.append(scratch);
+                }
+                out.finish();
+                return true;
+            }
+        }
         growPageValues(count);
         pageBytesLength = 0;
         int runs = 0;

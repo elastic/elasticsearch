@@ -537,6 +537,28 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         // The ordinals this page holds, each once and in order, so a slot can be found by bisecting them.
         final int distinct = distinctOrdinals(values, dictionarySize);
 
+        // The page takes a slot for each of those and at least one more if anything escaped. Where that alone is
+        // too many for ordinals to be worth it, the page is going to be handed over as values whatever the escaped
+        // ones turn out to hold, so none of it needs naming.
+        final long fewestSlots = distinct + (escapedInPage > 0 ? 1 : 0);
+        if (fewestSlots * MIN_PAGE_REPEAT > values) {
+            try (StringBlockSink.Values out = sink.values(values, counts, docCount)) {
+                if (out != null) {
+                    for (int i = 0; i < values; i++) {
+                        final int ordinal = pageOrdinals[i];
+                        if (ordinal < escapeOrdinal) {
+                            termAt(ordinal, scratch);
+                        } else {
+                            escapes.get(escapeRankOf(pageValueAddresses[i]), scratch);
+                        }
+                        out.append(scratch);
+                    }
+                    out.finish();
+                    return true;
+                }
+            }
+        }
+
         pageBytesLength = 0;
         int slot = 0;
         for (; slot < distinct; slot++) {

@@ -134,5 +134,67 @@ final class ColumnarStringPageReader implements Releasable {
                 block = builder.build();
             }
         }
+
+        @Override
+        public Values values(int valueCount, int[] valueCounts, int docCount) {
+            // A page of no values is a block of nulls, which appendValues says without a builder.
+            return valueCount == 0 ? null : new StreamedValues(valueCounts, docCount);
+        }
+
+        /** Builds the block a value at a time, placing each in the document {@code valueCounts} says holds it. */
+        private final class StreamedValues implements Values {
+            private final BlockLoader.BytesRefBuilder builder;
+            private final int[] valueCounts;
+            private final int docCount;
+            /** The next document to open, and how many values the open one still takes. */
+            private int doc;
+            private int left;
+            private boolean inEntry;
+
+            StreamedValues(int[] valueCounts, int docCount) {
+                this.builder = factory.bytesRefs(docCount);
+                this.valueCounts = valueCounts;
+                this.docCount = docCount;
+            }
+
+            @Override
+            public void append(BytesRef value) {
+                if (valueCounts == null) {
+                    builder.appendBytesRef(value);
+                    return;
+                }
+                while (left == 0) {
+                    left = valueCounts[doc++];
+                    if (left == 0) {
+                        builder.appendNull();
+                    } else if (left > 1) {
+                        builder.beginPositionEntry();
+                        inEntry = true;
+                    }
+                }
+                builder.appendBytesRef(value);
+                if (--left == 0 && inEntry) {
+                    builder.endPositionEntry();
+                    inEntry = false;
+                }
+            }
+
+            @Override
+            public void finish() {
+                if (valueCounts != null) {
+                    assert left == 0 : "a document is still owed " + left + " values";
+                    for (; doc < docCount; doc++) {
+                        assert valueCounts[doc] == 0 : "document " + doc + " was given no values, expected " + valueCounts[doc];
+                        builder.appendNull();
+                    }
+                }
+                block = builder.build();
+            }
+
+            @Override
+            public void close() {
+                builder.close();
+            }
+        }
     }
 }

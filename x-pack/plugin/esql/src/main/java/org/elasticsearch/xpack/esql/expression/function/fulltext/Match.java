@@ -667,8 +667,10 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
 
     /**
      * Scores runtime matches with {@link RuntimeSearch}'s boolean-similarity semantics — there are no corpus
-     * statistics to feed BM25 (for now ...) — so a row scores boost × (number of matched query term occurrences),
+     * statistics to feed BM25 — so a row scores boost × (number of matched query term occurrences),
      * where a query term repeated N times weighs N. Non-text exact matches score 1.0.
+     * The exception is a field declaring {@code similarity: bm25}, for which a stats pass computed those statistics and
+     * handed them over through a {@link RuntimeBm25Field}.
      */
     @Override
     public ExpressionEvaluator.Factory toScorer(ToScorer toScorer) {
@@ -677,6 +679,9 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             return super.toScorer(toScorer);
         }
 
+        if (field instanceof RuntimeBm25Field bm25) {
+            return bm25.toScorer(toScorer.toEvaluator());
+        }
         if (field.dataType() == TEXT && options() == null) {
             return runtimeTextScorer(toScorer);
         }

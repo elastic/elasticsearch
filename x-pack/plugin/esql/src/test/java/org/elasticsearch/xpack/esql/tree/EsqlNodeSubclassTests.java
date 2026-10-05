@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.tree;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
@@ -56,6 +57,7 @@ import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedAttributeTests;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.RuntimeBm25Field;
 import org.elasticsearch.xpack.esql.expression.function.scalar.RemoteFetchHandleFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
@@ -690,6 +692,11 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return PromqlBuiltinFunctionDefinitions.VECTOR;
         }
 
+        if (argClass == BytesRef.class) {
+            // BytesRef is final; cannot be mocked
+            return new BytesRef(randomAlphaOfLength(5));
+        }
+
         if (argClass == UnmappedFieldsPattern.class) {
             // UnmappedFieldsPattern is final; cannot be mocked
             return randomBoolean() ? UnmappedFieldsPattern.ALL : UnmappedFieldsPattern.NONE;
@@ -781,6 +788,10 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     private static int randomSizeForCollection(Class<? extends Node<?>> toBuildClass) {
         if (CompoundOutputEval.class.isAssignableFrom(toBuildClass) || CompoundOutputEvalExec.class.isAssignableFrom(toBuildClass)) {
             // subclasses of CompoundOutputEval/Exec must have map and list that match in size
+            return 4;
+        }
+        if (toBuildClass == RuntimeBm25Field.class) {
+            // one document frequency, term and weight each per query term
             return 4;
         }
 

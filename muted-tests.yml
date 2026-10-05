@@ -682,3 +682,9 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.RestoringShardTransformIT
   method: testPutTransformValidationWhileRestoringParks
   issue: https://github.com/elastic/elasticsearch/issues/160991
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
+  method: testStatsBlowupNdjson
+  issue: https://github.com/elastic/elasticsearch/issues/161026
+- class: org.elasticsearch.xpack.search.AsyncSearchErrorTraceIT
+  method: testAsyncSearchFailingQueryErrorTraceFalse
+  issue: https://github.com/elastic/elasticsearch/issues/161045

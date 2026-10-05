@@ -59,6 +59,7 @@ import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -1692,6 +1693,98 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    /**
+     * Exact-fill peek is one extra single-byte {@code read()} that returns {@code -1}. Not an extra
+     * bulk GET past the payload.
+     */
+    public void testExactFillPeekIsOneEofRead() throws Exception {
+        int chunkSize = 64;
+        String line = "x".repeat(31) + "\n";
+        byte[] content = line.repeat(2).getBytes(StandardCharsets.UTF_8);
+        assertEquals(chunkSize, content.length);
+        ReadCallCountingStream counting = new ReadCallCountingStream(new ByteArrayInputStream(content));
+
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            LineFormatReader reader = new LineFormatReader(chunkSize);
+            List<String> lines = collectLines(
+                StreamingParallelParsingCoordinator.parallelRead(reader, counting, List.of("line"), 50, 4, executor, ErrorPolicy.STRICT)
+            );
+            assertEquals(List.of(line.trim(), line.trim()), lines);
+        } finally {
+            executor.shutdownNow();
+        }
+        assertEquals("exact-fill peek is one extra single-byte read", 1, counting.singleByteReads);
+        assertEquals(-1, counting.lastSingleByte);
+        assertEquals("bulk reads must not exceed the payload", content.length, counting.bytesRead);
+    }
+
+    /**
+     * Gzip peek is on the decompressed inflater, not a new range GET. Raw compressed bytes consumed
+     * equal the compressed length; peek must not extra-read the raw GET.
+     */
+    public void testGzipPeekDoesNotExtraReadRawGet() throws Exception {
+        int requested = 4 * 1024 * 1024;
+        int parallelism = 2;
+        StringBuilder sb = new StringBuilder();
+        while (sb.length() < 200_000) {
+            sb.append(randomAlphaOfLength(60)).append('\n');
+        }
+        byte[] original = sb.toString().getBytes(StandardCharsets.UTF_8);
+        int expectedLines = 0;
+        for (byte b : original) {
+            if (b == '\n') {
+                expectedLines++;
+            }
+        }
+        byte[] compressed = gzipBytes(original);
+        assertThat(
+            "fixture must exceed gzip's 64 KiB raw inflater so a premature peek cannot already have EOF'd the GET",
+            (long) compressed.length,
+            Matchers.greaterThan(64L * 1024)
+        );
+        CountingKnownLengthBytesObject raw = new CountingKnownLengthBytesObject(compressed);
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(raw, new GzipDecompressionCodec());
+        PeakTrackingBreaker breaker = new PeakTrackingBreaker();
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        long rows = 0;
+        try (
+            InputStream stream = decompressing.newStream();
+            CloseableIterator<Page> it = StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(requested),
+                stream,
+                decompressing,
+                List.of("line"),
+                50,
+                parallelism,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                StreamingSegmentatorAdmission.unbounded(),
+                breaker,
+                ExternalReadCounters.NOOP,
+                null
+            )
+        ) {
+            while (it.hasNext()) {
+                Page page = it.next();
+                rows += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+        assertEquals(expectedLines, rows);
+        assertEquals("gzip peek must not open a second raw GET", 1, raw.opens.size());
+        assertEquals("peek must not pull extra compressed bytes", compressed.length, raw.opens.get(0).bytesRead);
     }
 
     private static String buildContent(int lineCount) {
@@ -3563,7 +3656,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
-    private static final class KnownLengthBytesObject extends AbstractTestStorageObject {
+    private static class KnownLengthBytesObject extends AbstractTestStorageObject {
         private final byte[] data;
         private final long knownLength;
         private final StoragePath path = StoragePath.of("mem://fill-hint");
@@ -3607,6 +3700,60 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         @Override
         public StoragePath path() {
             return path;
+        }
+    }
+
+    private static final class CountingKnownLengthBytesObject extends KnownLengthBytesObject {
+        final List<ReadCallCountingStream> opens = new ArrayList<>();
+
+        CountingKnownLengthBytesObject(byte[] data) {
+            super(data, data.length);
+        }
+
+        @Override
+        public InputStream newStream() {
+            ReadCallCountingStream counting = new ReadCallCountingStream(super.newStream());
+            opens.add(counting);
+            return counting;
+        }
+    }
+
+    private static final class ReadCallCountingStream extends FilterInputStream {
+        int singleByteReads;
+        int lastSingleByte = Integer.MIN_VALUE;
+        long bytesRead;
+
+        ReadCallCountingStream(InputStream in) {
+            super(in);
+        }
+
+        @Override
+        public int read() throws IOException {
+            int b = in.read();
+            singleByteReads++;
+            lastSingleByte = b;
+            if (b >= 0) {
+                bytesRead++;
+            }
+            return b;
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            int n = in.read(b, off, len);
+            if (n > 0) {
+                bytesRead += n;
+            }
+            return n;
+        }
+
+        @Override
+        public long skip(long n) throws IOException {
+            long skipped = in.skip(n);
+            if (skipped > 0) {
+                bytesRead += skipped;
+            }
+            return skipped;
         }
     }
 

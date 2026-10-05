@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
+import org.elasticsearch.xpack.esql.datasources.FederationLicense;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
@@ -650,10 +651,10 @@ public class PlanExecutorMetricsTests extends ESTestCase {
 
     /**
      * These tests register no datasets, so the resolver short-circuits before ever touching a client,
-     * executor, or the cross-project remote leg — nulls are never dereferenced.
+     * executor, cross-project remote leg, or license state — nulls are never dereferenced.
      */
     private static DatasetResolver noDatasetsResolver() {
-        return new DatasetResolver(null, null, CrossProjectModeDecider.NOOP, true);
+        return new DatasetResolver(null, null, CrossProjectModeDecider.NOOP, true, new FederationLicense(() -> null));
     }
 
     private List<FieldCapabilitiesIndexResponse> indexFieldCapabilities(String[] indices) {

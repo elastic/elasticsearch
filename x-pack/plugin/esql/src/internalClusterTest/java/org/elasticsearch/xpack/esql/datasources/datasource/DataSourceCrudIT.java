@@ -1024,6 +1024,14 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         }
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put("xpack.license.self_generated.type", "trial")
+            .build();
+    }
+
     public static class LocalStateDataSource extends LocalStateCompositeXPackPlugin {
 
         public LocalStateDataSource(final Settings settings, final Path configPath) throws Exception {

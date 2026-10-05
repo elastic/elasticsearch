@@ -9,20 +9,30 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.plugin.ComputeService;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.CrossClusterSubqueryIT.assertClusterEsqlExecutionInfo;
 import static org.elasticsearch.xpack.esql.action.CrossClusterSubqueryIT.assertClusterEsqlExecutionInfoFailureReason;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
@@ -30,10 +40,14 @@ import static org.hamcrest.Matchers.not;
 //@TestLogging(value = "org.elasticsearch.xpack.esql.session:DEBUG", reason = "to better understand error handling")
 public class CrossClusterSubqueryUnavailableRemotesIT extends AbstractCrossClusterTestCase {
 
+    private static final String FAIL_INDEX = "fail-logs";
+
+    private Map<String, Object> clusterInfo;
+
     @Before
     public void checkSubqueryInFromCommandSupport() throws IOException {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        setupClusters(3);
+        clusterInfo = setupClusters(3);
     }
 
     @Override
@@ -280,6 +294,98 @@ public class CrossClusterSubqueryUnavailableRemotesIT extends AbstractCrossClust
             assertTrue(ExceptionsHelper.isRemoteUnavailableException(ex));
         } finally {
             clearSkipUnavailable(3);
+        }
+    }
+
+    /*
+     * Two merge branches target the same skip_unavailable remote. The first leaf's CLUSTER_ACTION fails before any pages return (runtime
+     * SKIPPED). The second leaf still dispatches because planning left the cluster RUNNING, and it returns shards. Status must become
+     * PARTIAL, not stay SKIPPED.
+     */
+    public void testSameRemoteSkipThenSuccessIsPartial() {
+        assertSameRemoteRuntimeMergeStatus(
+            LoggerMessageFormat.format(
+                null,
+                "FROM (FROM {}:{}), (FROM {}:{}) | KEEP v, tag",
+                REMOTE_CLUSTER_1,
+                FAIL_INDEX,
+                REMOTE_CLUSTER_1,
+                REMOTE_INDEX
+            )
+        );
+    }
+
+    /*
+     * Reverse order of {@link #testSameRemoteSkipThenSuccessIsPartial}: a successful leaf writes shard counts first, then a later empty
+     * failure must not overwrite the cluster as SKIPPED.
+     */
+    public void testSameRemoteSuccessThenFailureIsPartial() {
+        assertSameRemoteRuntimeMergeStatus(
+            LoggerMessageFormat.format(
+                null,
+                "FROM (FROM {}:{}), (FROM {}:{}) | KEEP v, tag",
+                REMOTE_CLUSTER_1,
+                REMOTE_INDEX,
+                REMOTE_CLUSTER_1,
+                FAIL_INDEX
+            )
+        );
+    }
+
+    private void assertSameRemoteRuntimeMergeStatus(String query) {
+        setSkipUnavailable(REMOTE_CLUSTER_1, true);
+        populateRemoteIndices(REMOTE_CLUSTER_1, FAIL_INDEX, randomIntBetween(1, 5));
+        Exception simulatedFailure = mockClusterActionFailureForIndex(FAIL_INDEX);
+        try {
+            EsqlQueryRequest request = syncEsqlQueryRequest(query);
+            request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 1).build()));
+            request.includeCCSMetadata(randomBoolean());
+            try (EsqlQueryResponse resp = runQuery(request)) {
+                assertTrue(resp.isPartial());
+                assertThat(getValuesList(resp), hasSize(10));
+                EsqlExecutionInfo.Cluster remote = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1);
+                assertThat(remote.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+                int healthyShards = (int) clusterInfo.get("remote1.num_shards");
+                assertThat(remote.getSuccessfulShards(), equalTo(healthyShards));
+                assertThat(remote.getTotalShards(), equalTo(healthyShards));
+                assertClusterEsqlExecutionInfoFailureReason(resp.getExecutionInfo(), REMOTE_CLUSTER_1, simulatedFailure.getMessage());
+            }
+        } finally {
+            clearRemoteClusterActionMocks();
+            clearSkipUnavailable(3);
+        }
+    }
+
+    /**
+     * Fails {@link ComputeService#CLUSTER_ACTION_NAME} immediately when the request targets {@code indexName}, so that branch records no
+     * pages ({@code receivedResults=false}). Other indices pass through.
+     */
+    private Exception mockClusterActionFailureForIndex(String indexName) {
+        Exception simulatedFailure = randomFailure();
+        for (TransportService transportService : cluster(REMOTE_CLUSTER_1).getInstances(TransportService.class)) {
+            MockTransportService ts = asInstanceOf(MockTransportService.class, transportService);
+            ts.addRequestHandlingBehavior(ComputeService.CLUSTER_ACTION_NAME, (handler, request, channel, task) -> {
+                if (targetsIndex(request, indexName)) {
+                    channel.sendResponse(simulatedFailure);
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            });
+        }
+        return simulatedFailure;
+    }
+
+    private static boolean targetsIndex(TransportRequest request, String indexName) {
+        if (request instanceof IndicesRequest indicesRequest) {
+            return Arrays.stream(indicesRequest.indices()).anyMatch(index -> index.contains(indexName));
+        }
+        return false;
+    }
+
+    private void clearRemoteClusterActionMocks() {
+        for (TransportService transportService : cluster(REMOTE_CLUSTER_1).getInstances(TransportService.class)) {
+            MockTransportService ts = asInstanceOf(MockTransportService.class, transportService);
+            ts.clearAllRules();
         }
     }
 

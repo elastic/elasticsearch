@@ -1483,7 +1483,7 @@ public class ComputeService {
                                         boolean failed = localClusterWasInterrupted.get()
                                             || (v.getFailedShards() != null && v.getFailedShards() > 0)
                                             || v.getFailures().isEmpty() == false;
-                                        applyClusterStatusAfterBranch(builder, v, failed);
+                                        applyClusterStatusAfterBranch(builder, v, failed, true);
                                     }
                                     return builder.build();
                                 });
@@ -1756,27 +1756,81 @@ public class ComputeService {
     }
 
     /**
-     * Updates cluster status after one merge branch reports. A later failing branch can promote {@code SUCCESSFUL} to {@code PARTIAL};
-     * {@code PARTIAL} is never demoted back to {@code SUCCESSFUL}.
+     * Updates cluster status after one merge branch reports or fails. Merge branches share one {@link EsqlExecutionInfo}.
+     * <p>
+     * A later failing branch can promote {@code SUCCESSFUL} to {@code PARTIAL}. A later report (a successful response, or a failure that
+     * produced results) promotes runtime {@code SKIPPED} to {@code PARTIAL} — the earlier skip still prevents the cluster from being fully
+     * {@code SUCCESSFUL}. {@code PARTIAL} and {@code FAILED} are never demoted.
+     * <p>
+     * {@code receivedResults} is true when this branch produced a {@link ComputeResponse} or fetched pages. A first-branch failure with no
+     * results and no prior shard counts stays {@code SKIPPED}.
      */
     static void applyClusterStatusAfterBranch(
         EsqlExecutionInfo.Cluster.Builder builder,
         EsqlExecutionInfo.Cluster existing,
-        boolean failed
+        boolean failed,
+        boolean receivedResults
     ) {
         switch (existing.getStatus()) {
-            case RUNNING -> builder.setStatus(
-                failed ? EsqlExecutionInfo.Cluster.Status.PARTIAL : EsqlExecutionInfo.Cluster.Status.SUCCESSFUL
-            );
+            case RUNNING -> {
+                if (failed == false) {
+                    builder.setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+                } else if (receivedResults || hasAccumulatedResults(existing)) {
+                    builder.setStatus(EsqlExecutionInfo.Cluster.Status.PARTIAL);
+                } else {
+                    builder.setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED);
+                }
+            }
             case SUCCESSFUL -> {
                 if (failed) {
                     builder.setStatus(EsqlExecutionInfo.Cluster.Status.PARTIAL);
                 }
             }
-            case PARTIAL, SKIPPED, FAILED -> {
+            case SKIPPED -> {
+                // Runtime SKIPPED is not terminal for shared execInfo: a later branch can still dispatch (planning-time
+                // initialClusterStatuses stays RUNNING). Promote so successful shard counts are not reported under SKIPPED.
+                // Another empty skip stays SKIPPED.
+                if (failed == false || receivedResults || hasAccumulatedResults(existing)) {
+                    builder.setStatus(EsqlExecutionInfo.Cluster.Status.PARTIAL);
+                }
+            }
+            case PARTIAL, FAILED -> {
                 // already terminal or partial; later branches must not demote
             }
         }
+    }
+
+    /**
+     * Records a skippable remote-cluster failure for one merge branch. Status is chosen from the cluster already stored in
+     * {@code executionInfo} plus whether this branch produced results, so a later empty failure cannot overwrite an earlier successful
+     * branch with {@code SKIPPED}.
+     */
+    static void markClusterAfterRuntimeBranchFailure(
+        EsqlExecutionInfo executionInfo,
+        String clusterAlias,
+        boolean receivedResults,
+        Exception e
+    ) {
+        executionInfo.swapCluster(clusterAlias, (k, v) -> {
+            var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(executionInfo.queryProfile().total().timeSinceStarted())
+                .setTotalShards(zeroIfNull(v.getTotalShards()))
+                .setSuccessfulShards(zeroIfNull(v.getSuccessfulShards()))
+                .setSkippedShards(zeroIfNull(v.getSkippedShards()))
+                .setFailedShards(zeroIfNull(v.getFailedShards()));
+            if (e != null) {
+                builder.addFailures(List.of(new ShardSearchFailure(e)));
+            }
+            applyClusterStatusAfterBranch(builder, v, true, receivedResults);
+            return builder.build();
+        });
+    }
+
+    private static boolean hasAccumulatedResults(EsqlExecutionInfo.Cluster existing) {
+        return zeroIfNull(existing.getTotalShards()) > 0
+            || zeroIfNull(existing.getSuccessfulShards()) > 0
+            || zeroIfNull(existing.getSkippedShards()) > 0
+            || zeroIfNull(existing.getFailedShards()) > 0
+            || existing.getFailures().isEmpty() == false;
     }
 
     /**

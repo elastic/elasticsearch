@@ -92,12 +92,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             final boolean receivedResults = finalResponse.get() != null || pagesFetched.get();
             if (executionInfo.shouldSkipOnFailure(clusterAlias)
                 || (configuration.allowPartialResults() && EsqlCCSUtils.canAllowPartial(e))) {
-                EsqlCCSUtils.markClusterWithFinalStateAndNoShards(
-                    executionInfo,
-                    clusterAlias,
-                    receivedResults ? EsqlExecutionInfo.Cluster.Status.PARTIAL : EsqlExecutionInfo.Cluster.Status.SKIPPED,
-                    e
-                );
+                ComputeService.markClusterAfterRuntimeBranchFailure(executionInfo, clusterAlias, receivedResults, e);
                 l.onResponse(DriverCompletionInfo.EMPTY);
             } else {
                 l.onFailure(e);
@@ -204,7 +199,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     || resp.failures.isEmpty() == false
                     || (v.getFailedShards() != null && v.getFailedShards() > 0)
                     || v.getFailures().isEmpty() == false;
-                ComputeService.applyClusterStatusAfterBranch(builder, v, failed);
+                ComputeService.applyClusterStatusAfterBranch(builder, v, failed, true);
             }
             return builder.build();
         });

@@ -11,8 +11,10 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
@@ -38,7 +40,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributesPreservingIds;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
 /**
@@ -72,11 +73,13 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
             if (grouped.isEmpty()) {
                 return highlight;
             }
-            AliasBindings aliases = AliasBindings.of(highlight.child());
+            AttributeMap<Expression> aliases = AliasBindings.of(highlight.child());
             // The key only holds the indices the rows are read from, which a LOOKUP JOIN field's groups do not name.
             // ponytail: one such field keeps every ON field on the fallback. Routing per field needs HIGHLIGHT to know
             // which fields the key covers.
-            if (grouped.stream().allMatch(f -> rowSourceOf(highlight.child(), aliases.resolve(f.toAttribute())) != null)) {
+            if (grouped.stream()
+                .map(NamedExpression::toAttribute)
+                .allMatch(f -> rowSourceOf(highlight.child(), aliases.resolve(f, f)) != null)) {
                 LogicalPlan child = withIndexKey(highlight.child());
                 if (child != null) {
                     // Project away the key and any added _index, which a later DEDUP would group by.
@@ -168,7 +171,7 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
                 }
                 // Not refreshOutput: it would take each column from the first branch that has it, even one that only fills
                 // it with nulls, and so drop the analyzer another branch declares.
-                List<Attribute> key = toReferenceAttributesPreservingIds(List.of(indexKey(branches.getFirst())), merge.output());
+                Attribute key = indexKey(branches.getFirst()).withId(new NameId());
                 yield merge.replaceSubPlansAndOutput(branches, CollectionUtils.combine(merge.output(), key));
             }
             default -> throw new IllegalStateException("unexpected plan [" + plan.nodeName() + "] under HIGHLIGHT");

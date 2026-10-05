@@ -2204,6 +2204,47 @@ fork2         | 2936            | Fellowship of the <em>Ring</em> 2ND Edition
 ;
 
 
+# One FORK branch reads title from the index and the other computes it, so the branches disagree on its analyzer.
+# HIGHLIGHT falls back to standard with a warning. standard does not stem "Rings", so HIGHLIGHT matches neither row.
+highlightMappingAnalyzerAfterForkOfMappedAndComputedFallsBack
+required_capability: highlight_mapping_analyzer
+required_capability: fork_v9
+
+FROM books_english
+| WHERE book_no == "2714"
+| FORK (WHERE book_no == "2714")
+       (EVAL title = TO_TEXT(CONCAT(title, "")))
+| HIGHLIGHT "ring" ON title
+| KEEP _fork, highlight_title
+| SORT _fork
+;
+
+warningRegex:HIGHLIGHT on \[title\] falls back to \[standard\]: the FORK or UNION ALL branches disagree on the analyzer for this column.*
+_fork:keyword | highlight_title:keyword
+fork1         | null
+fork2         | null
+;
+
+
+# The computed subquery declares english, which is the analyzer of the mapped title, so both rows use english and
+# HIGHLIGHT emits no warning.
+highlightMappingAnalyzerAfterUnionAllOfMappedAndComputedColumn
+required_capability: highlight_mapping_analyzer
+required_capability: subquery_in_from_command
+
+FROM (FROM books_english | WHERE book_no == "2714"),
+     (FROM books_english | WHERE book_no == "2936" | EVAL title = TO_TEXT(CONCAT(title, ""), {"analyzer": "english"}))
+| HIGHLIGHT "ring" ON title
+| KEEP book_no, highlight_title
+| SORT book_no
+;
+
+book_no:keyword | highlight_title:keyword
+2714            | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+2936            | Fellowship of the <em>Ring</em> 2ND Edition
+;
+
+
 # After FORK over indices that disagree on title's analyzer, each branch still carries its rows' index, so HIGHLIGHT
 # uses each row's own index analyzer. The books_english rows match "Rings", and the books row does not. No warning.
 highlightPerIndexAnalyzerAfterFork

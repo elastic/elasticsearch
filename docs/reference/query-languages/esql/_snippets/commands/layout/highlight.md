@@ -263,7 +263,7 @@ might not be highlighted.
   or across a `LOOKUP JOIN`).
 * Branches of `FORK` or subqueries in `FROM` disagree on the column's analyzer
   (for example, one branch reads the field from an index and another computes
-  the column from an expression).
+  the column with a different analyzer than the index uses).
 * The analyzer is defined in index settings (such as a custom analyzer or
   index-level default) rather than globally on the node.
 * The analyzer is not registered on the coordinating node (for example, because

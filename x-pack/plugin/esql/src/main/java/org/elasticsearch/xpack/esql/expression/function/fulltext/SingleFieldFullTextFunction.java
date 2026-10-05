@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificatio
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -344,8 +345,8 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
             return null;
         }
 
-        AliasBindings aliases = AliasBindings.of(plan);
-        Expression resolved = aliases.resolve(column);
+        AttributeMap<Expression> aliases = AliasBindings.of(plan);
+        Expression resolved = aliases.resolve(column, column);
         if (resolved instanceof Attribute == false) {
             return null;
         }
@@ -357,11 +358,11 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
                 return;
             }
             // Branches are name-aligned by the time the merge resolves, so the name is what identifies the same
-            // column across them; only the branch that wins the merge shares the output attribute's id.
+            // column across them. The merge gives its output new ids, so no branch column shares the merged column's id.
             for (LogicalPlan branch : fork.children()) {
                 for (Attribute branchColumn : branch.output()) {
                     if (branchColumn.name().equals(merged.name())
-                        && aliases.resolve(branchColumn) instanceof FieldAttribute mapped
+                        && aliases.resolve(branchColumn, branchColumn) instanceof FieldAttribute mapped
                         && mapped.dataType() == TEXT) {
                         mappedField.set(mapped);
                         return;

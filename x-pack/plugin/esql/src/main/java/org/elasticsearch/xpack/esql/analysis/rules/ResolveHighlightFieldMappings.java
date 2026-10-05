@@ -11,10 +11,10 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -77,7 +77,7 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
 
     /** Mapping of each text ON column that isn't a field attribute, by name. */
     private static Map<String, TextEsField> mergedMappings(Highlight highlight) {
-        Lineage lineage = new Lineage(highlight.child());
+        Lineage lineage = new Lineage();
         Map<String, TextEsField> mappings = new HashMap<>();
         for (NamedExpression field : highlight.fields()) {
             if (field instanceof Attribute column && (column instanceof FieldAttribute) == false && column.dataType() == TEXT) {
@@ -95,12 +95,12 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
      * came straight out of a {@code FORK} or {@code UNION ALL}.
      */
     private static @Nullable TextEsField mergedMapping(LogicalPlan plan, Attribute column, Lineage lineage) {
-        Expression read = lineage.aliases(plan).resolve(column);
+        Expression read = lineage.aliases(plan).resolve(column, column);
         if (read instanceof FieldAttribute field) {
             return HighlightAnalyzers.mappingOf(field, Map.of());
         }
         // A merge gives its output new ids, so resolving aliases stops on the merged column.
-        if (read instanceof Attribute merged && lineage.mergeOutputting(merged) instanceof MergePlan merge) {
+        if (read instanceof Attribute merged && rowSourceOf(plan, merged) instanceof MergePlan merge) {
             return branchesMapping(merge, merged.name(), lineage);
         }
         return null; // an expression, not a field
@@ -113,12 +113,11 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
      *     <li>a mapping that names each index's analyzer, when branches that read different indices disagree;</li>
      *     <li>{@code null} when no branch maps the column and the branches that compute it agree on its analyzer, so
      *     HIGHLIGHT analyzes it like any computed column;</li>
-     *     <li>a {@link UnknownAnalyzer#BRANCH_CONFLICT} when branches mix mapped and computed values, or disagree in any
-     *     other way.</li>
+     *     <li>a {@link UnknownAnalyzer#BRANCH_CONFLICT} when a computed branch uses a different analyzer from the mapped
+     *     branches, or the branches disagree in any other way.</li>
      * </ul>
      */
     private static @Nullable TextEsField branchesMapping(MergePlan merge, String name, Lineage lineage) {
-        TextEsField conflict = mapping(name, null, TextEsField.DEFAULT_POSITION_INCREMENT_GAP, UnknownAnalyzer.BRANCH_CONFLICT, null);
         Set<String> computedAnalyzers = new HashSet<>();
         List<BranchColumn> mapped = new ArrayList<>();
         for (BranchColumn b : branchColumns(merge, name, lineage)) {
@@ -131,22 +130,36 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
             }
         }
         if (mapped.isEmpty()) {
-            return computedAnalyzers.size() > 1 ? conflict : null;
-        }
-        if (computedAnalyzers.isEmpty() == false) {
-            return conflict;
+            return computedAnalyzers.size() > 1 ? branchConflict(name) : null;
         }
         List<TextEsField> distinct = mapped.stream().map(m -> mapping(name, m.found())).distinct().toList();
-        boolean agreed = distinct.size() == 1;
-        if (agreed && distinct.getFirst().analyzerGroups() == null) {
+        if (computedAnalyzers.isEmpty() == false) {
+            // Computed rows use the analyzer they declare, so they only agree with one mapping that names that analyzer.
+            return distinct.size() == 1 && analyzesLike(distinct.getFirst(), computedAnalyzers)
+                ? distinct.getFirst()
+                : branchConflict(name);
+        }
+        if (distinct.size() == 1 && distinct.getFirst().analyzerGroups() == null) {
             return distinct.getFirst();
         }
         // Each row comes from one branch, so it can still use the analyzer of the index it was read from.
         List<IndexAnalyzerGroup> perIndex = indexGroups(mapped, lineage);
+        if (perIndex == null && distinct.size() > 1) {
+            return branchConflict(name);
+        }
         // Agreed groups the key cannot route, like a LOOKUP JOIN field's, keep the warning that the indices disagree.
-        return perIndex == null && agreed == false
-            ? conflict
-            : mapping(name, null, TextEsField.DEFAULT_POSITION_INCREMENT_GAP, UnknownAnalyzer.CONFLICT, perIndex);
+        return mapping(name, null, TextEsField.DEFAULT_POSITION_INCREMENT_GAP, UnknownAnalyzer.CONFLICT, perIndex);
+    }
+
+    /** A declared analyzer resolves with the default gap, so only a mapping with that gap analyzes values the same way. */
+    private static boolean analyzesLike(TextEsField mapping, Set<String> computedAnalyzers) {
+        return mapping.unknownAnalyzer() == UnknownAnalyzer.NONE
+            && mapping.positionIncrementGap() == TextEsField.DEFAULT_POSITION_INCREMENT_GAP
+            && computedAnalyzers.equals(Set.of(mapping.analyzerName()));
+    }
+
+    private static TextEsField branchConflict(String name) {
+        return mapping(name, null, TextEsField.DEFAULT_POSITION_INCREMENT_GAP, UnknownAnalyzer.BRANCH_CONFLICT, null);
     }
 
     /** A branch's column of a given name. {@code found} is its mapping, or {@code null} when the branch computes the column. */
@@ -166,26 +179,16 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
     }
 
     /**
-     * Alias bindings, the merge that outputs each column, and the columns each branch actually has values for.
-     * Each is cached: resolving every ON column through every branch is quadratic in how wide the indices are.
+     * Alias bindings, and the columns each branch actually has values for. Both are cached, because resolving every ON
+     * column through every branch is quadratic in how wide the indices are.
      */
     private static final class Lineage {
-        private final Map<LogicalPlan, AliasBindings> aliasesByPlan = new IdentityHashMap<>();
-        private final Map<NameId, MergePlan> mergeByOutput = new HashMap<>();
+        private final Map<LogicalPlan, AttributeMap<Expression>> aliasesByPlan = new IdentityHashMap<>();
         private final Map<MergePlan, List<Map<String, Attribute>>> branchOutputs = new IdentityHashMap<>();
 
-        Lineage(LogicalPlan plan) {
-            plan.forEachDown(MergePlan.class, merge -> merge.output().forEach(column -> mergeByOutput.put(column.id(), merge)));
-        }
-
         /** Bindings for {@code plan}. A branch has to use its own, or a column can resolve into another branch. */
-        AliasBindings aliases(LogicalPlan plan) {
+        AttributeMap<Expression> aliases(LogicalPlan plan) {
             return aliasesByPlan.computeIfAbsent(plan, AliasBindings::of);
-        }
-
-        @Nullable
-        MergePlan mergeOutputting(Attribute column) {
-            return mergeByOutput.get(column.id());
         }
 
         /** One map per branch of {@code merge}, in branch order, without the columns the branch fills with nulls. */
@@ -209,35 +212,56 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
      * or when two branches give one index different analyzers.
      */
     private static @Nullable List<IndexAnalyzerGroup> indexGroups(List<BranchColumn> branches, Lineage lineage) {
-        List<IndexAnalyzerGroup> groups = new ArrayList<>();
+        Map<IndexField, Set<IndexAnalyzerGroup.Analyzer>> claims = new HashMap<>();
+        return addIndexGroups(branches, lineage, claims) ? byAnalyzer(claims) : null;
+    }
+
+    /** A source field as one index maps it. */
+    private record IndexField(String index, FieldAttribute.FieldName field) {}
+
+    /**
+     * Adds the analyzer that each branch gives each of its indices for the field the branch reads, through nested merges.
+     * Returns {@code false} when a branch computes the column, when the column does not come from the plan that produces
+     * the branch's rows, like a LOOKUP JOIN field, or when the mapping is a conflict that names no indices.
+     */
+    private static boolean addIndexGroups(
+        List<BranchColumn> branches,
+        Lineage lineage,
+        Map<IndexField, Set<IndexAnalyzerGroup.Analyzer>> claims
+    ) {
         for (BranchColumn b : branches) {
-            List<IndexAnalyzerGroup> branchGroups = indexGroups(b, lineage);
-            if (branchGroups == null) {
-                return null;
+            Expression read = lineage.aliases(b.branch()).resolve(b.column(), b.column());
+            LogicalPlan source = b.found() == null ? null : rowSourceOf(b.branch(), read);
+            if (source instanceof MergePlan nested) {
+                // A nested merge's branches may agree on the mapping, which then names no indices.
+                if (addIndexGroups(branchColumns(nested, Expressions.name(read), lineage), lineage, claims) == false) {
+                    return false;
+                }
+            } else if (source instanceof EsRelation relation && read instanceof FieldAttribute field) {
+                List<IndexAnalyzerGroup> groups = relationGroups(b.found(), relation);
+                if (groups == null) {
+                    return false;
+                }
+                for (IndexAnalyzerGroup group : groups) {
+                    for (String index : group.indices()) {
+                        claims.computeIfAbsent(new IndexField(index, field.fieldName()), k -> new HashSet<>()).add(group.analyzer());
+                    }
+                }
+            } else {
+                return false;
             }
-            groups.addAll(branchGroups);
         }
-        return byAnalyzer(groups);
+        return true;
     }
 
     /**
-     * The analyzer each index of the branch uses for its column. {@code null} when the branch computes the column, when
-     * the column does not come from the plan that produces the branch's rows, like a LOOKUP JOIN field, or when the
-     * mapping is a conflict that names no indices.
+     * The groups of a column read from {@code relation}. A mapping that names no groups gets one group with every index
+     * of the relation, including indices that do not map the field. Returns {@code null} for a conflict that names no
+     * indices.
      */
-    private static @Nullable List<IndexAnalyzerGroup> indexGroups(BranchColumn b, Lineage lineage) {
-        TextEsField found = b.found();
-        Expression read = lineage.aliases(b.branch()).resolve(b.column());
-        LogicalPlan source = found == null ? null : rowSourceOf(b.branch(), read);
-        if (source == null) {
-            return null;
-        }
+    private static @Nullable List<IndexAnalyzerGroup> relationGroups(TextEsField found, EsRelation relation) {
         if (found.analyzerGroups() != null) {
             return found.analyzerGroups();
-        }
-        if (source instanceof MergePlan nested) {
-            // A nested merge's branches may agree on the mapping, which then names no indices.
-            return indexGroups(branchColumns(nested, Expressions.name(read), lineage), lineage);
         }
         return switch (found.unknownAnalyzer()) {
             case NONE, INDEX_LOCAL, NOT_REPORTED -> List.of(
@@ -245,7 +269,7 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
                     found.analyzerName(),
                     found.unknownAnalyzer() == UnknownAnalyzer.INDEX_LOCAL,
                     found.positionIncrementGap(),
-                    ((EsRelation) source).concreteQualifiedIndices()
+                    relation.concreteQualifiedIndices()
                 )
             );
             case CONFLICT, BRANCH_CONFLICT -> null; // disagreement below that names no indices
@@ -253,18 +277,28 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
     }
 
     /**
-     * Merges the {@code groups} of several branches into one group per analyzer. {@code null} when two groups give one index
-     * different analyzers.
+     * Merges the analyzers that branches give each index into one group per analyzer. Returns {@code null} when one
+     * index needs two analyzers.
+     * <p>
+     * Every index that maps a field reports the same analyzer for it to every relation that reads the index. So if one
+     * branch names an analyzer for a field and another gives that index a different one, the index does not map the
+     * field, and its rows hold {@code null}. Index-local and unreported analyzers have no name, so two of them that
+     * differ do not prove that.
      */
-    private static @Nullable List<IndexAnalyzerGroup> byAnalyzer(List<IndexAnalyzerGroup> groups) {
+    private static @Nullable List<IndexAnalyzerGroup> byAnalyzer(Map<IndexField, Set<IndexAnalyzerGroup.Analyzer>> claims) {
         Map<String, IndexAnalyzerGroup.Analyzer> analyzerByIndex = new TreeMap<>();
-        for (IndexAnalyzerGroup group : groups) {
-            IndexAnalyzerGroup.Analyzer analyzer = group.analyzer();
-            for (String index : group.indices()) {
-                IndexAnalyzerGroup.Analyzer previous = analyzerByIndex.putIfAbsent(index, analyzer);
-                if (previous != null && previous.equals(analyzer) == false) {
+        for (Map.Entry<IndexField, Set<IndexAnalyzerGroup.Analyzer>> claim : claims.entrySet()) {
+            Set<IndexAnalyzerGroup.Analyzer> analyzers = claim.getValue();
+            if (analyzers.size() > 1) {
+                if (analyzers.stream().allMatch(analyzer -> analyzer.name() == null)) {
                     return null;
                 }
+                continue;
+            }
+            IndexAnalyzerGroup.Analyzer analyzer = analyzers.iterator().next();
+            IndexAnalyzerGroup.Analyzer previous = analyzerByIndex.putIfAbsent(claim.getKey().index(), analyzer);
+            if (previous != null && previous.equals(analyzer) == false) {
+                return null; // two source fields read from one index use different analyzers
             }
         }
         return IndexAnalyzerGroup.byAnalyzer(analyzerByIndex);

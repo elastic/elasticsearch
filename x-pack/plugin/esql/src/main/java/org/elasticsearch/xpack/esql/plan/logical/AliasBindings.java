@@ -8,59 +8,38 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 
-import java.util.HashMap;
-import java.util.Map;
-
 /**
- * {@code EVAL} and {@code RENAME} bindings under a plan, keyed by the attribute id they define, so a column can be
- * followed back to whatever produced it.
- * <p>
- * {@code FORK} copies the commands above it into every branch and binds those same ids again, each to that branch's
- * own copy. A map built over the whole plan can follow a column into a different branch. Build it over the branch
- * when you need that branch's copy.
+ * Follows {@code EVAL} and {@code RENAME} copies of a column back to the expression that produced it.
  */
 public final class AliasBindings {
 
-    private final Map<NameId, Expression> bindings;
+    private AliasBindings() {}
 
-    private AliasBindings(Map<NameId, Expression> bindings) {
-        this.bindings = bindings;
-    }
-
-    public static AliasBindings of(LogicalPlan plan) {
-        Map<NameId, Expression> bindings = new HashMap<>();
+    /**
+     * {@code EVAL} and {@code RENAME} bindings under {@code plan}, keyed by the attribute each one defines. Call
+     * {@code resolve(column, column)} on the result to follow {@code column} back to what produced it.
+     * <p>
+     * {@code FORK} copies the commands above it into every branch, and each copy binds the same ids again. A map built
+     * over the whole plan can therefore follow a column into a different branch. To follow a branch's own copy, build
+     * the map over that branch.
+     */
+    public static AttributeMap<Expression> of(LogicalPlan plan) {
+        AttributeMap.Builder<Expression> bindings = AttributeMap.builder();
         plan.forEachDown(p -> {
             if (p instanceof Eval eval) {
-                for (Alias alias : eval.fields()) {
-                    bindings.put(alias.id(), alias.child());
-                }
+                eval.fields().forEach(alias -> bindings.put(alias.toAttribute(), alias.child()));
             } else if (p instanceof Project project) {
                 for (NamedExpression projection : project.projections()) {
                     if (projection instanceof Alias alias) {
-                        bindings.put(alias.id(), alias.child());
+                        bindings.put(alias.toAttribute(), alias.child());
                     }
                 }
             }
         });
-        return new AliasBindings(bindings);
-    }
-
-    /** Follows bindings from {@code expression} until it isn't a bound attribute anymore. */
-    public Expression resolve(Expression expression) {
-        Expression current = expression;
-        // No binding points at its own key, so this finishes within the size of the map.
-        for (int hops = bindings.size(); hops > 0 && current instanceof Attribute attribute; hops--) {
-            Expression bound = bindings.get(attribute.id());
-            if (bound == null) {
-                break;
-            }
-            current = bound;
-        }
-        return current;
+        return bindings.build();
     }
 }

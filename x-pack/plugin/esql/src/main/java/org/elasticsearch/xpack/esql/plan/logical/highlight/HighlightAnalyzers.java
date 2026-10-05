@@ -63,7 +63,9 @@ public final class HighlightAnalyzers {
      * A mapping analyzer that fails to resolve on this node falls back to {@code standard} and emits a warning
      * through {@code warnings}. Names typed by the user ({@code WITH}, {@code TO_TEXT}) still throw.
      *
-     * @param fieldMappings the mapping of each ON column that FORK or UNION ALL merged from mapped fields, by name
+     * @param fieldMappings the mapping of each ON column that no longer carries its own, by name. Such a column is a
+     *                      RENAME or EVAL copy of a mapped text field, or a column that FORK or UNION ALL merged from
+     *                      mapped fields.
      * @param perIndex whether the operator will know each row's index, so disagreeing indices can each use their own
      *                 analyzer instead of falling back to {@code standard}
      */

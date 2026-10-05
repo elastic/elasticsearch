@@ -11,8 +11,11 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DocRefBlock;
+import org.elasticsearch.compute.data.DocRefOrigin;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.ElementType;
@@ -29,6 +32,8 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.ByteOrder;
@@ -64,6 +69,49 @@ public record RandomBlock(List<List<Object>> values, Block block, int valueMaxBy
                 || type.contains(e),
             () -> ESTestCase.randomFrom(ElementType.values())
         );
+    }
+
+    /**
+     * A {@link DocRefBlock} whose rows reference random documents of {@code originCount} random origins. Rows may repeat a
+     * document. Each value is a {@link BlockUtils.DocRef}.
+     */
+    public static RandomBlock randomDocRefBlock(BlockFactory blockFactory, int positionCount, int originCount) {
+        List<DocRefOrigin> origins = new ArrayList<>(originCount);
+        while (origins.size() < originCount) {
+            DocRefOrigin origin = randomDocRefOrigin();
+            if (origins.contains(origin) == false) {
+                origins.add(origin);
+            }
+        }
+        List<List<Object>> values = new ArrayList<>(positionCount);
+        try (DocRefBlock.Builder builder = DocRefBlock.newBlockBuilder(blockFactory, positionCount)) {
+            for (DocRefOrigin origin : origins) {
+                builder.addOrigin(origin);
+            }
+            for (int p = 0; p < positionCount; p++) {
+                int ordinal = ESTestCase.between(0, originCount - 1);
+                int segment = ESTestCase.between(0, 10);
+                int doc = ESTestCase.between(0, 10_000);
+                builder.append(ordinal, segment, doc);
+                values.add(List.of(new BlockUtils.DocRef(origins.get(ordinal), segment, doc)));
+            }
+            return new RandomBlock(values, builder.build(), 3 * Integer.BYTES);
+        }
+    }
+
+    /**
+     * A random reader, local or on a remote cluster, with or without a searcher id.
+     */
+    public static DocRefOrigin randomDocRefOrigin() {
+        String clusterAlias = ESTestCase.randomBoolean() ? "" : ESTestCase.randomAlphaOfLength(5);
+        ShardId shardId = new ShardId(ESTestCase.randomAlphaOfLength(8), ESTestCase.randomAlphaOfLength(22), ESTestCase.between(0, 4));
+        String searcherId = ESTestCase.randomBoolean() ? null : ESTestCase.randomAlphaOfLength(20);
+        ShardSearchContextId contextId = new ShardSearchContextId(
+            ESTestCase.randomAlphaOfLength(22),
+            ESTestCase.randomNonNegativeLong(),
+            searcherId
+        );
+        return new DocRefOrigin(clusterAlias, ESTestCase.randomAlphaOfLength(22), shardId, contextId);
     }
 
     // TODO Some kind of builder for this with nice defaults. We do this all the time and there's like a zillion parameters.

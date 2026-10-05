@@ -295,6 +295,11 @@ public final class BlockUtils {
     public record Doc(int shard, int segment, int doc) {}
 
     /**
+     * Returned by {@link #toJavaObject} for "doc ref" type blocks.
+     */
+    public record DocRef(DocRefOrigin origin, int segment, int doc) {}
+
+    /**
      * Read all values from a positions into a java object. This is not fast
      * but fine to call in the "fold" path.
      */
@@ -367,7 +372,11 @@ public final class BlockUtils {
                 DoubleRangeBlock b = (DoubleRangeBlock) block;
                 yield b.getDoubleRange(offset, new DoubleRangeBlockBuilder.DoubleRange());
             }
-            case DOC_REF, UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
+            case DOC_REF -> {
+                DocRefVector v = ((DocRefBlock) block).asVector();
+                yield new DocRef(v.origin(offset), v.segments().getInt(offset), v.docs().getInt(offset));
+            }
+            case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
         };
     }
 }

@@ -1551,7 +1551,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
                 maybeHintUndecodedNullMarker(sample.rows(), sourceLocation, warningSink);
                 int columns = syntheticColumnCount(sample.rows());
-                checkSyntheticColumnCap(columns, schemaMaxFields);
+                checkColumnCap(columns, effectiveMaxFields());
                 try (Releasable charge = chargeSyntheticColumns(columns)) {
                     boolean[] sawUndecodableTemporal = new boolean[columns];
                     List<Attribute> schema = inferSyntheticSchema(
@@ -2867,9 +2867,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     /**
      * Charges the circuit breaker for the names and attributes a headerless file's schema synthesizes, one per column of
-     * the widest sampled row, and caps them at {@code schema_max_fields} (see the callers). The synthesized names come
-     * from the file's shape rather than from anything the dataset declares, so a declared dataset gets no exemption
-     * here. Release the result once the schema is built.
+     * the widest sampled row. The callers cap them at {@link #effectiveMaxFields}, so a declared dataset, which is not
+     * capped by the file's width, is bounded by this charge alone. Release the result once the schema is built.
      */
     private Releasable chargeSyntheticColumns(int columns) {
         long bytes = (long) columns * HeapEstimates.columnBytes(options.columnPrefix().length() + SYNTHETIC_INDEX_DIGITS);
@@ -2952,34 +2951,21 @@ public class CsvFormatReader implements SegmentableFormatReader {
      */
     static void checkColumnCap(int columns, int maxFields) {
         if (columns > maxFields) {
-            throw new CircuitBreakingException(columnCapMessage(maxFields, true), CircuitBreaker.Durability.PERMANENT);
-        }
-    }
-
-    /**
-     * {@link #checkColumnCap} for the columns a headerless file synthesizes from its widest sampled row. Those are capped
-     * even when the dataset declares its columns, so at the ceiling the refusal does not suggest declaring them.
-     */
-    static void checkSyntheticColumnCap(int columns, int maxFields) {
-        if (columns > maxFields) {
-            throw new CircuitBreakingException(columnCapMessage(maxFields, false), CircuitBreaker.Durability.PERMANENT);
+            throw new CircuitBreakingException(columnCapMessage(maxFields), CircuitBreaker.Durability.PERMANENT);
         }
     }
 
     /**
      * The refusal for a schema over {@code maxFields}. Below the ceiling the user can raise the cap. At the ceiling
-     * raising it is rejected too, so suggest declaring the columns when {@code declarationLiftsCap}, and otherwise say
-     * the file is wider than any schema inference supports.
+     * raising it is rejected too, so suggest declaring the columns, which lifts the cap.
      */
-    static String columnCapMessage(int maxFields, boolean declarationLiftsCap) {
+    static String columnCapMessage(int maxFields) {
         if (maxFields >= ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS) {
             return "schema inference found more than ["
                 + maxFields
                 + "] columns, the most ["
                 + CONFIG_SCHEMA_MAX_FIELDS
-                + (declarationLiftsCap
-                    ? "] allows; declare the dataset's columns with [dynamic: false] to skip inference"
-                    : "] allows; a headerless file cannot have more columns, even when the dataset declares them");
+                + "] allows; declare the dataset's columns with [dynamic: false] to skip inference";
         }
         return "schema inference found more than ["
             + maxFields
@@ -4796,7 +4782,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             SchemaSample wideningWindow = collectWideningWindowAndPrefetch(sample);
             maybeHintUndecodedNullMarker(sample.rows(), messageLocation, warningSink);
             int columns = syntheticColumnCount(sample.rows());
-            checkSyntheticColumnCap(columns, schemaMaxFields);
+            checkColumnCap(columns, effectiveMaxFields());
             try (Releasable charge = chargeSyntheticColumns(columns)) {
                 boolean[] sawUndecodableTemporal = new boolean[columns];
                 List<Attribute> schema = inferSyntheticSchema(

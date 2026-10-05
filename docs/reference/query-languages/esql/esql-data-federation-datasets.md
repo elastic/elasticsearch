@@ -434,7 +434,7 @@ A file that starts with two prose lines then `state,ip,user_agent` is read with 
 | `trim_spaces` | `false` | Whether to remove surrounding ASCII whitespace from string field values. |
 | `multi_value_syntax` | `none` | Whether bracketed multi-values are recognized. Valid values: `"none"`, `"brackets"`. |
 | `max_field_size` | `10485760` (10 MB) | The maximum size of a single field. `0` is unlimited. |
-| `schema_max_fields` {applies_to}`stack: experimental 9.6+` | `1000` | The maximum number of columns a file's schema can have. If the header (or the widest row, when `header_row` is `false`) names more columns, the query fails with a circuit-breaking error (HTTP 429) before the schema is built. A declared schema is held to the limit by its number of declared columns, not by the width of the file, except for a headerless file, whose synthesized columns are always counted. Range 1–100,000. The default comes from the `esql.external.schema_max_fields` node setting. |
+| `schema_max_fields` {applies_to}`stack: experimental 9.6+` | `1000` | The maximum number of columns a file's schema can have. If the header (or the widest row, when `header_row` is `false`) names more columns, the query fails with a circuit-breaking error (HTTP 429) before the schema is built. A declared schema is held to the limit by its number of declared columns, not by the width of the file. Range 1–100,000. The default comes from the `esql.external.schema_max_fields` node setting. |
 
 ### NDJSON settings
 

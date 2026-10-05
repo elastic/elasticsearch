@@ -304,20 +304,24 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * The synthesized names of a headerless file come from the file's shape, not from anything declared, so a declared
-     * dataset gets no exemption from the cap here.
+     * A declared dataset names the columns it reads, so a headerless file wider than the cap is not refused, the same as a
+     * header-bearing one. The streaming read still infers a headerless schema from the first chunk ({@code metadata()}),
+     * and that inference must agree with the plain read, which binds the declared columns without inferring. The
+     * synthesized columns stay bounded by the breaker ({@link #testHeaderlessSyntheticColumnsAreChargedAndReleased}).
      */
-    public void testDeclaredHeaderlessSchemaWiderThanCapIsRefused() {
+    public void testDeclaredHeaderlessSchemaWiderThanCapIsAllowed() throws Exception {
         int cap = 3;
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withSchemaMaxFields(cap)
             .withDeclaredProvenanceBinding(true)
             .withConfigTrackingConsumedKeys(Map.of("header_row", false))
             .value();
-        CircuitBreakingException e = expectThrows(
-            CircuitBreakingException.class,
-            () -> reader.schema(createStorageObject("1,2,3,4\n5,6,7,8\n"))
+        String csv = "1,2,3,4\n5,6,7,8\n";
+        assertEquals(4, reader.schema(createStorageObject(csv)).size());
+        List<Attribute> declared = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "column1", DataType.INTEGER),
+            new ReferenceAttribute(Source.EMPTY, null, "column2", DataType.INTEGER)
         );
-        assertEquals(RestStatus.TOO_MANY_REQUESTS, e.status());
+        assertEquals(2, readRowCount(reader, createStorageObject(csv), declared, null));
     }
 
     /** The synthesized columns are charged while the schema is built and nothing stays reserved afterwards. */
@@ -417,18 +421,18 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * At the ceiling raising the cap is refused, so a header-bearing file is pointed at declaring its columns, which lifts
-     * the cap for it. A headerless file is capped even when declared, so it is not.
+     * At the ceiling raising the cap is refused, so the refusal points at declaring the columns, which lifts the cap for
+     * header-bearing and headerless files alike. Below it, the refusal points at raising the cap.
      */
     public void testColumnCapMessageAtTheCeiling() {
         int ceiling = ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS;
-        assertThat(CsvFormatReader.columnCapMessage(ceiling, true), containsString("dynamic: false"));
-        assertThat(CsvFormatReader.columnCapMessage(ceiling, false), not(containsString("dynamic: false")));
         CircuitBreakingException e = expectThrows(
             CircuitBreakingException.class,
-            () -> CsvFormatReader.checkSyntheticColumnCap(ceiling + 1, ceiling)
+            () -> CsvFormatReader.checkColumnCap(ceiling + 1, ceiling)
         );
-        assertThat(e.getMessage(), containsString("a headerless file cannot have more columns"));
+        assertThat(e.getMessage(), containsString("dynamic: false"));
+        assertThat(CsvFormatReader.columnCapMessage(ceiling - 1), not(containsString("dynamic: false")));
+        assertThat(CsvFormatReader.columnCapMessage(ceiling - 1), containsString("raise [esql.external.schema_max_fields]"));
     }
 
     private static String header(int columns) {

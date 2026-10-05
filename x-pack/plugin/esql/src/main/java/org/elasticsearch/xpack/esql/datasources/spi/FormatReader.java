@@ -334,7 +334,7 @@ public interface FormatReader extends Closeable {
      * The text readers need it to bind a pinned schema by name rather than positionally. Parquet and NDJSON already
      * bind a declared schema by footer name or object key under either mode. NDJSON also overrides it, to lift the
      * file-width cap ({@code schema_max_fields}) on a declared read, since only the declared columns are read; the text
-     * readers lift it the same way, except for the columns a headerless file synthesizes. Parquet and ORC keep the
+     * readers lift it the same way, including for the columns a headerless file synthesizes. Parquet and ORC keep the
      * no-op default, so Parquet's cap applies to a declared dataset too.
      * A declared name the file does not supply reads null (CSV/TSV emit a warning; NDJSON and columnar formats read
      * null silently), never a silent positional fallback.

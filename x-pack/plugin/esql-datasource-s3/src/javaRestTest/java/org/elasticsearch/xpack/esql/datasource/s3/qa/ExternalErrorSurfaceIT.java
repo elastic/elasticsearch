@@ -207,9 +207,11 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         Set.of("tsv object does not exist", "object key does not exist"),
         Set.of("tsv object is empty", "zero-byte object"),
         Set.of("tsv declared as parquet", "explicit format contradicts the bytes (parquet declared, CSV content)"),
-        // The store answers both with an identical 403 AccessDenied, so the message cannot tell them apart from
-        // the response alone. Naming the configured auth mode would ("…AccessDenied, data source uses
-        // auth=anonymous"), but that is local knowledge the storage object does not currently carry.
+        // The store answers all three with an identical 403 AccessDenied, so the message cannot tell them apart
+        // from the response alone. Naming the configured auth mode would ("…AccessDenied, data source uses
+        // auth=anonymous"), but that is local knowledge the storage object does not currently carry. The tsv
+        // reported_case probe joins them for the same reason the other tsv probes join their equivalents above:
+        // it is the wrong-credentials condition under a second name, kept visible in the report.
         Set.of(
             "wrong access key",
             "anonymous access against an authenticated endpoint",

@@ -11,7 +11,6 @@ package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TwoPhaseIterator;
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -269,26 +268,29 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         return meta.hasSummary() ? meta.summary().numValues() : 0;
     }
 
+    /** Whether the summary carries terms of its own, or only the numbers bounding what one could name. */
+    public boolean hasSummaryTerms() {
+        return meta.hasSummary() && meta.summary().hasTerms();
+    }
+
+    /** What this column recorded about the most a dictionary could name on it, if it recorded anything. */
+    public BestCoverage bestCoverage() {
+        return meta.hasSummary() ? meta.summary().bestCoverage() : BestCoverage.UNKNOWN;
+    }
+
     /**
      * The summarised terms and how often each was seen. The counts are the survey's and so are lower
      * bounds, which is what makes a vocabulary combined from several of them under-state its coverage
-     * rather than over-state it.
+     * rather than over-state it. A column that recorded only the numbers leaves both lists untouched.
      */
     public void readSummary(List<BytesRef> terms, List<Long> counts) throws IOException {
         final StringColumnMetadata.Summary summary = meta.summary();
+        if (summary.hasTerms() == false) {
+            return;
+        }
         final ValueStream.Reader source = summary.terms() == null ? summarisedTerms() : summary.terms().open(inputs);
         final int size = summary.terms() == null ? summarisedTermCount() : Math.toIntExact(summary.terms().numValues());
-        final BytesRef term = new BytesRef();
-        for (int ordinal = 0; ordinal < size; ordinal++) {
-            source.get(ordinal, term);
-            terms.add(BytesRef.deepCopyOf(term));
-        }
-        // Cloned rather than read in place: the caller's own reads are interleaved with these.
-        final IndexInput in = inputs.data().clone();
-        in.seek(summary.countsOffset());
-        for (int ordinal = 0; ordinal < size; ordinal++) {
-            counts.add(in.readVLong());
-        }
+        SummaryFormat.read(summary, inputs, source, size, terms, counts);
     }
 
     /** What a summary that stored no terms of its own is read from, which only a dictionary column has. */

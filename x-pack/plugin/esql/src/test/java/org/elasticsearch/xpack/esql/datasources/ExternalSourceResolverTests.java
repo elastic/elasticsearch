@@ -4001,9 +4001,16 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * Enrichment happens after the schema cache is consulted, so what the cache holds must stay the PHYSICAL
-     * schema: the key does not discriminate partition settings, and one entry is shared by datasets that set them
-     * differently. Writing an enriched schema back would serve {@code year} as the path-derived INTEGER to a
-     * dataset that asked for {@code none} and must read the file's own KEYWORD.
+     * schema — the columns each file's reader actually parses. Writing the enriched schema back would serve
+     * {@code year} as the path-derived INTEGER to a resolve that asked for {@code none} and must read the file's
+     * own KEYWORD.
+     * <p>
+     * The configs here carry no {@code _definition_version}, so all three resolves share one cache entry. A
+     * registered dataset's config does carry one ({@code DatasetRewriter} stamps it, and
+     * {@code DefinitionVersion.of} folds every dataset setting into it), so in production two datasets differing
+     * only in {@code partition_detection} key to different entries and never meet. This test is therefore
+     * deliberately stricter than production: it pins that the resolver does not write an enriched schema back
+     * even when the entry IS shared, which is the property that holds the rail together independently of keying.
      * <p>
      * The probe count is what makes this test about the cache rather than about three independent resolves: a
      * non-cacheable provider, or a cache the resolves never reach, probes three times and fails here.
@@ -4059,24 +4066,41 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * A detector notice raised over one concrete key must reach the response. The single-file rail drains
-     * {@code FileList#listingWarnings()} for exactly this; nothing else does, so dropping that drain is invisible
-     * without this case. A reserved metadata name is the detector's one notice-raising path: {@code _index} cannot
-     * be claimed by a partition key, so the column is surfaced under {@code _partition.} and the rename is reported.
+     * A detector notice raised over one concrete key must reach the response. Each single-file rail drains
+     * {@code FileList#listingWarnings()} for exactly this, and the two drains are independent — so both are
+     * exercised here, or removing either is invisible. A reserved metadata name is the detector's notice-raising
+     * path: {@code _index} cannot be claimed by a partition key, so the column is surfaced under
+     * {@code _partition.} and the rename is reported.
      */
     public void testConcreteResourcePartitionDetectionNoticeReachesTheResponse() throws Exception {
         String key = "s3://bucket/data/_index=foo/file.parquet";
-        ExternalSourceResolution resolution = resolveResourceWithConfig(
+        List<Attribute> physical = List.of(attr("value", DataType.DOUBLE));
+
+        // The inferred rail.
+        ExternalSourceResolution inferred = resolveResourceWithConfig(
             key,
-            Map.of(key, List.of(attr("value", DataType.DOUBLE))),
+            Map.of(key, physical),
             Map.of(),
             Map.of("partition_detection", "hive")
         );
-        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(key);
-
+        ExternalSourceResolution.ResolvedSource resolved = inferred.resolvedSource(key);
         assertNotNull(resolved);
         assertEquals(List.of("value", "_partition._index"), resolved.metadata().schema().stream().map(Attribute::name).toList());
-        assertThat("the rename is reported, not silent", resolution.warnings(), not(empty()));
+        assertThat("the inferred rail reports the rename", inferred.warnings(), not(empty()));
+
+        // The strict rail, which drains its own. A declared column cannot collide with the surfaced name, so this
+        // resolves rather than being rejected.
+        ExternalSourceResolution strict = resolveConcreteKeyWithMapping(
+            key,
+            physical,
+            Map.of("value", new DatasetFieldMapping("double", null)),
+            DatasetMapping.Dynamic.FALSE,
+            Map.of("partition_detection", "hive")
+        );
+        ExternalSourceResolution.ResolvedSource strictResolved = strict.resolvedSource(key);
+        assertNotNull(strictResolved);
+        assertEquals(List.of("value", "_partition._index"), strictResolved.metadata().schema().stream().map(Attribute::name).toList());
+        assertThat("the strict rail reports it too", strict.warnings(), not(empty()));
     }
 
     /** Resolves one concrete key with a declared mapping at the given dynamic mode, and a config. */

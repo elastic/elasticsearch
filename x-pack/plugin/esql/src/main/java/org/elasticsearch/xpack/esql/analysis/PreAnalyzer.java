@@ -62,7 +62,7 @@ public class PreAnalyzer {
         boolean useDenseVectorWhenNotSupported,
         boolean hasTimeSeriesAggregation,
         boolean requiresAllDimensionFields,
-        List<String> icebergPaths,
+        List<String> externalSourcePaths,
         List<String> inferenceIds
     ) {
         public static final PreAnalysis EMPTY = new PreAnalysis(

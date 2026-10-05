@@ -1,0 +1,45 @@
+{
+  "query_sampling.ground_truth": {
+    "documentation": {
+      "url": null,
+      "description": "Compute the ground truth of the sampled queries held by the selected nodes"
+    },
+    "stability": "experimental",
+    "visibility": "feature_flag",
+    "feature_flag": "es.query_sampling_feature_flag_enabled",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_query_sampling/ground_truth",
+          "methods": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/_query_sampling/ground_truth/{node_id}",
+          "methods": [
+            "POST"
+          ],
+          "parts": {
+            "node_id": {
+              "type": "list",
+              "description": "A comma-separated list of node IDs or names to limit the computation to"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "max": {
+        "type": "number",
+        "description": "The most queries each node computes the ground truth of",
+        "default": 100
+      }
+    }
+  }
+}

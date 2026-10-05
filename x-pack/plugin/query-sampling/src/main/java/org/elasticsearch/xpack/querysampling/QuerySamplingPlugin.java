@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.querysampling.action.TransportQuerySamplingStatsA
 import org.elasticsearch.xpack.querysampling.capture.CaptureHandoff;
 import org.elasticsearch.xpack.querysampling.capture.QueryCaptureFilter;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
+import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingGroundTruthAction;
 import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingStatsAction;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
 import org.elasticsearch.xpack.querysampling.storage.Tier1Buffer;
@@ -112,7 +113,7 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin {
         if (QUERY_SAMPLING_FEATURE_FLAG.isEnabled() == false) {
             return List.of();
         }
-        return List.of(new RestQuerySamplingStatsAction());
+        return List.of(new RestQuerySamplingStatsAction(), new RestQuerySamplingGroundTruthAction());
     }
 
     @Override

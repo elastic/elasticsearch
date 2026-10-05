@@ -44,6 +44,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     public static final String PLANNING_REQUESTS = "planning_requests";
     public static final String RESOLUTION_BYTES_READ = "external_resolution_bytes_read";
     public static final String RESOLUTION_REQUESTS = "external_resolution_requests";
+    public static final String SPLIT_DISCOVERY_PROBES = "split_discovery_probes";
 
     /** Time elapsed since start of query till the final result rendering */
     private final TimeSpanMarker totalMarker;
@@ -76,6 +77,8 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     private final AtomicLong splitDiscoveryNanos;
     /** CPU time (nanoseconds) spent discovering external splits; excludes IO wait. */
     private final AtomicLong splitDiscoveryCpuNanos;
+    /** Record-boundary probe GETs issued during split discovery. */
+    private final AtomicInteger splitDiscoveryProbes;
     /** Physical bytes received during coordinator schema resolution and split-discovery probes. */
     private final AtomicLong externalPlanningBytesRead;
     /** Storage requests issued during coordinator schema resolution and split-discovery probes. */
@@ -112,6 +115,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     private static final TransportVersion ESQL_SPLIT_DISCOVERY_PROFILE = TransportVersion.fromName("esql_split_discovery_profile");
     private static final TransportVersion ESQL_SPLIT_DISCOVERY_CPU_PROFILE = TransportVersion.fromName("esql_split_discovery_cpu_nanos");
     private static final TransportVersion ESQL_EXTERNAL_PLANNING_IO = TransportVersion.fromName("esql_external_planning_io");
+    private static final TransportVersion ESQL_SPLIT_DISCOVERY_PROBES = TransportVersion.fromName("esql_split_discovery_probes");
 
     public EsqlQueryProfile() {
         this(null, null, null, null, null, null, null, null, null, null, 0, 0, 0, 0L, UnmappedResolution.DEFAULT, 0, 0L, 0L);
@@ -236,6 +240,59 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         long externalResolutionBytesRead,
         long externalResolutionRequests
     ) {
+        this(
+            query,
+            planning,
+            parsing,
+            viewResolution,
+            datasetResolution,
+            preAnalysis,
+            indicesResolution,
+            enrichResolution,
+            inferenceResolution,
+            analysis,
+            fieldCapsCalls,
+            filesScanned,
+            splitsScanned,
+            bytesScanned,
+            unmappedResolution,
+            externalWarmAggregates,
+            splitDiscoveryNanos,
+            splitDiscoveryCpuNanos,
+            externalPlanningBytesRead,
+            externalPlanningRequests,
+            externalResolutionBytesRead,
+            externalResolutionRequests,
+            0
+        );
+    }
+
+    // For testing
+    public EsqlQueryProfile(
+        TimeSpan query,
+        TimeSpan planning,
+        TimeSpan parsing,
+        TimeSpan viewResolution,
+        TimeSpan datasetResolution,
+        TimeSpan preAnalysis,
+        TimeSpan indicesResolution,
+        TimeSpan enrichResolution,
+        TimeSpan inferenceResolution,
+        TimeSpan analysis,
+        int fieldCapsCalls,
+        int filesScanned,
+        int splitsScanned,
+        long bytesScanned,
+        UnmappedResolution unmappedResolution,
+        int externalWarmAggregates,
+        long splitDiscoveryNanos,
+        long splitDiscoveryCpuNanos,
+        long externalPlanningBytesRead,
+        long externalPlanningRequests,
+        long externalResolutionBytesRead,
+        long externalResolutionRequests,
+        int splitDiscoveryProbes
+    ) {
         this.totalMarker = new TimeSpanMarker(QUERY, true, query);
         this.planningMarker = new TimeSpanMarker(PLANNING, false, planning);
         this.parsingMarker = new TimeSpanMarker(PARSING, false, parsing);
@@ -254,6 +311,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         this.externalWarmAggregates = new AtomicInteger(externalWarmAggregates);
         this.splitDiscoveryNanos = new AtomicLong(splitDiscoveryNanos);
         this.splitDiscoveryCpuNanos = new AtomicLong(splitDiscoveryCpuNanos);
+        this.splitDiscoveryProbes = new AtomicInteger(splitDiscoveryProbes);
         this.externalPlanningBytesRead = new AtomicLong(externalPlanningBytesRead);
         this.externalPlanningRequests = new AtomicLong(externalPlanningRequests);
         this.externalResolutionBytesRead = new AtomicLong(externalResolutionBytesRead);
@@ -325,6 +383,10 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             externalResolutionBytesRead = in.readVLong();
             externalResolutionRequests = in.readVLong();
         }
+        int splitDiscoveryProbes = 0;
+        if (in.getTransportVersion().supports(ESQL_SPLIT_DISCOVERY_PROBES)) {
+            splitDiscoveryProbes = in.readVInt();
+        }
         return new EsqlQueryProfile(
             query,
             planning,
@@ -347,7 +409,8 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             externalPlanningBytesRead,
             externalPlanningRequests,
             externalResolutionBytesRead,
-            externalResolutionRequests
+            externalResolutionRequests,
+            splitDiscoveryProbes
         );
     }
 
@@ -405,6 +468,9 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             out.writeVLong(externalResolutionBytesRead.get());
             out.writeVLong(externalResolutionRequests.get());
         }
+        if (out.getTransportVersion().supports(ESQL_SPLIT_DISCOVERY_PROBES)) {
+            out.writeVInt(splitDiscoveryProbes.get());
+        }
     }
 
     @Override
@@ -423,6 +489,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             && Objects.equals(analysisMarker, that.analysisMarker)
             && splitDiscoveryNanos.get() == that.splitDiscoveryNanos.get()
             && splitDiscoveryCpuNanos.get() == that.splitDiscoveryCpuNanos.get()
+            && splitDiscoveryProbes.get() == that.splitDiscoveryProbes.get()
             && Objects.equals(fieldCapsCalls.get(), that.fieldCapsCalls.get())
             && filesScanned.get() == that.filesScanned.get()
             && splitsScanned.get() == that.splitsScanned.get()
@@ -450,6 +517,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             analysisMarker,
             splitDiscoveryNanos.get(),
             splitDiscoveryCpuNanos.get(),
+            splitDiscoveryProbes.get(),
             fieldCapsCalls.get(),
             filesScanned.get(),
             splitsScanned.get(),
@@ -490,6 +558,8 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             + splitDiscoveryNanos.get()
             + ", splitDiscoveryCpuNanos="
             + splitDiscoveryCpuNanos.get()
+            + ", splitDiscoveryProbes="
+            + splitDiscoveryProbes.get()
             + ", fieldCapsCalls="
             + fieldCapsCalls.get()
             + ", filesScanned="
@@ -653,6 +723,15 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         splitDiscoveryCpuNanos.addAndGet(nanos);
     }
 
+    public int splitDiscoveryProbes() {
+        return splitDiscoveryProbes.get();
+    }
+
+    /** Add record-boundary probe GETs issued during split discovery. */
+    public void addSplitDiscoveryProbes(int probes) {
+        splitDiscoveryProbes.addAndGet(probes);
+    }
+
     public long externalPlanningBytesRead() {
         return externalPlanningBytesRead.get();
     }
@@ -802,6 +881,10 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         long resolutionRequests = externalResolutionRequests.get();
         if (resolutionRequests > 0) {
             builder.field(RESOLUTION_REQUESTS, resolutionRequests);
+        }
+        int probes = splitDiscoveryProbes.get();
+        if (probes > 0) {
+            builder.field(SPLIT_DISCOVERY_PROBES, probes);
         }
         return builder;
     }

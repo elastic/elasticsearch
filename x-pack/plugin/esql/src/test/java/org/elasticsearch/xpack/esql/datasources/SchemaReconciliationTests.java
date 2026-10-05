@@ -6,8 +6,10 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EnumSerializationTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -313,6 +315,35 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertThat(result.unifiedSchema().size(), equalTo(2));
         assertThat(result.unifiedSchema().get(0).name(), equalTo("id"));
         assertThat(result.unifiedSchema().get(1).name(), equalTo("name"));
+    }
+
+    /**
+     * Each file is under a cap of 3 columns, but their distinct names merge into 4: the per-file cap in the readers
+     * does not see it, so the merge must refuse.
+     */
+    public void testUnionByNameRefusesMergedSchemaOverCap() {
+        StoragePath f1 = path("s3://b/f1.parquet");
+        StoragePath f2 = path("s3://b/f2.parquet");
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(
+            f1,
+            meta(List.of(attr("a", DataType.INTEGER), attr("b", DataType.INTEGER))),
+            f2,
+            meta(List.of(attr("c", DataType.INTEGER), attr("d", DataType.INTEGER)))
+        );
+
+        CircuitBreakingException e = expectThrows(
+            CircuitBreakingException.class,
+            () -> SchemaReconciliation.reconcileUnionByName(metadata, WarningSinks.FAILING, new SchemaInterner(null, 0), 3)
+        );
+        assertThat(e.getMessage(), containsString("more than [3] columns"));
+        assertThat(e.status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        // At the cap the merge still succeeds.
+        assertThat(
+            SchemaReconciliation.reconcileUnionByName(metadata, WarningSinks.FAILING, new SchemaInterner(null, 0), 4)
+                .unifiedSchema()
+                .size(),
+            equalTo(4)
+        );
     }
 
     public void testUnionByNameAddedColumn() {

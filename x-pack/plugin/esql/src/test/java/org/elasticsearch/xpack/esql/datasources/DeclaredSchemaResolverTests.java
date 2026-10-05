@@ -11,6 +11,8 @@ import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping.Dynamic;
 import org.elasticsearch.cluster.metadata.DatasetMapping.Mappings;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -34,6 +36,22 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
 
     private static ReferenceAttribute attr(String name, DataType type) {
         return new ReferenceAttribute(Source.EMPTY, null, name, type);
+    }
+
+    public void testDeclaredWidthOverCapIsRefused() {
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("a", new DatasetFieldMapping("long", null));
+        props.put("b", new DatasetFieldMapping("long", null));
+        props.put("c", new DatasetFieldMapping("long", null));
+
+        DeclaredSchemaResolver.checkDeclaredWidth(mapping(props), 3);
+        DeclaredSchemaResolver.checkDeclaredWidth(null, 1);
+        CircuitBreakingException e = expectThrows(
+            CircuitBreakingException.class,
+            () -> DeclaredSchemaResolver.checkDeclaredWidth(mapping(props), 2)
+        );
+        assertThat(e.getMessage(), containsString("declares [3] columns"));
+        assertThat(e.status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
     }
 
     public void testOverlayNonStrictRenamesAndRetypesDeclaredColumnsOnly() {

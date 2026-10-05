@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -462,6 +464,25 @@ public final class SchemaReconciliation {
         Consumer<String> warningSink,
         SchemaInterner interner
     ) {
+        return reconcileUnionByName(fileMetadata, warningSink, interner, Integer.MAX_VALUE);
+    }
+
+    /**
+     * Same as {@link #reconcileUnionByName(Map, Consumer, SchemaInterner)}, refusing once the merged schema has more
+     * than {@code maxFields} columns. Each file is already held to the schema cap by its reader, but files whose
+     * columns diverge merge into a schema that is the sum of their distinct names, so the per-file cap does not bound
+     * it. The check runs as columns are added, so a merge that is too wide stops before the rest of it is built. It
+     * also bounds the merge scratch below, which has one entry per merged column.
+     *
+     * @param maxFields the most columns the merged schema may have
+     * @throws CircuitBreakingException when the merged schema exceeds {@code maxFields}
+     */
+    public static Result reconcileUnionByName(
+        Map<StoragePath, SourceMetadata> fileMetadata,
+        Consumer<String> warningSink,
+        SchemaInterner interner,
+        int maxFields
+    ) {
         Objects.requireNonNull(interner, "interner");
         Objects.requireNonNull(warningSink, "warningSink: a null sink would fall back to HeaderWarning off the request thread");
         LinkedHashMap<String, MergeEntry> unified = new LinkedHashMap<>();
@@ -472,7 +493,8 @@ public final class SchemaReconciliation {
         // returns. The scratch is O(columns) and dead before return, so it is not charged on
         // ExternalPlanningReservation. chargeQuery holds until query close; reserving this scratch would
         // sit on the breaker after the objects are gone. The 760 × files credit is for the retained
-        // schema map, not this.
+        // schema map, not this. The scratch has one entry per merged column, so the maxFields check below bounds
+        // it and a charge would add nothing.
         LinkedHashMap<String, ColumnContributions> contributions = new LinkedHashMap<>();
         FileLabels label = new FileLabels(fileMetadata.keySet());
 
@@ -489,6 +511,15 @@ public final class SchemaReconciliation {
                 if (existing == null) {
                     boolean attrNullable = attr.nullable() == Nullability.TRUE || attr.nullable() == Nullability.UNKNOWN;
                     unified.put(name, new MergeEntry(attr.dataType(), attrNullable, filePath));
+                    if (unified.size() > maxFields) {
+                        throw new CircuitBreakingException(
+                            "the union of the files' columns has more than ["
+                                + maxFields
+                                + "] columns; raise [esql.external.schema_max_fields] or the dataset's [schema_max_fields] "
+                                + "to merge a wider schema",
+                            CircuitBreaker.Durability.PERMANENT
+                        );
+                    }
                 } else {
                     if (existing.type != attr.dataType()) {
                         existing.type = widenToCommonOrKeyword(existing.type, attr.dataType());

@@ -2297,13 +2297,36 @@ public class ParquetFormatReaderTests extends ESTestCase {
         );
     }
 
-    /** A declared schema names the columns it reads, so metadata() on a declared dataset is not refused for width. */
-    public void testDeclaredProvenanceExemptsTheWidthCap() throws Exception {
+    /**
+     * Parquet applies the width cap to a declared dataset too: the planning probe and every read resolve the footer's
+     * schema, and the attribute list built from a very wide footer is not charged to the breaker, so there is no
+     * file-width exemption to lift. A user who hits the cap raises {@code schema_max_fields}.
+     */
+    public void testDeclaredProvenanceDoesNotLiftTheWidthCap() throws Exception {
         byte[] data = wideOptionalLongFile(6);
-        ParquetFormatReader capped = new ParquetFormatReader(blockFactory).withSchemaMaxFields(5);
-        expectThrows(CircuitBreakingException.class, () -> capped.metadata(createStorageObject(data)));
-        FormatReader declared = capped.withDeclaredProvenanceBinding(true);
-        assertEquals(6, declared.metadata(createStorageObject(data)).schema().size());
+        FormatReader declared = new ParquetFormatReader(blockFactory).withSchemaMaxFields(5).withDeclaredProvenanceBinding(true);
+        CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> declared.metadata(createStorageObject(data)));
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, e.status());
+    }
+
+    /**
+     * The trailer's footer length is untrusted. A small file that claims a footer far larger than itself must be
+     * rejected as an invalid file, not charged to the breaker for a parse that cannot happen.
+     */
+    public void testCorruptTrailerLengthIsInvalidNotABreakerTrip() throws Exception {
+        byte[] data = wideOptionalLongFile(4);
+        // The trailer is [footerLength:int32-le][PAR1]; claim a footer of 1 GiB, far over the file's size.
+        int lengthOffset = data.length - 8;
+        data[lengthOffset] = 0;
+        data[lengthOffset + 1] = 0;
+        data[lengthOffset + 2] = 0;
+        data[lengthOffset + 3] = 0x40;
+        var breaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(1L << 20));
+        var limitedFactory = new BlockFactory(breaker, this.blockFactory.bigArrays());
+        ParquetFormatReader reader = new ParquetFormatReader(limitedFactory);
+        reader.clearFooterCachesForTests();
+        expectThrows(IllegalArgumentException.class, () -> reader.metadata(createStorageObject(data)));
+        assertEquals(0, breaker.getUsed());
     }
 
     public void testDatasetSchemaMaxFieldsOverridesNodeCap() throws Exception {
@@ -2321,11 +2344,24 @@ public class ParquetFormatReaderTests extends ESTestCase {
     public void testFooterParseExpansionIsChargedBeforeDeserialising() throws Exception {
         byte[] parquetData = wideOptionalLongFile(2000);
         int footerRegion = parquetFooterRegion(parquetData);
-        var breaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(2L * footerRegion));
+        AtomicReference<String> trippedOn = new AtomicReference<>();
+        var breaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(2L * footerRegion)) {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                try {
+                    super.addEstimateBytesAndMaybeBreak(bytes, label);
+                } catch (CircuitBreakingException e) {
+                    trippedOn.set(label);
+                    throw e;
+                }
+            }
+        };
         var limitedFactory = new BlockFactory(breaker, this.blockFactory.bigArrays());
         ParquetFormatReader reader = new ParquetFormatReader(limitedFactory);
         reader.clearFooterCachesForTests();
-        CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> reader.metadata(createStorageObject(parquetData)));
+        expectThrows(CircuitBreakingException.class, () -> reader.metadata(createStorageObject(parquetData)));
+        // The parse allowance tripped, not the read charge that the limit admits.
+        assertEquals(ParquetFormatReader.FOOTER_PARSE_BREAKER_LABEL, trippedOn.get());
         assertEquals(0, breaker.getUsed());
     }
 

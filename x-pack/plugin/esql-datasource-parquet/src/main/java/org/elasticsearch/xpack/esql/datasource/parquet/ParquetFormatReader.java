@@ -504,8 +504,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     static final Set<String> RECOGNIZED_KEYS = Set.of(CONFIG_SCHEMA_MAX_FIELDS);
 
     /**
-     * Claims {@code schema_max_fields}. It only decides whether a file's schema is refused, never what a read
-     * produces, so it stays out of the config identity: a cached schema is valid under any cap that admits it.
+     * Claims {@code schema_max_fields}. The key is part of the config identity, as it is for CSV, TSV and NDJSON, so
+     * a cached entry built under one cap is not reused under another: a lowered cap must still refuse a wide file
+     * that an earlier, higher cap admitted.
      */
     @Override
     public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
@@ -517,7 +518,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             CONFIG_SCHEMA_MAX_FIELDS,
             schemaMaxFields
         );
-        return Configured.fromKnownSubset(withSchemaMaxFields(newMaxFields), config, RECOGNIZED_KEYS, RECOGNIZED_KEYS);
+        return Configured.fromKnownSubset(withSchemaMaxFields(newMaxFields), config, RECOGNIZED_KEYS);
     }
 
     /** Registration-time check of a dataset's {@code schema_max_fields}, with the same bounds as the query path. */
@@ -530,16 +531,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             CONFIG_SCHEMA_MAX_FIELDS,
             ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS
         );
-    }
-
-    /**
-     * A declared schema names the columns it reads, so the file's width is not the cap's concern; the footer parse is
-     * bounded by the breaker through {@link #chargeFooterParse} instead. Covers the binds that call {@code metadata()}
-     * on a declared dataset.
-     */
-    @Override
-    public ParquetFormatReader withDeclaredProvenanceBinding(boolean declaredProvenanceBinding) {
-        return declaredProvenanceBinding ? withSchemaMaxFields(Integer.MAX_VALUE) : this;
     }
 
     ParquetFormatReader withSchemaMaxFields(int maxFields) {
@@ -994,7 +985,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 // Note: this variant of readFooter doesn't close the stream.
                 try (
                     SeekableInputStream stream = adapter.newStream();
-                    Releasable parseCharge = chargeFooterParse(declaredFooterLength(adapter, stream))
+                    Releasable parseCharge = chargeFooterParse(declaredFooterLength(adapter, stream), adapter.getLength())
                 ) {
                     return ParquetFileReader.readFooter(adapter, readOptionsBuilder().build(), stream);
                 }
@@ -1459,7 +1450,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         ParquetReadOptions options = readOptionsBuilder().build();
         try (
             SeekableInputStream stream = inputFile.newStream();
-            Releasable parseCharge = chargeFooterParse(footerLengthFromTrailer(ByteBuffer.wrap(tailBytes)))
+            Releasable parseCharge = chargeFooterParse(footerLengthFromTrailer(ByteBuffer.wrap(tailBytes)), length)
         ) {
             ParquetMetadata footer;
             try {
@@ -1608,10 +1599,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * Charges the breaker for the objects parsing a footer of {@code footerLength} bytes is about to build, beyond the
      * bytes already charged for the read, so an oversized footer trips a 429 before it is deserialised rather than
      * after the node runs out of heap. Release the result once the parse has returned or failed. A non-positive
-     * length (no trailer; the parse will reject the file itself) charges nothing.
+     * length (no trailer) or one longer than the file can hold (a corrupt trailer) charges nothing: the declared length
+     * is untrusted, and the parse rejects such a file itself as invalid (a 400) rather than as a breaker trip.
      */
-    private Releasable chargeFooterParse(int footerLength) {
-        if (footerLength <= 0) {
+    private Releasable chargeFooterParse(int footerLength, long fileLength) {
+        if (footerLength <= 0 || footerLength + (long) PARQUET_TRAILER_BYTES > fileLength) {
             return () -> {};
         }
         long bytes = (FOOTER_PARSE_EXPANSION - 1) * footerLength;

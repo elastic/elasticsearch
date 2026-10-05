@@ -1519,15 +1519,23 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     throw new IOException("CSV file has no data rows");
                 }
                 maybeHintUndecodedNullMarker(sample.rows(), sourceLocation, warningSink);
-                checkColumnCap(syntheticColumnCount(sample.rows()), effectiveMaxFields());
-                boolean[] sawUndecodableTemporal = new boolean[syntheticColumnCount(sample.rows())];
-                List<Attribute> schema = inferSyntheticSchema(
-                    sample.rows(),
-                    options.columnPrefix(),
-                    options.datetimeFormatter(),
-                    sawUndecodableTemporal
-                );
-                return CsvSchemaInferrer.widenSchema(schema, wideningWindow.rows(), options.datetimeFormatter(), sawUndecodableTemporal);
+                int columns = syntheticColumnCount(sample.rows());
+                checkColumnCap(columns, schemaMaxFields);
+                try (Releasable charge = chargeSyntheticColumns(columns)) {
+                    boolean[] sawUndecodableTemporal = new boolean[columns];
+                    List<Attribute> schema = inferSyntheticSchema(
+                        sample.rows(),
+                        options.columnPrefix(),
+                        options.datetimeFormatter(),
+                        sawUndecodableTemporal
+                    );
+                    return CsvSchemaInferrer.widenSchema(
+                        schema,
+                        wideningWindow.rows(),
+                        options.datetimeFormatter(),
+                        sawUndecodableTemporal
+                    );
+                }
             } finally {
                 breaker.addWithoutBreaking(-wideningWindow.reservedBytes());
             }
@@ -2815,6 +2823,22 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private int effectiveMaxFields() {
         return declaredProvenanceBinding ? Integer.MAX_VALUE : schemaMaxFields;
     }
+
+    /**
+     * Charges the circuit breaker for the names and attributes a headerless file's schema synthesizes, one per column of
+     * the widest sampled row, and caps them at {@code schema_max_fields} (see the callers). The synthesized names come
+     * from the file's shape rather than from anything the dataset declares, so a declared dataset gets no exemption
+     * here. Release the result once the schema is built.
+     */
+    private Releasable chargeSyntheticColumns(int columns) {
+        long bytes = (long) columns * HeapEstimates.columnBytes(options.columnPrefix().length() + SYNTHETIC_INDEX_DIGITS);
+        CircuitBreaker breaker = blockFactory.breaker();
+        breaker.addEstimateBytesAndMaybeBreak(bytes, HeaderBudget.LABEL);
+        return () -> breaker.addWithoutBreaking(-bytes);
+    }
+
+    /** Allowance for the digits of a synthesized column name, such as the {@code 12345} in {@code column_12345}. */
+    private static final int SYNTHETIC_INDEX_DIGITS = 6;
 
     private HeaderBudget newHeaderBudget() {
         return new HeaderBudget(blockFactory.breaker());
@@ -4700,15 +4724,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             SchemaSample wideningWindow = collectWideningWindowAndPrefetch(sample);
             maybeHintUndecodedNullMarker(sample.rows(), messageLocation, warningSink);
-            checkColumnCap(syntheticColumnCount(sample.rows()), effectiveMaxFields());
-            boolean[] sawUndecodableTemporal = new boolean[syntheticColumnCount(sample.rows())];
-            List<Attribute> schema = inferSyntheticSchema(
-                sample.rows(),
-                options.columnPrefix(),
-                options.datetimeFormatter(),
-                sawUndecodableTemporal
-            );
-            return CsvSchemaInferrer.widenSchema(schema, wideningWindow.rows(), options.datetimeFormatter(), sawUndecodableTemporal);
+            int columns = syntheticColumnCount(sample.rows());
+            checkColumnCap(columns, schemaMaxFields);
+            try (Releasable charge = chargeSyntheticColumns(columns)) {
+                boolean[] sawUndecodableTemporal = new boolean[columns];
+                List<Attribute> schema = inferSyntheticSchema(
+                    sample.rows(),
+                    options.columnPrefix(),
+                    options.datetimeFormatter(),
+                    sawUndecodableTemporal
+                );
+                return CsvSchemaInferrer.widenSchema(schema, wideningWindow.rows(), options.datetimeFormatter(), sawUndecodableTemporal);
+            }
         }
 
         /**

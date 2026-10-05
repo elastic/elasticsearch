@@ -18,6 +18,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
@@ -74,6 +75,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -299,6 +301,62 @@ public class CsvFormatReaderTests extends ESTestCase {
             .value();
         expectThrows(CircuitBreakingException.class, () -> reader.schema(createStorageObject("1,2,3,4\n5,6,7,8\n")));
     }
+
+    /**
+     * The synthesized names of a headerless file come from the file's shape, not from anything declared, so a declared
+     * dataset gets no exemption from the cap here.
+     */
+    public void testDeclaredHeaderlessSchemaWiderThanCapIsRefused() {
+        int cap = 3;
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withSchemaMaxFields(cap)
+            .withDeclaredProvenanceBinding(true)
+            .withConfigTrackingConsumedKeys(Map.of("header_row", false))
+            .value();
+        CircuitBreakingException e = expectThrows(
+            CircuitBreakingException.class,
+            () -> reader.schema(createStorageObject("1,2,3,4\n5,6,7,8\n"))
+        );
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, e.status());
+    }
+
+    /** The synthesized columns are charged while the schema is built and nothing stays reserved afterwards. */
+    public void testHeaderlessSyntheticColumnsAreChargedAndReleased() throws Exception {
+        int columns = 5_000;
+        String csv = "1,".repeat(columns - 1) + "1\n";
+        CircuitBreaker[] roomy = new CircuitBreaker[1];
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(trackingBlockFactory(roomy)).withSchemaMaxFields(columns)
+            .withDeclaredProvenanceBinding(true)
+            .withConfigTrackingConsumedKeys(Map.of("header_row", false))
+            .value();
+        assertEquals(columns, reader.schema(createStorageObject(csv)).size());
+        assertEquals(0, roomy[0].getUsed());
+
+        // A breaker that admits the sampled row but not the columns synthesized from it trips as a 429 on the synthesized
+        // columns' charge, and releases everything it took.
+        AtomicReference<String> trippedOn = new AtomicReference<>();
+        LimitedBreaker tightBreaker = new LimitedBreaker("test", ByteSizeValue.ofKb(TIGHT_KB)) {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                try {
+                    super.addEstimateBytesAndMaybeBreak(bytes, label);
+                } catch (CircuitBreakingException e) {
+                    trippedOn.set(label);
+                    throw e;
+                }
+            }
+        };
+        CsvFormatReader tightReader = (CsvFormatReader) new CsvFormatReader(new BlockFactory(tightBreaker, blockFactory.bigArrays()))
+            .withSchemaMaxFields(columns)
+            .withDeclaredProvenanceBinding(true)
+            .withConfigTrackingConsumedKeys(Map.of("header_row", false))
+            .value();
+        CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> tightReader.schema(createStorageObject(csv)));
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, e.status());
+        assertEquals(CsvFormatReader.HeaderBudget.LABEL, trippedOn.get());
+        assertEquals(0, tightBreaker.getUsed());
+    }
+
+    private static final int TIGHT_KB = 400;
 
     public void testDatasetSchemaMaxFieldsOverridesNodeCap() throws IOException {
         CsvFormatReader nodeCapped = new CsvFormatReader(blockFactory).withSchemaMaxFields(2);

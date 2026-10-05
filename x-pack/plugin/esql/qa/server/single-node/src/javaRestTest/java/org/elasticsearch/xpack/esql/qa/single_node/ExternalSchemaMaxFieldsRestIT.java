@@ -34,6 +34,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -42,8 +43,7 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -173,32 +173,50 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
         }
     }
 
-    /** {@code first_file_wins} infers only the anchor, so what happens to a wide later file is recorded, not assumed. */
+    /**
+     * {@code first_file_wins} infers only the anchor, so a wide later file is only met when a query reads it. The text
+     * formats refuse it then (a 429) and NDJSON refuses it when the query needs its statistics, but an NDJSON
+     * {@code KEEP} that skips the statistics path reads the wide file with no cap. That last case is a known gap, kept
+     * under its own test so the gap is visible and the test fails when it is closed.
+     */
     public void testMultiFileFirstFileWinsWithWideLaterFile() throws IOException {
         for (String ext : List.of("csv", "tsv", "ndjson")) {
             String dataset = datasetName("multi_later_ffw", ext);
             putGlobDataset(dataset, "wide_last_" + ext, ext, "first_file_wins", Map.of());
-            for (String q : List.of(
-                "FROM " + dataset + " | LIMIT 1",
-                "FROM " + dataset + " | STATS c = COUNT(*)",
-                "FROM " + dataset + " | KEEP a, b | LIMIT 100"
-            )) {
-                try {
-                    Request request = new Request("POST", "/_query");
-                    request.setJsonEntity("{\"query\":\"" + q + "\"}");
-                    request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
-                    logger.info("[{}] first_file_wins [{}] returned [{}]", dataset, q, values(client().performRequest(request)));
-                } catch (ResponseException e) {
-                    logger.info(
-                        "[{}] first_file_wins [{}] refused with [{}]: {}",
-                        dataset,
-                        q,
-                        e.getResponse().getStatusLine().getStatusCode(),
-                        EntityUtils.toString(e.getResponse().getEntity())
-                    );
-                }
+            // LIMIT 1 is answered by the narrow anchor alone, so the wide file is never opened.
+            assertThat(ext, values(esql("FROM " + dataset + " | LIMIT 1")), hasSize(1));
+            assertQueryRefused("FROM " + dataset + " | STATS c = COUNT(*)");
+            if (ext.equals("ndjson") == false) {
+                assertQueryRefused("FROM " + dataset + " | KEEP a, b | LIMIT 100");
             }
             assertNodeStillServes();
+        }
+    }
+
+    /**
+     * Known gap: under {@code first_file_wins} an NDJSON {@code KEEP} reads a wide later file without checking its
+     * width, so the query returns the narrow file's two rows plus the wide file's one. Making it uniform with the text
+     * formats needs a read-time width probe. When that lands, this test should assert a 429 instead.
+     */
+    public void testNdjsonFirstFileWinsKeepReadsWideLaterFileKnownGap() throws IOException {
+        String dataset = datasetName("multi_later_ffw_keep", "ndjson");
+        putGlobDataset(dataset, "wide_last_ndjson", "ndjson", "first_file_wins", Map.of());
+        assertThat(values(esql("FROM " + dataset + " | KEEP a, b | LIMIT 100")), hasSize(3));
+    }
+
+    /**
+     * Each file has two columns, under a cap of three, but their names differ so the merged {@code union_by_name} schema
+     * has four. The per-file cap does not see that, so the merge is refused; a cap of four admits it.
+     */
+    public void testUnionByNameMergedSchemaOverCapIsRefused() throws IOException {
+        for (String ext : List.of("csv", "tsv", "ndjson")) {
+            String refused = datasetName("union_over_cap", ext);
+            putGlobDataset(refused, "union_diverge_" + ext, ext, "union_by_name", Map.of("schema_max_fields", 3));
+            assertRefused(refused);
+
+            String admitted = datasetName("union_at_cap", ext);
+            putGlobDataset(admitted, "union_diverge_" + ext, ext, "union_by_name", Map.of("schema_max_fields", 4));
+            assertThat(ext, values(query(admitted)), not(empty()));
         }
     }
 
@@ -212,11 +230,10 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
     }
 
     private void putGlobDataset(String dataset, String dir, String ext, String resolution, Map<String, Object> extra) throws IOException {
-        Map<String, Object> settings = new java.util.LinkedHashMap<>(extra);
+        Map<String, Object> settings = new LinkedHashMap<>(extra);
         settings.put("schema_resolution", resolution);
-        settings.put("file_sort_by", "name");
-        if (resolution.equals("first_file_wins") == false) {
-            settings.remove("file_sort_by");
+        if (resolution.equals("first_file_wins")) {
+            settings.put("file_sort_by", "name");
         }
         DatasetRegistry.putDataset(client(), dataset, DATA_SOURCE, FIXTURE_DIR.resolve(dir).toUri() + "*." + ext, settings);
         datasets.add(dataset);
@@ -259,14 +276,55 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
         }
     }
 
+    /**
+     * A declared {@code mappings} block is held to the cap like an inferred schema: two declared columns against a cap
+     * of one is refused, and a cap of two admits it.
+     */
+    public void testDeclaredMappingOverCapIsRefused() throws IOException {
+        Map<String, Object> mappings = Map.of(
+            "dynamic",
+            "false",
+            "properties",
+            Map.of("a", Map.of("type", "long"), "b", Map.of("type", "keyword"))
+        );
+        for (String ext : List.of("csv", "tsv", "ndjson")) {
+            String refused = datasetName("declared_over_cap", ext);
+            DatasetRegistry.putDataset(client(), refused, DATA_SOURCE, uri("narrow." + ext), Map.of("schema_max_fields", 1), mappings);
+            datasets.add(refused);
+            assertRefused(refused);
+
+            String admitted = datasetName("declared_at_cap", ext);
+            DatasetRegistry.putDataset(client(), admitted, DATA_SOURCE, uri("narrow." + ext), Map.of("schema_max_fields", 2), mappings);
+            datasets.add(admitted);
+            assertThat(ext, values(query(admitted)), not(empty()));
+        }
+    }
+
+    /**
+     * Parquet has no declared exemption: it resolves the footer's schema on every path, so a declared dataset over a
+     * file wider than the cap is refused, naming the setting to raise.
+     */
+    public void testDeclaredParquetIsHeldToTheCap() throws IOException {
+        Map<String, Object> mappings = Map.of("dynamic", "false", "properties", Map.of("emp_no", Map.of("type", "integer")));
+        String dataset = datasetName("declared_parquet_cap", "employees.parquet");
+        DatasetRegistry.putDataset(client(), dataset, DATA_SOURCE, uri("employees.parquet"), Map.of("schema_max_fields", 1), mappings);
+        datasets.add(dataset);
+        assertRefused(dataset);
+    }
+
     private void assertRefused(String dataset) throws IOException {
-        ResponseException e = expectThrows(ResponseException.class, () -> query(dataset));
+        assertQueryRefused("FROM " + dataset + " | LIMIT 1");
+    }
+
+    private void assertQueryRefused(String query) throws IOException {
+        ResponseException e = expectThrows(ResponseException.class, () -> esql(query));
         int status = e.getResponse().getStatusLine().getStatusCode();
         String body = EntityUtils.toString(e.getResponse().getEntity());
-        logger.info("[{}] refused with status [{}]: {}", dataset, status, body);
-        // 4xx, never a dropped connection or a 500: the node must answer. The message names the setting to change.
-        assertThat(body, status, greaterThanOrEqualTo(400));
-        assertThat(body, status, lessThan(500));
+        logger.info("[{}] refused with status [{}]: {}", query, status, body);
+        // A circuit-breaking refusal (429), never a dropped connection, a 400 blaming the data, or a 500: the node must
+        // answer. The message names the setting to change.
+        assertThat(body, status, equalTo(429));
+        assertThat(body, containsString("circuit_breaking_exception"));
         assertThat(body, containsString("schema_max_fields"));
     }
 
@@ -279,8 +337,14 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
     }
 
     private Response query(String dataset) throws IOException {
+        return esql("FROM " + dataset + " | LIMIT 1");
+    }
+
+    /** Runs {@code query}, tolerating the warnings a partly-null declared or multi-file read emits. */
+    private Response esql(String query) throws IOException {
         Request request = new Request("POST", "/_query");
-        request.setJsonEntity("{\"query\":\"FROM " + dataset + " | LIMIT 1\"}");
+        request.setJsonEntity("{\"query\":\"" + query + "\"}");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         return client().performRequest(request);
     }
 
@@ -322,6 +386,15 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
                 Files.copy(dir.resolve("narrow." + ext), wideLast.resolve("a_narrow." + ext));
                 Files.copy(dir.resolve("wide." + ext), wideLast.resolve("z_wide." + ext));
             }
+            Files.createDirectory(dir.resolve("union_diverge_csv"));
+            Files.writeString(dir.resolve("union_diverge_csv/a.csv"), "a,b\n1,foo\n");
+            Files.writeString(dir.resolve("union_diverge_csv/b.csv"), "c,d\n2,bar\n");
+            Files.createDirectory(dir.resolve("union_diverge_tsv"));
+            Files.writeString(dir.resolve("union_diverge_tsv/a.tsv"), "a\tb\n1\tfoo\n");
+            Files.writeString(dir.resolve("union_diverge_tsv/b.tsv"), "c\td\n2\tbar\n");
+            Files.createDirectory(dir.resolve("union_diverge_ndjson"));
+            Files.writeString(dir.resolve("union_diverge_ndjson/a.ndjson"), "{\"a\":1,\"b\":\"foo\"}\n");
+            Files.writeString(dir.resolve("union_diverge_ndjson/b.ndjson"), "{\"c\":2,\"d\":\"bar\"}\n");
             Path parquetMulti = Files.createDirectory(dir.resolve("parquet_multi"));
             Files.copy(dir.resolve("employees.parquet"), parquetMulti.resolve("a.parquet"));
             Files.copy(dir.resolve("employees.parquet"), parquetMulti.resolve("b.parquet"));

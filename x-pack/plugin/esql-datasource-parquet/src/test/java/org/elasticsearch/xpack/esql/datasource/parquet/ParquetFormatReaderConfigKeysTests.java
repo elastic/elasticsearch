@@ -29,6 +29,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 /** Pins that {@code schema_max_fields} is the only per-dataset configuration key the Parquet reader claims. */
@@ -60,11 +61,12 @@ public class ParquetFormatReaderConfigKeysTests extends ESTestCase {
         assertThat(result.value(), sameInstance(reader));
     }
 
-    public void testSchemaMaxFieldsIsConsumedAndLeavesIdentityEmpty() {
+    public void testSchemaMaxFieldsIsConsumedAndMovesIdentity() {
         ParquetFormatReader reader = new ParquetFormatReader(NOOP_BLOCK_FACTORY);
-        Configured<FormatReader> result = reader.withConfigTrackingConsumedKeys(Map.of("schema_max_fields", 7));
-        assertThat(result.consumedKeys(), equalTo(Set.of("schema_max_fields")));
-        assertThat(result.identity(), equalTo(""));
+        Configured<FormatReader> seven = reader.withConfigTrackingConsumedKeys(Map.of("schema_max_fields", 7));
+        assertThat(seven.consumedKeys(), equalTo(Set.of("schema_max_fields")));
+        assertThat(seven.identity(), not(equalTo("")));
+        assertThat(seven.identity(), not(equalTo(reader.withConfigTrackingConsumedKeys(Map.of("schema_max_fields", 8)).identity())));
     }
 
     public void testSchemaMaxFieldsIsBounded() {

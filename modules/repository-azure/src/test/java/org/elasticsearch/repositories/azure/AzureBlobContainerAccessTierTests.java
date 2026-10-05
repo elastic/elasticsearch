@@ -336,4 +336,22 @@ public class AzureBlobContainerAccessTierTests extends ESTestCase {
 
         asserAccessTier(metadataAccessTier, destBlobName);
     }
+
+    public void testDataAccessTierSentOnConcurrentMultipartCopyBlob() throws IOException {
+        String dataAccessTier = getRandomAllowedAccessTierString();
+        final AzureBlobContainer container = buildContainer(dataAccessTier, null);
+        final String sourceBlobName = randomIdentifier();
+        final String destBlobName = randomIdentifier();
+        // Larger than the 1 MiB upload block size so copyBlob takes the Put Block From URL path
+        final int blobSize = (int) (container.getBlobStore().getUploadBlockSize() + 1);
+        final byte[] data = randomByteArrayOfLength(blobSize);
+
+        container.getBlobStore()
+            .writeBlob(OperationPurpose.CLUSTER_STATE, sourceBlobName, BytesReference.fromByteBuffer(ByteBuffer.wrap(data)), false);
+        assertNull(azureHttpHandler.getMockBlobStore().getBlob(sourceBlobName, null).accessTier());
+
+        container.copyBlob(OperationPurpose.SNAPSHOT_DATA, container, sourceBlobName, destBlobName, data.length, Runnable::run);
+
+        asserAccessTier(dataAccessTier, destBlobName);
+    }
 }

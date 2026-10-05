@@ -274,6 +274,8 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                 trackRequest("GetBlobProperties");
             } else if (LIST_PATTERN.test(request)) {
                 trackRequest("ListBlobs");
+            } else if (isPutBlockFromUrl(exchange)) {
+                trackRequest("PutBlockFromUrl");
             } else if (isPutBlock(request)) {
                 trackRequest("PutBlock");
             } else if (isPutBlockList(request)) {
@@ -283,6 +285,12 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             } else if (Regex.simpleMatch("POST /*/*?*comp=batch*", request)) {
                 trackRequest("BlobBatch");
             }
+        }
+
+        // https://learn.microsoft.com/en-us/rest/api/storageservices/put-block-from-url
+        private boolean isPutBlockFromUrl(HttpExchange exchange) {
+            final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
+            return isPutBlock(request) && exchange.getRequestHeaders().getFirst("x-ms-copy-source") != null;
         }
 
         // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block

@@ -16,7 +16,7 @@
 
 class java.lang.Appendable {
   # append(char/CharSequence): skipped. left to subclasses (e.g. StringBuilder).
-  Appendable append(CharSequence,int,int)
+  Appendable append(CharSequence,int,int) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="appendableAppendBytes"]
 }
 
 # AutoCloseable: i/o
@@ -26,10 +26,10 @@ class java.lang.CharSequence {
   IntStream chars()
   IntStream codePoints()
   int length()
-  String org.elasticsearch.painless.api.Augmentation replaceAll(int,Pattern,Function) @inject_constant[1="regex_limit_factor"] @script_aware
-  String org.elasticsearch.painless.api.Augmentation replaceFirst(int,Pattern,Function) @inject_constant[1="regex_limit_factor"]
-  CharSequence subSequence(int,int)
-  String toString()
+  String org.elasticsearch.painless.api.Augmentation replaceAll(int,Pattern,Function) @inject_constant[1="regex_limit_factor"] @script_aware @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="replaceAllBytes"]
+  String org.elasticsearch.painless.api.Augmentation replaceFirst(int,Pattern,Function) @inject_constant[1="regex_limit_factor"] @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="replaceFirstBytes"]
+  CharSequence subSequence(int,int) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="subSequenceBytes"]
+  String toString() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="toStringBytes"]
 }
 
 # Cloneable: add clone() to subclasses directly.
@@ -40,19 +40,19 @@ class java.lang.Comparable {
 
 class java.lang.Iterable {
   void org.elasticsearch.painless.api.Augmentation forEach(Consumer) @script_aware
-  Iterator iterator()
+  Iterator iterator() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="iteratorBytes"]
   Spliterator spliterator()
   # some adaptations of groovy wmethods
   boolean org.elasticsearch.painless.api.Augmentation any(Predicate) @script_aware
-  Collection org.elasticsearch.painless.api.Augmentation asCollection()
-  List org.elasticsearch.painless.api.Augmentation asList()
+  Collection org.elasticsearch.painless.api.Augmentation asCollection() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="asCollectionBytes"]
+  List org.elasticsearch.painless.api.Augmentation asList() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="asListBytes"]
   int org.elasticsearch.painless.api.Augmentation count(Predicate) @script_aware
   def org.elasticsearch.painless.api.Augmentation each(Consumer) @script_aware
   def org.elasticsearch.painless.api.Augmentation eachWithIndex(ObjIntConsumer) @script_aware
   boolean org.elasticsearch.painless.api.Augmentation every(Predicate) @script_aware
-  List org.elasticsearch.painless.api.Augmentation findResults(Function) @script_aware
-  Map org.elasticsearch.painless.api.Augmentation groupBy(Function) @script_aware
-  String org.elasticsearch.painless.api.Augmentation join(String)
+  List org.elasticsearch.painless.api.Augmentation findResults(Function) @script_aware @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="findResultsBytes"]
+  Map org.elasticsearch.painless.api.Augmentation groupBy(Function) @script_aware @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="groupByBytes"]
+  String org.elasticsearch.painless.api.Augmentation join(String) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="iterableJoinBytes"]
   double org.elasticsearch.painless.api.Augmentation sum()
   double org.elasticsearch.painless.api.Augmentation sum(ToDoubleFunction) @script_aware
 }
@@ -174,7 +174,7 @@ class java.lang.Character {
   int digit(int,int)
   char forDigit(int,int)
   byte getDirectionality(int)
-  String getName(int)
+  String getName(int) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="characterNameBytes"]
   int getNumericValue(int)
   int getType(int)
   int hashCode(char)
@@ -441,7 +441,7 @@ class java.lang.Character$UnicodeBlock {
   Character.UnicodeBlock YI_RADICALS
   Character.UnicodeBlock YI_SYLLABLES
   Character.UnicodeBlock YIJING_HEXAGRAM_SYMBOLS
-  Character.UnicodeBlock forName(String)
+  Character.UnicodeBlock forName(String) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="forNameBytes"]
   Character.UnicodeBlock of(int)
 }
 
@@ -654,7 +654,7 @@ class java.lang.Number {
 class java.lang.Object {
   boolean equals(Object)
   int hashCode()
-  String toString()
+  String toString() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="toStringBytes"]
 }
 
 # Package: skipped
@@ -685,7 +685,7 @@ class java.lang.Short {
 }
 
 class java.lang.StackTraceElement {
-  (String,String,String,int)
+  (String,String,String,int) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="stackTraceElementBytes"]
   String getClassName()
   String getFileName()
   int getLineNumber()
@@ -745,12 +745,12 @@ class java.lang.String {
   String concat(String) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="concatBytes"]
   boolean org.elasticsearch.painless.api.Augmentation contains(CharSequence) @script_aware
   boolean contentEquals(CharSequence)
-  String copyValueOf(char[])
-  String copyValueOf(char[],int,int)
-  String org.elasticsearch.painless.api.Augmentation decodeBase64()
-  String org.elasticsearch.painless.api.Augmentation encodeBase64()
-  String[] org.elasticsearch.painless.api.Augmentation splitOnToken(String)
-  String[] org.elasticsearch.painless.api.Augmentation splitOnToken(String, int)
+  String copyValueOf(char[]) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="copyValueOfBytes"]
+  String copyValueOf(char[],int,int) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="copyValueOfBytes"]
+  String org.elasticsearch.painless.api.Augmentation decodeBase64() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="decodeBase64Bytes"]
+  String org.elasticsearch.painless.api.Augmentation encodeBase64() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="encodeBase64Bytes"]
+  String[] org.elasticsearch.painless.api.Augmentation splitOnToken(String) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="splitOnTokenBytes"]
+  String[] org.elasticsearch.painless.api.Augmentation splitOnToken(String, int) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="splitOnTokenBytes"]
   boolean endsWith(String)
   boolean equalsIgnoreCase(String)
   String format(Locale,String,def[]) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="formatBytes"]
@@ -765,7 +765,7 @@ class java.lang.String {
   int offsetByCodePoints(int,int)
   boolean regionMatches(boolean,int,String,int,int)
   boolean regionMatches(int,String,int,int)
-  String org.elasticsearch.painless.api.Augmentation replace(CharSequence,CharSequence) @script_aware
+  String org.elasticsearch.painless.api.Augmentation replace(CharSequence,CharSequence) @script_aware @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="replaceBytes"]
   boolean startsWith(String)
   boolean startsWith(String,int)
   String substring(int) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="substringBytes"]
@@ -776,15 +776,15 @@ class java.lang.String {
   String toUpperCase() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="recaseBytes"]
   String toUpperCase(Locale) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="recaseBytes"]
   String trim() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="recaseBytes"]
-  String valueOf(def)
+  String valueOf(def) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="stringValueOfBytes"]
 }
 
 class java.lang.StringBuffer {
   () @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="stringBufferShellBytes"]
   (CharSequence) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="stringBufferBytes"]
-  StringBuffer append(def)
-  StringBuffer append(CharSequence,int,int)
-  StringBuffer appendCodePoint(int)
+  StringBuffer append(def) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="appendBytes"]
+  StringBuffer append(CharSequence,int,int) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="appendBytes"]
+  StringBuffer appendCodePoint(int) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="appendCodePointBytes"]
   int capacity()
   int codePointAt(int)
   int codePointBefore(int)
@@ -794,14 +794,14 @@ class java.lang.StringBuffer {
   void getChars(int,int,char[],int)
   int indexOf(String)
   int indexOf(String,int)
-  StringBuffer insert(int,def)
+  StringBuffer insert(int,def) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="insertBytes"]
   int lastIndexOf(String)
   int lastIndexOf(String,int)
   int offsetByCodePoints(int,int)
-  StringBuffer replace(int,int,String)
+  StringBuffer replace(int,int,String) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="replaceBytes"]
   StringBuffer reverse()
   void setCharAt(int,char)
-  void setLength(int)
+  void setLength(int) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="setLengthBytes"]
   String substring(int) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="substringBytes"]
   String substring(int,int) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="substringBytes"]
 }
@@ -809,9 +809,9 @@ class java.lang.StringBuffer {
 class java.lang.StringBuilder {
   () @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="stringBuilderShellBytes"]
   (CharSequence) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="stringBuilderBytes"]
-  StringBuilder append(def)
-  StringBuilder append(CharSequence,int,int)
-  StringBuilder appendCodePoint(int)
+  StringBuilder append(def) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="appendBytes"]
+  StringBuilder append(CharSequence,int,int) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="appendBytes"]
+  StringBuilder appendCodePoint(int) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="appendCodePointBytes"]
   int capacity()
   int codePointAt(int)
   int codePointBefore(int)
@@ -821,14 +821,14 @@ class java.lang.StringBuilder {
   void getChars(int,int,char[],int)
   int indexOf(String)
   int indexOf(String,int)
-  StringBuilder insert(int,def)
+  StringBuilder insert(int,def) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="insertBytes"]
   int lastIndexOf(String)
   int lastIndexOf(String,int)
   int offsetByCodePoints(int,int)
-  StringBuilder replace(int,int,String)
+  StringBuilder replace(int,int,String) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="replaceBytes"]
   StringBuilder reverse()
   void setCharAt(int,char)
-  void setLength(int)
+  void setLength(int) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="setLengthBytes"]
   String substring(int) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="substringBytes"]
   String substring(int,int) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="substringBytes"]
 }
@@ -953,10 +953,10 @@ class java.lang.Character$UnicodeScript {
   Character.UnicodeScript UNKNOWN
   Character.UnicodeScript VAI
   Character.UnicodeScript YI
-  Character.UnicodeScript forName(String)
+  Character.UnicodeScript forName(String) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="forNameBytes"]
   Character.UnicodeScript of(int)
   Character.UnicodeScript valueOf(String)
-  Character.UnicodeScript[] values()
+  Character.UnicodeScript[] values() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="unicodeScriptValuesBytes"]
 }
 
 #### Exceptions

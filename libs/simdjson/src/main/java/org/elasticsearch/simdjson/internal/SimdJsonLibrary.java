@@ -32,7 +32,7 @@ import java.lang.foreign.MemorySegment;
  * the Java array for the duration of the call. This eliminates the memcpy
  * that the non-critical variants require.
  */
-@LibrarySpecification(name = "simdjson", unavailableOn = { Platform.WINDOWS_X64, Platform.DARWIN_X64 })
+@LibrarySpecification(name = "simdjson", unavailableOn = { Platform.DARWIN_X64 })
 public interface SimdJsonLibrary {
 
     /**

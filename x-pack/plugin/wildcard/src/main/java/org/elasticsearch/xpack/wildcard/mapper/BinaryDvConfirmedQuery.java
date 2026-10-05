@@ -30,10 +30,11 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
-import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingArrayOrderBinaryDocValues;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 
@@ -218,9 +219,9 @@ abstract class BinaryDvConfirmedQuery extends Query {
                     public Scorer get(long leadCost) throws IOException {
                         // Checkpoint before opening the binary doc values reader for this surviving clause/segment pair.
                         ContextIndexSearcher.checkBinaryDvDecodeBreaker(breaker);
-                        final SortedBinaryDocValues values = arrayOrder
+                        final SortableBinaryDocValues values = arrayOrder
                             ? SortingArrayOrderBinaryDocValues.from(context.reader(), field)
-                            : MultiValuedSortedBinaryDocValues.fromMultiValued(context.reader(), field);
+                            : MultiValuedSortableBinaryDocValues.fromMultiValued(context.reader(), field);
                         final Scorer approxScorer = approxScorerSupplier.get(leadCost);
                         final DocIdSetIterator approxDisi = approxScorer.iterator();
                         final TwoPhaseIterator twoPhase = new TwoPhaseIterator(approxDisi) {
@@ -283,7 +284,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
     }
 
     interface BinaryDVMatcher {
-        boolean matchesBinaryDV(SortedBinaryDocValues values) throws IOException;
+        boolean matchesBinaryDV(SortableBinaryDocValues values) throws IOException;
     }
 
     private static class BinaryDvConfirmedAutomatonQuery extends BinaryDvConfirmedQuery {
@@ -302,7 +303,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
 
         @Override
         protected BinaryDVMatcher getBinaryDVMatcher() {
-            final ByteRunAutomaton byteRunAutomaton = new ByteRunAutomaton(automatonProvider.getAutomaton(field));
+            final ByteRunAutomaton byteRunAutomaton = automatonProvider.getRunAutomaton(field);
             return (values) -> {
                 int count = values.docValueCount();
                 for (int i = 0; i < count; i++) {
@@ -405,14 +406,22 @@ abstract class BinaryDvConfirmedQuery extends Query {
 
     private interface AutomatonProvider {
         Automaton getAutomaton(String field);
+
+        default ByteRunAutomaton getRunAutomaton(String field) {
+            return new ByteRunAutomaton(getAutomaton(field));
+        }
     }
 
     private record PatternAutomatonProvider(String matchPattern, boolean caseInsensitive) implements AutomatonProvider {
         @Override
         public Automaton getAutomaton(String field) {
-            return caseInsensitive
-                ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(field, matchPattern))
-                : WildcardQuery.toAutomaton(new Term(field, matchPattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            try {
+                return caseInsensitive
+                    ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(field, matchPattern))
+                    : WildcardQuery.toAutomaton(new Term(field, matchPattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            } catch (TooComplexToDeterminizeException e) {
+                throw new IllegalArgumentException("Pattern was too complex to determinize", e);
+            }
         }
     }
 
@@ -422,7 +431,11 @@ abstract class BinaryDvConfirmedQuery extends Query {
         @Override
         public Automaton getAutomaton(String field) {
             RegExp regex = new RegExp(value, syntaxFlags, matchFlags);
-            return Operations.determinize(regex.toAutomaton(), maxDeterminizedStates);
+            try {
+                return Operations.determinize(regex.toAutomaton(), maxDeterminizedStates);
+            } catch (TooComplexToDeterminizeException e) {
+                throw new IllegalArgumentException("Pattern was too complex to determinize", e);
+            }
         }
     }
 
@@ -438,7 +451,12 @@ abstract class BinaryDvConfirmedQuery extends Query {
     private record FuzzyQueryAutomatonProvider(String searchTerm, FuzzyQuery fuzzyQuery) implements AutomatonProvider {
         @Override
         public Automaton getAutomaton(String field) {
-            return fuzzyQuery.getAutomata().automaton;
+            throw new UnsupportedOperationException("Call getRunAutomaton instead");
+        }
+
+        @Override
+        public ByteRunAutomaton getRunAutomaton(String field) {
+            return fuzzyQuery.getAutomata().runAutomaton;
         }
     }
 

@@ -24,6 +24,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -143,6 +145,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     public static final long MAX_HEAP_SIZE = ByteSizeUnit.GB.toBytes(31);
 
     private volatile ByteSizeValue fixedShardMemoryOverhead;
+    private final ClusterService clusterService;
     private final boolean selfReportedShardMemoryOverheadEnabled;
 
     /**
@@ -175,7 +178,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      */
     private final Map<ShardId, ShardMemoryMetrics> shardMemoryMetrics = new ConcurrentHashMap<>();
     private volatile int totalIndices;
-    private volatile long indexMetadataEstimatedHeapBytes;
     private final AtomicReference<IndexingOperationsMemoryRequirements> indexingOperationsHeapMemoryRequirementsRef =
         new AtomicReference<>();
 
@@ -194,8 +196,10 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     protected volatile boolean adaptiveShardMemoryEstimationMinThresholdEnabled;
 
     @SuppressWarnings("this-escape")
-    public StatelessMemoryMetricsService(LongSupplier relativeTimeInNanosSupplier, ClusterSettings clusterSettings) {
+    public StatelessMemoryMetricsService(LongSupplier relativeTimeInNanosSupplier, ClusterService clusterService) {
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
+        this.clusterService = clusterService;
+        final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         this.selfReportedShardMemoryOverheadEnabled = clusterSettings.get(SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING);
         clusterSettings.initializeAndWatch(
             INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING,
@@ -299,17 +303,21 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     }
 
     /**
-     * Estimated heap used by index metadata objects in the current cluster state, recalculated on master
-     * {@link #clusterChanged} events. This is an approximate {@link org.apache.lucene.util.Accountable} walk
-     * (not measured RSS): shared {@link MappingMetadata} instances are counted once, some fields are omitted,
-     * and interned settings strings are not attributed per index.
+     * Estimated heap used by index metadata objects in the current cluster state. This is an approximate
+     * {@link org.apache.lucene.util.Accountable} walk (not measured RSS): shared {@link MappingMetadata}
+     * instances are counted once, some fields are omitted, and interned settings strings are not attributed per index.
      * <p>
      * Expected to be lower than {@link #INDEX_MEMORY_OVERHEAD} times the index count for typical metadata;
      * callers that previously used the fixed overhead should treat this as a reduction, not a drop-in for
      * absolute heap accounting.
+     *
+     * @return estimated heap used by index metadata objects in the current cluster state, or -1 if the cluster state is not available
      */
     public long getIndexMetadataEstimatedHeapBytes() {
-        return indexMetadataEstimatedHeapBytes;
+        if (clusterService.lifecycleState() == Lifecycle.State.STARTED) {
+            return estimateIndexMetadataHeapBytes(clusterService.state().metadata());
+        }
+        return -1;
     }
 
     /** Derived from the master-only {@link #totalIndices}; node-local callers must use {@link #getNodeBaseHeapEstimateInBytes(int)}. */
@@ -535,7 +543,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             return;
         }
         this.totalIndices = event.state().metadata().getTotalNumberOfIndices();
-        this.indexMetadataEstimatedHeapBytes = estimateIndexMetadataHeapBytes(event.state().metadata());
 
         // new master use case: no indices exist in internal map
         if (event.nodesDelta().masterNodeChanged() || initialized == false) {
@@ -640,9 +647,9 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * Sums {@link IndexMetadata#ramBytesUsed()} across projects, counting each shared
      * {@link MappingMetadata} instance once. Expected to stay below {@link #INDEX_MEMORY_OVERHEAD} per index for typical configurations.
      */
-    private static long estimateIndexMetadataHeapBytes(Metadata metadata) {
+    static long estimateIndexMetadataHeapBytes(Metadata metadata) {
         long total = 0;
-        Set<MappingMetadata> seenMappings = Collections.newSetFromMap(new IdentityHashMap<>());
+        Set<MappingMetadata> seenMappings = Collections.newSetFromMap(new IdentityHashMap<>(metadata.getTotalNumberOfIndices()));
         for (IndexMetadata indexMetadata : metadata.indicesAllProjects()) {
             total += indexMetadata.ramBytesUsed();
             MappingMetadata mapping = indexMetadata.mapping();

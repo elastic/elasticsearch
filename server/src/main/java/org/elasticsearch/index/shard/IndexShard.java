@@ -380,7 +380,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         assert localNode.getId().equals(shardRouting.currentNodeId())
             : "localNode [" + localNode.getId() + "] must match shardRouting currentNodeId [" + shardRouting.currentNodeId() + "]";
-        this.recoveryState = Objects.requireNonNull(recoveryStateFactory.newRecoveryState(shardRouting, localNode, sourceNode));
+        this.recoveryState = Objects.requireNonNull(recoveryStateFactory.newRecoveryState(shardRouting, localNode, sourceNode, 0));
         final Settings settings = indexSettings.getSettings();
         this.codecService = new CodecService(
             mapperService,
@@ -2161,9 +2161,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     throw new IndexShardClosedException(shardId);
                 }
                 if (state != IndexShardState.RECOVERING) {
-                    String message = "Unexpected shard state [" + state + "] for shard [" + shardId + "]";
-                    assert false : message;
-                    throw new IllegalStateException(message);
+                    logger.error("Illegal shard state [{}] during recovery for shard [{}]", state, shardId);
+                    assert false : "Unexpected shard state [" + state + "] for shard [" + shardId + "]";
+                    throw new IllegalStateException("Unexpected shard state [" + state + "] for shard [" + shardId + "]");
                 }
                 recoveryState.setStage(RecoveryState.Stage.DONE);
             }
@@ -2176,9 +2176,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         throw new IndexShardClosedException(shardId);
                     }
                     if (state != IndexShardState.RECOVERING) {
-                        String message = "Unexpected shard state [" + state + "] for shard [" + shardId + "]";
-                        assert false : message;
-                        throw new IllegalStateException(message);
+                        logger.error("Illegal shard state [{}] during recovery for shard [{}]", state, shardId);
+                        assert false : "Unexpected shard state [" + state + "] for shard [" + shardId + "]";
+                        throw new IllegalStateException("Unexpected shard state [" + state + "] for shard [" + shardId + "]");
                     }
                     // It's ok if we missed the request, finish shard recovery, and let the master sort it out.
                     recoveryCancellationRequested = false;
@@ -3900,7 +3900,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     recoveryTargetService.startRecovery(this, currentRecoveryState.getSourceNode(), clusterStateVersion, recoveryListener);
                 } catch (Exception e) {
                     failShard("corrupted preexisting index", e);
-                    recoveryListener.onRecoveryFailure(new RecoveryFailedException(currentRecoveryState, null, e), FAIL_SEND);
+                    recoveryListener.onRecoveryFailure(
+                        currentRecoveryState,
+                        new RecoveryFailedException(currentRecoveryState, null, e),
+                        FAIL_SEND
+                    );
                 }
             }
             case SNAPSHOT -> {
@@ -3984,7 +3988,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             ignored -> recoveryListener.onRecoveryDone(recoveryState, getTimestampRange(), getEventIngestedRange()),
             e -> {
                 final FailureStrategy result = ExceptionsHelper.unwrap(e, IndexShardClosedException.class) != null ? ABORT : FAIL_SEND;
-                recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), result);
+                recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), result);
             }
         );
         ActionListener.run(actionListener, action);

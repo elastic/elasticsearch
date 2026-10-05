@@ -14,9 +14,13 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.flattened.KeyedFlattenedDocValuesBlockLoader;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -52,6 +56,7 @@ import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -61,6 +66,8 @@ import static org.hamcrest.Matchers.startsWith;
 public class PushExpressionToLoadIT extends ESRestTestCase {
 
     private static final Settings DISABLE_ROUNDTO_QUERY_TAGS = Settings.builder().put("roundto_pushdown_threshold", 0).build();
+    private static final double GEO_GRID_LAT = 52.52;
+    private static final double GEO_GRID_LON = 13.405;
 
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster();
@@ -304,9 +311,10 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             b -> b.startArray("test").value(min).value(max).endArray(),
             "| EVAL test = MV_MIN(test)",
             matchesList().item(min),
-            // High-cardinality keyword stores values as ArrayOrderInlineNull binary doc values; MV_MIN pushes down into the matching
-            // array-order reader, which skips inline nulls and computes the minimum over the non-null values.
-            matchesMap().entry("test:column_at_a_time:MvMinBytesRefsFromBinary.ArrayOrderInlineNull", 1)
+            // MV_MIN pushes down into the reader of whichever binary layout the index writes; both skip null slots and take the
+            // minimum over what is left.
+            matchesMap().entry("test:column_at_a_time:MvMinBytesRefsFromBinary.ArrayOrderInlineNull", 1),
+            matchesMap().entry("test:column_at_a_time:MinFromColumnarPayload", 1)
         );
     }
 
@@ -332,6 +340,8 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             matchesList().item(min),
             // Like keyword, high-cardinality ip stores values as ArrayOrderInlineNull binary doc values, so MV_MIN must push down into
             // the array-order reader. Reading these with the SeparateCount reader misparses the [valueLen+1] slot prefixes.
+            matchesMap().entry("test:column_at_a_time:MvMinBytesRefsFromBinary.ArrayOrderInlineNull", 1),
+            // The in-order column is what an ip field is written in whichever doc-values format the index uses.
             matchesMap().entry("test:column_at_a_time:MvMinBytesRefsFromBinary.ArrayOrderInlineNull", 1)
         );
     }
@@ -440,9 +450,10 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             b -> b.startArray("test").value(min).value(max).endArray(),
             "| EVAL test = MV_MAX(test)",
             matchesList().item(max),
-            // High-cardinality keyword stores values as ArrayOrderInlineNull binary doc values; MV_MAX pushes down into the matching
-            // array-order reader, which skips inline nulls and computes the maximum over the non-null values.
-            matchesMap().entry("test:column_at_a_time:MvMaxBytesRefsFromBinary.ArrayOrderInlineNull", 1)
+            // MV_MAX pushes down into the reader of whichever binary layout the index writes; both skip null slots and take the
+            // maximum over what is left.
+            matchesMap().entry("test:column_at_a_time:MvMaxBytesRefsFromBinary.ArrayOrderInlineNull", 1),
+            matchesMap().entry("test:column_at_a_time:MvMaxBytesRefsFromColumnarPayload", 1)
         );
     }
 
@@ -455,7 +466,8 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             b -> b.startArray("test").value(value).nullValue().endArray(),
             "| EVAL test = LENGTH(test)",
             matchesList().item(value.length()),
-            matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.MultiValuedBinaryArrayOrderInlineNull", 1)
+            matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.MultiValuedBinaryArrayOrderInlineNull", 1),
+            matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.MultiValuedBinaryColumnarPayload", 1)
         );
     }
 
@@ -466,7 +478,8 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             b -> b.startArray("test").value(value).nullValue().endArray(),
             "| EVAL test = BYTE_LENGTH(test)",
             matchesList().item(value.length()),
-            matchesMap().entry("test:column_at_a_time:ByteLengthFromBytesRef.MultiValuedBinaryArrayOrderInlineNull", 1)
+            matchesMap().entry("test:column_at_a_time:ByteLengthFromBytesRef.MultiValuedBinaryArrayOrderInlineNull", 1),
+            matchesMap().entry("test:column_at_a_time:ByteLengthFromBytesRef.MultiValuedBinaryColumnarPayload", 1)
         );
     }
 
@@ -490,6 +503,8 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             b -> b.startArray("test").value(min).value(max).endArray(),
             "| EVAL test = MV_MAX(test)",
             matchesList().item(max),
+            matchesMap().entry("test:column_at_a_time:MvMaxBytesRefsFromBinary.ArrayOrderInlineNull", 1),
+            // The in-order column is what an ip field is written in whichever doc-values format the index uses.
             matchesMap().entry("test:column_at_a_time:MvMaxBytesRefsFromBinary.ArrayOrderInlineNull", 1)
         );
     }
@@ -739,6 +754,194 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             matchesList().item(100),
             matchesMap().entry("test:column_at_a_time:RoundToLongsFromDocValues.Singleton", 1),
             DISABLE_ROUNDTO_QUERY_TAGS
+        );
+    }
+
+    /**
+     * Tests that {@code ST_GEOHASH} on a {@code geo_point} field is fused into the field load via
+     * {@code GeoGridFromDocValues}, so the point is never materialised: only the cell id is loaded.
+     * The cell is converted to a string in the query only because the shared {@code MV_SORT(VALUES(..))}
+     * wrapper of {@link #test} does not accept grid types; the fusion happens inside {@code TO_STRING}.
+     */
+    public void testStGeohashToGeoPoint() throws IOException {
+        test(
+            justType("geo_point"),
+            b -> b.field("test", GEO_GRID_LAT + "," + GEO_GRID_LON),
+            "| EVAL test = TO_STRING(ST_GEOHASH(test, 4))",
+            matchesList().item(Geohash.stringEncode(GEO_GRID_LON, GEO_GRID_LAT, 4)),
+            matchesMap().entry("test:column_at_a_time:GeoGridFromDocValues.Singleton", 1)
+        );
+    }
+
+    /**
+     * Like {@link #testStGeohashToGeoPoint} but for {@code ST_GEOTILE}.
+     */
+    public void testStGeotileToGeoPoint() throws IOException {
+        test(
+            justType("geo_point"),
+            b -> b.field("test", GEO_GRID_LAT + "," + GEO_GRID_LON),
+            "| EVAL test = TO_STRING(ST_GEOTILE(test, 4))",
+            matchesList().item(GeoTileUtils.stringEncode(GeoTileUtils.longEncode(GEO_GRID_LON, GEO_GRID_LAT, 4))),
+            matchesMap().entry("test:column_at_a_time:GeoGridFromDocValues.Singleton", 1)
+        );
+    }
+
+    /**
+     * Like {@link #testStGeohashToGeoPoint} but for {@code ST_GEOHEX}.
+     */
+    public void testStGeohexToGeoPoint() throws IOException {
+        test(
+            justType("geo_point"),
+            b -> b.field("test", GEO_GRID_LAT + "," + GEO_GRID_LON),
+            "| EVAL test = TO_STRING(ST_GEOHEX(test, 4))",
+            matchesList().item(H3.geoToH3Address(GEO_GRID_LAT, GEO_GRID_LON, 4)),
+            matchesMap().entry("test:column_at_a_time:GeoGridFromDocValues.Singleton", 1)
+        );
+    }
+
+    /**
+     * Multi-valued points produce one cell per point, so the {@code Sorted} reader is used.
+     */
+    public void testStGeohashToMultiValuedGeoPoint() throws IOException {
+        test(
+            justType("geo_point"),
+            b -> b.array("test", GEO_GRID_LAT + "," + GEO_GRID_LON, (-GEO_GRID_LAT) + "," + (-GEO_GRID_LON)),
+            "| EVAL test = TO_STRING(ST_GEOHASH(test, 4))",
+            matchesList().item(
+                java.util.stream.Stream.of(
+                    Geohash.stringEncode(GEO_GRID_LON, GEO_GRID_LAT, 4),
+                    Geohash.stringEncode(-GEO_GRID_LON, -GEO_GRID_LAT, 4)
+                ).sorted().toList()
+            ),
+            matchesMap().entry("test:column_at_a_time:GeoGridFromDocValues.Sorted", 1)
+        );
+    }
+
+    /**
+     * A bounded grid is fused as well: the cell is loaded when the point lies inside the bounds.
+     */
+    public void testBoundedStGeohashToGeoPoint() throws IOException {
+        test(
+            justType("geo_point"),
+            b -> b.field("test", GEO_GRID_LAT + "," + GEO_GRID_LON),
+            "| EVAL test = TO_STRING(ST_GEOHASH(test, 4, TO_GEOSHAPE(\"BBOX(10, 15, 55, 50)\")))",
+            matchesList().item(Geohash.stringEncode(GEO_GRID_LON, GEO_GRID_LAT, 4)),
+            matchesMap().entry("test:column_at_a_time:GeoGridFromDocValues.Singleton", 1)
+        );
+    }
+
+    /**
+     * A point outside the bounds of a bounded grid loads as {@code null}, as the evaluator would return.
+     */
+    public void testBoundedStGeohashOutsideBoundsToGeoPoint() throws IOException {
+        test(
+            justType("geo_point"),
+            b -> b.field("test", GEO_GRID_LAT + "," + GEO_GRID_LON),
+            "| EVAL test = TO_STRING(ST_GEOHASH(test, 4, TO_GEOSHAPE(\"BBOX(-120, -100, 40, 30)\")))",
+            matchesList().item(nullValue()),
+            matchesMap().entry("test:column_at_a_time:GeoGridFromDocValues.Singleton", 1)
+        );
+    }
+
+    /**
+     * Like {@link #testBoundedStGeohashToGeoPoint} for {@code ST_GEOHEX}, whose bounded predicate keeps scratch state
+     * and therefore exercises the per-reader encoder creation.
+     */
+    public void testBoundedStGeohexToGeoPoint() throws IOException {
+        test(
+            justType("geo_point"),
+            b -> b.field("test", GEO_GRID_LAT + "," + GEO_GRID_LON),
+            "| EVAL test = TO_STRING(ST_GEOHEX(test, 4, TO_GEOSHAPE(\"BBOX(10, 15, 55, 50)\")))",
+            matchesList().item(H3.geoToH3Address(GEO_GRID_LAT, GEO_GRID_LON, 4)),
+            matchesMap().entry("test:column_at_a_time:GeoGridFromDocValues.Singleton", 1)
+        );
+    }
+
+    /**
+     * Tests that {@code ST_GEOHASH} on a {@code geo_shape} field is fused into the field load via
+     * {@code GeoGridFromShapeDocValues}: the cells come from the indexed triangle tree in the doc values and the shape is
+     * never read from {@code _source}. A square around the origin touches the four precision-1 cells that meet there.
+     */
+    public void testStGeohashToGeoShape() throws IOException {
+        test(
+            justType("geo_shape"),
+            b -> b.field("test", "POLYGON((-1 -1, 1 -1, 1 1, -1 1, -1 -1))"),
+            "| EVAL test = TO_STRING(ST_GEOHASH(test, 1))",
+            matchesList().item(List.of("7", "e", "k", "s")),
+            matchesMap().entry("test:column_at_a_time:GeoGridFromShapeDocValues", 1)
+        );
+    }
+
+    /**
+     * Like {@link #testStGeohashToGeoShape} with bounds covering only the north-eastern quadrant, leaving one cell.
+     */
+    public void testBoundedStGeohashToGeoShape() throws IOException {
+        test(
+            justType("geo_shape"),
+            b -> b.field("test", "POLYGON((-1 -1, 1 -1, 1 1, -1 1, -1 -1))"),
+            "| EVAL test = TO_STRING(ST_GEOHASH(test, 1, TO_GEOSHAPE(\"BBOX(0, 90, 90, 0)\")))",
+            matchesList().item("s"),
+            matchesMap().entry("test:column_at_a_time:GeoGridFromShapeDocValues", 1)
+        );
+    }
+
+    /**
+     * Like {@link #testStGeohashToGeoShape} for {@code ST_GEOTILE}: the same square touches the four zoom-1 tiles.
+     */
+    public void testStGeotileToGeoShape() throws IOException {
+        test(
+            justType("geo_shape"),
+            b -> b.field("test", "POLYGON((-1 -1, 1 -1, 1 1, -1 1, -1 -1))"),
+            "| EVAL test = TO_STRING(ST_GEOTILE(test, 1))",
+            matchesList().item(List.of("1/0/0", "1/0/1", "1/1/0", "1/1/1")),
+            matchesMap().entry("test:column_at_a_time:GeoGridFromShapeDocValues", 1)
+        );
+    }
+
+    /**
+     * Like {@link #testStGeohashToGeoShape} for {@code ST_GEOHEX}, where a small shape at resolution 0 lies in one cell.
+     */
+    public void testStGeohexToGeoShape() throws IOException {
+        test(
+            justType("geo_shape"),
+            b -> b.field("test", "POLYGON((12.62 55.62, 12.64 55.62, 12.64 55.64, 12.62 55.64, 12.62 55.62))"),
+            "| EVAL test = TO_STRING(ST_GEOHEX(test, 0))",
+            matchesList().item(H3.geoToH3Address(55.63, 12.63, 0)),
+            matchesMap().entry("test:column_at_a_time:GeoGridFromShapeDocValues", 1)
+        );
+    }
+
+    /**
+     * A one degree square intersects about 16 000 precision-6 geohash cells, more than {@code MAX_GRID_CELLS}, so the
+     * fused load must truncate to the limit and register the very same warning the evaluator does.
+     */
+    public void testStGeohashToGeoShapeTruncatesWithWarning() throws IOException {
+        String query = """
+            FROM test
+            | EVAL test = MV_COUNT(ST_GEOHASH(test, 6))
+            | STATS test = MV_SORT(VALUES(test))
+            """;
+        int column = query.lines().toList().get(1).indexOf("ST_GEOHASH") + 1;
+        test(
+            justType("geo_shape"),
+            b -> b.field("test", "POLYGON((10 50, 11 50, 11 51, 10 51, 10 50))"),
+            query,
+            matchesList().item(10_000),
+            matchesList().item(matchesMap().entry("name", "test").entry("type", "integer")),
+            Map.of("data", List.of(matchesMap().entry("test:column_at_a_time:GeoGridFromShapeDocValues", 1))),
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneSourceOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("EvalOperator")
+                    .item("AggregationOperator")
+                    .item("ExchangeSinkOperator")
+            ),
+            null,
+            null,
+            new AssertWarnings.ExactStrings(
+                List.of("Line 2:" + column + " [ST_GEOHASH(test, 6)]: ST_GEOHASH generated more than 10000 grid cells")
+            )
         );
     }
 
@@ -1247,19 +1450,24 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
     }
 
     /**
-     * Runs a function-pushdown test against a strict-columnar index so the keyword field gets HIGH-cardinality binary doc values
-     * (the {@code ArrayOrderInlineNull} format), exercising the array-order binary block loaders instead of the SortedSet ordinal loaders.
+     * Runs a function-pushdown test against a strict-columnar index, where the field gets HIGH-cardinality binary doc values and the
+     * pushdown lands on a binary loader rather than a SortedSet ordinal one.
+     *
+     * <p>Which binary layout the index writes follows {@code index.columnar_codec.enabled} — the in-order column with its companion
+     * count, or the ColumNAR codec's payload — and each has its own loader, so the expected one is read off the index rather than
+     * assumed. A field whose loader is the same either way passes the same matcher twice.
      */
     private void testHighCardinality(
         CheckedConsumer<XContentBuilder, IOException> mapping,
         CheckedConsumer<XContentBuilder, IOException> doc,
         String eval,
         Matcher<?> expectedValue,
-        MapMatcher expectedLoaders
+        MapMatcher expectedInlineLoaders,
+        MapMatcher expectedPayloadLoaders
     ) throws IOException {
-        test(
-            mapping,
-            doc,
+        indexValue(mapping, doc, IndexMode.COLUMNAR.getName());
+        final MapMatcher expectedLoaders = usesColumnarCodec("test") ? expectedPayloadLoaders : expectedInlineLoaders;
+        assertPushdown(
             """
                 FROM test
                 """ + eval + """
@@ -1277,8 +1485,29 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     .item("ExchangeSinkOperator")
             ),
             null,
-            IndexMode.COLUMNAR.getName()
+            new AssertWarnings.NoWarnings()
         );
+    }
+
+    /**
+     * Whether {@code index} writes its doc values with the ColumNAR codec. Read off the index: the setting's default has moved, and
+     * it is not registered at all on a build where the feature flag is off.
+     */
+    private static boolean usesColumnarCodec(String index) throws IOException {
+        Request request = new Request("GET", "/" + index + "/_settings/index.columnar_codec.enabled");
+        request.addParameter("flat_settings", "true");
+        request.addParameter("include_defaults", "true");
+        Map<String, Object> response = entityToMap(client().performRequest(request).getEntity(), XContentType.JSON);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> forIndex = (Map<String, Object>) response.get(index);
+        for (String section : new String[] { "settings", "defaults" }) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> settings = (Map<String, Object>) forIndex.get(section);
+            if (settings != null && settings.get("index.columnar_codec.enabled") != null) {
+                return Booleans.parseBoolean(settings.get("index.columnar_codec.enabled").toString());
+            }
+        }
+        return false;
     }
 
     private void test(
@@ -1305,13 +1534,54 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         Settings pragmas,
         String indexMode
     ) throws IOException {
+        test(
+            mapping,
+            doc,
+            query,
+            expectedValue,
+            columnMatcher,
+            expectedLoadersPerDriver,
+            assertDataNodeSig,
+            pragmas,
+            indexMode,
+            new AssertWarnings.NoWarnings()
+        );
+    }
+
+    private void test(
+        CheckedConsumer<XContentBuilder, IOException> mapping,
+        CheckedConsumer<XContentBuilder, IOException> doc,
+        String query,
+        Matcher<?> expectedValue,
+        Matcher<?> columnMatcher,
+        Map<String, List<MapMatcher>> expectedLoadersPerDriver,
+        Consumer<List<String>> assertDataNodeSig,
+        Settings pragmas,
+        String indexMode,
+        AssertWarnings assertWarnings
+    ) throws IOException {
         indexValue(mapping, doc, indexMode);
+        assertPushdown(query, expectedValue, columnMatcher, expectedLoadersPerDriver, assertDataNodeSig, pragmas, assertWarnings);
+    }
+
+    /**
+     * Runs {@code query} against the index just indexed into and asserts what it read and which loaders it built.
+     */
+    private void assertPushdown(
+        String query,
+        Matcher<?> expectedValue,
+        Matcher<?> columnMatcher,
+        Map<String, List<MapMatcher>> expectedLoadersPerDriver,
+        Consumer<List<String>> assertDataNodeSig,
+        Settings pragmas,
+        AssertWarnings assertWarnings
+    ) throws IOException {
         RestEsqlTestCase.RequestObjectBuilder builder = requestObjectBuilder().query(query);
         if (pragmas != null) {
             builder.pragmasOk().pragmas(pragmas);
         }
         builder.profile(true);
-        Map<String, Object> result = runEsql(builder, new AssertWarnings.NoWarnings(), profileLogger, RestEsqlTestCase.Mode.SYNC);
+        Map<String, Object> result = runEsql(builder, assertWarnings, profileLogger, RestEsqlTestCase.Mode.SYNC);
 
         assertResultMap(
             result,

@@ -12,6 +12,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Strings;
@@ -21,6 +22,7 @@ import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.IntStream;
@@ -91,6 +93,21 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
 
         e = expectThrows(IllegalArgumentException.class, () -> new WildcardQueryBuilder("field", null));
         assertEquals("value cannot be null", e.getMessage());
+    }
+
+    public void testTooComplexPatternIsIllegalArgument() {
+        String pattern = "*" + "0".repeat(4146) + "*";
+        for (QueryBuilder builder : List.of(
+            new WildcardQueryBuilder(KEYWORD_FIELD_NAME, pattern),
+            new BoolQueryBuilder().filter(new WildcardQueryBuilder(KEYWORD_FIELD_NAME, pattern))
+        )) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> builder.toQuery(createSearchExecutionContext())
+            );
+            assertThat(e.getMessage(), equalTo("Pattern was too complex to determinize"));
+            assertThat(e.getCause(), instanceOf(TooComplexToDeterminizeException.class));
+        }
     }
 
     public void testEmptyValue() throws IOException {

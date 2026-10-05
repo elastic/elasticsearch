@@ -12,6 +12,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Strings;
@@ -90,6 +91,13 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
 
         e = expectThrows(IllegalArgumentException.class, () -> new RegexpQueryBuilder("field", null));
         assertEquals("value cannot be null", e.getMessage());
+    }
+
+    public void testTooComplexPatternIsIllegalArgument() {
+        RegexpQueryBuilder builder = new RegexpQueryBuilder(KEYWORD_FIELD_NAME, "[ac]*a[ac]{200,500}");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.toQuery(createSearchExecutionContext()));
+        assertThat(e.getMessage(), equalTo("Pattern was too complex to determinize"));
+        assertThat(e.getCause(), instanceOf(TooComplexToDeterminizeException.class));
     }
 
     public void testFromJson() throws IOException {

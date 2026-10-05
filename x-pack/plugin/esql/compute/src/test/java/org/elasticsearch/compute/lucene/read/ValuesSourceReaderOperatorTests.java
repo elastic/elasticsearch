@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.lucene.read;
 
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.FieldType;
@@ -37,6 +38,7 @@ import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -72,9 +74,11 @@ import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DummyBlockLoaderContext;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
@@ -286,18 +290,26 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     private void initIndex(int size, int commitEvery) throws IOException {
+        initIndex(size, commitEvery, null);
+    }
+
+    private void initIndex(int size, int commitEvery, @Nullable Codec codec) throws IOException {
         initMapping();
         keyToTags.clear();
-        reader = initIndex(directory, size, commitEvery);
+        reader = initIndex(directory, size, commitEvery, codec);
     }
 
     private IndexReader initIndex(Directory directory, int size, int commitEvery) throws IOException {
-        try (
-            IndexWriter writer = new IndexWriter(
-                directory,
-                newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE).setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH)
-            )
-        ) {
+        return initIndex(directory, size, commitEvery, null);
+    }
+
+    private IndexReader initIndex(Directory directory, int size, int commitEvery, @Nullable Codec codec) throws IOException {
+        IndexWriterConfig config = newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
+            .setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH);
+        if (codec != null) {
+            config.setCodec(codec);
+        }
+        try (IndexWriter writer = new IndexWriter(directory, config)) {
             for (int d = 0; d < size; d++) {
                 XContentBuilder source = JsonXContent.contentBuilder();
                 source.startObject();
@@ -1751,7 +1763,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     public void testManyReaderUsesRandomStoredFieldsForSmallDenseRange() throws IOException {
-        testManyReaderStoredFields(IntStream.range(0, between(2, ValuesFromSingleReader.SEQUENTIAL_BOUNDARY)).toArray(), false);
+        testManyReaderStoredFields(IntStream.range(0, between(2, ValuesFromSingleReader.SEQUENTIAL_BOUNDARY - 1)).toArray(), false);
     }
 
     public void testManyReaderUsesSequentialStoredFieldsForDenseRange() throws IOException {
@@ -1779,19 +1791,48 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     public void testManyReaderUsesRandomStoredFieldsForSmallDenseSourceRange() throws IOException {
-        testManyReaderRowStrideFields(IntStream.range(0, between(2, ValuesFromSingleReader.SEQUENTIAL_BOUNDARY)).toArray(), false, true);
+        testManyReaderRowStrideFields(
+            IntStream.range(0, between(2, ValuesFromSingleReader.SEQUENTIAL_BOUNDARY - 1)).toArray(),
+            false,
+            true
+        );
+    }
+
+    public void testManyReaderUsesSequentialStoredFieldsForDenseEnoughRange() throws IOException {
+        int count = between(ValuesFromSingleReader.SEQUENTIAL_BOUNDARY + 1, ValuesFromSingleReader.SEQUENTIAL_BOUNDARY * 2);
+        testManyReaderStoredFields(IntStream.range(0, count).map(i -> i * 2).toArray(), true);
     }
 
     public void testManyReaderUsesRandomStoredFieldsForSparseRange() throws IOException {
         int count = between(ValuesFromSingleReader.SEQUENTIAL_BOUNDARY + 1, ValuesFromSingleReader.SEQUENTIAL_BOUNDARY * 2);
-        testManyReaderStoredFields(IntStream.range(0, count).map(i -> i * 2).toArray(), false);
+        testManyReaderStoredFields(IntStream.range(0, count).map(i -> i * 8).toArray(), false);
     }
 
-    public void testManyReaderUsesRandomStoredFieldsForRangeWithDuplicateAndGap() throws IOException {
+    public void testManyReaderUsesSequentialStoredFieldsForRangeWithDuplicateAndGap() throws IOException {
         testManyReaderStoredFields(
             IntStream.concat(IntStream.of(0, 0), IntStream.rangeClosed(2, ValuesFromSingleReader.SEQUENTIAL_BOUNDARY + 1)).toArray(),
-            false
+            true
         );
+    }
+
+    public void testManyReaderUsesSequentialStoredFieldsForSparseZstdRange() throws IOException {
+        int count = between(2, ValuesFromSingleReader.SEQUENTIAL_BOUNDARY * 2);
+        testManyReaderRowStrideFields(IntStream.range(0, count).map(i -> i * 8).toArray(), true, randomBoolean(), zstdCodec());
+    }
+
+    public void testManyReaderUsesRandomStoredFieldsForSingleZstdDoc() throws IOException {
+        testManyReaderRowStrideFields(new int[] { 0, 0 }, false, randomBoolean(), zstdCodec());
+    }
+
+    public void testDecompressesWholeBlockPerDocument() throws IOException {
+        Codec codec = randomBoolean() ? zstdCodec() : null;
+        initIndex(1, 1, codec);
+        assertThat(reader.leaves(), hasSize(1));
+        assertThat(ValuesFromSingleReader.decompressesWholeBlockPerDocument(reader.leaves().getFirst()), equalTo(codec != null));
+    }
+
+    private static Codec zstdCodec() {
+        return new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, null).codec(CodecService.BEST_COMPRESSION_CODEC);
     }
 
     private void testManyReaderStoredFields(int[] selectedDocIds, boolean sequential) throws IOException {
@@ -1799,8 +1840,13 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     private void testManyReaderRowStrideFields(int[] selectedDocIds, boolean sequential, boolean sourceBacked) throws IOException {
+        testManyReaderRowStrideFields(selectedDocIds, sequential, sourceBacked, null);
+    }
+
+    private void testManyReaderRowStrideFields(int[] selectedDocIds, boolean sequential, boolean sourceBacked, @Nullable Codec codec)
+        throws IOException {
         int docCount = selectedDocIds[selectedDocIds.length - 1] + 1;
-        initIndex(docCount, docCount);
+        initIndex(docCount, docCount, codec);
         reader = ElasticsearchDirectoryReader.wrap((DirectoryReader) reader, new ShardId("index", "_na_", 0));
         assertThat(reader.leaves(), hasSize(1));
         assertThat(reader.leaves().getFirst().reader(), instanceOf(SequentialStoredFieldsLeafReader.class));

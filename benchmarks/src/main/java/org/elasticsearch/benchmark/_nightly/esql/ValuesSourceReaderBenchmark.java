@@ -51,6 +51,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
@@ -107,6 +108,7 @@ public class ValuesSourceReaderBenchmark {
         "shuffled_sparse",
         "shuffled_small",
         "shuffled_singles" };
+    private static final String[] SUPPORTED_CODECS = new String[] { CodecService.DEFAULT_CODEC, CodecService.BEST_COMPRESSION_CODEC };
     private static final String[] SUPPORTED_NAMES = new String[] {
         "long",
         "int",
@@ -141,23 +143,26 @@ public class ValuesSourceReaderBenchmark {
 
     static void selfTest() {
         try {
-            ValuesSourceReaderBenchmark benchmark = new ValuesSourceReaderBenchmark();
-            benchmark.setupIndex();
-            try {
-                for (String layout : ValuesSourceReaderBenchmark.SUPPORTED_LAYOUTS) {
-                    for (String name : ValuesSourceReaderBenchmark.SUPPORTED_NAMES) {
-                        benchmark.layout = layout;
-                        benchmark.name = name;
-                        try {
-                            benchmark.setupPages();
-                            benchmark.benchmark();
-                        } catch (Exception e) {
-                            throw new AssertionError("error initializing [" + layout + "/" + name + "]", e);
+            for (String codec : ValuesSourceReaderBenchmark.SUPPORTED_CODECS) {
+                ValuesSourceReaderBenchmark benchmark = new ValuesSourceReaderBenchmark();
+                benchmark.codec = codec;
+                benchmark.setupIndex();
+                try {
+                    for (String layout : ValuesSourceReaderBenchmark.SUPPORTED_LAYOUTS) {
+                        for (String name : ValuesSourceReaderBenchmark.SUPPORTED_NAMES) {
+                            benchmark.layout = layout;
+                            benchmark.name = name;
+                            try {
+                                benchmark.setupPages();
+                                benchmark.benchmark();
+                            } catch (Exception e) {
+                                throw new AssertionError("error initializing [" + codec + "/" + layout + "/" + name + "]", e);
+                            }
                         }
                     }
+                } finally {
+                    benchmark.teardownIndex();
                 }
-            } finally {
-                benchmark.teardownIndex();
             }
         } catch (IOException e) {
             throw new AssertionError(e);
@@ -304,10 +309,10 @@ public class ValuesSourceReaderBenchmark {
      * <li>{@code shuffled_sparse} uses the same documents and page shapes as
      *     {@code shuffled}, but distributes each segment by document ID modulo sixteen.
      *     This is large enough to consider sequential stored fields, but too sparse to
-     *     use them.</li>
+     *     use them unless the codec decompresses a whole block per document.</li>
      * <li>{@code shuffled_small} reads every document once in pages that contain at most
-     *     ten contiguous documents from each segment. This is too small to use sequential
-     *     stored fields.</li>
+     *     nine contiguous documents from each segment. This is too small to use sequential
+     *     stored fields unless the codec decompresses a whole block per document.</li>
      * <li>{@code shuffled_singles} is shuffled in the same order as {@code shuffled} but
      *     each page has a single document rather than {@code BLOCK_SIZE} docs.</li>
      * </ul>
@@ -317,6 +322,13 @@ public class ValuesSourceReaderBenchmark {
 
     @Param({ "long", "keyword", "stored_keyword", "keyword_mv" })
     public String name;
+
+    /**
+     * The index codec. {@code best_compression} stores fields with zstd, which decompresses
+     * a whole block for every random-access document read.
+     */
+    @Param({ CodecService.DEFAULT_CODEC, CodecService.BEST_COMPRESSION_CODEC })
+    public String codec;
 
     private Directory directory;
     private IndexReader reader;
@@ -426,22 +438,23 @@ public class ValuesSourceReaderBenchmark {
             if (foundStoredFieldLoader == false) {
                 throw new AssertionError("expected to use a stored field loader but only had: " + status.readersBuilt());
             }
+            boolean zstd = CodecService.BEST_COMPRESSION_CODEC.equals(codec);
             switch (layout) {
-                case "shuffled" -> {
-                    if (foundSequentialStoredFieldLoader == false) {
-                        throw new AssertionError("expected to use sequential stored fields but only had: " + status.readersBuilt());
-                    }
-                }
-                case "shuffled_sparse", "shuffled_small" -> {
-                    if (foundSequentialStoredFieldLoader) {
-                        throw new AssertionError("expected to use random stored fields but had: " + status.readersBuilt());
-                    }
-                }
+                case "shuffled" -> assertSequentialStoredFields(true, foundSequentialStoredFieldLoader, status);
+                case "shuffled_sparse", "shuffled_small" -> assertSequentialStoredFields(zstd, foundSequentialStoredFieldLoader, status);
             }
         } else {
             if (foundStoredFieldLoader) {
                 throw new AssertionError("expected not to use a stored field loader but only had: " + status.readersBuilt());
             }
+        }
+    }
+
+    private static void assertSequentialStoredFields(boolean expected, boolean found, ValuesSourceReaderOperatorStatus status) {
+        if (expected != found) {
+            throw new AssertionError(
+                "expected to use " + (expected ? "sequential" : "random") + " stored fields but had: " + status.readersBuilt()
+            );
         }
     }
 
@@ -456,7 +469,9 @@ public class ValuesSourceReaderBenchmark {
         FieldType keywordFieldType = new FieldType(KeywordFieldMapper.Defaults.FIELD_TYPE);
         keywordFieldType.setStored(true);
         keywordFieldType.freeze();
-        try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
+        IndexWriterConfig config = new IndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
+            .setCodec(new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, null).codec(codec));
+        try (IndexWriter iw = new IndexWriter(directory, config)) {
             for (int i = 0; i < INDEX_SIZE; i++) {
                 String c = Character.toString('a' - ((i % 1000) % 26) + 26);
                 iw.addDocument(
@@ -570,7 +585,7 @@ public class ValuesSourceReaderBenchmark {
     }
 
     private void setupSmallShuffledPages() {
-        int docsPerLeaf = 10;
+        int docsPerLeaf = 9;
         int pageCount = reader.leaves().stream().mapToInt(ctx -> Math.ceilDiv(ctx.reader().maxDoc(), docsPerLeaf)).max().orElse(0);
         for (int page = 0; page < pageCount; page++) {
             IntVector.Builder docs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);

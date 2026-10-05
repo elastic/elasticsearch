@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.SuppressedFailures;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -483,7 +484,7 @@ public final class AsyncExternalSourceBuffer {
                 // Classify the loser before suppressing so storage-URI messages in raw SDK
                 // exceptions cannot surface through the suppressed[] array on the wire.
                 if (rawFirstFailure != t) {
-                    failure.addSuppressed((t instanceof Error) ? t : ExternalFailures.classifySuppressed(t));
+                    SuppressedFailures.attach(failure, (t instanceof Error) ? t : ExternalFailures.classifySuppressed(t));
                 }
                 return;
             }

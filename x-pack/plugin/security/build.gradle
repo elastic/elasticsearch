@@ -4,6 +4,7 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.benchmark'
 
 esplugin {
   name = 'x-pack-security'
@@ -154,6 +155,18 @@ dependencies {
   testImplementation('org.apache.directory.server:ldap-client-test:2.0.0-M24')
   testImplementation('org.apache.directory.server:apacheds-interceptor-kerberos:2.0.0-M24')
   testImplementation('org.apache.directory.mavibot:mavibot:1.0.0-M8')
+
+  // :server and x-pack core are only compileOnly for plugins, but JMH runs the benchmarks outside a node and needs them at runtime.
+  benchmarkImplementation project(':server')
+  benchmarkImplementation project(path: xpackModule('core'))
+}
+
+// elasticsearch.benchmark only puts the main classes on the benchmark source set, but the benchmark tests run the benchmarks too.
+sourceSets {
+  benchmarkTest {
+    compileClasspath += sourceSets.main.output
+    runtimeClasspath += sourceSets.main.output
+  }
 }
 
 tasks.named("test").configure {

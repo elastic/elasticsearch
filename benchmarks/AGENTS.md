@@ -3,11 +3,11 @@
 ## Running benchmarks
 
 Run from the `benchmarks/` directory using the `run` task with `--args`. Always use the fully-qualified class
-name including package to avoid ambiguity. Always pipe through `tee /tmp/bench/<descriptive_name>` using a filename that reflects the task (e.g. `tee /tmp/bench/paged_write`).
+name including package to avoid ambiguity. Always pipe through `tee /tmp/bench/<descriptive_name>` using a filename that reflects the task (e.g. `tee /tmp/bench/keyword_topn_logsdb`).
 
 ```
 cd benchmarks
-../gradlew run --args "org.elasticsearch.benchmark._nightly.BytesBuilderBenchmark -pdata=1000_ints -pimpl=paged -poperation=write -rf json -rff build/jmh-result.json" | tee /tmp/bench/paged_write
+../gradlew run --args "org.elasticsearch.benchmark.search.KeywordTopNBenchmark -pindexMode=logsdb -pnumDocs=10000 -psize=10 -rf json -rff build/jmh-result.json" | tee /tmp/bench/keyword_topn_logsdb
 ```
 
 ## ColumNAR transform benchmarks

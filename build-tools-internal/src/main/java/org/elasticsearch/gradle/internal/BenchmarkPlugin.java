@@ -72,6 +72,8 @@ public class BenchmarkPlugin implements Plugin<Project> {
         SourceSet benchmarkTest = javaExt.getSourceSets().create(BENCHMARK_TEST_SOURCE_SET);
 
         GradleUtils.extendSourceSet(project, SourceSet.MAIN_SOURCE_SET_NAME, BENCHMARK_SOURCE_SET);
+        // extendSourceSet copies only the parent output, not its classpath, so main output must be added explicitly.
+        GradleUtils.extendSourceSet(project, SourceSet.MAIN_SOURCE_SET_NAME, BENCHMARK_TEST_SOURCE_SET);
         GradleUtils.extendSourceSet(project, BENCHMARK_SOURCE_SET, BENCHMARK_TEST_SOURCE_SET);
         GradleUtils.extendSourceSet(project, SourceSet.TEST_SOURCE_SET_NAME, BENCHMARK_TEST_SOURCE_SET);
 

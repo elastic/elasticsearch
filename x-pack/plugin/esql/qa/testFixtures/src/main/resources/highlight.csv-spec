@@ -2349,8 +2349,8 @@ Return of the King Being the Third Part of The Lord of the Rings | Return of the
 ;
 
 
-# EVAL makes a new column, so a copy of title has no mapping analyzer. standard does not stem "Rings". No warning.
-highlightMappingAnalyzerEvalCopyUsesStandard
+# EVAL t = title keeps the mapping analyzer, so t is analyzed like title. english stems "Rings", so "ring" matches it.
+highlightMappingAnalyzerEvalCopy
 required_capability: highlight_mapping_analyzer
 
 FROM books_english
@@ -2361,7 +2361,42 @@ FROM books_english
 ;
 
 highlight_t:keyword
+Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+;
+
+
+# CONCAT(title, "") is a new column, so it has no mapping analyzer. standard does not stem "Rings". No warning.
+highlightMappingAnalyzerComputedFromFieldUsesStandard
+required_capability: highlight_mapping_analyzer
+
+FROM books_english
+| WHERE book_no == "2714"
+| EVAL t = TO_TEXT(CONCAT(title, ""))
+| HIGHLIGHT "ring" ON t
+| KEEP highlight_t
+;
+
+highlight_t:keyword
 null
+;
+
+
+# EVAL t = title keeps each index's analyzer. The books_english row matches "Rings", and the books row does not.
+# No warning.
+highlightPerIndexAnalyzerEvalCopy
+required_capability: highlight_mapping_analyzer
+
+FROM books,books_english METADATA _index
+| WHERE book_no == "2714"
+| EVAL t = title
+| HIGHLIGHT "ring" ON t
+| KEEP _index, highlight_t
+| SORT _index
+;
+
+_index:keyword | highlight_t:keyword
+books          | null
+books_english  | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
 ;
 
 

@@ -11,19 +11,22 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.IndexAnalyzerGroup;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField.UnknownAnalyzer;
+import org.elasticsearch.xpack.esql.plan.logical.AliasBindings;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
-import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightAnalyzers;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
@@ -31,31 +34,27 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.TreeSet;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlightIndexKey.beforeRenames;
-import static org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlightIndexKey.renamedBy;
 import static org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlightIndexKey.rowSourceOf;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 
 /**
- * Gives HIGHLIGHT the mapping of each text ON column that RENAME renamed from a mapped field, or that comes unchanged out
- * of a FORK or UNION ALL. Those commands output the column as a {@link ReferenceAttribute}, which has no mapping. A renamed
- * field gets its own mapping, so it is analyzed exactly as the field is. A merged column gets one of these mappings:
+ * Gives HIGHLIGHT back the mapping of text ON columns that {@code RENAME}, a plain {@code EVAL} copy, or an unchanged
+ * {@code FORK} or {@code UNION ALL} turned into a {@link ReferenceAttribute}. A copy keeps the field's mapping, so it
+ * is analyzed the same way as the field. A merged column gets one of these mappings:
  * <ul>
  *     <li>the mapping every branch agrees on;</li>
  *     <li>a mapping that names each index's analyzer, when branches over different indices disagree;</li>
  *     <li>a {@link UnknownAnalyzer#BRANCH_CONFLICT}, which falls back to {@code standard} with a warning.</li>
  * </ul>
- * A column EVAL copies is a new column with no mapping, and so is a column no branch maps. HIGHLIGHT analyzes those like
- * any computed column.
+ * An expression over a field has no mapping, and neither does a column no branch maps. HIGHLIGHT analyzes those like
+ * any other computed column.
  * <p>
  * Runs before {@link ResolveHighlightIndexKey}, which threads each row's {@code _index} through every branch when a mapping
  * names each index's analyzer.
@@ -76,13 +75,13 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
         });
     }
 
-    /** The mapping of each text ON column that renames a mapped field or comes unchanged out of a FORK or UNION ALL, by name. */
+    /** Mapping of each text ON column that isn't a field attribute, by name. */
     private static Map<String, TextEsField> mergedMappings(Highlight highlight) {
+        Lineage lineage = new Lineage(highlight.child());
         Map<String, TextEsField> mappings = new HashMap<>();
-        BranchOutputs outputs = new BranchOutputs();
         for (NamedExpression field : highlight.fields()) {
             if (field instanceof Attribute column && (column instanceof FieldAttribute) == false && column.dataType() == TEXT) {
-                TextEsField mapping = mergedMapping(highlight.child(), column, outputs);
+                TextEsField mapping = mergedMapping(highlight.child(), column, lineage);
                 if (mapping != null) {
                     mappings.put(column.name(), mapping(column.name(), mapping));
                 }
@@ -92,28 +91,19 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
     }
 
     /**
-     * The mapping of {@code column}, an output of {@code plan}, if the column is a mapped field, renames one, or comes
-     * unchanged out of a FORK or UNION ALL.
+     * Mapping of {@code column} when a {@code RENAME} or {@code EVAL} copy still reads a mapped field, or the column
+     * came straight out of a {@code FORK} or {@code UNION ALL}.
      */
-    private static @Nullable TextEsField mergedMapping(LogicalPlan plan, Attribute column, BranchOutputs outputs) {
-        if (column instanceof FieldAttribute) {
-            return HighlightAnalyzers.mappingOf(column, Map.of());
+    private static @Nullable TextEsField mergedMapping(LogicalPlan plan, Attribute column, Lineage lineage) {
+        Expression read = lineage.aliases(plan).resolve(column);
+        if (read instanceof FieldAttribute field) {
+            return HighlightAnalyzers.mappingOf(field, Map.of());
         }
-        if (plan instanceof MergePlan merge) {
-            return branchesMapping(merge, column.name(), outputs);
+        // A merge gives its output new ids, so resolving aliases stops on the merged column.
+        if (read instanceof Attribute merged && lineage.mergeOutputting(merged) instanceof MergePlan merge) {
+            return branchesMapping(merge, merged.name(), lineage);
         }
-        if (plan instanceof Project project) {
-            Attribute renamed = renamedBy(project, column);
-            if (renamed != null) {
-                return mergedMapping(project.child(), renamed, outputs);
-            }
-        }
-        for (LogicalPlan child : plan.children()) {
-            if (child.outputSet().contains(column)) {
-                return mergedMapping(child, column, outputs);
-            }
-        }
-        return null; // computed, e.g. by EVAL
+        return null; // an expression, not a field
     }
 
     /**
@@ -127,11 +117,11 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
      *     other way.</li>
      * </ul>
      */
-    private static @Nullable TextEsField branchesMapping(MergePlan merge, String name, BranchOutputs outputs) {
+    private static @Nullable TextEsField branchesMapping(MergePlan merge, String name, Lineage lineage) {
         TextEsField conflict = mapping(name, null, TextEsField.DEFAULT_POSITION_INCREMENT_GAP, UnknownAnalyzer.BRANCH_CONFLICT, null);
         Set<String> computedAnalyzers = new HashSet<>();
         List<BranchColumn> mapped = new ArrayList<>();
-        for (BranchColumn b : branchColumns(merge, name, outputs)) {
+        for (BranchColumn b : branchColumns(merge, name, lineage)) {
             if (b.found() == null) {
                 // The branch computes the column, so HIGHLIGHT uses the analyzer the column declares, or standard.
                 String declared = AnalyzedTextExpression.valuesAnalyzerOf(b.column());
@@ -152,7 +142,7 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
             return distinct.getFirst();
         }
         // Each row comes from one branch, so it can still use the analyzer of the index it was read from.
-        List<IndexAnalyzerGroup> perIndex = indexGroups(mapped, outputs);
+        List<IndexAnalyzerGroup> perIndex = indexGroups(mapped, lineage);
         // Agreed groups the key cannot route, like a LOOKUP JOIN field's, keep the warning that the indices disagree.
         return perIndex == null && agreed == false
             ? conflict
@@ -162,29 +152,45 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
     /** A branch's column of a given name. {@code found} is its mapping, or {@code null} when the branch computes the column. */
     private record BranchColumn(LogicalPlan branch, Attribute column, @Nullable TextEsField found) {}
 
-    private static List<BranchColumn> branchColumns(MergePlan merge, String name, BranchOutputs outputs) {
+    private static List<BranchColumn> branchColumns(MergePlan merge, String name, Lineage lineage) {
         List<BranchColumn> columns = new ArrayList<>();
-        List<Map<String, Attribute>> valued = outputs.of(merge);
+        List<Map<String, Attribute>> valued = lineage.branchOutputs(merge);
         for (int i = 0; i < valued.size(); i++) {
             Attribute column = valued.get(i).get(name);
             if (column != null) {
                 LogicalPlan branch = merge.children().get(i);
-                columns.add(new BranchColumn(branch, column, mergedMapping(branch, column, outputs)));
+                columns.add(new BranchColumn(branch, column, mergedMapping(branch, column, lineage)));
             }
         }
         return columns;
     }
 
     /**
-     * The columns each branch of a FORK or UNION ALL has values of, by name. Each merge is indexed once, because looking up
-     * every ON column in every branch output is quadratic in the number of columns of the queried indices.
+     * Alias bindings, the merge that outputs each column, and the columns each branch actually has values for.
+     * Each is cached: resolving every ON column through every branch is quadratic in how wide the indices are.
      */
-    private static final class BranchOutputs {
-        private final Map<MergePlan, List<Map<String, Attribute>>> byMerge = new IdentityHashMap<>();
+    private static final class Lineage {
+        private final Map<LogicalPlan, AliasBindings> aliasesByPlan = new IdentityHashMap<>();
+        private final Map<NameId, MergePlan> mergeByOutput = new HashMap<>();
+        private final Map<MergePlan, List<Map<String, Attribute>>> branchOutputs = new IdentityHashMap<>();
+
+        Lineage(LogicalPlan plan) {
+            plan.forEachDown(MergePlan.class, merge -> merge.output().forEach(column -> mergeByOutput.put(column.id(), merge)));
+        }
+
+        /** Bindings for {@code plan}. A branch has to use its own, or a column can resolve into another branch. */
+        AliasBindings aliases(LogicalPlan plan) {
+            return aliasesByPlan.computeIfAbsent(plan, AliasBindings::of);
+        }
+
+        @Nullable
+        MergePlan mergeOutputting(Attribute column) {
+            return mergeByOutput.get(column.id());
+        }
 
         /** One map per branch of {@code merge}, in branch order, without the columns the branch fills with nulls. */
-        List<Map<String, Attribute>> of(MergePlan merge) {
-            return byMerge.computeIfAbsent(merge, m -> m.children().stream().map(BranchOutputs::valuedColumns).toList());
+        List<Map<String, Attribute>> branchOutputs(MergePlan merge) {
+            return branchOutputs.computeIfAbsent(merge, m -> m.children().stream().map(Lineage::valuedColumns).toList());
         }
 
         private static Map<String, Attribute> valuedColumns(LogicalPlan branch) {
@@ -202,10 +208,10 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
      * The analyzer of each index that {@code branches} read rows from. {@code null} when a branch cannot name its indices,
      * or when two branches give one index different analyzers.
      */
-    private static @Nullable List<IndexAnalyzerGroup> indexGroups(List<BranchColumn> branches, BranchOutputs outputs) {
+    private static @Nullable List<IndexAnalyzerGroup> indexGroups(List<BranchColumn> branches, Lineage lineage) {
         List<IndexAnalyzerGroup> groups = new ArrayList<>();
         for (BranchColumn b : branches) {
-            List<IndexAnalyzerGroup> branchGroups = indexGroups(b, outputs);
+            List<IndexAnalyzerGroup> branchGroups = indexGroups(b, lineage);
             if (branchGroups == null) {
                 return null;
             }
@@ -219,9 +225,10 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
      * the column does not come from the plan that produces the branch's rows, like a LOOKUP JOIN field, or when the
      * mapping is a conflict that names no indices.
      */
-    private static @Nullable List<IndexAnalyzerGroup> indexGroups(BranchColumn b, BranchOutputs outputs) {
+    private static @Nullable List<IndexAnalyzerGroup> indexGroups(BranchColumn b, Lineage lineage) {
         TextEsField found = b.found();
-        LogicalPlan source = found == null ? null : rowSourceOf(b.branch(), b.column());
+        Expression read = lineage.aliases(b.branch()).resolve(b.column());
+        LogicalPlan source = found == null ? null : rowSourceOf(b.branch(), read);
         if (source == null) {
             return null;
         }
@@ -230,7 +237,7 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
         }
         if (source instanceof MergePlan nested) {
             // A nested merge's branches may agree on the mapping, which then names no indices.
-            return indexGroups(branchColumns(nested, beforeRenames(b.branch(), b.column()).name(), outputs), outputs);
+            return indexGroups(branchColumns(nested, Expressions.name(read), lineage), lineage);
         }
         return switch (found.unknownAnalyzer()) {
             case NONE, INDEX_LOCAL, NOT_REPORTED -> List.of(
@@ -250,23 +257,17 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
      * different analyzers.
      */
     private static @Nullable List<IndexAnalyzerGroup> byAnalyzer(List<IndexAnalyzerGroup> groups) {
-        record Analyzer(@Nullable String name, boolean indexLocal, int positionIncrementGap) {}
-        Map<String, Analyzer> analyzerByIndex = new TreeMap<>();
+        Map<String, IndexAnalyzerGroup.Analyzer> analyzerByIndex = new TreeMap<>();
         for (IndexAnalyzerGroup group : groups) {
-            Analyzer analyzer = new Analyzer(group.analyzerName(), group.indexLocal(), group.positionIncrementGap());
+            IndexAnalyzerGroup.Analyzer analyzer = group.analyzer();
             for (String index : group.indices()) {
-                Analyzer previous = analyzerByIndex.putIfAbsent(index, analyzer);
+                IndexAnalyzerGroup.Analyzer previous = analyzerByIndex.putIfAbsent(index, analyzer);
                 if (previous != null && previous.equals(analyzer) == false) {
                     return null;
                 }
             }
         }
-        Map<Analyzer, Set<String>> indicesByAnalyzer = new LinkedHashMap<>();
-        analyzerByIndex.forEach((index, analyzer) -> indicesByAnalyzer.computeIfAbsent(analyzer, k -> new TreeSet<>()).add(index));
-        return indicesByAnalyzer.entrySet()
-            .stream()
-            .map(e -> new IndexAnalyzerGroup(e.getKey().name(), e.getKey().indexLocal(), e.getKey().positionIncrementGap(), e.getValue()))
-            .toList();
+        return IndexAnalyzerGroup.byAnalyzer(analyzerByIndex);
     }
 
     private static TextEsField mapping(String name, TextEsField found) {

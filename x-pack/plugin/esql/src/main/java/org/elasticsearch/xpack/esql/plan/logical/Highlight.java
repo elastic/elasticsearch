@@ -121,9 +121,9 @@ public class Highlight extends UnaryPlan
      */
     private final @Nullable Attribute indexKey;
     /**
-     * The mapping of each ON column that RENAME renamed from a mapped text field, or that FORK or UNION ALL merged from
-     * mapped text fields, by name: such a column is a {@link ReferenceAttribute}, which does not carry it. Set by the
-     * analyzer, empty otherwise.
+     * Mapping of ON columns that no longer carry one: a {@code RENAME} or {@code EVAL} copy of a mapped text field, or a
+     * column {@code FORK} or {@code UNION ALL} merged from mapped text fields. Those are {@link ReferenceAttribute}s.
+     * Set by the analyzer, empty before that.
      */
     private final Map<String, TextEsField> fieldMappings;
 

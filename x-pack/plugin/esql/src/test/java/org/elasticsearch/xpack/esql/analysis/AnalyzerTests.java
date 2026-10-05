@@ -7391,7 +7391,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         LogicalPlan plan = booksWithConflictingTitleAnalyzer().query("""
             FROM books*
-            | FORK (WHERE book_no == "1") (EVAL title = title)
+            | FORK (WHERE book_no == "1") (EVAL title = TO_TEXT(CONCAT(title, "")))
             | HIGHLIGHT "ring" ON title
             """);
         Highlight highlight = soleHighlight(plan);
@@ -7467,7 +7467,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         LogicalPlan plan = booksWithConflictingTitleAnalyzer().query("""
             FROM books*
-            | FORK (EVAL t = title) (EVAL t = title)
+            | FORK (EVAL t = TO_TEXT(CONCAT(title, ""))) (EVAL t = TO_TEXT(CONCAT(title, "")))
             | HIGHLIGHT "ring" ON t
             """);
         assertThat(soleHighlight(plan).fieldMappings(), equalTo(Map.of()));
@@ -7553,19 +7553,28 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     /**
-     * EVAL makes a new column, so a copy of a mapped field gets no mapping and no index key, even once RENAME renames the
-     * copy. HIGHLIGHT analyzes it like any computed column, without a warning.
+     * {@code EVAL t = title} keeps the field's mapping, and the index key when the indices disagree. That still holds
+     * after a {@code RENAME} of the copy and inside {@code FORK}. An expression over the field gets neither, and
+     * HIGHLIGHT analyzes it like any other computed column, with no warning.
      */
-    public void testHighlightEvalCopyOfFieldGetsNoMapping() {
+    public void testHighlightEvalCopyOfFieldKeepsMapping() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         for (String query : List.of(
             "FROM books* | EVAL t = title | HIGHLIGHT \"ring\" ON t",
-            "FROM books* | EVAL u = title | RENAME u AS t | HIGHLIGHT \"ring\" ON t"
+            "FROM books* | EVAL u = title | RENAME u AS t | HIGHLIGHT \"ring\" ON t",
+            "FROM books* | EVAL t = title | FORK (WHERE book_no == \"1\") (WHERE book_no == \"2\") | HIGHLIGHT \"ring\" ON t",
+            "FROM books* | FORK (EVAL t = title) (EVAL t = title) | HIGHLIGHT \"ring\" ON t"
         )) {
             Highlight highlight = soleHighlight(booksWithConflictingTitleAnalyzer().query(query));
-            assertThat(query, highlight.fieldMappings(), equalTo(Map.of()));
-            assertNull(query, highlight.indexKey());
+            assertThat(query, highlight.fieldMappings().get("t").analyzerGroups(), hasSize(2));
+            assertNotNull(query, highlight.indexKey());
         }
+
+        Highlight highlight = soleHighlight(
+            booksWithConflictingTitleAnalyzer().query("FROM books* | EVAL t = TO_TEXT(CONCAT(title, \"\")) | HIGHLIGHT \"ring\" ON t")
+        );
+        assertThat(highlight.fieldMappings(), equalTo(Map.of()));
+        assertNull(highlight.indexKey());
         assertWarnings();
     }
 

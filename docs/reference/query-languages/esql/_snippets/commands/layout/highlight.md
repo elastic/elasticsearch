@@ -239,12 +239,13 @@ applies:
   the analyzer set in its `analyzer` option.
 * The `standard` analyzer for all other columns, including `keyword` fields.
 
-An index `text` field keeps its mapped analyzer through `RENAME`, and when it
-passes unchanged through [`FORK`](/reference/query-languages/esql/commands/fork.md)
-or [subqueries in `FROM`](/reference/query-languages/esql/esql-from-subquery.md).
-Copying it with `EVAL` creates a new column, which falls back to `standard`. To
-preserve the mapped analyzer, highlight the original field, or set the
-`analyzer` option in `WITH`.
+An index `text` field keeps its mapped analyzer when you rename it with
+`RENAME`, copy it with `EVAL` (such as `EVAL t = title`), or pass it unchanged
+through [`FORK`](/reference/query-languages/esql/commands/fork.md) or
+[subqueries in `FROM`](/reference/query-languages/esql/esql-from-subquery.md).
+Columns computed from expressions do not inherit a mapped analyzer. They use
+the analyzer declared with `TO_TEXT`, or default to `standard`. To analyze a
+computed column like the original field, set the `analyzer` option in `WITH`.
 
 If the queried indices map a field with different analyzers, each row uses the
 analyzer of the index it comes from.
@@ -262,7 +263,7 @@ might not be highlighted.
   or across a `LOOKUP JOIN`).
 * Branches of `FORK` or subqueries in `FROM` disagree on the column's analyzer
   (for example, one branch reads the field from an index and another computes
-  the column with `EVAL`).
+  the column from an expression).
 * The analyzer is defined in index settings (such as a custom analyzer or
   index-level default) rather than globally on the node.
 * The analyzer is not registered on the coordinating node (for example, because

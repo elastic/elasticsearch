@@ -162,7 +162,8 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
     /**
      * A fully-read window must still {@code close()} the range GET. Abort-after-success would
-     * handshake every 4–16 MiB parquet window.
+     * handshake every 4–16 MiB parquet window. Remainder is 0, so close-time abort-on-large-leftover
+     * must also stay off.
      */
     public void testCompleteWindowFillClosesRatherThanAborts() throws IOException {
         byte[] data = new byte[ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1024];

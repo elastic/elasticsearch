@@ -58,6 +58,11 @@ public class PhysicalVerifierFetchTests extends ESTestCase {
         assertFalse(failures.toString(), failures.hasFailures());
     }
 
+    public void testDocRefsAreNotReturned() {
+        FetchExec fetch = fetch(fetchPlan(List.of(fetched)));
+        assertThat(verify(fetch).toString(), containsString("document references cannot be returned"));
+    }
+
     public void testFetchPlanMustProduceTheFetchedColumns() {
         FieldAttribute other = field("b", DataType.LONG);
         FetchExec fetch = fetch(fetchPlan(List.of(other)));

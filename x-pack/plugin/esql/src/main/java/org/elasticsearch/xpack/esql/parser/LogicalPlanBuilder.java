@@ -417,9 +417,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             LogicalPlan inner;
             if (mainQueryAndSubqueries.size() == 1) {
                 Subquery only = subqueries.get(0);
-                // if there is only one child without subquery-specific metadata - return it directly, no need for UnionAll
-                // TODO potential to reduce to class/name only? I have a method for this but
-                // may be premature optimization
+                // if there is only one child without metadata - return it directly, no need for UnionAll
                 inner = metadataFields.isEmpty() ? only.plan() : only;
             } else {
                 // the output of UnionAll is resolved by analyzer

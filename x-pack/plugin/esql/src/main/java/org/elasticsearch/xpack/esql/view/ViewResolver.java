@@ -1130,7 +1130,6 @@ public class ViewResolver {
         // to be tagged with the view name during parsing
         LogicalPlan parsed = parser.apply(view.query(), view.name());
         LogicalPlan subquery = parsed instanceof UnresolvedMetadata fs ? fs.child() : parsed;
-        // TODO maybe qualifiesForCompaction() here instead
         if (keepViewIdentity == false && subquery instanceof UnresolvedRelation ur && containsExclusion(ur) == false) {
             // Simple UnresolvedRelation subqueries are not kept as views, so we can compact them
             // together and avoid branched plans. But exclusion patterns must stay scoped to the

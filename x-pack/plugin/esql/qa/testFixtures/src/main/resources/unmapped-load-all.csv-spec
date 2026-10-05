@@ -4214,6 +4214,7 @@ loadAllViewGapDropAggregateMetric
 required_capability: optional_fields_load_all_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
 required_capability: aggregate_metric_double_v0
 
 SET unmapped_fields="LOAD_ALL"\;

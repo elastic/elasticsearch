@@ -61,7 +61,7 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        project.getPlugins().apply(GlobalBuildInfoPlugin.class);
         boolean isCi = loadBuildParams(project).get().getCi();
 
         var dependencies = project.getDependencies();

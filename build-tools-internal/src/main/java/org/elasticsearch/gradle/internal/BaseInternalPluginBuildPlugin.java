@@ -40,7 +40,7 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
         project.getPluginManager().apply(ElasticsearchJavaPlugin.class);
         project.getPluginManager().apply(ClusterFeaturesMetadataPlugin.class);
         project.getPluginManager().apply(TransportVersionReferencesPlugin.class);
-        boolean isCi = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class).getCi();
+        boolean isCi = project.getExtensions().getByType(BuildParameterExtension.class).getCi();
         // Clear default dependencies added by public PluginBuildPlugin as we add our
         // own project dependencies for internal builds
         // TODO remove once we removed default dependencies from PluginBuildPlugin

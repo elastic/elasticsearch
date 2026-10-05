@@ -10,7 +10,6 @@
 package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.VersionProperties;
-import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -18,7 +17,7 @@ import org.gradle.api.Project;
 /**
  * Base plugin applied to every Elasticsearch subproject. Replaces the former
  * {@code elasticsearch.base.gradle} precompiled script plugin. Registers
- * standard project metadata and makes the build-wide {@link BuildParameterExtension}
+ * standard project metadata and makes the build-wide {@link org.elasticsearch.gradle.internal.info.BuildParameterExtension}
  * and {@code versions} map available as project extensions so that build scripts
  * can access them directly without triggering deprecated implicit project-hierarchy
  * property lookup.
@@ -27,22 +26,13 @@ public class ElasticsearchBasePlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        // Ensure the root project has GlobalBuildInfoPlugin applied (idempotent).
-        project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
+        // Build parameters belong to this project, including their toolchain providers.
+        project.getPluginManager().apply(GlobalBuildInfoPlugin.class);
 
         // Standard subproject metadata.
         project.setDescription("Elasticsearch subproject " + project.getPath());
         project.setGroup("org.elasticsearch");
         project.setVersion(VersionProperties.getElasticsearch());
-
-        // Resolve the BuildParameterExtension from the root project and register it
-        // as a typed extension on this project. This avoids the deprecated implicit
-        // project-hierarchy property lookup that would otherwise occur when build
-        // scripts access `buildParams` directly.
-        BuildParameterExtension buildParams = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class);
-        if (project.getExtensions().findByType(BuildParameterExtension.class) == null) {
-            project.getExtensions().add(BuildParameterExtension.class, BuildParameterExtension.EXTENSION_NAME, buildParams);
-        }
 
         // Register the dependency-version map as a project extra property so build
         // scripts can use `versions.someLib` without hierarchy lookup.

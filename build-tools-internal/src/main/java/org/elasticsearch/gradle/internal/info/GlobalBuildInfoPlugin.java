@@ -108,9 +108,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        if (project != project.getRootProject()) {
-            throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
-        }
         this.project = project;
         project.getPlugins().apply(JvmToolchainsPlugin.class);
         project.getPlugins().apply(JdkDownloadPlugin.class);
@@ -155,17 +152,12 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 bwcVersionsProvider
             );
 
-        project.getGradle().getSharedServices().registerIfAbsent("buildParams", BuildParameterService.class, spec -> {
-            // Provide some parameters
-            spec.getParameters().getBuildParams().set(buildParams);
-        });
-
         // Enforce the minimum compiler version
         assertMinimumCompilerVersion(minimumCompilerVersion);
 
         // Print global build info header just before task execution
         // Only do this if we are the root build of a composite
-        if (GradleUtils.isIncludedBuild(project) == false) {
+        if (project.getPath().equals(":") && GradleUtils.isIncludedBuild(project) == false) {
             project.getGradle().getTaskGraph().whenReady(graph -> logGlobalBuildInfo(buildParams));
         }
     }

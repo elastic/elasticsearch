@@ -31,7 +31,7 @@ import java.util.Map;
 public class StandaloneTestPlugin implements Plugin<Project> {
     @Override
     public void apply(final Project project) {
-        project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
+        project.getPluginManager().apply(GlobalBuildInfoPlugin.class);
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(ElasticsearchTestBasePlugin.class);
 

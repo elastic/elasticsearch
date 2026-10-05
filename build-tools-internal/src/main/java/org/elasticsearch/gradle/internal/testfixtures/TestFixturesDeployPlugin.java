@@ -29,7 +29,7 @@ public class TestFixturesDeployPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        project.getPlugins().apply(GlobalBuildInfoPlugin.class);
         var buildParams = loadBuildParams(project).get();
         NamedDomainObjectContainer<TestFixtureDeployment> fixtures = project.container(TestFixtureDeployment.class);
         project.getExtensions().add("dockerFixtures", fixtures);

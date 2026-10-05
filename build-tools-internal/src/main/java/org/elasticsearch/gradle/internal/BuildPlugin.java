@@ -51,8 +51,8 @@ public class BuildPlugin implements Plugin<Project> {
 
     @Override
     public void apply(final Project project) {
-        // make sure the global build info plugin is applied to the root project
-        project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
+        // Ensure build parameters are available in this project.
+        project.getPluginManager().apply(GlobalBuildInfoPlugin.class);
         if (project.getPluginManager().hasPlugin("elasticsearch.standalone-test")) {
             throw new InvalidUserDataException("elasticsearch.standalone-test and elasticsearch.build are mutually exclusive");
         }

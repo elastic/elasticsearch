@@ -67,7 +67,7 @@ public class MrjarPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
-        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        project.getPlugins().apply(GlobalBuildInfoPlugin.class);
         var buildParams = loadBuildParams(project).get();
         var javaExtension = project.getExtensions().getByType(JavaPluginExtension.class);
         var isIdeaSync = System.getProperty("idea.sync.active", "false").equals("true");

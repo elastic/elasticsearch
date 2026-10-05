@@ -65,7 +65,7 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        project.getPlugins().apply(GlobalBuildInfoPlugin.class);
         var buildParams = loadBuildParams(project);
         project.getPluginManager().apply(InternalTestRerunPlugin.class);
         // Registers this project's own flakinessResolveProject task, but only under -Pflakiness.resolve; the
@@ -73,7 +73,7 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
         project.getPluginManager().apply(FlakinessProjectResolvePlugin.class);
         project.getPluginManager().apply(GradleTestPolicySetupPlugin.class);
         // for fips mode check
-        project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
+        project.getPluginManager().apply(GlobalBuildInfoPlugin.class);
         // Default test task should run only unit tests
         maybeConfigure(project.getTasks(), "test", Test.class, task -> task.include("**/*Tests.class"));
 

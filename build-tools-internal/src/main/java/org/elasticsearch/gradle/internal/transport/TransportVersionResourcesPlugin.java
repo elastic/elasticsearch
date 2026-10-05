@@ -41,7 +41,7 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
         project.getPluginManager().apply(PrecommitTaskPlugin.class);
         var psService = project.getPlugins().apply(ProjectSubscribeServicePlugin.class).getService();
 
-        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        project.getPlugins().apply(GlobalBuildInfoPlugin.class);
         Property<BuildParameterExtension> buildParams = loadBuildParams(project);
 
         Properties versions = (Properties) project.getExtensions().getByName(VersionPropertiesPlugin.VERSIONS_EXT);

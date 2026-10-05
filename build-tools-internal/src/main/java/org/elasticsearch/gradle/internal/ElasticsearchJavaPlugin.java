@@ -60,7 +60,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        project.getPlugins().apply(GlobalBuildInfoPlugin.class);
         Property<BuildParameterExtension> buildParams = loadBuildParams(project);
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(JavaLibraryPlugin.class);

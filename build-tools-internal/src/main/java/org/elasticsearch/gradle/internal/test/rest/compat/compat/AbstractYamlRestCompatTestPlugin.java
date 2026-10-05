@@ -75,7 +75,7 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
 
     @Override
     public void apply(Project project) {
-        project.getRootProject().getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        project.getPlugins().apply(GlobalBuildInfoPlugin.class);
         var buildParams = loadBuildParams(project).get();
 
         final Path compatRestResourcesDir = Path.of("restResources").resolve("compat");

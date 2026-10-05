@@ -26,7 +26,7 @@ public class InternalClusterTestPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        project.getPlugins().apply(GlobalBuildInfoPlugin.class);
         var buildParams = loadBuildParams(project).get();
 
         TaskProvider<Test> internalClusterTest = GradleUtils.addTestSourceSet(project, SOURCE_SET_NAME);

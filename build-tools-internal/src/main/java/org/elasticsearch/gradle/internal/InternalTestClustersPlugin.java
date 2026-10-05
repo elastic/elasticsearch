@@ -22,7 +22,7 @@ public class InternalTestClustersPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getPlugins().apply(InternalDistributionDownloadPlugin.class);
-        project.getRootProject().getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        project.getPlugins().apply(GlobalBuildInfoPlugin.class);
         var buildParams = loadBuildParams(project).get();
         project.getRootProject().getPluginManager().apply(InternalReaperPlugin.class);
         TestClustersPlugin testClustersPlugin = project.getPlugins().apply(TestClustersPlugin.class);

@@ -90,7 +90,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
+        project.getPluginManager().apply(GlobalBuildInfoPlugin.class);
         project.getPlugins().apply(JvmToolchainsPlugin.class);
         toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
         var buildParams = loadBuildParams(project).get();

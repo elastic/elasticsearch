@@ -39,9 +39,6 @@ public class DockerSupportPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        if (project != project.getRootProject()) {
-            throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
-        }
         project.getPlugins().apply(GlobalBuildInfoPlugin.class);
         var buildParams = loadBuildParams(project).get();
 

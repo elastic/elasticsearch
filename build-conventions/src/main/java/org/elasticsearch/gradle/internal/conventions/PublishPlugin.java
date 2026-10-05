@@ -129,7 +129,7 @@ public class PublishPlugin implements Plugin<Project> {
      * Configuration generation of maven poms.
      */
     private void configurePomGeneration(Project project) {
-        var gitInfo = project.getRootProject().getPlugins().apply(GitInfoPlugin.class).getGitInfo();
+        var gitInfo = project.getPlugins().apply(GitInfoPlugin.class).getGitInfo();
         var generatePomTask = project.getTasks().register("generatePom");
         project.getTasks().named(LifecycleBasePlugin.ASSEMBLE_TASK_NAME).configure(assemble -> assemble.dependsOn(generatePomTask));
         var extensions = project.getExtensions();

@@ -10,19 +10,16 @@
 package org.elasticsearch.gradle.internal.util;
 
 import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
-import org.elasticsearch.gradle.internal.info.BuildParameterService;
+import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Project;
 import org.gradle.api.provider.Property;
-import org.gradle.api.services.BuildServiceRegistration;
 
 public class ParamsUtils {
 
     public static Property<BuildParameterExtension> loadBuildParams(Project project) {
-        BuildServiceRegistration<BuildParameterService, BuildParameterService.Params> buildParamsRegistrations = (BuildServiceRegistration<
-            BuildParameterService,
-            BuildParameterService.Params>) project.getGradle().getSharedServices().getRegistrations().getByName("buildParams");
-        Property<BuildParameterExtension> buildParams = buildParamsRegistrations.getParameters().getBuildParams();
-        return buildParams;
+        project.getPluginManager().apply(GlobalBuildInfoPlugin.class);
+        return project.getObjects().property(BuildParameterExtension.class)
+            .value(project.getExtensions().getByType(BuildParameterExtension.class));
     }
 
 }

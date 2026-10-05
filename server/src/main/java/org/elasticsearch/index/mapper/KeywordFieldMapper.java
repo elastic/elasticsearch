@@ -2276,6 +2276,18 @@ public final class KeywordFieldMapper extends FieldMapper {
         return emptyStringAsNull && source.getTypeByte(doc) == SourceValueType.STRING && source.getStringValue(doc).bytes().length() == 0;
     }
 
+    @Override
+    protected boolean valueSatisfiesRequired(DocumentParserContext context) throws IOException {
+        // An empty string this field reads as a null leaves the document without a value, the same way an explicit
+        // null does, so it does not satisfy the requirement either.
+        return readsAsNull(context.parser()) == false;
+    }
+
+    /** Whether the value the parser is on is an empty string that {@link #emptyStringAsNull} reads as a null. */
+    private boolean readsAsNull(XContentParser parser) throws IOException {
+        return emptyStringAsNull && parser.currentToken() == XContentParser.Token.VALUE_STRING && parser.textLength() == 0;
+    }
+
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         var value = context.parser().optimizedTextOrNull();
 

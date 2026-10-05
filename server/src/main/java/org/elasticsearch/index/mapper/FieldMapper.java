@@ -410,7 +410,7 @@ public abstract class FieldMapper extends Mapper {
                 redirectedToFailureColumn = context.enforceSingleValue(fullPath(), onFailureBehavior());
             }
             if (redirectedToFailureColumn == false) {
-                if (isNullable() == false && context.parser().currentToken().isValue()) {
+                if (isNullable() == false && context.parser().currentToken().isValue() && valueSatisfiesRequired(context)) {
                     // A non-null value satisfies the [nullability=false] requirement for this Lucene doc.
                     context.markRequiredSatisfied(fullPath());
                 }
@@ -505,6 +505,14 @@ public abstract class FieldMapper extends Mapper {
      * Implementations of this method should ensure that on failing to parse parser.currentToken() must be the
      * current failing token
      */
+    /**
+     * Whether the value the parser is on satisfies a {@code [doc_values.nullability: false]} requirement. A value the
+     * field reads as a null does not: the document then holds no value for a field that promised one.
+     */
+    protected boolean valueSatisfiesRequired(DocumentParserContext context) throws IOException {
+        return true;
+    }
+
     protected abstract void parseCreateField(DocumentParserContext context) throws IOException;
 
     /**

@@ -83,8 +83,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class KeywordFieldMapperTests extends MapperTestCase {
@@ -2062,6 +2064,47 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     private DocumentMapper columnarKeywordMapper(String fieldName) throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         return createMapperService(settings, mapping(b -> b.startObject(fieldName).field("type", "keyword").endObject())).documentMapper();
+    }
+
+    /**
+     * A field that promises a value for every document gets none from an empty string the index reads as a null, so
+     * the document is rejected exactly as one holding an explicit null is.
+     */
+    public void testEmptyStringDoesNotSatisfyNullabilityFalse() throws IOException {
+        final DocumentMapper mapper = emptyStringAsNullColumnar(b -> {
+            b.field("type", "keyword");
+            b.startObject("doc_values").field("nullability", false).endObject();
+        }).documentMapper();
+
+        final DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", "")))
+        );
+        assertThat(e.getMessage(), containsString("configured with [nullability=false] but no value was provided"));
+
+        // A value the index keeps satisfies it, and so does an empty string where the setting is off.
+        assertNotNull(mapper.parse(source(b -> b.field("field", "a"))));
+    }
+
+    /** With {@code on_failure: ignore} the document is kept and the field ignored, as it is for an explicit null. */
+    public void testEmptyStringUnderNullabilityFalseCanBeIgnored() throws IOException {
+        final DocumentMapper mapper = emptyStringAsNullColumnar(b -> {
+            b.field("type", "keyword");
+            b.startObject("doc_values").field("nullability", false).field("on_failure", "ignore").endObject();
+        }).documentMapper();
+
+        final ParsedDocument doc = mapper.parse(source(b -> b.field("field", "")));
+        assertThat(fieldsOf(doc), not(hasItem(containsString("field"))));
+    }
+
+    private MapperService emptyStringAsNullColumnar(CheckedConsumer<XContentBuilder, IOException> field) throws IOException {
+        return createMapperService(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                .put(FieldMapper.EMPTY_KEYWORD_STRING_AS_NULL_SETTING.getKey(), true)
+                .build(),
+            fieldMapping(field)
+        );
     }
 
     private MapperService emptyStringAsNull(CheckedConsumer<XContentBuilder, IOException> field) throws IOException {

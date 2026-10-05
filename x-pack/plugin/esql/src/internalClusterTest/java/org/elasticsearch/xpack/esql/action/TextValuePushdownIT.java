@@ -33,6 +33,7 @@ public class TextValuePushdownIT extends AbstractEsqlIntegTestCase {
 
     private static final String PUSHED = "keeps_values";
     private static final String NOT_PUSHED = "keeps_none";
+    private static final String EXACT_SUBFIELD = "keeps_a_subfield";
 
     private static final List<String> DOCS = List.of("the quick brown fox", "quick", "jumps over the lazy dog", "The Quick Brown Fox", "");
 
@@ -41,7 +42,8 @@ public class TextValuePushdownIT extends AbstractEsqlIntegTestCase {
         // A columnar index keeps every field's values; a standard one keeps none for a text field.
         create(PUSHED, Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()));
         create(NOT_PUSHED, Settings.builder());
-        for (String index : List.of(PUSHED, NOT_PUSHED)) {
+        createWithSubfield(EXACT_SUBFIELD, Settings.builder());
+        for (String index : List.of(PUSHED, NOT_PUSHED, EXACT_SUBFIELD)) {
             for (int i = 0; i < DOCS.size(); i++) {
                 client().prepareIndex(index)
                     .setId(Integer.toString(i))
@@ -52,7 +54,20 @@ public class TextValuePushdownIT extends AbstractEsqlIntegTestCase {
             client().prepareIndex(index).setId("absent").setSource("{\"id\":99}", XContentType.JSON).get();
             client().prepareIndex(index).setId("several").setSource("{\"body\":[\"quick\",\"brown\"],\"id\":98}", XContentType.JSON).get();
         }
-        client().admin().indices().prepareRefresh(PUSHED, NOT_PUSHED).get();
+        client().admin().indices().prepareRefresh(PUSHED, NOT_PUSHED, EXACT_SUBFIELD).get();
+    }
+
+    private void createWithSubfield(String index, Settings.Builder settings) {
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(index)
+                .setSettings(settings.put("index.number_of_shards", 1))
+                .setMapping(
+                    "{\"properties\":{\"body\":{\"type\":\"text\",\"fields\":{\"raw\":{\"type\":\"keyword\"}}},"
+                        + "\"id\":{\"type\":\"long\"}}}"
+                )
+        );
     }
 
     private void create(String index, Settings.Builder settings) {
@@ -106,6 +121,29 @@ public class TextValuePushdownIT extends AbstractEsqlIntegTestCase {
             final long answered = rowsOf(PUSHED, tail);
             assertThat(tail + ": emitted only what it answered", rowsEmitted(PUSHED, tail), equalTo(answered));
             assertThat(tail + ": the other index emitted more", rowsEmitted(NOT_PUSHED, tail), greaterThan(answered));
+        }
+    }
+
+    /**
+     * Outside the columnar modes a text field keeps no values, so nothing here is answered from them: a field with an
+     * exact sub-field keeps being pushed to that sub-field, and one without keeps being answered by the compute
+     * engine. Equality names the sub-field; a pattern does not, because a sub-field's {@code ignore_above} can hold
+     * no term for a long value and a pattern cannot be checked against it the way a value can.
+     */
+    public void testOutsideTheColumnarModesNothingChanges() {
+        final String equality = "WHERE body == \"quick\"";
+        assertThat("equality is pushed to the sub-field", rowsEmitted(EXACT_SUBFIELD, equality), equalTo(rowsOf(EXACT_SUBFIELD, equality)));
+
+        final String pattern = "WHERE body LIKE \"the quick*\"";
+        assertThat(
+            "a pattern is answered by the compute engine",
+            rowsEmitted(EXACT_SUBFIELD, pattern),
+            greaterThan(rowsOf(EXACT_SUBFIELD, pattern))
+        );
+
+        // And whichever way it is answered, it is answered the same.
+        for (String tail : List.of(equality, pattern, "WHERE body RLIKE \"the quick.*\"", "WHERE starts_with(body, \"the\")")) {
+            assertThat(tail, rowsOf(EXACT_SUBFIELD, tail), equalTo(rowsOf(PUSHED, tail)));
         }
     }
 

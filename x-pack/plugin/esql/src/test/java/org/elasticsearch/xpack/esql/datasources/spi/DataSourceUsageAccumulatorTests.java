@@ -312,6 +312,45 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         assertThat(acc.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_REJECTED), equalTo(1L));
     }
 
+    public void testRecordQueryCpuAccumulatesPerComponent() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        acc.recordQueryCpu(1_000L, 2_000L, 3_000L, 4_000L);
+
+        assertThat(acc.queryCpuNanos(DataSourceUsageAccumulator.CPU_EXECUTION), equalTo(1_000L));
+        assertThat(acc.queryCpuNanos(DataSourceUsageAccumulator.CPU_READ), equalTo(2_000L));
+        assertThat(acc.queryCpuNanos(DataSourceUsageAccumulator.CPU_PLANNING), equalTo(3_000L));
+        assertThat(acc.queryCpuNanos(DataSourceUsageAccumulator.CPU_SPLIT_DISCOVERY), equalTo(4_000L));
+    }
+
+    public void testRecordQueryCpuIsAdditive() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        acc.recordQueryCpu(100L, 200L, 300L, 400L);
+        acc.recordQueryCpu(100L, 200L, 300L, 400L);
+
+        assertThat(acc.queryCpuNanos(DataSourceUsageAccumulator.CPU_EXECUTION), equalTo(200L));
+        assertThat(acc.queryCpuNanos(DataSourceUsageAccumulator.CPU_PLANNING), equalTo(600L));
+    }
+
+    public void testQueryCpuComponentIndexOutOfRangeThrows() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        expectThrows(IllegalArgumentException.class, () -> acc.queryCpuNanos(DataSourceUsageAccumulator.CPU_COMPONENT_COUNT));
+        expectThrows(IllegalArgumentException.class, () -> acc.queryCpuNanos(-1));
+    }
+
+    public void testDataSourceCountersPopulatesCpuNanosKeys() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        acc.recordQueryCpu(1_000L, 2_000L, 3_000L, 4_000L);
+
+        Counters counters = new Counters();
+        DataSourceCounters.populate(acc, counters);
+
+        assertThat(counters.get("datasources.queries.cpu_nanos.execution"), equalTo(1_000L));
+        assertThat(counters.get("datasources.queries.cpu_nanos.read"), equalTo(2_000L));
+        assertThat(counters.get("datasources.queries.cpu_nanos.planning"), equalTo(3_000L));
+        assertThat(counters.get("datasources.queries.cpu_nanos.split_discovery"), equalTo(4_000L));
+        assertThat(counters.get("datasources.queries.cpu_nanos.total"), equalTo(10_000L));
+    }
+
     public void testNoopHasNullAccumulator() {
         assertThat(ExternalSourceMetrics.NOOP.usageAccumulator(), equalTo(null));
     }

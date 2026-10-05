@@ -13,8 +13,12 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
+import org.elasticsearch.xpack.esql.formatter.NdjsonFormat;
+import org.elasticsearch.xpack.esql.formatter.arrow.ArrowFormat;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xcontent.XContentType.JSON;
@@ -23,6 +27,7 @@ import static org.elasticsearch.xpack.esql.formatter.TextFormat.PLAIN_TEXT;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.TSV;
 import static org.elasticsearch.xpack.esql.plugin.EsqlMediaTypeParser.getResponseMediaType;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 public class EsqlMediaTypeParserTests extends ESTestCase {
 
@@ -185,6 +190,43 @@ public class EsqlMediaTypeParserTests extends ESTestCase {
         RestRequest fakeRestRequest = emptyRequest();
         assertThat(getResponseMediaType(fakeRestRequest, CSV), is(CSV));
         assertThat(getResponseMediaType(fakeRestRequest, JSON), is(JSON));
+    }
+
+    public void testNdjsonFormatParam() {
+        assumeTrue("format=ndjson is released with streaming, which is snapshot-only", RestEsqlQueryAction.STREAMING_ENABLED);
+        assertThat(getResponseMediaType(reqWithParams(Map.of("format", "ndjson")), createTestInstance(false)), is(NdjsonFormat.INSTANCE));
+        assertThat(getResponseMediaType(reqWithParams(Map.of("format", "NDJSON")), createTestInstance(false)), is(NdjsonFormat.INSTANCE));
+    }
+
+    public void testNdjsonAcceptHeaderIsStillJson() {
+        assertThat(getResponseMediaType(reqWithAccept("application/x-ndjson"), createTestInstance(false)), is(JSON));
+    }
+
+    public void testNdjsonFormatParamIsRejectedWhenTheGateIsClosed() {
+        assumeFalse("format=ndjson is only rejected where streaming is unavailable", RestEsqlQueryAction.STREAMING_ENABLED);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> getResponseMediaType(reqWithParams(Map.of("format", "ndjson")), createTestInstance(false))
+        );
+        assertThat(e.getMessage(), startsWith("Invalid request content type"));
+    }
+
+    public void testColumnarWithNdjson() {
+        assumeTrue("format=ndjson is released with streaming, which is snapshot-only", RestEsqlQueryAction.STREAMING_ENABLED);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> getResponseMediaType(reqWithParams(Map.of("format", "ndjson")), createTestInstance(true))
+        );
+        assertEquals("Invalid use of [columnar] argument: cannot be used in combination with [ndjson] formats", e.getMessage());
+    }
+
+    public void testNdjsonSupportsStreamingAndRecordFraming() {
+        assertTrue(EsqlMediaTypeParser.supportsStreaming(NdjsonFormat.INSTANCE));
+        assertTrue(EsqlMediaTypeParser.hasRecordFraming(NdjsonFormat.INSTANCE));
+        for (MediaType other : List.of(JSON, CSV, TSV, PLAIN_TEXT, ArrowFormat.INSTANCE)) {
+            assertFalse(other.queryParameter(), EsqlMediaTypeParser.supportsStreaming(other));
+            assertFalse(other.queryParameter(), EsqlMediaTypeParser.hasRecordFraming(other));
+        }
     }
 
     private static RestRequest reqWithAccept(String acceptHeader) {

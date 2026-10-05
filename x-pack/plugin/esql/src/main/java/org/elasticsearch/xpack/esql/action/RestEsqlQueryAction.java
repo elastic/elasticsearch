@@ -17,7 +17,10 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.esql.formatter.NdjsonFormat;
+import org.elasticsearch.xpack.esql.plugin.EsqlMediaTypeParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -25,7 +28,6 @@ import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_DELIMITER;
-import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_FORMAT;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_HEADER;
 
 @ServerlessScope(Scope.PUBLIC)
@@ -33,18 +35,16 @@ public class RestEsqlQueryAction extends BaseRestHandler {
     private static final Logger LOGGER = LogManager.getLogger(RestEsqlQueryAction.class);
 
     static final String STREAMING_OPTION = "streaming";
-    static final String BATCH_SIZE_OPTION = "batch_size";
-    static final String NDJSON_FORMAT_VALUE = "ndjson";
-    static final int DEFAULT_BATCH_SIZE = 100;
-    static final int MAX_BATCH_SIZE = 1000;
+    static final String BATCH_SIZE_OPTION = NdjsonFormat.URL_PARAM_BATCH_SIZE;
 
     /**
-     * Streaming is unreleased, so it is available on snapshot builds only. When this is false the
-     * {@code streaming} and {@code batch_size} parameters are never consumed and are omitted from
-     * {@link #responseParams()}, so {@link BaseRestHandler} rejects them as unrecognized parameters —
-     * making the feature indistinguishable from one that was never added.
+     * Streaming and the NDJSON format are unreleased and are released together, so they are available on snapshot builds
+     * only and share this one gate. When this is false the {@code streaming} and {@code batch_size} parameters are never
+     * consumed and are omitted from {@link #responseParams()}, so {@link BaseRestHandler} rejects them as unrecognized
+     * parameters, and {@code EsqlMediaTypeParser} does not resolve {@code format=ndjson}, so it is rejected as an invalid format.
+     * Each is then indistinguishable from a feature that was never added.
      */
-    static final boolean STREAMING_ENABLED = Build.current().isSnapshot();
+    public static final boolean STREAMING_ENABLED = Build.current().isSnapshot();
 
     private final EsqlCapabilities capabilities;
 
@@ -76,35 +76,32 @@ public class RestEsqlQueryAction extends BaseRestHandler {
 
         if (STREAMING_ENABLED) {
             boolean streaming = request.paramAsBoolean(STREAMING_OPTION, false);
-            String batchSizeParam = request.param(BATCH_SIZE_OPTION);
-            String format = request.param(URL_PARAM_FORMAT);
+            boolean hasBatchSize = request.param(BATCH_SIZE_OPTION) != null;
 
-            if (batchSizeParam != null && streaming == false) {
-                throw new IllegalArgumentException("[" + BATCH_SIZE_OPTION + "] requires [" + STREAMING_OPTION + "=true]");
-            }
-            if (NDJSON_FORMAT_VALUE.equals(format) && streaming == false) {
-                throw new IllegalArgumentException("[format=ndjson] requires [" + STREAMING_OPTION + "=true]");
-            }
-            if (streaming && NDJSON_FORMAT_VALUE.equals(format) == false) {
-                throw new IllegalArgumentException("[" + STREAMING_OPTION + "=true] requires [format=ndjson]");
+            if (streaming || hasBatchSize) {
+                MediaType mediaType = EsqlMediaTypeParser.getResponseMediaType(request, esqlRequest);
+                if (streaming && EsqlMediaTypeParser.supportsStreaming(mediaType) == false) {
+                    throw new IllegalArgumentException("[" + STREAMING_OPTION + "=true] requires [format=ndjson]");
+                }
+                if (streaming == false && EsqlMediaTypeParser.hasRecordFraming(mediaType) == false) {
+                    throw new IllegalArgumentException(
+                        "[" + BATCH_SIZE_OPTION + "] requires [" + STREAMING_OPTION + "=true] or [format=ndjson]"
+                    );
+                }
+                if (hasBatchSize) {
+                    // Validate up front so a bad value is rejected before the query runs, whether or not it streams.
+                    NdjsonFormat.batchSize(request);
+                }
             }
 
             if (streaming) {
-                return streamingChannelConsumer(esqlRequest, request, client, batchSizeParam);
+                return streamingChannelConsumer(esqlRequest, request, client);
             }
         }
         return restChannelConsumer(esqlRequest, request, client);
     }
 
-    static RestChannelConsumer streamingChannelConsumer(
-        EsqlQueryRequest esqlRequest,
-        RestRequest request,
-        NodeClient client,
-        String batchSizeParam
-    ) {
-        if (esqlRequest.columnar()) {
-            throw incompatibleWithStreaming("columnar");
-        }
+    static RestChannelConsumer streamingChannelConsumer(EsqlQueryRequest esqlRequest, RestRequest request, NodeClient client) {
         if (Boolean.TRUE.equals(esqlRequest.includeCCSMetadata())) {
             throw incompatibleWithStreaming("include_ccs_metadata");
         }
@@ -116,20 +113,7 @@ public class RestEsqlQueryAction extends BaseRestHandler {
         }
         request.param(URL_PARAM_HEADER);
 
-        int batchSize = DEFAULT_BATCH_SIZE;
-        if (batchSizeParam != null) {
-            try {
-                batchSize = Integer.parseInt(batchSizeParam);
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("[" + BATCH_SIZE_OPTION + "] must be an integer, got [" + batchSizeParam + "]");
-            }
-            if (batchSize < 1) {
-                throw new IllegalArgumentException("[" + BATCH_SIZE_OPTION + "] must be at least 1, got [" + batchSize + "]");
-            }
-            if (batchSize > MAX_BATCH_SIZE) {
-                throw new IllegalArgumentException("[" + BATCH_SIZE_OPTION + "] must be at most 1000, got [" + batchSize + "]");
-            }
-        }
+        int batchSize = NdjsonFormat.batchSize(request);
 
         final Boolean partialResults = request.paramAsBoolean("allow_partial_results", null);
         if (partialResults != null) {
@@ -166,7 +150,7 @@ public class RestEsqlQueryAction extends BaseRestHandler {
             cancellableClient.execute(
                 EsqlQueryAction.INSTANCE,
                 esqlRequest,
-                new EsqlResponseListener(channel, request, esqlRequest).wrapWithLogging()
+                new EsqlResponseListener(channel, request, esqlRequest, client.threadPool().getThreadContext()).wrapWithLogging()
             );
         };
     }

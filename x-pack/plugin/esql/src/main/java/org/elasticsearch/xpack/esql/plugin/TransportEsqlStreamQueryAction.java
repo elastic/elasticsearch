@@ -556,7 +556,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         }
     }
 
-    static List<String> footerWarnings(ThreadContext threadContext, DriverCompletionInfo completionInfo) {
+    public static List<String> footerWarnings(ThreadContext threadContext, DriverCompletionInfo completionInfo) {
         LinkedHashSet<String> warnings = new LinkedHashSet<>(completionInfo.warnings());
         for (String header : threadContext.getResponseHeaders().getOrDefault("Warning", List.of())) {
             warnings.add(HeaderWarning.decodeAndUnescape(HeaderWarning.extractWarningValueFromWarningHeader(header, false)));

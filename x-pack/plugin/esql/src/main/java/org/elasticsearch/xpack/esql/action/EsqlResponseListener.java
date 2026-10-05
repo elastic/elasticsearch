@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.operator.PageStreamPublisher.StreamFooter;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -25,12 +28,17 @@ import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.formatter.NdjsonFormat;
+import org.elasticsearch.xpack.esql.formatter.NdjsonLines;
+import org.elasticsearch.xpack.esql.formatter.NdjsonResponse;
 import org.elasticsearch.xpack.esql.formatter.TextFormat;
 import org.elasticsearch.xpack.esql.formatter.arrow.ArrowFormat;
 import org.elasticsearch.xpack.esql.formatter.arrow.ArrowResponse;
 import org.elasticsearch.xpack.esql.plugin.EsqlMediaTypeParser;
+import org.elasticsearch.xpack.esql.plugin.TransportEsqlStreamQueryAction;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -89,6 +97,7 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
     private final RestChannel channel;
     private final RestRequest restRequest;
     private final MediaType mediaType;
+    private final ThreadContext threadContext;
     /**
      * Keep the initial query for logging purposes.
      */
@@ -102,23 +111,48 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
     /**
      * To correctly time the execution of a request, a {@link EsqlResponseListener} must be constructed immediately before execution begins.
      */
-    public EsqlResponseListener(RestChannel channel, RestRequest restRequest, EsqlQueryRequest esqlRequest) {
-        this(channel, restRequest, esqlRequest.queryDescription(), EsqlMediaTypeParser.getResponseMediaType(restRequest, esqlRequest));
+    public EsqlResponseListener(RestChannel channel, RestRequest restRequest, EsqlQueryRequest esqlRequest, ThreadContext threadContext) {
+        this(
+            channel,
+            restRequest,
+            esqlRequest.queryDescription(),
+            EsqlMediaTypeParser.getResponseMediaType(restRequest, esqlRequest),
+            esqlRequest.async(),
+            threadContext
+        );
     }
 
     /**
      * Async query GET API does not have an EsqlQueryRequest.
      */
     public EsqlResponseListener(RestChannel channel, RestRequest getRequest) {
-        this(channel, getRequest, getRequest.param("id"), EsqlMediaTypeParser.getResponseMediaType(getRequest, XContentType.JSON));
+        this(
+            channel,
+            getRequest,
+            getRequest.param("id"),
+            EsqlMediaTypeParser.getResponseMediaType(getRequest, XContentType.JSON),
+            true,
+            null
+        );
     }
 
-    private EsqlResponseListener(RestChannel channel, RestRequest restRequest, String esqlQueryOrId, MediaType mediaType) {
+    private EsqlResponseListener(
+        RestChannel channel,
+        RestRequest restRequest,
+        String esqlQueryOrId,
+        MediaType mediaType,
+        boolean async,
+        ThreadContext threadContext
+    ) {
         super(channel);
         this.channel = channel;
         this.restRequest = restRequest;
         this.esqlQueryOrId = esqlQueryOrId;
         this.mediaType = mediaType;
+        this.threadContext = threadContext;
+        if (async && mediaType == NdjsonFormat.INSTANCE) {
+            throw new IllegalArgumentException("[format=ndjson] is not supported on async queries");
+        }
         checkDelimiter();
     }
 
@@ -145,6 +179,15 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
                     esqlResponse.pages()
                 );
                 restResponse = RestResponse.chunked(RestStatus.OK, arrowResponse, Releasables.wrap(arrowResponse, releasable));
+            } else if (mediaType == NdjsonFormat.INSTANCE) {
+                NdjsonResponse ndjsonResponse = new NdjsonResponse(
+                    esqlResponse,
+                    NdjsonFormat.batchSize(restRequest),
+                    restRequest.paramAsBoolean(EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION, false),
+                    TransportEsqlStreamQueryAction.footerWarnings(threadContext, DriverCompletionInfo.EMPTY),
+                    channel.request()
+                );
+                restResponse = RestResponse.chunked(RestStatus.OK, ndjsonResponse, releasable);
             } else {
                 restResponse = RestResponse.chunked(
                     RestStatus.OK,
@@ -187,7 +230,7 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
     public ActionListener<EsqlQueryResponse> wrapWithLogging() {
         ActionListener<EsqlQueryResponse> listener = ActionListener.wrap(this::onResponse, ex -> {
             logOnFailure(ex);
-            onFailure(ex);
+            sendFailure(ex);
         });
         if (LOGGER.isDebugEnabled() == false) {
             return listener;
@@ -206,6 +249,21 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
             logger.accept(null);
             listener.onFailure(ex);
         });
+    }
+
+    private void sendFailure(Exception e) {
+        if (mediaType != NdjsonFormat.INSTANCE) {
+            onFailure(e);
+            return;
+        }
+        try {
+            RestStatus status = ExceptionsHelper.status(e);
+            StreamFooter footer = new StreamFooter(status.getStatus(), 0L, false, List.of(), null, e, null);
+            channel.sendResponse(RestResponse.chunked(status, new NdjsonLines.NdjsonFooterBodyPart(footer, channel.request()), null));
+        } catch (Exception inner) {
+            inner.addSuppressed(e);
+            LOGGER.warn("failed to send failure response", inner);
+        }
     }
 
     public static void logOnFailure(Throwable throwable) {

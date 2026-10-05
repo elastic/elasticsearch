@@ -360,7 +360,7 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         assertThat(re.getMessage(), containsString("batch_size"));
     }
 
-    public void testBatchSizeRequiresStreaming() {
+    public void testBatchSizeRequiresStreamingOrNdjson() {
         ResponseException re = expectThrows(
             ResponseException.class,
             () -> EsqlStreamTestUtils.rawStream(client(), "{\"query\": \"FROM stream-test | LIMIT 1\"}", "batch_size=10")
@@ -369,13 +369,158 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         assertThat(re.getMessage(), containsString("batch_size"));
     }
 
-    public void testNdjsonFormatRequiresStreaming() {
+    public void testNdjsonWithoutStreamingFraming() throws IOException {
+        List<Map<String, Object>> lines = ndjson("""
+            {"query": "FROM stream-test | SORT value | LIMIT 100 | KEEP value"}
+            """, "batch_size=1");
+
+        Map<String, Object> columnsLine = lines.get(0);
+        assertThat(columnsLine, hasKey("columns"));
+        assertThat(columnsLine, not(hasKey("values")));
+        assertThat(columnsLine, not(hasKey("took")));
+        assertThat(columnNames(columnsLine, "columns"), equalTo(List.of("value")));
+
+        List<Map<String, Object>> valueLines = lines.subList(1, lines.size() - 1);
+        assertThat("expected one values line per row with batch_size=1", valueLines, hasSize(4));
+        for (Map<String, Object> valueLine : valueLines) {
+            assertThat(valueLine, hasKey("values"));
+            assertThat(valueLine, not(hasKey("columns")));
+            assertThat(rows(valueLine), hasSize(1));
+        }
+
+        Map<String, Object> footer = lines.get(lines.size() - 1);
+        assertThat(footer.get("status"), equalTo(200));
+        assertThat(footer.get("took"), instanceOf(Number.class));
+        assertThat(footer.get("is_partial"), equalTo(false));
+        assertThat(footer, hasKey("documents_found"));
+        assertThat(footer, hasKey("cpu_nanos"));
+        assertThat(footer, not(hasKey("columns")));
+        assertThat(footer, not(hasKey("values")));
+        assertThat(footer, not(hasKey("error")));
+        assertThat(footer, not(hasKey("profile")));
+    }
+
+    public void testNdjsonWithoutStreamingBatchSizeGroupsRows() throws IOException {
+        List<Map<String, Object>> lines = ndjson(streamBody("FROM stream-test | SORT value | LIMIT 100 | KEEP value"), "batch_size=3");
+        assertThat("columns, a line of 3 rows, a line of 1 row, footer", lines, hasSize(4));
+        assertThat(rows(lines.get(1)), hasSize(3));
+        assertThat(rows(lines.get(2)), hasSize(1));
+    }
+
+    public void testNdjsonWithoutStreamingDefaultsBatchSize() throws IOException {
+        List<Map<String, Object>> lines = ndjson(streamBody("FROM stream-test | SORT value | LIMIT 100 | KEEP value"));
+        assertThat("4 rows fit in one default-sized batch", lines, hasSize(3));
+        assertThat(rows(lines.get(1)), hasSize(4));
+    }
+
+    public void testNdjsonWithoutStreamingAgreesWithStreaming() throws IOException {
+        String body = streamBody("FROM stream-test | SORT value | LIMIT 100 | KEEP value, description");
+        List<Map<String, Object>> plain = ndjson(body, "batch_size=2");
+        List<Map<String, Object>> streamed = stream(body, "batch_size=2");
+
+        assertEquals("columns must agree", columnList(streamed.get(0), "columns"), columnList(plain.get(0), "columns"));
+        assertEquals("rows must agree", streamRows(streamed), streamRows(plain));
+        assertThat(plain.get(plain.size() - 1).get("status"), equalTo(streamed.get(streamed.size() - 1).get("status")));
+    }
+
+    /**
+     * Without streaming the columns are dropped from the finished result, exactly as the JSON {@code _query} does, rather than
+     * from index metadata as streaming does. Here the only document with a {@code description} is excluded by the filter.
+     */
+    public void testNdjsonWithoutStreamingDropNullColumnsAgreesWithQueryEndpoint() throws IOException {
+        String esql = "FROM stream-test | WHERE value == 3 | KEEP value, description";
+        List<String> queryColumns = columnNames(query(esql), "columns");
+        assertFalse("/_query must drop description when the filter leaves no document that has it", queryColumns.contains("description"));
+
+        List<Map<String, Object>> lines = ndjson(streamBody(esql), "drop_null_columns=true");
+        assertThat(columnNames(lines.get(0), "columns"), equalTo(queryColumns));
+        assertThat(columnNames(lines.get(0), "all_columns"), equalTo(List.of("value", "description")));
+        for (List<Object> row : streamRows(lines)) {
+            assertThat("the dropped column is also omitted from every row", row, hasSize(queryColumns.size()));
+        }
+    }
+
+    public void testNdjsonWithoutStreamingErrorFraming() throws IOException {
+        ResponseException re = expectThrows(ResponseException.class, () -> EsqlStreamTestUtils.rawStream(client(), """
+            {"query": "FROM stream-test | EVAL x = unknown_function(value)"}
+            """, "format=ndjson"));
+
+        assertThat(re.getResponse().getEntity().getContentType().getValue(), containsString("application/x-ndjson"));
+        List<Map<String, Object>> lines = parseNdjson(re.getResponse());
+        assertThat("error response should be a single NDJSON line", lines, hasSize(1));
+        Map<String, Object> errorLine = lines.get(0);
+        assertThat(errorLine.get("status"), equalTo(re.getResponse().getStatusLine().getStatusCode()));
+        assertThat(errorLine.get("status"), equalTo(400));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> error = (Map<String, Object>) errorLine.get("error");
+        assertThat(error.get("type"), equalTo("verification_exception"));
+        assertThat(error.get("reason"), notNullValue());
+    }
+
+    public void testNdjsonWithoutStreamingBatchSizeBounds() {
+        for (String batchSize : List.of("abc", "0", "-1", "1001")) {
+            ResponseException re = expectThrows(
+                ResponseException.class,
+                () -> EsqlStreamTestUtils.rawStream(
+                    client(),
+                    "{\"query\": \"FROM stream-test | LIMIT 1\"}",
+                    "format=ndjson",
+                    "batch_size=" + batchSize
+                )
+            );
+            assertThat(batchSize, re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+            assertThat(batchSize, re.getMessage(), containsString("batch_size"));
+        }
+    }
+
+    public void testNdjsonWithoutStreamingColumnarRejected() {
         ResponseException re = expectThrows(
             ResponseException.class,
-            () -> EsqlStreamTestUtils.rawStream(client(), "{\"query\": \"FROM stream-test | LIMIT 1\"}", "format=ndjson")
+            () -> EsqlStreamTestUtils.rawStream(
+                client(),
+                "{\"query\": \"FROM stream-test | LIMIT 1\", \"columnar\": true}",
+                "format=ndjson"
+            )
         );
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(re.getMessage(), containsString("ndjson"));
+        assertThat(re.getMessage(), containsString("columnar"));
+    }
+
+    public void testNdjsonWithoutStreamingDelimiterRejected() {
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> EsqlStreamTestUtils.rawStream(client(), "{\"query\": \"FROM stream-test | LIMIT 1\"}", "format=ndjson", "delimiter=,")
+        );
+        assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(re.getMessage(), containsString("delimiter"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testNdjsonWithoutStreamingProfile() throws IOException {
+        List<Map<String, Object>> lines = ndjson("{\"query\": \"FROM stream-test | LIMIT 10\", \"profile\": true}", "batch_size=1");
+
+        Map<String, Object> footer = lines.get(lines.size() - 1);
+        assertThat(footer.get("status"), equalTo(200));
+        assertThat("profile must be present when requested", footer, hasKey("profile"));
+        Map<String, Object> profile = (Map<String, Object>) footer.get("profile");
+        assertThat(profile, hasKey("drivers"));
+        assertThat(profile, hasKey("plans"));
+        assertThat(profile, hasKey("minimumTransportVersion"));
+        assertThat(profile, hasKey("field_caps_calls"));
+        assertThat("drivers list must be non-empty", (List<Object>) profile.get("drivers"), not(empty()));
+    }
+
+    public void testNdjsonWithoutStreamingIncludeExecutionMetadata() throws IOException {
+        List<Map<String, Object>> lines = ndjson("{\"query\": \"FROM stream-test | LIMIT 10\", \"include_execution_metadata\": true}");
+        assertThat(lines.get(lines.size() - 1), hasKey("_clusters"));
+    }
+
+    public void testNdjsonIsRejectedOnAsyncQueries() {
+        Request request = new Request("POST", "/_query/async?format=ndjson");
+        request.setJsonEntity("{\"query\": \"FROM stream-test | LIMIT 1\"}");
+        ResponseException re = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(re.getMessage(), containsString("not supported on async"));
     }
 
     public void testStreamingRequiresNdjsonFormat() {
@@ -922,6 +1067,20 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
 
     private static String streamBody(String esql) {
         return "{\"query\":\"" + esql.replace("\"", "\\\"") + "\"}";
+    }
+
+    /** Requests NDJSON without streaming: the finished result rendered as NDJSON. */
+    private List<Map<String, Object>> ndjson(String bodyJson, String... queryParams) throws IOException {
+        List<String> params = new ArrayList<>();
+        params.add("format=ndjson");
+        params.addAll(java.util.Arrays.asList(queryParams));
+        Response response = EsqlStreamTestUtils.rawStream(client(), bodyJson, params.toArray(String[]::new));
+        assertThat(
+            "/_query must respond with application/x-ndjson when format=ndjson",
+            response.getEntity().getContentType().getValue(),
+            containsString("application/x-ndjson")
+        );
+        return parseNdjson(response);
     }
 
     private List<Map<String, Object>> stream(String bodyJson, String... queryParams) throws IOException {

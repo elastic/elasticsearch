@@ -4215,6 +4215,14 @@ public class EsqlCapabilities {
         STREAMING(Build.current().isSnapshot()),
 
         /**
+         * {@code format=ndjson} on {@code POST /_query} without {@code streaming=true}: the finished result is rendered as
+         * NDJSON, and {@code batch_size} is accepted with {@code format=ndjson} to set the rows per {@code values} line.
+         * Gated like {@link #STREAMING}, with which it is released. It is a separate capability because a snapshot node
+         * that has {@code STREAMING} but predates this still rejects {@code format=ndjson} without {@code streaming=true}.
+         */
+        NDJSON_FORMAT(Build.current().isSnapshot()),
+
+        /**
          * The external-dataset warning and error texts were rewritten; csv-spec tests that assert them require this so an
          * older coordinator's texts are not asserted.
          */

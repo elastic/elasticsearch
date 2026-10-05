@@ -157,6 +157,17 @@ public class RestEsqlIT extends RestEsqlTestCase {
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("contains unrecognized parameter: [streaming]"));
     }
 
+    /** {@code format=ndjson} is released together with streaming, so it is rejected like any unknown format on release builds. */
+    public void testNdjsonNotAllowed() throws IOException {
+        assumeFalse("ndjson is disabled on release builds", Build.current().isSnapshot());
+        Request request = new Request("POST", "/_query");
+        request.addParameter("format", "ndjson");
+        request.setJsonEntity("{\"query\": \"ROW a = 1\"}");
+        ResponseException re = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Invalid request content type"));
+    }
+
     public void testDoNotLogWithInfo() throws IOException {
         try {
             setLoggingLevel("INFO");

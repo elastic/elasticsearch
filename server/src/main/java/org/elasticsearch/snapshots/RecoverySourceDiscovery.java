@@ -139,7 +139,7 @@ public final class RecoverySourceDiscovery {
             if (ds == null || ds.isSystem()) {
                 continue;
             }
-            final boolean complete = isDataStreamComplete(snapshotInfo, ds);
+            final boolean complete = snapshotInfo.isDataStreamComplete(ds);
             if (complete == false && includeIncompleteSources == false) {
                 continue;
             }
@@ -147,20 +147,6 @@ public final class RecoverySourceDiscovery {
         }
 
         return candidates;
-    }
-
-    private static boolean isDataStreamComplete(SnapshotInfo snapshotInfo, DataStream dataStream) {
-        for (var index : dataStream.getIndices()) {
-            if (snapshotInfo.isIndexComplete(index.getName()) == false) {
-                return false;
-            }
-        }
-        for (var index : dataStream.getFailureIndices()) {
-            if (snapshotInfo.isIndexComplete(index.getName()) == false) {
-                return false;
-            }
-        }
-        return true;
     }
 
     private static Predicate<String> buildMatcher(List<String> expressions) {

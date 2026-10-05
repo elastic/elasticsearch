@@ -626,18 +626,18 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             // Warm the whole of each compound commit, so recovery is really waiting on bytes coming off the object store rather than on
             // an empty warming run
             .put(DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING.getKey(), 1.0d)
-            .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
+            .put(SearchRecoveryTimeoutCalculationService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
             .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING.getKey(), relocationTimeoutSlice)
             // Purely to pace the test: a quarter share keeps each slice short enough that several re-evaluations fit inside the short
             // grace window below.
             .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING.getKey(), 0.25d)
             // well below the slice size, so a re-evaluated slice is always large enough to be worth rescheduling
             .put(
-                SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(),
+                SearchRecoveryTimeoutCalculationService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(),
                 TimeValue.timeValueMillis(50)
             )
             .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), gracePeriodCap)
-            .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TOTAL_TIMEOUT_CAP_SETTING.getKey(), totalTimeoutCap)
+            .put(SearchRecoveryTimeoutCalculationService.SEARCH_RECOVERY_WARMING_TOTAL_TIMEOUT_CAP_SETTING.getKey(), totalTimeoutCap)
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .build();
         startMasterAndIndexNode(nodeSettings);

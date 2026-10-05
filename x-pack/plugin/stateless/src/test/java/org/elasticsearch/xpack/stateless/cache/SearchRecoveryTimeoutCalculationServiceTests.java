@@ -79,12 +79,12 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING,
-                SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TOTAL_TIMEOUT_CAP_SETTING,
+                SearchRecoveryTimeoutCalculationService.SEARCH_RECOVERY_WARMING_TOTAL_TIMEOUT_CAP_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING,
-                SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING,
-                SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING,
-                SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_MIN_BUDGET_PER_PENDING_SHARD_SETTING
+                SearchRecoveryTimeoutCalculationService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING,
+                SearchRecoveryTimeoutCalculationService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING,
+                SearchRecoveryTimeoutCalculationService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_MIN_BUDGET_PER_PENDING_SHARD_SETTING
             )
         );
         final var cacheService = Mockito.mock(StatelessSharedBlobCacheService.class);
@@ -731,7 +731,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             final Settings settings = Settings.builder()
                 .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), gracePeriodCap)
                 .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING.getKey(), 1.0)
-                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
+                .put(SearchRecoveryTimeoutCalculationService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
                 .build();
             // cacheSize=1000, default cacheRatio=0.5 → warmingCacheBytes = 500
             final var service = newCalculationService(threadPool, settings, 1000L);
@@ -803,9 +803,9 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         ) {
             final Settings settings = Settings.builder()
                 .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
-                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
+                .put(SearchRecoveryTimeoutCalculationService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
                 .put(
-                    SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_MIN_BUDGET_PER_PENDING_SHARD_SETTING
+                    SearchRecoveryTimeoutCalculationService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_MIN_BUDGET_PER_PENDING_SHARD_SETTING
                         .getKey(),
                     "5000ms"
                 )

@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -26,6 +27,52 @@ import java.util.Map;
 /// [#searchRecoveryTimeout].
 public class SearchRecoveryTimeoutCalculationService {
 
+    public static final String SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_PREFIX = SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME
+        + ".recovery_warming_timeout_reevaluation";
+    /// Enabling causes offline warming timeouts to be reevaluated to see whether we can afford to continue warming before relocating and
+    /// opening a shard. This means that warming for a shard will continue extending until we need to stop to give minimum time slices for
+    /// to-be-relocated shards to relocate. Enabling this setting should reduce blob store cache misses after shard relocations.
+    public static final Setting<Boolean> SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING = Setting.boolSetting(
+        SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_PREFIX + ".enabled",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+    /// Minimum re-evaluation slice that is worth rescheduling. When the remaining grace-period budget would produce a slice shorter than
+    /// this value, the re-evaluation loop terminates and recovery resumes immediately. Setting this too low (approaching zero) risks a
+    /// busy-reschedule loop; setting it too high causes the loop to abort earlier than necessary, reducing the warming window.
+    public static final Setting<TimeValue> SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING = Setting.timeSetting(
+        SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_PREFIX + ".abort_threshold",
+        TimeValue.timeValueMillis(300L),
+        TimeValue.timeValueMillis(1),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /// Minimum grace-period budget reserved per wave of pending shards on the relocation source when computing the timeout slice for a
+    /// relocating shard. Pending (STARTED, not yet relocating) shards still on the source are expected to relocate in parallel waves, whose
+    /// size is approximated by the number of relocations currently in flight from the source to the target. For each such wave, this many
+    /// milliseconds are subtracted from the available budget before capping the current shard's slice. This prevents in-flight
+    /// re-evaluations from consuming all remaining grace time and leaving later-starting shards with no warming budget at all.
+    public static final Setting<TimeValue> SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_MIN_BUDGET_PER_PENDING_SHARD_SETTING = Setting
+        .timeSetting(
+            SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_PREFIX + ".min_budget_per_pending_shard",
+            TimeValue.timeValueMillis(500),
+            TimeValue.ZERO,
+            Setting.Property.NodeScope,
+            Setting.Property.Dynamic
+        );
+
+    /// Upper bound on the total time a recovering search shard may wait for warming, summed over the initial timeout and all
+    /// re-evaluation extensions, when no relocation source is shutting down.
+    /// Unlike [SharedBlobCacheWarmingService#SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING] it is independent of shutdown metadata.
+    public static final Setting<TimeValue> SEARCH_RECOVERY_WARMING_TOTAL_TIMEOUT_CAP_SETTING = Setting.timeSetting(
+        SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_total_timeout_cap",
+        TimeValue.timeValueMinutes(14),
+        TimeValue.ZERO,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
     private final StatelessSharedBlobCacheService cacheService;
     private final ThreadPool threadPool;
     private volatile TimeValue searchRecoveryWarmingRelocationWithShutdownTimeout;
@@ -68,19 +115,19 @@ public class SearchRecoveryTimeoutCalculationService {
             value -> this.searchRecoveryWarmingGracePeriodCap = value
         );
         clusterSettings.initializeAndWatch(
-            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TOTAL_TIMEOUT_CAP_SETTING,
+            SEARCH_RECOVERY_WARMING_TOTAL_TIMEOUT_CAP_SETTING,
             value -> this.searchRecoveryWarmingTotalTimeoutCap = value
         );
         clusterSettings.initializeAndWatch(
-            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING,
+            SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING,
             value -> this.searchRecoveryWarmingTimeoutReevaluationEnabled = value
         );
         clusterSettings.initializeAndWatch(
-            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING,
+            SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING,
             value -> this.searchRecoveryReevaluationAbortThreshold = value
         );
         clusterSettings.initializeAndWatch(
-            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_MIN_BUDGET_PER_PENDING_SHARD_SETTING,
+            SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_MIN_BUDGET_PER_PENDING_SHARD_SETTING,
             value -> this.searchRecoveryWarmingSourceShutdownMinBudgetPerPendingShard = value
         );
         clusterSettings.initializeAndWatch(

@@ -44,10 +44,9 @@ final class ColumnarStringPageReader implements Releasable {
     /**
      * The block for {@code docs} from {@code offset} on, or null when the column declines the page.
      *
-     * <p>Where the column keeps a dictionary this is the shape it already stores: the page comes back as ordinals
-     * into its own distinct values, each resolved once however many documents name it, and is handed over without
-     * a lookup per value or a remapping. Where it does not, the page still comes back a page at a time, and a run
-     * of equal values is copied once.
+     * <p>A page that repeats comes back as ordinals into its own distinct values, each resolved once however many
+     * documents name it, and is handed over without a lookup per value or a remapping. One that does not is appended
+     * a value at a time as the column reads it.
      *
      * <p>A document the column has no value for arrives holding none, which the block reads as a null.
      *

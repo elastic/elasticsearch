@@ -272,7 +272,7 @@ public final class SingleValueMatchQuery extends Query {
                 ScoreMode scoreMode
             ) throws IOException {
                 final int maxDoc = context.reader().maxDoc();
-                // Where the field knows the documents holding one value, they are the answer, as a singleton is above.
+                // Where the field knows the documents holding one value, they are the answer, as a singleton's doc values are.
                 final DocIdSetIterator singleValuedDocs = sortedBinaryDocValues.singleValuedDocs();
                 if (singleValuedDocs != null) {
                     return new DocIdSetIteratorScorerSupplier(boost, scoreMode, singleValuedDocs);

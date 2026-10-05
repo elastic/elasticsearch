@@ -31,7 +31,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class SettingsConfig implements Writeable, ToXContentObject {
 
-    public static final SettingsConfig EMPTY = new SettingsConfig(null, null, null, null, null, null, null, (Integer) null);
+    public static final SettingsConfig EMPTY = new SettingsConfig(null, null, (Boolean) null, null, null, null, null, null);
 
     public static final ConstructingObjectParser<SettingsConfig, Void> STRICT_PARSER = createParser(false);
     public static final ConstructingObjectParser<SettingsConfig, Void> LENIENT_PARSER = createParser(true);
@@ -134,7 +134,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         );
     }
 
-    private SettingsConfig(
+    SettingsConfig(
         Integer maxPageSearchSize,
         Float docsPerSecond,
         Integer datesAsEpochMillis,

@@ -24,13 +24,13 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.ScriptConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.TermsGroupSource;
-import org.elasticsearch.xpack.core.transform.transforms.pivot.TermsGroupSourceTests;
 import org.elasticsearch.xpack.transform.transforms.Function.ChangeCollector;
 import org.elasticsearch.xpack.transform.transforms.pivot.CompositeBucketsChangeCollector.FieldCollector;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,8 +59,8 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
     public void testPageSize() throws IOException {
         Map<String, SingleGroupSource> groups = new LinkedHashMap<>();
 
-        // a terms group_by is limited by terms query
-        SingleGroupSource termsGroupBy = TermsGroupSourceTests.randomTermsGroupSourceNoScript();
+        // a terms group_by is limited by terms query (use null maxTerms so it contributes a composite source)
+        SingleGroupSource termsGroupBy = new TermsGroupSource(randomAlphaOfLengthBetween(1, 20), null, randomBoolean());
         groups.put("terms", termsGroupBy);
 
         ChangeCollector collector = CompositeBucketsChangeCollector.buildChangeCollector(groups, null);
@@ -144,6 +144,161 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
 
         fieldCollectors = CompositeBucketsChangeCollector.createFieldCollectors(groups, null);
         assertTrue(fieldCollectors.isEmpty());
+    }
+
+    public void testTermsFieldCollectorOverflow() throws IOException {
+        ChangeCollector collector = buildTermsChangeCollector(10_000);
+        assertTrue(collector.isOptimized());
+
+        processWithTerms(collector, 10_001);
+        assertFalse(collector.isOptimized());
+        assertNull(buildFilterQuery(collector));
+    }
+
+    public void testTermsFieldCollectorWithThresholdZeroIsDisabledFromStart() {
+        ChangeCollector collector = buildTermsChangeCollector(0);
+        assertFalse(collector.isOptimized());
+        assertFalse(collector.queryForChanges());
+        assertNull(buildFilterQuery(collector));
+    }
+
+    public void testTermsFieldCollectorWithThresholdZeroStaysDisabledAfterReset() {
+        ChangeCollector collector = buildTermsChangeCollector(0);
+        assertFalse(collector.isOptimized());
+
+        collector.buildChangesQuery(new SearchSourceBuilder(), null, 1000);
+        assertFalse(collector.isOptimized());
+        assertFalse(collector.queryForChanges());
+    }
+
+    public void testTermsFieldCollectorWithThresholdZeroHasNoCompositeSource() {
+        Map<String, SingleGroupSource> groups = new LinkedHashMap<>();
+        groups.put("id", new TermsGroupSource("id", null, false, 0));
+        Map<String, CompositeBucketsChangeCollector.FieldCollector> fieldCollectors = CompositeBucketsChangeCollector.createFieldCollectors(
+            groups,
+            null
+        );
+        assertFalse(fieldCollectors.isEmpty());
+        assertNull(fieldCollectors.get("id").getCompositeValueSourceBuilder());
+    }
+
+    public void testTermsFieldCollectorBelowThreshold() throws IOException {
+        ChangeCollector collector = buildTermsChangeCollector(10_000);
+
+        processWithTerms(collector, 10_000);
+        assertTrue(collector.isOptimized());
+
+        QueryBuilder queryBuilder = buildFilterQuery(collector);
+        assertNotNull(queryBuilder);
+        assertThat(queryBuilder, instanceOf(TermsQueryBuilder.class));
+        assertEquals(10_000, ((TermsQueryBuilder) queryBuilder).values().size());
+    }
+
+    public void testOverflowResetOnNewCheckpoint() throws IOException {
+        ChangeCollector collector = buildTermsChangeCollector(10_000);
+
+        processWithTerms(collector, 10_001);
+        assertFalse(collector.isOptimized());
+
+        collector.buildChangesQuery(new SearchSourceBuilder(), null, 1000);
+        assertTrue(collector.isOptimized());
+    }
+
+    public void testOverflowPersistsThroughClear() throws IOException {
+        ChangeCollector collector = buildTermsChangeCollector(10_000);
+
+        processWithTerms(collector, 10_001);
+        assertFalse(collector.isOptimized());
+
+        collector.clear();
+        assertFalse(collector.isOptimized());
+    }
+
+    public void testOverflowedCollectorReturnsDoneOnSubsequentCalls() throws IOException {
+        ChangeCollector collector = buildTermsChangeCollector(10_000);
+
+        Map<String, Object> position = processWithTerms(collector, 10_001);
+        assertNotNull(position);
+        assertFalse(collector.isOptimized());
+
+        // after APPLY_RESULTS, the indexer returns to IDENTIFY_CHANGES
+        // with more composite data; the overflowed collector should return done immediately
+        position = processWithTerms(collector, 3);
+        assertNull(position);
+    }
+
+    public void testTermsFieldCollectorMultiPageOverflow() throws IOException {
+        ChangeCollector collector = buildTermsChangeCollector(100);
+        assertTrue(collector.isOptimized());
+
+        processWithTerms(collector, 60);
+        assertTrue(collector.isOptimized());
+
+        collector.clear();
+
+        processWithTerms(collector, 50);
+        assertFalse(collector.isOptimized());
+        assertNull(buildFilterQuery(collector));
+    }
+
+    public void testTermsFieldCollectorMultiPageBelowThreshold() throws IOException {
+        ChangeCollector collector = buildTermsChangeCollector(100);
+
+        processWithTerms(collector, 50);
+        assertTrue(collector.isOptimized());
+
+        collector.clear();
+
+        processWithTerms(collector, 50);
+        assertTrue(collector.isOptimized());
+
+        QueryBuilder queryBuilder = buildFilterQuery(collector);
+        assertNotNull(queryBuilder);
+        assertThat(queryBuilder, instanceOf(TermsQueryBuilder.class));
+        assertEquals(50, ((TermsQueryBuilder) queryBuilder).values().size());
+    }
+
+    private static ChangeCollector buildTermsChangeCollector(int maxTermsForChangeDetection) {
+        Map<String, SingleGroupSource> groups = new LinkedHashMap<>();
+        groups.put("id", new TermsGroupSource("id", null, false, maxTermsForChangeDetection));
+        return CompositeBucketsChangeCollector.buildChangeCollector(groups, null);
+    }
+
+    private Map<String, Object> processWithTerms(ChangeCollector collector, int termCount) throws IOException {
+        InternalComposite composite = createMockCompositeWithTerms("id", termCount);
+        SearchResponse response = SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS)
+            .aggregations(InternalAggregations.from(composite))
+            .build();
+        try {
+            return collector.processSearchResponse(response);
+        } finally {
+            response.decRef();
+        }
+    }
+
+    private static QueryBuilder buildFilterQuery(ChangeCollector collector) {
+        return collector.buildFilterQuery(
+            new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 0L),
+            new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 0L)
+        );
+    }
+
+    private InternalComposite createMockCompositeWithTerms(String fieldName, int termCount) {
+        InternalComposite composite = mock(InternalComposite.class);
+        when(composite.getName()).thenReturn("_transform_change_collector");
+        when(composite.getBuckets()).thenAnswer(invocationOnMock -> {
+            List<InternalComposite.InternalBucket> buckets = new ArrayList<>();
+            for (int i = 0; i < termCount; i++) {
+                InternalComposite.InternalBucket bucket = mock(InternalComposite.InternalBucket.class);
+                when(bucket.getKey()).thenReturn(Collections.singletonMap(fieldName, "term_" + i));
+                buckets.add(bucket);
+            }
+            return buckets;
+        });
+        Map<String, Object> afterKey = new HashMap<>();
+        afterKey.put(fieldName, "term_" + (termCount - 1));
+        when(composite.afterKey()).thenReturn(afterKey);
+        return composite;
     }
 
     private static CompositeAggregationBuilder getCompositeAggregationBuilder(SearchSourceBuilder builder) {

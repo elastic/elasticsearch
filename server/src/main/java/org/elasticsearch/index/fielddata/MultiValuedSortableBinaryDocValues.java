@@ -65,8 +65,7 @@ public abstract class MultiValuedSortableBinaryDocValues extends SortableBinaryD
         final BinaryDocValues values = DocValues.getBinary(leafReader, valuesFieldName);
         // A column records how many documents hold a value. Anything else leaves it unknown.
         if (values instanceof StringColumnSource source) {
-            final boolean dense = source.reader().numDocsWithField() == leafReader.maxDoc();
-            return new PlainBinary(values, dense ? Sparsity.DENSE : Sparsity.SPARSE);
+            return new PlainBinary(values, ColumnarPayloadSortableBinaryDocValues.sparsityOf(source.reader(), leafReader.maxDoc()));
         }
         return new PlainBinary(values);
     }

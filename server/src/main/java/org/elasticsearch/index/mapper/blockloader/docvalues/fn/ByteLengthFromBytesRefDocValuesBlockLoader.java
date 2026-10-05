@@ -73,9 +73,11 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
                     yield ConstantNull.COLUMN_READER;
                 }
                 // A column answers from the lengths it stores. Anything else is read a document at a time.
-                yield binary.docValues() instanceof StringColumnSource columnar
-                    ? new SingleValuedColumnar(warnings, binary, columnar)
-                    : new SingleValued(binary);
+                if (binary.docValues() instanceof StringColumnSource columnar) {
+                    assert columnar.singleValued() : "field [" + fieldName + "] is mapped as bare values but its column holds payloads";
+                    yield new SingleValuedColumnar(warnings, binary, columnar);
+                }
+                yield new SingleValued(binary);
             }
         };
     }

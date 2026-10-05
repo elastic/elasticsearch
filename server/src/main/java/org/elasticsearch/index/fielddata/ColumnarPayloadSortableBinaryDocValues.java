@@ -87,13 +87,24 @@ public final class ColumnarPayloadSortableBinaryDocValues extends SortableBinary
             return new ColumnarPayloadSortableBinaryDocValues(
                 binary,
                 source,
-                column.numDocsWithField() == leafReader.maxDoc() ? Sparsity.DENSE : Sparsity.SPARSE,
+                sparsityOf(column, leafReader.maxDoc()),
                 // No value addresses means one slot a document, so none holds two. A null slot is no value,
                 // which single valued allows: it says at most one.
                 column.hasValueAddresses() ? ValueMode.UNKNOWN : ValueMode.SINGLE_VALUED
             );
         }
         return new ColumnarPayloadSortableBinaryDocValues(binary);
+    }
+
+    /**
+     * Whether every document holds a value, as the column records it. A document whose slots are all null holds none, and
+     * the column counts null slots but not the documents they leave empty, so a column with one is left unknown.
+     */
+    static Sparsity sparsityOf(StringColumnReader column, int maxDoc) {
+        if (column.numDocsWithField() < maxDoc) {
+            return Sparsity.SPARSE;
+        }
+        return column.numNullSlots() == 0 ? Sparsity.DENSE : Sparsity.UNKNOWN;
     }
 
     @Override

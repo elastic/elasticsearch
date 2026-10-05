@@ -230,7 +230,10 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
     /** A document whose one slot is null holds no value, so it is not among the documents holding one. */
     public void testNullSlotIsNotASingleValuedDocument() throws IOException {
         withPayloads(d -> d % 7 == 3 ? new String[] { null } : new String[] { "term-" + (d % 5) }, (leaf, docs) -> {
-            final DocIdSetIterator single = Framing.PAYLOAD.fieldData(leaf.reader()).singleValuedDocs();
+            final SortableBinaryDocValues fieldData = Framing.PAYLOAD.fieldData(leaf.reader());
+            // Every document has a slot, but not every document holds a value, so the column is not reported dense.
+            assertEquals(SortableBinaryDocValues.Sparsity.UNKNOWN, fieldData.getSparsity());
+            final DocIdSetIterator single = fieldData.singleValuedDocs();
             assertNotNull(single);
             for (int d = 0; d < docs; d++) {
                 if (d % 7 != 3) {

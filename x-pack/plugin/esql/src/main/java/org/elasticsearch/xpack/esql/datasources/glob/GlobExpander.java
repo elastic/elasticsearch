@@ -68,6 +68,21 @@ public final class GlobExpander {
     }
 
     /**
+     * Creates a file list over entries whose paths are the only evidence of their partition columns, detecting those
+     * columns here rather than taking metadata the caller already holds. This is what a resource naming concrete keys
+     * needs: a named key's path carries partition values exactly as a listed key's does, so what discovered a file
+     * does not decide whether its path contributes columns. Detection is pure path parsing — no I/O.
+     */
+    public static FileList fileListOf(
+        List<StorageEntry> entries,
+        String pattern,
+        PartitionConfig partitionConfig,
+        Consumer<String> warningSink
+    ) {
+        return new GenericFileList(entries, pattern, detectPartitions(entries, partitionConfig, warningSink));
+    }
+
+    /**
      * A file list that is a prefix of what the pattern matches, as a bounded listing produces. For tests that need
      * the shape a schema-only listing has: {@link FileList#isTruncated()} is what tells a reader of such a list
      * that it is not the dataset.

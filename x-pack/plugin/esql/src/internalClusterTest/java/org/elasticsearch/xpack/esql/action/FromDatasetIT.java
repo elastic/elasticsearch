@@ -6130,6 +6130,152 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertThat(e.getMessage(), containsString("collides with a partition column"));
     }
 
+    /**
+     * A resource naming one concrete key must expose its path's partition columns, exactly as a glob over the same
+     * object does. Both forms are registered here against the same single file, so the assertion is the two rails'
+     * agreement rather than a value picked by hand: a bare key and a pattern differ only in how the file is
+     * discovered, which is not something a column's existence may turn on.
+     */
+    public void testConcreteFileBindsHivePartitionColumnLikeTheGlob() throws Exception {
+        Path root = createTempDir();
+        Path east = Files.createDirectories(root.resolve("region=east"));
+        Files.writeString(east.resolve("part1.csv"), "emp_no:integer,first_name:keyword\n1,Alice\n2,Bob\n");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        // The glob matches that one object and no sibling, so the two datasets read the same bytes.
+        Map<String, String> resources = Map.of(
+            "employees_one_key",
+            east.toUri() + "part1.csv",
+            "employees_one_glob",
+            east.toUri() + "*.csv"
+        );
+        for (Map.Entry<String, String> dataset : resources.entrySet()) {
+            assertAcked(
+                client().execute(
+                    PutDatasetAction.INSTANCE,
+                    new PutDatasetAction.Request(
+                        TIMEOUT,
+                        TIMEOUT,
+                        dataset.getKey(),
+                        "local_ds",
+                        dataset.getValue(),
+                        null,
+                        new HashMap<>(Map.of("format", "csv", "partition_detection", "hive")),
+                        null
+                    )
+                )
+            );
+            try (
+                var response = run(syncEsqlQueryRequest("FROM " + dataset.getKey() + " | WHERE region == \"east\" | SORT emp_no"), TIMEOUT)
+            ) {
+                assertThat(dataset.getKey(), columnNames(response), equalTo(List.of("emp_no", "first_name", "region")));
+                List<List<Object>> rows = getValuesList(response);
+                assertThat(dataset.getKey(), rows, hasSize(2));
+                assertThat(dataset.getKey(), rows.get(0).get(2).toString(), equalTo("east"));
+            }
+        }
+    }
+
+    /**
+     * The same over a layout whose partition key collides with a physical column. The path-derived value wins
+     * (Spark/DuckDB semantics), and the surviving data column must still read correctly: CSV is positional, so the
+     * shadowed column is parsed and then dropped from the output — a mapping that emitted it would be a column wider
+     * than the schema the coordinator published.
+     */
+    public void testConcreteFileShadowsCollidingPhysicalColumn() throws Exception {
+        Path root = createTempDir();
+        Path east = Files.createDirectories(root.resolve("region=east"));
+        // The file's own `region` says west; the path says east. The path is what the query must see.
+        Files.writeString(east.resolve("part1.csv"), "emp_no:integer,region:keyword,first_name:keyword\n1,west,Alice\n");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_one_key_shadow",
+                    "local_ds",
+                    east.toUri() + "part1.csv",
+                    null,
+                    new HashMap<>(Map.of("format", "csv", "partition_detection", "hive")),
+                    null
+                )
+            )
+        );
+        try (var response = run(syncEsqlQueryRequest("FROM employees_one_key_shadow"), TIMEOUT)) {
+            assertThat(columnNames(response), equalTo(List.of("emp_no", "first_name", "region")));
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).get(0), equalTo(1));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
+            assertThat("the path value wins over the file's own column", rows.get(0).get(2).toString(), equalTo("east"));
+        }
+    }
+
+    /**
+     * The strict (declared-schema) rail over one concrete key. Strict never shadows — a declared column colliding
+     * with a partition key is rejected rather than hidden, since under strict the declaration drives the reader's
+     * positional file schema — so both halves of that contract are pinned here.
+     */
+    public void testStrictConcreteFileHivePartitionColumn() throws Exception {
+        Path root = createTempDir();
+        Path east = Files.createDirectories(root.resolve("region=east"));
+        Files.writeString(east.resolve("part1.csv"), "emp_no:integer,first_name:keyword\n1,Alice\n2,Bob\n");
+        String key = east.toUri() + "part1.csv";
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> declared = new LinkedHashMap<>();
+        declared.put("emp_no", new DatasetFieldMapping("integer", null));
+        declared.put("first_name", new DatasetFieldMapping("keyword", null));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_strict_one_key",
+                    "local_ds",
+                    key,
+                    null,
+                    new HashMap<>(Map.of("format", "csv", "partition_detection", "hive")),
+                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, declared))
+                )
+            )
+        );
+        try (var response = run(syncEsqlQueryRequest("FROM employees_strict_one_key | WHERE region == \"east\" | SORT emp_no"), TIMEOUT)) {
+            assertThat(columnNames(response), equalTo(List.of("emp_no", "first_name", "region")));
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(2).toString(), equalTo("east"));
+        }
+
+        Map<String, DatasetFieldMapping> colliding = new LinkedHashMap<>();
+        colliding.put("emp_no", new DatasetFieldMapping("integer", null));
+        colliding.put("region", new DatasetFieldMapping("keyword", null));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_strict_one_key_collide",
+                    "local_ds",
+                    key,
+                    null,
+                    new HashMap<>(Map.of("format", "csv", "partition_detection", "hive")),
+                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, colliding))
+                )
+            )
+        );
+        Exception e = expectThrows(
+            Exception.class,
+            () -> run(syncEsqlQueryRequest("FROM employees_strict_one_key_collide | LIMIT 1"), TIMEOUT).close()
+        );
+        assertThat(e.getMessage(), containsString("collides with a partition column"));
+    }
+
     public void testFromMixedIndexAndDatasetMetadataBindsOnBothHalves() throws Exception {
         // METADATA on a heterogeneous FROM must bind on BOTH branches and strip neither. The plan-global metadata
         // strip in Analyzer.planWithoutSyntheticAttributes fires only on the legacy EXTERNAL command's nameless leaf

@@ -1354,6 +1354,14 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     private static final String HIVE_SHADOW_SUFFIX = "_hive_shadow";
 
     /**
+     * One concrete key inside the Hive-partitioned fixture — no glob, no comma list. The resource shape decides how
+     * the file is discovered, and must not decide whether its path contributes columns, so this addresses the single
+     * {@code lang=3} object directly. Naming a key needs no directory listing, so unlike the glob templates it is not
+     * skipped on the HTTP backend.
+     */
+    private static final String HIVE_ONE_FILE_SUFFIX = "_hive_one_file";
+
+    /**
      * Resolve a template name to an actual path based on storage backend and format.
      *
      * @param templateName the template name (e.g., "employees", "employees_multifile", or "employees_multifile_ubn")
@@ -1381,6 +1389,9 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         } else if (templateName.endsWith(MULTIFILE_SUFFIX)) {
             // Multi-file template: employees_multifile -> multifile/*.parquet
             relativePath = "multifile/*." + format;
+        } else if (templateName.endsWith(HIVE_ONE_FILE_SUFFIX)) {
+            // The generator writes one object per partition directory, named after the source CSV.
+            relativePath = "hive-partitioned/lang=3/employees." + format;
         } else if (templateName.endsWith(HIVE_SHADOW_SUFFIX)) {
             // Hive layout whose partition key shadows a same-named payload column.
             relativePath = "hive-partitioned-shadow/**/*." + format;

@@ -3775,6 +3775,139 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(Nullability.FALSE, resolvedSchema.get(2).nullable());
     }
 
+    // ===== Partition columns off a resource that names concrete keys =====
+    //
+    // A resource naming one concrete key takes the single-file rail, which built its one-entry file list with no
+    // partition metadata attached: the dataset lost every partition column the same data addressed with a glob
+    // exposes. The cases below pin the two rails' agreement. Every partition case above registers a glob, so none
+    // of them reaches the single-file branch of the resolver's dispatch.
+
+    /** The explicit Hive strategy over one concrete key. */
+    public void testConcreteResourceBindsHivePartitionColumns() throws Exception {
+        String key = "s3://bucket/data/year=2024/month=01/file.parquet";
+        Map<String, List<Attribute>> schemasByPath = Map.of(key, List.of(attr("value", DataType.DOUBLE)));
+
+        ExternalSourceResolution.ResolvedSource resolved = resolveResourceWithConfig(
+            key,
+            schemasByPath,
+            Map.of(),
+            Map.of("partition_detection", "hive")
+        ).resolvedSource(key);
+
+        assertNotNull(resolved);
+        assertEquals(List.of("value", "year", "month"), resolved.metadata().schema().stream().map(Attribute::name).toList());
+        assertEquals(Set.of("year", "month"), resolved.fileList().partitionMetadata().partitionColumns().keySet());
+    }
+
+    /** The template strategy over one concrete key, right-aligned to the two directories above the file. */
+    public void testConcreteResourceBindsTemplatePartitionColumns() throws Exception {
+        String key = "s3://bucket/data/2024/01/file.parquet";
+        Map<String, List<Attribute>> schemasByPath = Map.of(key, List.of(attr("value", DataType.DOUBLE)));
+
+        ExternalSourceResolution.ResolvedSource resolved = resolveResourceWithConfig(
+            key,
+            schemasByPath,
+            Map.of(),
+            Map.of("partition_detection", "template", "partition_path", "{year}/{month}")
+        ).resolvedSource(key);
+
+        assertNotNull(resolved);
+        assertEquals(List.of("value", "year", "month"), resolved.metadata().schema().stream().map(Attribute::name).toList());
+        assertEquals(Set.of("year", "month"), resolved.fileList().partitionMetadata().partitionColumns().keySet());
+    }
+
+    /**
+     * No partition settings at all. {@code auto} is the default strategy, so the blast radius of the defect was never
+     * limited to datasets that opted into partitioning — and neither is the fix.
+     */
+    public void testConcreteResourceBindsPartitionColumnsUnderAutoDefault() throws Exception {
+        String key = "s3://bucket/data/year=2024/month=01/file.parquet";
+        Map<String, List<Attribute>> schemasByPath = Map.of(key, List.of(attr("value", DataType.DOUBLE)));
+
+        ExternalSourceResolution.ResolvedSource resolved = resolveResourceWithConfig(key, schemasByPath, Map.of(), Map.of()).resolvedSource(
+            key
+        );
+
+        assertNotNull(resolved);
+        assertEquals(List.of("value", "year", "month"), resolved.metadata().schema().stream().map(Attribute::name).toList());
+        assertEquals(Set.of("year", "month"), resolved.fileList().partitionMetadata().partitionColumns().keySet());
+    }
+
+    /**
+     * The consistency pin, and the one the defect failed: a top-level comma takes the multi-file rail while a bare
+     * key takes the single-file one, so the two resource shapes dispatch differently over the same directory. The
+     * partition columns they bind must not differ on that.
+     */
+    public void testConcreteAndCommaResourcesAgreeOnPartitionColumns() throws Exception {
+        String one = "s3://bucket/data/year=2024/month=01/file1.parquet";
+        String two = "s3://bucket/data/year=2024/month=01/file2.parquet";
+        List<Attribute> schema = List.of(attr("value", DataType.DOUBLE));
+        Map<String, List<Attribute>> schemasByPath = Map.of(one, schema, two, schema);
+        Map<String, Object> config = Map.of("partition_detection", "hive");
+
+        ExternalSourceResolution.ResolvedSource single = resolveResourceWithConfig(one, schemasByPath, Map.of(), config).resolvedSource(
+            one
+        );
+        String comma = one + "," + two;
+        ExternalSourceResolution.ResolvedSource commaList = resolveResourceWithConfig(comma, schemasByPath, Map.of(), config)
+            .resolvedSource(comma);
+
+        assertNotNull(single);
+        assertNotNull(commaList);
+        assertEquals(
+            "one concrete key and a comma list over the same directory must bind the same partition columns",
+            commaList.fileList().partitionMetadata().partitionColumns(),
+            single.fileList().partitionMetadata().partitionColumns()
+        );
+        assertEquals(
+            commaList.metadata().schema().stream().map(Attribute::name).toList(),
+            single.metadata().schema().stream().map(Attribute::name).toList()
+        );
+    }
+
+    /**
+     * A partition key colliding with a physical column. The path-derived value wins (Spark/DuckDB semantics, as on
+     * the multi-file rail), and the per-file mapping must narrow its OUTPUT to the data-only columns: the reader
+     * still parses the physical column, but emitting it would leave the mapping a column wider than the schema the
+     * coordinator published.
+     */
+    public void testConcreteResourceWithShadowedPartitionKeyNarrowsSchema() throws Exception {
+        String key = "s3://bucket/data/year=2024/file.parquet";
+        List<Attribute> physical = List.of(attr("year", DataType.KEYWORD), attr("value", DataType.DOUBLE));
+        Map<String, List<Attribute>> schemasByPath = Map.of(key, physical);
+
+        ExternalSourceResolution resolution = resolveResourceWithConfig(
+            key,
+            schemasByPath,
+            Map.of(),
+            Map.of("partition_detection", "hive")
+        );
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(key);
+
+        assertNotNull(resolved);
+        List<Attribute> resolvedSchema = resolved.metadata().schema();
+        assertEquals(List.of("value", "year"), resolvedSchema.stream().map(Attribute::name).toList());
+        assertEquals("the path value wins over the physical column", DataType.INTEGER, resolvedSchema.get(1).dataType());
+
+        SchemaReconciliation.FileSchemaInfo info = resolved.schemaMap().get(StoragePath.of(key));
+        assertNotNull(info);
+        assertEquals(
+            "the file schema keeps the physical 'year' column so a positional reader still parses it",
+            physical,
+            info.fileSchema().attributes()
+        );
+        ColumnMapping mapping = info.mapping();
+        assertNotNull(mapping);
+        assertEquals("mapping width is data-only", 1, mapping.width());
+        assertFalse("mapping is non-identity", mapping.isIdentity());
+        // 'value' is at physical position 1; the shadowed physical 'year' (position 0) is not emitted.
+        assertEquals("'value' maps to physical position 1", 1, mapping.localIndex(0));
+
+        List<String> warnings = resolution.warnings();
+        assertEquals("summary + one detail", 2, warnings.size());
+        assertThat("detail names the shadowed column", warnings.get(1), containsString("column [year]: also a partition key"));
+    }
+
     public void testEnrichSchemaWithPartitionColumnsDirectly() {
         List<Attribute> originalSchema = List.of(attr("a", DataType.INTEGER), attr("b", DataType.KEYWORD));
         ExternalSourceMetadata metadata = createStubMetadata("s3://bucket/file.parquet", originalSchema);

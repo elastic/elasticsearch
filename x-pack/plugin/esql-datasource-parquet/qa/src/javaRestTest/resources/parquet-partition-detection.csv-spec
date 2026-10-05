@@ -13,6 +13,7 @@
 // Fixtures:
 //   {{employees_hive}}         hive-partitioned/lang=*/              partition key `lang`, payload column `languages`
 //   {{employees_hive_shadow}}  hive-partitioned-shadow/languages=*/  partition key COLLIDES with payload `languages`
+//   {{employees_hive_one_file}} hive-partitioned/lang=3/employees.*   ONE concrete key, no glob: 17 of the 100 rows
 
 hiveDetectionOnByDefault
 required_capability: dataset_in_from_command
@@ -208,4 +209,53 @@ total:long | sum_salary:long | languages:integer
 36         | 1718388         | 4
 42         | 1750592         | 5
 20         | 1050392         | null
+;
+
+// ---------------------------------------------------------------------------------------------------------
+// A resource naming ONE concrete key, with no glob and no comma list. The partition column must bind exactly as
+// it does for a glob over the same directory: the resource shape decides how the file is discovered, which is not
+// something a column's existence may turn on. Before this, such a dataset answered `Unknown column [lang]`.
+//
+// `lang=3` holds 17 of the 100 employees (see hiveDetectionOnByDefault above), so the count also proves the one
+// object was read rather than the whole fixture.
+// ---------------------------------------------------------------------------------------------------------
+
+concreteKeyBindsItsPathsPartitionColumn
+required_capability: dataset_in_from_command
+required_capability: external_single_file_partition_columns
+dataset: employees_one_key: "{{employees_hive_one_file}}"
+
+FROM employees_one_key
+| STATS count = COUNT(*) BY lang;
+
+count:long | lang:integer
+17         | 3
+;
+
+// The same key under the explicit template strategy, right-aligned to the one directory above the file. The
+// template binds the literal directory name, so the value is `lang=3` rather than `3`.
+concreteKeyBindsTemplatePartitionColumn
+required_capability: dataset_in_from_command
+required_capability: external_single_file_partition_columns
+dataset: employees_one_key_template: "{{employees_hive_one_file}}" WITH {"partition_detection": "template", "partition_path": "{bucket}"}
+
+FROM employees_one_key_template
+| STATS count = COUNT(*) BY bucket;
+
+count:long | bucket:keyword
+17         | lang=3
+;
+
+// The documented opt-out still works on this rail: with detection off the dataset is its seven payload columns and
+// nothing from the path, so naming the column is an error and counting rows is not.
+concreteKeyDetectionNoneBindsNoPartitionColumn
+required_capability: dataset_in_from_command
+required_capability: external_single_file_partition_columns
+dataset: employees_one_key_none: "{{employees_hive_one_file}}" WITH {"partition_detection": "none"}
+
+FROM employees_one_key_none
+| STATS count = COUNT(*);
+
+count:long
+17
 ;

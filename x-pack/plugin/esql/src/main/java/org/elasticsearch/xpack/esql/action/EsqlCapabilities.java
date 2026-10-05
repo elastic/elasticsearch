@@ -3106,6 +3106,15 @@ public class EsqlCapabilities {
         PARTITION_DETECTION_ON_READ_PATH,
 
         /**
+         * A dataset whose {@code resource} names one concrete key exposes its path's partition columns, as the same
+         * data addressed with a glob already did. This adds a column to such a dataset's schema — and under the
+         * {@code auto} default it fires on datasets that set no partition settings at all — so a coordinator that
+         * predates it answers {@code Unknown column} where one of those columns is named, and one column narrower
+         * where it is not.
+         */
+        EXTERNAL_SINGLE_FILE_PARTITION_COLUMNS,
+
+        /**
          * {@code FROM <dataset>} resolved through the same pipeline as {@code FROM <index>} (Phase 1: dataset-only patterns).
          */
         DATASET_IN_FROM_COMMAND,

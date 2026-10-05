@@ -31,7 +31,6 @@ teardown:
           settings:
             index.mode: columnar
             index.number_of_shards: 1
-            index.number_of_replicas: 0
           mappings:
             properties:
               "@timestamp":
@@ -83,7 +82,6 @@ teardown:
           settings:
             index.mode: columnar
             index.number_of_shards: 1
-            index.number_of_replicas: 0
             index.sort.field: kw
             index.sort.order: asc
           mappings:

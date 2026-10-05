@@ -61,6 +61,7 @@ import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.StreamSupport;
 
 public class LogConfigurator {
@@ -73,6 +74,7 @@ public class LogConfigurator {
      * fail startup and any such messages can be seen on the console.
      */
     private static final AtomicBoolean error = new AtomicBoolean();
+    private static final AtomicReference<StatusListener> statusLoggerForwarder = new AtomicReference<>();
     private static final StatusListener ERROR_LISTENER = new StatusConsoleListener(Level.ERROR) {
         @Override
         public void log(StatusData data) {
@@ -149,11 +151,16 @@ public class LogConfigurator {
                     logger.log(data.getLevel(), data.getMessage(), data.getThrowable());
                     super.log(data);
                 } finally {
-                    reentryGuard.set(false);
+                    reentryGuard.remove();
                 }
             }
         };
         StatusLogger.getLogger().registerListener(listener);
+        // Each forwarder only guards against its own re-entry, so a second one would forward the other's status events again
+        var previous = statusLoggerForwarder.getAndSet(listener);
+        if (previous != null) {
+            StatusLogger.getLogger().removeListener(previous);
+        }
     }
 
     public static void configureESLogging() {

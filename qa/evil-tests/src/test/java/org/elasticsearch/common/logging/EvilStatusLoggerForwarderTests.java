@@ -51,17 +51,17 @@ public class EvilStatusLoggerForwarderTests extends ESTestCase {
     private static final int MAX_FAILING_CALLS = 200;
 
     private static final AtomicInteger failingCalls = new AtomicInteger();
-    private static volatile boolean failing;
+    private static volatile Thread failingThread;
     private static volatile boolean throwError;
 
     /**
-     * Data providers can only be set once per JVM, so install a single failing provider followed by a healthy one and toggle the
-     * failure per test.
+     * Data providers can only be set once per JVM, so install a single failing provider followed by a healthy one. The failing
+     * provider only fails on the triggering test thread, so background logging cannot affect the call counts.
      */
     @BeforeClass
     public static void installDataProviders() {
         LoggingDataProvider failingProvider = data -> {
-            if (failing && failingCalls.incrementAndGet() <= MAX_FAILING_CALLS) {
+            if (Thread.currentThread() == failingThread && failingCalls.incrementAndGet() <= MAX_FAILING_CALLS) {
                 if (throwError) {
                     throw new AssertionError("simulated provider error");
                 }
@@ -117,19 +117,18 @@ public class EvilStatusLoggerForwarderTests extends ESTestCase {
     private record Captured(List<LogEvent> events, List<StatusData> warnings, String console) {}
 
     private Captured triggerWithFailingProvider(boolean error, String... messages) throws IOException {
-        List<StatusListener> preExisting = new ArrayList<>();
-        StatusLogger.getLogger().getListeners().forEach(preExisting::add);
-        setupLogging("minimal");
+        int configurations = randomIntBetween(1, 3);
+        for (int i = 0; i < configurations; i++) {
+            LogConfigurator.registerErrorListener();
+            setupLogging("minimal");
+        }
 
-        List<StatusListener> added = new ArrayList<>();
-        StatusLogger.getLogger().getListeners().forEach(l -> {
-            if (preExisting.contains(l) == false) {
-                added.add(l);
-            }
-        });
-        assertThat("expected exactly the forwarder to be registered", added, hasSize(1));
-        assertThat(added.get(0), instanceOf(StatusConsoleListener.class));
-        StatusConsoleListener forwarder = (StatusConsoleListener) added.get(0);
+        List<StatusListener> others = new ArrayList<>();
+        List<StatusListener> forwarders = new ArrayList<>();
+        StatusLogger.getLogger().getListeners().forEach(l -> (isForwarder(l) ? forwarders : others).add(l));
+        assertThat("reconfiguring must replace the previous forwarder", forwarders, hasSize(1));
+        assertThat(forwarders.get(0), instanceOf(StatusConsoleListener.class));
+        StatusConsoleListener forwarder = (StatusConsoleListener) forwarders.get(0);
         ByteArrayOutputStream console = new ByteArrayOutputStream();
         forwarder.setStream(new PrintStream(console, true, StandardCharsets.UTF_8));
 
@@ -161,24 +160,30 @@ public class EvilStatusLoggerForwarderTests extends ESTestCase {
         Loggers.addAppender(testLogger, appender);
 
         // ESTestCase fails any test that emits StatusLogger warnings, which this test does on purpose.
-        // Removing forwarders from earlier tests also keeps the number of provider calls deterministic.
-        preExisting.forEach(StatusLogger.getLogger()::removeListener);
+        others.forEach(StatusLogger.getLogger()::removeListener);
         StatusLogger.getLogger().registerListener(capturing);
         failingCalls.set(0);
         throwError = error;
-        failing = true;
+        failingThread = Thread.currentThread();
         try {
             for (String message : messages) {
                 testLogger.info(message);
             }
         } finally {
-            failing = false;
+            failingThread = null;
             Loggers.removeAppender(testLogger, appender);
             StatusLogger.getLogger().removeListener(capturing);
             StatusLogger.getLogger().removeListener(forwarder);
-            preExisting.forEach(StatusLogger.getLogger()::registerListener);
+            others.forEach(StatusLogger.getLogger()::registerListener);
         }
         return new Captured(events, warnings, console.toString(StandardCharsets.UTF_8));
+    }
+
+    private static boolean isForwarder(StatusListener listener) {
+        var enclosingMethod = listener.getClass().getEnclosingMethod();
+        return enclosingMethod != null
+            && enclosingMethod.getDeclaringClass() == LogConfigurator.class
+            && enclosingMethod.getName().equals("configureStatusLoggerForwarder");
     }
 
     private void setupLogging(final String config) throws IOException {

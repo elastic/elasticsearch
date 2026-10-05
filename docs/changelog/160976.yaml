@@ -1,0 +1,6 @@
+area: Machine Learning
+issues:
+ - 160923
+pr: 160976
+summary: Align autoscaling memory accounting with observed per-allocation RSS
+type: bug

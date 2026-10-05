@@ -18,6 +18,7 @@ import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
@@ -224,7 +225,8 @@ public class TopNOperator implements Operator, Accountable {
                 inputOrdering,
                 minCompetitive,
                 globalTopKMerge,
-                parallelWorkerConfig
+                parallelWorkerConfig,
+                true
             );
         }
 
@@ -262,6 +264,10 @@ public class TopNOperator implements Operator, Accountable {
 
     private final List<ElementType> elementTypes;
     private final List<TopNEncoder> encoders;
+    /**
+     * {@code false} for a parallel worker. Its merge target owns the encoders and closes them after the worker is done.
+     */
+    private final boolean ownsEncoders;
     private final List<SortOrder> sortOrders;
     private final boolean[] channelInKey;
 
@@ -354,10 +360,15 @@ public class TopNOperator implements Operator, Accountable {
             inputOrdering,
             minCompetitiveSupplier,
             null,
-            null
+            null,
+            true
         );
     }
 
+    /**
+     * @param bindEncoders {@code true} to take the encoders through {@link TopNEncoder#forOperator} and own the result,
+     *                     {@code false} for a parallel worker that shares the encoders its merge target owns
+     */
     private TopNOperator(
         BlockFactory blockFactory,
         CircuitBreaker breaker,
@@ -370,13 +381,18 @@ public class TopNOperator implements Operator, Accountable {
         InputOrdering inputOrdering,
         @Nullable SharedMinCompetitive.Supplier minCompetitiveSupplier,
         @Nullable GlobalTopKMergeConfig globalTopKMergeConfig,
-        @Nullable ParallelWorkerConfig parallelWorkerConfig
+        @Nullable ParallelWorkerConfig parallelWorkerConfig,
+        boolean bindEncoders
     ) {
         TopNQueue inputQueue = null;
         SharedMinCompetitive minCompetitive = null;
         SharedGlobalTopK globalTopK = null;
+        List<TopNEncoder> operatorEncoders = bindEncoders ? null : encoders;
         boolean success = false;
         try {
+            if (bindEncoders) {
+                operatorEncoders = bindEncoders(encoders, breaker);
+            }
             inputQueue = TopNQueue.build(breaker, topCount);
             minCompetitive = minCompetitiveSupplier == null ? null : minCompetitiveSupplier.get();
             if (globalTopKMergeConfig != null) {
@@ -387,7 +403,12 @@ public class TopNOperator implements Operator, Accountable {
             success = true;
         } finally {
             if (success == false) {
-                Releasables.close(inputQueue, minCompetitive, globalTopK);
+                Releasables.close(
+                    inputQueue,
+                    minCompetitive,
+                    globalTopK,
+                    bindEncoders && operatorEncoders != null ? encodersReleasable(operatorEncoders) : null
+                );
             }
         }
         this.inputQueue = inputQueue;
@@ -401,7 +422,8 @@ public class TopNOperator implements Operator, Accountable {
         this.maxPageRows = maxPageRows;
         this.jumboPageBytes = jumboPageBytes;
         this.elementTypes = elementTypes;
-        this.encoders = encoders;
+        this.encoders = operatorEncoders;
+        this.ownsEncoders = bindEncoders;
         this.sortOrders = sortOrders;
         this.inputOrdering = inputOrdering;
         this.channelInKey = new boolean[elementTypes.size()];
@@ -604,7 +626,8 @@ public class TopNOperator implements Operator, Accountable {
             inputOrdering,
             minCompetitiveSupplier,
             globalTopKMergeConfig,
-            null
+            null,
+            false
         );
     }
 
@@ -628,7 +651,8 @@ public class TopNOperator implements Operator, Accountable {
              */
             output,
             minCompetitive,
-            globalTopK
+            globalTopK,
+            ownsEncoders ? encodersReleasable(encoders) : null
         );
         // Aggressively null these so they can be GCed more quickly, and so that close() is idempotent.
         spare = null;
@@ -652,6 +676,51 @@ public class TopNOperator implements Operator, Accountable {
         size += sortOrders.size() * SortOrder.SHALLOW_SIZE;
         if (inputQueue != null) {
             size += inputQueue.ramBytesUsed();
+        }
+        if (ownsEncoders) {
+            size += encodersRamBytesUsed(encoders);
+        }
+        return size;
+    }
+
+    /**
+     * Takes each encoder through {@link TopNEncoder#forOperator}. If that fails, closes what it already took.
+     */
+    static List<TopNEncoder> bindEncoders(List<TopNEncoder> encoders, CircuitBreaker breaker) {
+        List<TopNEncoder> bound = new ArrayList<>(encoders.size());
+        boolean success = false;
+        try {
+            for (TopNEncoder encoder : encoders) {
+                bound.add(encoder.forOperator(breaker));
+            }
+            success = true;
+            return Collections.unmodifiableList(bound);
+        } finally {
+            if (success == false) {
+                encodersReleasable(bound).close();
+            }
+        }
+    }
+
+    /**
+     * Closes the encoders that need closing.
+     */
+    static Releasable encodersReleasable(List<TopNEncoder> encoders) {
+        return () -> {
+            for (TopNEncoder encoder : encoders) {
+                if (encoder instanceof Releasable releasable) {
+                    releasable.close();
+                }
+            }
+        };
+    }
+
+    static long encodersRamBytesUsed(List<TopNEncoder> encoders) {
+        long size = 0;
+        for (TopNEncoder encoder : encoders) {
+            if (encoder instanceof Accountable accountable) {
+                size += accountable.ramBytesUsed();
+            }
         }
         return size;
     }

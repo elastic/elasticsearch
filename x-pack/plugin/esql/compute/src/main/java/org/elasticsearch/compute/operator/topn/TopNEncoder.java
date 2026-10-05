@@ -9,8 +9,10 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.core.Releasable;
 
 /**
  * Encodes values for {@link TopNOperator}. Some encoders encode values so sorting
@@ -92,4 +94,16 @@ public interface TopNEncoder {
      * without making the encoded bytes sortable.
      */
     TopNEncoder toUnsortable();
+
+    /**
+     * The encoder one operator uses. Most encoders keep no state and every operator a factory builds shares them, so
+     * this returns {@code this}. An encoder that keeps state for the rows of one operator returns a new instance. The
+     * parallel workers the operator spawns share that instance, because the operator merges their rows byte for byte.
+     * The operator closes the instance if it is {@link Releasable}.
+     *
+     * @param breaker the breaker of the operator
+     */
+    default TopNEncoder forOperator(CircuitBreaker breaker) {
+        return this;
+    }
 }

@@ -56,13 +56,23 @@ public final class MultiplicityTracker {
     }
 
     /**
+     * Records one more arrival of a query that was certain to be captured. Must only be called from one
+     * thread at a time.
+     */
+    @Nullable
+    public TrackedQuery record(QueryFingerprint fingerprint) {
+        return record(fingerprint, 1.0);
+    }
+
+    /**
      * Records one more arrival of the query. Must only be called from one thread at a time.
      *
+     * @param captureRate the probability the arrival had of being captured
      * @return the query with its multiplicity including this arrival, or {@code null} if the tracker is
      *         full and the query was not known before
      */
     @Nullable
-    public TrackedQuery record(QueryFingerprint fingerprint) {
+    public TrackedQuery record(QueryFingerprint fingerprint, double captureRate) {
         rotateIfDue();
         TrackedQuery query = current.get(fingerprint);
         if (query == null) {
@@ -76,7 +86,7 @@ public final class MultiplicityTracker {
             }
             current.put(fingerprint, query);
         }
-        query.recordArrival();
+        query.recordArrival(1.0 / captureRate);
         return query;
     }
 

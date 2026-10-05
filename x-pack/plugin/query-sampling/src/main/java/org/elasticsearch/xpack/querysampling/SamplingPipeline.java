@@ -42,7 +42,7 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
     @Override
     public void accept(CapturedSearch captured) {
         QueryFingerprint fingerprint = QueryFingerprint.of(captured.query());
-        TrackedQuery tracked = tracker.record(fingerprint);
+        TrackedQuery tracked = tracker.record(fingerprint, captured.captureRate());
         if (tracked != null && sampler.offer(tracked)) {
             SampledQuery sampled = new SampledQuery(fingerprint, captured, tracked);
             for (SampleListener listener : listeners) {

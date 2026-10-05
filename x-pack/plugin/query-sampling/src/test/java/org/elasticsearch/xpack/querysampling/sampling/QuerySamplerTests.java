@@ -42,6 +42,19 @@ public class QuerySamplerTests extends ESTestCase {
         assertThat(total, closeTo(scale * Math.log(1001), 1e-9));
     }
 
+    public void testWeightedArrivalsAddUpToTheSameAsUnitOnes() {
+        double scale = 0.2; // small enough for no probability to be capped at one
+        QuerySampler sampler = new QuerySampler(scale, Long.MAX_VALUE, seededRandom());
+        double weight = 10; // each captured arrival stands for ten
+        double total = 0;
+        double estimatedArrivals = 0;
+        for (int arrival = 0; arrival < 100; arrival++) {
+            estimatedArrivals += weight;
+            total += sampler.acceptanceProbability(estimatedArrivals, weight);
+        }
+        assertThat(total, closeTo(scale * Math.log(1 + estimatedArrivals), 1e-9));
+    }
+
     public void testProbabilityIsCappedAtOne() {
         assertThat(new QuerySampler(10, 100, seededRandom()).acceptanceProbability(1), equalTo(1.0));
     }

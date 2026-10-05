@@ -17,18 +17,42 @@ package org.elasticsearch.xpack.querysampling.dedup;
 public final class TrackedQuery {
 
     private long multiplicity;
+    private double weightedMultiplicity;
+    private double lastArrivalWeight;
     private double logSurvival;
     private boolean sampled;
 
     /**
-     * @return how many times the query has been captured including this arrival
+     * @param weight how many arrivals of the query this captured one stands for: the inverse of the
+     *               probability it had of being captured
      */
-    synchronized long recordArrival() {
-        return ++multiplicity;
+    synchronized void recordArrival(double weight) {
+        multiplicity++;
+        weightedMultiplicity += weight;
+        lastArrivalWeight = weight;
     }
 
+    /**
+     * How many times the query has been captured, which says nothing about how often it arrived when only a
+     * fraction of the searches is captured. Use {@link #weightedMultiplicity()} for that.
+     */
     public synchronized long multiplicity() {
         return multiplicity;
+    }
+
+    /**
+     * Estimate of how many times the query arrived: every captured arrival counts as many as it stands for,
+     * so the estimate stays unbiased when the capture rate changes over time.
+     */
+    public synchronized double weightedMultiplicity() {
+        return weightedMultiplicity;
+    }
+
+    /**
+     * The weight of the latest arrival, which is what the sampler needs to decide about it.
+     */
+    public synchronized double lastArrivalWeight() {
+        return lastArrivalWeight;
     }
 
     /**

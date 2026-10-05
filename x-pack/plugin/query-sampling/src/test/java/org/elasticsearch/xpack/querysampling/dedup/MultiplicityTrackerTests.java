@@ -12,6 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -32,6 +33,18 @@ public class MultiplicityTrackerTests extends ESTestCase {
 
         assertThat(tracker.distinct(), equalTo(2));
         assertThat(tracker.untracked(), equalTo(0L));
+    }
+
+    public void testCapturedArrivalsCountAsManyAsTheyStandFor() {
+        MultiplicityTracker tracker = new MultiplicityTracker(10);
+        QueryFingerprint a = new QueryFingerprint(1, 1);
+
+        tracker.record(a, 0.1);
+        tracker.record(a, 0.1);
+        TrackedQuery query = tracker.record(a, 0.5);
+
+        assertThat(query.multiplicity(), equalTo(3L));
+        assertThat(query.weightedMultiplicity(), closeTo(10 + 10 + 2, 1e-9));
     }
 
     public void testStopsTrackingNewQueriesWhenFull() {

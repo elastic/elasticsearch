@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.inference.action;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
@@ -22,6 +24,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
+import org.elasticsearch.xpack.core.inference.InferenceContextTests;
+import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
@@ -35,8 +39,11 @@ import org.mockito.ArgumentCaptor;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -467,5 +474,55 @@ public class TransportInferenceActionProxyTests extends ESTestCase {
         var captor = ArgumentCaptor.forClass(RerankAction.Request.class);
         verify(client, times(1)).execute(eq(RerankAction.INSTANCE), captor.capture(), any());
         assertThat(captor.getValue().getTimeout(), is(expectedTimeout));
+    }
+
+    public void testOriginSwitchPreservesRequestMetadataAndRestoresCallerContext() {
+        var context = InferenceContextTests.context("use", "solution", "feature", "interaction", "trace", "user", "space");
+        record Case(TaskType taskType, String json, boolean streaming) {}
+        var cases = List.of(new Case(TaskType.COMPLETION, """
+            {"input":["some text"]}
+            """, false), new Case(TaskType.CHAT_COMPLETION, """
+            {
+                "model": "gpt-4o",
+                "messages": [
+                    {"role": "user", "content": [{"text": "some text", "type": "text"}]}
+                ]
+            }
+            """, true), new Case(TaskType.EMBEDDING, """
+            {"input":[{"content":{"value":"some text","type":"text"}}]}
+            """, false), new Case(TaskType.RERANK, """
+            {"input":["doc1","doc2"],"query":"some query"}
+            """, false));
+
+        doAnswer(invocation -> {
+            var threadContext = threadPool.getThreadContext();
+            assertThat(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME), equalTo(INFERENCE_ORIGIN));
+            assertThat(threadContext.getHeader("X-Custom-Caller"), nullValue());
+            ActionRequest dispatched = invocation.getArgument(1);
+            assertThat(((BaseInferenceActionRequest) dispatched).getContext(), equalTo(context));
+            return null;
+        }).when(client).execute(any(), any(), any());
+
+        for (var testCase : cases) {
+            try (var ignored = threadPool.getThreadContext().stashContext()) {
+                threadPool.getThreadContext().putHeader("X-Custom-Caller", "caller");
+                var request = new InferenceActionProxy.Request(
+                    testCase.taskType(),
+                    "id",
+                    new BytesArray(testCase.json()),
+                    XContentType.JSON,
+                    TimeValue.ONE_MINUTE,
+                    testCase.streaming(),
+                    context
+                );
+
+                var listener = new TestPlainActionFuture<InferenceAction.Response>();
+                action.doExecute(mock(Task.class), request, listener);
+                assertFalse(listener.isDone());
+
+                assertThat(threadPool.getThreadContext().getHeader("X-Custom-Caller"), equalTo("caller"));
+                assertThat(threadPool.getThreadContext().getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME), nullValue());
+            }
+        }
     }
 }

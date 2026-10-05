@@ -81,10 +81,10 @@ public abstract class SortableBinaryDocValues {
 
     /**
      * An iterator over exactly the documents holding one value, where the field knows them without visiting each
-     * document; null otherwise. It shares its position with these values, so a caller takes one or the other.
+     * document; null otherwise. It may share its position with these values, so a caller takes one or the other.
      */
     @Nullable
-    public DocIdSetIterator singleValuedDocs() {
+    public DocIdSetIterator singleValuedDocs() throws IOException {
         return null;
     }
 

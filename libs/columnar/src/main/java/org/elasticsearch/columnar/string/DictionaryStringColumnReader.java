@@ -146,6 +146,12 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         return value;
     }
 
+    /** Every ordinal but the one naming a null: a term's, or the one marking an escaped value. */
+    @Override
+    protected SlotWindow nonNullSlots() {
+        return new SlotWindow(SlotBlocks.of(ordinals), StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL, escapeOrdinal);
+    }
+
     /**
      * The length of the value at {@code valueAddress}, read off the term the ordinal names, or off the
      * escaped bytes where the slot escaped.

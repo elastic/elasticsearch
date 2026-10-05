@@ -37,6 +37,7 @@ import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.columnar.string.StringColumnSource;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -65,6 +66,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -225,24 +227,50 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
         }
     }
 
-    /** A null slot is a document the column has that holds no value, so its documents are not the ones holding one. */
-    public void testNullSlotKeepsSingleValuedDocumentsUnknown() throws IOException {
+    /** A document whose one slot is null holds no value, so it is not among the documents holding one. */
+    public void testNullSlotIsNotASingleValuedDocument() throws IOException {
+        withPayloads(d -> d % 7 == 3 ? new String[] { null } : new String[] { "term-" + (d % 5) }, (leaf, docs) -> {
+            final DocIdSetIterator single = Framing.PAYLOAD.fieldData(leaf.reader()).singleValuedDocs();
+            assertNotNull(single);
+            for (int d = 0; d < docs; d++) {
+                if (d % 7 != 3) {
+                    assertEquals(d, single.nextDoc());
+                }
+            }
+            assertEquals(DocIdSetIterator.NO_MORE_DOCS, single.nextDoc());
+        });
+    }
+
+    /** Where a document holds several values, holding a value does not say how many, so the documents holding one stay unknown. */
+    public void testSeveralValuesKeepSingleValuedDocumentsUnknown() throws IOException {
+        withPayloads(
+            d -> d % 7 == 3 ? new String[] { "a", "b" } : new String[] { "term-" + (d % 5) },
+            (leaf, docs) -> assertNull(Framing.PAYLOAD.fieldData(leaf.reader()).singleValuedDocs())
+        );
+    }
+
+    /** One payload-framed segment whose documents hold the slots {@code slots} gives each. */
+    private void withPayloads(IntFunction<String[]> slots, CheckedBiConsumer<LeafReaderContext, Integer, IOException> check)
+        throws IOException {
         final FieldType type = new FieldType();
         type.setDocValuesType(DocValuesType.BINARY);
         type.freeze();
+        final int docs = between(50, 400);
         try (Directory dir = newDirectory()) {
             try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec()))) {
-                for (int d = 0; d < 50; d++) {
+                for (int d = 0; d < docs; d++) {
+                    final List<BytesRef> refs = new ArrayList<>();
+                    for (String slot : slots.apply(d)) {
+                        refs.add(slot == null ? null : new BytesRef(slot));
+                    }
                     final Document doc = new Document();
-                    final List<BytesRef> slots = new ArrayList<>();
-                    slots.add(d == 7 ? null : new BytesRef("term-" + d));
-                    doc.add(new Field(FIELD, BytesRef.deepCopyOf(new StringBinaryPayload.Builder().encode(slots)), type));
+                    doc.add(new Field(FIELD, BytesRef.deepCopyOf(new StringBinaryPayload.Builder().encode(refs)), type));
                     writer.addDocument(doc);
                 }
                 writer.forceMerge(1);
             }
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
-                assertNull(Framing.PAYLOAD.fieldData(reader.leaves().get(0).reader()).singleValuedDocs());
+                check.accept(reader.leaves().get(0), docs);
             }
         }
     }

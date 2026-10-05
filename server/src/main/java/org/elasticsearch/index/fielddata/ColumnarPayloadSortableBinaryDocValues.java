@@ -107,16 +107,15 @@ public final class ColumnarPayloadSortableBinaryDocValues extends SortableBinary
     }
 
     /**
-     * The column's own documents, where each holds one slot and no slot is null: a document it has is then a document
-     * holding one value. A null slot is a document the column has that holds none, which only reading it tells apart.
+     * The column's documents holding a value, where each document holds one slot: a slot that is not null is then one
+     * value. Unknown where documents hold several slots, since holding a value there does not say how many.
      */
     @Override
-    public DocIdSetIterator singleValuedDocs() {
-        if (source == null) {
+    public DocIdSetIterator singleValuedDocs() throws IOException {
+        if (source == null || source.reader().hasValueAddresses()) {
             return null;
         }
-        final StringColumnReader column = source.reader();
-        return column.hasValueAddresses() == false && column.numNullSlots() == 0 ? binary : null;
+        return source.reader().documentsWithValue();
     }
 
     @Override

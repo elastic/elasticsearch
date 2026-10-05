@@ -185,6 +185,12 @@ public final class PlainStringColumnReader extends StringColumnReader {
         return matched;
     }
 
+    /** A null's code is below a repeat's and every length's, so every other code is a value. */
+    @Override
+    protected SlotWindow nonNullSlots() {
+        return new SlotWindow(values.codes(), PlainValues.REPEAT, Long.MAX_VALUE);
+    }
+
     /**
      * The slots whose value is {@code [min, max]} bytes long, compared on the stored codes. A null's code is
      * below every length's, so no range holds one; a repeat's code says nothing of its length, so it takes the

@@ -732,6 +732,17 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         abstract long slotCount() throws IOException;
     }
 
+    /**
+     * The documents holding a value: one with a slot that is not null. On a column of one slot a document these are the
+     * documents holding exactly one value.
+     */
+    public DocIdSetIterator documentsWithValue() throws IOException {
+        return meta.hasNullSlots() ? slotsHeld(nonNullSlots()) : iterator();
+    }
+
+    /** The slots that are not null, on a column that has null slots. */
+    protected abstract SlotWindow nonNullSlots();
+
     /** The documents holding a slot {@code window} holds. */
     protected final Slots slotsHeld(SlotWindow window) throws IOException {
         final ColumnIterator presence = iterator();

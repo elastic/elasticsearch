@@ -87,6 +87,29 @@ public interface LucenePushdownPredicates {
     boolean supportsLoaderConfig(FieldAttribute field, BlockLoaderFunctionConfig config, MappedFieldType.FieldExtractPreference preference);
 
     /**
+     * Whether a predicate over this attribute's value can be answered from the values its doc values hold, which a
+     * {@code text} field keeping its values in a column can do. The index of such a field holds no exact form of the
+     * value - only the tokens it analyzes into - so this is the one way a predicate over it is pushed.
+     */
+    boolean hasValueQueries(FieldAttribute attr);
+
+    /**
+     * Whether a predicate over this attribute's value can be pushed to Lucene at all: either its exact form is
+     * indexed, or its values answer the query themselves.
+     */
+    default boolean isPushableValueAttribute(Expression exp) {
+        if (isPushableFieldAttribute(exp)) {
+            return true;
+        }
+        // The guards of isPushableFieldAttribute apply here too: a field the block loader synthesizes, or one that may
+        // be unmapped on a shard, has no values of its own to read.
+        return exp instanceof FieldAttribute fa
+            && fa.field() instanceof PotentiallyUnmappedKeywordEsField == false
+            && fa.field() instanceof FunctionEsField == false
+            && hasValueQueries(fa);
+    }
+
+    /**
      * We see fields as pushable if either they are aggregatable or they are indexed.
      * This covers non-indexed cases like <code>AbstractScriptFieldType</code> which hard-coded <code>isAggregatable</code> to true,
      * as well as normal <code>FieldAttribute</code>'s which can only be pushed down if they are indexed.
@@ -196,6 +219,12 @@ public interface LucenePushdownPredicates {
             public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value) {
                 return false;
             }
+
+            @Override
+            public boolean hasValueQueries(FieldAttribute attr) {
+                // No mapping access during can_match: a field's values are not known to answer anything.
+                return false;
+            }
         };
     }
 
@@ -249,6 +278,11 @@ public interface LucenePushdownPredicates {
             @Override
             public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value) {
                 return stats.canUseEqualityOnSyntheticSourceDelegate(attr.fieldName(), value);
+            }
+
+            @Override
+            public boolean hasValueQueries(FieldAttribute attr) {
+                return stats.hasValueQueries(attr.fieldName());
             }
         };
     }

@@ -53,6 +53,7 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
         "settings",
         "resolvedSchema",
         "schemaSampleSize",
+        "schemaMaxFields",
         "segmentSizeBytes",
         "datetimeFormatter",
         "declaredDateFormats",

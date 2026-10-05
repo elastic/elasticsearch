@@ -55,6 +55,7 @@ These settings limit how much CPU and read-thread time a single compressed objec
 |---|---|---|
 | `esql.external.max_decompression_ratio` {applies_to}`stack: experimental 9.6+` | 200 | Maximum ratio of decompressed to compressed bytes for gzip and other stream-only codecs. A read fails with a 400 error if the object expands beyond this multiple of its compressed size. `0` disables the check. [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting). |
 | `esql.external.max_decompression_ratio.zstd` {applies_to}`stack: experimental 9.6+` | 2000 | Maximum decompression ratio for zstd-compressed objects. Overrides `esql.external.max_decompression_ratio` for zstd, which can legitimately reach higher ratios than gzip. `0` disables the check for zstd. [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting). |
+| `esql.external.schema_max_fields` {applies_to}`stack: experimental 9.6+` | 1000 | Default maximum number of fields schema inference can create from a file, counting objects as well as leaf fields. If a file's inferred schema exceeds this limit, the query fails. A dataset overrides it with its `schema_max_fields` setting. Currently applies to NDJSON. Range 1–100,000. Applied at node startup only. |
 
 ## Authentication
 
@@ -79,6 +80,7 @@ These settings control the external-source cache, which stores inferred schemas,
 | `esql.external.cache.footer.size` {applies_to}`stack: experimental 9.6+` | 0.5% of heap | Memory budget for cached raw footer bytes (for example, Parquet footers), which are reused across the resolution, split discovery, and execution phases of a query and across back-to-back queries. The budget applies per columnar format reader. Accepts a percentage of heap or an absolute size, and must be greater than zero. Applied at node startup only. |
 | `esql.external.cache.footer.parsed.size` {applies_to}`stack: experimental 9.6+` | 1% of heap | Memory budget for cached deserialized footers, which avoid re-parsing a footer in every query phase. A parsed footer costs several times its serialized form and grows with column count rather than file size, so raise this when querying wide schemas across large file sets. Applies per columnar format reader, like `esql.external.cache.footer.size`. Applied at node startup only. |
 | `esql.external.cache.footer.ttl` {applies_to}`stack: experimental 9.6+` | 5m | How long a cached footer survives without being accessed. Shared by the raw and parsed footer caches. Footer entries are keyed by path and file length rather than modification time, so a file overwritten in place at the same length can be served from the cache until its entry expires. Lower this if your data files are mutated in place. Applied at node startup only. |
+| `esql.external.cache.footer.coalesce` {applies_to}`stack: experimental 9.6+` | true | When true, concurrent queries that load the same Parquet footer share one object-store GET. Applied at node startup only. |
 
 :::{note}
 :applies_to: stack: experimental 9.6+

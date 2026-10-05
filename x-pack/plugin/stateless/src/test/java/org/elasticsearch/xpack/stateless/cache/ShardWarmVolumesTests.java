@@ -26,8 +26,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -212,17 +210,6 @@ public class ShardWarmVolumesTests extends ESTestCase {
         volumes.clusterChanged(new ClusterChangedEvent("test", second, first));
         assertThat(volumes.peek("source"), nullValue());
         assertTrue(volumes.claimFetch(second, "source"));
-    }
-
-    public void testDoesNotClaimWhenMinTransportVersionUnsupported() {
-        Index index = new Index("idx", randomUUID());
-        long startedAtMillis = randomNonNegativeLong();
-        TransportVersion old = TransportVersionUtils.randomVersionNotSupporting(
-            TransportFetchSearchShardInformationAction.FETCH_SHARD_WARM_VOLUMES
-        );
-        ClusterState state = drainState(index, Map.of("source", startedAtMillis), "target", old);
-        ShardWarmVolumes volumes = newVolumes();
-        assertFalse(volumes.claimFetch(state, "source"));
     }
 
     private static ShardWarmVolumes newVolumes() {

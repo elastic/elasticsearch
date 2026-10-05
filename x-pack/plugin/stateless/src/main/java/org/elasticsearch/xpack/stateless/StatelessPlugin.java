@@ -225,6 +225,7 @@ import org.elasticsearch.xpack.stateless.recovery.metering.StatelessSearchNodeRe
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.SearchShardInformationIndexListener;
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.SearchShardInformationMetricsCollector;
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction;
+import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchShardWarmVolumesAction;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardMetrics;
 import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
@@ -703,6 +704,7 @@ public class StatelessPlugin extends Plugin
             new ActionHandler(TransportReshardAction.TYPE, TransportReshardAction.class),
             new ActionHandler(StatelessUnpromotableRelocationAction.TYPE, TransportStatelessUnpromotableRelocationAction.class),
             new ActionHandler(TransportFetchSearchShardInformationAction.TYPE, TransportFetchSearchShardInformationAction.class),
+            new ActionHandler(TransportFetchShardWarmVolumesAction.TYPE, TransportFetchShardWarmVolumesAction.class),
             new ActionHandler(TransportPublishHeapMemoryMetrics.INSTANCE, TransportPublishHeapMemoryMetrics.class),
             new ActionHandler(
                 TransportPublishIndexingOperationsHeapMemoryRequirements.INSTANCE,

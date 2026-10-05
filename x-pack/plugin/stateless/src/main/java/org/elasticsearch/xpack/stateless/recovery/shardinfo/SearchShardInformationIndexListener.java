@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.stateless.recovery.shardinfo;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -19,6 +20,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.stateless.cache.ShardWarmVolumes;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 
@@ -88,27 +90,16 @@ public class SearchShardInformationIndexListener implements IndexEventListener {
             String relocatingNodeId = indexShard.routingEntry().relocatingNodeId();
 
             final var state = clusterService.state();
-            final boolean wantVolumes = ShardWarmVolumes.shouldFetch(indexShard.routingEntry(), state)
+            boolean fetchVolumes = ShardWarmVolumes.shouldFetch(indexShard.routingEntry(), state)
                 && shardWarmVolumes.claimFetch(state, relocatingNodeId);
 
             final long start = nowSupplier.getAsLong();
             TransportFetchSearchShardInformationAction.Request request = new TransportFetchSearchShardInformationAction.Request(
                 relocatingNodeId,
-                indexShard.shardId(),
-                wantVolumes
+                indexShard.shardId()
             );
 
             ActionListener<TransportFetchSearchShardInformationAction.Response> responseListener = ActionListener.wrap(response -> {
-                if (wantVolumes && response.volumesCollected()) {
-                    shardWarmVolumes.completeFetch(
-                        clusterService.state(),
-                        relocatingNodeId,
-                        response.respondingNodeId(),
-                        response.volumesGeneration(),
-                        response.volumes()
-                    );
-                }
-
                 long lastSearcherAcquiredTime = response.getLastSearcherAcquiredTime();
                 if (lastSearcherAcquiredTime == NO_OTHER_SHARDS_FOUND) {
                     return;
@@ -142,8 +133,31 @@ public class SearchShardInformationIndexListener implements IndexEventListener {
                 logger.warn("could not retrieve search shard information data for shard [" + indexShard.shardId() + "]", e);
                 collector.recordError();
             });
-            if (wantVolumes) {
-                responseListener = ActionListener.runAfter(responseListener, () -> shardWarmVolumes.releaseClaim(relocatingNodeId));
+            if (fetchVolumes) {
+                final String sourceNodeId = relocatingNodeId;
+                ActionListener<TransportFetchShardWarmVolumesAction.Response> volumeListener = ActionListener.wrap(response -> {
+                    shardWarmVolumes.completeFetch(
+                        clusterService.state(),
+                        sourceNodeId,
+                        response.respondingNodeId(),
+                        response.volumesGeneration(),
+                        response.volumes()
+                    );
+                }, e -> {
+                    shardWarmVolumes.releaseClaim(sourceNodeId);
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ActionNotFoundTransportException == false) {
+                        logger.warn("could not retrieve warm volumes from node [" + sourceNodeId + "]", e);
+                    }
+                });
+                try {
+                    client.execute(
+                        TransportFetchShardWarmVolumesAction.TYPE,
+                        new TransportFetchShardWarmVolumesAction.Request(sourceNodeId),
+                        volumeListener
+                    );
+                } catch (Exception e) {
+                    volumeListener.onFailure(e);
+                }
             }
             try {
                 client.execute(TransportFetchSearchShardInformationAction.TYPE, request, responseListener);

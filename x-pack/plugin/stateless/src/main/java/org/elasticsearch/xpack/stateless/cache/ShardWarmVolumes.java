@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction;
 
 import java.util.Map;
 import java.util.Objects;
@@ -60,14 +59,10 @@ public class ShardWarmVolumes implements ClusterStateListener {
 
     /**
      * Claims the right to request volumes for {@code sourceNodeId} under the current shutdown generation.
-     * Returns false when disabled, the min transport version is too old, an entry already exists for this
-     * generation (including empty), or a fetch is already in flight.
+     * Returns false when disabled, an entry already exists for this generation (including empty), or a fetch is already in flight.
      */
     public boolean claimFetch(ClusterState state, String sourceNodeId) {
         if (enabled == false || sourceNodeId == null) {
-            return false;
-        }
-        if (state.getMinTransportVersion().supports(TransportFetchSearchShardInformationAction.FETCH_SHARD_WARM_VOLUMES) == false) {
             return false;
         }
         var shutdown = state.metadata().nodeShutdowns().get(sourceNodeId);

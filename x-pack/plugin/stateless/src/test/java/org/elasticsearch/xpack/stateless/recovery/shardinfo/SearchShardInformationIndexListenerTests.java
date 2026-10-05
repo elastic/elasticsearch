@@ -47,6 +47,7 @@ import org.elasticsearch.telemetry.TelemetryProvider.NoopTelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.stateless.cache.ShardWarmVolumes;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
@@ -66,7 +67,6 @@ import java.util.function.LongSupplier;
 
 import static org.elasticsearch.cluster.metadata.Metadata.DEFAULT_PROJECT_ID;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
-import static org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction.SHARD_HAS_MOVED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
@@ -428,14 +428,19 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
 
         newListener(System::currentTimeMillis, volumes).beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
 
+        assertThat(client.executionCount(), equalTo(2));
+        RecordingClient.Execution<
+            TransportFetchShardWarmVolumesAction.Request,
+            TransportFetchShardWarmVolumesAction.Response> volumesExecution = client.execution(0);
         RecordingClient.Execution<
             TransportFetchSearchShardInformationAction.Request,
-            TransportFetchSearchShardInformationAction.Response> execution = client.lastExecution();
-        assertTrue(execution.request().wantVolumes());
-        execution.listener()
-            .onResponse(
-                new TransportFetchSearchShardInformationAction.Response(SHARD_HAS_MOVED, "source", generation, Map.of(shardId, 11L))
-            );
+            TransportFetchSearchShardInformationAction.Response> timestamp = client.execution(1);
+        assertThat(timestamp.action(), equalTo(TransportFetchSearchShardInformationAction.TYPE));
+        assertThat(volumesExecution.action(), equalTo(TransportFetchShardWarmVolumesAction.TYPE));
+        assertThat(volumesExecution.request().sourceNodeId(), equalTo("source"));
+        timestamp.listener().onResponse(TransportFetchSearchShardInformationAction.SHARD_HAS_MOVED_RESPONSE);
+        volumesExecution.listener()
+            .onResponse(new TransportFetchShardWarmVolumesAction.Response("source", generation, Map.of(shardId, 11L)));
 
         assertThat(volumes.get(state, "source").volumes(), equalTo(Map.of(shardId, 11L)));
         verify(indexShard, never()).waitForEngineOrClosedShard(any());
@@ -453,11 +458,14 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
         IndexShard indexShard = relocatingDrainShard("source");
 
         newListener(System::currentTimeMillis, volumes).beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
-        RecordingClient.Execution<
-            TransportFetchSearchShardInformationAction.Request,
-            TransportFetchSearchShardInformationAction.Response> execution = client.lastExecution();
-        assertTrue(execution.request().wantVolumes());
-        execution.listener().onResponse(new TransportFetchSearchShardInformationAction.Response(5L));
+        assertThat(client.executionCount(), equalTo(2));
+        client.<TransportFetchShardWarmVolumesAction.Request, TransportFetchShardWarmVolumesAction.Response>execution(0)
+            .listener()
+            .onFailure(new ActionNotFoundTransportException(TransportFetchShardWarmVolumesAction.TYPE.name()));
+        client.<TransportFetchSearchShardInformationAction.Request, TransportFetchSearchShardInformationAction.Response>execution(1)
+            .listener()
+            .onResponse(new TransportFetchSearchShardInformationAction.Response(5L));
+        assertMetrics(1, 0);
         assertThat(volumes.get(state, "source"), nullValue());
         assertTrue(volumes.claimFetch(state, "source"));
     }
@@ -470,8 +478,14 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
         IndexShard indexShard = relocatingDrainShard("source");
 
         newListener(System::currentTimeMillis, volumes).beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
-        client.lastExecution().listener().onFailure(new RuntimeException("rpc failed"));
-        assertMetrics(0, 1);
+        assertThat(client.executionCount(), equalTo(2));
+        client.<TransportFetchShardWarmVolumesAction.Request, TransportFetchShardWarmVolumesAction.Response>execution(0)
+            .listener()
+            .onFailure(new RuntimeException("rpc failed"));
+        client.<TransportFetchSearchShardInformationAction.Request, TransportFetchSearchShardInformationAction.Response>execution(1)
+            .listener()
+            .onResponse(new TransportFetchSearchShardInformationAction.Response(5L));
+        assertMetrics(1, 0);
         assertTrue(volumes.claimFetch(state, "source"));
     }
 
@@ -487,18 +501,23 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
         listener.beforeIndexShardRecovery(firstShard, indexSettings, ActionListener.noop());
         listener.beforeIndexShardRecovery(secondShard, indexSettings, latchedActionListener);
 
-        assertThat(client.executionCount(), equalTo(2));
+        assertThat(client.executionCount(), equalTo(3));
+        RecordingClient.Execution<
+            TransportFetchShardWarmVolumesAction.Request,
+            TransportFetchShardWarmVolumesAction.Response> firstVolumes = client.execution(0);
         RecordingClient.Execution<
             TransportFetchSearchShardInformationAction.Request,
-            TransportFetchSearchShardInformationAction.Response> first = client.execution(0);
+            TransportFetchSearchShardInformationAction.Response> firstTimestamp = client.execution(1);
         RecordingClient.Execution<
             TransportFetchSearchShardInformationAction.Request,
-            TransportFetchSearchShardInformationAction.Response> second = client.execution(1);
-        assertTrue(first.request().wantVolumes());
-        assertFalse(second.request().wantVolumes());
-        first.listener().onResponse(new TransportFetchSearchShardInformationAction.Response(5L));
+            TransportFetchSearchShardInformationAction.Response> secondTimestamp = client.execution(2);
+        assertThat(firstTimestamp.action(), equalTo(TransportFetchSearchShardInformationAction.TYPE));
+        assertThat(firstVolumes.action(), equalTo(TransportFetchShardWarmVolumesAction.TYPE));
+        assertThat(secondTimestamp.action(), equalTo(TransportFetchSearchShardInformationAction.TYPE));
+        assertThat(secondTimestamp.request().getShardId(), equalTo(new ShardId(index, 1)));
+        firstVolumes.listener().onFailure(new RuntimeException("rpc failed"));
         assertTrue(volumes.claimFetch(state, "source"));
-        second.listener().onResponse(new TransportFetchSearchShardInformationAction.Response(5L));
+        secondTimestamp.listener().onResponse(new TransportFetchSearchShardInformationAction.Response(5L));
     }
 
     public void testExecuteThrowsReleasesClaim() {

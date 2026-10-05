@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -25,7 +26,13 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class ExternalFailuresTests extends ESTestCase {
 
@@ -282,7 +289,10 @@ public class ExternalFailuresTests extends ESTestCase {
     }
 
     public void testOnlyTheFirstClientFailureIsLoggedAtWarn() {
-        for (Throwable clientFailure : new Throwable[] { new IOException("truncated"), new IllegalArgumentException("bad page") }) {
+        for (Throwable clientFailure : new Throwable[] {
+            builtBySdk(new IOException("truncated")),
+            builtBySdk(new IllegalArgumentException("bad page")) }) {
+            ExternalFailures.WITHHELD_MESSAGE_WARN.reset();
             MockLog.assertThatLogger(
                 () -> ExternalFailures.classify(clientFailure),
                 ExternalFailures.class,
@@ -626,6 +636,7 @@ public class ExternalFailuresTests extends ESTestCase {
      */
     @TestLogging(value = "org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures:DEBUG", reason = "asserts the DEBUG trace")
     public void testClientFailureWarnCarriesNoStackTrace() {
+        ExternalFailures.WITHHELD_MESSAGE_WARN.reset();
         IOException failure = new IOException("truncated reading s3://bucket/x.csv");
         MockLog.assertThatLogger(
             () -> ExternalFailures.classify(failure),
@@ -687,4 +698,224 @@ public class ExternalFailuresTests extends ESTestCase {
         }
     }
 
+    private static final String IAM_DENIAL = "User: arn:aws:sts::123456789012:assumed-role/reader/session is not authorized to "
+        + "perform: s3:GetObject on resource: \"arn:aws:s3:::bucket/key\" with an explicit deny in an identity-based policy";
+
+    /**
+     * Stands in for construction inside a storage SDK: the esql test classpath has no SDK, and built here a
+     * throwable's top frame would be this test class.
+     */
+    private static <T extends Throwable> T builtBySdk(T t) {
+        return builtBy("software.amazon.awssdk.services.s3.model.S3Exception$BuilderImpl", t);
+    }
+
+    private static <T extends Throwable> T builtBy(String className, T t) {
+        t.setStackTrace(new StackTraceElement[] { new StackTraceElement(className, "build", null, 1) });
+        return t;
+    }
+
+    /**
+     * A storage client's message relays what the remote said, and naming no URI or host does not make it safe:
+     * every arm that forwards a failure's own text shows its class name instead.
+     */
+    public void testStorageClientTextIsNotForwarded() {
+        RuntimeException io = ExternalFailures.classify(builtBySdk(new IOException(IAM_DENIAL)));
+        assertThat(io.getMessage(), not(containsString("arn:aws")));
+        assertThat(io.getMessage(), containsString("IOException"));
+        RuntimeException iae = ExternalFailures.classify(builtBySdk(new IllegalArgumentException(IAM_DENIAL)));
+        assertThat(iae.getMessage(), not(containsString("arn:aws")));
+        RuntimeException server = ExternalFailures.classify(builtBySdk(new RuntimeException(IAM_DENIAL)));
+        assertThat(server.getMessage(), not(containsString("arn:aws")));
+        assertThat(server.getMessage(), containsString("RuntimeException"));
+        RuntimeException surfaced = ExternalFailures.surface(builtBySdk(new IOException(IAM_DENIAL)), "Split discovery failed");
+        assertThat(surfaced.getMessage(), not(containsString("arn:aws")));
+        // A site that copies rootDetail into its own exception cannot launder the text either.
+        IllegalArgumentException copied = new IllegalArgumentException(
+            ExternalFailures.rootDetail(builtBySdk(new RuntimeException(IAM_DENIAL)))
+        );
+        assertThat(ExternalFailures.classify(copied).getMessage(), not(containsString("arn:aws")));
+    }
+
+    /**
+     * A format library's or the JDK's message describes the bytes we read, not who we are, and is what the user needs
+     * to fix the file: it reaches the response, through every arm and through sites that copy {@link
+     * ExternalFailures#rootDetail}.
+     */
+    public void testFormatLibraryAndJdkTextIsForwarded() {
+        String magic = "file is not a Parquet file. Expected magic number at tail, but found [1, 2, 3, 4]";
+        IOException parquet = builtBy("org.apache.parquet.hadoop.ParquetFileReader", new IOException(magic));
+        assertThat(ExternalFailures.classify(parquet).getMessage(), containsString(magic));
+        assertThat(ExternalFailures.surface(parquet, "Streaming parallel parsing failed").getMessage(), containsString(magic));
+
+        String jackson = "Unexpected character ('}' (code 125)): was expecting double-quote to start field name";
+        IllegalArgumentException json = builtBy("com.fasterxml.jackson.core.JsonParser", new IllegalArgumentException(jackson));
+        assertThat(ExternalFailures.classify(json).getMessage(), containsString(jackson));
+
+        EOFException truncated = new EOFException("Unexpected end of ZLIB input stream");
+        truncated.setStackTrace(new StackTraceElement[] { new StackTraceElement("java.util.zip.InflaterInputStream", "fill", null, 1) });
+        assertThat(ExternalFailures.classify(new UncheckedIOException(truncated)).getMessage(), containsString("Unexpected end of ZLIB"));
+
+        // FileSourceFactory and TableCatalog copy rootDetail into an IAE of their own; the diagnosis survives.
+        IllegalArgumentException copied = new IllegalArgumentException(ExternalFailures.rootDetail(parquet), parquet);
+        assertThat(ExternalFailures.classify(copied).getMessage(), containsString(magic));
+
+        assertThat(ExternalFailures.classify(new IOException("Object not found: x.csv")).getMessage(), containsString("x.csv"));
+        assertThat(
+            ExternalFailures.classify(new IllegalArgumentException("column [a] has unsupported type")).getMessage(),
+            containsString("column [a] has unsupported type")
+        );
+    }
+
+    public void testComposedByStorageClient() {
+        assertTrue(ExternalFailures.composedByStorageClient(builtBySdk(new RuntimeException(IAM_DENIAL))));
+        for (String client : List.of(
+            "com.google.cloud.storage.StorageException",
+            "com.google.api.client.http.HttpResponseException$Builder",
+            "com.azure.storage.blob.models.BlobStorageException",
+            "org.apache.arrow.flight.CallStatus",
+            "io.grpc.Status",
+            "org.apache.iceberg.rest.ErrorHandlers$DefaultErrorHandler"
+        )) {
+            assertTrue(client, ExternalFailures.composedByStorageClient(builtBy(client, new IOException("remote said"))));
+        }
+        assertFalse(ExternalFailures.composedByStorageClient(new IOException("ours")));
+        assertFalse(ExternalFailures.composedByStorageClient(builtBy("org.apache.parquet.hadoop.ParquetFileReader", new IOException())));
+        assertFalse(ExternalFailures.composedByStorageClient(builtBy("java.util.zip.InflaterInputStream", new EOFException())));
+        IOException noTrace = new IOException("no trace");
+        noTrace.setStackTrace(new StackTraceElement[0]);
+        assertFalse(ExternalFailures.composedByStorageClient(noTrace));
+    }
+
+    /** A cause below an ElasticsearchException that is not an ExternalException is rendered by caused_by too. */
+    public void testForeignElasticsearchExceptionIsDetached() {
+        ElasticsearchException foreign = new ElasticsearchStatusException(
+            "read refused",
+            RestStatus.BAD_REQUEST,
+            builtBySdk(new RuntimeException(IAM_DENIAL))
+        );
+        foreign.addMetadata("es.reason_code", "refused");
+        foreign.addBodyHeader("body_header", "b");
+        foreign.addHttpHeader("Retry-After", "5");
+        RuntimeException classified = ExternalFailures.classify(foreign);
+        assertNull(classified.getCause());
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
+        assertEquals("read refused", classified.getMessage());
+        ElasticsearchException copy = (ElasticsearchException) classified;
+        assertEquals(List.of("refused"), copy.getMetadata("es.reason_code"));
+        assertEquals(List.of("b"), copy.getBodyHeader("body_header"));
+        assertEquals(List.of("5"), copy.getHttpHeader("Retry-After"));
+
+        CircuitBreakingException breaker = new CircuitBreakingException("tripped", 10, 5, CircuitBreaker.Durability.TRANSIENT);
+        breaker.initCause(new RuntimeException(IAM_DENIAL));
+        RuntimeException detachedBreaker = ExternalFailures.classify(breaker);
+        assertThat(detachedBreaker, instanceOf(CircuitBreakingException.class));
+        assertNull(detachedBreaker.getCause());
+        assertEquals(10, ((CircuitBreakingException) detachedBreaker).getBytesWanted());
+
+        ElasticsearchException causeless = new ElasticsearchStatusException("throttled", RestStatus.TOO_MANY_REQUESTS);
+        assertSame(causeless, ExternalFailures.classify(causeless));
+    }
+
+    /**
+     * The leak guard checks what the caller receives: a foreign exception whose dropped cause names a location must
+     * not trip it under {@code -ea}.
+     */
+    public void testLeakGuardChecksTheDetachedForeignException() {
+        ElasticsearchException foreign = new ElasticsearchStatusException(
+            "read refused",
+            RestStatus.BAD_REQUEST,
+            new IOException("GET s3://bucket/secret/x.parquet failed")
+        );
+        RuntimeException classified = ExternalFailures.classify(foreign);
+        assertNull(classified.getCause());
+        assertEquals("read refused", classified.getMessage());
+    }
+
+    /** The result carries no cause, so query failure ranking could not find a cancellation buried in it. */
+    public void testNestedCancellationIsReportedAsTheCancellation() {
+        RuntimeException classified = ExternalFailures.classify(new CompletionException(new TaskCancelledException("cancelled")));
+        assertThat(classified, instanceOf(TaskCancelledException.class));
+        assertNull(classified.getCause());
+    }
+
+    /**
+     * A resolution failure's WARN line names the deepest cause (an access denial's reason, which the response never
+     * carries) at most once per interval: anyone who can query a failing dataset can repeat the failure.
+     */
+    public void testWithheldCauseIsLoggedOncePerInterval() {
+        ExternalFailures.WITHHELD_MESSAGE_WARN.reset();
+        RuntimeException sdk = builtBySdk(new RuntimeException(IAM_DENIAL));
+        IOException failure = new IOException("wrapped", sdk);
+        assertSame(sdk, ExternalFailures.withheldCauseToLog("Access denied reading [x.parquet]", failure));
+        assertNull("throttled", ExternalFailures.withheldCauseToLog("Access denied reading [x.parquet]", failure));
+
+        ExternalFailures.WITHHELD_MESSAGE_WARN.reset();
+        assertNull("no cause to add", ExternalFailures.withheldCauseToLog("detail", new IOException("alone")));
+        assertNull("detail already says it", ExternalFailures.withheldCauseToLog("x: " + IAM_DENIAL, failure));
+        assertSame("those did not use up the interval", sdk, ExternalFailures.withheldCauseToLog("detail", failure));
+    }
+
+    /** The provider's reason for refusing a read survives only in this log, so it reaches WARN, once per interval. */
+    public void testAccessDeniedReasonReachesWarnOncePerInterval() {
+        ExternalFailures.ACCESS_DENIED_WARN.reset();
+        RuntimeException sdk = builtBySdk(new RuntimeException(IAM_DENIAL));
+        ExternalClientException denied = new ExternalClientException(
+            ExternalClientException.Condition.ACCESS_DENIED,
+            StoragePath.of("s3://bucket/key.parquet"),
+            "HTTP 403 AccessDenied",
+            "Verify the access_key and secret_key",
+            sdk
+        );
+        MockLog.assertThatLogger(() -> {
+            RuntimeException classified = ExternalFailures.classify(denied);
+            assertNull(classified.getCause());
+            assertThat(classified.getMessage(), not(containsString("arn:aws")));
+        }, ExternalFailures.class, new MockLog.LoggingExpectation() {
+            private boolean seen;
+
+            @Override
+            public void match(LogEvent event) {
+                if (event.getLevel() == Level.WARN && event.getThrown() == denied) {
+                    seen = true;
+                }
+            }
+
+            @Override
+            public void assertMatched() {
+                assertTrue("the denial, with its SDK cause, must be logged at WARN", seen);
+            }
+        });
+        MockLog.assertThatLogger(
+            () -> ExternalFailures.classify(denied),
+            ExternalFailures.class,
+            new MockLog.UnseenEventExpectation("throttled", ExternalFailures.class.getCanonicalName(), Level.WARN, "*")
+        );
+    }
+
+    /**
+     * A withheld message has no other record, so it reaches WARN; once per interval across every read on the node,
+     * since a corrupt file or a failing library would otherwise write one line per read. A forwarded one stays at DEBUG.
+     */
+    public void testWithheldMessageWarnsOncePerInterval() {
+        ExternalFailures.WITHHELD_MESSAGE_WARN.reset();
+        AtomicInteger warns = new AtomicInteger();
+        MockLog.assertThatLogger(() -> {
+            for (int i = 0; i < 100; i++) {
+                ExternalFailures.classify(builtBySdk(new IOException("Unexpected end of ZLIB input stream")));
+                ExternalFailures.classify(new IOException("Object not found: x.csv"));
+            }
+        }, ExternalFailures.class, new MockLog.LoggingExpectation() {
+            @Override
+            public void match(LogEvent event) {
+                if (event.getLevel() == Level.WARN) {
+                    warns.incrementAndGet();
+                }
+            }
+
+            @Override
+            public void assertMatched() {
+                assertEquals(1, warns.get());
+            }
+        });
+    }
 }

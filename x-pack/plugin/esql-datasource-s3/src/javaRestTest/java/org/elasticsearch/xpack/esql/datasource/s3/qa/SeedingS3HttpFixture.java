@@ -19,6 +19,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiPredicate;
 
 import static fixture.aws.AwsCredentialsUtils.checkAuthorization;
@@ -76,6 +78,17 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
         this.correctRegion = region;
     }
 
+    /** Object paths ({@code /bucket/key}) that answer 403 AccessDenied, mapped to the S3 error message to send. */
+    private final Map<String, String> deniedKeys = new ConcurrentHashMap<>();
+
+    /**
+     * Makes every request for {@code key} answer 403 {@code AccessDenied} with {@code message} as the S3 error message,
+     * the way S3 answers a read an IAM policy refuses: its message names the principal and the resource ARNs.
+     */
+    public void denyKey(String key, String message) {
+        deniedKeys.put("/" + bucket + "/" + key, message);
+    }
+
     @Override
     protected HttpHandler createHandler() {
         handler = new S3HttpHandler(bucket, "", S3ConsistencyModel.STRONG_MPUS);
@@ -103,6 +116,11 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
                     }
                 }
                 if (checkAuthorization(authorizationPredicate, exchange)) {
+                    String denial = deniedKeys.get(exchange.getRequestURI().getPath());
+                    if (denial != null) {
+                        sendError(exchange, RestStatus.FORBIDDEN, "AccessDenied", denial);
+                        return;
+                    }
                     if (addressesAnotherBucket(exchange.getRequestURI().getPath())) {
                         // S3 answers a request for a bucket that does not exist with 404 NoSuchBucket;
                         // the shared handler answers 500, which would make a probe measure the fixture.

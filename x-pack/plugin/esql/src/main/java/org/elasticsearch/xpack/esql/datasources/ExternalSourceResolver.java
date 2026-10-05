@@ -967,14 +967,16 @@ public class ExternalSourceResolver {
         if (clientError != null) {
             recordDiscoveryFailure();
             logClientResolveFailure(path, clientError.getMessage(), e);
-            String iaeMsg = clientError.getMessage();
-            boolean safe = iaeMsg != null && ExternalFailures.safeForUserMessage(iaeMsg);
-            if (safe && clientError.getCause() == null && clientError.getSuppressed().length == 0) {
+            String forwardable = ExternalFailures.forwardableDetail(clientError);
+            if (forwardable != null
+                && forwardable.equals(clientError.getMessage())
+                && clientError.getCause() == null
+                && clientError.getSuppressed().length == 0) {
                 return clientError;
             }
             // Causes and suppressed failures may name the location, and the REST layer renders both.
-            if (safe) {
-                return new IllegalArgumentException(iaeMsg);
+            if (forwardable != null) {
+                return new IllegalArgumentException(forwardable);
             }
             String objectName = StoragePath.objectName(path);
             return new IllegalArgumentException(
@@ -1005,8 +1007,9 @@ public class ExternalSourceResolver {
                 StoragePath.objectName(path),
                 ""
             );
-            if (ExternalFailures.safeForUserMessage(ioDetail)) {
-                ioEx.setDetail(ioDetail);
+            String forwardable = ExternalFailures.forwardableDetail(ioError);
+            if (forwardable != null) {
+                ioEx.setDetail(forwardable);
             }
             return ioEx;
         }
@@ -1029,7 +1032,12 @@ public class ExternalSourceResolver {
      * its diagnosis, and every query against a misconfigured dataset fails the same way. The stack trace is at DEBUG.
      */
     private static void logClientResolveFailure(String path, String detail, Exception e) {
-        LOGGER.warn("Failed to resolve external source [{}]: {}", path, detail);
+        Throwable withheld = ExternalFailures.withheldCauseToLog(detail, e);
+        if (withheld != null) {
+            LOGGER.warn("Failed to resolve external source [{}]: {} ({})", path, detail, withheld);
+        } else {
+            LOGGER.warn("Failed to resolve external source [{}]: {}", path, detail);
+        }
         LOGGER.debug("Failed to resolve external source [{}]", path, e);
     }
 

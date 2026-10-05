@@ -8,16 +8,17 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
-import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -621,27 +622,25 @@ public final class SplitDiscoveryPhase {
      * discovery failure is detached from storage-client causes, whose messages name the bucket and key.
      */
     private static RuntimeException wrapDiscoveryFailure(ExternalSourceExec exec, Exception e) {
-        if (e instanceof ExternalException ee) {
-            return ExternalFailures.detach(ee);
+        if (ExceptionsHelper.unwrap(e, TaskCancelledException.class) instanceof TaskCancelledException cancelled) {
+            return ExternalFailures.detach(cancelled);
         }
         if (e instanceof ElasticsearchException ee) {
-            return ee;
+            return ExternalFailures.detach(ee);
         }
         String context = "failed to discover splits for external source [" + sourceLabel(exec) + "] of type [" + exec.sourceType() + "]";
         if (e instanceof IllegalArgumentException) {
-            LOGGER.debug("Split discovery failed (cause logged, not forwarded)", e);
-            String message = e.getMessage();
-            return new IllegalArgumentException(
-                message != null && ExternalFailures.safeForUserMessage(message) ? context + ": " + message : context
-            );
+            String forwardable = ExternalFailures.forwardableDetail(e);
+            ExternalFailures.logClientFailure(e);
+            return new IllegalArgumentException(forwardable != null ? context + ": " + forwardable : context);
         }
         RuntimeException surfaced = ExternalFailures.surface(e, context);
         if (surfaced != e) {
             return surfaced;
         }
         LOGGER.warn("Split discovery failed (cause logged, not forwarded)", e);
-        String message = e.getMessage();
-        String detail = message != null && ExternalFailures.safeForUserMessage(message) ? message : e.getClass().getSimpleName();
+        String forwardable = ExternalFailures.forwardableDetail(e);
+        String detail = forwardable != null ? forwardable : ExternalFailures.rootCause(e).getClass().getSimpleName();
         return new ElasticsearchException("{}: {}", context, detail);
     }
 

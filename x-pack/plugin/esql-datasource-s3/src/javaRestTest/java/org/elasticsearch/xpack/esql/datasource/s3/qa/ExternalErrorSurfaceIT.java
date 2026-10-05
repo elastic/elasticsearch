@@ -12,18 +12,21 @@ import fixture.aws.DynamicRegionSupplier;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.junit.BeforeClass;
@@ -49,6 +52,8 @@ import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Sweeps the whole user-visible error surface of external datasets — every misconfiguration we can
@@ -413,6 +418,68 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         logger.info("external error surface report written to {}", report.toAbsolutePath());
 
         assertMatrixInvariants();
+    }
+
+    /**
+     * esql-planning#2119: when an IAM policy refuses the read, S3's error message names the principal Elasticsearch
+     * authenticated as and the resource it was refused — account id, role, session, key id. The response must report
+     * the condition and the store's error code, and carry that sentence nowhere: not in {@code reason}, not in any
+     * {@code caused_by} level, not in {@code root_cause} or {@code suppressed}. The whole body is checked, on the
+     * literal {@code arn:aws:} rather than the sentence, so a reworded AWS message still trips it.
+     */
+    public void testIamDenialIsNotRelayedToTheCaller() throws IOException {
+        String key = "data/iam_denied.csv";
+        seed(key, "id,city\n1,Vienna\n");
+        s3HttpFixture.denyKey(
+            key,
+            "User: arn:aws:sts::123456789012:assumed-role/reader/session is not authorized to perform: kms:Decrypt on resource: "
+                + "arn:aws:kms:us-east-1:123456789012:key/11111111-2222-3333-4444-555555555555 with an explicit deny in a "
+                + "resource-based policy"
+        );
+        putDataSource("iam_denied_ds", staticCredentialSettings());
+        putDataset("iam_denied", "iam_denied_ds", s3(key), Map.of("region", regionSupplier.get()), null);
+
+        ResponseException e = expectThrows(ResponseException.class, () -> runEsql("FROM iam_denied | LIMIT 10"));
+
+        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+        String raw = EntityUtils.toString(e.getResponse().getEntity(), StandardCharsets.UTF_8);
+        assertThat(raw, not(containsString("arn:aws:")));
+        assertThat(raw, not(containsString("assumed-role")));
+        Map<String, Object> body = XContentHelper.convertToMap(JsonXContent.jsonXContent, raw, false);
+        Map<?, ?> error = (Map<?, ?>) body.get("error");
+        String reason = str(error.get("reason"));
+        assertThat(reason, containsString("HTTP 403"));
+        assertThat(reason, containsString("AccessDenied"));
+        for (String cause : flattenCauses(error)) {
+            assertThat(cause, not(containsString("arn:aws:")));
+        }
+    }
+
+    /**
+     * The same denial on the read path rather than at resolution: a first query warms the schema cache, so the second
+     * resolves without touching the object and the 403 arrives when the data node reads it.
+     */
+    public void testIamDenialOnTheReadPathIsNotRelayedToTheCaller() throws IOException {
+        String key = "data/iam_denied_on_read.csv";
+        seed(key, "id,city\n1,Vienna\n");
+        putDataSource("iam_denied_read_ds", staticCredentialSettings());
+        putDataset("iam_denied_read", "iam_denied_read_ds", s3(key), Map.of("region", regionSupplier.get()), null);
+        runEsql("FROM iam_denied_read | LIMIT 10");
+        s3HttpFixture.denyKey(
+            key,
+            "User: arn:aws:sts::123456789012:assumed-role/reader/session is not authorized to perform: s3:GetObject on resource: "
+                + "arn:aws:s3:::bucket/data/iam_denied_on_read.csv with an explicit deny in an identity-based policy"
+        );
+
+        ResponseException e = expectThrows(ResponseException.class, () -> runEsql("FROM iam_denied_read | LIMIT 10"));
+
+        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+        String raw = EntityUtils.toString(e.getResponse().getEntity(), StandardCharsets.UTF_8);
+        assertThat(raw, not(containsString("arn:aws:")));
+        assertThat(raw, not(containsString("assumed-role")));
+        Map<String, Object> body = XContentHelper.convertToMap(JsonXContent.jsonXContent, raw, false);
+        String reason = str(((Map<?, ?>) body.get("error")).get("reason"));
+        assertThat(reason, containsString("403"));
     }
 
     // -------- the reported case ------------------------------------------------------------------

@@ -8,13 +8,21 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -41,8 +49,9 @@ import java.util.regex.Pattern;
  *     <li>An {@link ExternalException} (400/500/503) raised at the reader/storage boundary keeps its type and
  *     status but is returned as a {@link #detach detached copy}: storage-client causes name the bucket and key,
  *     and the instance may be shared (e.g. by a cache's concurrent waiters) while callers annotate the result.</li>
- *     <li>Any other {@link ElasticsearchException} already carries its own status and is returned unchanged:
- *     this covers {@code CircuitBreakingException} (429) and {@code TaskCancelledException} (400).</li>
+ *     <li>Any other {@link ElasticsearchException} already carries its own status and keeps it: this covers
+ *     {@code CircuitBreakingException} (429). It is returned unchanged when it has no cause, else
+ *     {@link #detach(ElasticsearchException) detached}.</li>
  *     <li>An {@link EsRejectedExecutionException} — a thread pool refusing the task (e.g. the node shutting
  *     down) — is client-actionable backpressure, not a server fault. It already maps to 429 (TOO_MANY_REQUESTS)
  *     via {@code ExceptionsHelper.status}, so it is returned unchanged rather than mistaken for a broken
@@ -60,15 +69,34 @@ import java.util.regex.Pattern;
  *     so it surfaces as an {@link ExternalServerException} (500) to keep the bug visible. It is not chained:
  *     unchecked storage-client failures (e.g. AWS {@code SdkClientException}) land here too.</li>
  * </ul>
- * Cancellation is not special-cased here: it arrives as a {@code TaskCancelledException} (handled by the
- * {@link ElasticsearchException} branch, 400), and a read interrupted while blocking surfaces as an
- * {@link IOException} subclass (so, 400). A bare {@link InterruptedException} would fall through to 500;
- * the interrupt flag is intentionally left untouched, since this runs on the thread surfacing the stored
+ * A {@code TaskCancelledException} anywhere in the chain is returned as the cancellation, whatever wraps it: the
+ * result carries no cause, so query failure ranking could not find it there. A read interrupted while blocking
+ * surfaces as an {@link IOException} subclass (so, 400). A bare {@link InterruptedException} would fall through to
+ * 500; the interrupt flag is intentionally left untouched, since this runs on the thread surfacing the stored
  * failure, not the worker thread that was interrupted.
+ * <p>
+ * Wherever a failure's own text is forwarded, it goes through {@link #forwardableDetail}: text naming no location,
+ * and not composed by a storage client (see {@link #composedByStorageClient}). A storage client's message relays
+ * what the remote said (an IAM denial names the principal and resource ARNs), so its class name stands in for it.
+ * A format library's or the JDK's message describes the bytes we read (a bad magic number, a truncated footer) and
+ * is forwarded.
  */
 public final class ExternalFailures {
 
     private static final Logger logger = LogManager.getLogger(ExternalFailures.class);
+
+    /**
+     * Bounds the WARN lines for client failures whose message the response withholds: a corrupt file or a library
+     * failing every split would otherwise write one per read. Shared by every dataset and user on the node, so one
+     * noisy dataset can push another's first such failure down to DEBUG for the interval.
+     */
+    static final LogThrottle WITHHELD_MESSAGE_WARN = new LogThrottle(TimeValue.timeValueMinutes(1));
+
+    /**
+     * Bounds the WARN lines for access-denied reads, whose reason (the provider's refusal, naming the principal it
+     * read as) survives only in this log. Shared across datasets like {@link #WITHHELD_MESSAGE_WARN}.
+     */
+    static final LogThrottle ACCESS_DENIED_WARN = new LogThrottle(TimeValue.timeValueMinutes(1));
 
     private ExternalFailures() {}
 
@@ -220,9 +248,10 @@ public final class ExternalFailures {
      * embeds a full path instead of using the structured constructors on {@link ExternalException}.
      * See {@link #noStoragePathLeaked}.
      * <p>
-     * An {@link IllegalArgumentException} or I/O failure is logged as one WARN line naming the failure: its detail is
-     * not forwarded to the user, so this node's log is the only place it survives. A typed failure's dropped cause is
-     * logged at WARN when it is server-side, else at DEBUG, since the condition already says what is wrong.
+     * An {@link IllegalArgumentException} or I/O failure whose message is withheld (see {@link #forwardableDetail}) is
+     * logged as one WARN line naming the failure, at most once a minute per node: this node's log is the only place
+     * it survives. One whose message is forwarded is logged at DEBUG. A typed failure's dropped cause is logged at WARN
+     * when it is server-side or an access denial, else at DEBUG, since the condition already says what is wrong.
      */
     public static RuntimeException classify(Throwable t) {
         return classify(t, Level.WARN);
@@ -242,27 +271,32 @@ public final class ExternalFailures {
         if (t instanceof Error error) {
             throw error;
         }
+        if (ExceptionsHelper.unwrap(t, TaskCancelledException.class) instanceof TaskCancelledException cancelled) {
+            return detach(cancelled, failureLevel);
+        }
         if (t instanceof ExternalException ee) {
             ExternalException detached = detach(ee, failureLevel);
             assert noStoragePathLeaked(detached) : "storage path leaked in ExternalException: " + detached.getMessage();
             return detached;
         }
         if (t instanceof ElasticsearchException ese) {
-            assert noStoragePathLeaked(ese) : "storage path leaked in ElasticsearchException: " + ese.getMessage();
-            return ese;
+            ElasticsearchException detached = detach(ese, failureLevel);
+            assert noStoragePathLeaked(detached) : "storage path leaked in ElasticsearchException: " + detached.getMessage();
+            return detached;
         }
         if (t instanceof EsRejectedExecutionException rejected) {
             return rejected;
         }
         if (t instanceof IllegalArgumentException iae) {
-            // IAE from format readers may embed storage URIs in the message. Log on this node for
+            // IAE from format readers may embed storage URIs or library text in the message. Log on this node for
             // debugging; do not chain it into the exception so its message never crosses the wire.
-            logClientFailure(failureLevel, iae);
+            String forwardable = forwardableDetail(iae);
+            logClientFailure(failureLevel, iae, forwardable == null);
             ExternalClientException iaeResult = new ExternalClientException("Malformed external data ({})", iae.getClass().getSimpleName());
-            // Include the IAE detail only when it names no location; a Parquet reader may surface
-            // a column name or file basename that is useful for diagnosis without leaking the full object path.
-            if (iae.getMessage() != null && containsStoragePath(iae.getMessage()) == false) {
-                iaeResult.setDetail(iae.getMessage());
+            // A Parquet reader may surface a column name or file basename that is useful for diagnosis without
+            // leaking the full object path.
+            if (forwardable != null) {
+                iaeResult.setDetail(forwardable);
             }
             return iaeResult;
         }
@@ -271,14 +305,14 @@ public final class ExternalFailures {
             // IOException messages from storage clients may embed full storage URIs. Log on this node
             // for debugging; do not chain t into the exception so its message and cause chain never
             // cross the wire.
-            logClientFailure(failureLevel, t);
+            String forwardable = forwardableDetail(t);
+            logClientFailure(failureLevel, t, forwardable == null);
             ExternalClientException ioResult = new ExternalClientException(
                 "Failed to read external source: {}",
                 t.getClass().getSimpleName()
             );
-            // Include the IO detail only when it names no location.
-            if (t.getMessage() != null && containsStoragePath(t.getMessage()) == false) {
-                ioResult.setDetail(t.getMessage());
+            if (forwardable != null) {
+                ioResult.setDetail(forwardable);
             }
             result = ioResult;
         } else {
@@ -302,11 +336,21 @@ public final class ExternalFailures {
 
     /**
      * @param serverFailureLevel the level a server-side failure's cause is logged at: it is its only diagnosis. A client
-     *     failure's condition already says what is wrong, so its cause is logged at DEBUG.
+     *     failure's condition already says what is wrong, so its cause is logged at DEBUG, except for an access denial:
+     *     the provider's reason for refusing is its only diagnosis too, so it reaches WARN at most once a minute.
      */
     private static ExternalException detach(ExternalException e, Level serverFailureLevel) {
         if (e.getCause() != null) {
-            Level level = e.status().getStatus() >= 500 ? serverFailureLevel : Level.DEBUG;
+            Level level;
+            if (e.status().getStatus() >= 500) {
+                level = serverFailureLevel;
+            } else if (serverFailureLevel == Level.WARN
+                && e.condition() == ExternalException.Condition.ACCESS_DENIED
+                && ACCESS_DENIED_WARN.tryAcquire()) {
+                    level = Level.WARN;
+                } else {
+                    level = Level.DEBUG;
+                }
             logger.log(level, () -> "External failure detached from its cause (cause logged, not forwarded)", e);
         }
         ExternalException detached = e.withoutCause();
@@ -316,6 +360,52 @@ public final class ExternalFailures {
             }
         }
         return detached;
+    }
+
+    /**
+     * {@code e} without its cause chain and suppressed failures, after logging them on this node: the REST layer renders
+     * both, and a cause below an {@link ElasticsearchException} that is not an {@link ExternalException} can still be a
+     * storage SDK's exception. Returns {@code e} itself when there is nothing to drop. Otherwise the copy keeps the
+     * status, message, metadata and headers, and the type where the state callers act on can be carried over (breaker
+     * byte counts, cancellation); any other type becomes an {@link ExternalClientException} (400), an
+     * {@link ExternalServerException} (500) or an {@link ElasticsearchStatusException} with the same status.
+     */
+    public static ElasticsearchException detach(ElasticsearchException e) {
+        return detach(e, Level.WARN);
+    }
+
+    private static ElasticsearchException detach(ElasticsearchException e, Level serverFailureLevel) {
+        if (e instanceof ExternalException ee) {
+            return detach(ee, serverFailureLevel);
+        }
+        if (e.getCause() == null && e.getSuppressed().length == 0) {
+            return e;
+        }
+        Level level = e.status().getStatus() >= 500 ? serverFailureLevel : Level.DEBUG;
+        logger.log(level, () -> "Failure detached from its cause (cause logged, not forwarded)", e);
+        ElasticsearchException copy;
+        if (e instanceof CircuitBreakingException cbe) {
+            copy = new CircuitBreakingException(cbe.getMessage(), cbe.getBytesWanted(), cbe.getByteLimit(), cbe.getDurability());
+        } else if (e instanceof TaskCancelledException) {
+            copy = new TaskCancelledException(e.getMessage());
+        } else if (e.status() == RestStatus.BAD_REQUEST) {
+            copy = new ExternalClientException("{}", e.getMessage());
+        } else if (e.status() == RestStatus.INTERNAL_SERVER_ERROR) {
+            copy = new ExternalServerException("{}", e.getMessage());
+        } else {
+            copy = new ElasticsearchStatusException("{}", e.status(), e.getMessage());
+        }
+        for (String key : e.getMetadataKeys()) {
+            copy.addMetadata(key, e.getMetadata(key));
+        }
+        for (String key : e.getBodyHeaderKeys()) {
+            copy.addBodyHeader(key, e.getBodyHeader(key));
+        }
+        for (String key : e.getHttpHeaderKeys()) {
+            copy.addHttpHeader(key, e.getHttpHeader(key));
+        }
+        copy.setStackTrace(e.getStackTrace());
+        return copy;
     }
 
     /**
@@ -340,9 +430,9 @@ public final class ExternalFailures {
      *     <li>An {@link IOException} or {@link UncheckedIOException} becomes an
      *     {@link ExternalClientException} (400) — undecodable input is a client-class error, not a server
      *     fault. The {@code fallbackMessage} prefix is kept either way, so the context survives whether
-     *     the worker raised checked or unchecked I/O. The failure is logged at DEBUG (lenient error modes
-     *     surface one per malformed row) and not chained; its message is kept only if it names no storage
-     *     location.</li>
+     *     the worker raised checked or unchecked I/O. The failure is not chained; its message is kept only if
+     *     {@link #forwardableDetail} allows it. It is logged at DEBUG (lenient error modes surface one per
+     *     malformed row), or at WARN at most once a minute when its message is withheld.</li>
      *     <li>Anything else (a checked, non-IO exception — typically {@link InterruptedException} stored
      *     after a worker thread was interrupted) becomes an {@link ExternalServerException} (500): we have
      *     no evidence it is the caller's fault, so we keep the bug visible. Logged at WARN, not chained.</li>
@@ -359,11 +449,11 @@ public final class ExternalFailures {
             return re;
         }
         // Storage clients embed full URIs in their messages and causes, so the failure is logged here and
-        // never chained; its message is forwarded only when it names no storage location.
+        // never chained; its message is forwarded only when forwardableDetail allows it.
         String detail = safeDetail(failure);
         ElasticsearchException result;
         if (failure instanceof IOException || failure instanceof UncheckedIOException) {
-            logger.debug("External read failed (cause logged, not forwarded)", failure);
+            logClientFailure(Level.WARN, failure, forwardableDetail(failure) == null);
             result = new ExternalClientException("{}: {}", fallbackMessage, detail);
         } else {
             logger.warn("External read failed (cause logged, not forwarded)", failure);
@@ -374,19 +464,43 @@ public final class ExternalFailures {
     }
 
     /**
-     * A client failure's message is not forwarded, so it is logged here, location included, for the admin. At WARN it is
-     * one line: a corrupt file fails every split that reads it, and the stack trace says nothing the message does not.
+     * Logs a client failure for the admin, location included. A withheld message survives only here, so it reaches
+     * WARN as one line, at most once a minute per node ({@link #WITHHELD_MESSAGE_WARN}): a corrupt file fails every
+     * split that reads it, and the stack trace says nothing the message does not. A forwarded one reaches the caller
+     * whole, so DEBUG is enough.
      */
-    private static void logClientFailure(Level level, Throwable t) {
-        if (level == Level.WARN) {
+    public static void logClientFailure(Throwable t) {
+        logClientFailure(Level.WARN, t, forwardableDetail(t) == null);
+    }
+
+    private static void logClientFailure(Level level, Throwable t, boolean withheld) {
+        if (level == Level.WARN && withheld && WITHHELD_MESSAGE_WARN.tryAcquire()) {
             logger.warn("External read failed with a client error (not forwarded): {}", t.toString());
         }
         logger.debug("External read failed with a client error (cause logged, not forwarded)", t);
     }
 
+    /**
+     * The deepest cause of {@code e}, for a WARN line that reports {@code detail} to the admin, when it says something
+     * {@code detail} does not (an access denial's reason, which the response never carries) and the shared
+     * {@link #WITHHELD_MESSAGE_WARN} allows one more such line this interval. {@code null} otherwise: anyone who can
+     * query a failing dataset can repeat the failure, and the remote's sentence must not reach WARN once per query.
+     */
+    @Nullable
+    public static Throwable withheldCauseToLog(@Nullable String detail, Throwable e) {
+        Throwable deepest = e;
+        for (int depth = 0; depth < MAX_CAUSE_DEPTH && deepest.getCause() != null && deepest.getCause() != deepest; depth++) {
+            deepest = deepest.getCause();
+        }
+        if (deepest == e || detail != null && detail.contains(String.valueOf(deepest.getMessage()))) {
+            return null;
+        }
+        return WITHHELD_MESSAGE_WARN.tryAcquire() ? deepest : null;
+    }
+
     private static String safeDetail(Throwable failure) {
-        String message = failure.getMessage();
-        return message != null && containsStoragePath(message) == false ? message : failure.getClass().getSimpleName();
+        String forwardable = forwardableDetail(failure);
+        return forwardable != null ? forwardable : rootCause(failure).getClass().getSimpleName();
     }
 
     private static boolean isMalformedDataException(Throwable t) {
@@ -413,10 +527,70 @@ public final class ExternalFailures {
 
     /**
      * {@link #detail} of the first exception in {@code failure}'s chain that carries a message someone wrote, rather
-     * than one a wrapper derived from {@link Throwable#toString()}.
+     * than one a wrapper derived from {@link Throwable#toString()}. When a storage client composed that exception (see
+     * {@link #composedByStorageClient}) its class name stands in for the message, so a site that copies this into its
+     * own exception's message cannot launder the remote's text into one Elasticsearch appears to have written.
+     * It may still name a location: callers that forward it check {@link #safeForUserMessage}, or use
+     * {@link #forwardableDetail}.
      */
     public static String rootDetail(Throwable failure) {
-        return detail(rootCause(failure));
+        Throwable root = rootCause(failure);
+        return composedByStorageClient(root) ? root.getClass().getSimpleName() : detail(root);
+    }
+
+    /**
+     * The message of the first exception in {@code failure}'s chain that someone wrote (see {@link #rootCause}), when it
+     * may be shown to whoever runs the query: no storage client composed it (see {@link #composedByStorageClient}) and
+     * it names no location (see {@link #safeForUserMessage}). {@code null} otherwise.
+     */
+    @Nullable
+    public static String forwardableDetail(Throwable failure) {
+        Throwable root = rootCause(failure);
+        String message = root.getMessage();
+        return message != null && composedByStorageClient(root) == false && safeForUserMessage(message) ? message : null;
+    }
+
+    /**
+     * Packages of the storage and catalog clients the data sources talk to. Their exceptions relay what the remote
+     * answered, and a remote's refusal names the identity it was refused: an S3 or KMS denial carries the principal's
+     * and the resource's ARNs, a GCS or Azure one the service account or tenant.
+     */
+    private static final List<String> STORAGE_CLIENT_PACKAGES = List.of(
+        "software.amazon.awssdk.",
+        "com.google.cloud.",
+        "com.google.auth.",
+        "com.google.api.",
+        "com.azure.",
+        "com.microsoft.aad.msal4j.",
+        "com.nimbusds.",
+        "org.apache.arrow.flight.",
+        "io.grpc.",
+        "org.apache.iceberg.rest.",
+        "org.apache.iceberg.aws.",
+        "org.apache.iceberg.gcp.",
+        "org.apache.iceberg.azure."
+    );
+
+    /**
+     * Whether a storage client composed {@code t}'s own message: its class, or the frame that constructed it, is in one
+     * of {@link #STORAGE_CLIENT_PACKAGES}. The frame catches a JDK exception a client built (an {@code IOException}
+     * carrying the response). Best-effort: Elasticsearch code that pastes a client's message into its own is not caught.
+     */
+    public static boolean composedByStorageClient(Throwable t) {
+        if (isStorageClientClass(t.getClass().getName())) {
+            return true;
+        }
+        StackTraceElement[] trace = t.getStackTrace();
+        return trace.length > 0 && isStorageClientClass(trace[0].getClassName());
+    }
+
+    private static boolean isStorageClientClass(String className) {
+        for (String prefix : STORAGE_CLIENT_PACKAGES) {
+            if (className.startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

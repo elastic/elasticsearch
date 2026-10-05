@@ -20,7 +20,6 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.telemetry.InferenceProductContext;
 import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -30,6 +29,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
+import org.elasticsearch.xpack.core.inference.InferenceContextTests;
 import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.InferencePlugin;
@@ -355,32 +355,53 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         String productSolution = "security";
         String productFeature = "attack_discovery";
 
-        InferenceContext context = new InferenceContext(productUseCase, productSolution, productFeature, interactionId);
+        InferenceContext context = InferenceContextTests.context(productUseCase, productSolution, productFeature, interactionId);
         ThreadContext threadContext = executeWithInferenceContext(context, new ThreadContext(Settings.EMPTY));
 
-        assertThat(threadContext.getHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER), is(productUseCase));
-        assertThat(threadContext.getHeader(InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER), is(interactionId));
-        assertThat(threadContext.getHeader(InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER), is(productSolution));
-        assertThat(threadContext.getHeader(InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER), is(productFeature));
+        assertThat(threadContext.getHeader("X-elastic-product-use-case"), is(productUseCase));
+        assertThat(threadContext.getHeader("X-Elastic-Inference-Interaction-Id"), is(interactionId));
+        assertThat(threadContext.getHeader("X-elastic-product-solution"), is(productSolution));
+        assertThat(threadContext.getHeader("X-elastic-product-feature"), is(productFeature));
     }
 
     public void testExistingThreadContextHeadersTakePrecedenceOverInferenceContext() {
-        InferenceContext context = new InferenceContext("context-use-case", "context-solution", "context-feature", "context-interaction");
+        InferenceContext context = InferenceContextTests.context(
+            "context-use-case",
+            "context-solution",
+            "context-feature",
+            "context-interaction"
+        );
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        threadContext.putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, "existing-use-case");
-        threadContext.putHeader(InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER, "existing-interaction");
-        threadContext.putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER, "existing-solution");
-        threadContext.putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER, "existing-feature");
+        threadContext.putHeader("X-elastic-product-use-case", "existing-use-case");
+        threadContext.putHeader("X-Elastic-Inference-Interaction-Id", "existing-interaction");
+        threadContext.putHeader("X-elastic-product-solution", "existing-solution");
+        threadContext.putHeader("X-elastic-product-feature", "existing-feature");
 
         executeWithInferenceContext(context, threadContext);
 
-        assertThat(threadContext.getHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER), is("existing-use-case"));
-        assertThat(
-            threadContext.getHeader(InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER),
-            is("existing-interaction")
+        assertThat(threadContext.getHeader("X-elastic-product-use-case"), is("existing-use-case"));
+        assertThat(threadContext.getHeader("X-Elastic-Inference-Interaction-Id"), is("existing-interaction"));
+        assertThat(threadContext.getHeader("X-elastic-product-solution"), is("existing-solution"));
+        assertThat(threadContext.getHeader("X-elastic-product-feature"), is("existing-feature"));
+    }
+
+    public void testExistingEmptyThreadContextHeaderIsNotReplaced() {
+        InferenceContext context = InferenceContextTests.context(
+            "context-use-case",
+            "context-solution",
+            "context-feature",
+            "context-interaction"
         );
-        assertThat(threadContext.getHeader(InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER), is("existing-solution"));
-        assertThat(threadContext.getHeader(InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER), is("existing-feature"));
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader("X-elastic-product-use-case", "");
+        threadContext.putHeader("X-elastic-product-solution", "");
+
+        executeWithInferenceContext(context, threadContext);
+
+        assertThat(threadContext.getHeader("X-elastic-product-use-case"), is(""));
+        assertThat(threadContext.getHeader("X-elastic-product-solution"), is(""));
+        assertThat(threadContext.getHeader("X-elastic-product-feature"), is("context-feature"));
+        assertThat(threadContext.getHeader("X-Elastic-Inference-Interaction-Id"), is("context-interaction"));
     }
 
     private ThreadContext executeWithInferenceContext(InferenceContext context, ThreadContext threadContext) {

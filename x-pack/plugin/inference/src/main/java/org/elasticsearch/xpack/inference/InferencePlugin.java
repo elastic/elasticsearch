@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.breaker.BreakerSettings;
+import org.elasticsearch.inference.InferenceRequestMetadata.Field;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.telemetry.InferenceStats;
@@ -217,6 +218,7 @@ import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService;
 import org.elasticsearch.xpack.inference.vectors.EmbeddingQueryVectorBuilder;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -230,10 +232,6 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER;
-import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER;
-import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER;
-import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE;
 
@@ -1015,22 +1013,14 @@ public class InferencePlugin extends Plugin
 
     @Override
     public Collection<RestHeaderDefinition> getRestHeaders() {
-        return Set.of(
-            new RestHeaderDefinition(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, true),
-            new RestHeaderDefinition(X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER, false),
-            new RestHeaderDefinition(X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER, false),
-            new RestHeaderDefinition(X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER, false)
-        );
+        return Arrays.stream(Field.values())
+            .map(field -> new RestHeaderDefinition(field.httpHeader(), field.allowsMultipleRestValues()))
+            .toList();
     }
 
     @Override
     public Collection<String> getTaskHeaders() {
-        return Set.of(
-            X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER,
-            X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER,
-            X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER,
-            X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER
-        );
+        return Arrays.stream(Field.values()).map(Field::httpHeader).toList();
     }
 
     protected SSLService getSslService() {

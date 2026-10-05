@@ -7,10 +7,21 @@
 
 package org.elasticsearch.xpack.core.inference;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.inference.InferenceRequestMetadata;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.INTERACTION_ID;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_FEATURE;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_SOLUTION;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_USE_CASE;
+import static org.hamcrest.Matchers.equalTo;
 
 public class InferenceContextTests extends AbstractWireSerializingTestCase<InferenceContext> {
     @Override
@@ -24,26 +35,56 @@ public class InferenceContextTests extends AbstractWireSerializingTestCase<Infer
     }
 
     public static InferenceContext createRandom() {
-        return new InferenceContext(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        return context(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 
     @Override
-    protected InferenceContext mutateInstance(InferenceContext instance) throws IOException {
+    protected InferenceContext mutateInstance(InferenceContext instance) {
         var components = new String[] {
-            instance.productUseCase(),
-            instance.productSolution(),
-            instance.productFeature(),
-            instance.interactionId() };
+            valueOrEmpty(instance, PRODUCT_USE_CASE),
+            valueOrEmpty(instance, PRODUCT_SOLUTION),
+            valueOrEmpty(instance, PRODUCT_FEATURE),
+            valueOrEmpty(instance, INTERACTION_ID) };
         var i = randomIntBetween(0, components.length - 1);
         components[i] = randomValueOtherThan(components[i], () -> randomAlphaOfLength(10));
-
-        return new InferenceContext(components[0], components[1], components[2], components[3]);
+        return context(components[0], components[1], components[2], components[3]);
     }
 
-    public void testRejectsNullComponents() {
-        expectThrows(NullPointerException.class, () -> new InferenceContext(null, "solution", "feature", "id"));
-        expectThrows(NullPointerException.class, () -> new InferenceContext("use-case", null, "feature", "id"));
-        expectThrows(NullPointerException.class, () -> new InferenceContext("use-case", "solution", null, "id"));
-        expectThrows(NullPointerException.class, () -> new InferenceContext("use-case", "solution", "feature", null));
+    public void testOneArgConstructorKeepsOnlyUseCase() {
+        var context = new InferenceContext("esql");
+        assertThat(context.metadata().get(PRODUCT_USE_CASE), equalTo("esql"));
+        assertThat(context.metadata().get(PRODUCT_SOLUTION), equalTo(null));
+        assertThat(context.metadata().get(PRODUCT_FEATURE), equalTo(null));
+        assertThat(context.metadata().get(INTERACTION_ID), equalTo(null));
+    }
+
+    public void testOneArgConstructorRejectsNull() {
+        expectThrows(NullPointerException.class, () -> new InferenceContext((String) null));
+    }
+
+    public void testXContentWritesEmptyStringForAbsentFields() throws IOException {
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            new InferenceContext("esql").toXContent(builder, ToXContent.EMPTY_PARAMS);
+            assertThat(
+                Strings.toString(builder),
+                equalTo("{\"product_use_case\":\"esql\",\"product_solution\":\"\",\"product_feature\":\"\",\"interaction_id\":\"\"}")
+            );
+        }
+    }
+
+    private static String valueOrEmpty(InferenceContext instance, InferenceRequestMetadata.Field field) {
+        var value = instance.metadata().get(field);
+        return value == null ? "" : value;
+    }
+
+    public static InferenceContext context(String productUseCase, String productSolution, String productFeature, String interactionId) {
+        return new InferenceContext(
+            InferenceRequestMetadata.builder()
+                .put(PRODUCT_USE_CASE, productUseCase)
+                .put(PRODUCT_SOLUTION, productSolution)
+                .put(PRODUCT_FEATURE, productFeature)
+                .put(INTERACTION_ID, interactionId)
+                .build()
+        );
     }
 }

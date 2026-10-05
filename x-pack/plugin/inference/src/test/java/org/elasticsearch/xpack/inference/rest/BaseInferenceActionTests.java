@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.telemetry.InferenceProductContext;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestTests;
@@ -22,6 +21,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
+import org.elasticsearch.xpack.core.inference.InferenceContextTests;
 import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
@@ -158,18 +158,18 @@ public class BaseInferenceActionTests extends RestActionTestCase {
     public void testExtractAttributionHeaders() {
         assertExtractedHeaders(
             Map.of(
-                InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER,
+                "X-elastic-product-use-case",
                 List.of("product-use-case"),
-                InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER,
+                "X-elastic-product-solution",
                 List.of("security"),
-                InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER,
+                "X-elastic-product-feature",
                 List.of("attack_discovery"),
-                InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER,
+                "X-Elastic-Inference-Interaction-Id",
                 List.of("interaction-id")
             ),
             context -> assertThat(
                 context,
-                equalTo(new InferenceContext("product-use-case", "security", "attack_discovery", "interaction-id"))
+                equalTo(InferenceContextTests.context("product-use-case", "security", "attack_discovery", "interaction-id"))
             )
         );
     }
@@ -181,16 +181,23 @@ public class BaseInferenceActionTests extends RestActionTestCase {
     public void testExtractAttributionHeaders_EmptyWhenHeaderValuesEmpty() {
         assertExtractedHeaders(
             Map.of(
-                InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER,
+                "X-elastic-product-use-case",
                 List.of(""),
-                InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER,
+                "X-Elastic-Inference-Interaction-Id",
                 List.of(""),
-                InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER,
+                "X-elastic-product-solution",
                 List.of(""),
-                InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER,
+                "X-elastic-product-feature",
                 List.of("")
             ),
             context -> assertThat(context, equalTo(InferenceContext.EMPTY_INSTANCE))
+        );
+    }
+
+    public void testExtractAttributionHeaders_RepeatedUseCaseKeepsFirstValue() {
+        assertExtractedHeaders(
+            Map.of("X-elastic-product-use-case", List.of("first", "second")),
+            context -> assertThat(context, equalTo(new InferenceContext("first")))
         );
     }
 

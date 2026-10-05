@@ -11,54 +11,35 @@ package org.elasticsearch.inference.telemetry;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.InferenceRequestMetadata;
 import org.elasticsearch.tasks.Task;
 
 /**
- * Carries per-request product attribution context.
+ * Product attribution recorded on inference metrics.
+ * <p>
+ * Only product use case and product origin are metric attributes. The other request headers live on
+ * {@link InferenceRequestMetadata} and are not available here.
  *
  * @param productUseCase the specific user flow, sourced from the {@code X-elastic-product-use-case} header (e.g. "security ai assistant").
  *                       Can be null if not defined.
  * @param productOrigin the originating system, sourced from the {@code X-elastic-product-origin} header (e.g. "kibana").
  *                      Can be null if not defined.
- * @param productSolution the originating Elastic solution, sourced from the {@code X-elastic-product-solution} header
- *                        (e.g. "security"). Can be null if not defined.
- * @param productFeature the stable inference feature identifier, sourced from the {@code X-elastic-product-feature} header
- *                       (e.g. "attack_discovery"). Can be null if not defined.
- * @param interactionId an identifier used to attribute related inference requests, sourced from the
- *                      {@code X-Elastic-Inference-Interaction-Id} header. Can be null if not defined.
  */
-public record InferenceProductContext(
-    @Nullable String productUseCase,
-    @Nullable String productOrigin,
-    @Nullable String productSolution,
-    @Nullable String productFeature,
-    @Nullable String interactionId
-) {
-    public static final String X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER = "X-elastic-product-use-case";
-    public static final String X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER = "X-elastic-product-solution";
-    public static final String X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER = "X-elastic-product-feature";
-    public static final String X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER = "X-Elastic-Inference-Interaction-Id";
-
-    public static final InferenceProductContext EMPTY = new InferenceProductContext(null, null, null, null, null);
-
-    public InferenceProductContext(@Nullable String productUseCase, @Nullable String productOrigin) {
-        this(productUseCase, productOrigin, null, null, null);
-    }
+public record InferenceProductContext(@Nullable String productUseCase, @Nullable String productOrigin) {
+    public static final InferenceProductContext EMPTY = new InferenceProductContext(null, null);
 
     /**
-     * Creates an {@link InferenceProductContext} by reading the product attribution headers from the given thread context.
+     * Creates an {@link InferenceProductContext} by reading the product use case and product origin headers.
+     * Other attribution headers on the thread context are ignored.
      */
     public static InferenceProductContext create(ThreadContext threadContext) {
-        var useCase = threadContext.getHeader(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
+        var useCase = threadContext.getHeader(InferenceRequestMetadata.Field.PRODUCT_USE_CASE.httpHeader());
         var origin = threadContext.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
-        var solution = threadContext.getHeader(X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER);
-        var feature = threadContext.getHeader(X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER);
-        var interactionId = threadContext.getHeader(X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER);
 
-        if (useCase == null && origin == null && solution == null && feature == null && interactionId == null) {
+        if (useCase == null && origin == null) {
             return EMPTY;
         }
 
-        return new InferenceProductContext(useCase, origin, solution, feature, interactionId);
+        return new InferenceProductContext(useCase, origin);
     }
 }

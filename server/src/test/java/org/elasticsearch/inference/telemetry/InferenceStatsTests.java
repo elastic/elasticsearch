@@ -494,16 +494,16 @@ public class InferenceStatsTests extends ESTestCase {
         verify(longCounter).incrementBy(eq(1L), eq(Map.of(SERVICE_ATTRIBUTE, TEST_SERVICE, TASK_TYPE_ATTRIBUTE, TaskType.ANY.toString())));
     }
 
-    public void testWithProductContext_DoesNotEmitInteractionId() {
+    public void testWithProductContext_DoesNotEmitRequestMetadata() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
-        var ctx = new InferenceProductContext(
-            SECURITY_AI_ASSISTANT_USE_CASE,
-            TEST_PRODUCT_ORIGIN,
-            "security",
-            "attack_discovery",
-            randomAlphaOfLength(20)
-        );
+        var threadContext = new org.elasticsearch.common.util.concurrent.ThreadContext(org.elasticsearch.common.settings.Settings.EMPTY);
+        threadContext.putHeader("X-elastic-product-use-case", SECURITY_AI_ASSISTANT_USE_CASE);
+        threadContext.putHeader("X-elastic-product-origin", TEST_PRODUCT_ORIGIN);
+        threadContext.putHeader("X-elastic-product-solution", "security");
+        threadContext.putHeader("X-elastic-product-feature", "attack_discovery");
+        threadContext.putHeader("X-Elastic-Inference-Interaction-Id", randomAlphaOfLength(20));
+        var ctx = InferenceProductContext.create(threadContext);
 
         stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withProductContext(ctx).incrementBy(1);
 

@@ -10,15 +10,16 @@ package org.elasticsearch.xpack.inference.services.elastic.request;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.inference.InferenceRequestMetadata;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InferenceStringGroupTests;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.telemetry.InferenceProductContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceUsageContext;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
@@ -26,9 +27,9 @@ import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_USE_CASE;
 import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
-import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.apiKey;
 import static org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequestTests.randomElasticInferenceServiceRequestMetadata;
@@ -204,7 +205,8 @@ public class ElasticInferenceServiceDenseEmbeddingsRequestTests extends ESTestCa
                 List.of(input),
                 new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
                 new ElasticInferenceServiceRequestMetadata(
-                    new InferenceProductContext(TEST_PRODUCT_USE_CASE, TEST_PRODUCT_ORIGIN),
+                    InferenceRequestMetadata.builder().put(PRODUCT_USE_CASE, TEST_PRODUCT_USE_CASE).build(),
+                    TEST_PRODUCT_ORIGIN,
                     TEST_ES_VERSION
                 ),
                 inputType,
@@ -217,9 +219,9 @@ public class ElasticInferenceServiceDenseEmbeddingsRequestTests extends ESTestCa
             assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
             var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
-            var headers = httpPost.getHeaders(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
+            var headers = httpPost.getHeaders(PRODUCT_USE_CASE.httpHeader());
             assertThat(headers.length, is(2));
-            assertThat(headers[0].getValue(), is(inputType.toString()));
+            assertThat(headers[0].getValue(), is(ElasticInferenceServiceUsageContext.fromInputType(inputType).productUseCaseHeaderValue()));
             assertThat(headers[1].getValue(), is(TEST_PRODUCT_USE_CASE));
         }
     }
@@ -237,7 +239,8 @@ public class ElasticInferenceServiceDenseEmbeddingsRequestTests extends ESTestCa
                 List.of(input),
                 new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
                 new ElasticInferenceServiceRequestMetadata(
-                    new InferenceProductContext(TEST_PRODUCT_USE_CASE, TEST_PRODUCT_ORIGIN),
+                    InferenceRequestMetadata.builder().put(PRODUCT_USE_CASE, TEST_PRODUCT_USE_CASE).build(),
+                    TEST_PRODUCT_ORIGIN,
                     TEST_ES_VERSION
                 ),
                 inputType,

@@ -100,10 +100,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
     protected void doExecute(Task task, Request request, ActionListener<InferenceAction.Response> listener) {
         var timer = InferenceTimer.start();
 
-        putIfAbsent(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, request.getContext().productUseCase());
-        putIfAbsent(InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER, request.getContext().productSolution());
-        putIfAbsent(InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER, request.getContext().productFeature());
-        putIfAbsent(InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER, request.getContext().interactionId());
+        request.getContext().metadata().forEachPresent((field, value) -> putIfAbsent(field.httpHeader(), value));
 
         var productContext = InferenceProductContext.create(threadPool.getThreadContext());
         var taskId = new TaskId(transportService.getLocalNode().getId(), task.getId());

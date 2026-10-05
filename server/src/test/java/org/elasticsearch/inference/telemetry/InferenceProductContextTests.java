@@ -14,44 +14,24 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.List;
-
-import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER;
-import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER;
-import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER;
-import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.INTERACTION_ID;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_FEATURE;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_SOLUTION;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_USE_CASE;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class InferenceProductContextTests extends ESTestCase {
 
-    public void testCreate_ReadsHeadersFromThreadContext() {
-        var expectedContext = randomInferenceProductContext();
-
+    public void testCreate_ReadsUseCaseAndOriginOnly() {
         var threadContext = new ThreadContext(Settings.EMPTY);
-        if (expectedContext.productUseCase() != null) {
-            threadContext.putHeader(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, expectedContext.productUseCase());
-        }
+        threadContext.putHeader(PRODUCT_USE_CASE.httpHeader(), "security ai assistant");
+        threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "kibana");
+        threadContext.putHeader(PRODUCT_SOLUTION.httpHeader(), "security");
+        threadContext.putHeader(PRODUCT_FEATURE.httpHeader(), "attack_discovery");
+        threadContext.putHeader(INTERACTION_ID.httpHeader(), "interaction-id");
 
-        if (expectedContext.productOrigin() != null) {
-            threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, expectedContext.productOrigin());
-        }
-
-        if (expectedContext.productSolution() != null) {
-            threadContext.putHeader(X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER, expectedContext.productSolution());
-        }
-
-        if (expectedContext.productFeature() != null) {
-            threadContext.putHeader(X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER, expectedContext.productFeature());
-        }
-
-        if (expectedContext.interactionId() != null) {
-            threadContext.putHeader(X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER, expectedContext.interactionId());
-        }
-
-        var createdContext = InferenceProductContext.create(threadContext);
-
-        assertThat(createdContext, is(expectedContext));
+        assertThat(InferenceProductContext.create(threadContext), is(new InferenceProductContext("security ai assistant", "kibana")));
     }
 
     public void testCreate_ReturnsEmptyInstanceWhenHeadersAreAbsent() {
@@ -60,36 +40,16 @@ public class InferenceProductContextTests extends ESTestCase {
         assertThat(context, sameInstance(InferenceProductContext.EMPTY));
     }
 
-    public void testCreate_DoesNotReturnEmptyWhenOnlyOneOptionalHeaderIsPresent() {
-        record Case(String header, String value, InferenceProductContext expected) {}
-
-        for (var testCase : List.of(
-            new Case(X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER, "security", new InferenceProductContext(null, null, "security", null, null)),
-            new Case(
-                X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER,
-                "attack_discovery",
-                new InferenceProductContext(null, null, null, "attack_discovery", null)
-            ),
-            new Case(
-                X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER,
-                "interaction-id",
-                new InferenceProductContext(null, null, null, null, "interaction-id")
-            )
-        )) {
+    public void testCreate_IgnoresRequestMetadataHeaders() {
+        for (var header : new String[] { PRODUCT_SOLUTION.httpHeader(), PRODUCT_FEATURE.httpHeader(), INTERACTION_ID.httpHeader() }) {
             var threadContext = new ThreadContext(Settings.EMPTY);
-            threadContext.putHeader(testCase.header(), testCase.value());
+            threadContext.putHeader(header, "present");
 
-            assertThat(InferenceProductContext.create(threadContext), is(testCase.expected()));
+            assertThat(InferenceProductContext.create(threadContext), sameInstance(InferenceProductContext.EMPTY));
         }
     }
 
     public static InferenceProductContext randomInferenceProductContext() {
-        return new InferenceProductContext(
-            randomFrom(randomAlphaOfLength(10), null),
-            randomFrom(randomAlphaOfLength(10), null),
-            randomFrom(randomAlphaOfLength(10), null),
-            randomFrom(randomAlphaOfLength(10), null),
-            randomFrom(randomAlphaOfLength(10), null)
-        );
+        return new InferenceProductContext(randomFrom(randomAlphaOfLength(10), null), randomFrom(randomAlphaOfLength(10), null));
     }
 }

@@ -673,9 +673,6 @@ tests:
 - class: org.elasticsearch.indices.recovery.IndexRecoveryIT
   method: testCancelNewShardRecoveryAndUsesExistingShardCopy
   issue: https://github.com/elastic/elasticsearch/issues/160953
-- class: org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT
-  method: testDeleteNestedSubquery
-  issue: https://github.com/elastic/elasticsearch/issues/160984
 - class: org.elasticsearch.xpack.transform.integration.RestoringShardTransformIT
   method: testPutTransformValidationWhileRestoringParks
   issue: https://github.com/elastic/elasticsearch/issues/160991

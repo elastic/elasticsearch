@@ -14,6 +14,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
@@ -30,7 +31,7 @@ import org.apache.lucene.tests.analysis.MockLowerCaseFilter;
 import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.columnar.string.StringBinaryPayload;
+import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -1170,6 +1171,33 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     /**
+     * A {@code multi_value=false} columnar keyword field is indexed via
+     * {@link SingleValuedColumnarBinaryDocValuesField}, whose frozen {@link FieldType} carries
+     * {@link ColumNARDocValuesFormat#SINGLE_VALUED_ATTRIBUTE}. The ColumNAR codec reads that
+     * attribute back at flush time to skip payload framing and write raw bytes instead.
+     */
+    public void testMultiValueFalseColumnarKeywordSetsFieldTypeAttribute() throws Exception {
+        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = createColumnarModeDocumentMapper(
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject())
+        );
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "hello")));
+        IndexableField dvField = doc.rootDoc()
+            .getFields("field")
+            .stream()
+            .filter(f -> f.fieldType().docValuesType() == DocValuesType.BINARY)
+            .findFirst()
+            .orElse(null);
+        assertNotNull("expected a BINARY doc-values field for multi_value=false columnar keyword", dvField);
+        var attrs = ((FieldType) dvField.fieldType()).getAttributes();
+        assertEquals(
+            "multi_value=false columnar keyword must carry SINGLE_VALUED_ATTRIBUTE",
+            "true",
+            attrs == null ? null : attrs.get(ColumNARDocValuesFormat.SINGLE_VALUED_ATTRIBUTE)
+        );
+    }
+
+    /**
      * Keyword high-cardinality doc values have used the SeparateCount format since 9.4.0. This test pins that contract for the
      * current index version.
      */
@@ -1362,9 +1390,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
         String value = randomAlphanumericOfLength(20);
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", value)));
-        var expectedBytesValue = ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()
-            ? new StringBinaryPayload.Builder().encode(List.of(new BytesRef(value)))
-            : new BytesRef(value);
+        // multi_value: false fields always store raw bytes (no payload framing), whether columnar or not.
+        var expectedBytesValue = new BytesRef(value);
         assertThat(doc.rootDoc().getFields("field").stream().anyMatch(f -> expectedBytesValue.equals(f.binaryValue())), equalTo(true));
         assertThat(doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())), equalTo(false));
     }

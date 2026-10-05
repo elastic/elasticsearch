@@ -28,4 +28,9 @@ public class KeywordAnalyzerProvider extends AbstractIndexAnalyzerProvider<Keywo
     public KeywordAnalyzer get() {
         return this.keywordAnalyzer;
     }
+
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

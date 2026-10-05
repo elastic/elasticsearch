@@ -30,6 +30,18 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         assertThat(acc.storageRequests(Type.UNKNOWN), equalTo(0L));
     }
 
+    public void testRecordBytesAddsBytesWithoutMintingRequest() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        acc.recordRequest(Type.S3, 9L, 0L);
+        acc.recordBytes(Type.S3, 2048L);
+        acc.recordBytes(Type.S3, 0L);
+
+        assertThat(acc.storageRequests(Type.S3), equalTo(1L));
+        assertThat(acc.storageBytesRead(Type.S3), equalTo(2048L));
+        assertThat(acc.storageRequests(Type.GCS), equalTo(0L));
+        assertThat(acc.storageBytesRead(Type.GCS), equalTo(0L));
+    }
+
     public void testRecordRequestZeroBytesDoesNotIncrementBytesRead() {
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
         acc.recordRequest(Type.LOCAL, 5L, 0L);
@@ -256,7 +268,9 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
         ExternalSourceMetrics metrics = new ExternalSourceMetrics(MeterRegistry.NOOP, acc);
 
-        metrics.recordRequest(50L, 2048L, "s3");
+        metrics.recordRequest(50L, 0L, "s3");
+        metrics.recordBytes(2048L, "s3");
+        metrics.recordRequest(25L, 512L, "azure");
         metrics.recordRetry("gcs");
         metrics.recordError("azure");
         metrics.recordThrottled("http");
@@ -278,6 +292,8 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
 
         assertThat(acc.storageRequests(Type.S3), equalTo(1L));
         assertThat(acc.storageBytesRead(Type.S3), equalTo(2048L));
+        assertThat(acc.storageRequests(Type.AZURE), equalTo(1L));
+        assertThat(acc.storageBytesRead(Type.AZURE), equalTo(512L));
         assertThat(acc.storageRetries(), equalTo(1L));
         assertThat(acc.storageErrors(Type.AZURE), equalTo(1L));
         assertThat(acc.storageThrottled(Type.HTTP), equalTo(1L));

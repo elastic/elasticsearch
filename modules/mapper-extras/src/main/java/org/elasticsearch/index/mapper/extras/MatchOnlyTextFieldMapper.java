@@ -634,6 +634,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                             case COLUMNAR_PAYLOAD -> ColumnarPayloadSortableBinaryDocValues.from(context.reader(), fieldName);
                             case ARRAY_ORDER_INLINE_NULL -> SortingArrayOrderBinaryDocValues.from(context.reader(), fieldName);
                             case SEPARATE_COUNT -> MultiValuedSortableBinaryDocValues.from(context.reader(), fieldName);
+                            case PLAIN -> throw new AssertionError("match_only_text never uses PLAIN encoding");
                         };
                     }
                     return getValuesFromDocValues(binaryDocValues, docId);
@@ -927,6 +928,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         @Override
         public Query phraseQuery(TokenStream stream, int slop, boolean enablePosIncrements, SearchExecutionContext queryShardContext)
             throws IOException {
+            failIfNotIndexedForPhraseQueries("phrase queries");
             final Query query = textFieldType.phraseQuery(stream, slop, enablePosIncrements, queryShardContext);
             return toQuery(query, queryShardContext);
         }
@@ -938,6 +940,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             boolean enablePositionIncrements,
             SearchExecutionContext queryShardContext
         ) throws IOException {
+            failIfNotIndexedForPhraseQueries("phrase queries");
             final Query query = textFieldType.multiPhraseQuery(stream, slop, enablePositionIncrements, queryShardContext);
             return toQuery(query, queryShardContext);
         }
@@ -945,8 +948,28 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         @Override
         public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, SearchExecutionContext queryShardContext)
             throws IOException {
+            failIfNotIndexedForPhraseQueries("phrase prefix queries");
             final Query query = textFieldType.phrasePrefixQuery(stream, slop, maxExpansions, queryShardContext);
             return toQuery(query, queryShardContext);
+        }
+
+        /**
+         * Phrase queries on a {@code match_only_text} field are confirmed against {@code _source}, but the candidate documents are
+         * still seeded from the field's postings. When the field is mapped with {@code index: false} there are no postings, so the
+         * approximation matches nothing and the phrase confirmation never runs, silently returning zero hits (see
+         * <a href="https://github.com/elastic/elasticsearch/issues/160320">#160320</a>). Reject the query clearly instead, mirroring how
+         * a {@code text} field rejects phrase queries when it is indexed without positions.
+         */
+        private void failIfNotIndexedForPhraseQueries(String queryDescription) {
+            if (indexType().hasTerms() == false) {
+                throw new IllegalArgumentException(
+                    "Cannot run "
+                        + queryDescription
+                        + " on field ["
+                        + name()
+                        + "] since it is not indexed; set [index] to true on the field mapping to enable them"
+                );
+            }
         }
 
         static class BytesFromMixedStringsBytesRefBlockLoader extends BlockStoredFieldsReader.StoredFieldsBlockLoader {

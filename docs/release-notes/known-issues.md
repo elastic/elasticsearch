@@ -202,3 +202,18 @@ This issue will be fixed in a future patch release (see [PR #126990](https://git
     * reducing the grouping key cardinality, by filtering out values before STATS
 
 * Repository analyses of snapshot repositories based on AWS S3 include some checks that the APIs which relate to multipart uploads have linearizable (strongly-consistent) semantics, based on guarantees offered by representatives from AWS on this subject. Further investigation has determined that these guarantees do not hold under all conditions as previously claimed. If you are analyzing a snapshot repository based on AWS S3 using a version of {{es}} prior to 9.3.0 and you encounter a failure related to linearizable register operations, you may work around the issue and suppress these checks by setting the query parameter `?register_operation_count=1` and running the analysis using a one-node cluster. This issue is fixed in {{es}} version 9.3.0 by [#138663](https://github.com/elastic/elasticsearch/pull/138663).
+
+* Vector search performance can degrade on Linux systems running kernel 6.1 or later when Multi-Gen LRU (MGLRU) is enabled.
+  Affected {{es}} versions can experience significant vector search slowdowns and delayed Lucene index merges.
+  MGLRU was introduced in Linux kernel 6.1 and is enabled by default in some Linux distributions, including Ubuntu 24.04.
+  An interaction between MGLRU and Lucene's read advice behavior can result in excessive major page faults and I/O activity during vector operations.
+  To determine whether MGLRU is enabled, run:
+  
+  ```bash
+  cat /sys/kernel/mm/lru_gen/enabled
+  ```
+  
+  A value of `0x0007` indicates that MGLRU and all its currently supported features are enabled.
+  This issue is fixed in {{es}} 8.17.5 and later, 8.18.1 and later, and 9.0.2 and later.
+  It does not affect {{es}} 8.19.
+  For more information, refer to [elasticsearch#124499](https://github.com/elastic/elasticsearch/issues/124499).

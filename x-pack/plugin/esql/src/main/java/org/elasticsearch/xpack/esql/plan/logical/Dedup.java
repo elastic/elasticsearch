@@ -61,7 +61,7 @@ public class Dedup extends UnaryPlan implements SurrogateLogicalPlan, TelemetryA
         Literal one = new Literal(source(), 1, DataType.INTEGER);
         List<Expression> groupings = new ArrayList<>();
         for (Attribute attr : child().output()) {
-            if (attr.dataType() == DataType.DOC_DATA_TYPE || attr instanceof UnsupportedAttribute) {
+            if (attr.dataType() == DataType.DOC_DATA_TYPE || attr.dataType() == DataType.DOC_REF || attr instanceof UnsupportedAttribute) {
                 continue;
             }
             groupings.add(attr);

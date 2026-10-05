@@ -316,7 +316,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 // By definition, functions never support UNSUPPORTED
                 return false;
             }
-            if (t == DataType.DOC_DATA_TYPE) {
+            if (t == DataType.DOC_DATA_TYPE || t == DataType.DOC_REF) {
                 /*
                  * Doc is special and functions aren't
                  * defined to take these. They'll use them implicitly if needed.

@@ -99,6 +99,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.LongConsumer;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -108,6 +109,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FetchSearchPhaseTests extends ESTestCase {
@@ -199,7 +201,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         }
     }
 
-    public void testFetchedHitsAreChargedToTheRequestBreakerForTheWholePhase() throws Exception {
+    public void testFetchedHitsAreChargedUntilTheResponseIsReleased() throws Exception {
         CircuitBreaker breaker = requestBreaker("1gb");
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2, breaker);
         SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
@@ -241,7 +243,57 @@ public class FetchSearchPhaseTests extends ESTestCase {
             assertNotNull(mockSearchPhaseContext.searchResponse.get());
             assertThat(fetchedBytes.get(), greaterThan(0L));
             assertThat(chargeOnceBothShardsAreIn.get(), equalTo(fetchedBytes.get()));
-            // The response has been sent, so the charge for the hits the phase was holding is back.
+            // The response owns the charge now, held until it is released.
+            assertThat(breaker.getUsed(), equalTo(fetchedBytes.get()));
+        } finally {
+            mockSearchPhaseContext.results.close();
+            var resp = mockSearchPhaseContext.searchResponse.get();
+            if (resp != null) {
+                resp.decRef();
+            }
+        }
+        // Released with the response.
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testCoordinatorChargeIsNotLeakedWhenThePhaseFailsBeforeBuildingAResponse() throws Exception {
+        // The real executeNextPhase can skip the supplier (e.g. allowPartialSearchResults(false) with a shard
+        // failure); MockSearchPhaseContext's always calls it, so this override simulates that outcome directly.
+        CircuitBreaker breaker = requestBreaker("1gb");
+        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2, breaker) {
+            @Override
+            public void executeNextPhase(String currentPhase, Supplier<SearchPhase> nextPhaseSupplier) {
+                onPhaseFailure(currentPhase, "simulated partial failure", new RuntimeException("simulated partial failure"));
+            }
+        };
+        SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
+        AtomicLong fetchedBytes = new AtomicLong();
+        try (
+            SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                mockSearchPhaseContext.getRequest(),
+                2,
+                exc -> {}
+            )
+        ) {
+            ShardSearchContextId ctx1 = new ShardSearchContextId(UUIDs.base64UUID(), 123);
+            ShardSearchContextId ctx2 = new ShardSearchContextId(UUIDs.base64UUID(), 321);
+            SearchShardTarget shard1Target = new SearchShardTarget("node1", new ShardId("test", "na", 0), null);
+            SearchShardTarget shard2Target = new SearchShardTarget("node2", new ShardId("test", "na", 1), null);
+            consumeQueryResult(results, ctx1, shard1Target, 0, 42, 1.0F);
+            consumeQueryResult(results, ctx2, shard2Target, 1, 84, 2.0F);
+            mockSearchPhaseContext.searchTransport = fetchTransport(ctx2, shard1Target, shard2Target, 256, 256, fetchedBytes);
+
+            SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
+            getFetchSearchPhase(results, mockSearchPhaseContext, reducedQueryPhase).run();
+
+            assertThat(fetchedBytes.get(), greaterThan(0L));
+            assertNull(mockSearchPhaseContext.searchResponse.get());
+            assertThat(mockSearchPhaseContext.phaseFailure.get(), notNullValue());
+            // The supplier was never called, so fetchResults' own release is the only thing giving this back.
             assertThat(breaker.getUsed(), equalTo(0L));
         } finally {
             mockSearchPhaseContext.results.close();

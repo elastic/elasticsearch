@@ -22,10 +22,12 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonReaderStatus;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -293,15 +295,39 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
 
     public void testOnFailurePreservesFirstFailureAndSuppressesLaterFailures() {
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
-        CircuitBreakingException first = new CircuitBreakingException("breaker", CircuitBreaker.Durability.TRANSIENT);
-        IllegalStateException late = new IllegalStateException("late");
+        // Use ElasticsearchException subtypes: classify() returns them as-is, so identity assertions hold.
+        CircuitBreakingException first = new CircuitBreakingException("first", CircuitBreaker.Durability.TRANSIENT);
+        CircuitBreakingException late = new CircuitBreakingException("late", CircuitBreaker.Durability.TRANSIENT);
 
         buffer.onFailure(first);
         buffer.onFailure(late);
-        buffer.onFailure(first);
+        buffer.onFailure(first);  // same instance as winner — must be ignored, not double-suppressed
 
         assertSame(first, buffer.failure());
         assertArrayEquals(new Throwable[] { late }, first.getSuppressed());
+    }
+
+    /**
+     * Losers arriving at {@link AsyncExternalSourceBuffer#onFailure} after the winner is stored must
+     * be classified before being added to the suppressed list. Storage-URI messages in raw SDK
+     * exceptions (e.g. {@link IOException} from an S3 read) must not surface through the
+     * {@code suppressed[]} array that {@code innerToXContent} serialises into the API response.
+     */
+    public void testOnFailureClassifiesLosersBeforeSuppressing() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        CircuitBreakingException first = new CircuitBreakingException("first", CircuitBreaker.Durability.TRANSIENT);
+        // A raw IOException with a storage URI in the message: classify() must strip it before the
+        // exception enters the suppressed[] array that innerToXContent serialises into the API response.
+        IOException rawIo = new IOException("s3://my-bucket/path/file.parquet: read failed");
+
+        buffer.onFailure(first);
+        buffer.onFailure(rawIo);
+
+        Throwable[] suppressed = first.getSuppressed();
+        assertEquals(1, suppressed.length);
+        Throwable classifiedIo = suppressed[0];
+        assertNotSame("loser IOException must be classified, not stored raw", rawIo, classifiedIo);
+        assertTrue("classified suppressed message must be safe for users", ExternalFailures.safeForUserMessage(classifiedIo.getMessage()));
     }
 
     public void testConcurrentOnFailureSelectsExactlyOneFirstFailure() throws Exception {
@@ -313,7 +339,9 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         Thread[] reporters = new Thread[failureCount];
 
         for (int i = 0; i < failureCount; i++) {
-            RuntimeException failure = new RuntimeException("failure-" + i);
+            // CircuitBreakingException is an ElasticsearchException; classify() returns it as-is,
+            // so identity assertions below remain valid after the classify-once change in onFailure.
+            RuntimeException failure = new CircuitBreakingException("failure-" + i, CircuitBreaker.Durability.TRANSIENT);
             reported.add(failure);
             reporters[i] = new Thread(() -> {
                 try {
@@ -358,6 +386,17 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         assertNull(buffer.formatReaderStatus());
     }
 
+    public void testUntrackedBytesDoNotDropTrackedObject() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        MutableMetricsStorageObject object = new MutableMetricsStorageObject();
+        buffer.trackStorageObject(object);
+        object.setBytesRead(250);
+        buffer.addBytesRead(46);
+        assertEquals("schema fold plus live split bytes", 296L, buffer.bytesRead());
+        object.setBytesRead(300);
+        assertEquals("tracked object must still contribute live growth", 346L, buffer.bytesRead());
+    }
+
     public void testBytesReadAccumulatesPositiveDeltas() {
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
         assertEquals(0L, buffer.bytesRead());
@@ -370,6 +409,35 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         buffer.addBytesRead(0);
         buffer.addBytesRead(-50);
         assertEquals(350L, buffer.bytesRead());
+    }
+
+    public void testRequestAndRetryCountsAccumulatePositiveDeltas() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        buffer.addRequestCount(2);
+        buffer.addRetryCount(1);
+        buffer.addRequestCount(3);
+        buffer.addRetryCount(4);
+        assertEquals(5L, buffer.requestCount());
+        assertEquals(5L, buffer.retryCount());
+        buffer.addRequestCount(0);
+        buffer.addRetryCount(-1);
+        assertEquals(5L, buffer.requestCount());
+        assertEquals(5L, buffer.retryCount());
+    }
+
+    public void testInFlightRequestsVisibleBeforeCommit() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        MutableMetricsStorageObject object = new MutableMetricsStorageObject();
+        object.setRequests(1);
+        buffer.trackStorageObject(object);
+        object.setRequests(3);
+        object.setRetries(2);
+        assertEquals(2L, buffer.requestCount());
+        assertEquals(2L, buffer.retryCount());
+        buffer.commitInFlightBytes();
+        assertEquals(2L, buffer.requestCount());
+        buffer.commitInFlightBytes();
+        assertEquals("the same live request delta must not be added twice", 2L, buffer.requestCount());
     }
 
     public void testInFlightBytesVisibleBeforeCommit() {
@@ -700,10 +768,20 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
      */
     private static final class MutableMetricsStorageObject extends AbstractTestStorageObject {
         private volatile long bytesRead;
+        private volatile long requestCount;
+        private volatile long retryCount;
         private volatile boolean throwOnMetrics;
 
         void setBytesRead(long bytes) {
             this.bytesRead = bytes;
+        }
+
+        void setRequests(long requests) {
+            this.requestCount = requests;
+        }
+
+        void setRetries(long retries) {
+            this.retryCount = retries;
         }
 
         void failMetrics() {
@@ -719,7 +797,7 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
             if (throwOnMetrics) {
                 throw new IllegalStateException("metrics failed");
             }
-            return new StorageObjectMetrics(0L, 0L, bytesRead, 0L);
+            return new StorageObjectMetrics(requestCount, 0L, bytesRead, retryCount);
         }
 
         @Override

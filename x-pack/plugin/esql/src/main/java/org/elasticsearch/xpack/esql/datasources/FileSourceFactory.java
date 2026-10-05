@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
@@ -103,6 +104,49 @@ final class FileSourceFactory implements ExternalSourceFactory {
      */
     static final Set<String> LEGACY_VOCABULARY_KEYS = Set.of(FileDataSourceValidator.SCHEMA_SAMPLE_SIZE);
 
+    /**
+     * Coordinator keys that do not identify what a cached record holds. Naming a key here is a claim that it
+     * cannot change a single row or value a read produces, so each carries the reason it holds.
+     * <p>
+     * Getting one of these wrong lets two different reads share a record, which is a wrong answer rather
+     * than a slow query — so the list is short and nothing joins it without a reason written beside it.
+     */
+    static final Set<String> COORDINATOR_IDENTITY_INERT_KEYS;
+
+    static {
+        Set<String> inert = new HashSet<>();
+        // Split geometry partitions a file's bytes into ranges to read in parallel. It changes how the work is
+        // divided, never which rows the file has or what they hold.
+        inert.addAll(FileSplitProvider.CONFIG_KEYS);
+        // A deprecated no-op: PartitionConfig.CONFIG_KEYS documents that fromConfig does not read it, and
+        // FileSourceFactoryValidationTests pins that two configs differing only in it address one entry.
+        inert.add(PartitionConfig.CONFIG_PARTITIONING_HIVE);
+        // Bounds how much of a listing schema discovery samples. Nothing cached is derived under it: the
+        // resolver only caches a listing it expanded without a bound.
+        inert.add(PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE);
+        // Changes which files a set contains, which the file-set fingerprint already identifies. It cannot
+        // change what any one file holds, and a per-file record is about one file.
+        inert.addAll(ExclusionConfig.CONFIG_KEYS);
+        // Selects between interchangeable readers for one format, which by definition read the same bytes the
+        // same way.
+        inert.add(FormatNameResolver.CONFIG_READER);
+        // The envelope carrying the data source's settings rather than a setting. Its contents reach an
+        // identity through the storage participant, and its credentials the secret identity that participant derives.
+        inert.add(ExternalSourceResolver.DATASOURCE_CONFIG_KEY);
+        COORDINATOR_IDENTITY_INERT_KEYS = Set.copyOf(inert);
+    }
+
+    /**
+     * The identity of the coordinator's contribution to how a cached record was produced: the error policy, the
+     * partitioning, the schema-resolution strategy, the listing order.
+     * <p>
+     * These belong to no reader and no storage provider — the coordinator consumes them itself — so it is the
+     * participant that says what they identify, the same way a reader and a storage configuration do.
+     */
+    static String coordinatorIdentity(Map<String, Object> config) {
+        return Configured.identityOf(config, COORDINATOR_KEYS, COORDINATOR_IDENTITY_INERT_KEYS);
+    }
+
     static {
         Set<String> keys = new HashSet<>();
         keys.add(CONFIG_FORMAT);
@@ -152,6 +196,15 @@ final class FileSourceFactory implements ExternalSourceFactory {
      * node-level pool, so one controller here is shared across all queries/operators — no external registry needed.
      */
     private final StreamingSegmentatorAdmission segmentatorAdmission;
+    /**
+     * Handed to every split provider this factory makes, so a query whose schema's listing was a prefix lists the
+     * rest under the cluster's live caps and through the listing cache resolution uses. {@code null} gives each
+     * provider one over this factory's own settings with no cache, which is what the test-only constructors want.
+     */
+    @Nullable
+    private final DatasetListingService listingService;
+    /** One per node, so a dataset-layout warning is throttled across every query this factory serves. */
+    private final NodeWarningThrottle warnings = new NodeWarningThrottle();
 
     FileSourceFactory(
         StorageProviderRegistry storageRegistry,
@@ -220,6 +273,30 @@ final class FileSourceFactory implements ExternalSourceFactory {
         LocalFileAccess localFileAccess,
         ExternalSourceMetrics externalSourceMetrics
     ) {
+        this(
+            storageRegistry,
+            formatRegistry,
+            codecRegistry,
+            settings,
+            splitDiscoveryExecutor,
+            blockFactory,
+            localFileAccess,
+            externalSourceMetrics,
+            null
+        );
+    }
+
+    FileSourceFactory(
+        StorageProviderRegistry storageRegistry,
+        FormatReaderRegistry formatRegistry,
+        DecompressionCodecRegistry codecRegistry,
+        Settings settings,
+        @Nullable ExecutorService splitDiscoveryExecutor,
+        @Nullable BlockFactory blockFactory,
+        LocalFileAccess localFileAccess,
+        ExternalSourceMetrics externalSourceMetrics,
+        @Nullable DatasetListingService listingService
+    ) {
         Check.notNull(storageRegistry, "storageRegistry cannot be null");
         Check.notNull(formatRegistry, "formatRegistry cannot be null");
         this.storageRegistry = storageRegistry;
@@ -231,6 +308,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         this.localFileAccess = localFileAccess != null ? localFileAccess : LocalFileAccess.UNRESTRICTED;
         this.externalSourceMetrics = externalSourceMetrics != null ? externalSourceMetrics : ExternalSourceMetrics.NOOP;
         this.segmentatorAdmission = new StreamingSegmentatorAdmission(ExternalSourceSettings.maxConcurrentSegmentators(this.settings));
+        this.listingService = listingService;
     }
 
     @Override
@@ -300,7 +378,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
     @Override
     public void validateConfig(String location, Map<String, Object> config, Consumer<String> warningSink) {
         // Gate file:// reads at planning time so the failure is clean and pre-execution.
-        // This check runs before the empty-config early-return so bare file:// reads (no WITH clause)
+        // This check runs before the empty-config early-return so bare file:// reads (no config)
         // are also validated — resolveMetadata calls validateConfig first, covering both paths.
         localFileAccess.check(location);
         if (config != null) {
@@ -327,17 +405,13 @@ final class FileSourceFactory implements ExternalSourceFactory {
         // Warn when a budget is present without an explicit mode: the query path infers skip_row, which
         // may surprise the caller. Routes through the sink so the message reaches the client response
         // regardless of which thread validateConfig runs on (request or metadata-read executor).
-        if (config.get(ErrorPolicy.CONFIG_ERROR_MODE) == null
-            && (config.get(ErrorPolicy.CONFIG_MAX_ERRORS) != null || config.get(ErrorPolicy.CONFIG_MAX_ERROR_RATIO) != null)) {
-            warningSink.accept(
-                "["
-                    + ErrorPolicy.CONFIG_MAX_ERRORS
-                    + "] or ["
-                    + ErrorPolicy.CONFIG_MAX_ERROR_RATIO
-                    + "] was set without ["
-                    + ErrorPolicy.CONFIG_ERROR_MODE
-                    + "]; [skip_row] is in effect -- [fail_fast] is not"
-            );
+        boolean hasMaxErrors = config.get(ErrorPolicy.CONFIG_MAX_ERRORS) != null;
+        boolean hasMaxErrorRatio = config.get(ErrorPolicy.CONFIG_MAX_ERROR_RATIO) != null;
+        if (config.get(ErrorPolicy.CONFIG_ERROR_MODE) == null && (hasMaxErrors || hasMaxErrorRatio)) {
+            String keys = hasMaxErrors && hasMaxErrorRatio
+                ? "[" + ErrorPolicy.CONFIG_MAX_ERRORS + "] and [" + ErrorPolicy.CONFIG_MAX_ERROR_RATIO + "]"
+                : "[" + (hasMaxErrors ? ErrorPolicy.CONFIG_MAX_ERRORS : ErrorPolicy.CONFIG_MAX_ERROR_RATIO) + "]";
+            warningSink.accept(keys + " set without [" + ErrorPolicy.CONFIG_ERROR_MODE + "]; skipping rows with errors");
         }
         StoragePath storagePath = StoragePath.of(location);
         Configured<StorageProvider> resolvedStorage = storageRegistry.createProviderTrackingConsumedKeys(
@@ -387,14 +461,13 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
             StorageObject storageObject = provider.newObject(storagePath);
             if (storageObject.exists() == false) {
-                throw new IOException("File does not exist: " + location);
+                throw new IOException("External data file not found");
             }
             return reader.metadata(storageObject);
         } catch (IOException e) {
-            // The wrapper exists to type a storage/reader I/O failure as client-caused (400); it is not a place to
-            // say anything new. So it keeps the cause's own diagnosis instead of a constant naming only the path —
-            // see ExternalFailures#resolutionFailureMessage for why, and for when the path is prepended.
-            throw new IllegalArgumentException(ExternalFailures.resolutionFailureMessage(location, e), e);
+            // The wrapper exists to type a storage/reader I/O failure as client-caused (400). It keeps the cause's
+            // own diagnosis and never names the path.
+            throw new IllegalArgumentException(ExternalFailures.rootDetail(e), e);
         } finally {
             StorageProviderCache.closeLease(provider);
         }
@@ -445,8 +518,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
             } else {
                 storageObject = provider.newObject(storagePath);
                 if (storageObject.exists() == false) {
-                    IOException missing = new IOException("File does not exist: " + location);
-                    listener.onFailure(new IllegalArgumentException(ExternalFailures.resolutionFailureMessage(location, missing), missing));
+                    IOException missing = new IOException("External data file not found");
+                    listener.onFailure(new IllegalArgumentException(ExternalFailures.rootDetail(missing), missing));
                     return;
                 }
             }
@@ -461,7 +534,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         }
         ActionListener<SourceMetadata> completion = listener.delegateResponse((l, e) -> {
             if (e instanceof IOException) {
-                l.onFailure(new IllegalArgumentException(ExternalFailures.resolutionFailureMessage(location, e), e));
+                l.onFailure(new IllegalArgumentException(ExternalFailures.rootDetail(e), e));
             } else {
                 l.onFailure(e);
             }
@@ -492,7 +565,9 @@ final class FileSourceFactory implements ExternalSourceFactory {
             storageRegistry,
             formatRegistry,
             settings,
-            splitDiscoveryExecutor
+            splitDiscoveryExecutor,
+            listingService,
+            warnings
         );
     }
 
@@ -503,7 +578,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
             Map<String, Object> config = context.config();
 
             // Enforce the file:// allowlist confinement at execution time on the data node, before either branch.
-            // The bare-read branch (provider(path)) checks this internally, but the WITH-config branch goes through
+            // The bare-read branch (provider(path)) checks this internally, but the config-bearing branch goes through
             // createProvider, which only enforces the scheme-level on/off gate; checking here keeps both paths uniform.
             localFileAccess.check(path);
 
@@ -565,7 +640,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 // rest on the same backend. Storage also carries reactive retry/backoff (per-store 503 backoff) from the
                 // registry (see StorageProviderRegistry#wrapProvider), and in-flight reads are additionally bounded by
                 // the per-scheme permit semaphore. Blocking reads run on the dedicated esql_external_io pool.
-                // WITH-config storage is a deferred pool lease: first operator get() borrows, onClose returns it.
+                // Config-bearing storage is a deferred pool lease: first operator get() borrows, onClose returns it.
                 // QueryBudgetedStorageProvider.close() only releases the budget, so the lease is a sibling Closeable
                 // when both are present.
                 ConcurrencyBudgetAllocator allocator = storageRegistry.allocatorForScheme(path.scheme().toLowerCase(Locale.ROOT));
@@ -715,7 +790,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
     }
 
     /**
-     * WITH-config pool borrow that does not call {@code createProvider} until the first storage
+     * Config-bearing pool borrow that does not call {@code createProvider} until the first storage
      * operation. {@link #close()} is a no-op if the factory never ran {@code get()}.
      */
     private static final class DeferredPoolLease implements StorageProvider {

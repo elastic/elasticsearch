@@ -13,6 +13,7 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
 
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
+import org.elasticsearch.gradle.internal.flakiness.resolve.FlakinessProjectResolvePlugin;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.test.ErrorReportingTestListener;
 import org.elasticsearch.gradle.internal.test.SimpleCommandLineArgumentProvider;
@@ -67,6 +68,9 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
         project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
         var buildParams = loadBuildParams(project);
         project.getPluginManager().apply(InternalTestRerunPlugin.class);
+        // Registers this project's own flakinessResolveProject task, but only under -Pflakiness.resolve; the
+        // plugin is inert otherwise. See FlakinessProjectResolvePlugin for why the model is captured lazily.
+        project.getPluginManager().apply(FlakinessProjectResolvePlugin.class);
         project.getPluginManager().apply(GradleTestPolicySetupPlugin.class);
         // for fips mode check
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
@@ -236,8 +240,9 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             });
 
             if (OS.current().equals(OS.WINDOWS) && System.getProperty("tests.timeoutSuite") == null) {
-                // override the suite timeout to 60 mins for windows, because it has the most inefficient filesystem known to man
-                test.systemProperty("tests.timeoutSuite", "3600000!");
+                // Override the suite timeout to 100 min (1h:40m) for windows, because it has the most inefficient filesystem known to man
+                // This choice of 100min was chosen based on a test that took 87 minutes on Windows for DocsClientYamlTestSuiteIT on 8.19
+                test.systemProperty("tests.timeoutSuite", "6000000!");
             }
 
             /*

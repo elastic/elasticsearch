@@ -77,11 +77,49 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
         List<Attribute> inferred = List.of(attr("a", DataType.KEYWORD));
         Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
         props.put("b", new DatasetFieldMapping("long", null)); // 'b' is not in the inferred source
+        // Default (schema-complete) path: a declared column not in the schema is an error.
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> DeclaredSchemaResolver.overlayNonStrict(inferred, mapping(props))
         );
         assertTrue(e.getMessage(), e.getMessage().contains("b"));
+    }
+
+    /**
+     * Sample-derived schema (NDJSON, headerless CSV/TSV): a declared column absent from the inferred schema may be
+     * sparse — it was simply not seen in the sample window. The overlay keeps it at its declared type instead of
+     * throwing, and the reader will look it up by name at read time.
+     */
+    public void testOverlayNonStrictKeepsADeclaredColumnTheSampleCouldNotSee() {
+        List<Attribute> inferred = List.of(attr("a", DataType.KEYWORD));
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("b", new DatasetFieldMapping("keyword", null)); // 'b' is absent from the sample
+
+        DeclaredSchemaResolver.Overlaid o = DeclaredSchemaResolver.overlayNonStrict(
+            inferred,
+            mapping(props),
+            false,
+            false /* schemaIsComplete = false: sample-derived */
+        );
+
+        assertEquals(List.of("a", "b"), o.output().stream().map(Attribute::name).toList());
+        assertEquals(DataType.KEYWORD, o.output().get(1).dataType());
+        assertEquals(List.of("a", "b"), o.fileSchema().stream().map(Attribute::name).toList());
+        assertThat("sampledOut must carry the missed declared column", o.sampledOut(), hasSize(1));
+        assertEquals("b", o.sampledOut().get(0).name());
+        assertEquals(DataType.KEYWORD, o.sampledOut().get(0).dataType());
+    }
+
+    /** The rename-collision check must still fire even when schemaIsComplete is false. */
+    public void testOverlayNonStrictSampleDerivedStillRejectsRenameCollision() {
+        List<Attribute> inferred = List.of(attr("x", DataType.KEYWORD), attr("y", DataType.KEYWORD));
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("y", new DatasetFieldMapping("keyword", "x")); // rename x->y collides with inferred y
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> DeclaredSchemaResolver.overlayNonStrict(inferred, mapping(props), false, false)
+        );
+        assertTrue(e.getMessage(), e.getMessage().contains("duplicate column [y]"));
     }
 
     public void testOverlayNonStrictNoMappingsPassesThrough() {

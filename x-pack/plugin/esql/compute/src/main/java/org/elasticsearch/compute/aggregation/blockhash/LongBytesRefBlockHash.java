@@ -8,12 +8,14 @@
 package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
+import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.BytesRefHashTable;
-import org.elasticsearch.common.util.LongLongHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -28,20 +30,31 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.swisshash.BytesRefSwissHash;
+import org.elasticsearch.swisshash.LongLongSwissHash;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.List;
 
 /**
  * A specialized {@link BlockHash} for the two-key {@code (LONG, BYTES_REF)} (or {@code (BYTES_REF, LONG)})
  */
-public final class LongBytesRefBlockHash extends BlockHash {
+public final class LongBytesRefBlockHash extends PartitionedBlockHash {
     private final int longChannel;
     private final int bytesChannel;
-    private final BytesRefHashTable bytesHash;
-    private final LongIntBlockHash longIntHash;
+    private boolean seenNulls;
+    private BytesRefHashTable bytesHash;
+    private final int emitBatchSize;
+    private LongIntBlockHash longIntHash;
+    private BytesRefSwissHash packedKeysHash;
     private AddBytesBatchWork addBytesBatchWork = null;
     private final boolean reverseOutput;
+
+    // number of adds/lookups that took ordinal path
+    private long ordinalAdds;
+    private long ordinalLookups;
 
     public LongBytesRefBlockHash(List<GroupSpec> specs, BlockFactory blockFactory, int emitBatchSize, boolean reverseOutput) {
         super(blockFactory);
@@ -52,6 +65,7 @@ public final class LongBytesRefBlockHash extends BlockHash {
         boolean success = false;
         try {
             this.longIntHash = new LongIntBlockHash(specs, blockFactory, emitBatchSize, false);
+            this.emitBatchSize = longIntHash.effectiveEmitBatchSize();
             success = true;
         } finally {
             if (success == false) {
@@ -66,18 +80,29 @@ public final class LongBytesRefBlockHash extends BlockHash {
         final BytesRefVector bytesVector = bytesBlock.asVector();
         final LongBlock longBlock = page.getBlock(longChannel);
         final LongVector longVector = longBlock.asVector();
-        if (bytesVector != null && longVector != null) {
-            try (var ords = addBytesVector(bytesVector)) {
-                longIntHash.addVector(longVector, ords, addInput);
+        if (bytesVector != null) {
+            try (var bytesOrds = addBytesVector(bytesVector)) {
+                if (longVector != null) {
+                    longIntHash.addVector(longVector, bytesOrds, addInput);
+                } else {
+                    longIntHash.addBlock(longBlock, bytesOrds.asBlock(), addInput);
+                }
             }
         } else {
-            try (var ords = addBytesBlock(bytesBlock)) {
-                longIntHash.addBlock(longBlock, ords, addInput);
+            try (var bytesOrds = addBytesBlock(bytesBlock)) {
+                longIntHash.addBlock(longBlock, bytesOrds, addInput);
             }
         }
     }
 
     private IntVector addBytesVector(BytesRefVector bytesVector) {
+        OrdinalBytesRefVector ordinals = bytesVector.asOrdinals();
+        if (ordinals != null) {
+            ordinalAdds++;
+            try (var dictHashOrds = addBytesVector(ordinals.getDictionaryVector())) {
+                return mapOrdinalsVector(dictHashOrds, ordinals.getOrdinalsVector());
+            }
+        }
         if (bytesHash instanceof BytesRefSwissHash swiss && swiss.shouldPrefetch()) {
             if (addBytesBatchWork == null) {
                 addBytesBatchWork = new AddBytesBatchWork(blockFactory);
@@ -96,7 +121,14 @@ public final class LongBytesRefBlockHash extends BlockHash {
     }
 
     private IntBlock addBytesBlock(BytesRefBlock bytesBlock) {
-        int positionCount = bytesBlock.getPositionCount();
+        OrdinalBytesRefBlock ordinals = bytesBlock.asOrdinals();
+        if (ordinals != null) {
+            ordinalAdds++;
+            try (var dictHashOrds = addBytesVector(ordinals.getDictionaryVector())) {
+                return mapOrdinalsBlock(dictHashOrds, ordinals.getOrdinalsBlock());
+            }
+        }
+        final int positionCount = bytesBlock.getPositionCount();
         BytesRef scratch = new BytesRef();
         try (var builder = blockFactory.newIntBlockBuilder(positionCount)) {
             for (int p = 0; p < positionCount; p++) {
@@ -110,6 +142,7 @@ public final class LongBytesRefBlockHash extends BlockHash {
                         builder.appendInt(Math.toIntExact(hashOrdToGroup(bytesHash.add(b))));
                     }
                     default -> {
+                        // handling multi-valued
                         builder.beginPositionEntry();
                         for (int v = start; v < end; v++) {
                             var b = bytesBlock.getBytesRef(v, scratch);
@@ -123,45 +156,39 @@ public final class LongBytesRefBlockHash extends BlockHash {
         }
     }
 
-    @Override
-    public void addAfterLimitReached(Page page, GroupingAggregatorFunction.AddInput addInput) {
-        BytesRefBlock bytesBlock = page.getBlock(bytesChannel);
-        BytesRefVector bytesVector = bytesBlock.asVector();
-        LongBlock longBlock = page.getBlock(longChannel);
-        LongVector longVector = longBlock.asVector();
-        if (bytesVector == null || longVector == null) {
-            add(page, addInput);
-            return;
+    private IntVector mapOrdinalsVector(IntVector dictHashOrds, IntVector ordinals) {
+        if (ordinals.getPositionCount() > 0 && (dictHashOrds.isConstant() || ordinals.isConstant())) {
+            return blockFactory.newConstantIntVector(dictHashOrds.getInt(ordinals.getInt(0)), ordinals.getPositionCount());
         }
-        try (var intVector = lookupBytesVector(bytesVector)) {
-            int position = longVector.getPositionCount();
-            int offset = 0;
-            LongLongHashTable hash = longIntHash.hash;
-            while (offset < position) {
-                int[] batchIds = longIntHash.batchIds;
-                final int batchSize = Math.min(batchIds.length, position - offset);
-                try (var groupIdsBuilder = blockFactory.newIntBlockBuilder(batchSize)) {
-                    for (int i = 0; i < batchSize; i++) {
-                        int bytesOrd = intVector.getInt(offset + i);
-                        if (bytesOrd < 0) {
-                            groupIdsBuilder.appendNull();
-                            continue;
+        try (var builder = blockFactory.newIntVectorFixedBuilder(ordinals.getPositionCount())) {
+            for (int p = 0; p < ordinals.getPositionCount(); p++) {
+                int ord = dictHashOrds.getInt(ordinals.getInt(p));
+                builder.appendInt(p, ord);
+            }
+            return builder.build();
+        }
+    }
+
+    private IntBlock mapOrdinalsBlock(IntVector dictHashOrds, IntBlock ordinals) {
+        final int positionCount = ordinals.getPositionCount();
+        try (var builder = blockFactory.newIntBlockBuilder(positionCount)) {
+            for (int p = 0; p < positionCount; p++) {
+                int valueCount = ordinals.getValueCount(p);
+                int start = ordinals.getFirstValueIndex(p);
+                int end = start + valueCount;
+                switch (valueCount) {
+                    case 0 -> builder.appendNull();
+                    case 1 -> builder.appendInt(dictHashOrds.getInt(ordinals.getInt(start)));
+                    default -> {
+                        builder.beginPositionEntry();
+                        for (int v = start; v < end; v++) {
+                            builder.appendInt(dictHashOrds.getInt(ordinals.getInt(v)));
                         }
-                        long intValue = bytesOrd & LongIntBlockHash.WIDEN;
-                        long longKey = longVector.getLong(offset + i);
-                        long ord = hash.find(longKey, intValue);
-                        if (ord < 0) {
-                            groupIdsBuilder.appendNull();
-                        } else {
-                            groupIdsBuilder.appendInt(Math.toIntExact(ord));
-                        }
-                    }
-                    try (var groupIds = groupIdsBuilder.build()) {
-                        addInput.add(offset, groupIds);
+                        builder.endPositionEntry();
                     }
                 }
-                offset += batchSize;
             }
+            return builder.build();
         }
     }
 
@@ -181,6 +208,13 @@ public final class LongBytesRefBlockHash extends BlockHash {
     }
 
     IntBlock lookupBytesBlock(BytesRefBlock bytes) {
+        final OrdinalBytesRefBlock ordinals = bytes.asOrdinals();
+        if (ordinals != null) {
+            ordinalLookups++;
+            try (var dictHashOrds = lookupBytesVector(ordinals.getDictionaryVector())) {
+                return mapOrdinalsBlock(dictHashOrds, ordinals.getOrdinalsBlock());
+            }
+        }
         int positionCount = bytes.getPositionCount();
         BytesRef scratch = new BytesRef();
         try (var builder = blockFactory.newIntBlockBuilder(positionCount)) {
@@ -195,6 +229,7 @@ public final class LongBytesRefBlockHash extends BlockHash {
                         builder.appendInt(Math.toIntExact(bytesHash.find(b)));
                     }
                     default -> {
+                        // handling multi-valued
                         builder.beginPositionEntry();
                         for (int v = start; v < end; v++) {
                             var b = bytes.getBytesRef(v, scratch);
@@ -209,6 +244,13 @@ public final class LongBytesRefBlockHash extends BlockHash {
     }
 
     IntVector lookupBytesVector(BytesRefVector bytes) {
+        OrdinalBytesRefVector ordinals = bytes.asOrdinals();
+        if (ordinals != null) {
+            ordinalLookups++;
+            try (var dictHashOrds = lookupBytesVector(ordinals.getDictionaryVector())) {
+                return mapOrdinalsVector(dictHashOrds, ordinals.getOrdinalsVector());
+            }
+        }
         int positionCount = bytes.getPositionCount();
         BytesRef scratch = new BytesRef();
         try (var builder = blockFactory.newIntVectorFixedBuilder(positionCount)) {
@@ -222,6 +264,10 @@ public final class LongBytesRefBlockHash extends BlockHash {
 
     @Override
     public Block[] getKeys(IntVector selected) {
+        if (packedKeysHash != null) {
+            assert longIntHash == null && bytesHash == null;
+            return seenNulls ? unpackKeysWithNulls(selected) : unpackKeysWithoutNulls(selected);
+        }
         Block[] keys = longIntHash.getKeys(selected);
         LongBlock longBlock = (LongBlock) keys[0];
         IntBlock intBlock = (IntBlock) keys[1];
@@ -323,22 +369,42 @@ public final class LongBytesRefBlockHash extends BlockHash {
 
     @Override
     public IntVector nonEmpty() {
-        return longIntHash.nonEmpty();
+        if (packedKeysHash != null) {
+            return blockFactory.newIntRangeVector(0, Math.toIntExact(packedKeysHash.size()));
+        } else {
+            return longIntHash.nonEmpty();
+        }
     }
 
     @Override
     public int numKeys() {
-        return longIntHash.numKeys();
+        if (packedKeysHash != null) {
+            return Math.toIntExact(packedKeysHash.size());
+        } else {
+            return longIntHash.numKeys();
+        }
+    }
+
+    @Override
+    public long estimatedBytesForPartitioning() {
+        if (packedKeysHash != null) {
+            return estimatedKeyBytes(packedKeysHash.getBytesRefs());
+        }
+        return estimatedKeyBytes(bytesHash.getBytesRefs()) + longIntHash.estimatedBytesForPartitioning();
     }
 
     @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
-        return longIntHash.seenGroupIds(bigArrays);
+        if (packedKeysHash != null) {
+            return new SeenGroupIds.Range(0, Math.toIntExact(packedKeysHash.size())).seenGroupIds(bigArrays);
+        } else {
+            return longIntHash.seenGroupIds(bigArrays);
+        }
     }
 
     @Override
     public void close() {
-        Releasables.close(bytesHash, longIntHash);
+        Releasables.close(packedKeysHash, bytesHash, longIntHash);
         if (addBytesBatchWork != null) {
             addBytesBatchWork.prefetchBarrier.flush();
         }
@@ -346,26 +412,48 @@ public final class LongBytesRefBlockHash extends BlockHash {
 
     // for testing
     int effectiveEmitBatchSize() {
-        return longIntHash.effectiveEmitBatchSize();
+        return emitBatchSize;
+    }
+
+    long ordinalAdds() {
+        return ordinalAdds;
+    }
+
+    long ordinalLookups() {
+        return ordinalLookups;
     }
 
     @Override
     public void ensureCapacity(int size) {
-        // don't resize bytes
-        longIntHash.ensureCapacity(size);
+        if (packedKeysHash != null) {
+            packedKeysHash.ensureCapacity(size);
+        }
+        if (longIntHash != null) {
+            longIntHash.ensureCapacity(size);
+        }
     }
 
     @Override
     public String toString() {
+        final long ramBytesUsed;
+        if (packedKeysHash != null) {
+            ramBytesUsed = packedKeysHash.ramBytesUsed();
+        } else {
+            ramBytesUsed = bytesHash.ramBytesUsed() + longIntHash.hash.ramBytesUsed();
+        }
         return "LongBytesRefBlockHash{keys=[LongKey[channel="
             + longChannel
             + "], BytesRefKey[channel="
             + bytesChannel
             + "]], entries="
-            + longIntHash.numKeys()
+            + numKeys()
             + ", size="
-            + (bytesHash.ramBytesUsed() + longIntHash.hash.ramBytesUsed())
-            + "b}";
+            + ramBytesUsed
+            + "b, ordinalAdds="
+            + ordinalAdds
+            + ", ordinalLookups="
+            + ordinalLookups
+            + "}";
     }
 
     private static class AddBytesBatchWork {
@@ -409,4 +497,206 @@ public final class LongBytesRefBlockHash extends BlockHash {
             }
         }
     }
+
+    @Override
+    public void clear() {
+        if (longIntHash != null) {
+            longIntHash.clear();
+        }
+        if (bytesHash != null) {
+            bytesHash.clear();
+        }
+        if (packedKeysHash != null) {
+            packedKeysHash.clear();
+        }
+        seenNulls = false;
+        ordinalAdds = 0;
+        ordinalLookups = 0;
+    }
+
+    private record PartitionedHashKeysWithSeenNull(PartitionedHashKeys delegate, boolean seenNull) implements PartitionedHashKeys {
+        @Override
+        public int keysInPartition(int partition) {
+            return delegate.keysInPartition(partition);
+        }
+
+        @Override
+        public void releasePartition(CircuitBreaker breaker, int partition) {
+            delegate.releasePartition(breaker, partition);
+        }
+
+        @Override
+        public void releaseAll(CircuitBreaker breaker) {
+            delegate.releaseAll(breaker);
+        }
+    }
+
+    @Override
+    public PartitionedHashKeys splitPartition(CircuitBreaker breaker, PartitionSplitter partitionSplitter) {
+        if (longIntHash != null
+            && longIntHash.hash instanceof LongLongSwissHash longSwiss
+            && bytesHash instanceof BytesRefSwissHash bytesSwiss) {
+            try (BytesRefArray packedKeys = longIntHash.seenBlocks ? packKeysWithNulls(longSwiss) : packKeysWithoutNulls(longSwiss)) {
+                PartitionedHashKeys partitioned = bytesSwiss.splitPartition(breaker, packedKeys, partitionSplitter);
+                return new PartitionedHashKeysWithSeenNull(partitioned, longIntHash.seenBlocks);
+            }
+        }
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
+    }
+
+    @Override
+    public boolean combinePartition(PartitionedHashKeys keys, int partitionIndex, int[] resultIds) {
+        if (bytesHash != null) {
+            if (longIntHash.numKeys() > 0 || bytesHash.size() > 0) {
+                throw new IllegalStateException("pending old keys while trying to combine partition");
+            }
+            longIntHash.close();
+            longIntHash = null;
+            if (bytesHash instanceof BytesRefSwissHash bytesSwiss) {
+                packedKeysHash = bytesSwiss;
+                bytesHash = null;
+            } else {
+                throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
+            }
+        }
+        assert packedKeysHash != null;
+        PartitionedHashKeysWithSeenNull withSeenNull = (PartitionedHashKeysWithSeenNull) keys;
+        seenNulls |= withSeenNull.seenNull;
+        return packedKeysHash.combinePartition(withSeenNull.delegate, partitionIndex, resultIds);
+    }
+
+    private static final VarHandle LONG_HANDLE = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
+    private static final int PACKED_PREFIX_LENGTH = 1 + Long.BYTES;
+    private static final byte BYTES_NULL = 1;
+    private static final byte LONG_NULL = 2;
+
+    BytesRefArray packKeysWithoutNulls(LongLongSwissHash longHash) {
+        final int numKeys = numKeys();
+        BytesRefArray dict = bytesHash.getBytesRefs();
+        final byte[] prefix = new byte[PACKED_PREFIX_LENGTH];
+        final BytesRef prefixBytes = new BytesRef(prefix);
+        final long bytesHint = numKeys * (PACKED_PREFIX_LENGTH + (dict.size() > 0 ? dict.totalBytes() / dict.size() : 0));
+        BytesRef scratch = new BytesRef();
+        var out = new BytesRefArray(numKeys, blockFactory.bigArrays(), bytesHint);
+        boolean success = false;
+        try {
+            for (int id = 0; id < numKeys; id++) {
+                long key1 = longHash.getKey1(id);
+                long key2 = longHash.getKey2(id);
+                LONG_HANDLE.set(prefix, 1, key1);
+                dict.get((int) key2, scratch);
+                out.append(prefixBytes, scratch);
+            }
+            success = true;
+            return out;
+        } finally {
+            if (success == false) {
+                out.close();
+            }
+        }
+    }
+
+    BytesRefArray packKeysWithNulls(LongLongSwissHash longHash) {
+        final int numKeys = numKeys();
+        BytesRefArray dict = bytesHash.getBytesRefs();
+        final byte[] prefix = new byte[PACKED_PREFIX_LENGTH];
+        final BytesRef prefixBytes = new BytesRef(prefix);
+        final long bytesHint = numKeys * (PACKED_PREFIX_LENGTH + (dict.size() > 0 ? dict.totalBytes() / dict.size() : 0));
+        BytesRef scratch = new BytesRef();
+        var out = new BytesRefArray(numKeys, blockFactory.bigArrays(), bytesHint);
+        boolean success = false;
+        try {
+            for (int id = 0; id < numKeys; id++) {
+                long key1 = longHash.getKey1(id);
+                long key2 = longHash.getKey2(id);
+                byte flags = 0;
+                if ((key2 & LongIntBlockHash.LONG_NULL_MASK) != 0) {
+                    flags |= LONG_NULL;
+                }
+                final boolean bytesNull = (key2 & LongIntBlockHash.INT_NULL_MASK) != 0;
+                if (bytesNull) {
+                    flags |= BYTES_NULL;
+                }
+                prefix[0] = flags;
+                LONG_HANDLE.set(prefix, 1, key1);
+                if (bytesNull) {
+                    out.append(prefixBytes);
+                } else {
+                    dict.get((int) (key2 & LongIntBlockHash.WIDEN), scratch);
+                    out.append(prefixBytes, scratch);
+                }
+            }
+            success = true;
+            return out;
+        } finally {
+            if (success == false) {
+                out.close();
+            }
+        }
+    }
+
+    private Block[] unpackKeysWithoutNulls(IntVector selected) {
+        final int positions = selected.getPositionCount();
+        final BytesRefArray keys = packedKeysHash.getBytesRefs();
+        final BytesRef scratch = new BytesRef();
+        LongVector longs = null;
+        try (
+            var longBuilder = blockFactory.newLongVectorFixedBuilder(positions);
+            var bytesBuilder = blockFactory.newBytesRefVectorBuilder(positions)
+        ) {
+            for (int i = 0; i < positions; i++) {
+                keys.get(selected.getInt(i), scratch);
+                longBuilder.appendLong(i, (long) LONG_HANDLE.get(scratch.bytes, scratch.offset + 1));
+                scratch.offset += PACKED_PREFIX_LENGTH;
+                scratch.length -= PACKED_PREFIX_LENGTH;
+                bytesBuilder.appendBytesRef(scratch);
+            }
+            longs = longBuilder.build();
+            BytesRefVector bytes = bytesBuilder.build();
+            Block[] result = reverseOutput
+                ? new Block[] { bytes.asBlock(), longs.asBlock() }
+                : new Block[] { longs.asBlock(), bytes.asBlock() };
+            longs = null;
+            return result;
+        } finally {
+            Releasables.close(longs);
+        }
+    }
+
+    private Block[] unpackKeysWithNulls(IntVector selected) {
+        final int positions = selected.getPositionCount();
+        final BytesRefArray keys = packedKeysHash.getBytesRefs();
+        final BytesRef scratch = new BytesRef();
+        LongBlock longs = null;
+        try (
+            var longBuilder = blockFactory.newLongBlockBuilder(positions);
+            var bytesBuilder = blockFactory.newBytesRefBlockBuilder(positions)
+        ) {
+            for (int i = 0; i < positions; i++) {
+                keys.get(selected.getInt(i), scratch);
+                final byte flags = scratch.bytes[scratch.offset];
+                if ((flags & LONG_NULL) == 0) {
+                    longBuilder.appendLong((long) LONG_HANDLE.get(scratch.bytes, scratch.offset + 1));
+                } else {
+                    longBuilder.appendNull();
+                }
+                if ((flags & BYTES_NULL) == 0) {
+                    scratch.offset += PACKED_PREFIX_LENGTH;
+                    scratch.length -= PACKED_PREFIX_LENGTH;
+                    bytesBuilder.appendBytesRef(scratch);
+                } else {
+                    assert scratch.length == PACKED_PREFIX_LENGTH : "null bytes key must have no payload; got " + scratch.length;
+                    bytesBuilder.appendNull();
+                }
+            }
+            longs = longBuilder.build();
+            BytesRefBlock bytes = bytesBuilder.build();
+            Block[] result = reverseOutput ? new Block[] { bytes, longs } : new Block[] { longs, bytes };
+            longs = null;
+            return result;
+        } finally {
+            Releasables.close(longs);
+        }
+    }
+
 }

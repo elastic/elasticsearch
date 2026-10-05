@@ -806,46 +806,35 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
     }
 
     public void testNestedSubqueries() {
-        if (EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled()) {
-            try (EsqlQueryResponse resp = runQuery("""
-                FROM logs-*,(FROM c*:logs-*, (FROM r*:logs-*))
-                | STATS c = count(*), s = sum(v) BY tag
-                | SORT tag
-                """, randomBoolean())) {
-                List<List<Object>> values = getValuesList(resp);
-                // local logs-1 has 10 rows with v in [0,9] (sum 45); each remote logs-2 has 10 rows with v = i*i (sum 285)
-                assertThat(values, hasSize(2));
-                assertThat(values.get(0), equalTo(List.of(10L, 45L, "local")));
-                assertThat(values.get(1), equalTo(List.of(20L, 570L, "remote")));
-            }
-        } else {
-            // nested subqueries are not supported yet
-            VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
-                FROM logs-*,(FROM c*:logs-*, (FROM r*:logs-*))
-                """, randomBoolean()));
-            assertThat(ex.getMessage(), containsString("Nested subqueries are not supported"));
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM logs-*,(FROM c*:logs-*, (FROM r*:logs-*))
+            | STATS c = count(*), s = sum(v) BY tag
+            | SORT tag
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            // local logs-1 has 10 rows with v in [0,9] (sum 45); each remote logs-2 has 10 rows with v = i*i (sum 285)
+            assertThat(values, hasSize(2));
+            assertThat(values.get(0), equalTo(List.of(10L, 45L, "local")));
+            assertThat(values.get(1), equalTo(List.of(20L, 570L, "remote")));
         }
     }
 
     public void testSubqueryWithFork() {
-        // fork after subqueries is not supported yet
-        VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
+        try (EsqlQueryResponse resp = runQuery("""
             FROM logs-*,(FROM c*:logs-*), (FROM r*:logs-*)
-            | FORK
-              (WHERE v > 5)
-              (WHERE v < 3)
-            """, randomBoolean()));
-        assertThat(ex.getMessage(), containsString("FORK after subquery is not supported"));
+            | FORK (WHERE v > 5) (WHERE v < 3)
+            """, randomBoolean())) {
+            assertThat(getValuesList(resp), hasSize(25));
+        }
 
-        // fork inside subquery is not supported yet
-        ex = expectThrows(VerificationException.class, () -> runQuery("""
+        try (EsqlQueryResponse resp = runQuery("""
             FROM
                 logs-*,
                 (FROM c*:logs-*),
-                (FROM r*:logs-*
-                 | FORK (WHERE v > 5) (WHERE v < 3))
-            """, randomBoolean()));
-        assertThat(ex.getMessage(), containsString("FORK inside subquery is not supported"));
+                (FROM r*:logs-* | FORK (WHERE v > 5) (WHERE v < 3))
+            """, randomBoolean())) {
+            assertThat(getValuesList(resp), hasSize(29));
+        }
     }
 
     public void testSubqueryWithRow() {
@@ -1672,7 +1661,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
     // -- nested UnionAll with different source command combinations --
 
     public void testNestedSubqueriesWithTsAndRow() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         populateTimeSeriesIndex(REMOTE_CLUSTER_2, "metrics");
         try (EsqlQueryResponse resp = runQuery("""
             FROM logs-*,
@@ -1700,7 +1688,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
     }
 
     public void testNestedSubqueriesWithAllSourceTypes() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
         populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup", 10);
         populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
@@ -1738,12 +1725,36 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
         }
     }
 
-    /**
-     * A CPS view union whose strict branches all resolve to empty remote subqueries must collapse to an empty relation rather than leave a
-     * branchless {@code ViewUnionAll} that throws from {@code Fork.expressionsResolved()} during analysis.
-     */
+    public void testNestedSubqueryAllInnerBranchesMissingExactIndices() {
+        String query = """
+            FROM logs-*,
+                 (FROM
+                    (FROM cluster-a:does-not-exist),
+                    (FROM remote-b:does-not-exist)
+                 )
+                 metadata _index
+            | STATS c = count(*) by _index
+            | SORT _index
+            """;
+
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            VerificationException ex = expectThrows(VerificationException.class, () -> runQuery(query, randomBoolean()));
+            assertThat(ex.getMessage(), containsString("Unknown index [" + REMOTE_CLUSTER_1 + ":does-not-exist]"));
+
+            setSkipUnavailable(REMOTE_CLUSTER_1, true);
+            setSkipUnavailable(REMOTE_CLUSTER_2, true);
+            try (EsqlQueryResponse resp = runQuery(query, randomBoolean())) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(10L, LOCAL_INDEX))));
+            }
+        } finally {
+            setSkipUnavailable(REMOTE_CLUSTER_1, false);
+            setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        }
+    }
+
     public void testViewUnionAllWithAllEmptyRemoteBranches() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         String viewA = "missing_remote_view_a_" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         String viewB = "missing_remote_view_b_" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         try {
@@ -1756,6 +1767,128 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
         } finally {
             deleteViewOnCluster(viewA);
             deleteViewOnCluster(viewB);
+        }
+    }
+
+    // nested subqueries and views with fork
+
+    public void testForkAfterNestedSubquery() {
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM (FROM logs-*),
+                 (FROM c*:logs-*, (FROM r*:logs-*))
+            | FORK (WHERE v > 5) (WHERE v < 3)
+            | STATS c = COUNT(*) BY _fork, tag
+            | SORT _fork, tag
+            """, randomBoolean())) {
+            assertEquals(
+                List.of(
+                    List.of(4L, "fork1", "local"),
+                    List.of(14L, "fork1", "remote"),
+                    List.of(3L, "fork2", "local"),
+                    List.of(4L, "fork2", "remote")
+                ),
+                getValuesList(resp)
+            );
+            assertCCSExecutionInfoDetails(resp.getExecutionInfo());
+        }
+    }
+
+    public void testForkInSubqueries() {
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM (FROM logs-* | FORK (WHERE v > 5) (WHERE v < 3)),
+                 (FROM *:logs-* | FORK (WHERE v > 16) (WHERE v < 4))
+            | STATS c = COUNT(*) BY _fork, tag
+            | SORT _fork, tag
+            """, randomBoolean())) {
+            assertEquals(
+                List.of(
+                    List.of(4L, "fork1", "local"),
+                    List.of(10L, "fork1", "remote"),
+                    List.of(3L, "fork2", "local"),
+                    List.of(4L, "fork2", "remote")
+                ),
+                getValuesList(resp)
+            );
+            assertCCSExecutionInfoDetails(resp.getExecutionInfo());
+        }
+    }
+
+    public void testForkAfterView() {
+        String view = "ccs_remote_view_" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        try {
+            createViewOnCluster(LOCAL_CLUSTER, view, "FROM *:logs-*");
+            try (
+                EsqlQueryResponse resp = runQuery(
+                    "FROM " + view + " | FORK (WHERE v > 16) (WHERE v < 4) | STATS c = COUNT(*) BY _fork | SORT _fork",
+                    randomBoolean()
+                )
+            ) {
+                assertEquals(List.of(List.of(10L, "fork1"), List.of(4L, "fork2")), getValuesList(resp));
+                assertCCSExecutionInfoDetails(resp.getExecutionInfo());
+            }
+        } finally {
+            deleteViewOnCluster(view);
+        }
+    }
+
+    public void testForkReferencedInView() {
+        String view = "ccs_remote_fork_view_" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        try {
+            createViewOnCluster(LOCAL_CLUSTER, view, "FROM *:logs-* | FORK (WHERE v > 16) (WHERE v < 4)");
+            try (EsqlQueryResponse resp = runQuery("FROM " + view + " | STATS c = COUNT(*) BY _fork | SORT _fork", randomBoolean())) {
+                assertEquals(List.of(List.of(10L, "fork1"), List.of(4L, "fork2")), getValuesList(resp));
+                assertCCSExecutionInfoDetails(resp.getExecutionInfo());
+            }
+        } finally {
+            deleteViewOnCluster(view);
+        }
+    }
+
+    public void testForkAfterSubqueryAndView() {
+        String view = "ccs_remote_view_" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        try {
+            createViewOnCluster(LOCAL_CLUSTER, view, "FROM *:logs-*");
+            try (
+                EsqlQueryResponse resp = runQuery(
+                    "FROM (FROM logs-*), "
+                        + view
+                        + " | FORK (WHERE v > 5) (WHERE v < 3) | STATS c = COUNT(*) BY _fork, tag | SORT _fork, tag",
+                    randomBoolean()
+                )
+            ) {
+                assertEquals(
+                    List.of(
+                        List.of(4L, "fork1", "local"),
+                        List.of(14L, "fork1", "remote"),
+                        List.of(3L, "fork2", "local"),
+                        List.of(4L, "fork2", "remote")
+                    ),
+                    getValuesList(resp)
+                );
+                assertCCSExecutionInfoDetails(resp.getExecutionInfo());
+            }
+        } finally {
+            deleteViewOnCluster(view);
+        }
+    }
+
+    public void testForkReferencedInViewInSubquery() {
+        String view = "ccs_local_fork_view_" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        try {
+            createViewOnCluster(LOCAL_CLUSTER, view, "FROM logs-* | FORK (WHERE v > 5) (WHERE v < 3)");
+            try (
+                EsqlQueryResponse resp = runQuery(
+                    "FROM (FROM "
+                        + view
+                        + "), (FROM *:logs-* | WHERE v == 0 | EVAL _fork = \"fork2\") | STATS c = COUNT(*) BY _fork | SORT _fork",
+                    randomBoolean()
+                )
+            ) {
+                assertEquals(List.of(List.of(4L, "fork1"), List.of(5L, "fork2")), getValuesList(resp));
+                assertCCSExecutionInfoDetails(resp.getExecutionInfo());
+            }
+        } finally {
+            deleteViewOnCluster(view);
         }
     }
 

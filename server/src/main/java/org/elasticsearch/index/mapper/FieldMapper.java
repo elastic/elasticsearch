@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -261,9 +262,10 @@ public abstract class FieldMapper extends Mapper {
             return false;
         }
         if (resolvesColumnGroup()) {
-            // A group mapper is dispatched through mapColumnGroupBatch over a whole subtree of leaves, which never fans out to
-            // multi-fields, so it cannot carry any. Defensive: flattened, the only group mapper today, already rejects [fields] at
-            // mapping-parse time.
+            // A group mapper is dispatched through mapColumnGroupBatch, which — unlike mapColumnBatch below —
+            // never fans out to multi-fields, so a group mapper carrying [fields] would index the parent column
+            // and silently skip every sub-field. Load-bearing for geo_point, which accepts [fields] at
+            // mapping-parse time; flattened rejects them there already (FlattenedFieldMapper.Builder#build).
             return builderParams.multiFields.mappers.length == 0;
         }
         for (FieldMapper subMapper : builderParams.multiFields) {
@@ -1099,6 +1101,7 @@ public abstract class FieldMapper extends Mapper {
         private SerializerCheck<T> serializerCheck = (includeDefaults, isConfigured, value) -> includeDefaults || isConfigured;
         private final Function<T, String> conflictSerializer;
         private boolean deprecated;
+        private List<NodeFeature> requiredFeatures = List.of();
         private MergeValidator<T> mergeValidator;
         private T value;
         private boolean isSet;
@@ -1205,6 +1208,14 @@ public abstract class FieldMapper extends Mapper {
          */
         public Parameter<T> deprecated() {
             this.deprecated = true;
+            return this;
+        }
+
+        /**
+         * Only allows a value to be set for this parameter once all nodes in the cluster support all of {@code features}.
+         */
+        public Parameter<T> requiresFeatures(NodeFeature... features) {
+            this.requiredFeatures = CollectionUtils.appendToCopyNoNullElements(this.requiredFeatures, features);
             return this;
         }
 
@@ -2291,6 +2302,19 @@ public abstract class FieldMapper extends Mapper {
                         "Parameter [{}] is deprecated and will be removed in a future version",
                         propName
                     );
+                }
+                for (NodeFeature feature : parameter.requiredFeatures) {
+                    if (parserContext.clusterHasFeature(feature) == false) {
+                        throw new MapperParsingException(
+                            "parameter ["
+                                + propName
+                                + "] on mapper ["
+                                + name
+                                + "] of type ["
+                                + type
+                                + "] is not supported until all nodes in the cluster support it"
+                        );
+                    }
                 }
                 if (propNode == null && parameter.acceptsNull == false) {
                     throw new MapperParsingException(

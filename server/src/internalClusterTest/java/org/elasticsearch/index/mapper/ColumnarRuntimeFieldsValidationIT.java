@@ -13,7 +13,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Random;
 
@@ -84,7 +83,7 @@ public class ColumnarRuntimeFieldsValidationIT extends ESIntegTestCase {
         assertAcked(prepareCreate(index).setSettings(modeSettings(mode)).setMapping(MAPPING_WITHOUT_RUNTIME_FIELD));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> indicesAdmin().preparePutMapping(index).setSource(RUNTIME_FIELD_PUT_MAPPING_BODY, XContentType.JSON).get()
+            () -> indicesAdmin().preparePutMapping(index).setSource(RUNTIME_FIELD_PUT_MAPPING_BODY).get()
         );
         assertThat(e.getMessage(), containsString("mapping-level runtime fields are not allowed in index using [" + mode + "] index mode"));
     }

@@ -55,27 +55,29 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
         final int numFailedAllocations = unassignedInfo == null ? 0 : unassignedInfo.failedAllocations();
         if (numFailedAllocations > 0) {
             final var decision = numFailedAllocations >= maxRetries ? Decision.NO : Decision.YES;
-            return allocation.debugDecision()
-                ? debugDecision(decision, unassignedInfo, numFailedAllocations, maxRetries)
-                : allocation.decision(decision, NAME, null);
+            return debugDecision(allocation, decision, unassignedInfo, numFailedAllocations, maxRetries);
         }
 
         final var relocationFailureInfo = shardRouting.relocationFailureInfo();
         final int numFailedRelocations = relocationFailureInfo == null ? 0 : relocationFailureInfo.failedRelocations();
         if (numFailedRelocations > 0) {
             final var decision = numFailedRelocations >= maxRetries ? Decision.NO : Decision.YES;
-            return allocation.debugDecision()
-                ? debugDecision(decision, relocationFailureInfo, numFailedRelocations, maxRetries)
-                : allocation.decision(decision, NAME, null);
+            return debugDecision(allocation, decision, relocationFailureInfo, numFailedRelocations, maxRetries);
         }
 
         return YES_NO_FAILURES;
     }
 
-    private static Decision debugDecision(Decision decision, UnassignedInfo info, int numFailedAllocations, int maxRetries) {
+    private static Decision debugDecision(
+        RoutingAllocation allocation,
+        Decision decision,
+        UnassignedInfo info,
+        int numFailedAllocations,
+        int maxRetries
+    ) {
         if (decision.type() == Decision.Type.NO) {
-            return Decision.single(
-                Decision.Type.NO,
+            return allocation.decision(
+                Decision.NO,
                 NAME,
                 "shard has exceeded the maximum number of retries [%d] on failed allocation attempts - "
                     + "manually call [%s] to retry, and for more information, see [%s] [%s]",
@@ -85,8 +87,8 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
                 info.toString()
             );
         } else {
-            return Decision.single(
-                Decision.Type.YES,
+            return allocation.decision(
+                Decision.YES,
                 NAME,
                 "shard has failed allocating [%d] times but [%d] retries are allowed",
                 numFailedAllocations,
@@ -95,10 +97,16 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
         }
     }
 
-    private static Decision debugDecision(Decision decision, RelocationFailureInfo info, int numFailedRelocations, int maxRetries) {
+    private static Decision debugDecision(
+        RoutingAllocation allocation,
+        Decision decision,
+        RelocationFailureInfo info,
+        int numFailedRelocations,
+        int maxRetries
+    ) {
         if (decision.type() == Decision.Type.NO) {
-            return Decision.single(
-                Decision.Type.NO,
+            return allocation.decision(
+                Decision.NO,
                 NAME,
                 "shard has exceeded the maximum number of retries [%d] on failed relocation attempts - manually call [%s] to retry, [%s]",
                 maxRetries,
@@ -106,8 +114,8 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
                 info.toString()
             );
         } else {
-            return Decision.single(
-                Decision.Type.YES,
+            return allocation.decision(
+                Decision.YES,
                 NAME,
                 "shard has failed relocating [%d] times but [%d] retries are allowed",
                 numFailedRelocations,

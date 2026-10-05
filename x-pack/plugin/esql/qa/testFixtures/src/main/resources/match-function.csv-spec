@@ -2932,6 +2932,148 @@ book_no:keyword | _score:double
 8875            | 2.0
 ;
 
+matchOnRuntimeTextThenScoreAliasFilter
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: runtime_score_fix
+
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien Rings")
+| EVAL s = _score
+| WHERE s > 1.5
+| SORT book_no
+| KEEP book_no, s
+;
+
+book_no:keyword | s:double
+1463            | 2.0
+2714            | 2.0
+4023            | 2.0
+5335            | 2.0
+7140            | 2.0
+7350            | 2.0
+;
+
+matchOnRuntimeTextThenComputedScoreFilter
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: runtime_score_fix
+
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien Rings")
+| EVAL s = _score + 0.0
+| WHERE s > 1.5
+| SORT book_no
+| KEEP book_no, s
+;
+
+book_no:keyword | s:double
+1463            | 2.0
+2714            | 2.0
+4023            | 2.0
+5335            | 2.0
+7140            | 2.0
+7350            | 2.0
+;
+
+matchOnRuntimeTextThenRenamedScoreFilter
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: runtime_score_fix
+
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien Rings")
+| RENAME _score AS s
+| WHERE s > 1.5
+| SORT book_no
+| KEEP book_no, s
+;
+
+book_no:keyword | s:double
+1463            | 2.0
+2714            | 2.0
+4023            | 2.0
+5335            | 2.0
+7140            | 2.0
+7350            | 2.0
+;
+
+matchOnRuntimeTextThenSortThenScoreFilter
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: runtime_score_fix
+
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien Rings")
+| SORT _score DESC, book_no ASC
+| WHERE _score > 1.5
+| LIMIT 100
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1463            | 2.0
+2714            | 2.0
+4023            | 2.0
+5335            | 2.0
+7140            | 2.0
+7350            | 2.0
+;
+
+matchOnRuntimeTextThenEvalThenScoreFilter
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: runtime_score_fix
+
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien Rings")
+| EVAL x = 1
+| WHERE _score > 1.5
+| SORT book_no
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1463            | 2.0
+2714            | 2.0
+4023            | 2.0
+5335            | 2.0
+7140            | 2.0
+7350            | 2.0
+;
+
+matchOnInlineRuntimeTextThenScoreFilter
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: runtime_score_fix
+
+FROM books METADATA _score
+| WHERE match(to_text(concat(title, " ", description)), "Tolkien Rings")
+| WHERE _score > 1.5
+| SORT book_no
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1463            | 2.0
+2714            | 2.0
+4023            | 2.0
+5335            | 2.0
+7140            | 2.0
+7350            | 2.0
+;
+
 matchAfterInlineStats
 required_capability: match_function
 required_capability: full_text_functions_after_inline_stats

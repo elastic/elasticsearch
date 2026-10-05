@@ -230,3 +230,59 @@ book_no:keyword | _score:double
 7350            | 3.0
 8875            | 2.0
 ;
+
+matchOnExternalRuntimeTextThenScoreAliasFilter
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: dataset_in_from_command
+required_capability: external_source_standard_metadata_columns
+required_capability: external_source_score_fix
+required_capability: runtime_score_fix
+dataset: books_ds: "{{books}}"
+
+FROM books_ds METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien Rings")
+| EVAL s = _score
+| WHERE s > 1.5
+| SORT book_no
+| KEEP book_no, s
+;
+
+book_no:keyword | s:double
+1463            | 2.0
+2714            | 2.0
+4023            | 2.0
+5335            | 2.0
+7140            | 2.0
+7350            | 2.0
+;
+
+matchOnExternalRuntimeTextThenRenamedScoreFilter
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: dataset_in_from_command
+required_capability: external_source_standard_metadata_columns
+required_capability: external_source_score_fix
+required_capability: runtime_score_fix
+dataset: books_ds: "{{books}}"
+
+FROM books_ds METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien Rings")
+| RENAME _score AS s
+| WHERE s > 1.5
+| SORT book_no
+| KEEP book_no, s
+;
+
+book_no:keyword | s:double
+1463            | 2.0
+2714            | 2.0
+4023            | 2.0
+5335            | 2.0
+7140            | 2.0
+7350            | 2.0
+;

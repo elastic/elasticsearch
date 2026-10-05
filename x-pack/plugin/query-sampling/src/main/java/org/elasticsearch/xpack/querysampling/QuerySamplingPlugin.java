@@ -22,7 +22,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
+import org.elasticsearch.xpack.querysampling.action.QuerySamplingGroundTruthAction;
 import org.elasticsearch.xpack.querysampling.action.QuerySamplingStatsAction;
+import org.elasticsearch.xpack.querysampling.action.TransportQuerySamplingGroundTruthAction;
 import org.elasticsearch.xpack.querysampling.action.TransportQuerySamplingStatsAction;
 import org.elasticsearch.xpack.querysampling.capture.CaptureHandoff;
 import org.elasticsearch.xpack.querysampling.capture.QueryCaptureFilter;
@@ -95,7 +97,10 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler> getActions() {
-        return List.of(new ActionHandler(QuerySamplingStatsAction.INSTANCE, TransportQuerySamplingStatsAction.class));
+        return List.of(
+            new ActionHandler(QuerySamplingStatsAction.INSTANCE, TransportQuerySamplingStatsAction.class),
+            new ActionHandler(QuerySamplingGroundTruthAction.INSTANCE, TransportQuerySamplingGroundTruthAction.class)
+        );
     }
 
     @Override

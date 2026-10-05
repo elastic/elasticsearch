@@ -33,6 +33,9 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -90,6 +93,27 @@ public class QuerySamplingServiceTests extends ESTestCase {
         QuerySamplingStats stats = service.stats();
         assertThat(stats.dropped(), equalTo(2L));
         assertThat(stats.distinctQueries(), equalTo(0L));
+    }
+
+    public void testGroundTruthIsComputedForAtMostMaxQueries() {
+        CaptureHandoff handoff = handoff(Runnable::run, picking());
+        QuerySamplingService service = service(filter(1.0), handoff);
+        handoff.accept(search(1f));
+        AtomicInteger searches = new AtomicInteger();
+        BiConsumer<SearchRequest, ActionListener<SearchResponse>> failing = (request, listener) -> {
+            searches.incrementAndGet();
+            listener.onFailure(new IllegalStateException("search failed"));
+        };
+
+        AtomicReference<GroundTruthRunner.Result> none = new AtomicReference<>();
+        service.computeGroundTruth(0, failing, ActionListener.wrap(none::set, e -> fail(e)));
+        assertThat(none.get(), equalTo(new GroundTruthRunner.Result(0, 0)));
+        assertThat(searches.get(), equalTo(0));
+
+        AtomicReference<GroundTruthRunner.Result> one = new AtomicReference<>();
+        service.computeGroundTruth(5, failing, ActionListener.wrap(one::set, e -> fail(e)));
+        assertThat(one.get(), equalTo(new GroundTruthRunner.Result(0, 1)));
+        assertThat(searches.get(), equalTo(1));
     }
 
     private CaptureHandoff handoff(Executor executor, Random random) {

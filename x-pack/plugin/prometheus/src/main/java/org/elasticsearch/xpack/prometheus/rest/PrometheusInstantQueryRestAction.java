@@ -79,7 +79,7 @@ public class PrometheusInstantQueryRestAction extends BaseRestHandler {
             evaluationTime,
             PrometheusQueryResponseListener.QueryMode.INSTANT
         );
-        if (result.esqlStatement() == null) {
+        if (result.stringValue() != null) {
             // a string literal: the response is the literal itself, no statement runs
             String value = result.stringValue();
             return channel -> channel.sendResponse(

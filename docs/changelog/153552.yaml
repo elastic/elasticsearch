@@ -1,0 +1,6 @@
+pr: 153552
+summary: Log index block setting updates
+area: Infra/Settings
+type: enhancement
+issues:
+ - 52871

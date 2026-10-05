@@ -16,8 +16,6 @@ import org.elasticsearch.plugins.internal.LoggingDataProvider;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -46,8 +44,6 @@ public class DynamicContextDataProvider implements ContextDataProvider {
      */
     private final AtomicInteger mapSize = new AtomicInteger(0);
 
-    private final Set<Class<?>> failedProviders = ConcurrentHashMap.newKeySet();
-
     public static void setDataProviders(List<? extends LoggingDataProvider> dataProviders) {
         DynamicContextDataProvider.DATA_PROVIDERS.compareAndSet(null, List.copyOf(dataProviders));
     }
@@ -66,12 +62,13 @@ public class DynamicContextDataProvider implements ContextDataProvider {
                 try {
                     provider.collectData(data);
                 } catch (Exception e) {
-                    // Log4j would drop the whole event, so keep it without this provider's fields. Report through the
-                    // StatusLogger because a regular logger would call this provider again.
-                    if (failedProviders.add(provider.getClass())) {
-                        StatusLogger.getLogger()
-                            .warn("logging data provider [{}] failed, omitting its fields", provider.getClass().getName(), e);
-                    }
+                    // Log4j would drop the whole event, so keep it without this provider's fields
+                    StatusLogger.getLogger()
+                        .warn(
+                            "logging data provider [{}] failed, its fields may be missing or incomplete",
+                            provider.getClass().getName(),
+                            e
+                        );
                 }
             }
             final var newMapSize = data.size();

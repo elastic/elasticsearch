@@ -11,38 +11,66 @@ package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.apache.logging.log4j.core.config.Property;
+import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusListener;
 import org.apache.logging.log4j.status.StatusLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.internal.LoggingDataProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 
+import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class EvilStatusLoggerForwarderTests extends ESTestCase {
 
-    // Safety cap so the test terminates even if the forwarder never stops re-entering.
     private static final int MAX_FAILING_CALLS = 200;
 
-    private static final AtomicReference<Supplier<Throwable>> failure = new AtomicReference<>();
     private static final AtomicInteger failingCalls = new AtomicInteger();
+    private static volatile boolean failing;
+    private static volatile boolean throwError;
+
+    /**
+     * Data providers can only be set once per JVM, so install a single failing provider followed by a healthy one and toggle the
+     * failure per test.
+     */
+    @BeforeClass
+    public static void installDataProviders() {
+        LoggingDataProvider failingProvider = data -> {
+            if (failing && failingCalls.incrementAndGet() <= MAX_FAILING_CALLS) {
+                if (throwError) {
+                    throw new AssertionError("simulated provider error");
+                }
+                throw new IllegalStateException("simulated provider failure");
+            }
+        };
+        LoggingDataProvider healthyProvider = data -> data.put("healthy", "value");
+        DynamicContextDataProvider.setDataProviders(List.of(failingProvider, healthyProvider));
+    }
 
     @Before
     public void registerErrorListener() {
@@ -51,41 +79,59 @@ public class EvilStatusLoggerForwarderTests extends ESTestCase {
 
     @After
     public void shutdownLogging() {
-        failure.set(null);
         LoggerContext context = (LoggerContext) LogManager.getContext(false);
         Configurator.shutdown(context);
     }
 
-    public void testFailingLoggingDataProviderIsReportedOnce() throws IOException {
-        List<StatusData> warnings = triggerWithFailingProvider(() -> new IllegalStateException("simulated provider failure"));
+    public void testFailingLoggingDataProviderDoesNotDropEvents() throws IOException {
+        List<String> messages = randomList(1, 5, () -> randomAlphaOfLength(10));
+        Captured captured = triggerWithFailingProvider(false, messages.toArray(String[]::new));
 
-        assertThat("provider must be invoked by log4j", failingCalls.get(), greaterThan(0));
-        assertThat(warnings, hasSize(1));
-        assertThat(warnings.get(0).getMessage().getFormattedMessage(), containsString("logging data provider"));
+        // Each event fails once itself and once more when the forwarder logs the resulting status warning
+        assertThat(failingCalls.get(), equalTo(2 * messages.size()));
+        assertThat(captured.warnings(), hasSize(2 * messages.size()));
+        assertThat(
+            captured.warnings().stream().map(w -> w.getMessage().getFormattedMessage()).toList(),
+            everyItem(containsString("logging data provider"))
+        );
+        assertThat(captured.events().stream().map(e -> e.getMessage().getFormattedMessage()).toList(), equalTo(messages));
+        assertThat(captured.events(), everyItem(transformedMatch(e -> e.getContextData().getValue("healthy"), equalTo("value"))));
     }
 
     public void testErrorEscapingLoggingDataProviderTerminates() throws IOException {
         // Errors are not caught by DynamicContextDataProvider, so they reach log4j and the StatusLogger forwarder
-        triggerWithFailingProvider(() -> new AssertionError("simulated provider error"));
+        Captured captured = triggerWithFailingProvider(true, "trigger");
 
-        assertThat("provider must be invoked by log4j", failingCalls.get(), greaterThan(0));
-        assertThat("must stop failing before the safety cap", failingCalls.get(), lessThan(MAX_FAILING_CALLS));
+        assertThat("original call and one forwarded status event", failingCalls.get(), equalTo(2));
+        assertThat(captured.warnings(), hasSize(2));
+        for (StatusData warning : captured.warnings()) {
+            assertThat(warning.getMessage().getFormattedMessage(), containsString("caught java.lang.AssertionError"));
+            assertThat(
+                "re-entrant status events must still reach the console",
+                captured.console(),
+                containsString(warning.getMessage().getFormattedMessage())
+            );
+        }
     }
 
-    private List<StatusData> triggerWithFailingProvider(Supplier<Throwable> failureSupplier) throws IOException {
-        DynamicContextDataProvider.setDataProviders(List.of(data -> {
-            Supplier<Throwable> current = failure.get();
-            if (current != null && failingCalls.incrementAndGet() <= MAX_FAILING_CALLS) {
-                Throwable t = current.get();
-                if (t instanceof RuntimeException e) {
-                    throw e;
-                }
-                throw (Error) t;
-            }
-        }));
+    private record Captured(List<LogEvent> events, List<StatusData> warnings, String console) {}
+
+    private Captured triggerWithFailingProvider(boolean error, String... messages) throws IOException {
         List<StatusListener> preExisting = new ArrayList<>();
         StatusLogger.getLogger().getListeners().forEach(preExisting::add);
         setupLogging("minimal");
+
+        List<StatusListener> added = new ArrayList<>();
+        StatusLogger.getLogger().getListeners().forEach(l -> {
+            if (preExisting.contains(l) == false) {
+                added.add(l);
+            }
+        });
+        assertThat("expected exactly the forwarder to be registered", added, hasSize(1));
+        assertThat(added.get(0), instanceOf(StatusConsoleListener.class));
+        StatusConsoleListener forwarder = (StatusConsoleListener) added.get(0);
+        ByteArrayOutputStream console = new ByteArrayOutputStream();
+        forwarder.setStream(new PrintStream(console, true, StandardCharsets.UTF_8));
 
         List<StatusData> warnings = new CopyOnWriteArrayList<>();
         StatusListener capturing = new StatusListener() {
@@ -103,19 +149,36 @@ public class EvilStatusLoggerForwarderTests extends ESTestCase {
             public void close() {}
         };
 
+        List<LogEvent> events = new CopyOnWriteArrayList<>();
+        AbstractAppender appender = new AbstractAppender("capture", null, null, false, Property.EMPTY_ARRAY) {
+            @Override
+            public void append(LogEvent event) {
+                events.add(event.toImmutable());
+            }
+        };
+        appender.start();
+        Logger testLogger = LogManager.getLogger("test");
+        Loggers.addAppender(testLogger, appender);
+
         // ESTestCase fails any test that emits StatusLogger warnings, which this test does on purpose.
+        // Removing forwarders from earlier tests also keeps the number of provider calls deterministic.
         preExisting.forEach(StatusLogger.getLogger()::removeListener);
         StatusLogger.getLogger().registerListener(capturing);
         failingCalls.set(0);
-        failure.set(failureSupplier);
+        throwError = error;
+        failing = true;
         try {
-            LogManager.getLogger("test").info("trigger");
+            for (String message : messages) {
+                testLogger.info(message);
+            }
         } finally {
-            failure.set(null);
+            failing = false;
+            Loggers.removeAppender(testLogger, appender);
             StatusLogger.getLogger().removeListener(capturing);
+            StatusLogger.getLogger().removeListener(forwarder);
             preExisting.forEach(StatusLogger.getLogger()::registerListener);
         }
-        return warnings;
+        return new Captured(events, warnings, console.toString(StandardCharsets.UTF_8));
     }
 
     private void setupLogging(final String config) throws IOException {

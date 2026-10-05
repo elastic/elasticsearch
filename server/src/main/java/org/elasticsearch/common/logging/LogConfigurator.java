@@ -139,8 +139,9 @@ public class LogConfigurator {
         var listener = new StatusConsoleListener(Level.WARN) {
             @Override
             public void log(StatusData data) {
-                // Drop status events raised by our own forwarding below, otherwise a failing log call would loop forever
+                // Only print status events raised by our own forwarding below, forwarding them could loop forever
                 if (reentryGuard.get()) {
+                    super.log(data);
                     return;
                 }
                 reentryGuard.set(true);

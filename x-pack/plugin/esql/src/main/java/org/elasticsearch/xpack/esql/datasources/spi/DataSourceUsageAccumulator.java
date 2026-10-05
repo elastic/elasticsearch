@@ -77,6 +77,15 @@ public final class DataSourceUsageAccumulator {
     public static final int OP_COUNT = 4;
     public static final List<String> OP_NAMES = List.of("created", "updated", "deleted", "rejected");
 
+    // ---- CPU-component vocabulary ----
+
+    public static final int CPU_EXECUTION = 0;
+    public static final int CPU_READ = 1;
+    public static final int CPU_PLANNING = 2;
+    public static final int CPU_SPLIT_DISCOVERY = 3;
+    public static final int CPU_COMPONENT_COUNT = 4;
+    public static final List<String> CPU_COMPONENT_NAMES = List.of("execution", "read", "planning", "split_discovery");
+
     // ---- bucket definitions (10 buckets each, matching ThresholdBucketer conventions) ----
 
     /** Time ladder (ms), mirrors TookMetrics thresholds. */
@@ -117,6 +126,7 @@ public final class DataSourceUsageAccumulator {
         assert COUNT_THRESHOLDS.length == BUCKET_COUNT - 1 : "COUNT_THRESHOLDS length mismatch";
         assert COUNT_SUFFIXES.size() == BUCKET_COUNT : "COUNT_SUFFIXES size mismatch";
         assert FORMAT_NAMES.size() == FORMAT_COUNT : "FORMAT_NAMES size mismatch";
+        assert CPU_COMPONENT_NAMES.size() == CPU_COMPONENT_COUNT : "CPU_COMPONENT_NAMES size mismatch";
         for (int i = 0; i < FORMAT_COUNT; i++) {
             assert formatIndex(FORMAT_NAMES.get(i)) == i : "FORMAT_NAMES[" + i + "]=" + FORMAT_NAMES.get(i) + " does not map to index " + i;
         }
@@ -143,6 +153,10 @@ public final class DataSourceUsageAccumulator {
     // ---- per-outcome query counter ----
 
     private final LongAdder[] queries = adders(OUTCOME_COUNT);
+
+    // ---- per-component CPU counter (ns, indexed by CPU_* constants) ----
+
+    private final LongAdder[] queryCpuNanos = adders(CPU_COMPONENT_COUNT);
 
     private final LongAdder[][] configChanges = new LongAdder[KIND_COUNT][];
     {
@@ -174,6 +188,17 @@ public final class DataSourceUsageAccumulator {
         bucketTime(storageRequestDuration, Math.max(0L, durationMillis));
     }
 
+    /**
+     * Adds received bytes without incrementing {@link #storageRequests}. Pair with a prior
+     * {@link #recordRequest} that booked the GET at {@code bytes = 0}.
+     */
+    public void recordBytes(Type type, long bytes) {
+        if (bytes <= 0) {
+            return;
+        }
+        storageBytesRead[index(type)].add(bytes);
+    }
+
     public void recordRetry() {
         storageRetries.increment();
     }
@@ -200,6 +225,14 @@ public final class DataSourceUsageAccumulator {
         if (partial) {
             queriesPartial.increment();
         }
+    }
+
+    /** Accumulates per-component CPU nanos for one successful external-source query. Clamps negatives to zero. */
+    public void recordQueryCpu(long execution, long read, long planning, long splitDiscovery) {
+        queryCpuNanos[CPU_EXECUTION].add(Math.max(0L, execution));
+        queryCpuNanos[CPU_READ].add(Math.max(0L, read));
+        queryCpuNanos[CPU_PLANNING].add(Math.max(0L, planning));
+        queryCpuNanos[CPU_SPLIT_DISCOVERY].add(Math.max(0L, splitDiscovery));
     }
 
     public void recordTimeToFirstRow(long millis) {
@@ -304,6 +337,12 @@ public final class DataSourceUsageAccumulator {
 
     public long breakerTripped() {
         return breakerTripped.sum();
+    }
+
+    /** @param componentIndex one of the {@code CPU_*} constants */
+    public long queryCpuNanos(int componentIndex) {
+        checkCpuComponentIndex(componentIndex);
+        return queryCpuNanos[componentIndex].sum();
     }
 
     /** @param kindIndex one of the {@code KIND_*} constants; @param opIndex one of the {@code OP_*} constants */
@@ -465,6 +504,14 @@ public final class DataSourceUsageAccumulator {
     private static void checkBucketIndex(int bucket) {
         if (bucket < 0 || bucket >= BUCKET_COUNT) {
             throw new IllegalArgumentException("bucket out of range: " + bucket + "; valid range is 0.." + (BUCKET_COUNT - 1));
+        }
+    }
+
+    private static void checkCpuComponentIndex(int idx) {
+        if (idx < 0 || idx >= CPU_COMPONENT_COUNT) {
+            throw new IllegalArgumentException(
+                "componentIndex out of range: " + idx + "; use CPU_* constants (0.." + (CPU_COMPONENT_COUNT - 1) + ")"
+            );
         }
     }
 }

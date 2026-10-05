@@ -46,6 +46,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /**
@@ -429,6 +430,7 @@ public final class ParallelParsingCoordinator {
             metrics,
             null,
             ExternalReadCounters.NOOP,
+            null,
             null
         );
     }
@@ -443,6 +445,7 @@ public final class ParallelParsingCoordinator {
      * skip/null-fill warnings, not a truncation of the whole read — see
      * {@code AsyncExternalSourceBuffer#recordWarning} for that case). Pass {@code null} to fall back to
      * a direct {@code HeaderWarning} call on the parsing thread (tests, benchmarks).
+     * {@code stop} is checked before each segment open; {@code null} never stops early.
      */
     public static CloseableIterator<Page> parallelRead(
         SegmentableFormatReader reader,
@@ -465,20 +468,26 @@ public final class ParallelParsingCoordinator {
         ExternalSourceMetrics metrics,
         @Nullable Consumer<String> warningSink,
         ExternalReadCounters readCounters,
-        @Nullable FormatReadCounters formatCounters
+        @Nullable FormatReadCounters formatCounters,
+        @Nullable BooleanSupplier stop
     ) throws IOException {
         long fileLength = storageObject.length();
         long minSegment = reader.minimumSegmentSize();
 
         // COUNT(*) and similar: projectedColumns is empty while rows still need structural validation
-        // against the file width. When this read includes the file-leading bytes (and therefore any
-        // header), bind the full on-disk schema before segment workers run. For non-leading macro
-        // splits, rebinding via metadata is unsafe because the split-local first row is data, not header.
+        // against the file width. The coordinator pin is already physical file width; bind it in
+        // memory and skip execution metadata() (an unranged GET from byte 0). Null/empty pin
+        // (mixed-version coordinators; FileSplit collapse) still infers from the file. Non-leading
+        // macro-splits must not rebind via metadata: the split-local first row is data, not header.
         SegmentableFormatReader parallelReader = reader;
         if (projectedColumns != null && projectedColumns.isEmpty() && splitIncludesFileLeader) {
-            var meta = parallelReader.metadata(storageObject);
-            if (meta != null && meta.schema() != null && meta.schema().isEmpty() == false) {
-                parallelReader = (SegmentableFormatReader) parallelReader.withSchema(meta.schema());
+            if (readSchema != null && readSchema.isEmpty() == false) {
+                parallelReader = (SegmentableFormatReader) parallelReader.withSchema(readSchema);
+            } else {
+                var meta = parallelReader.metadata(storageObject);
+                if (meta != null && meta.schema() != null && meta.schema().isEmpty() == false) {
+                    parallelReader = (SegmentableFormatReader) parallelReader.withSchema(meta.schema());
+                }
             }
         }
 
@@ -539,11 +548,51 @@ public final class ParallelParsingCoordinator {
             metrics,
             warningSink,
             readCounters,
-            formatCounters
+            formatCounters,
+            stop
         );
         // Fully constructed and published before any worker is dispatched — see AsReadyParallelIterator#start.
         iterator.start();
         return iterator;
+    }
+
+    /**
+     * Test helper: default policy/schema/stats with an explicit open-segment window and optional stop.
+     */
+    static CloseableIterator<Page> parallelRead(
+        SegmentableFormatReader reader,
+        StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        int maxConcurrentOpenSegments,
+        @Nullable BooleanSupplier stop
+    ) throws IOException {
+        return parallelRead(
+            reader,
+            storageObject,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            null,
+            false,
+            true,
+            null,
+            0L,
+            maxConcurrentOpenSegments,
+            null,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            -1L,
+            StripeColumnScope.PROJECTED,
+            false,
+            ExternalSourceMetrics.NOOP,
+            null,
+            ExternalReadCounters.NOOP,
+            null,
+            stop
+        );
     }
 
     /**
@@ -710,6 +759,12 @@ public final class ParallelParsingCoordinator {
         private final ExternalReadCounters readCounters;
         @Nullable
         private final FormatReadCounters formatCounters;
+        /**
+         * When true, later segments skip opening a range stream. Filtered LIMIT wires
+         * {@code noFurtherCandidates}; {@code null} means never stop early (STATS / full scan).
+         */
+        @Nullable
+        private final BooleanSupplier stop;
 
         private final List<long[]> segments;
         private final Executor executor;
@@ -738,6 +793,11 @@ public final class ParallelParsingCoordinator {
         // reads the parked page rather than a stale value, so its blocks are released rather than leaked.
         private volatile Page buffered = null;
         private volatile boolean closed = false;
+        /**
+         * True when a downstream LIMIT stop skipped later segments. {@link #close()} must not
+         * treat that as a clean full-file scan or the coverage tiling caches an under-count.
+         */
+        private volatile boolean stoppedEarly = false;
 
         /**
          * Async-ready signal, mirroring {@code StreamingParallelIterator}. {@code null} when no consumer is
@@ -771,7 +831,8 @@ public final class ParallelParsingCoordinator {
             ExternalSourceMetrics metrics,
             @Nullable Consumer<String> warningSink,
             ExternalReadCounters readCounters,
-            @Nullable FormatReadCounters formatCounters
+            @Nullable FormatReadCounters formatCounters,
+            @Nullable BooleanSupplier stop
         ) {
             this.reader = reader;
             this.storageObject = storageObject;
@@ -790,6 +851,7 @@ public final class ParallelParsingCoordinator {
             this.warningSink = warningSink;
             this.readCounters = readCounters;
             this.formatCounters = formatCounters;
+            this.stop = stop;
             this.segments = segments;
             this.executor = executor;
             // Single clamp site for the effective window: the configured cap, never more than the parser
@@ -827,6 +889,17 @@ public final class ParallelParsingCoordinator {
         private void submitSegment(int startIndex) {
             int segIdx = startIndex;
             while (segIdx < segments.size()) {
+                if (closed || (stop != null && stop.getAsBoolean())) {
+                    if (closed == false) {
+                        stoppedEarly = true;
+                    }
+                    // Skip-open the rest of this window-stride so remainingSegments still hits 0.
+                    do {
+                        finishSegment();
+                        segIdx += maxConcurrentSegments;
+                    } while (segIdx < segments.size());
+                    return;
+                }
                 final int idx = segIdx;
                 final long[] seg = segments.get(idx);
                 try {
@@ -845,8 +918,12 @@ public final class ParallelParsingCoordinator {
 
         private void parseSegment(int segmentIndex, long offset, long length) {
             try {
-                // Teardown or earlier failure: skip opening a stream; finally still finishes + cascades.
-                if (closed || firstError.get() != null) {
+                // Teardown, earlier failure, or downstream LIMIT already satisfied: skip opening a stream;
+                // finally still finishes + cascades.
+                if (closed || firstError.get() != null || (stop != null && stop.getAsBoolean())) {
+                    if (closed == false && firstError.get() == null) {
+                        stoppedEarly = true;
+                    }
                     return;
                 }
                 readSegment(segmentIndex, offset, length);
@@ -1123,7 +1200,11 @@ public final class ParallelParsingCoordinator {
             // An early close (LIMIT, cancellation) leaves a segment cut off mid-parse — a partial row
             // count under that segment's full byte range — which the coverage tiling could otherwise
             // accept as complete and cache as an under-count. So a non-clean scan poisons the file.
-            boolean cleanCompletion = firstError.get() == null && remainingSegments.get() == 0 && sharedQueue.isEmpty() && buffered == null;
+            boolean cleanCompletion = firstError.get() == null
+                && stoppedEarly == false
+                && remainingSegments.get() == 0
+                && sharedQueue.isEmpty()
+                && buffered == null;
             closed = true;
             // Wake any consumer parked on waitForReady(); isReadyNow() now returns true on closed.
             signalReady();

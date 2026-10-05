@@ -84,6 +84,7 @@ import org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -336,6 +337,11 @@ public class ComputeService {
     /**
      * Starts Phase-2 split discovery without joining. Completes {@code listener} with the rewritten plan.
      * The inbound thread returns immediately; object-store IO runs on {@code esql_external_io}.
+     * <p>
+     * Production {@code FROM | LIMIT} is wrapped in {@code FragmentExec}, so this walk sees no
+     * {@link org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec} and is a no-op for demand.
+     * The row limit reaches discovery on the fragment path via
+     * {@link org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase#guardedRelations}.
      */
     void startSplitDiscovery(
         PhysicalPlan plan,
@@ -356,42 +362,40 @@ public class ComputeService {
                 threadPool.getThreadContext().newRestorableContext(true),
                 null
             );
-            SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
-                plan,
-                operatorFactoryRegistry.sourceFactories(),
-                maxRecordBytes(configuration),
-                isCancelled,
-                List.of(),
-                FormatReader.NO_LIMIT,
-                discoveryMemory(run),
-                ioExecutor,
-                ActionListener.wrap(result -> {
-                    try {
-                        recordExternalScanStats(execInfo, result);
-                        l.onResponse(coalesceSplits(result.plan(), () -> externalCoalesceFloor(configuration)));
-                    } catch (TaskCancelledException e) {
-                        l.onFailure(e);
-                    } catch (Exception e) {
+            try (var ignored = activatePlanningIo(execInfo)) {
+                SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
+                    plan,
+                    operatorFactoryRegistry.sourceFactories(),
+                    maxRecordBytes(configuration),
+                    isCancelled,
+                    List.of(),
+                    FormatReader.NO_LIMIT,
+                    discoveryMemory(run),
+                    configuration.pragmas().taskConcurrency(),
+                    ioExecutor,
+                    ActionListener.wrap(result -> {
+                        try {
+                            recordExternalScanStats(execInfo, result);
+                            l.onResponse(coalesceSplits(result.plan(), () -> externalCoalesceFloor(configuration)));
+                        } catch (TaskCancelledException e) {
+                            l.onFailure(e);
+                        } catch (Exception e) {
+                            LOGGER.warn("split discovery failed for external source", e);
+                            l.onFailure(e);
+                        }
+                    }, e -> {
+                        if (e instanceof TaskCancelledException) {
+                            l.onFailure(e);
+                            return;
+                        }
                         LOGGER.warn("split discovery failed for external source", e);
                         l.onFailure(e);
-                    }
-                }, e -> {
-                    if (e instanceof TaskCancelledException) {
-                        l.onFailure(e);
-                        return;
-                    }
-                    LOGGER.warn("split discovery failed for external source", e);
-                    l.onFailure(e);
-                })
-            );
+                    })
+                );
+            }
         });
     }
 
-    /**
-     * Adds the post-prune external scan accounting to the query profile. The counts are captured
-     * before split coalescing, so {@code splits_scanned} reflects the pre-coalesce discovered split
-     * count rather than the smaller post-coalesce count.
-     */
     /**
      * Raises what split discovery found onto the response.
      * <p>
@@ -406,6 +410,11 @@ public class ComputeService {
         }
     }
 
+    /**
+     * Adds the post-prune external scan accounting to the query profile. The counts are captured
+     * before split coalescing, so {@code splits_scanned} reflects the pre-coalesce discovered split
+     * count rather than the smaller post-coalesce count.
+     */
     private static void recordExternalScanStats(EsqlExecutionInfo execInfo, SplitDiscoveryPhase.Result result) {
         raiseDiscoveryWarnings(result);
         if (execInfo != null && result.splitsScanned() > 0) {
@@ -414,6 +423,17 @@ public class ComputeService {
         if (execInfo != null && result.cpuNanos() > 0) {
             execInfo.queryProfile().addSplitDiscoveryCpuNanos(result.cpuNanos());
         }
+        if (execInfo != null && result.splitDiscoveryProbes() > 0) {
+            execInfo.queryProfile().addSplitDiscoveryProbes(result.splitDiscoveryProbes());
+        }
+        if (execInfo != null) {
+            execInfo.queryProfile().foldPlanningIo(execInfo.externalPlanning());
+        }
+    }
+
+    private static Releasable activatePlanningIo(EsqlExecutionInfo execInfo) {
+        ExternalPlanningIo io = execInfo == null || execInfo.externalPlanning() == null ? null : execInfo.externalPlanning().planningIo();
+        return ExternalPlanningIo.activate(io);
     }
 
     /**
@@ -640,6 +660,7 @@ public class ComputeService {
             execInfo,
             isCancelled,
             run,
+            configuration.pragmas().taskConcurrency(),
             ActionListener.wrap(rewritten -> {
                 if (SplitCoalescer.shouldCoalesce(splits.size())) {
                     List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits, externalCoalesceFloor(configuration));
@@ -799,16 +820,19 @@ public class ComputeService {
             // relation to a standalone ExternalSourceExec drops the surrounding plan, so those conjuncts have to be
             // recovered before the lowering or partition pruning never sees the predicate at all.
             for (SplitDiscoveryPhase.GuardedRelation guarded : SplitDiscoveryPhase.guardedRelations(fragment.fragment())) {
-                SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
-                    guarded.relation().toPhysicalExec(),
-                    operatorFactoryRegistry.sourceFactories(),
-                    maxRecordBytes,
-                    isCancelled,
-                    guarded.filters(),
-                    guarded.rowLimit(),
-                    // No reservation reaches the synchronous path, which only tests take.
-                    PlanningMemory.NONE
-                );
+                SplitDiscoveryPhase.Result result;
+                try (var ignored = activatePlanningIo(execInfo)) {
+                    result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+                        guarded.relation().toPhysicalExec(),
+                        operatorFactoryRegistry.sourceFactories(),
+                        maxRecordBytes,
+                        isCancelled,
+                        guarded.filters(),
+                        guarded.rowLimit(),
+                        // No reservation reaches the synchronous path, which only tests take.
+                        PlanningMemory.NONE
+                    );
+                }
                 if (result.plan() instanceof ExternalSourceExec withSplits) {
                     splits.addAll(withSplits.splits());
                     settled.add(settledListing(guarded.relation(), withSplits));
@@ -835,6 +859,7 @@ public class ComputeService {
         EsqlExecutionInfo execInfo,
         BooleanSupplier isCancelled,
         ExternalPlanningReservation.Run run,
+        int taskConcurrency,
         ActionListener<PhysicalPlan> listener
     ) {
         if (operatorFactoryRegistry == null) {
@@ -866,6 +891,7 @@ public class ComputeService {
             execInfo,
             isCancelled,
             run,
+            taskConcurrency,
             ioExecutor,
             ActionListener.wrap(ignored -> listener.onResponse(rewriteSettledFragments(plan, settled)), listener::onFailure)
         );
@@ -880,6 +906,7 @@ public class ComputeService {
         EsqlExecutionInfo execInfo,
         BooleanSupplier isCancelled,
         ExternalPlanningReservation.Run run,
+        int taskConcurrency,
         Executor ioExecutor,
         ActionListener<Void> listener
     ) {
@@ -894,46 +921,50 @@ public class ComputeService {
             listener.onFailure(e);
             return;
         }
-        SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
-            work.guarded().relation().toPhysicalExec(),
-            operatorFactoryRegistry.sourceFactories(),
-            maxRecordBytes,
-            isCancelled,
-            work.guarded().filters(),
-            work.guarded().rowLimit(),
-            discoveryMemory(run),
-            ioExecutor,
-            ActionListener.wrap(result -> {
-                try {
-                    if (result.plan() instanceof ExternalSourceExec withSplits) {
-                        splits.addAll(withSplits.splits());
-                        settled.computeIfAbsent(work.fragment(), k -> new ArrayList<>())
-                            .add(settledListing(work.guarded().relation(), withSplits));
+        try (var ignored = activatePlanningIo(execInfo)) {
+            SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
+                work.guarded().relation().toPhysicalExec(),
+                operatorFactoryRegistry.sourceFactories(),
+                maxRecordBytes,
+                isCancelled,
+                work.guarded().filters(),
+                work.guarded().rowLimit(),
+                discoveryMemory(run),
+                taskConcurrency,
+                ioExecutor,
+                ActionListener.wrap(result -> {
+                    try {
+                        if (result.plan() instanceof ExternalSourceExec withSplits) {
+                            splits.addAll(withSplits.splits());
+                            settled.computeIfAbsent(work.fragment(), k -> new ArrayList<>())
+                                .add(settledListing(work.guarded().relation(), withSplits));
+                        }
+                        recordExternalScanStats(execInfo, result);
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                        return;
                     }
-                    recordExternalScanStats(execInfo, result);
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                    return;
-                }
-                Runnable next = () -> discoverFragmentWork(
-                    workItems,
-                    index + 1,
-                    splits,
-                    settled,
-                    maxRecordBytes,
-                    execInfo,
-                    isCancelled,
-                    run,
-                    ioExecutor,
-                    listener
-                );
-                try {
-                    ioExecutor.execute(next);
-                } catch (EsRejectedExecutionException e) {
-                    listener.onFailure(e);
-                }
-            }, listener::onFailure)
-        );
+                    Runnable next = () -> discoverFragmentWork(
+                        workItems,
+                        index + 1,
+                        splits,
+                        settled,
+                        maxRecordBytes,
+                        execInfo,
+                        isCancelled,
+                        run,
+                        taskConcurrency,
+                        ioExecutor,
+                        listener
+                    );
+                    try {
+                        ioExecutor.execute(next);
+                    } catch (EsRejectedExecutionException e) {
+                        listener.onFailure(e);
+                    }
+                }, listener::onFailure)
+            );
+        }
     }
 
     private static PhysicalPlan rewriteSettledFragments(PhysicalPlan plan, Map<FragmentExec, List<SettledListing>> settled) {

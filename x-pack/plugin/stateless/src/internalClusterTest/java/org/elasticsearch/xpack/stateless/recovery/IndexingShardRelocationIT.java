@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitC
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
+import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
@@ -1183,7 +1184,8 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
             ClusterSettings clusterSettings,
-            WarmingRatioProvider warmingRatioProvider
+            WarmingRatioProvider warmingRatioProvider,
+            SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
             if (clusterSettings.get(ENABLED_WARMING)) {
                 return super.createSharedBlobCacheWarmingService(
@@ -1191,10 +1193,18 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                     threadPool,
                     telemetryProvider,
                     clusterSettings,
-                    warmingRatioProvider
+                    warmingRatioProvider,
+                    searchRecoveryTimeoutCalculationService
                 );
             }
-            return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings, warmingRatioProvider) {
+            return new SharedBlobCacheWarmingService(
+                cacheService,
+                threadPool,
+                telemetryProvider,
+                clusterSettings,
+                warmingRatioProvider,
+                searchRecoveryTimeoutCalculationService
+            ) {
                 @Override
                 protected void warmCache(
                     Type type,

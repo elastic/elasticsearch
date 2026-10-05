@@ -540,15 +540,40 @@ public final class Case extends EsqlScalarFunction {
      *     filtering at all for eager-safe children like literals and field loads.
      * </p>
      */
-    private record CaseLazyEvaluator(
-        BlockFactory blockFactory,
-        ElementType resultType,
-        List<ConditionEvaluator> conditions,
-        ExpressionEvaluator elseVal,
-        boolean elseEagerEvalSafe
-    ) implements ExpressionEvaluator {
+    private static final class CaseLazyEvaluator implements ExpressionEvaluator {
 
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CaseLazyEvaluator.class);
+
+        private final BlockFactory blockFactory;
+        private final ElementType resultType;
+        private final List<ConditionEvaluator> conditions;
+        private final ExpressionEvaluator elseVal;
+        private final boolean elseEagerEvalSafe;
+
+        /*
+         * Per-position scratch space, allocated lazily and grown to the largest page seen so
+         * we don't allocate four fresh arrays for every page. An evaluator is only ever used
+         * by a single driver at a time and eval is not re-entrant, so reusing these is safe.
+         * Their contents are never read before being written within an eval call.
+         */
+        private int[] armOf = new int[0];
+        private int[] remaining = new int[0];
+        private int[] matched = new int[0];
+        private int[] nextRemaining = new int[0];
+
+        CaseLazyEvaluator(
+            BlockFactory blockFactory,
+            ElementType resultType,
+            List<ConditionEvaluator> conditions,
+            ExpressionEvaluator elseVal,
+            boolean elseEagerEvalSafe
+        ) {
+            this.blockFactory = blockFactory;
+            this.resultType = resultType;
+            this.conditions = conditions;
+            this.elseVal = elseVal;
+            this.elseEagerEvalSafe = elseEagerEvalSafe;
+        }
 
         @Override
         public Block eval(Page page) {
@@ -563,10 +588,16 @@ public final class Case extends EsqlScalarFunction {
              */
             Block[] arms = new Block[armCount];
             boolean[] armEvaluatedOnFullPage = new boolean[armCount];
-            int[] armOf = new int[positionCount];
-            int[] remaining = new int[positionCount];
-            int[] matched = new int[positionCount];
-            int[] nextRemaining = new int[positionCount];
+            if (armOf.length < positionCount) {
+                armOf = new int[positionCount];
+                remaining = new int[positionCount];
+                matched = new int[positionCount];
+                nextRemaining = new int[positionCount];
+            }
+            int[] armOf = this.armOf;
+            int[] remaining = this.remaining;
+            int[] matched = this.matched;
+            int[] nextRemaining = this.nextRemaining;
             for (int p = 0; p < positionCount; p++) {
                 remaining[p] = p;
             }
@@ -582,24 +613,34 @@ public final class Case extends EsqlScalarFunction {
                     boolean sawMultivalue = false;
                     try (BooleanBlock b = (BooleanBlock) condition.condition.eval(conditionPage)) {
                         BooleanVector v = b.asVector();
-                        for (int j = 0; j < remainingCount; j++) {
-                            int p = remaining[j];
-                            int idx = fullPage ? p : j;
-                            boolean selected;
-                            if (v != null) {
-                                selected = v.getBoolean(idx);
-                            } else if (b.isNull(idx)) {
-                                selected = false;
-                            } else if (b.getValueCount(idx) > 1) {
-                                sawMultivalue = true;
-                                selected = false;
-                            } else {
-                                selected = b.getBoolean(b.getFirstValueIndex(idx));
+                        if (v != null) {
+                            // Fast path: no nulls or multivalues to check for.
+                            for (int j = 0; j < remainingCount; j++) {
+                                int p = remaining[j];
+                                if (v.getBoolean(fullPage ? p : j)) {
+                                    matched[matchedCount++] = p;
+                                } else {
+                                    nextRemaining[nextRemainingCount++] = p;
+                                }
                             }
-                            if (selected) {
-                                matched[matchedCount++] = p;
-                            } else {
-                                nextRemaining[nextRemainingCount++] = p;
+                        } else {
+                            for (int j = 0; j < remainingCount; j++) {
+                                int p = remaining[j];
+                                int idx = fullPage ? p : j;
+                                boolean selected;
+                                if (b.isNull(idx)) {
+                                    selected = false;
+                                } else if (b.getValueCount(idx) > 1) {
+                                    sawMultivalue = true;
+                                    selected = false;
+                                } else {
+                                    selected = b.getBoolean(b.getFirstValueIndex(idx));
+                                }
+                                if (selected) {
+                                    matched[matchedCount++] = p;
+                                } else {
+                                    nextRemaining[nextRemainingCount++] = p;
+                                }
                             }
                         }
                     } finally {

@@ -188,7 +188,7 @@ public class TransportSingleShardActionTests extends ESTestCase {
     }
 
     public void testEmptyPrimaryShardIterator() {
-        var action = new TestTransportSingleShardAction<TestRequest>(threadPool, clusterService, transportService, projectResolver) {
+        var action = new TestTransportSingleShardAction(threadPool, clusterService, transportService, projectResolver) {
             @Override
             protected ShardsIterator shards(
                 ProjectState state,

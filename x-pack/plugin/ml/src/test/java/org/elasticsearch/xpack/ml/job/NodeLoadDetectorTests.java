@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -176,5 +177,95 @@ public class NodeLoadDetectorTests extends ESTestCase {
         assertThat(load.getNumAssignedJobsAndModels(), equalTo(2));
         assertThat(load.getMaxJobs(), equalTo(5));
         assertThat(load.getMaxMlMemory(), equalTo(0L));
+    }
+
+    /**
+     * Regression test for https://github.com/elastic/elasticsearch/issues/160923 (fix #1). When a deployment has an
+     * observed per-allocation memory the node load must account for that observed figure (the same value the assignment
+     * planner and the autoscaling resource tracker use) rather than the a priori task-parameter estimate. The assertion
+     * compares the load with and without the observed value so it is independent of any fixed node overhead: the
+     * difference must equal the difference between the observed-aware and a priori memory estimates, and when no observed
+     * value is present the load must be unchanged from the a priori estimate.
+     */
+    public void testTrainedModelAssignmentUsesObservedPerAllocationMemory() {
+        Map<String, String> nodeAttr = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            "4294967296",
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            "1717567488"
+        );
+        String nodeId = "ml-node-1";
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(
+                DiscoveryNodeUtils.create(
+                    "ml-node-name-1",
+                    nodeId,
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                    nodeAttr,
+                    Set.of(DiscoveryNodeRole.ML_ROLE)
+                )
+            )
+            .build();
+
+        int allocations = 2;
+        long observedPerAllocationMemoryBytes = ByteSizeValue.ofMb(900).getBytes();
+        var taskParams = new StartTrainedModelDeploymentAction.TaskParams(
+            "model-observed",
+            "deployment-observed",
+            MODEL_MEMORY_REQUIREMENT,
+            allocations,
+            1,
+            1024,
+            ByteSizeValue.ZERO,
+            Priority.NORMAL,
+            0L,
+            0L
+        );
+
+        TrainedModelAssignment observedAssignment = TrainedModelAssignmentMetadata.Builder.empty()
+            .addNewAssignment(
+                "deployment-observed",
+                TrainedModelAssignment.Builder.empty(taskParams, null)
+                    .setObservedPerAllocationMemoryBytes(observedPerAllocationMemoryBytes)
+                    .addRoutingEntry(nodeId, new RoutingInfo(allocations, allocations, RoutingState.STARTED, ""))
+            )
+            .build()
+            .getDeploymentAssignment("deployment-observed");
+        TrainedModelAssignment aPrioriAssignment = TrainedModelAssignmentMetadata.Builder.empty()
+            .addNewAssignment(
+                "deployment-observed",
+                TrainedModelAssignment.Builder.empty(taskParams, null)
+                    .addRoutingEntry(nodeId, new RoutingInfo(allocations, allocations, RoutingState.STARTED, ""))
+            )
+            .build()
+            .getDeploymentAssignment("deployment-observed");
+
+        long observedLoad = loadFor(nodes, nodeId, observedAssignment);
+        long aPrioriLoad = loadFor(nodes, nodeId, aPrioriAssignment);
+
+        // The observed path reserves the (larger) observed memory. Comparing the two loads cancels any fixed node
+        // overhead: the delta must equal the difference between the observed-aware and a priori estimates, which also
+        // confirms the a priori path (observed absent) is unchanged by the fix.
+        assertThat(observedLoad, greaterThan(aPrioriLoad));
+        assertThat(
+            observedLoad - aPrioriLoad,
+            equalTo(observedAssignment.estimateMemoryUsageBytes(allocations) - taskParams.estimateMemoryUsageBytes())
+        );
+    }
+
+    private long loadFor(DiscoveryNodes nodes, String nodeId, TrainedModelAssignment assignment) {
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .nodes(nodes)
+            .metadata(
+                Metadata.builder()
+                    .putCustom(
+                        TrainedModelAssignmentMetadata.NAME,
+                        TrainedModelAssignmentMetadata.Builder.empty()
+                            .addNewAssignment(assignment.getDeploymentId(), TrainedModelAssignment.Builder.fromAssignment(assignment))
+                            .build()
+                    )
+            )
+            .build();
+        return nodeLoadDetector.detectNodeLoad(cs, nodes.get(nodeId), 10, 30, true).getAssignedJobMemory();
     }
 }

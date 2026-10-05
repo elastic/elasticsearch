@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.autoscaling.MlAutoscalingStats;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.utils.MemoryTrackedTaskState;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -233,6 +234,30 @@ public final class MlAutoscalingResourceTracker {
         int numberOfAvailableProcessors = (int) Math.floor(
             MlProcessors.getTotalMlNodeProcessors(autoscalingContext.mlNodes, allocatedProcessorsScale).count()
         ) - totalAssignedProcessors(autoscalingContext);
+
+        // Per-node committed trained-model memory, used below to decide whether existing nodes still have room for a
+        // deployment's missing allocations. Memory is reserved per node (each node running a deployment pays its base and
+        // model footprint), so this must be kept per node rather than as a cluster-wide total: summing free memory across
+        // nodes and dividing would treat it as fungible and hide the case where every node is individually too full to
+        // host another allocation while the cluster still shows ample aggregate free memory.
+        Map<String, Long> committedModelMemoryByNode = new HashMap<>();
+        for (var modelAssignment : autoscalingContext.modelAssignments.values()) {
+            for (var routingEntry : modelAssignment.getNodeRoutingTable().entrySet()) {
+                if (routingEntry.getValue().getState().consumesMemory() == false) {
+                    continue;
+                }
+                int allocationsOnNode = routingEntry.getValue().getTargetAllocations();
+                if (allocationsOnNode <= 0) {
+                    continue;
+                }
+                committedModelMemoryByNode.merge(
+                    routingEntry.getKey(),
+                    modelAssignment.estimateMemoryUsageBytes(allocationsOnNode),
+                    Long::sum
+                );
+            }
+        }
+
         for (var modelAssignment : autoscalingContext.modelAssignments.entrySet()) {
             TrainedModelAssignment assignment = modelAssignment.getValue();
             final int numberOfRequestedAllocations = assignment.getTaskParams().getNumberOfAllocations();
@@ -270,25 +295,36 @@ public final class MlAutoscalingResourceTracker {
                 // processors we treat as usable by what the remaining ML memory can actually host. Without this a
                 // memory-bound deployment (e.g. ELSER whose observed RSS fills a node before its processors) sees spare
                 // processors, requests no extra hardware, and stalls below its target. Adding a node restores both memory
-                // and processors, so capping here keeps extraProcessors positive until the allocations can really fit.
-                // This is a reactive, cluster-wide safeguard that treats free memory as fungible across nodes; the
-                // assignment planner remains authoritative for per-node placement.
+                // and processors, so capping here keeps extraProcessors positive until the allocations can really fit. The
+                // assignment planner remains authoritative for exact per-node placement; this is a reactive safeguard.
                 long perAllocationMemoryBytes = assignment.observedOrConfiguredPerAllocationMemoryBytes();
                 if (perNodeAvailableModelMemoryBytes > 0 && perAllocationMemoryBytes > 0) {
-                    // Reserve only the memory actually committed by already-placed allocations. existingModelMemoryBytes
-                    // includes this deployment's full *requested* footprint (accumulated above), so for an existing
-                    // deployment swap in the footprint of its placed allocations only; otherwise the deployment's own
-                    // not-yet-placed allocations would be reserved against themselves and understate the free memory
-                    // available to host them. Other deployments remain at their requested footprint, a deliberately
-                    // conservative simplification.
-                    long committedModelMemoryBytes = existingModelMemoryBytes;
-                    if (assignment.getNodeRoutingTable().isEmpty() == false) {
-                        committedModelMemoryBytes = committedModelMemoryBytes - estimatedMemoryUsage + assignment.estimateMemoryUsageBytes(
-                            numberOfTargetAllocationsOnExistingNodes
+                    // Count, per node, how many of the missing allocations could still be placed given the memory already
+                    // committed there. A node that does not yet run this deployment must also fit its base + model footprint
+                    // before the first allocation, mirroring findOptimalAllocations; a node already running it only needs
+                    // the per-allocation cost for each extra allocation.
+                    long fixedOverheadBytes = assignment.getTaskParams().getPerDeploymentMemoryBytes() + assignment.getTaskParams()
+                        .getModelBytes();
+                    int memoryAllowedAllocations = 0;
+                    for (DiscoveryNode mlNode : autoscalingContext.mlNodes) {
+                        long remainingBytes = perNodeAvailableModelMemoryBytes - committedModelMemoryByNode.getOrDefault(
+                            mlNode.getId(),
+                            0L
                         );
+                        if (remainingBytes <= 0) {
+                            continue;
+                        }
+                        RoutingInfo routing = assignment.getNodeRoutingTable().get(mlNode.getId());
+                        boolean alreadyHostsDeployment = routing != null && routing.getState().consumesMemory();
+                        long usableBytes = alreadyHostsDeployment ? remainingBytes : remainingBytes - fixedOverheadBytes;
+                        if (usableBytes >= perAllocationMemoryBytes) {
+                            memoryAllowedAllocations += (int) (usableBytes / perAllocationMemoryBytes);
+                        }
+                        if (memoryAllowedAllocations >= numMissingAllocations) {
+                            memoryAllowedAllocations = numMissingAllocations;
+                            break;
+                        }
                     }
-                    long freeModelMemoryBytes = Math.max(0L, perNodeAvailableModelMemoryBytes * numberMlNodes - committedModelMemoryBytes);
-                    int memoryAllowedAllocations = (int) Math.min(numMissingAllocations, freeModelMemoryBytes / perAllocationMemoryBytes);
                     numExistingProcessorsToBeUsed = Math.min(
                         numExistingProcessorsToBeUsed,
                         memoryAllowedAllocations * numberOfThreadsPerAllocation

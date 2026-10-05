@@ -210,20 +210,35 @@ public final class CircuitBreakingRegExp {
             }
         }
 
+        /**
+         * Builds one node from its operands, which are already built and held on the breaker. The kinds fall into three
+         * groups, accounted in three ways:
+         * <ul>
+         *   <li>Lucene's operations, called unchanged. Their peak is predicted from the operands' shapes and reserved before
+         *       they run, and their predicted work is counted against the limit: {@link #predicted}.</li>
+         *   <li>Intersection and complement, whose size is only known once built. They run through the ports in
+         *       {@link CircuitBreakingOperations}, which charge as they allocate.</li>
+         *   <li>Leaves, built directly: {@link CircuitBreakingRegExp#leaf}. A leaf is no larger than the pattern text that
+         *       names it, a string of its characters or a class of its ranges, so nothing is reserved while it builds.</li>
+         * </ul>
+         * Whichever way it was built, the result is held on the breaker by {@link #run} until its parent is built.
+         */
         private Automaton build(Node node) {
             RegExp re = node.regExp;
             Automaton[] in = node.built;
             return switch (re.kind) {
-                case REGEXP_UNION -> guarded(unionCost(in), () -> Operations.union(Arrays.asList(in)));
-                case REGEXP_CONCATENATION -> guarded(concatenateCost(in), () -> Operations.concatenate(Arrays.asList(in)));
-                case REGEXP_INTERSECTION -> intersection(in[0], in[1]);
-                case REGEXP_OPTIONAL -> guarded(optionalCost(Shape.of(in[0])), () -> Operations.optional(in[0]));
-                case REGEXP_REPEAT -> guarded(starCost(Shape.of(in[0])), () -> Operations.repeat(in[0]));
-                case REGEXP_REPEAT_MIN -> guarded(repeatCost(Shape.of(in[0]), re.min), () -> Operations.repeat(in[0], re.min));
-                case REGEXP_REPEAT_MINMAX -> guarded(
+                // Lucene's operation, with its predicted peak reserved while it runs
+                case REGEXP_UNION -> predicted(unionCost(in), () -> Operations.union(Arrays.asList(in)));
+                case REGEXP_CONCATENATION -> predicted(concatenateCost(in), () -> Operations.concatenate(Arrays.asList(in)));
+                case REGEXP_OPTIONAL -> predicted(optionalCost(Shape.of(in[0])), () -> Operations.optional(in[0]));
+                case REGEXP_REPEAT -> predicted(starCost(Shape.of(in[0])), () -> Operations.repeat(in[0]));
+                case REGEXP_REPEAT_MIN -> predicted(repeatCost(Shape.of(in[0]), re.min), () -> Operations.repeat(in[0], re.min));
+                case REGEXP_REPEAT_MINMAX -> predicted(
                     repeatCost(Shape.of(in[0]), re.min, re.max),
                     () -> Operations.repeat(in[0], re.min, re.max)
                 );
+                // Our port, charged as it allocates
+                case REGEXP_INTERSECTION -> intersection(in[0], in[1]);
                 // Lucene complements a negated character class with no work limit, and any other complement with the default
                 case REGEXP_COMPLEMENT -> CircuitBreakingOperations.complement(in[0], Integer.MAX_VALUE, breaker, label);
                 case REGEXP_DEPRECATED_COMPLEMENT -> CircuitBreakingOperations.complement(
@@ -232,20 +247,17 @@ public final class CircuitBreakingRegExp {
                     breaker,
                     label
                 );
-                case REGEXP_CHAR -> caseInsensitive() ? Automata.makeCaseInsensitiveChar(re.c) : Automata.makeChar(re.c);
-                case REGEXP_CHAR_RANGE -> Automata.makeCharRange(re.from[0], re.to[0]);
-                case REGEXP_CHAR_CLASS -> Automata.makeCharClass(re.from, re.to);
-                case REGEXP_ANYCHAR -> Automata.makeAnyChar();
-                case REGEXP_EMPTY -> Automata.makeEmpty();
-                case REGEXP_STRING -> caseInsensitive() ? Automata.makeCaseInsensitiveString(re.s) : Automata.makeString(re.s);
-                case REGEXP_ANYSTRING -> Automata.makeAnyString();
-                case REGEXP_AUTOMATON -> throw new IllegalArgumentException("'" + re.s + "' not found");
-                case REGEXP_INTERVAL -> Automata.makeDecimalInterval(re.min, re.max, re.digits);
+                // A leaf, no larger than the pattern text that names it
+                case REGEXP_CHAR, REGEXP_CHAR_RANGE, REGEXP_CHAR_CLASS, REGEXP_ANYCHAR, REGEXP_EMPTY, REGEXP_STRING, REGEXP_ANYSTRING,
+                    REGEXP_AUTOMATON, REGEXP_INTERVAL -> leaf(re);
             };
         }
 
-        /** Runs {@code build} with its peak memory reserved, after checking that its work fits in what is left. */
-        private Automaton guarded(Cost cost, Supplier<Automaton> build) {
+        /**
+         * Runs Lucene's {@code build} with its predicted peak reserved, after checking that its predicted work fits in what
+         * is left. The reservation is released on return; the caller holds the result at its real size.
+         */
+        private Automaton predicted(Cost cost, Supplier<Automaton> build) {
             long reserved = CircuitBreakingOperations.reserve(breaker, cost.bytes(), label);
             try {
                 work = addSaturating(work, cost.work());
@@ -297,6 +309,22 @@ public final class CircuitBreakingRegExp {
                 held = 0;
             }
         }
+    }
+
+    /** A leaf of the parse tree, built as {@link RegExp#toAutomaton()} builds it. */
+    private Automaton leaf(RegExp re) {
+        return switch (re.kind) {
+            case REGEXP_CHAR -> caseInsensitive() ? Automata.makeCaseInsensitiveChar(re.c) : Automata.makeChar(re.c);
+            case REGEXP_CHAR_RANGE -> Automata.makeCharRange(re.from[0], re.to[0]);
+            case REGEXP_CHAR_CLASS -> Automata.makeCharClass(re.from, re.to);
+            case REGEXP_ANYCHAR -> Automata.makeAnyChar();
+            case REGEXP_EMPTY -> Automata.makeEmpty();
+            case REGEXP_STRING -> caseInsensitive() ? Automata.makeCaseInsensitiveString(re.s) : Automata.makeString(re.s);
+            case REGEXP_ANYSTRING -> Automata.makeAnyString();
+            case REGEXP_AUTOMATON -> throw new IllegalArgumentException("'" + re.s + "' not found");
+            case REGEXP_INTERVAL -> Automata.makeDecimalInterval(re.min, re.max, re.digits);
+            default -> throw new AssertionError("not a leaf: " + re.kind);
+        };
     }
 
     @SuppressWarnings("deprecation") // RegExp.toAutomaton honours ASCII_CASE_INSENSITIVE as well as CASE_INSENSITIVE

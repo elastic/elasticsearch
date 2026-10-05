@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -35,7 +36,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
 
@@ -51,10 +52,11 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
         );
 
         assertEquals(RestStatus.BAD_REQUEST, e.status());
-        assertThat(e.getMessage(), containsString("s3://bucket/data/*.parquet"));
+        assertThat(e.getMessage(), containsString("*.parquet"));
         assertThat(e.getMessage(), containsString("parquet"));
-        assertThat(e.getCause(), instanceOf(UncheckedIOException.class));
-        assertThat(e.getCause().getCause().getMessage(), containsString("connection reset by peer"));
+        assertNull("the storage failure must not be chained to prevent caused_by leaks", e.getCause());
+        assertThat(e.getMessage(), containsString("connection reset by peer"));
+        assertThat(e.getMessage(), not(containsString("bucket")));
     }
 
     public void testRuntimeExceptionWrappedWithContext() {
@@ -66,9 +68,49 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
             () -> SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of("csv", testFactory(failingProvider)))
         );
 
-        assertThat(e.getMessage(), containsString("gcs://bucket/files/*.csv"));
+        assertThat(e.getMessage(), containsString("*.csv"));
         assertThat(e.getMessage(), containsString("csv"));
-        assertThat(e.getCause(), instanceOf(RuntimeException.class));
+        assertThat(e.getMessage(), containsString("unexpected error"));
+        assertNull("an unchecked failure may come from a storage client, so it must not reach caused_by", e.getCause());
+    }
+
+    /**
+     * No {@code classify} runs after split discovery, so an unchecked failure whose message names the storage
+     * location must be reduced here, or the location reaches the user.
+     */
+    public void testRuntimeExceptionNamingTheLocationIsReducedToItsType() {
+        ExternalSourceExec exec = createExternalSourceExec("s3://bucket/files/*.csv", "csv");
+        SplitProvider failingProvider = ctx -> { throw new IllegalStateException("Unable to list s3://bucket/files/"); };
+
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of("csv", testFactory(failingProvider)))
+        );
+
+        assertThat(e.getMessage(), containsString("IllegalStateException"));
+        assertThat(e.getMessage(), not(containsString("bucket")));
+        assertNull(e.getCause());
+    }
+
+    public void testExternalExceptionIsDetachedFromItsCause() {
+        ExternalSourceExec exec = createExternalSourceExec("s3://bucket/data/*.parquet", "parquet");
+        ExternalClientException original = new ExternalClientException(
+            Condition.OBJECT_NOT_FOUND,
+            StoragePath.NONE,
+            "a.parquet",
+            "",
+            new IOException("The specified key does not exist: s3://bucket/data/a.parquet")
+        );
+        SplitProvider failingProvider = ctx -> { throw original; };
+
+        ExternalClientException e = expectThrows(
+            ExternalClientException.class,
+            () -> SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of("parquet", testFactory(failingProvider)))
+        );
+
+        assertEquals(RestStatus.BAD_REQUEST, e.status());
+        assertEquals(original.getMessage(), e.getMessage());
+        assertNull("the storage client's cause names the bucket and key", e.getCause());
     }
 
     /**
@@ -88,9 +130,10 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
         );
 
         assertEquals("a user-caused split-discovery failure is a client error", RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
-        assertThat(e.getMessage(), containsString("s3://bucket/data/*.csv"));
+        assertThat(e.getMessage(), containsString("*.csv"));
         assertThat(e.getMessage(), containsString("csv"));
-        assertSame("the original failure must be preserved as the cause", original, e.getCause());
+        assertThat(e.getMessage(), containsString("[target_split_size]: [0b]; must be positive"));
+        assertNull("the original failure is logged, not chained", e.getCause());
     }
 
     /**
@@ -170,9 +213,9 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
             RestStatus.BAD_REQUEST,
             ExceptionsHelper.status(e)
         );
-        assertThat(e.getMessage(), containsString("s3://bucket/data/*.ndjson"));
-        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(e.getCause().getMessage(), containsString(namedInMessage));
+        assertThat(e.getMessage(), containsString("*.ndjson"));
+        assertThat(e.getMessage(), containsString(namedInMessage));
+        assertNull(e.getCause());
     }
 
     public void testElasticsearchExceptionNotDoubleWrapped() {
@@ -190,7 +233,14 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
 
     public void testUnavailableExceptionKeepsServiceUnavailableStatus() {
         ExternalSourceExec exec = createExternalSourceExec("s3://bucket/data/*.parquet", "parquet");
-        ExternalUnavailableException original = new ExternalUnavailableException(true, "S3 store unavailable");
+        ExternalUnavailableException original = new ExternalUnavailableException(
+            Condition.STORE_THROTTLED,
+            StoragePath.NONE,
+            "",
+            "",
+            true,
+            0L
+        );
         SplitProvider failingProvider = ctx -> { throw original; };
 
         ExternalUnavailableException e = expectThrows(
@@ -198,8 +248,8 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
             () -> SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of("parquet", testFactory(failingProvider)))
         );
 
-        assertSame(original, e);
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, e.status());
+        assertTrue(e.throttling());
     }
 
     public void testPermissionErrorIncludesSourcePath() {
@@ -211,8 +261,9 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
             () -> SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of("parquet", testFactory(failingProvider)))
         );
 
-        assertThat(e.getMessage(), containsString("s3://secure-bucket/private/*.parquet"));
-        assertThat(e.getCause(), instanceOf(SecurityException.class));
+        assertThat(e.getMessage(), containsString("*.parquet"));
+        assertThat(e.getMessage(), containsString("Access Denied (403)"));
+        assertNull(e.getCause());
     }
 
     public void testSuccessfulDiscoveryUnaffected() {

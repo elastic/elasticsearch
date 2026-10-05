@@ -12,7 +12,13 @@ import org.apache.lucene.geo.GeoUtils;
 import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.geo.Rectangle;
 import org.apache.lucene.util.IntroSorter;
+import org.elasticsearch.common.geo.GeometryNormalizer;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiPolygon;
+import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.h3.CellBoundary;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.h3.LatLng;
@@ -27,12 +33,10 @@ import static org.apache.lucene.geo.GeoUtils.lineCrossesLineWithBoundary;
 /**
  * Utility class that generates H3 bins coordinates projected on the cartesian plane (equirectangular projection).
  * Provides spatial methods to compute spatial intersections on those coordinates.
- *
- * <p>Adapted from {@code H3CartesianUtil} in the spatial module. GeoRelation replaced with boolean:
- * {@code true} means the point is inside or on the boundary of the polygon.
+ * TODO: This class is a copy of the same class in org.elasticsearch.xpack.spatial.common, we should find a common location for it.
  */
 public final class H3CartesianUtil {
-    static final int MAX_ARRAY_SIZE = 15;
+    public static final int MAX_ARRAY_SIZE = 15;
     private static final DoubleUnaryOperator NORMALIZE_LONG_POS = lon -> lon < 0 ? lon + 360d : lon;
     private static final DoubleUnaryOperator NORMALIZE_LONG_NEG = lon -> lon > 0 ? lon - 360d : lon;
 
@@ -49,6 +53,31 @@ public final class H3CartesianUtil {
             CACHED_H3.put(H3.northPolarH3(res), getCoordinates(H3.northPolarH3(res)));
             CACHED_H3.put(H3.southPolarH3(res), getCoordinates(H3.southPolarH3(res)));
         }
+    }
+
+    private static final double[] NORTH_BOUND = new double[H3.MAX_H3_RES + 1];
+    private static final double[] SOUTH_BOUND = new double[H3.MAX_H3_RES + 1];
+    static {
+        for (int res = 0; res <= H3.MAX_H3_RES; res++) {
+            NORTH_BOUND[res] = toBoundingBox(H3.northPolarH3(res)).getMinY();
+            SOUTH_BOUND[res] = toBoundingBox(H3.southPolarH3(res)).getMaxY();
+        }
+    }
+
+    /** For the given resolution, it returns true if the cell contains any of the poles */
+    public static boolean isPolar(long h3) {
+        final int res = H3.getResolution(h3);
+        return H3.southPolarH3(res) == h3 || H3.northPolarH3(res) == h3;
+    }
+
+    /** For the given resolution, it returns the maximum latitude of the h3 bin containing the south pole */
+    public static double getSouthPolarBound(int resolution) {
+        return SOUTH_BOUND[resolution];
+    }
+
+    /** For the given resolution, it returns the minimum latitude of the h3 bin containing the north pole */
+    public static double getNorthPolarBound(int resolution) {
+        return NORTH_BOUND[resolution];
     }
 
     private static double[][] getCoordinates(final long h3) {
@@ -153,68 +182,80 @@ public final class H3CartesianUtil {
         return y1 + t * (y2 - y1);
     }
 
-    // Polar bounds: the south polar cell's maximum latitude and north polar cell's minimum latitude
-    // at each resolution. Used to detect when an intermediate H3 cell is in a polar band where
-    // the equirectangular projection distorts cell relationships enough that we must force recursion.
-    // Adapted from the equivalent NORTH_BOUND/SOUTH_BOUND arrays in H3CartesianUtil in the spatial module.
-    private static final double[] NORTH_BOUND = new double[H3.MAX_H3_RES + 1];
-    private static final double[] SOUTH_BOUND = new double[H3.MAX_H3_RES + 1];
-    static {
-        for (int res = 0; res <= H3.MAX_H3_RES; res++) {
-            NORTH_BOUND[res] = polarBoundMinLat(H3.northPolarH3(res));
-            SOUTH_BOUND[res] = polarBoundMaxLat(H3.southPolarH3(res));
-        }
-    }
-
-    /** Returns the minimum latitude of the bounding box of the north-polar cell at {@code resolution}. */
-    public static double getNorthPolarBound(int resolution) {
-        return NORTH_BOUND[resolution];
-    }
-
-    /** Returns the maximum latitude of the bounding box of the south-polar cell at {@code resolution}. */
-    public static double getSouthPolarBound(int resolution) {
-        return SOUTH_BOUND[resolution];
-    }
-
-    /** Computes the minimum latitude of a north-polar H3 cell's boundary (quantized to Lucene integer precision). */
-    private static double polarBoundMinLat(long h3) {
-        final CellBoundary boundary = H3.h3ToGeoBoundary(h3);
-        double minLat = Double.POSITIVE_INFINITY;
-        for (int i = 0; i < boundary.numPoints(); i++) {
-            minLat = Math.min(minLat, GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(boundary.getLatLon(i).getLatDeg())));
-        }
-        return minLat;
-    }
-
-    /** Computes the maximum latitude of a south-polar H3 cell's boundary (quantized to Lucene integer precision). */
-    private static double polarBoundMaxLat(long h3) {
-        final CellBoundary boundary = H3.h3ToGeoBoundary(h3);
-        double maxLat = Double.NEGATIVE_INFINITY;
-        for (int i = 0; i < boundary.numPoints(); i++) {
-            maxLat = Math.max(maxLat, GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(boundary.getLatLon(i).getLatDeg())));
-        }
-        return maxLat;
-    }
-
-    /** For the given resolution, it returns true if the cell contains any of the poles */
-    public static boolean isPolar(long h3) {
-        final int res = H3.getResolution(h3);
-        return H3.southPolarH3(res) == h3 || H3.northPolarH3(res) == h3;
-    }
-
     /** Return the {@link LatLonGeometry} representing the provided H3 bin */
     public static LatLonGeometry getLatLonGeometry(long h3) {
         return new H3CartesianGeometry(h3);
     }
 
-    /** Return the spatial relationship between an H3 and a point.
-     * Returns {@code true} if the point is inside or on the boundary of the H3 polygon. */
-    public static boolean relatePoint(double[] xs, double[] ys, int numPoints, boolean crossesDateline, double x, double y) {
+    /** Return the {@link Geometry} representing the provided H3 bin */
+    public static Geometry getNormalizeGeometry(long h3) {
+        final double[][] cached = CACHED_H3.get(h3);
+        final double[] xs;
+        final double[] ys;
+        if (cached != null) {
+            xs = cached[0].clone();
+            ys = cached[1].clone();
+        } else {
+            final CellBoundary boundary = H3.h3ToGeoBoundary(h3);
+            final int numPoints = numPoints(h3, boundary);
+            xs = new double[numPoints];
+            ys = new double[numPoints];
+            computePoints(h3, boundary, xs, ys);
+        }
+        final Polygon polygon = new Polygon(new LinearRing(xs, ys));
+        if (isPolar(h3) || GeometryNormalizer.needsNormalize(Orientation.CCW, polygon) == false) {
+            return polygon;
+        }
+        final Geometry geometry = GeometryNormalizer.apply(Orientation.CCW, polygon);
+        if (geometry instanceof MultiPolygon) {
+            return geometry;
+        }
+        // we shouldn't be here but one of the polygons crossing the dateline fails
+        // to normalise, so we need to normalise it this way
+        return GeometryNormalizer.apply(Orientation.CW, polygon);
+    }
+
+    /** Return the bounding box of the provided H3 bin */
+    public static org.elasticsearch.geometry.Rectangle toBoundingBox(long h3) {
+        final CellBoundary boundary = H3.h3ToGeoBoundary(h3);
+        double minLat = Double.POSITIVE_INFINITY;
+        double minLon = Double.POSITIVE_INFINITY;
+        double maxLat = Double.NEGATIVE_INFINITY;
+        double maxLon = Double.NEGATIVE_INFINITY;
+        double maxNegLon = Double.NEGATIVE_INFINITY;
+        double minPosLon = Double.POSITIVE_INFINITY;
+        for (int i = 0; i < boundary.numPoints(); i++) {
+            final double lon = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(boundary.getLatLon(i).getLonDeg()));
+            final double lat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(boundary.getLatLon(i).getLatDeg()));
+            minLat = Math.min(minLat, lat);
+            minLon = Math.min(minLon, lon);
+            maxLat = Math.max(maxLat, lat);
+            maxLon = Math.max(maxLon, lon);
+            if (lon < 0) {
+                maxNegLon = Math.max(maxNegLon, lon);
+            } else {
+                minPosLon = Math.min(minPosLon, lon);
+            }
+        }
+        final int res = H3.getResolution(h3);
+        if (h3 == H3.northPolarH3(res)) {
+            return new org.elasticsearch.geometry.Rectangle(-180d, 180d, 90d, minLat);
+        } else if (h3 == H3.southPolarH3(res)) {
+            return new org.elasticsearch.geometry.Rectangle(-180d, 180d, maxLat, -90d);
+        } else if (maxLon - minLon > 180d) {
+            return new org.elasticsearch.geometry.Rectangle(minPosLon, maxNegLon, maxLat, minLat);
+        } else {
+            return new org.elasticsearch.geometry.Rectangle(minLon, maxLon, maxLat, minLat);
+        }
+    }
+
+    /** Return the spatial relationship between an H3 and a point.*/
+    public static GeoRelation relatePoint(double[] xs, double[] ys, int numPoints, boolean crossesDateline, double x, double y) {
         final DoubleUnaryOperator normalizeLong = crossesDateline ? NORMALIZE_LONG_POS : DoubleUnaryOperator.identity();
         return relatePoint(xs, ys, numPoints, x, y, normalizeLong);
     }
 
-    private static boolean relatePoint(double[] xs, double[] ys, int numPoints, double x, double y, DoubleUnaryOperator normalize_lon) {
+    private static GeoRelation relatePoint(double[] xs, double[] ys, int numPoints, double x, double y, DoubleUnaryOperator normalize_lon) {
         boolean res = false;
         x = normalize_lon.applyAsDouble(x);
         for (int i = 0; i < numPoints - 1; i++) {
@@ -224,13 +265,13 @@ public final class H3CartesianUtil {
             final double y2 = ys[i + 1];
             if (y == y1 && y == y2 || (y <= y1 && y >= y2) != (y >= y1 && y <= y2)) {
                 if ((x == x1 && x == x2) || ((x <= x1 && x >= x2) != (x >= x1 && x <= x2) && GeoUtils.orient(x1, y1, x2, y2, x, y) == 0)) {
-                    return true; // on boundary (was QUERY_CROSSES)
+                    return GeoRelation.QUERY_CROSSES;
                 } else if (y1 > y != y2 > y) {
                     res ^= x < (x2 - x1) * (y - y1) / (y2 - y1) + x1;
                 }
             }
         }
-        return res; // true = inside (was QUERY_CONTAINS), false = outside (was QUERY_DISJOINT)
+        return res ? GeoRelation.QUERY_CONTAINS : GeoRelation.QUERY_DISJOINT;
     }
 
     /** Checks if a line crosses a h3 bin.*/
@@ -272,6 +313,7 @@ public final class H3CartesianUtil {
         boolean includeBoundary,
         DoubleUnaryOperator normalizeLong
     ) {
+
         for (int i = 0; i < numPoints - 1; i++) {
             double cy = ys[i];
             double dy = ys[i + 1];
@@ -365,6 +407,8 @@ public final class H3CartesianUtil {
             double dx = normalizeLong.applyAsDouble(xs[i]);
             double ex = normalizeLong.applyAsDouble(xs[i + 1]);
 
+            // optimization: see if the rectangle is outside of the "bounding box" of the polyline at all
+            // if not, don't waste our time trying more complicated stuff
             boolean outside = (dy < minY && ey < minY) || (dy > maxY && ey > maxY) || (dx < minX && ex < minX) || (dx > maxX && ex > maxX);
 
             if (outside == false) {
@@ -418,16 +462,26 @@ public final class H3CartesianUtil {
         boolean includeBoundary,
         DoubleUnaryOperator normalizeLong
     ) {
+        // we just have to cross one edge to answer the question, so we descend the tree and return when
+        // we do.
         for (int i = 0; i < numPoints - 1; i++) {
+            // we compute line intersections of every polygon edge with every box line.
+            // if we find one, return true.
+            // for each box line (AB):
+            // for each poly line (CD):
+            // intersects = orient(C,D,A) * orient(C,D,B) <= 0 && orient(A,B,C) * orient(A,B,D) <= 0
             double cy = ys[i];
             double dy = ys[i + 1];
             double cx = normalizeLong.applyAsDouble(xs[i]);
             double dx = normalizeLong.applyAsDouble(xs[i + 1]);
 
+            // optimization: see if either end of the line segment is contained by the rectangle
             if (Rectangle.containsPoint(cy, cx, minY, maxY, minX, maxX) || Rectangle.containsPoint(dy, dx, minY, maxY, minX, maxX)) {
                 return true;
             }
 
+            // optimization: see if the rectangle is outside of the "bounding box" of the polyline at all
+            // if not, don't waste our time trying more complicated stuff
             boolean outside = (cy < minY && dy < minY) || (cy > maxY && dy > maxY) || (cx < minX && dx < minX) || (cx > maxX && dx > maxX);
 
             if (outside == false) {
@@ -436,6 +490,7 @@ public final class H3CartesianUtil {
                         || lineCrossesLineWithBoundary(cx, cy, dx, dy, maxX, minY, maxX, maxY)
                         || lineCrossesLineWithBoundary(cx, cy, dx, dy, maxX, maxY, minX, maxY)
                         || lineCrossesLineWithBoundary(cx, cy, dx, dy, minX, maxY, minX, minY)) {
+                        // include boundaries: ensures box edges that terminate on the polygon are included
                         return true;
                     }
                 } else {

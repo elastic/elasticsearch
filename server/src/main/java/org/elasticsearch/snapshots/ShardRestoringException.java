@@ -49,11 +49,13 @@ public final class ShardRestoringException extends ElasticsearchException {
      */
     public ShardRestoringException(String indexName, String recoveryId) {
         super(
-            "index [" + Objects.requireNonNull(indexName) + "] is currently being restored from a snapshot and is temporarily unavailable"
+            "index ["
+                + Objects.requireNonNull(indexName, "indexName must not be null")
+                + "] is currently being restored from a snapshot and is temporarily unavailable"
         );
         // Add only the index name: setIndex(String) would also add a placeholder es.index_uuid of "_na_".
         addMetadata(INDEX_KEY, indexName);
-        addMetadata(RECOVERY_ID_KEY, Objects.requireNonNull(recoveryId));
+        addMetadata(RECOVERY_ID_KEY, Objects.requireNonNull(recoveryId, "recoveryId must not be null"));
     }
 
     public ShardRestoringException(StreamInput in) throws IOException {

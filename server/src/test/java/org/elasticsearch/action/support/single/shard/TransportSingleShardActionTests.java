@@ -10,9 +10,11 @@
 package org.elasticsearch.action.support.single.shard;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.SplitAwareRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -20,6 +22,7 @@ import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -88,6 +91,7 @@ public class TransportSingleShardActionTests extends ESTestCase {
         final ClusterState clusterState = ClusterState.builder(new ClusterName(TransportSingleShardActionTests.class.getSimpleName()))
             .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("node")).build())
             .metadata(new Metadata.Builder().put(project))
+            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
             .build();
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterService.getSettings()).thenReturn(settings);
@@ -181,6 +185,36 @@ public class TransportSingleShardActionTests extends ESTestCase {
         action.execute(null, new TestRequest(() -> SplitShardCountSummary.fromInt(summary.incrementAndGet())).index("index"), result);
         final var response = result.get(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS);
         assertThat(response, isA(TestResponse.class));
+    }
+
+    public void testEmptyPrimaryShardIterator() {
+        var action = new TestTransportSingleShardAction<TestRequest>(threadPool, clusterService, transportService, projectResolver) {
+            @Override
+            protected ShardsIterator shards(
+                ProjectState state,
+                TransportSingleShardAction<TestRequest, TestResponse>.InternalRequest request
+            ) {
+                // See IndexShardRoutingTable#primaryShardIt().
+                return new PlainShardsIterator(List.of());
+            }
+        };
+
+        var request = new TestRequest().index("index");
+        var assertingListener = new ActionListener<TestResponse>() {
+            @Override
+            public void onResponse(TestResponse testResponse) {
+                fail("The operation should fail");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertTrue(
+                    "Expected NoShardAvailableActionException but got " + e.getClass().getName(),
+                    e instanceof NoShardAvailableActionException
+                );
+            }
+        };
+        action.execute(null, request, assertingListener);
     }
 
     static class TestRequest extends SingleShardRequest<TestRequest> implements SplitAwareRequest {

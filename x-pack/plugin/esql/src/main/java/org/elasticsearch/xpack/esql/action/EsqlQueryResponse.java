@@ -490,21 +490,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             content.add(ChunkedToXContentHelper.field("_clusters", executionInfo, params));
         }
         if (profile != null) {
-            content.add(ChunkedToXContentHelper.startObject("profile"));
-            content.add(ChunkedToXContentHelper.chunk((b, p) -> {
-                if (executionInfo != null) {
-                    executionInfo.queryProfile().toXContent(b, p);
-                }
-                return b;
-            }));
-            content.add(ChunkedToXContentHelper.array("drivers", profile.drivers.iterator(), params));
-            content.add(ChunkedToXContentHelper.array("plans", profile.plans.iterator()));
-            content.add(ChunkedToXContentHelper.chunk((b, p) -> {
-                TransportVersion minimumVersion = profile.minimumVersion();
-                b.field("minimumTransportVersion", minimumVersion == null ? null : minimumVersion.id());
-                return b;
-            }));
-            content.add(ChunkedToXContentHelper.endObject());
+            content.add(profileXContent(profile, executionInfo).toXContentChunked(params));
         }
         content.add(ChunkedToXContentHelper.endObject());
 
@@ -626,6 +612,24 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     public long getRowCount() {
         return pages.stream().mapToLong(Page::getPositionCount).sum();
+    }
+
+    public static ChunkedToXContent profileXContent(Profile profile, @Nullable EsqlExecutionInfo executionInfo) {
+        return params -> Iterators.concat(ChunkedToXContentHelper.startObject("profile"), Iterators.single((b, p) -> {
+            if (executionInfo != null) {
+                executionInfo.queryProfile().toXContent(b, p);
+            }
+            return b;
+        }),
+            ChunkedToXContentHelper.array("drivers", profile.drivers.iterator(), params),
+            ChunkedToXContentHelper.array("plans", profile.plans.iterator()),
+            Iterators.single((b, p) -> {
+                TransportVersion minimumVersion = profile.minimumVersion();
+                b.field("minimumTransportVersion", minimumVersion == null ? null : minimumVersion.id());
+                return b;
+            }),
+            ChunkedToXContentHelper.endObject()
+        );
     }
 
     public record Profile(List<DriverProfile> drivers, List<PlanProfile> plans, TransportVersion minimumVersion) implements Writeable {

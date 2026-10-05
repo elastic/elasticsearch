@@ -587,6 +587,60 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
     }
 
     /**
+     * A relocation starts with no shutdown anywhere in the cluster, so the initial plan is extendable and uses the relocation timeout.
+     * Then a node other than the relocation source starts shutting down: the re-evaluation must switch to the shorter with-shutdown
+     * relocation timeout rather than keep extending by the regular relocation slice.
+     */
+    public void testSearchRecoveryReevaluationSwitchesToShutdownTimeoutWhenAnotherClusterNodeStartsShuttingDown() {
+        try (var threadPool = new TestThreadPool(getTestName(), StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true))) {
+            final var service = newWarmingService(threadPool);
+            final ClusterState stateWithoutShutdown = ClusterStateCreationUtils.state(
+                DEFAULT_PROJECT_ID,
+                "test",
+                true,
+                STARTED,
+                ShardRouting.Role.INDEX_ONLY,
+                List.of(new Tuple<>(STARTED, ShardRouting.Role.SEARCH_ONLY), new Tuple<>(RELOCATING, ShardRouting.Role.SEARCH_ONLY))
+            );
+            final ShardId shardId = new ShardId("test", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
+            final ShardRouting self = stateWithoutShutdown.routingTable(DEFAULT_PROJECT_ID)
+                .shardRoutingTable(shardId)
+                .shardsWithState(RELOCATING)
+                .stream()
+                .filter(s -> s.primary() == false)
+                .findFirst()
+                .orElseThrow()
+                .getTargetRelocatingShard();
+
+            final var initialPlan = service.searchRecoveryTimeout(stateWithoutShutdown, mockIndexShard(self), 0L);
+            assertThat(initialPlan.awaitWarming(), is(true));
+            assertThat(
+                initialPlan.timeout(),
+                equalTo(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING.getDefault(Settings.EMPTY))
+            );
+            assertThat(initialPlan.timeoutContext(), equalTo("relocation source not shutting down, no cluster shutdown"));
+            assertThat(initialPlan.extendable(), is(true));
+
+            // exclude the relocation source so we test the "another node shutting down" branch, not the source-removal branch
+            final ClusterState stateWithOtherNodeShutdown = withActiveShutdownNodeMetadata(stateWithoutShutdown, self.relocatingNodeId());
+            assertThat(stateWithOtherNodeShutdown.metadata().nodeShutdowns().isNodeMarkedForRemoval(self.relocatingNodeId()), is(false));
+
+            final var reevaluatedPlan = service.searchRecoveryTimeout(stateWithOtherNodeShutdown, mockIndexShard(self), 0L, true);
+            assertThat(reevaluatedPlan.awaitWarming(), is(true));
+            assertThat(
+                reevaluatedPlan.timeout(),
+                equalTo(
+                    SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING.getDefault(
+                        Settings.EMPTY
+                    )
+                )
+            );
+            assertThat(reevaluatedPlan.timeoutContext(), equalTo("relocation source not shutting down, cluster shutdown metadata present"));
+            assertThat(reevaluatedPlan.extendable(), is(false));
+        }
+    }
+
+    /**
      * When the relocation source is shutting down, the per-target warming timeout scales linearly with the number of search shards
      * concurrently relocating from that source to the same target. Two targets in the same cluster state — one receiving 3 such
      * relocations, the other receiving 1 — must yield timeouts in a 3:1 ratio because all other inputs (remaining grace, shards on
@@ -890,6 +944,80 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 planCapped.timeoutContext(),
                 equalTo("relocation source shutting down (equal share of remaining time to capped grace deadline)")
             );
+        }
+    }
+
+    /**
+     * The relocation source is already shutting down when the first plan is computed, and the equal-share heuristic wins over the
+     * data-volume one. The plan must be extendable, and a re-evaluation after the first slice has expired must land on equal-share
+     * again, be extendable again, and be sized from the time remaining at that point.
+     */
+    public void testEqualShareTimeoutIsExtendedWhenSourceWasAlreadyShuttingDown() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            final var gracePeriodCap = TimeValue.timeValueSeconds(10);
+            final Settings settings = Settings.builder()
+                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), gracePeriodCap)
+                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING.getKey(), 1.0)
+                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
+                .build();
+            // cacheSize=1000, default cacheRatio=0.5 → warmingCacheBytes = 500
+            final var service = newWarmingServiceWithCacheSize(threadPool, settings, 1000L);
+
+            final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
+            final long startedAtMillis = threadPool.absoluteTimeInMillis();
+
+            final Index index = new Index("idx", randomUUID());
+            final String sourceNodeId = "source-node";
+            final String targetNodeId = "target-node";
+
+            // 4 shards on the source, 1 of them relocating to targetNodeId, none pending → shardsOnSource=4, ongoingRelocations=1
+            final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
+                4,
+                1,
+                index,
+                sourceNodeId,
+                targetNodeId,
+                startedAtMillis
+            );
+            final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
+                .shardRoutingTable(new ShardId(index, 0))
+                .shardsWithState(RELOCATING)
+                .get(0)
+                .getTargetRelocatingShard();
+
+            // totalBytesToWarm=20 → dataVolume = (20/500) × remaining, always well below the equal share
+            final Map<BlobFile, WarmTarget> endTargetsToWarm = Map.of(
+                new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)),
+                WarmTarget.withUnknownTimestamp(20L, randomLongBetween(20L, 2_000L))
+            );
+            final long totalBytesToWarm = totalBytesToWarm(endTargetsToWarm);
+
+            // 2000ms into the 10s grace → remaining = 8000ms, equal share = 8000 / 4 = 2000ms
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
+            final var initialPlan = service.searchRecoveryTimeout(state, mockIndexShard(self), totalBytesToWarm);
+            assertThat(initialPlan.timeout().millis(), equalTo(2000L));
+            assertThat(
+                initialPlan.timeoutContext(),
+                equalTo("relocation source shutting down (equal share of remaining time to capped grace deadline)")
+            );
+            assertThat(initialPlan.extendable(), is(true));
+            assertThat(initialPlan.totalBudget(), equalTo(gracePeriodCap));
+
+            // the first slice expires: 4000ms into the 10s grace → remaining = 6000ms, equal share = 6000 / 4 = 1500ms
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 4000);
+            final var reevaluatedPlan = service.searchRecoveryTimeout(state, mockIndexShard(self), totalBytesToWarm, true);
+            assertThat(reevaluatedPlan.awaitWarming(), is(true));
+            assertThat("the wait is extended by a slice sized from the remaining time", reevaluatedPlan.timeout().millis(), equalTo(1500L));
+            assertThat(reevaluatedPlan.timeoutContext(), equalTo(initialPlan.timeoutContext()));
+            assertThat(reevaluatedPlan.extendable(), is(true));
+            assertThat(reevaluatedPlan.totalBudget(), equalTo(gracePeriodCap));
         }
     }
 

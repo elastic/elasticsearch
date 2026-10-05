@@ -1277,7 +1277,14 @@ public class SharedBlobCacheWarmingService {
         // - warming completing (the listener returned to warmCache): completes it with WARMING_COMPLETE
         final SubscribableListener<SearchRecoveryWaitOutcome> race = new SubscribableListener<>();
 
-        final var timeoutTask = new ReevaluatingTimeout(initialPlan, clusterStateSupplier, indexShard, bytesToWarm, startedMillis, race);
+        final var timeoutTask = new ReevaluatingTimeoutTask(
+            initialPlan,
+            clusterStateSupplier,
+            indexShard,
+            bytesToWarm,
+            startedMillis,
+            race
+        );
         timeoutTask.schedule();
 
         final ActionListener<Void> resumeRecoveryByForkingToGeneric = new ThreadedActionListener<>(
@@ -1332,7 +1339,7 @@ public class SharedBlobCacheWarmingService {
         return race.map(ignored -> SearchRecoveryWaitOutcome.WARMING_COMPLETE);
     }
 
-    private class ReevaluatingTimeout implements Runnable {
+    private class ReevaluatingTimeoutTask implements Runnable {
 
         private final SearchRecoveryTimeout initialPlan;
         private final Supplier<ClusterState> clusterStateSupplier;
@@ -1344,7 +1351,7 @@ public class SharedBlobCacheWarmingService {
         private volatile String latestTimeoutContext;
         private volatile Scheduler.ScheduledCancellable scheduledTask;
 
-        ReevaluatingTimeout(
+        ReevaluatingTimeoutTask(
             SearchRecoveryTimeout initialPlan,
             Supplier<ClusterState> clusterStateSupplier,
             IndexShard indexShard,

@@ -7534,6 +7534,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
             }
 
             @Override
+            public boolean supportsNativeAsync() {
+                return true;
+            }
+
+            @Override
             public StoragePath path() {
                 return StoragePath.of("memory://async-test.parquet");
             }
@@ -7615,6 +7620,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
             @Override
             public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public boolean supportsNativeAsync() {
                 return true;
             }
 

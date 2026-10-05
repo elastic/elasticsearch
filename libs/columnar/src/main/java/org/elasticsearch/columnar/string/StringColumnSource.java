@@ -27,6 +27,9 @@ public interface StringColumnSource {
     /** The column behind these values. */
     StringColumnReader reader();
 
+    /** Whether a document's blob is its one value's own bytes rather than a payload of its slots. */
+    boolean singleValued();
+
     /**
      * The largest or smallest value the document these values are positioned on holds, or null when it holds none.
      *

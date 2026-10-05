@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.core.Releasables;
@@ -17,7 +16,6 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueColumnarPayloadBinaryDocValuesReader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.BreakerPageBudget;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
 
 import java.io.IOException;
@@ -39,20 +37,13 @@ public abstract class MultiValuedBinaryColumnarPayloadLengthReader extends Block
     private final MultiValueColumnarPayloadBinaryDocValuesReader reader = new MultiValueColumnarPayloadBinaryDocValuesReader();
     private final BytesRef scratch = new BytesRef();
     private final int[] lengthScratch = new int[1];
-    private int[] wanted = new int[0];
-    private int[] counts = new int[0];
-    private int[] lengths = new int[0];
-    /**
-     * Charged before the column grows the page storage it resolves this reader's documents in, and released with
-     * this reader, since that storage lives as long as the reader does.
-     */
-    private final BreakerPageBudget budget;
+    private final ColumnarByteLengthPageReader pages;
 
     MultiValuedBinaryColumnarPayloadLengthReader(Warnings warnings, TrackingBinaryDocValues values) {
         super(null);
         this.warnings = warnings;
         this.values = values;
-        this.budget = new BreakerPageBudget(values.breaker());
+        this.pages = new ColumnarByteLengthPageReader(warnings, values.breaker());
     }
 
     abstract int length(BytesRef bytesRef);
@@ -76,28 +67,7 @@ public abstract class MultiValuedBinaryColumnarPayloadLengthReader extends Block
         }
         if (countsBytes() && values.docValues() instanceof StringColumnSource columnar) {
             // The column resolves the page's documents at once and answers each length beside the values.
-            if (wanted.length < count) {
-                wanted = new int[ArrayUtil.oversize(count, Integer.BYTES)];
-                counts = new int[wanted.length];
-                lengths = new int[wanted.length];
-            }
-            for (int i = 0; i < count; i++) {
-                wanted[i] = docs.get(offset + i);
-            }
-            columnar.reader().readByteLengths(wanted, 0, count, counts, lengths, budget);
-            try (BlockLoader.IntBuilder builder = factory.ints(count)) {
-                for (int i = 0; i < count; i++) {
-                    if (counts[i] == 1) {
-                        builder.appendInt(lengths[i]);
-                    } else {
-                        if (counts[i] > 1) {
-                            registerSingleValueWarning(warnings);
-                        }
-                        builder.appendNull();
-                    }
-                }
-                return builder.build();
-            }
+            return pages.read(columnar, factory, docs, offset);
         }
 
         try (BlockLoader.IntBuilder builder = factory.ints(count)) {
@@ -165,6 +135,6 @@ public abstract class MultiValuedBinaryColumnarPayloadLengthReader extends Block
 
     @Override
     public final void close() {
-        Releasables.close(budget, values);
+        Releasables.close(pages, values);
     }
 }

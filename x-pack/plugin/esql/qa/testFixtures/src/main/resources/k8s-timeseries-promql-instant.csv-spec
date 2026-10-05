@@ -421,7 +421,9 @@ required_capability: promql_command_v0
 required_capability: promql_instant_query
 required_capability: promql_sort_by_label
 
-PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(last_over_time(network.bytes_in[1m]))
+// client.ip is not a dimension and differs between the in-window samples of one series (staging/two), so grouping by it
+// would split that series. Sorting must not change the series set: 6, as for the bare selector.
+PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_by_label(last_over_time(network.bytes_in[1m]), "client.ip"))
 | STATS c = COUNT();
 
 c:long
@@ -480,6 +482,23 @@ bytes:double | step:datetime            | cluster:keyword
 612.0        | 2024-05-10T00:03:00.000Z | prod
 749.0        | 2024-05-10T00:03:00.000Z | qa
 382.5        | 2024-05-10T00:03:00.000Z | staging
+;
+
+instant_sort_by_label_closed_header_tie_break_by_label_name
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_sort_by_label
+// The tie-break compares the full label set, label by label in label-name order (cluster before pod), regardless
+// of the order of the grouping labels.
+PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_by_label(avg by (pod, cluster) (last_over_time(network.bytes_in[1m])), "region"));
+
+bytes:double | step:datetime            | pod:keyword | cluster:keyword
+369.0        | 2024-05-10T00:03:00.000Z | three       | prod
+855.0        | 2024-05-10T00:03:00.000Z | two         | prod
+585.0        | 2024-05-10T00:03:00.000Z | three       | qa
+913.0        | 2024-05-10T00:03:00.000Z | two         | qa
+178.0        | 2024-05-10T00:03:00.000Z | three       | staging
+587.0        | 2024-05-10T00:03:00.000Z | two         | staging
 ;
 
 instant_sort_by_label_multi_label_first_key_wins

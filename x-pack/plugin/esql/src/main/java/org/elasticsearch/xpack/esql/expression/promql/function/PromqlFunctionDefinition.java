@@ -838,7 +838,7 @@ public final class PromqlFunctionDefinition {
          */
         public PromqlFunctionDefinition.Builder resultOrderingByLabel() {
             this.functionType = FunctionType.RESULT_ORDERING;
-            this.arity = new PromqlFunctionArity(2, Integer.MAX_VALUE);
+            this.arity = new PromqlFunctionArity(1, Integer.MAX_VALUE);
             this.variadic = true;
             this.params = List.of(
                 INSTANT_VECTOR,

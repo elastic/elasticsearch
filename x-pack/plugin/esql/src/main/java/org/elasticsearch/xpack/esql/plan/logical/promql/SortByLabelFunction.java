@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -63,10 +64,10 @@ public final class SortByLabelFunction extends PromqlFunctionCall implements Res
     }
 
     /**
-     * The sort labels exposed as extra output columns so an ordering can bind to them: resolved, non-null, not a
-     * metric field, and not already carried by the child. Only an open child header ({@code _timeseries} still
-     * present) can carry them; on a closed one they are all dropped, because materializing a label the aggregation
-     * merged away would split its series.
+     * The sort labels exposed as extra output columns so an ordering can bind to them: resolved, non-null, a
+     * dimension (the only fields that are series labels), and not already carried by the child. Only an open child
+     * header ({@code _timeseries} still present) can carry them; on a closed one they are all dropped, because
+     * materializing a label the aggregation merged away would split its series.
      */
     public List<Attribute> usableSortLabels() {
         if (usableSortLabels == null) {
@@ -93,7 +94,7 @@ public final class SortByLabelFunction extends PromqlFunctionCall implements Res
             if (label.resolved() == false || label.dataType() == DataType.NULL) {
                 continue;
             }
-            if (label instanceof FieldAttribute field && field.isMetric()) {
+            if (label instanceof FieldAttribute field && field.isDimension() == false) {
                 continue;
             }
             String key = PromqlLabels.labelName(label);
@@ -156,9 +157,10 @@ public final class SortByLabelFunction extends PromqlFunctionCall implements Res
     public ResultOrdering resultOrdering(List<Attribute> commandOutput, Configuration configuration) {
         boolean desc = definition().name().equals("sort_by_label_desc");
         Order.OrderDirection direction = desc ? Order.OrderDirection.DESC : Order.OrderDirection.ASC;
-        // An absent label compares as the empty string, which precedes every other value. A column is null exactly
-        // where its label is absent, so ordering nulls first ascending - and last descending - encodes that for the
-        // identity columns ordered directly. The requested keys coalesce to "" instead and are never null.
+        // A requested label that is absent compares as the empty string, which precedes every other value; the requested
+        // keys coalesce to "" and are never null. A tie-break column is null where its label is absent. Ordering nulls
+        // first ascending - and last descending - matches the Prometheus full-label-set comparison only when the series
+        // lacking the label has no label sorting after it; otherwise Prometheus places that series after the other.
         Order.NullsPosition nulls = desc ? Order.NullsPosition.LAST : Order.NullsPosition.FIRST;
         List<Alias> syntheticKeys = new ArrayList<>();
         List<Order> orders = new ArrayList<>();
@@ -181,11 +183,16 @@ public final class SortByLabelFunction extends PromqlFunctionCall implements Res
         if (timeseries != null) {
             orders.add(new Order(source(), timeseries, direction, nulls));
         } else {
+            // Prometheus breaks ties by comparing the full label set, which it keeps sorted by label name.
+            List<Attribute> remaining = new ArrayList<>();
             for (int i = 2; i < commandOutput.size(); i++) {
                 Attribute attr = commandOutput.get(i);
-                if (usedLabels.contains(PromqlLabels.labelName(attr))) {
-                    continue;
+                if (usedLabels.contains(PromqlLabels.labelName(attr)) == false) {
+                    remaining.add(attr);
                 }
+            }
+            remaining.sort(Comparator.comparing(PromqlLabels::labelName));
+            for (Attribute attr : remaining) {
                 orders.add(new Order(source(), attr, direction, nulls));
             }
         }

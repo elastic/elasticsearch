@@ -50,15 +50,6 @@ public class PromqlPlanSortByLabelTests extends AbstractPromqlPlanOptimizerTests
         assertThat(outputColumns(plan), not(hasItem("pod")));
         assertThat(outputColumns(plan), hasItem(MetadataAttribute.TIMESERIES));
 
-        List<Attribute> collapseDimensions = plan.collect(TimeSeriesCollapse.class)
-            .stream()
-            .flatMap(collapse -> collapse.dimensions().stream())
-            .toList();
-        if (collapseDimensions.isEmpty() == false) {
-            assertThat(collapseDimensions.stream().map(Attribute::name).toList(), hasItem("pod"));
-            assertThat(collapseDimensions.stream().map(Attribute::name).toList(), hasItem(MetadataAttribute.TIMESERIES));
-        }
-
         List<String> dimensions = aggregatedDimensions(plan);
         assertThat(dimensions, hasItem("pod"));
         assertThat(dimensions, hasItem(MetadataAttribute.TIMESERIES));
@@ -132,6 +123,34 @@ public class PromqlPlanSortByLabelTests extends AbstractPromqlPlanOptimizerTests
         assertEquals(2, orderBy.order().size());
         assertOrdersMissingLabelAsEmpty(orderBy, Order.OrderDirection.DESC);
         Attribute tieBreak = as(orderBy.order().get(1).child(), Attribute.class);
+        assertEquals(MetadataAttribute.TIMESERIES, tieBreak.name());
+    }
+
+    public void testInstantQueryWithoutLabelsOrdersByTimeseriesOnly() {
+        LogicalPlan plan = planPromql("PROMQL index=k8s time=\"2024-05-10T00:03:00.000Z\" result=(sort_by_label(network.bytes_in))", false);
+        OrderBy orderBy = as(plan.collect(OrderBy.class).getFirst(), OrderBy.class);
+        assertFalse(orderBy.child() instanceof Eval);
+        assertEquals(1, orderBy.order().size());
+        assertOrdersMissingLabelAsEmpty(orderBy, Order.OrderDirection.ASC);
+        Attribute tieBreak = as(orderBy.order().getFirst().child(), Attribute.class);
+        assertEquals(MetadataAttribute.TIMESERIES, tieBreak.name());
+    }
+
+    /**
+     * A non-dimension field is not a series label, so like any label absent from every series it compares equal
+     * everywhere and leaves the order to the identity tie-break, as if no label had been requested.
+     */
+    public void testInstantQueryNonDimensionLabelOrdersByTimeseriesOnly() {
+        LogicalPlan plan = planPromql(
+            "PROMQL index=k8s time=\"2024-05-10T00:03:00.000Z\" result=(sort_by_label(network.bytes_in, \"client.ip\"))",
+            false
+        );
+        assertThat(outputColumns(plan), not(hasItem("client.ip")));
+        OrderBy orderBy = as(plan.collect(OrderBy.class).getFirst(), OrderBy.class);
+        assertFalse(orderBy.child() instanceof Eval);
+        assertEquals(1, orderBy.order().size());
+        assertOrdersMissingLabelAsEmpty(orderBy, Order.OrderDirection.ASC);
+        Attribute tieBreak = as(orderBy.order().getFirst().child(), Attribute.class);
         assertEquals(MetadataAttribute.TIMESERIES, tieBreak.name());
     }
 

@@ -452,4 +452,19 @@ public interface StorageObject {
      * to the wrapped object so the metrics attach to the underlying store, not the wrapper layer.
      */
     default void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+    /**
+     * Binds {@code io} to the query-budget scheduler that will grant this object's GETs.
+     * The default is a no-op for objects with no query budget.
+     */
+    default void bindRowGroup(RowGroupIo io) {}
+
+    /**
+     * Wait budget, in milliseconds, for a caller that must block on admission before issuing a
+     * GET. Decorators that wrap a query budget return that budget's timeout; the default is
+     * {@link QueryAdmission#DEFAULT_ACQUIRE_TIMEOUT_MS}.
+     */
+    default long admissionWaitTimeoutMs() {
+        return QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS;
+    }
 }

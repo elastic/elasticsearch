@@ -293,8 +293,7 @@ public class FormatReaderRegistry {
      * {@code canHandle}, honours it. Sourcing the message from the claiming maps means such a reader
      * cannot make the advice lie.
      *
-     * @param displayPath what the user asked for, quoted back to them — the full location on the resolver
-     *                    path, the object name here
+     * @param displayPath quoted back to the user; never the full location, which the user may not be allowed to see
      * @param objectName  the object name to diagnose the extension from
      */
     UnreadableObjectException unreadableObject(String displayPath, String objectName) {

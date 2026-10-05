@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
 import java.util.Map;
@@ -135,5 +136,9 @@ public class GcsDataSourcePluginTests extends ESTestCase {
         // Only gs:// is supported (unlike S3 which has s3, s3a, s3n)
         assertNotNull(providers.get("gs"));
         assertNull(providers.get("gcs"));
+    }
+
+    public void testSchemesAreRejectedBySafeForUserMessage() {
+        assertFalse(ExternalFailures.safeForUserMessage("gs://bucket/path/file.parquet"));
     }
 }

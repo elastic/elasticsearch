@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
@@ -102,6 +103,49 @@ final class FileSourceFactory implements ExternalSourceFactory {
      * when the parent data source has no settings).
      */
     static final Set<String> LEGACY_VOCABULARY_KEYS = Set.of(FileDataSourceValidator.SCHEMA_SAMPLE_SIZE);
+
+    /**
+     * Coordinator keys that do not identify what a cached record holds. Naming a key here is a claim that it
+     * cannot change a single row or value a read produces, so each carries the reason it holds.
+     * <p>
+     * Getting one of these wrong lets two different reads share a record, which is a wrong answer rather
+     * than a slow query — so the list is short and nothing joins it without a reason written beside it.
+     */
+    static final Set<String> COORDINATOR_IDENTITY_INERT_KEYS;
+
+    static {
+        Set<String> inert = new HashSet<>();
+        // Split geometry partitions a file's bytes into ranges to read in parallel. It changes how the work is
+        // divided, never which rows the file has or what they hold.
+        inert.addAll(FileSplitProvider.CONFIG_KEYS);
+        // A deprecated no-op: PartitionConfig.CONFIG_KEYS documents that fromConfig does not read it, and
+        // FileSourceFactoryValidationTests pins that two configs differing only in it address one entry.
+        inert.add(PartitionConfig.CONFIG_PARTITIONING_HIVE);
+        // Bounds how much of a listing schema discovery samples. Nothing cached is derived under it: the
+        // resolver only caches a listing it expanded without a bound.
+        inert.add(PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE);
+        // Changes which files a set contains, which the file-set fingerprint already identifies. It cannot
+        // change what any one file holds, and a per-file record is about one file.
+        inert.addAll(ExclusionConfig.CONFIG_KEYS);
+        // Selects between interchangeable readers for one format, which by definition read the same bytes the
+        // same way.
+        inert.add(FormatNameResolver.CONFIG_READER);
+        // The envelope carrying the data source's settings rather than a setting. Its contents reach an
+        // identity through the storage participant, and its credentials the secret identity that participant derives.
+        inert.add(ExternalSourceResolver.DATASOURCE_CONFIG_KEY);
+        COORDINATOR_IDENTITY_INERT_KEYS = Set.copyOf(inert);
+    }
+
+    /**
+     * The identity of the coordinator's contribution to how a cached record was produced: the error policy, the
+     * partitioning, the schema-resolution strategy, the listing order.
+     * <p>
+     * These belong to no reader and no storage provider — the coordinator consumes them itself — so it is the
+     * participant that says what they identify, the same way a reader and a storage configuration do.
+     */
+    static String coordinatorIdentity(Map<String, Object> config) {
+        return Configured.identityOf(config, COORDINATOR_KEYS, COORDINATOR_IDENTITY_INERT_KEYS);
+    }
 
     static {
         Set<String> keys = new HashSet<>();
@@ -417,14 +461,13 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
             StorageObject storageObject = provider.newObject(storagePath);
             if (storageObject.exists() == false) {
-                throw new IOException("File does not exist: " + location);
+                throw new IOException("External data file not found");
             }
             return reader.metadata(storageObject);
         } catch (IOException e) {
-            // The wrapper exists to type a storage/reader I/O failure as client-caused (400); it is not a place to
-            // say anything new. So it keeps the cause's own diagnosis instead of a constant naming only the path —
-            // see ExternalFailures#resolutionFailureMessage for why, and for when the path is prepended.
-            throw new IllegalArgumentException(ExternalFailures.resolutionFailureMessage(location, e), e);
+            // The wrapper exists to type a storage/reader I/O failure as client-caused (400). It keeps the cause's
+            // own diagnosis and never names the path.
+            throw new IllegalArgumentException(ExternalFailures.rootDetail(e), e);
         } finally {
             StorageProviderCache.closeLease(provider);
         }
@@ -475,8 +518,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
             } else {
                 storageObject = provider.newObject(storagePath);
                 if (storageObject.exists() == false) {
-                    IOException missing = new IOException("File does not exist: " + location);
-                    listener.onFailure(new IllegalArgumentException(ExternalFailures.resolutionFailureMessage(location, missing), missing));
+                    IOException missing = new IOException("External data file not found");
+                    listener.onFailure(new IllegalArgumentException(ExternalFailures.rootDetail(missing), missing));
                     return;
                 }
             }
@@ -491,7 +534,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         }
         ActionListener<SourceMetadata> completion = listener.delegateResponse((l, e) -> {
             if (e instanceof IOException) {
-                l.onFailure(new IllegalArgumentException(ExternalFailures.resolutionFailureMessage(location, e), e));
+                l.onFailure(new IllegalArgumentException(ExternalFailures.rootDetail(e), e));
             } else {
                 l.onFailure(e);
             }

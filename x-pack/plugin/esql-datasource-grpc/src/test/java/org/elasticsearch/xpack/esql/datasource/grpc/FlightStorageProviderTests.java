@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.grpc;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
@@ -42,7 +43,17 @@ public class FlightStorageProviderTests extends ESTestCase {
         }
         try (StorageProvider provider = new FlightStorageProvider()) {
             StoragePath path = StoragePath.of("flight://127.0.0.1:" + freePort + "/employees");
-            assertThrows(IOException.class, () -> provider.exists(path));
+            IOException e = expectThrows(IOException.class, () -> provider.exists(path));
+            assertTrue(e.getMessage(), e.getMessage().contains("[employees]"));
+            assertFalse("the endpoint is the location and must not be quoted back", e.getMessage().contains(Integer.toString(freePort)));
+        }
+    }
+
+    public void testSchemesAreRejectedBySafeForUserMessage() throws IOException {
+        try (StorageProvider provider = new FlightStorageProvider()) {
+            for (String scheme : provider.supportedSchemes()) {
+                assertFalse(scheme, ExternalFailures.safeForUserMessage(scheme + "://flight-host:8815/employees"));
+            }
         }
     }
 

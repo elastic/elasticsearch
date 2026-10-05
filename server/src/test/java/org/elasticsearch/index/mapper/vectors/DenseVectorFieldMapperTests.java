@@ -916,7 +916,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldMapper
                 .fieldType()
                 .getIndexOptions();
-            assertTrue(indexOptions.autoCalibrate);
+            assertTrue(indexOptions.autoCalibrate());
             assertTrue(mapperService.mappingSource().toString().contains("auto_calibrate"));
         }
         {
@@ -934,7 +934,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldMapper
                 .fieldType()
                 .getIndexOptions();
-            assertFalse(indexOptions.autoCalibrate);
+            assertFalse(indexOptions.autoCalibrate());
             assertFalse(mapperService.mappingSource().toString().contains("auto_calibrate"));
         }
     }

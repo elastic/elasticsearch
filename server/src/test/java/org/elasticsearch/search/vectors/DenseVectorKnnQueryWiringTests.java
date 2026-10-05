@@ -13,6 +13,8 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibrationProfile;
+import org.elasticsearch.index.mapper.vectors.AutoCalibrate;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQIVFIndexOptions;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
@@ -79,10 +81,15 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
         DiversifyingChildrenIVFKnnByteVectorQuery.class
     );
 
-    private static DenseVectorFieldType bbqIvfField(ElementSpec spec, boolean autoCalibrate, float postFilterThreshold) {
+    private static DenseVectorFieldType bbqIvfField(ElementSpec spec, boolean autoCalibrateEnabled, float postFilterThreshold) {
+        IndexVersion indexVersion = IndexVersion.current();
+        AutoCalibrate autoCalibrate = autoCalibrateEnabled
+            ? new AutoCalibrate(null, AutoCalibrate.defaultEnabledProfile(indexVersion))
+            : new AutoCalibrate(null, IvfAutoCalibrationProfile.DISABLED);
+
         return new DenseVectorFieldType(
             "f",
-            IndexVersion.current(),
+            indexVersion,
             spec.elementType(),
             DIMS,
             true,
@@ -94,7 +101,7 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
                 0.0d,
                 false,
                 new RescoreVector(OVERSAMPLE),
-                IndexVersion.current(),
+                indexVersion,
                 false,
                 1,
                 false,

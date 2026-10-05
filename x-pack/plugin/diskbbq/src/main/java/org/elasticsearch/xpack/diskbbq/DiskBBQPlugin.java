@@ -114,7 +114,7 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                             );
                         }
                         IvfMergeConfigResolver mergeConfigResolver = diskbbq.autoCalibrate()
-                            ? IvfAutoCalibration.mergeConfigResolver(clusterSize)
+                            ? IvfAutoCalibration.mergeConfigResolver(clusterSize, diskbbq.autoCalibrationProfile())
                             : IvfMergeConfigResolver.useCodecDefault();
                         return new ESNextDiskBBQVectorsFormat(
                             QuantEncoding.fromBits((byte) diskbbq.getBits()),
@@ -134,7 +134,7 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                         );
                     } else if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE)) {
                         IvfMergeConfigResolver mergeConfigResolver = diskbbq.autoCalibrate()
-                            ? IvfAutoCalibration.mergeConfigResolver(clusterSize)
+                            ? IvfAutoCalibration.mergeConfigResolver(clusterSize, diskbbq.autoCalibrationProfile())
                             : IvfMergeConfigResolver.useCodecDefault();
                         return new ES950DiskBBQVectorsFormat(
                             QuantEncoding.fromBits((byte) diskbbq.getBits()),

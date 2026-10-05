@@ -52,6 +52,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibrationProfile;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
@@ -518,7 +519,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     false,
                     bits,
                     experimentalFeaturesEnabled,
-                    false,
+                    null,
                     BBQIVFIndexOptions.QuantizationType.OSQ,
                     false
                 );
@@ -2247,8 +2248,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
 
                 boolean doPrecondition = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("precondition"), false);
-                boolean autoCalibrate = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("auto_calibrate"), false);
-                if (isAsh && autoCalibrate) {
+                AutoCalibrate autoCalibrate = AutoCalibrate.parse(indexOptionsMap.remove(AutoCalibrate.NAME), indexVersion, fieldName);
+                if (isAsh && autoCalibrate.enabled()) {
                     throw new IllegalArgumentException(
                         "'auto_calibrate' is not supported with 'quantization_type' 'ash' for field [" + fieldName + "]"
                     );
@@ -2991,7 +2992,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         final int bits;
         final boolean doPrecondition;
         final boolean experimentalFeaturesEnabled;
-        final boolean autoCalibrate;
+        final AutoCalibrate autoCalibrate;
         final QuantizationType quantizationType;
 
         public enum QuantizationType {
@@ -3031,7 +3032,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             boolean doPrecondition,
             int bits,
             boolean experimentalFeaturesEnabled,
-            boolean autoCalibrate,
+            @Nullable AutoCalibrate autoCalibrate,
             QuantizationType quantizationType,
             boolean onDiskMerge
         ) {
@@ -3044,7 +3045,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.bits = bits;
             this.doPrecondition = doPrecondition;
             this.experimentalFeaturesEnabled = experimentalFeaturesEnabled;
-            this.autoCalibrate = autoCalibrate;
+            this.autoCalibrate = autoCalibrate == null ? AutoCalibrate.defaultAutoCalibrate(indexVersionCreated) : autoCalibrate;
             this.quantizationType = quantizationType;
         }
 
@@ -3094,8 +3095,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         onDiskMerge
                     );
                 } else {
-                    IvfMergeConfigResolver mergeConfigResolver = autoCalibrate
-                        ? IvfAutoCalibration.mergeConfigResolver(clusterSize)
+                    IvfMergeConfigResolver mergeConfigResolver = autoCalibrate()
+                        ? IvfAutoCalibration.mergeConfigResolver(clusterSize, autoCalibrationProfile())
                         : IvfMergeConfigResolver.useCodecDefault();
                     return new ESNextDiskBBQVectorsFormat(
                         QuantEncoding.fromBits((byte) bits),
@@ -3115,8 +3116,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     );
                 }
             } else if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE)) {
-                IvfMergeConfigResolver mergeConfigResolver = autoCalibrate
-                    ? IvfAutoCalibration.mergeConfigResolver(clusterSize)
+                IvfMergeConfigResolver mergeConfigResolver = autoCalibrate()
+                    ? IvfAutoCalibration.mergeConfigResolver(clusterSize, autoCalibrationProfile())
                     : IvfMergeConfigResolver.useCodecDefault();
                 return new ES950DiskBBQVectorsFormat(
                     QuantEncoding.fromBits((byte) bits),
@@ -3158,7 +3159,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             BBQIVFIndexOptions that = (BBQIVFIndexOptions) update;
             return this.doPrecondition == that.doPrecondition
-                && this.autoCalibrate == that.autoCalibrate
+                && Objects.equals(this.autoCalibrate, that.autoCalibrate)
                 && Objects.equals(this.quantizationType, that.quantizationType);
         }
 
@@ -3171,7 +3172,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 && onDiskRescore == that.onDiskRescore
                 && bits == that.bits
                 && doPrecondition == that.doPrecondition
-                && autoCalibrate == that.autoCalibrate
+                && Objects.equals(autoCalibrate, that.autoCalibrate)
                 && Objects.equals(quantizationType, that.quantizationType)
                 && Objects.equals(rescoreVector, that.rescoreVector);
         }
@@ -3212,9 +3213,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (doPrecondition) {
                 builder.field("precondition", doPrecondition);
             }
-            if (autoCalibrate) {
-                builder.field("auto_calibrate", true);
-            }
+            autoCalibrate.toXContent(builder, params);
             if (quantizationType == QuantizationType.ASH) {
                 builder.field("quantization_type", quantizationType);
             }
@@ -3241,7 +3240,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         public boolean autoCalibrate() {
-            return autoCalibrate;
+            return autoCalibrate.enabled();
+        }
+
+        public IvfAutoCalibrationProfile autoCalibrationProfile() {
+            return autoCalibrate.profile();
         }
 
         public int getBits() {
@@ -3816,7 +3819,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
                 float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);
                 float visitRatio = visitPercentage == null ? defaultVisitRatio : (float) (visitPercentage / 100d);
-                if (bbqIndexOptions.autoCalibrate) {
+                if (bbqIndexOptions.autoCalibrate()) {
                     // Rescoring happens inside the IVF query itself (AbstractIVFKnnVectorQuery#rewrite ->
                     // #getAutoRescoreQuery), or, when post-filtering, after the filter via #finalizeTopK.
                     rescore = false;
@@ -3825,7 +3828,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     ? bbqIndexOptions.rescoreVector.oversample
                     : DEFAULT_OVERSAMPLE;
                 var ivfQueryConfigResolver = IvfQueryConfigResolver.from(
-                    bbqIndexOptions.autoCalibrate,
+                    bbqIndexOptions.autoCalibrate(),
                     bbqIndexOptions.doPrecondition,
                     bbqIndexOptions.bits,
                     mappingOversample,
@@ -3942,7 +3945,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
                 float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);
                 float visitRatio = visitPercentage == null ? defaultVisitRatio : (float) (visitPercentage / 100d);
-                if (bbqIndexOptions.autoCalibrate) {
+                if (bbqIndexOptions.autoCalibrate()) {
                     // Rescoring happens inside the IVF query itself (AbstractIVFKnnVectorQuery#rewrite ->
                     // #getAutoRescoreQuery), or, when post-filtering, after the filter via #finalizeTopK.
                     rescore = false;
@@ -3951,7 +3954,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     ? bbqIndexOptions.rescoreVector.oversample
                     : DEFAULT_OVERSAMPLE;
                 var ivfQueryConfigResolver = IvfQueryConfigResolver.from(
-                    bbqIndexOptions.autoCalibrate,
+                    bbqIndexOptions.autoCalibrate(),
                     bbqIndexOptions.doPrecondition,
                     bbqIndexOptions.bits,
                     mappingOversample,

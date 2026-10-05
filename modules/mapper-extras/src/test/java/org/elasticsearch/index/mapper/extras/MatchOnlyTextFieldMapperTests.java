@@ -46,6 +46,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -94,6 +95,28 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
 
     public void testPhraseQuerySyntheticSource() throws IOException {
         assertPhraseQuery(createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "match_only_text"))));
+    }
+
+    /**
+     * Regression test for https://github.com/elastic/elasticsearch/issues/160320: a phrase query on a {@code match_only_text} field
+     * mapped with {@code index: false} used to silently return zero hits, because phrase confirmation is seeded from postings that no
+     * longer exist. It should instead be rejected clearly, the way a {@code text} field rejects phrase queries without positions.
+     */
+    public void testPhraseQueriesRejectedWhenNotIndexed() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "match_only_text").field("index", false)));
+        SearchExecutionContext context = createSearchExecutionContext(mapperService);
+
+        IllegalArgumentException phrase = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MatchPhraseQueryBuilder("field", "brown fox").toQuery(context)
+        );
+        assertThat(phrase.getMessage(), containsString("Cannot run phrase queries on field [field] since it is not indexed"));
+
+        IllegalArgumentException phrasePrefix = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MatchPhrasePrefixQueryBuilder("field", "brown fo").toQuery(context)
+        );
+        assertThat(phrasePrefix.getMessage(), containsString("Cannot run phrase prefix queries on field [field] since it is not indexed"));
     }
 
     /**

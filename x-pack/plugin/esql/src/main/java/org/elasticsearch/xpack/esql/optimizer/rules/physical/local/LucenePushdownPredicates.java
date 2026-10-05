@@ -94,11 +94,11 @@ public interface LucenePushdownPredicates {
     boolean hasValueQueries(FieldAttribute attr);
 
     /**
-     * Whether a predicate over this attribute's value can be pushed to Lucene at all: either its exact form is
-     * indexed, or its values answer the query themselves.
+     * Whether a predicate over this attribute's value can be pushed to Lucene at all: either it is pushable as it
+     * stands - an exact form its index holds, or a metadata attribute - or its values answer the query themselves.
      */
     default boolean isPushableValueAttribute(Expression exp) {
-        if (isPushableFieldAttribute(exp)) {
+        if (isPushableAttribute(exp)) {
             return true;
         }
         // The guards of isPushableFieldAttribute apply here too: a field the block loader synthesizes, or one that may
@@ -130,6 +130,14 @@ public interface LucenePushdownPredicates {
             return fa.dataType() != DataType.TEXT || hasExactSubfield(fa);
         }
         return false;
+    }
+
+    /**
+     * Whether this attribute is pushable only over the values it keeps, which decides both the name a query names and
+     * the semantics it asks for: the value whole rather than the tokens a text field's index holds.
+     */
+    static boolean pushesOverValuesOnly(LucenePushdownPredicates predicates, Expression exp) {
+        return predicates.isPushableAttribute(exp) == false && predicates.isPushableValueAttribute(exp);
     }
 
     static boolean isPushableTextFieldAttribute(Expression exp) {

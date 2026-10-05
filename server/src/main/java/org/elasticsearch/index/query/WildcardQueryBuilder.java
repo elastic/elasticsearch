@@ -276,7 +276,11 @@ public class WildcardQueryBuilder extends LeafQueryBuilder<WildcardQueryBuilder>
         }
 
         MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
-        return fieldType.wildcardQuery(value, method, caseInsensitive, context);
+        // The pattern matches the value whole where the caller asks for it, rather than whatever the field's own
+        // wildcard query matches - the tokens a text field analyzes its values into, say.
+        return forceStringMatch
+            ? fieldType.wildcardLikeQuery(value, method, caseInsensitive, context)
+            : fieldType.wildcardQuery(value, method, caseInsensitive, context);
     }
 
     @Override

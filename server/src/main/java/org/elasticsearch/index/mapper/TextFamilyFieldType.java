@@ -16,6 +16,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldExistsQuery;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
@@ -34,6 +35,23 @@ public abstract class TextFamilyFieldType extends StringFieldType {
     public static final String FALLBACK_FIELD_NAME_SUFFIX = "._original";
     private final boolean isSyntheticSourceEnabled;
     private final boolean isWithinMultiField;
+
+    /**
+     * A pattern matched against the value whole, which is what {@code LIKE} and its kind ask for. Answered from the
+     * values this field keeps; where it keeps none, its own wildcard query answers, matching the tokens instead.
+     */
+    @Override
+    public Query wildcardLikeQuery(
+        String value,
+        @Nullable MultiTermQuery.RewriteMethod method,
+        boolean caseInsensitive,
+        SearchExecutionContext context
+    ) {
+        final BinaryDocValuesQueries values = valueQueries();
+        return values == null
+            ? super.wildcardLikeQuery(value, method, caseInsensitive, context)
+            : values.wildcard(name(), value, caseInsensitive);
+    }
 
     /**
      * The queries this field answers over the values its doc values hold, rather than over the terms its index holds, or

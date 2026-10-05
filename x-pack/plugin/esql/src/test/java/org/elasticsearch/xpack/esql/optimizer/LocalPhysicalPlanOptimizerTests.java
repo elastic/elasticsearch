@@ -29,6 +29,7 @@ import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestSearchStats;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -1187,6 +1188,50 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
         assertThat(pushedQuery(plan), instanceOf(RegexpQueryBuilder.class));
         assertThat(pushedQuery(plan).toString(), equalTo(unscore(regexpQuery("first_name", "")).toString()));
+    }
+
+    /**
+     * A {@code text} field whose index holds no exact form of its value is pushable where its own values answer the
+     * query: the pattern is matched against the value, which is what LIKE means, so the filter leaves the compute
+     * engine. {@code gender} is such a field - text with no keyword sub-field.
+     */
+    public void testLikeOverAFieldsOwnValues() {
+        var stats = new TestConfigurableSearchStats().include(TestConfigurableSearchStats.Config.VALUE_QUERIES, "gender");
+        var plan = plannerOptimizer.plan("from test | where gender like \"F*\"", stats);
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        var query = pushedQuery(plan);
+        assertThat(query, instanceOf(SingleValueQuery.Builder.class));
+        var inner = ((SingleValueQuery.Builder) query).next();
+        assertThat(inner, instanceOf(WildcardQueryBuilder.class));
+        // Named as it stands - there is no exact sub-field to name - and asking for the value, not its tokens.
+        assertThat(((WildcardQueryBuilder) inner).fieldName(), equalTo("gender"));
+    }
+
+    /** The same field keeping no values has nothing to answer with, so the filter stays where it was. */
+    public void testLikeWithoutValuesIsNotPushed() {
+        var plan = plannerOptimizer.plan("from test | where gender like \"F*\"", new TestConfigurableSearchStats());
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+    }
+
+    /** A field with an exact sub-field keeps naming it, which is the path that was already there. */
+    public void testLikeStillPrefersAnExactSubfield() {
+        var stats = new TestConfigurableSearchStats().include(TestConfigurableSearchStats.Config.VALUE_QUERIES, "job");
+        var plan = plannerOptimizer.plan("from test | where job like \"Ann*\"", stats);
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        var inner = ((SingleValueQuery.Builder) pushedQuery(plan)).next();
+        assertThat(((WildcardQueryBuilder) inner).fieldName(), equalTo("job.raw"));
+    }
+
+    /** STARTS_WITH, ENDS_WITH and CONTAINS ask the same question of the value, so they travel the same way. */
+    public void testTheOtherPatternsOverAFieldsOwnValues() {
+        var stats = new TestConfigurableSearchStats().include(TestConfigurableSearchStats.Config.VALUE_QUERIES, "gender");
+        for (String where : List.of("starts_with(gender, \"F\")", "ends_with(gender, \"e\")", "contains(gender, \"em\")")) {
+            var plan = plannerOptimizer.plan("from test | where " + where, stats);
+            assertThat(where, plan.anyMatch(FilterExec.class::isInstance), is(false));
+            var inner = ((SingleValueQuery.Builder) pushedQuery(plan)).next();
+            assertThat(where, inner, instanceOf(WildcardQueryBuilder.class));
+            assertThat(where, ((WildcardQueryBuilder) inner).fieldName(), equalTo("gender"));
+        }
     }
 
     private static QueryBuilder pushedQuery(PhysicalPlan plan) {

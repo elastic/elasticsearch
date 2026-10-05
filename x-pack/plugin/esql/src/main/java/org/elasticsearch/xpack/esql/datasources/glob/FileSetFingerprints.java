@@ -19,9 +19,8 @@ import java.util.List;
  * Computes the 128-bit {@linkplain FileList#fileSetFingerprint() file-set fingerprint} of a resolved
  * file set.
  * <p>
- * Each file contributes a 128-bit Murmur3 hash of its path (the same primitive
- * {@code ListingCacheKey.computeCredentialHash} already uses for identity hashing in the listing
- * cache), perturbed by its mtime and size with a different multiplier per lane so the two lanes stay
+ * Each file contributes a 128-bit Murmur3 hash of its path, perturbed by its mtime and size with a
+ * different multiplier per lane so the two lanes stay
  * independent. Per-file contributions are folded <em>commutatively</em> (wrapping addition), so the
  * fingerprint is a pure function of the file SET — the same files listed in a different order produce
  * the same fingerprint, and any add/remove/mtime/size change produces a different one. The file count

@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.rule;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.util.ReflectionUtils;
 
@@ -20,8 +18,6 @@ import org.elasticsearch.xpack.esql.core.util.ReflectionUtils;
  * rules are much larger, so we keep them as full-blown subclasses.
  */
 public abstract class Rule<E extends T, T extends Node<T>> {
-
-    protected Logger log = LogManager.getLogger(getClass());
 
     private final String name;
     private final Class<E> typeToken = ReflectionUtils.detectSuperTypeForRuleLike(getClass());

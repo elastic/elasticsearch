@@ -19,7 +19,9 @@ import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.queries.BinaryDocValuesQueries;
 
 import java.io.IOException;
 import java.util.Map;
@@ -32,6 +34,20 @@ public abstract class TextFamilyFieldType extends StringFieldType {
     public static final String FALLBACK_FIELD_NAME_SUFFIX = "._original";
     private final boolean isSyntheticSourceEnabled;
     private final boolean isWithinMultiField;
+
+    /**
+     * The queries this field answers over the values its doc values hold, rather than over the terms its index holds, or
+     * null where it keeps no values a query can read. The framing of those values picks the reader; see
+     * {@link BinaryDocValuesQueries#forFormat}.
+     *
+     * <p>These match a document's value whole, the way a {@code keyword} field's queries do, which is what a predicate
+     * over the value asks for. The queries of this field type match the tokens the value analyzes into instead, so a
+     * caller wanting one of the two has to say which.
+     */
+    @Nullable
+    public BinaryDocValuesQueries valueQueries() {
+        return null;
+    }
 
     /**
      * Whether this field's doc values keep array order in a column with a companion {@code .counts}, the layout a strictly columnar

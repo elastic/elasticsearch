@@ -946,6 +946,12 @@ public final class TextFieldMapper extends FieldMapper {
             return BinaryDocValuesQueries.forFormat(binaryFormat());
         }
 
+        @Override
+        public BinaryDocValuesQueries valueQueries() {
+            // Only the binary framings carry a document's value for a query to read; a sorted set holds its terms.
+            return usesBinaryDocValues() ? BinaryDocValuesQueries.forFormat(binaryFormat()) : null;
+        }
+
         /** How this field's binary doc values are framed, and so which decoder reads them back. */
         public BinaryDocValuesFormat binaryFormat() {
             if (useColumnarPayload) {

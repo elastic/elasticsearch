@@ -34,11 +34,10 @@ import java.io.IOException;
  *                      {@code getObject}/{@code reader}/{@code openInputStream} and the stream
  *                      being returned; the time spent draining bytes off the network after the
  *                      stream is returned is not currently captured)
- * @param bytesRead     planned read bytes against the underlying store, before any decompression
- *                      (best-effort: providers record the requested range length or the
- *                      response Content-Length at stream-open time, not the bytes actually
- *                      drained — close enough for a per-query I/O budget, not for measuring
- *                      end-of-stream truncation)
+ * @param bytesRead     physical bytes received into an ES {@code InputStream} or filled
+ *                      {@code ByteBuffer}, before outer decompression (includes drain-to-discard,
+ *                      retry bodies, and probe {@code drain()}; excludes abort-in-flight slack
+ *                      and decompressed size)
  * @param retryCount    number of automatic retries triggered by the underlying client. Only
  *                      tracked at the {@code RetryableStorageObject} decorator boundary today;
  *                      SDK-internal retry counts (AWS / GCS / Azure) are not yet wired

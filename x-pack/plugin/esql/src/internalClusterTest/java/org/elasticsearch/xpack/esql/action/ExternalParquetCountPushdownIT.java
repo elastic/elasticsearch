@@ -182,7 +182,7 @@ public class ExternalParquetCountPushdownIT extends AbstractExternalDataSourceIT
 
     /**
      * End-to-end pin for the unknown-key rejection path. A query with a typo'd configuration key
-     * must surface as {@code IllegalArgumentException} naming the typo and the recognised options,
+     * must surface as an exception naming the typo and the recognised options,
      * proving the {@code ExternalSourceFactory.validateConfig} SPI hook fires before any read.
      */
     public void testUnknownConfigKeyIsRejectedAtPlanningTime() throws Exception {
@@ -196,19 +196,17 @@ public class ExternalParquetCountPushdownIT extends AbstractExternalDataSourceIT
             var request = syncEsqlQueryRequest(query);
 
             Exception e = expectThrows(Exception.class, () -> { run(request).close(); });
-            // The validator's IllegalArgumentException is wrapped on the way up
-            // (DatasetRewriter → resolveSingleSource → ExternalSourceResolver). Walk the cause chain to find it.
-            Throwable validatorIae = null;
+            // The validator's IAE is wrapped as ExternalClientException by mapResolveFailure; the key name
+            // is preserved in the message. Walk the full chain in case wrapping changes in the future.
+            Throwable matchingThrowable = null;
             for (Throwable t = e; t != null; t = t.getCause()) {
-                if (t instanceof IllegalArgumentException
-                    && t.getMessage() != null
-                    && t.getMessage().contains("obviously_not_a_real_key")) {
-                    validatorIae = t;
+                if (t.getMessage() != null && t.getMessage().contains("obviously_not_a_real_key")) {
+                    matchingThrowable = t;
                     break;
                 }
             }
-            assertNotNull("expected validator IAE mentioning 'obviously_not_a_real_key' in cause chain of: " + e, validatorIae);
-            assertThat(validatorIae.getMessage(), containsString("unknown option"));
+            assertNotNull("expected an exception mentioning 'obviously_not_a_real_key' in cause chain of: " + e, matchingThrowable);
+            assertThat(matchingThrowable.getMessage(), containsString("unknown option"));
         } finally {
             Files.deleteIfExists(parquetFile);
         }

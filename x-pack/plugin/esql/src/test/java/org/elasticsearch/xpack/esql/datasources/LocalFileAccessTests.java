@@ -16,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 public class LocalFileAccessTests extends ESTestCase {
 
@@ -75,7 +76,8 @@ public class LocalFileAccessTests extends ESTestCase {
             () -> access.check(StoragePath.of("file://" + outsideFile.toAbsolutePath()))
         );
         assertThat(e.getMessage(), containsString("esql.external.local_allowed_paths"));
-        assertThat(e.getMessage(), containsString(outsideFile.toAbsolutePath().toString()));
+        assertThat(e.getMessage(), containsString("secret.csv"));
+        assertThat("the rejected location's directories are not quoted back", e.getMessage(), not(containsString(outside.toString())));
     }
 
     public void testDotDotTraversalEscapeRejected() throws IOException {
@@ -205,7 +207,8 @@ public class LocalFileAccessTests extends ESTestCase {
         String listing = "file://" + allowedFile.toAbsolutePath() + ",file://" + outsideFile.toAbsolutePath();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> access.check(StoragePath.of(listing)));
         assertThat(e.getMessage(), containsString("esql.external.local_allowed_paths"));
-        assertThat(e.getMessage(), containsString(outsideFile.toAbsolutePath().toString()));
+        assertThat(e.getMessage(), containsString("secret.csv"));
+        assertThat("the rejected location's directories are not quoted back", e.getMessage(), not(containsString(outside.toString())));
     }
 
     public void testCommaListingMixingLiteralAndGlobUnderRootSucceeds() throws IOException {

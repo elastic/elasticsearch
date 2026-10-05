@@ -85,6 +85,14 @@ public class TestPlannerOptimizer {
         return optimizedPlan(mapper.map(new Versioned<>(subPlan, analyzer.context().minimumVersion())), stats);
     }
 
+    /**
+     * Builds the distributed physical plan before it is split into coordinator and data-node plans.
+     * This exposes the same boundary used by {@link PlannerUtils#breakPlanBetweenCoordinatorAndDataNode} to planner tests.
+     */
+    public PhysicalPlan distributedPlan(String query) {
+        return EstimatesRowSize.estimateRowSize(0, physicalPlanOptimizer.optimize(physicalPlan(query, analyzer)));
+    }
+
     private PhysicalPlan optimizedPlan(PhysicalPlan plan, SearchStats searchStats) {
         return optimizedPlan(plan, searchStats, new EsqlFlags(true));
     }

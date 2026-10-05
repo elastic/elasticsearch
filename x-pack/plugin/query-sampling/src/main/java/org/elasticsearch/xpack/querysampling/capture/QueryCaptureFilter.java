@@ -36,9 +36,10 @@ import java.util.function.Consumer;
  * rest of the pipeline. The search itself always proceeds unchanged, and the work done for a search
  * that is not captured is a couple of field reads and one random draw.
  * <p>
- * For now only searches with a single top-level {@code knn} section, a literal float query vector and no
- * additional {@code query} are eligible. Searches with a parent task are skipped: those are the remote side of a cross-cluster
- * search or searches issued internally by other features, not user traffic arriving at this node.
+ * For now only searches with a single top-level {@code knn} section, a literal float query vector, no
+ * additional {@code query} and no {@code similarity} threshold are eligible. Searches with a parent task
+ * are skipped: those are the remote side of a cross-cluster search or searches issued internally by other
+ * features, not user traffic arriving at this node.
  */
 public final class QueryCaptureFilter implements MappedActionFilter {
 
@@ -146,6 +147,10 @@ public final class QueryCaptureFilter implements MappedActionFilter {
         KnnSearchBuilder knn = source.knnSearch().get(0);
         VectorData vector = knn.getQueryVector();
         if (knn.getQueryVectorBuilder() != null || vector == null || vector.isFloat() == false) {
+            return null;
+        }
+        // with a similarity threshold the number of results depends on the data, the exact search of k does not match
+        if (knn.getSimilarity() != null) {
             return null;
         }
         return knn;

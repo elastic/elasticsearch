@@ -137,6 +137,15 @@ public class QueryCaptureFilterTests extends ESTestCase {
         assertThat(filter.knnSearches(), equalTo(0L));
     }
 
+    public void testIgnoresSearchesWithASimilarityThreshold() {
+        QueryCaptureFilter filter = filter(true, 1.0, captured::add);
+        KnnSearchBuilder knn = new KnnSearchBuilder("vec", randomVector(8), 10, 100, null, null, randomFloat());
+        SearchRequest request = new SearchRequest("idx").source(new SearchSourceBuilder().knnSearch(List.of(knn)));
+        assertTrue(apply(filter, request, TaskId.EMPTY_TASK_ID));
+        assertTrue(captured.isEmpty());
+        assertThat(filter.knnSearches(), equalTo(0L));
+    }
+
     public void testIgnoresChildSearches() {
         QueryCaptureFilter filter = filter(true, 1.0, captured::add);
         assertTrue(apply(filter, knnSearch(randomVector(8)), new TaskId("remote-node", randomNonNegativeLong())));

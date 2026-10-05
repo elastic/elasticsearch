@@ -1367,8 +1367,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * raw-EXTERNAL sibling in {@code runCurrentVersion} does, because {@link #HIVE_ONE_FILE_SUFFIX} extends
      * {@link #HIVE_SUFFIX} while expanding to one concrete key that needs no listing. A bare
      * {@code contains(HIVE_SUFFIX)} cannot tell the two apart, and silently skipped the one-key cases on HTTP —
-     * the one backend where {@link org.elasticsearch.xpack.esql.datasources.glob.GlobExpander#isMultiFile} is
-     * the pattern test alone, so the backend those cases most need to run on. Package-private for
+     * the one backend where {@code GlobExpander.isMultiFile} is the pattern test alone, so the backend those
+     * cases most need to run on. Package-private for
      * {@code AbstractExternalSourceSpecTestCaseTests}, which pins exactly that distinction: a skip is silent,
      * so nothing else can catch it coming back.
      */

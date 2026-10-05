@@ -447,7 +447,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // So that FakeStatelessNode + unit tests don't have to always stub indexService
             final var shard = Optional.ofNullable(indicesService.indexService(shardId.getIndex()))
                 .map(indexService -> indexService.getShardOrNull(shardId.id()));
-            assert shard.map(s -> s.getActiveOperationsCount() == IndexShard.OPERATIONS_BLOCKED).orElse(true);
+            assert shard.map(s -> s.getActiveOperationsCount() == IndexShard.OPERATIONS_BLOCKED).orElse(true)
+                : shardId + " installUploadBoundListener must be called while holding all operation permits";
         }
         getSafe(shardsCommitsStates, shardId).installUploadBoundListener(uploadBoundListener);
     }
@@ -3010,7 +3011,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
                     assert relocationUploadBoundListener != null && relocationUploadBoundListener.isDone()
                         : "relocation upload bound listener should have been completed by markRelocating";
-                    // Cleared last, as getLatestVirtualBccForUnpromotableRecovery hands out the current VBCC once this is null
+                    // Cleared last, as getLatestVirtualBccForUnpromotableRecovery hands out the current or pending VBCC once this is null
                     relocationUploadBoundListener = null;
                 }
                 // If the index is concurrently deleted, the state will be CLOSED. We always want to reprocess the deferred deletions.
@@ -3154,12 +3155,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         /// While a relocation upload bound listener is installed this returns `null`, so the recovering search shard falls back to
         /// the requested or last uploaded commit, and catches up through the normal notification path.
         ///
+        /// Otherwise this returns the current VBCC, or the newest VBCC pending upload if there is no current one.
+        ///
         /// The bound is deliberately checked after reading the VBCC, so finding none means no bound applied when the VBCC
         /// was read. The generation sampled by the `markRelocating` of any later handoff is then at or above whatever was
         /// seen, so the bound it pins covers it, including anything appended to that VBCC in the meantime.
         @Nullable
         private VirtualBatchedCompoundCommit getLatestVirtualBccForUnpromotableRecovery() {
-            final var virtualBcc = getCurrentVirtualBcc();
+            final var currentVirtualBcc = getCurrentVirtualBcc();
+            final var virtualBcc = currentVirtualBcc != null ? currentVirtualBcc : getMaxPendingUploadBcc().orElse(null);
             if (relocationUploadBoundListener != null) {
                 return null;
             }

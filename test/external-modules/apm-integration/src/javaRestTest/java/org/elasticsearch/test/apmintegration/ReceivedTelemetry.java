@@ -44,8 +44,8 @@ public sealed interface ReceivedTelemetry {
      * For APM intake NDJSON these are nested keys (e.g. {@code "context.request.method"});
      * for OTLP, {@link org.elasticsearch.test.apmintegration.OtlpTracesParser} normalises
      * raw OTel semantic keys into the {@code otel.attributes.*} namespace (e.g.
-     * {@code "otel.attributes.http.method"}) so that both export paths satisfy the same
-     * assertions in {@code AbstractTracesIT}.
+     * {@code "otel.attributes.http.method"}) to satisfy the assertions in
+     * {@code OtelSdkTracesIT}.
      */
     record ReceivedSpan(String name, String traceId, String spanId, Optional<String> parentSpanId, Map<String, Object> attributes)
         implements
@@ -92,18 +92,12 @@ public sealed interface ReceivedTelemetry {
     }
 
     /**
-     * A histogram of non-zero bucket data. Each export path carries its native representation:
-     * the APM agent path populates {@code midpoints} (representative values per non-zero bucket);
-     * the OTLP path populates {@code bounds} (the explicit bucket boundaries of the histogram).
-     * Exactly one of {@code midpoints} or {@code bounds} will be non-empty for a given sample.
-     * @param midpoints representative midpoint values for each non-zero bucket (APM agent path; empty on OTLP path)
-     * @param bounds explicit bucket boundaries (OTLP path; empty on APM agent path)
-     * @param counts bucket counts in bucket order; on the APM agent path only non-zero buckets are present,
-     *               on the OTLP path all buckets are present including zeros
+     * A histogram as carried by OTLP.
+     * @param bounds explicit bucket boundaries
+     * @param counts bucket counts in bucket order, including empty buckets
      */
-    record HistogramSample(List<Double> midpoints, List<Double> bounds, List<Integer> counts) implements ReceivedMetricValue {
+    record HistogramSample(List<Double> bounds, List<Integer> counts) implements ReceivedMetricValue {
         public HistogramSample {
-            requireNonNull(midpoints);
             requireNonNull(bounds);
             requireNonNull(counts);
             counts.forEach(Objects::requireNonNull);

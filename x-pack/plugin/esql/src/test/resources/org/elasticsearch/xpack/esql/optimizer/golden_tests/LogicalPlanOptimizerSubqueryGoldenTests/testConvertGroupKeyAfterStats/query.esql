@@ -1,0 +1,3 @@
+FROM (FROM employees), (FROM employees)
+| STATS max_salary = MAX(salary) BY gender
+| EVAL g = TO_STRING(gender)

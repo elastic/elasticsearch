@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenResponse;
+import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,7 +35,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
  * Rest handler for handling access token invalidation requests
  */
 @ServerlessScope(Scope.INTERNAL)
-public final class RestInvalidateTokenAction extends TokenBaseRestHandler implements RestRequestFilter {
+public final class RestInvalidateTokenAction extends SecurityBaseRestHandler implements RestRequestFilter {
 
     static final ConstructingObjectParser<InvalidateTokenRequest, Void> PARSER = new ConstructingObjectParser<>("invalidate_token", a -> {
         final String token = (String) a[0];

@@ -7,9 +7,13 @@
 
 package org.elasticsearch.xpack.esql.qa.rest.generative;
 
+import com.carrotsearch.randomizedtesting.RandomizedContext;
+
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
@@ -132,7 +136,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             // to include external (parquet) datasets — the verifier rejects them with a message of the
             // form "[X] function/operator cannot be used after from <pattern>" (explicit index list) or
             // "cannot be used after FROM" (uppercase, when FROM * expands to include parquet indices).
-            "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after (?:FROM|from .+)",
+            "(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE|KNN)] function)|(?:\\[:\\] operator)) cannot be used after (?:FROM|from .+)",
             // https://github.com/elastic/elasticsearch/issues/159358
             // CHANGE_POINT + STATS + INLINE STATS causes the physical plan optimizer to lose the
             // $$field$converted_to$type reference that ExternalSourceResolver introduces when merging
@@ -156,17 +160,20 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "EVAL does not support type \\[(?:counter_long|counter_double|counter_integer)\\] as the return data type.*",
         "INLINE STATS cannot be used after an explicit or implicit LIMIT command",
         // Full-text functions and `:` operator are not allowed after FORK
-        "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after FORK",
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE|KNN)] function)|(?:\\[:\\] operator)) cannot be used after FORK",
+        // A FORK output column filled from a mapped text field cannot be searched: the merge drops the field's
+        // mapping analyzer, so the search would silently use the standard analyzer instead
+        "(?:(?:\\[(?:MATCH|MATCH_PHRASE)] function)|(?:\\[:\\] operator)) cannot search column \\[.*\\] after FORK",
         // Full-text functions and `:` operator are not allowed after HIGHLIGHT
-        "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after HIGHLIGHT",
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE|KNN)] function)|(?:\\[:\\] operator)) cannot be used after HIGHLIGHT",
         // Full-text functions and `:` operator are not allowed after LIMIT (can arise when a FORK
         // branch contains a LIMIT and a full-text function appears in the command after the FORK)
-        "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after LIMIT",
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE|KNN)] function)|(?:\\[:\\] operator)) cannot be used after LIMIT",
         // Optimized SORT + LIMIT is TopN; the verifier reports that as "SORT and LIMIT"
-        "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after SORT and LIMIT",
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE|KNN)] function)|(?:\\[:\\] operator)) cannot be used after SORT and LIMIT",
         // Full-text functions are not allowed after DEDUP (can arise when a FORK branch contains)
         // a DEDUP and a full-text function appears in the WHERE after the FORK)
-        "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after DEDUP",
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE|KNN)] function)|(?:\\[:\\] operator)) cannot be used after DEDUP",
         // Full-text functions mixed with lookup-side fields via OR cannot be pushed before LOOKUP JOIN _coordinator:
         "cannot be used in a WHERE clause that references both data-side and lookup-side fields after LOOKUP JOIN _coordinator:",
         "sub-plan execution results too large",  // INLINE STATS limitations
@@ -186,6 +193,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // throwing IllegalArgumentException via PackedValuesBlockHash
         // see https://github.com/elastic/elasticsearch/issues/145694
         "Found a single entry with .* entries",
+        "All SPARKLINE functions in a single STATS command must share the same timestamp, buckets, from, and to value",
 
         // Awaiting fixes for query failure
         "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,
@@ -197,7 +205,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/138231
         // https://github.com/elastic/elasticsearch/issues/142537 for null arguments in clamp() function
         "'field' must not be null in clamp\\(\\)", // clamp/clamp_min/clamp_max reject NULL field from unmapped fields
-        "must be \\[boolean, date, ip, string or numeric except unsigned_long or counter types\\]", // type mismatch in top() arguments
         "Does not support yet aggregations over constants", // https://github.com/elastic/elasticsearch/issues/118292
         "Field \\[.*\\] of type \\[.*\\] does not support match.* queries",
 
@@ -212,6 +219,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "query value .* does not match the type .* of non-index-mapped field",
         // need to refine the MATCH / MATCH_PHRASE function generation: options on a non-index-mapped, non-TEXT field
         "Options are not supported for \\[(?:MATCH|MATCH_PHRASE)\\] function call on non-index-mapped(?:, non-TEXT)? field \\[.*\\]",
+        // need to refine the MATCH generation: options other than lenient on a non-index-mapped, non-TEXT field
+        "\\[.*\\] option is not supported for \\[MATCH\\] on non-index-mapped, non-TEXT field \\[.*\\]",
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
@@ -484,11 +493,13 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             } catch (Exception e) {
                 // query failures are AssertionErrors, if we get here it's an unexpected exception in the query generation
                 if (e instanceof AllowedGeneratorFailureException == false && isAllowedError(e.getMessage()) == false) {
-                    StringBuilder message = new StringBuilder();
-                    message.append("Generative tests, error generating new command \n");
-                    message.append("Previous query: \n");
-                    message.append(exec.previousResult == null ? "<no previous query>" : exec.previousResult.query());
-                    fail(e, message.toString());
+                    String previousQuery = exec.previousResult == null ? null : exec.previousResult.query();
+                    // fail(e, report) would run the report through Strings.format, which reinterprets any '%' in the
+                    // generated query as a format specifier.
+                    throw new AssertionError(
+                        "Generative tests, error generating new command\n" + failureReport(previousQuery, e.getMessage()),
+                        e
+                    );
                 }
             }
         }
@@ -698,7 +709,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             if (isAllowedFailure(new FailureContext(outputValidation.errorMessage(), result.query(), previousCommands, currentSchema))) {
                 return;
             }
-            fail("query: " + result.query() + "\nerror: " + outputValidation.errorMessage());
+            fail(failureReport(result.query(), outputValidation.errorMessage()));
         }
     }
 
@@ -710,7 +721,46 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         if (isAllowedFailure(new FailureContext(query.exception().getMessage(), query.query(), previousCommands, currentSchema))) {
             return;
         }
-        fail("query: " + query.query() + "\nexception: " + query.exception().getMessage());
+        fail(failureReport(query.query(), query.exception().getMessage()));
+    }
+
+    /** The {@code Warnings: [...]} block {@link ResponseException} inserts before the response body. */
+    private static final Pattern RESPONSE_WARNINGS = Pattern.compile("\nWarnings: \\[.*?]\n", Pattern.DOTALL);
+
+    /**
+     * Composes the message for a failing generated query. These run to tens of kilobytes and are truncated before
+     * they reach a filed issue, so the error goes near the top and the response warnings go last. A subclass that
+     * overrides this to add context should append it to {@code super}'s report rather than prepend it, to keep the
+     * bulky part in the tail that truncation eats.
+     *
+     * @param query the query the failure relates to: the one that failed, or the last one that ran when the
+     *              generator could not produce the next command; {@code null} when none was generated at all
+     * @param error the error message, or {@code null} when the failure carries no message
+     */
+    protected String failureReport(@Nullable String query, @Nullable String error) {
+        String warnings = "";
+        if (error == null) {
+            error = "<no error message>";
+        } else {
+            Matcher matcher = RESPONSE_WARNINGS.matcher(error);
+            if (matcher.find()) {
+                warnings = matcher.group().strip();
+                error = matcher.replaceFirst("\n");
+            }
+        }
+
+        StringBuilder report = new StringBuilder("query: ").append(query == null ? "<no query generated>" : query);
+        report.append("\nfeatures: ").append(enabledFeatures());
+        report.append("\nreproduce with -Dtests.seed=")
+            .append(RandomizedContext.current().getRunnerSeedAsString())
+            .append(" on build ")
+            .append(Build.current().hash())
+            .append(" (a seed only reproduces on the build that generated it)");
+        report.append("\nerror: ").append(error);
+        if (warnings.isEmpty() == false) {
+            report.append("\n").append(warnings);
+        }
+        return report.toString();
     }
 
     /**
@@ -825,11 +875,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     );
 
     /**
-     * Matches "Options are not supported for [MATCH|MATCH_PHRASE] function call on non-index-mapped[, non-TEXT] field [X]".
-     * This is the error MATCH/MATCH_PHRASE raises when called with options on a renamed/computed field.
+     * Captures field X from MATCH/MATCH_PHRASE option errors on a renamed or computed field.
      */
     private static final Pattern MATCH_OPTIONS_NON_INDEX_MAPPED_PATTERN = Pattern.compile(
-        ".*Options are not supported for \\[(?:MATCH|MATCH_PHRASE)\\] function call on non-index-mapped(?:, non-TEXT)? field \\[([^]]+)\\].*",
+        ".*(?:Options are not supported for \\[(?:MATCH|MATCH_PHRASE)\\] function call on non-index-mapped(?:, non-TEXT)? field"
+            + "|\\[.+\\] option is not supported for \\[MATCH\\] on non-index-mapped, non-TEXT field"
+            + ") \\[([^]]+)\\].*",
         Pattern.DOTALL
     );
 
@@ -1073,7 +1124,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     );
 
     private static final Pattern FULL_TEXT_AFTER_WHERE_PATTERN = Pattern.compile(
-        ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after \\(?(?i:WHERE).*",
+        ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE)] function)|(?:\\[:\\] operator)) cannot be used after \\(?(?i:WHERE).*",
         Pattern.DOTALL
     );
 
@@ -1090,7 +1141,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             // Any full-text function/operator after a pipeline-breaking command, LOOKUP JOIN, or a multi-source FROM union.
             // "FROM" is included because UnionAll/Project often keep the FROM source text, so the first-token
             // message is "after FROM" even though KQL/QSTR after a plain FROM is legal.
-            + "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after "
+            + "(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE)] function)|(?:\\[:\\] operator)) cannot be used after "
             + "(?:LIMIT|INLINE|LOOKUP|MV_EXPAND|STATS|SORT|FROM|CHANGE_POINT|DEDUP|LIMIT BY|TOP|"
             + "[^\\n]*,\\s*\\(\\s*FROM\\b|\\(\\s*FROM\\b)"
             + "|"

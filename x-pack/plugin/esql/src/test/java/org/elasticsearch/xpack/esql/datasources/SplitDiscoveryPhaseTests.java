@@ -10,18 +10,22 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -29,12 +33,19 @@ import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.Streaming;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
@@ -42,6 +53,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -49,6 +61,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class SplitDiscoveryPhaseTests extends ESTestCase {
 
@@ -68,6 +81,35 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         for (ExternalSplit split : resolved.splits()) {
             assertTrue(split instanceof FileSplit);
         }
+    }
+
+    /**
+     * A provider that discovered its own files must have that set reach the plan, even when it produced no splits.
+     * The empty-but-not-exhaustively-pruned result falls through to reading the plan's file list as the whole
+     * dataset - so if the plan still holds the prefix resolution had, that read is of part of a dataset, and the
+     * scanned counts describe the wrong set too.
+     */
+    public void testANonExhaustiveEmptyResultReadsTheDiscoveredSetNotTheHandedOne() {
+        FileList handed = createFileList(1);
+        FileList discovered = createFileList(3);
+        ExternalSourceExec exec = createExternalSourceExec(handed, "parquet");
+        // A non-empty schema map, or dropping withSchemaMap goes unnoticed: Map.of() is what the exec already has.
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> contracts = new HashMap<>();
+        for (int file = 0; file < discovered.fileCount(); file++) {
+            contracts.put(discovered.path(file), new SchemaReconciliation.FileSchemaInfo(ExternalSchema.EMPTY, null, null));
+        }
+        SplitProvider discovers = context -> new SplitDiscoveryResult(List.of(), 0, false, 0L, discovered, contracts);
+
+        SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            Map.of("parquet", testFactory(discovers)),
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+
+        ExternalSourceExec resolved = (ExternalSourceExec) result.plan();
+        assertEquals("the plan carries the set that was planned over", 3, resolved.fileList().fileCount());
+        assertEquals("and the fall-through counts that set, not the prefix", 3, result.filesScanned());
+        assertEquals("the read contracts travel with it", 3, resolved.schemaMap().size());
     }
 
     public void testNoExternalSourceUnchanged() {
@@ -156,6 +198,130 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         );
     }
 
+    /**
+     * The row demand must not survive a command that changes the row count. {@code LIMIT 5} above a {@code WHERE}
+     * asks for five rows <em>after</em> filtering, so the relation below it cannot be told to stop after five: the
+     * filter may reject every one of them. Carrying the demand past the filter makes the scan plan too few splits
+     * and the query return fewer rows than it asked for.
+     * <p>
+     * The rule is carried by the {@link Streaming} marker, which
+     * {@code Filter} deliberately does not implement, and nothing else enforces it - so this is the assertion that
+     * keeps the marker honest.
+     */
+    public void testTheRowDemandDoesNotSurviveAFilter() {
+        ExternalRelation relation = externalRelation();
+        Expression year = new Equals(SRC, relation.output().get(0), new Literal(SRC, 2025, DataType.INTEGER));
+        LogicalPlan fragment = new Limit(SRC, new Literal(SRC, 5, DataType.INTEGER), new Filter(SRC, relation, year));
+
+        List<SplitDiscoveryPhase.GuardedRelation> guarded = SplitDiscoveryPhase.guardedRelations(fragment);
+
+        assertEquals(1, guarded.size());
+        assertEquals("a filtered limit leaves the relation with no demand at all", FormatReader.NO_LIMIT, guarded.get(0).rowLimit());
+    }
+
+    /**
+     * A demand below an aggregate is kept, because there it is a demand on the source: {@code LIMIT 5 | STATS COUNT(*)}
+     * counts five rows and reading enough files for five rows is the whole answer. Without this the test above would
+     * pass with the mechanism simply switched off.
+     */
+    public void testADemandBelowAnAggregateIsKept() {
+        ExternalRelation relation = externalRelation();
+        LogicalPlan limited = new Limit(SRC, new Literal(SRC, 5, DataType.INTEGER), relation);
+        LogicalPlan fragment = new Aggregate(
+            SRC,
+            limited,
+            List.of(),
+            List.of(new Alias(SRC, "c", new Count(SRC, new Literal(SRC, 1, DataType.INTEGER))))
+        );
+
+        List<SplitDiscoveryPhase.GuardedRelation> guarded = SplitDiscoveryPhase.guardedRelations(fragment);
+
+        assertEquals(1, guarded.size());
+        assertEquals("the demand is on the source here, so it stands", 5, guarded.get(0).rowLimit());
+    }
+
+    /**
+     * A command that promises not to change the row count passes the demand through. That promise is the
+     * {@link Streaming} marker, and this is the direction of it that matters for speed: without it every query
+     * with a {@code KEEP} or an {@code EVAL} above its {@code LIMIT} would plan the whole dataset.
+     */
+    public void testTheRowDemandPassesThroughAStreamingCommand() {
+        ExternalRelation relation = externalRelation();
+        LogicalPlan projected = new Project(SRC, relation, List.of(relation.output().get(0)));
+        assertTrue("the fixture must actually be a Streaming command", projected instanceof Streaming);
+        LogicalPlan fragment = new Limit(SRC, new Literal(SRC, 5, DataType.INTEGER), projected);
+
+        List<SplitDiscoveryPhase.GuardedRelation> guarded = SplitDiscoveryPhase.guardedRelations(fragment);
+
+        assertEquals(1, guarded.size());
+        assertEquals("a projection cannot change how many rows arrive", 5, guarded.get(0).rowLimit());
+
+        LogicalPlan evaled = new Eval(SRC, relation, List.of(new Alias(SRC, "x", relation.output().get(0))));
+        assertTrue("EVAL is Streaming", evaled instanceof Streaming);
+        LogicalPlan evalFragment = new Limit(SRC, new Literal(SRC, 5, DataType.INTEGER), evaled);
+        assertEquals("an EVAL cannot change how many rows arrive", 5, SplitDiscoveryPhase.guardedRelations(evalFragment).get(0).rowLimit());
+    }
+
+    /**
+     * Sorting and aggregating both do change which rows, or how many, come back, so neither may carry a demand:
+     * {@code SORT x | LIMIT 5} needs every row before it knows which five, and an aggregate needs every row
+     * full stop. Stopping the scan early under either returns an answer computed from part of the dataset.
+     */
+    public void testTheRowDemandDoesNotSurviveASortOrAnAggregate() {
+        ExternalRelation relation = externalRelation();
+        Attribute first = relation.output().get(0);
+
+        LogicalPlan sorted = new Limit(
+            SRC,
+            new Literal(SRC, 5, DataType.INTEGER),
+            new OrderBy(SRC, relation, List.of(new Order(SRC, first, Order.OrderDirection.ASC, Order.NullsPosition.LAST)))
+        );
+        assertEquals(
+            "a sort must see every row before it knows which five",
+            FormatReader.NO_LIMIT,
+            SplitDiscoveryPhase.guardedRelations(sorted).get(0).rowLimit()
+        );
+
+        LogicalPlan aggregated = new Limit(
+            SRC,
+            new Literal(SRC, 5, DataType.INTEGER),
+            new Aggregate(SRC, relation, List.of(), List.of(first))
+        );
+        assertEquals(
+            "and an aggregate needs every row",
+            FormatReader.NO_LIMIT,
+            SplitDiscoveryPhase.guardedRelations(aggregated).get(0).rowLimit()
+        );
+    }
+
+    /** Nested limits: the outer one cannot ask for more than the inner one produced, so the smaller wins. */
+    public void testNestedLimitsCarryTheSmaller() {
+        ExternalRelation relation = externalRelation();
+        LogicalPlan outerSmaller = new Limit(
+            SRC,
+            new Literal(SRC, 3, DataType.INTEGER),
+            new Limit(SRC, new Literal(SRC, 5, DataType.INTEGER), relation)
+        );
+        LogicalPlan innerSmaller = new Limit(
+            SRC,
+            new Literal(SRC, 5, DataType.INTEGER),
+            new Limit(SRC, new Literal(SRC, 3, DataType.INTEGER), relation)
+        );
+
+        assertEquals(3, SplitDiscoveryPhase.guardedRelations(outerSmaller).get(0).rowLimit());
+        assertEquals(3, SplitDiscoveryPhase.guardedRelations(innerSmaller).get(0).rowLimit());
+    }
+
+    /** The complement: with nothing between the limit and the relation, the demand does reach it. */
+    public void testTheRowDemandReachesARelationDirectlyUnderTheLimit() {
+        LogicalPlan fragment = new Limit(SRC, new Literal(SRC, 5, DataType.INTEGER), externalRelation());
+
+        List<SplitDiscoveryPhase.GuardedRelation> guarded = SplitDiscoveryPhase.guardedRelations(fragment);
+
+        assertEquals(1, guarded.size());
+        assertEquals("an unfiltered limit is the case the budget exists for", 5, guarded.get(0).rowLimit());
+    }
+
     /** The complement: with the filter <em>below</em> the limit, WHERE genuinely runs first and pruning is sound. */
     public void testGuardedRelationsSeedsFilterBelowLimit() {
         ExternalRelation relation = externalRelation();
@@ -233,12 +399,16 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
 
     /**
      * Exhaustive prune: a resolved, non-empty fileList whose split discovery yields nothing (every file pruned) must
-     * have its {@link ExternalSourceExec} swapped to read {@link FileList#EMPTY}, so the read path scans nothing
-     * instead of reading the whole dataset only to drop every row in a downstream filter. Stats stay honestly zero.
+     * have its {@link ExternalSourceExec} swapped to read {@link FileList#EMPTY} and drop {@code schemaMap}, so the
+     * read path scans nothing and the coordinator does not keep the per-file schema. Stats stay honestly zero.
      */
     public void testExhaustivelyPrunedResolvedFileListSwappedToEmpty() {
         FileList fileList = createFileList(3); // resolved, non-empty
-        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
+        StoragePath schemaPath = StoragePath.of("s3://bucket/data/a.parquet");
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet").withSchemaMap(
+            Map.of(schemaPath, new SchemaReconciliation.FileSchemaInfo(ExternalSchema.EMPTY, null, null))
+        );
+        assertFalse(exec.schemaMap().isEmpty());
         // A provider that exhaustively prunes: zero splits out, reported as a row-count-safe prune.
         Map<String, ExternalSourceFactory> factories = Map.of(
             "parquet",
@@ -254,6 +424,7 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         assertTrue(result.plan() instanceof ExternalSourceExec);
         ExternalSourceExec resolved = (ExternalSourceExec) result.plan();
         assertSame("an exhaustively-pruned resolved fileList must be swapped to FileList.EMPTY", FileList.EMPTY, resolved.fileList());
+        assertTrue("an exhaustive prune drops the per-file schema map", resolved.schemaMap().isEmpty());
         assertTrue(resolved.splits().isEmpty());
         assertEquals(0, result.filesScanned());
         assertEquals(0, result.splitsScanned());
@@ -561,18 +732,154 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         RecordingSplitProvider recorder = new RecordingSplitProvider();
         Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
 
-        SplitDiscoveryPhase.resolveExternalSplitsWithStats(
-            exec,
-            factories,
-            org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            () -> true
-        );
+        SplitDiscoveryPhase.resolveExternalSplitsWithStats(exec, factories, SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES, () -> true);
 
         assertNotNull(recorder.lastContext);
         assertTrue(
             "cancellation signal must be threaded into the split discovery context",
             recorder.lastContext.isCancelled().getAsBoolean()
         );
+    }
+
+    /**
+     * The reserver the caller named is the one the provider reserves through, on both paths. A relation whose schema
+     * listing was a prefix lists the dataset again inside discovery, and those entries are heap the query holds: if
+     * the phase drops the reserver on the way down, that listing is allocated against nothing and the breaker never
+     * sees it. Reserving a byte through what the provider was handed is what proves the wire, so a phase passing
+     * PlanningMemory.NONE - or null - leaves the counter at zero and fails here.
+     */
+    public void testTheListingReserverReachesSyncAndAsyncDiscovery() {
+        ExternalSourceExec exec = createExternalSourceExec(createFileList(2), "parquet");
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
+        AtomicLong reserved = new AtomicLong();
+        PlanningMemory memory = reserved::addAndGet;
+
+        SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            List.of(),
+            FormatReader.NO_LIMIT,
+            memory
+        );
+        assertNotNull(recorder.lastContext.listingMemory());
+        recorder.lastContext.listingMemory().reserve(7L);
+        assertEquals("the sync path must hand the provider the caller's own reserver", 7L, reserved.get());
+
+        recorder.lastContext = null;
+        PlainActionFuture<SplitDiscoveryPhase.Result> future = new PlainActionFuture<>();
+        SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            List.of(),
+            FormatReader.NO_LIMIT,
+            memory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            future
+        );
+        future.actionGet(30, TimeUnit.SECONDS);
+        assertNotNull(recorder.lastContext.listingMemory());
+        recorder.lastContext.listingMemory().reserve(11L);
+        assertEquals("the async path must hand the provider the same reserver", 18L, reserved.get());
+    }
+
+    /**
+     * The phase's own overloads name a reserver that refuses nothing rather than leaving one unset. Reserving
+     * through it must not throw and must not reach any budget. The context's convenience constructors still
+     * admit null, which {@code FileSplitProvider.scanMemory} is what reads; this pins the phase, not that.
+     */
+    public void testDiscoveryWithNoReserverNamedReservesNothing() {
+        ExternalSourceExec exec = createExternalSourceExec(createFileList(2), "parquet");
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+
+        SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of("parquet", testFactory(recorder)));
+
+        assertSame(PlanningMemory.NONE, recorder.lastContext.listingMemory());
+        recorder.lastContext.listingMemory().reserve(Long.MAX_VALUE);
+    }
+
+    /**
+     * A demand seeded for the relation reaches only a relation handed in bare. Under a filter it must not arrive: the
+     * budget would stop the scan once the unfiltered rows covered it, and the filtered LIMIT would answer short with
+     * nothing to say so. Production hands the fragment path a bare relation, so this pins the walk against the day
+     * something hands it more.
+     */
+    public void testASeededDemandDoesNotSurviveAPhysicalFilter() {
+        ExternalSourceExec exec = createExternalSourceExec(createFileList(2), "parquet");
+        Expression year = new Equals(SRC, outputAttr(exec, "year"), new Literal(SRC, 2025, DataType.INTEGER));
+        FilterExec filtered = new FilterExec(SRC, exec, year);
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
+
+        SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            filtered,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            List.of(),
+            5,
+            PlanningMemory.NONE
+        );
+        assertEquals("sync: the demand stopped at the filter", FormatReader.NO_LIMIT, recorder.lastContext.rowLimit());
+
+        recorder.lastContext = null;
+        PlainActionFuture<SplitDiscoveryPhase.Result> future = new PlainActionFuture<>();
+        SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
+            filtered,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            List.of(),
+            5,
+            PlanningMemory.NONE,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            future
+        );
+        future.actionGet(30, TimeUnit.SECONDS);
+        assertEquals("async: the demand stopped at the filter", FormatReader.NO_LIMIT, recorder.lastContext.rowLimit());
+    }
+
+    /** The same seed on a bare relation does arrive, so the test above is not passing because nothing ever does. */
+    public void testASeededDemandReachesABareRelation() {
+        ExternalSourceExec exec = createExternalSourceExec(createFileList(2), "parquet");
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+
+        SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            Map.of("parquet", testFactory(recorder)),
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            List.of(),
+            5,
+            PlanningMemory.NONE
+        );
+        assertEquals(5, recorder.lastContext.rowLimit());
+    }
+
+    /**
+     * What discovery warns about reaches the response whether or not it produced splits. A partition value the
+     * dataset's type cannot hold reads null in the rows a user gets back, and a relation that was pruned or fell
+     * through to a whole read has no other signal - so dropping the warning there loses it on the queries least able
+     * to spare it.
+     */
+    public void testWarningsSurviveAResultWithNoSplits() {
+        ExternalSourceExec exec = createExternalSourceExec(createFileList(2), "parquet");
+        Map<String, ExternalSourceFactory> factories = Map.of(
+            "parquet",
+            testFactory(
+                new FixedSplitProvider(
+                    new SplitDiscoveryResult(List.of(), 0, false, 0L, null, null, List.of("a partition value did not fit"))
+                )
+            )
+        );
+
+        SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(exec, factories, 1000);
+
+        assertEquals(List.of("a partition value did not fit"), result.warnings());
     }
 
     public void testDefaultContextIsNotCancelled() {
@@ -617,6 +924,114 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         );
         future.actionGet(30, TimeUnit.SECONDS);
         assertEquals(expected, recorder.lastContext.metadataColumnNames());
+    }
+
+    /**
+     * {@link ExternalMetadataAttribute} extends {@code TypedAttribute}, not the final
+     * {@code MetadataAttribute}, so an {@code instanceof MetadataAttribute} test lets every bound
+     * metadata column through. Discovery would then count the name as a projected data column and
+     * narrow per-file mappings against a column the reader never produces in the data channel.
+     */
+    public void testQuerySchemaExcludesBoundMetadataColumns() {
+        ExternalSourceExec exec = createExternalSourceExec(createFileList(1), "parquet").withAttributes(
+            List.of(
+                fieldAttr("id", DataType.LONG),
+                new ExternalMetadataAttribute(SRC, FileMetadataColumns.PATH, DataType.KEYWORD),
+                new MetadataAttribute(SRC, "_index", DataType.KEYWORD, false),
+                fieldAttr("year", DataType.INTEGER)
+            )
+        );
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
+
+        SplitDiscoveryPhase.resolveExternalSplits(exec, factories);
+
+        // `year` survives: buildFileTasks strips partition columns separately, via stripPartitionColumns.
+        assertEquals(List.of("id", "year"), schemaNames(recorder.lastContext));
+
+        recorder.lastContext = null;
+        discoverAsync(exec, factories);
+        assertEquals(List.of("id", "year"), schemaNames(recorder.lastContext));
+    }
+
+    public void testRetainedPartitionKeysFollowPostPruneOutput() {
+        StoragePath path = StoragePath.of("s3://bucket/data/year=2024/a.parquet");
+        PartitionMetadata partitions = new PartitionMetadata(Map.of("year", DataType.INTEGER), Map.of(path, Map.of("year", 2024)));
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(path, 100, Instant.EPOCH)),
+            "s3://bucket/data/year=*/a.parquet",
+            partitions
+        );
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet").withAttributes(
+            List.of(
+                fieldAttr("id", DataType.LONG),
+                fieldAttr("year", DataType.INTEGER),
+                new ExternalMetadataAttribute(SRC, FileMetadataColumns.SIZE, DataType.LONG),
+                new ExternalMetadataAttribute(SRC, FileMetadataColumns.RECORD_REF, DataType.LONG)
+            )
+        );
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
+
+        SplitDiscoveryPhase.resolveExternalSplits(exec, factories);
+        assertEquals(Set.of("year", FileMetadataColumns.SIZE), recorder.lastContext.retainedPartitionKeys());
+
+        recorder.lastContext = null;
+        discoverAsync(exec, factories);
+        assertEquals(Set.of("year", FileMetadataColumns.SIZE), recorder.lastContext.retainedPartitionKeys());
+
+        ExternalSourceExec dataOnly = exec.withAttributes(List.of(fieldAttr("id", DataType.LONG)));
+        recorder.lastContext = null;
+        SplitDiscoveryPhase.resolveExternalSplits(dataOnly, factories);
+        assertEquals(Set.of(), recorder.lastContext.retainedPartitionKeys());
+    }
+
+    public void testRetainedPartitionKeysOmitDerivedLocation() throws Exception {
+        StoragePath path = StoragePath.of("s3://bucket/data/year=2024/a.parquet");
+        PartitionMetadata partitions = new PartitionMetadata(Map.of("year", DataType.INTEGER), Map.of(path, Map.of("year", 2024)));
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(path, 100, Instant.EPOCH)),
+            "s3://bucket/data/year=*/a.parquet",
+            partitions
+        );
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet").withAttributes(
+            List.of(
+                fieldAttr("year", DataType.INTEGER),
+                new ExternalMetadataAttribute(SRC, FileMetadataColumns.PATH, DataType.KEYWORD),
+                new ExternalMetadataAttribute(SRC, FileMetadataColumns.NAME, DataType.KEYWORD),
+                new ExternalMetadataAttribute(SRC, FileMetadataColumns.DIRECTORY, DataType.KEYWORD),
+                new ExternalMetadataAttribute(SRC, FileMetadataColumns.SIZE, DataType.LONG),
+                new ExternalMetadataAttribute(SRC, FileMetadataColumns.MODIFIED, DataType.DATETIME),
+                new ExternalMetadataAttribute(SRC, FileMetadataColumns.RECORD_REF, DataType.LONG)
+            )
+        );
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
+
+        Set<String> expected = Set.of("year", FileMetadataColumns.SIZE, FileMetadataColumns.MODIFIED);
+        SplitDiscoveryPhase.resolveExternalSplits(exec, factories);
+        assertEquals(expected, recorder.lastContext.retainedPartitionKeys());
+
+        recorder.lastContext = null;
+        discoverAsync(exec, factories);
+        assertEquals(expected, recorder.lastContext.retainedPartitionKeys());
+    }
+
+    /**
+     * A query that projects only metadata leaves no data columns, which is the same shape
+     * {@code COUNT(*)} already produces: the prune is skipped and {@code adaptSchema} short-circuits
+     * on the empty query schema rather than the reader widening to every column.
+     */
+    public void testMetadataOnlyProjectionYieldsEmptyQuerySchema() {
+        ExternalSourceExec exec = createExternalSourceExec(createFileList(2), "parquet").withAttributes(
+            List.of(new ExternalMetadataAttribute(SRC, "_index", DataType.KEYWORD))
+        );
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
+
+        SplitDiscoveryPhase.resolveExternalSplits(exec, factories);
+
+        assertTrue(recorder.lastContext.querySchema().isEmpty());
     }
 
     public void testNoFiltersWhenNoFilterExecInPlan() {
@@ -705,6 +1120,58 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         assertEquals(((ExternalSourceExec) sync.plan()).fileList(), ((ExternalSourceExec) async.plan()).fileList());
     }
 
+    public void testSyncDiscoveryPreservesFoldedStatistics() {
+        assertDiscoveryPreservesFoldedStatistics(false);
+    }
+
+    public void testAsyncDiscoveryPreservesFoldedStatistics() {
+        assertDiscoveryPreservesFoldedStatistics(true);
+    }
+
+    private void assertDiscoveryPreservesFoldedStatistics(boolean async) {
+        Map<String, Object> folded = Map.of(
+            SourceStatisticsSerializer.STATS_ROW_COUNT,
+            4L,
+            SourceStatisticsSerializer.columnValueCountKey("x"),
+            2L,
+            SourceStatisticsSerializer.columnNullCountKey("x"),
+            2L,
+            SourceStatisticsSerializer.columnMinUnservableKey("x"),
+            true,
+            SourceStatisticsSerializer.columnMaxUnservableKey("x"),
+            true
+        );
+        ExternalSourceExec exec = new ExternalSourceExec(
+            SRC,
+            "s3://bucket/data/*.parquet",
+            "parquet",
+            List.of(fieldAttr("x", DataType.DOUBLE)),
+            Map.of(),
+            folded,
+            null,
+            null
+        ).withFileList(createFileList(2));
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
+        if (async) {
+            PlainActionFuture<SplitDiscoveryPhase.Result> future = new PlainActionFuture<>();
+            SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
+                exec,
+                factories,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                () -> false,
+                List.of(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                future
+            );
+            future.actionGet(30, TimeUnit.SECONDS);
+        } else {
+            SplitDiscoveryPhase.resolveExternalSplits(exec, factories);
+        }
+        assertNotNull(recorder.lastContext.metadata());
+        assertEquals(folded, recorder.lastContext.metadata().sourceMetadata());
+    }
+
     /**
      * Async {@link SplitDiscoveryPhase.Result} must keep {@code cpuNanos} from the provider.
      * The 4-arg Result constructor defaults CPU to 0 and would drop it from the query profile.
@@ -766,6 +1233,24 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
     /** The output attribute named {@code name} on {@code exec} — used to build filters whose reference id matches the relation output. */
     private static Attribute outputAttr(ExternalSourceExec exec, String name) {
         return exec.output().stream().filter(a -> a.name().equals(name)).findFirst().orElseThrow();
+    }
+
+    private static List<String> schemaNames(SplitDiscoveryContext context) {
+        return context.querySchema().attributes().stream().map(Attribute::name).toList();
+    }
+
+    private static void discoverAsync(PhysicalPlan plan, Map<String, ExternalSourceFactory> factories) {
+        PlainActionFuture<SplitDiscoveryPhase.Result> future = new PlainActionFuture<>();
+        SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
+            plan,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            List.of(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            future
+        );
+        future.actionGet(30, TimeUnit.SECONDS);
     }
 
     private static Attribute fieldAttr(String name, DataType type) {

@@ -17,8 +17,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
@@ -319,7 +321,7 @@ public class FormatNameResolverTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> FormatNameResolver.datasetFormat(null, resource, registry)
             );
-            assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage(resource)));
+            assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage()));
         }
     }
 
@@ -385,7 +387,7 @@ public class FormatNameResolverTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> FormatNameResolver.rejectConflictingListedFormats(listing, "csv", registry)
         );
-        assertEquals(FormatNameResolver.listedFormatConflictMessage("s3://b/b.parquet", "parquet", "csv"), e.getMessage());
+        assertEquals(FormatNameResolver.listedFormatConflictMessage("b.parquet", "parquet", "csv"), e.getMessage());
     }
 
     public void testResolveReaderDiagnosesBareCompressionSuffix() {
@@ -460,4 +462,60 @@ public class FormatNameResolverTests extends ESTestCase {
         registry.registerExtension(".parq", "parquet");
         return registry;
     }
+
+    /**
+     * The check is per distinct extension, not per file. Asserted as an invariant rather than a magic number: the
+     * registry is consulted the same number of times for five hundred files as for two, because what a name
+     * implies depends only on its extension chain. On a ninety-thousand-object dataset that walk is what a query
+     * pays before it reads a row.
+     */
+    public void testTheFormatCheckCostsTheSameWhateverTheFileCount() {
+        assertEquals(
+            "a listing of 500 files asks no more often than a listing of 2",
+            lookupsCheckingCsvListingOf(2),
+            lookupsCheckingCsvListingOf(500)
+        );
+    }
+
+    private static int lookupsCheckingCsvListingOf(int files) {
+        AtomicInteger lookups = new AtomicInteger();
+        FormatReader csv = mock(FormatReader.class);
+        when(csv.formatName()).thenAnswer(invocation -> {
+            lookups.incrementAndGet();
+            return "csv";
+        });
+        when(csv.fileExtensions()).thenReturn(List.of(".csv"));
+        when(csv.supportsWholeFileCompression()).thenReturn(true);
+        FormatReaderRegistry registry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        registry.registerLazy("csv", (settings, blockFactory) -> csv, Settings.EMPTY, null);
+        registry.byName("csv");
+
+        List<StorageEntry> entries = new ArrayList<>();
+        for (int i = 0; i < files; i++) {
+            entries.add(new StorageEntry(StoragePath.of("s3://b/part-" + i + ".csv"), 10, Instant.EPOCH));
+        }
+        FormatNameResolver.rejectConflictingListedFormats(GlobExpander.fileListOf(entries, "s3://b/*.csv"), "csv", registry);
+        return lookups.get();
+    }
+
+    /**
+     * Sharing an extension must not let a conflicting file through. The odd one out carries a different extension,
+     * so it is its own key and is still checked - which is the whole reason the key is the extension rather than
+     * anything cheaper.
+     */
+    public void testAConflictingFileIsStillCaughtAmongManySharingAnExtension() {
+        List<StorageEntry> entries = new ArrayList<>();
+        for (int i = 0; i < 200; i++) {
+            entries.add(new StorageEntry(StoragePath.of("s3://b/part-" + i + ".csv"), 10, Instant.EPOCH));
+        }
+        entries.add(new StorageEntry(StoragePath.of("s3://b/stray.parquet"), 10, Instant.EPOCH));
+        FileList listing = GlobExpander.fileListOf(entries, "s3://b/*");
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> FormatNameResolver.rejectConflictingListedFormats(listing, "csv", csvAndParquetRegistry())
+        );
+        assertThat(e.getMessage(), containsString("stray.parquet"));
+    }
+
 }

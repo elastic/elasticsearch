@@ -162,6 +162,14 @@ public class AdaptiveAllocationsScalerTests extends ESTestCase {
         assertThat(adaptiveAllocationsScaler.scale(), equalTo(77));
     }
 
+    public void testAutoscaling_noMemoryCapLeavesFirstScaleUpUnaffected() {
+        AdaptiveAllocationsScaler adaptiveAllocationsScaler = new AdaptiveAllocationsScaler("test-deployment", 1, SIXTY_SECONDS);
+        // No memory cap set (null) - e.g. before any runtime memory has been observed - so scaling is only bounded by
+        // the safeguard, exactly as it was before the memory cap existed.
+        adaptiveAllocationsScaler.process(new AdaptiveAllocationsScalerService.Stats(1_000_000, 10_000_000, 1, 0.05), 10, 1);
+        assertThat(adaptiveAllocationsScaler.scale(), equalTo(32));
+    }
+
     public void testAutoscaling_scaleDownToZeroAllocations() {
         AdaptiveAllocationsScaler adaptiveAllocationsScaler = new AdaptiveAllocationsScaler("test-deployment", 1, FIFTEEN_MINUTES);
         // 1 hour with 1 request per 1 seconds, so don't scale.

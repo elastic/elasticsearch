@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 159406
+summary: Add query API for user-managed service accounts
+type: enhancement

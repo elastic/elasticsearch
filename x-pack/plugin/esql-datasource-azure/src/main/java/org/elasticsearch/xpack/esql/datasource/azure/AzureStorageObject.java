@@ -19,11 +19,20 @@ import com.azure.storage.blob.specialized.BlobInputStream;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 
@@ -32,8 +41,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -41,11 +52,14 @@ import java.util.concurrent.atomic.AtomicReference;
  * Supports full and range reads, and metadata retrieval with caching.
  */
 public final class AzureStorageObject extends AbstractMeteredStorageObject {
+    private static final Logger logger = LogManager.getLogger(AzureStorageObject.class);
+
     private final BlobClient blobClient;
     private final BlobAsyncClient blobAsyncClient;
     private final String container;
     private final String blobName;
     private final StoragePath path;
+    private final StorageIdentity storageIdentity;
 
     private volatile Long cachedLength;
     private volatile Instant cachedLastModified;
@@ -57,7 +71,25 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         this(blobClient, null, container, blobName, path);
     }
 
+    /**
+     * Creates an object whose identity is equal only to itself, so it never shares footer-cache entries.
+     * Providers must use the {@link StorageIdentity}-taking constructors so same-credential objects share.
+     */
     public AzureStorageObject(BlobClient blobClient, BlobAsyncClient blobAsyncClient, String container, String blobName, StoragePath path) {
+        this(StorageIdentity.unique(), blobClient, blobAsyncClient, container, blobName, path);
+    }
+
+    AzureStorageObject(
+        StorageIdentity storageIdentity,
+        BlobClient blobClient,
+        BlobAsyncClient blobAsyncClient,
+        String container,
+        String blobName,
+        StoragePath path
+    ) {
+        if (storageIdentity == null) {
+            throw new IllegalArgumentException("storageIdentity cannot be null");
+        }
         if (blobClient == null) {
             throw new IllegalArgumentException("blobClient cannot be null");
         }
@@ -75,6 +107,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         this.container = container;
         this.blobName = blobName;
         this.path = path;
+        this.storageIdentity = storageIdentity;
     }
 
     public AzureStorageObject(BlobClient blobClient, String container, String blobName, StoragePath path, long length) {
@@ -89,7 +122,19 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         StoragePath path,
         long length
     ) {
-        this(blobClient, blobAsyncClient, container, blobName, path);
+        this(StorageIdentity.unique(), blobClient, blobAsyncClient, container, blobName, path, length);
+    }
+
+    AzureStorageObject(
+        StorageIdentity storageIdentity,
+        BlobClient blobClient,
+        BlobAsyncClient blobAsyncClient,
+        String container,
+        String blobName,
+        StoragePath path,
+        long length
+    ) {
+        this(storageIdentity, blobClient, blobAsyncClient, container, blobName, path);
         this.cachedLength = length;
     }
 
@@ -113,24 +158,33 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         long length,
         Instant lastModified
     ) {
-        this(blobClient, blobAsyncClient, container, blobName, path, length);
+        this(StorageIdentity.unique(), blobClient, blobAsyncClient, container, blobName, path, length, lastModified);
+    }
+
+    AzureStorageObject(
+        StorageIdentity storageIdentity,
+        BlobClient blobClient,
+        BlobAsyncClient blobAsyncClient,
+        String container,
+        String blobName,
+        StoragePath path,
+        long length,
+        Instant lastModified
+    ) {
+        this(storageIdentity, blobClient, blobAsyncClient, container, blobName, path, length);
         this.cachedLastModified = lastModified;
     }
 
     @Override
     public InputStream newStream() throws IOException {
         long startNanos = System.nanoTime();
-        long bytes = 0L;
         try {
             BlobInputStream blobStream = validateOpenedBlob(blobClient.openInputStream(null, requestConditions()));
-            if (cachedLength != null) {
-                bytes = cachedLength;
-            }
-            return new AzureTransientTypingInputStream(blobStream, path);
+            return metered(new AzureTransientTypingInputStream(blobStream, path));
         } catch (Exception e) {
             throw throwReadFailure("Failed to read object from", e);
         } finally {
-            counters.addRequest(System.nanoTime() - startNanos, bytes);
+            counters.addRequest(System.nanoTime() - startNanos, 0L);
         }
     }
 
@@ -142,6 +196,9 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
      * async read paths can route it.
      */
     private Exception mapReadFailure(String context, Throwable cause) {
+        if (cause instanceof CancellationException || cause instanceof TaskCancelledException) {
+            return new TaskCancelledException("read cancelled");
+        }
         if (ExceptionsHelper.unwrap(cause, ExternalObjectChangedException.class) instanceof ExternalObjectChangedException changed) {
             return changed;
         }
@@ -151,19 +208,16 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             if (throttling && bse.getResponse() != null) {
                 retryAfterMs = ExternalUnavailableException.parseRetryAfterMs(bse.getResponse().getHeaderValue("Retry-After"));
             }
-            return new ExternalUnavailableException(
-                throttling,
-                retryAfterMs,
-                cause,
-                "Azure store unavailable reading [{}] (HTTP {})",
-                path,
-                bse.getStatusCode()
-            );
+            Condition condition = throttling ? Condition.STORE_THROTTLED : Condition.STORE_UNAVAILABLE;
+            logger.debug("Azure {} for [{}]", condition, path.objectName(), cause);
+            return new ExternalUnavailableException(condition, path, "HTTP " + bse.getStatusCode(), "", throttling, retryAfterMs);
         }
         if (cause instanceof BlobStorageException precondition && precondition.getStatusCode() == 412) {
-            return new ExternalObjectChangedException(cause, "Object changed during read of [{}]", path);
+            logger.debug("Azure precondition failed for [{}]", path.objectName(), cause);
+            return new ExternalObjectChangedException(path);
         }
-        return new IOException(context + " " + path, cause);
+        logger.debug("Unrecognized read failure for [{}]", path.objectName(), cause);
+        return new IOException(context + " [" + path.objectName() + "]", cause);
     }
 
     /**
@@ -193,7 +247,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             // READ_TO_END: the offset-only BlobRange reads from position to the end of the blob — no length() lookup.
             BlobRange range = toEnd ? new BlobRange(position) : new BlobRange(position, length);
             BlobInputStream blobStream = validateOpenedBlob(blobClient.openInputStream(range, requestConditions()));
-            return new AzureTransientTypingInputStream(blobStream, path);
+            return metered(new AzureTransientTypingInputStream(blobStream, path));
         } catch (Exception e) {
             if (toEnd && e instanceof BlobStorageException bse && bse.getStatusCode() == 416) {
                 // Open-ended read at/after the end of an (empty or shorter) object: nothing to read. The SPI
@@ -202,7 +256,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             }
             throw throwReadFailure("Range request failed for", e);
         } finally {
-            counters.addRequest(System.nanoTime() - startNanos, toEnd ? 0L : length);
+            counters.addRequest(System.nanoTime() - startNanos, 0L);
         }
     }
 
@@ -212,7 +266,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             fetchMetadata();
         }
         if (cachedExists != null && cachedExists == false) {
-            throw new IOException("Object not found: " + path);
+            throw new ExternalClientException(Condition.OBJECT_NOT_FOUND, path, "", "");
         }
         return cachedLength;
     }
@@ -239,6 +293,11 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
     }
 
     @Override
+    public StorageIdentity storageIdentity() {
+        return storageIdentity;
+    }
+
+    @Override
     public long knownLength() {
         return cachedLength != null ? cachedLength : READ_TO_END;
     }
@@ -262,7 +321,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         String current = pinnedEtag.get();
         if (etag == null || etag.isBlank() || etag.regionMatches(true, 0, "W/", 0, 2)) {
             if (current != null) {
-                throw new ExternalObjectChangedException("Object generation could not be verified during read of [{}]", path);
+                throw new ExternalObjectChangedException(path);
             }
             return;
         }
@@ -273,7 +332,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             current = pinnedEtag.get();
         }
         if (current.equals(etag) == false) {
-            throw new ExternalObjectChangedException("Object changed during read of [{}]", path);
+            throw new ExternalObjectChangedException(path);
         }
     }
 
@@ -316,6 +375,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
     private void fetchMetadata() throws IOException {
         try {
             var properties = blobClient.getProperties();
+            ExternalPlanningIo.addMetadataGet(0);
             cachedExists = true;
             // getProperties() transfers no blob bytes: it reports whatever version is current, which is
             // not necessarily the one reads are pinned to. It must neither establish the pin nor
@@ -326,12 +386,13 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             }
             cachedLastModified = properties.getLastModified() != null ? properties.getLastModified().toInstant() : null;
         } catch (Exception e) {
+            ExternalPlanningIo.addMetadataGet(0);
             if (e instanceof BlobStorageException bse && bse.getStatusCode() == 404) {
                 setNotFound();
             } else if (e instanceof BlobStorageException bse && bse.getStatusCode() == 403) {
                 fetchMetadataViaRangeGet();
             } else {
-                throw new IOException("Failed to get metadata for " + path, e);
+                throw new IOException("Failed to get metadata for [" + path.objectName() + "]", e);
             }
         }
     }
@@ -351,12 +412,13 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
                 null
             );
             var headers = response.getDeserializedHeaders();
+            ExternalPlanningIo.addMetadataGet(output.size());
             cachedExists = true;
             observeEtag(headers.getETag());
             Long total = ContentRangeParser.parseTotalLength(headers.getContentRange());
             if (total == null) {
                 throw new IOException(
-                    "Failed to determine object size for " + path + ": Content-Range header missing from range GET response"
+                    "Failed to determine size for [" + path.objectName() + "]: Content-Range header missing from range GET response"
                 );
             }
             cachedLength = total;
@@ -364,6 +426,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         } catch (IOException e) {
             throw e;
         } catch (Exception e) {
+            ExternalPlanningIo.addMetadataGet(0);
             if (e instanceof BlobStorageException bse && bse.getStatusCode() == 404) {
                 setNotFound();
             } else if (e instanceof BlobStorageException bse && bse.getStatusCode() == 412) {
@@ -371,7 +434,10 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
                 // path reports; keep the typing rather than flattening it to a client-class 400.
                 throw throwReadFailure("Failed to get metadata for", e);
             } else {
-                throw new IOException("Failed to get metadata for " + path + " (properties denied, range GET also failed)", e);
+                throw new IOException(
+                    "Failed to get metadata for [" + path.objectName() + "] (properties denied, range GET also failed)",
+                    e
+                );
             }
         }
     }
@@ -390,22 +456,35 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         Executor executor,
         ActionListener<DirectReadBuffer> listener
     ) {
+        startReadBytesAsync(position, length, factory, executor, listener);
+    }
+
+    @Override
+    public Releasable startReadBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
         if (blobAsyncClient == null) {
+            // Must call super.readBytesAsync, not super.startReadBytesAsync: this class's
+            // readBytesAsync delegates here, so the default start would recurse.
             super.readBytesAsync(position, length, factory, executor, listener);
-            return;
+            return () -> {};
         }
 
         if (position < 0) {
             listener.onFailure(new IllegalArgumentException("position must be non-negative, got: " + position));
-            return;
+            return () -> {};
         }
         if (length <= 0) {
             listener.onFailure(new IllegalArgumentException("length must be positive, got: " + length));
-            return;
+            return () -> {};
         }
         if (length > Integer.MAX_VALUE) {
             listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
-            return;
+            return () -> {};
         }
 
         int len = Math.toIntExact(length);
@@ -414,17 +493,21 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             drb = factory.allocateWritableWindow(len);
         } catch (Exception e) {
             listener.onFailure(e);
-            return;
+            return () -> {};
         }
 
         BlobRange range = new BlobRange(position, length);
         long startNanos = System.nanoTime();
+        AsyncReadHandle handle = new AsyncReadHandle(listener, startNanos, drb);
         final CompletableFuture<Void> future;
         try {
             future = blobAsyncClient.downloadWithResponse(range, null, requestConditions(), false)
                 .doOnNext(this::observeDownloadResponse)
                 .flatMapMany(response -> response.getValue())
                 .reduce(drb.buffer(), (acc, chunk) -> {
+                    if (handle.isCancelled()) {
+                        throw new CancellationException("read cancelled");
+                    }
                     if (chunk.remaining() > acc.remaining()) {
                         throw new IllegalStateException("Server returned more bytes than requested (" + length + ")");
                     }
@@ -440,20 +523,105 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             // so counters are not updated.
             drb.close();
             listener.onFailure(mapReadFailure("Failed to read bytes from", e));
-            return;
+            return () -> {};
         }
+        handle.register(future);
         onReadComplete(future, (ignored, error) -> {
+            if (handle.isCancelled()) {
+                // Do not close here: MonoToCompletableFuture.cancel runs whenComplete before
+                // disposing the reduce. cancel() closes after FutureUtils.cancel returns.
+                handle.notifyCancelled();
+                return;
+            }
             if (error != null) {
-                counters.addRequest(System.nanoTime() - startNanos, 0L);
-                // Release eagerly on the failure path so the breaker charge does not outlive
-                // the failed request.
-                drb.close();
-                Throwable cause = error.getCause() != null ? error.getCause() : error;
-                listener.onFailure(mapReadFailure("Failed to read bytes from", cause));
-            } else {
+                handle.closeBuffer();
+                if (handle.tryFail()) {
+                    counters.addRequest(System.nanoTime() - startNanos, 0L);
+                    Throwable cause = error.getCause() != null ? error.getCause() : error;
+                    listener.onFailure(mapReadFailure("Failed to read bytes from", cause));
+                }
+            } else if (handle.tryDeliver()) {
                 deliverRead(listener, drb, startNanos);
+            } else {
+                handle.closeBuffer();
             }
         });
+        return handle::cancel;
+    }
+
+    /**
+     * Cancellation handle for one Reactor download. {@link #cancel} claims the listener immediately,
+     * then disposes the {@code toFuture()} CF, then closes the pre-allocated buffer so close happens
+     * after upstream dispose — not from the nested {@code whenComplete} that Reactor runs first.
+     */
+    private final class AsyncReadHandle {
+        private enum Completion {
+            OPEN,
+            DELIVERED,
+            FAILED
+        }
+
+        private volatile boolean cancelled;
+        private final AtomicReference<Completion> completion = new AtomicReference<>(Completion.OPEN);
+        private final AtomicBoolean bufferClosed = new AtomicBoolean();
+        private final AtomicReference<CompletableFuture<?>> inFlight = new AtomicReference<>();
+        private final ActionListener<DirectReadBuffer> listener;
+        private final long startNanos;
+        private final DirectReadBuffer buffer;
+
+        AsyncReadHandle(ActionListener<DirectReadBuffer> listener, long startNanos, DirectReadBuffer buffer) {
+            this.listener = listener;
+            this.startNanos = startNanos;
+            this.buffer = buffer;
+        }
+
+        void register(CompletableFuture<?> future) {
+            inFlight.set(future);
+            if (cancelled) {
+                FutureUtils.cancel(future);
+            }
+        }
+
+        boolean tryDeliver() {
+            return completion.compareAndSet(Completion.OPEN, Completion.DELIVERED);
+        }
+
+        boolean tryFail() {
+            return completion.compareAndSet(Completion.OPEN, Completion.FAILED);
+        }
+
+        void closeBuffer() {
+            if (bufferClosed.compareAndSet(false, true)) {
+                try {
+                    buffer.close();
+                } catch (RuntimeException ignored) {
+                    // Listener already completed; a close fault must not hide the delivered failure.
+                }
+            }
+        }
+
+        void notifyCancelled() {
+            if (tryFail()) {
+                counters.addRequest(System.nanoTime() - startNanos, 0L);
+                listener.onFailure(new TaskCancelledException("read cancelled"));
+            }
+        }
+
+        void cancel() {
+            cancelled = true;
+            try {
+                notifyCancelled();
+            } finally {
+                FutureUtils.cancel(inFlight.get());
+                if (completion.get() == Completion.FAILED) {
+                    closeBuffer();
+                }
+            }
+        }
+
+        boolean isCancelled() {
+            return cancelled;
+        }
     }
 
     @Override
@@ -471,6 +639,6 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
 
     @Override
     public String toString() {
-        return "AzureStorageObject{container=" + container + ", blobName=" + blobName + ", path=" + path + "}";
+        return "AzureStorageObject[" + path.objectName() + "]";
     }
 }

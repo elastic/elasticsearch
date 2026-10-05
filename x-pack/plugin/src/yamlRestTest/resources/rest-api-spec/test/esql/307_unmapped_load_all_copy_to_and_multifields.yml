@@ -1,0 +1,204 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_v2 ]
+      reason: >
+        copy_to targets and multi-fields are the two mapping features that create a queryable field name
+        which NEVER appears in _source. LOAD_ALL reads only _source, so such a name is unrecoverable for any
+        index that does not map it - the value exists, but only under the name that was actually written.
+
+  # src carries the value and copies it to dst. Both are mapped, and _source holds only src.
+  - do:
+      indices.create:
+        index: la_copyto_stored
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+              src:
+                type: keyword
+                copy_to: dst
+              dst:
+                type: keyword
+
+  - do:
+      indices.create:
+        index: la_copyto_synth
+        body:
+          settings:
+            index:
+              mapping:
+                source:
+                  mode: synthetic
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+              src:
+                type: keyword
+                copy_to: dst
+              dst:
+                type: keyword
+
+  # Neither src nor dst is mapped here, and the document only ever wrote src.
+  - do:
+      indices.create:
+        index: la_copyto_absent
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+
+  # t has a keyword multi-field. t.kw is queryable but is not a _source key.
+  - do:
+      indices.create:
+        index: la_multifield
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+              t:
+                type: text
+                fields:
+                  kw:
+                    type: keyword
+
+  # A dynamic template that sends any matching object to enabled:false, leaving its subtree in _source only.
+  - do:
+      indices.create:
+        index: la_dyn_template
+        body:
+          settings:
+            index:
+              mapping:
+                source:
+                  mode: synthetic
+          mappings:
+            dynamic_templates:
+              - blobs:
+                  match: "blob_*"
+                  match_mapping_type: object
+                  mapping:
+                    type: object
+                    enabled: false
+            properties:
+              id:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "la_copyto_stored", "_id": "1" } }
+          - { "id": "s1", "src": "v" }
+          - { "index": { "_index": "la_copyto_synth", "_id": "1" } }
+          - { "id": "y1", "src": "v" }
+          - { "index": { "_index": "la_copyto_absent", "_id": "1" } }
+          - { "id": "a1", "src": "v" }
+          - { "index": { "_index": "la_multifield", "_id": "1" } }
+          - { "id": "1", "t": "some text" }
+          - { "index": { "_index": "la_dyn_template", "_id": "1" } }
+          - { "id": "1", "blob_payload": { "deep": { "leaf": "kept" } }, "indexed": 3 }
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: la_copyto_stored,la_copyto_synth,la_copyto_absent,la_multifield,la_dyn_template
+        ignore_unavailable: true
+
+---
+'copy_to: the destination is a mapped column with a value, and LOAD_ALL discovers nothing extra':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_copyto_stored | LIMIT 5'
+  - length: { columns: 3 }
+  - match: { columns.0.name: dst }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: id }
+  - match: { columns.2.name: src }
+  - match: { values.0: [ "v", "s1", "v" ] }
+
+---
+'copy_to under synthetic source behaves like stored source':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_copyto_synth | LIMIT 5'
+  - length: { columns: 3 }
+  - match: { columns.0.name: dst }
+  - match: { columns.1.name: id }
+  - match: { columns.2.name: src }
+  - match: { values.0: [ "v", "y1", "v" ] }
+
+---
+'copy_to: an index that does not map the destination cannot recover it from _source':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM la_copyto_stored, la_copyto_absent | KEEP id, src, dst | SORT id | LIMIT 5'
+  - length: { columns: 3 }
+  - match: { columns.1.name: src }
+  - match: { columns.2.name: dst }
+  - match: { columns.2.type: keyword }
+  - match: { values.0: [ "a1", "v", null ] }
+  - match: { values.1: [ "s1", "v", "v" ] }
+
+---
+'multi-fields: the sub-field name is queryable but never a _source key':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_multifield | LIMIT 5'
+  - length: { columns: 3 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: t }
+  - match: { columns.1.type: text }
+  - match: { columns.2.name: t.kw }
+  - match: { columns.2.type: keyword }
+  - match: { values.0: [ "1", "some text", "some text" ] }
+
+---
+'multi-fields: a partially mapped text parent is not loadable, and t.kw never is':
+  # Two separate reasons for the same null. t is text in one index and unmapped in the other, and text has
+  # no implicit conversion from KEYWORD, so ES|QL warns and declines to serve it from _source at all - a
+  # partially mapped keyword would have been loaded (see 303). t.kw is a multi-field, so it has no _source
+  # key in any index and could not be recovered even if its type allowed it.
+  - do:
+      allowed_warnings:
+        - "Field [t] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM la_multifield, la_copyto_absent | KEEP id, t, t.kw | SORT id | LIMIT 5'
+  - length: { columns: 3 }
+  - match: { columns.1.name: t }
+  - match: { columns.2.name: t.kw }
+  - match: { values.0: [ "1", "some text", "some text" ] }
+  - match: { values.1: [ "a1", null, null ] }
+
+---
+'dynamic_templates: a template routing matching objects to enabled:false creates a LOAD_ALL case':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_dyn_template | LIMIT 5'
+  - length: { columns: 3 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: indexed }
+  - match: { columns.1.type: long }
+  - match: { columns.2.name: blob_payload.deep.leaf }
+  - match: { columns.2.type: keyword }
+  - match: { values.0: [ "1", 3, "kept" ] }

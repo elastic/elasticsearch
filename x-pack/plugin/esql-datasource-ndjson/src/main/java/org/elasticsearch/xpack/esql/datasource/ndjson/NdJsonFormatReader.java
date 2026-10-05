@@ -468,23 +468,25 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         // a Closeable lets try-with-resources attach any abort-time error as a suppressed
         // exception on the primary failure rather than replacing it.
         try (Closeable abortOnExit = () -> object.abortStream(stream)) {
-            List<Attribute> schema = NdJsonSchemaInferrer.inferSchema(
-                stream,
+            CountingInputStream counted = new CountingInputStream(stream);
+            NdJsonSchemaInferrer.SampledSchema sampled = NdJsonSchemaInferrer.inferSampledSchema(
+                counted,
                 schemaSampleSize,
                 schemaMaxFields,
                 datetimeFormatter,
                 blockFactory.breaker()
             );
+            List<Attribute> schema = sampled.schema();
             String location = object.path().toString();
             long mtimeMillis;
             try {
                 Instant mtime = object.lastModified();
                 if (mtime == null) {
-                    return new SimpleSourceMetadata(schema, formatName(), location);
+                    return sampledMetadata(schema, location, null, counted.count(), sampled.sampleRows());
                 }
                 mtimeMillis = mtime.toEpochMilli();
             } catch (IOException e) {
-                return new SimpleSourceMetadata(schema, formatName(), location);
+                return sampledMetadata(schema, location, null, counted.count(), sampled.sampleRows());
             }
             OptionalLong cachedSize;
             try {
@@ -503,7 +505,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
                 configFingerprint
             );
             Map<String, Object> sourceMetadata = SourceStatisticsSerializer.embedStatistics(baseSourceMetadata, stats);
-            return new SimpleSourceMetadata(schema, formatName(), location, stats, null, sourceMetadata, null);
+            return sampledMetadata(schema, location, stats, counted.count(), sampled.sampleRows(), sourceMetadata);
         }
     }
 
@@ -665,6 +667,65 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         // NdJsonPageDecoder fills the {@code _rowPosition} slot natively from the file-global
         // byte offset of each record (see {@code NdJsonPageDecoder.recordFileOffset}).
         return PassThroughRowPositionStrategy.INSTANCE;
+    }
+
+    private SimpleSourceMetadata sampledMetadata(
+        List<Attribute> schema,
+        String location,
+        SourceStatistics stats,
+        long sampleBytes,
+        int sampleRows
+    ) {
+        return sampledMetadata(schema, location, stats, sampleBytes, sampleRows, Map.of());
+    }
+
+    private SimpleSourceMetadata sampledMetadata(
+        List<Attribute> schema,
+        String location,
+        SourceStatistics stats,
+        long sampleBytes,
+        int sampleRows,
+        Map<String, Object> sourceMetadata
+    ) {
+        return new SimpleSourceMetadata(
+            schema,
+            formatName(),
+            location,
+            stats,
+            null,
+            SourceMetadata.withSample(sourceMetadata, sampleBytes, sampleRows),
+            null
+        );
+    }
+
+    private static final class CountingInputStream extends FilterInputStream {
+        private long count;
+
+        CountingInputStream(InputStream in) {
+            super(in);
+        }
+
+        long count() {
+            return count;
+        }
+
+        @Override
+        public int read() throws IOException {
+            int b = in.read();
+            if (b != -1) {
+                count++;
+            }
+            return b;
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            int n = in.read(b, off, len);
+            if (n > 0) {
+                count += n;
+            }
+            return n;
+        }
     }
 
     @Override

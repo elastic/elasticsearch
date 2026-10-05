@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.junit.Before;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.containsString;
@@ -62,6 +63,20 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(topNBy.order(), hasSize(1));
         assertThat(topNBy.order().get(0).direction(), equalTo(Order.OrderDirection.ASC));
         assertThat(((Number) topNBy.limitPerGroup().fold(FoldContext.small())).intValue(), equalTo(2));
+    }
+
+    /** Prometheus converts k with an integer cast: {@code topk(1.5, v)} keeps one series and {@code topk(0.5, v)} none. */
+    public void testFractionalKIsTruncated() {
+        for (var kAndLimit : List.of(Map.entry("1.5", 1), Map.entry("2.9", 2), Map.entry("0.5", 0), Map.entry("2", 2))) {
+            for (String function : List.of("topk", "bottomk", "limitk")) {
+                String promql = function + "(" + kAndLimit.getKey() + ", network.bytes_in)";
+                var plan = logicalOptimizerWithLatestVersion.optimize(
+                    planPromql("PROMQL index=k8s step=1h result=(" + promql + ")", false)
+                );
+                var topNBy = as(plan.collect(TopNBy.class).get(0), TopNBy.class);
+                assertThat(promql, ((Number) topNBy.limitPerGroup().fold(FoldContext.small())).intValue(), equalTo(kAndLimit.getValue()));
+            }
+        }
     }
 
     /**

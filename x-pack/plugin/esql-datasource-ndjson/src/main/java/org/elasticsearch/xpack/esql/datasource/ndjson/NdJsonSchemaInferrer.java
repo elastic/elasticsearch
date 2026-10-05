@@ -121,9 +121,23 @@ public class NdJsonSchemaInferrer {
         DateFormatter datetimeFormatter,
         CircuitBreaker breaker
     ) throws IOException {
+        return inferSampledSchema(inputStream, maxLines, maxFields, datetimeFormatter, breaker).schema();
+    }
+
+    /** Schema plus how many records the sample actually consumed. */
+    public record SampledSchema(List<Attribute> schema, int sampleRows) {}
+
+    public static SampledSchema inferSampledSchema(
+        InputStream inputStream,
+        int maxLines,
+        int maxFields,
+        DateFormatter datetimeFormatter,
+        CircuitBreaker breaker
+    ) throws IOException {
         NdJsonSchemaInferrer inferrer = new NdJsonSchemaInferrer(maxFields, datetimeFormatter, breaker);
         try {
-            return inferrer.doInferSchema(inputStream, maxLines);
+            List<Attribute> schema = inferrer.doInferSchema(inputStream, maxLines);
+            return new SampledSchema(schema, inferrer.lineCount);
         } finally {
             inferrer.breaker.addWithoutBreaking(-inferrer.reservedBytes);
         }

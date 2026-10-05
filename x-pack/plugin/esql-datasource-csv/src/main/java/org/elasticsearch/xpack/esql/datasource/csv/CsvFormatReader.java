@@ -1327,18 +1327,35 @@ public class CsvFormatReader implements SegmentableFormatReader {
     @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
         List<String> warnings = new ArrayList<>();
-        List<Attribute> schema = readSchema(object, warnings::add);
+        InferredSchema inferred = readSchema(object, warnings::add);
+        List<Attribute> schema = inferred.schema();
         String location = object.path().objectName();
         // mtime required for cache participation; sizeInBytes best-effort (stream-only sources throw from length()).
         long mtimeMillis;
         try {
             Instant mtime = object.lastModified();
             if (mtime == null) {
-                return new SimpleSourceMetadata(schema, formatName(), location).withWarnings(warnings);
+                return new SimpleSourceMetadata(
+                    schema,
+                    formatName(),
+                    location,
+                    null,
+                    null,
+                    SourceMetadata.withSample(Map.of(), inferred.sampleBytes(), inferred.sampleRows()),
+                    null
+                ).withWarnings(warnings);
             }
             mtimeMillis = mtime.toEpochMilli();
         } catch (IOException e) {
-            return new SimpleSourceMetadata(schema, formatName(), location).withWarnings(warnings);
+            return new SimpleSourceMetadata(
+                schema,
+                formatName(),
+                location,
+                null,
+                null,
+                SourceMetadata.withSample(Map.of(), inferred.sampleBytes(), inferred.sampleRows()),
+                null
+            ).withWarnings(warnings);
         }
         OptionalLong cachedSize;
         try {
@@ -1357,7 +1374,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
             ExternalStats.CONFIG_FINGERPRINT_KEY,
             configFingerprint
         );
-        Map<String, Object> sourceMetadata = SourceStatisticsSerializer.embedStatistics(baseSourceMetadata, stats);
+        Map<String, Object> sourceMetadata = SourceMetadata.withSample(
+            SourceStatisticsSerializer.embedStatistics(baseSourceMetadata, stats),
+            inferred.sampleBytes(),
+            inferred.sampleRows()
+        );
         return new SimpleSourceMetadata(schema, formatName(), location, stats, null, sourceMetadata, null).withWarnings(warnings);
     }
 
@@ -1380,7 +1401,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return canonicalConfig;
     }
 
-    private List<Attribute> readSchema(StorageObject object, Consumer<String> warningSink) throws IOException {
+    private InferredSchema readSchema(StorageObject object, Consumer<String> warningSink) throws IOException {
         String sourceLocation = object.path().objectName();
         InputStream stream = object.newStream();
         // Abort rather than close: providers like S3 drain remaining bytes on close() to reuse
@@ -1428,15 +1449,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
             List<Attribute> typedSchema = parseSchema(headerLine);
             if (typedSchema != null) {
                 checkUniqueAttributeNames(typedSchema);
-                return typedSchema;
+                return new InferredSchema(typedSchema, 0L, 0);
             }
-            List<Attribute> inferred = inferSchemaFromSample(headerLine, recordReader, sourceLocation, warningSink);
-            checkUniqueAttributeNames(inferred);
+            InferredSchema inferred = inferSchemaFromSample(headerLine, recordReader, sourceLocation, warningSink);
+            checkUniqueAttributeNames(inferred.schema());
             return inferred;
         }
     }
 
-    private List<Attribute> inferSchemaFromSample(
+    private InferredSchema inferSchemaFromSample(
         String headerLine,
         CsvLogicalRecordReader recordReader,
         String sourceLocation,
@@ -1449,7 +1470,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
     }
 
-    private List<Attribute> inferSchemaFromSample(
+    private InferredSchema inferSchemaFromSample(
         String headerLine,
         CsvLogicalRecordReader recordReader,
         String sourceLocation,
@@ -1489,7 +1510,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     options.datetimeFormatter(),
                     sawUndecodableTemporal
                 );
-                return CsvSchemaInferrer.widenSchema(schema, wideningWindow.rows(), options.datetimeFormatter(), sawUndecodableTemporal);
+                List<Attribute> widened = CsvSchemaInferrer.widenSchema(
+                    schema,
+                    wideningWindow.rows(),
+                    options.datetimeFormatter(),
+                    sawUndecodableTemporal
+                );
+                return new InferredSchema(
+                    widened,
+                    sample.reservedBytes() + wideningWindow.reservedBytes(),
+                    sample.rows().size() + wideningWindow.rows().size()
+                );
             } finally {
                 breaker.addWithoutBreaking(-wideningWindow.reservedBytes());
             }
@@ -1498,7 +1529,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
     }
 
-    private List<Attribute> inferSchemaWithSyntheticNames(
+    private InferredSchema inferSchemaWithSyntheticNames(
         CsvLogicalRecordReader recordReader,
         String sourceLocation,
         Consumer<String> warningSink
@@ -1529,11 +1560,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         options.datetimeFormatter(),
                         sawUndecodableTemporal
                     );
-                    return CsvSchemaInferrer.widenSchema(
+                    List<Attribute> widened = CsvSchemaInferrer.widenSchema(
                         schema,
                         wideningWindow.rows(),
                         options.datetimeFormatter(),
                         sawUndecodableTemporal
+                    );
+                    return new InferredSchema(
+                        widened,
+                        sample.reservedBytes() + wideningWindow.reservedBytes(),
+                        sample.rows().size() + wideningWindow.rows().size()
                     );
                 }
             } finally {
@@ -1774,6 +1810,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * data and skipping their capture keeps that call site allocation-free.
      */
     record SchemaSample(List<String[]> rows, long reservedBytes, long[] rowStartBytes, boolean recordCapDropped) {}
+
+    /** Schema plus the sample width used to size LIMIT cuts. */
+    private record InferredSchema(List<Attribute> schema, long sampleBytes, int sampleRows) {}
 
     /** Hard cap on consecutive parse failures during schema sampling, applied INDEPENDENTLY of
      *  the user's {@link ErrorPolicy}. Jackson's stream-based CSV parser cannot guarantee

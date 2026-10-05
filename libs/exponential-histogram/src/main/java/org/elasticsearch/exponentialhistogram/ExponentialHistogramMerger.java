@@ -464,7 +464,8 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
                 );
                 assert estimatedMin.isPresent()
                     : "The merged histogram should have at least one value, so the estimated minimum should be present";
-                buffer.setMin(Math.max(a.min(), estimatedMin.getAsDouble()));
+                // The estimated minimum must lie within the cumulative min/max
+                buffer.setMin(Math.clamp(estimatedMin.getAsDouble(), a.min(), a.max()));
             }
 
             // Same logic as for min
@@ -478,7 +479,8 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
                 );
                 assert estimatedMax.isPresent()
                     : "The merged histogram should have at least one value, so the estimated maximum should be present";
-                buffer.setMax(Math.min(a.max(), estimatedMax.getAsDouble()));
+                // The estimated maximum must lie within the cumulative min/max
+                buffer.setMax(Math.clamp(estimatedMax.getAsDouble(), a.min(), a.max()));
             }
 
             result = buffer;

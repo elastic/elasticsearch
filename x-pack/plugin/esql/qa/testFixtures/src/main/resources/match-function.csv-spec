@@ -2958,3 +2958,23 @@ book_no:keyword | next_year:integer
 8423            | 2023
 9896            | 2023
 ;
+
+matchWithScoreSortAscending
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fix_score_sort_asc_pushdown
+
+// SORT _score ASC is pushed down to Lucene. With a LIMIT smaller than the number of matches, Lucene must keep the
+// lowest-scoring documents, not the highest-scoring ones.
+FROM books METADATA _score
+| WHERE match(author, "Tolkien")
+| SORT _score ASC, book_no ASC
+| LIMIT 3
+| KEEP book_no
+;
+
+book_no:keyword
+4023
+7140
+7635
+;

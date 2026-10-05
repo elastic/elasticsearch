@@ -164,4 +164,14 @@ public class Clusters {
     public static ElasticsearchCluster testClusterWithEncryption(Supplier<String> s3EndpointSupplier) {
         return testCluster(s3EndpointSupplier, DATASET_ENCRYPTION_CONFIG);
     }
+
+    /**
+     * A non-shared variant of {@link #testClusterWithEncryption(Supplier)} whose parent circuit breaker sums the child
+     * breakers' reservations instead of measuring real heap usage. That makes the parent breaker deterministic, so a suite
+     * can lower {@code indices.breaker.total.limit} just enough for a specific read to trip it.
+     */
+    public static ElasticsearchCluster reservationParentBreakerTestClusterWithEncryption(Supplier<String> s3EndpointSupplier) {
+        return clusterBuilder(s3EndpointSupplier, DATASET_ENCRYPTION_CONFIG).setting("indices.breaker.total.use_real_memory", "false")
+            .build();
+    }
 }

@@ -114,6 +114,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPlanPreOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPreOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.FetchPhaseOutcomes;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -845,7 +846,14 @@ public class EsqlSession {
         // In explain mode, wrap the listener to transform results into EXPLAIN table format.
         // We use the same execution path as normal queries to ensure accuracy.
         listener = explainContext != null
-            ? createExplainListener(listener, optimizedPlan, planTimeProfile, configuration, planRunner)
+            ? createExplainListener(
+                listener,
+                optimizedPlan,
+                planTimeProfile,
+                configuration,
+                planRunner,
+                physicalPlanOptimizer.fetchPhaseOutcomes()
+            )
             : listener;
 
         PlanRunner executionRunner = explainContext != null
@@ -977,7 +985,8 @@ public class EsqlSession {
         LogicalPlan optimizedPlan,
         PlanTimeProfile planTimeProfile,
         Configuration configuration,
-        PlanRunner planRunner
+        PlanRunner planRunner,
+        FetchPhaseOutcomes fetchPhaseOutcomes
     ) {
         // optimizedPlan may be mutated by later phases (plan substitution), so capture its string
         // now. explainContext fields written during execution (coordinatorPhysicalPlanString,
@@ -1008,6 +1017,10 @@ public class EsqlSession {
                 );
             } else {
                 LOGGER.warn("EXPLAIN: coordinatorPhysicalPlanString not set; optimizedPhysicalPlan row omitted");
+            }
+            FetchPhaseOutcomes.Decision fetchPhase = fetchPhaseOutcomes.explained();
+            if (fetchPhase != null) {
+                values.add(List.of(localCluster, localNodeName, "coordinator", "fetchPhase", fetchPhase.toString()));
             }
 
             // Add the coordinator-level plans of the subplans that were actually executed (recorded

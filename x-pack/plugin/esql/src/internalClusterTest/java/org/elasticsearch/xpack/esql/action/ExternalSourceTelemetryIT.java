@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
@@ -151,8 +152,16 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
     }
 
     /** SUITE-scoped cluster: names every dataset/data source a test body PUTs so {@link #cleanup} can drop them between methods. */
-    private static final Set<String> CREATED_DATASETS = Set.of("emp_glob", "emp_missing", "emp_gz", "emp_crud", "emp_dep", "emp_iae");
-    private static final Set<String> CREATED_DATASOURCES = Set.of("ds", "ds_crud", "ds_max", "ds_dep", "ds_iae");
+    private static final Set<String> CREATED_DATASETS = Set.of(
+        "emp_glob",
+        "emp_missing",
+        "emp_gz",
+        "emp_crud",
+        "emp_dep",
+        "emp_iae",
+        "emp_cpu"
+    );
+    private static final Set<String> CREATED_DATASOURCES = Set.of("ds", "ds_cpu", "ds_crud", "ds_max", "ds_dep", "ds_iae");
 
     @After
     public void cleanup() throws Exception {
@@ -811,6 +820,94 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         );
     }
 
+    /**
+     * Verifies that per-component CPU counters fire for a successful external-source query even when
+     * no {@link org.elasticsearch.xpack.core.esql.QueryMetricsListener} is installed (the NOOP case,
+     * i.e. a non-Serverless deployment). This is the primary goal of the cpu_telemetry feature: APM
+     * and phone-home counters must populate regardless of the billing listener.
+     *
+     * <p>Both the APM counter ({@link ExternalSourceMetrics#QUERY_CPU_TOTAL} broken down by
+     * {@link ExternalSourceMetrics#CPU_COMPONENT_ATTRIBUTE}) and the phone-home accumulator
+     * ({@link DataSourceUsageAccumulator#queryCpuNanos}) must increase after a scan.
+     */
+    public void testQueryCpuMetricsFireWithoutListener() throws Exception {
+        assumeFalse("Windows has unreliable timer resolution; CPU counters may be zero", Constants.WINDOWS);
+        Path dir = createTempDir();
+        // 1000 rows: ensures measurable CPU time even on coarse-timer CI environments.
+        StringBuilder csv = new StringBuilder("emp_no:integer,first_name:keyword\n");
+        for (int i = 0; i < 1000; i++) {
+            csv.append(i).append(",name_").append(i).append('\n');
+        }
+        Files.writeString(dir.resolve("cpu_test.csv"), csv.toString());
+
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_cpu", "test", null, new HashMap<>())
+            )
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "emp_cpu",
+                    "ds_cpu",
+                    dir.resolve("cpu_test.csv").toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv"))
+                )
+            )
+        );
+
+        // snapshot before so delta assertions are order-independent (SUITE-scoped cluster)
+        long execBefore = clusterTotal(a -> a.queryCpuNanos(DataSourceUsageAccumulator.CPU_EXECUTION));
+        long readBefore = clusterTotal(a -> a.queryCpuNanos(DataSourceUsageAccumulator.CPU_READ));
+        long planBefore = clusterTotal(a -> a.queryCpuNanos(DataSourceUsageAccumulator.CPU_PLANNING));
+        long splitBefore = clusterTotal(a -> a.queryCpuNanos(DataSourceUsageAccumulator.CPU_SPLIT_DISCOVERY));
+
+        resetAllMeters();
+
+        try (var ignored = run(syncEsqlQueryRequest("FROM emp_cpu | LIMIT 2000"), TIMEOUT)) {}
+
+        collectAllMeters();
+
+        // APM: all four components must fire (planning is wall time so it is always > 0; execution,
+        // read, and split_discovery are real CPU time and must be > 0 for any non-trivial scan)
+        assertThat("cpu.total{component=execution} > 0", cpuComponentTotal(ExternalSourceMetrics.CPU_COMPONENT_EXECUTION), greaterThan(0L));
+        assertThat("cpu.total{component=read} > 0", cpuComponentTotal(ExternalSourceMetrics.CPU_COMPONENT_READ), greaterThan(0L));
+        assertThat(
+            "cpu.total{component=planning} > 0 (wall time)",
+            cpuComponentTotal(ExternalSourceMetrics.CPU_COMPONENT_PLANNING),
+            greaterThan(0L)
+        );
+        assertThat(
+            "cpu.total{component=split_discovery} > 0",
+            cpuComponentTotal(ExternalSourceMetrics.CPU_COMPONENT_SPLIT_DISCOVERY),
+            greaterThan(0L)
+        );
+
+        // phone-home: accumulator deltas must all be positive
+        long execDelta = clusterTotal(a -> a.queryCpuNanos(DataSourceUsageAccumulator.CPU_EXECUTION)) - execBefore;
+        long readDelta = clusterTotal(a -> a.queryCpuNanos(DataSourceUsageAccumulator.CPU_READ)) - readBefore;
+        long planDelta = clusterTotal(a -> a.queryCpuNanos(DataSourceUsageAccumulator.CPU_PLANNING)) - planBefore;
+        long splitDelta = clusterTotal(a -> a.queryCpuNanos(DataSourceUsageAccumulator.CPU_SPLIT_DISCOVERY)) - splitBefore;
+
+        assertThat("phone-home: cpu_nanos.execution > 0", execDelta, greaterThan(0L));
+        assertThat("phone-home: cpu_nanos.read > 0", readDelta, greaterThan(0L));
+        assertThat("phone-home: cpu_nanos.planning > 0", planDelta, greaterThan(0L));
+        assertThat("phone-home: cpu_nanos.split_discovery > 0", splitDelta, greaterThan(0L));
+
+        // APM and phone-home must agree: both sinks receive the same planning value from
+        // ExternalSourceMetrics.recordQueryCpu, so their totals should match exactly.
+        assertThat(
+            "APM planning equals phone-home planning",
+            cpuComponentTotal(ExternalSourceMetrics.CPU_COMPONENT_PLANNING),
+            equalTo(planDelta)
+        );
+    }
+
     // ---- cross-node measurement helpers ----
 
     private List<TestTelemetryPlugin> telemetryPlugins(String node) {
@@ -885,6 +982,13 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
     private long counterTotalForOutcome(String name, String outcome) {
         return counters(name).stream()
             .filter(m -> outcome.equals(m.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE)))
+            .mapToLong(Measurement::getLong)
+            .sum();
+    }
+
+    private long cpuComponentTotal(String component) {
+        return counters(ExternalSourceMetrics.QUERY_CPU_TOTAL).stream()
+            .filter(m -> component.equals(m.attributes().get(ExternalSourceMetrics.CPU_COMPONENT_ATTRIBUTE)))
             .mapToLong(Measurement::getLong)
             .sum();
     }

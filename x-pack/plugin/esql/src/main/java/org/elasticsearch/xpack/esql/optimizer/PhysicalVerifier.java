@@ -11,10 +11,15 @@ import org.elasticsearch.xpack.esql.capabilities.PostPhysicalOptimizationVerific
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+
+import java.util.List;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
@@ -69,5 +74,64 @@ public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<Ph
                 });
             }
         });
+
+        if (isLocal == false) {
+            checkExchangeScopes(optimizedPlan, false, failures, depFailures);
+        }
+    }
+
+    /**
+     * A {@link ExchangeExec.Scope#CLUSTER} exchange sends rows over the network, which a {@code _doc} column cannot cross.
+     * A {@link ExchangeExec.Scope#NODE} exchange is split off on the data node without planning, so its fragment must be
+     * correct as the coordinator wrote it: nested in a cluster exchange, declaring exactly the fragment's output and
+     * internally consistent. Checking the fragment here turns a planner bug into a coordinator error instead of a data
+     * node failure.
+     */
+    private static void checkExchangeScopes(PhysicalPlan plan, boolean belowClusterExchange, Failures failures, Failures depFailures) {
+        boolean belowCluster = belowClusterExchange;
+        if (plan instanceof ExchangeExec exchange) {
+            switch (exchange.scope()) {
+                case CLUSTER -> {
+                    if (exchange.output().stream().anyMatch(a -> a.dataType() == DataType.DOC_DATA_TYPE)) {
+                        failures.add(
+                            fail(exchange, "document identity [_doc] cannot cross a cluster exchange [{}]", exchange.nodeString())
+                        );
+                    }
+                    belowCluster = true;
+                }
+                case NODE -> checkNodeExchange(exchange, belowClusterExchange, failures, depFailures);
+            }
+        }
+        for (PhysicalPlan child : plan.children()) {
+            checkExchangeScopes(child, belowCluster, failures, depFailures);
+        }
+    }
+
+    private static void checkNodeExchange(ExchangeExec exchange, boolean belowClusterExchange, Failures failures, Failures depFailures) {
+        if (belowClusterExchange == false) {
+            failures.add(fail(exchange, "a NODE exchange must be below a CLUSTER exchange [{}]", exchange.nodeString()));
+        }
+        if (exchange.child() instanceof FragmentExec fragment) {
+            if (sameIdsAndTypes(exchange.output(), fragment.output()) == false) {
+                failures.add(
+                    fail(exchange, "NODE exchange output {} does not match its fragment output {}", exchange.output(), fragment.output())
+                );
+            }
+            fragment.fragment().forEachDown(node -> PlanConsistencyChecker.checkPlan(node, depFailures));
+        } else {
+            failures.add(fail(exchange, "a NODE exchange must wrap a fragment, found [{}]", exchange.child().nodeName()));
+        }
+    }
+
+    private static boolean sameIdsAndTypes(List<Attribute> left, List<Attribute> right) {
+        if (left.size() != right.size()) {
+            return false;
+        }
+        for (int i = 0; i < left.size(); i++) {
+            if (left.get(i).id().equals(right.get(i).id()) == false || left.get(i).dataType() != right.get(i).dataType()) {
+                return false;
+            }
+        }
+        return true;
     }
 }

@@ -116,6 +116,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.ExplainPlanTransformer;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.planner.NodeReduceSplit;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.SubPlan;
@@ -133,6 +134,7 @@ import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -2115,6 +2117,15 @@ public class ComputeService {
         PlanTimeProfile planTimeProfile
     ) {
         long startTime = planTimeProfile == null ? 0 : System.nanoTime();
+        // A node reduce stage the coordinator planned is split off as it is. It always runs, even on the coordinator's
+        // own node, because the coordinator relies on what it produces.
+        Optional<ReductionPlan> planned = NodeReduceSplit.split(originalPlan);
+        if (planned.isPresent()) {
+            if (planTimeProfile != null) {
+                planTimeProfile.addReductionPlanNanos(System.nanoTime() - startTime);
+            }
+            return verifyReductionPlan(planned.get(), originalPlan);
+        }
         PhysicalPlan source = new ExchangeSourceExec(originalPlan.source(), originalPlan.output(), originalPlan.isIntermediateAgg());
         ReductionPlan passThroughReduction = new ReductionPlan(originalPlan.replaceChild(source), originalPlan);
         RemoteFetchBoundaryExec remoteFetchBoundary = originalPlan.child() instanceof RemoteFetchBoundaryExec boundary ? boundary : null;
@@ -2176,7 +2187,10 @@ public class ComputeService {
 
         ensureNoRemoteFetchBoundary("data-node", reductionPlan.dataNodePlan());
         ensureNoRemoteFetchBoundary("node-reduce", reductionPlan.nodeReducePlan());
+        return verifyReductionPlan(reductionPlan, originalPlan);
+    }
 
+    private static ReductionPlan verifyReductionPlan(ReductionPlan reductionPlan, ExchangeSinkExec originalPlan) {
         // Intermediate attributes prevent clean dependency verification for these plan shapes, so skip the check for them.
         if (Assertions.ENABLED == false
             || (reductionPlan.dataNodePlan().child() instanceof FragmentExec fragment

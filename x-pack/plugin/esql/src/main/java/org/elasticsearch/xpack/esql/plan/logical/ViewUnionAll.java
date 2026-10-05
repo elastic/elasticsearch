@@ -175,21 +175,18 @@ public class ViewUnionAll extends UnionAll {
         }
         ViewUnionAll other = (ViewUnionAll) o;
 
-        if (Objects.equals(namedSubqueries, other.namedSubqueries()) == false
-            || Objects.equals(viewBranchKeys, other.viewBranchKeys) == false) {
-            return false;
-        }
-        // LOAD_ALL alignment rewrites output without changing children. A parent transformUp drops that
-        // node when equals ignores the output, so the union keeps the pre-alignment schema. Same contract as UnionAll.
+        return Objects.equals(namedSubqueries, other.namedSubqueries())
+            && Objects.equals(viewBranchKeys, other.viewBranchKeys)
+            && outputMatches(other);
+    }
+
+    // LOAD_ALL alignment rewrites output without changing children. A parent transformUp drops that
+    // node when equals ignores the output, so the union keeps the pre-alignment schema. Same contract as UnionAll.
+    private boolean outputMatches(ViewUnionAll other) {
         return (outputCarriesUnmappedFields() || other.outputCarriesUnmappedFields()) == false || Objects.equals(output(), other.output());
     }
 
     private boolean outputCarriesUnmappedFields() {
-        for (Attribute attr : output()) {
-            if (attr instanceof UnmappedFieldsAttribute) {
-                return true;
-            }
-        }
-        return false;
+        return output().stream().anyMatch(attr -> attr instanceof UnmappedFieldsAttribute);
     }
 }

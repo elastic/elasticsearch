@@ -58,6 +58,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs.nullifyField;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs.unmappedKeyword;
@@ -279,17 +280,12 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         if (projectOutput.equals(childOutput)) {
             return project;
         }
-        List<Attribute> delta = new ArrayList<>(childOutput);
-        delta.removeAll(projectOutput);
-        if (project instanceof ResolvingProject resolving) {
-            delta.removeIf(
-                attr -> attr instanceof UnmappedFieldsAttribute == false && resolving.admitsLateUnmappedField(attr.name()) == false
-            );
-        }
-        if (delta.isEmpty()) {
-            return project;
-        }
-        return project.withProjections(mergeOutputAttributes(delta, projectOutput));
+        var projectSet = new HashSet<>(projectOutput);
+        Predicate<Attribute> resolvingPredicate = project instanceof ResolvingProject resolving
+            ? attr -> attr instanceof UnmappedFieldsAttribute || resolving.admitsLateUnmappedField(attr.name())
+            : unused -> true;
+        List<Attribute> delta = childOutput.stream().filter(attr -> projectSet.contains(attr) == false).filter(resolvingPredicate).toList();
+        return delta.isEmpty() ? project : project.withProjections(mergeOutputAttributes(delta, projectOutput));
     }
 
     /**

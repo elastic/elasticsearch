@@ -641,12 +641,14 @@ public class StatelessPlugin extends Plugin
         hasMasterRole = DiscoveryNode.isMasterNode(settings);
         statelessIndexSettingProvider = new StatelessIndexSettingProvider();
         hollowShardsEnabled = STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(settings);
-        snapshotRestoreDiskPressure = new SnapshotRestoreDiskPressure();
+        snapshotRestoreDiskPressure = new SnapshotRestoreDiskPressure(settings);
         snapshotRestoreAllocationDecider = new SnapshotRestoreAllocationDecider(settings, snapshotRestoreDiskPressure);
     }
 
     /**
      * Unmet restore-disk shortfalls recorded during live allocation, for autoscaling metrics.
+     * Prefer {@link SnapshotRestoreDiskPressure#unmetTotalDiskBytes()} when converting to memory
+     * via storage ratio; that value already folds in the indexing shared-cache carve-out.
      */
     public SnapshotRestoreDiskPressure getSnapshotRestoreDiskPressure() {
         return snapshotRestoreDiskPressure;

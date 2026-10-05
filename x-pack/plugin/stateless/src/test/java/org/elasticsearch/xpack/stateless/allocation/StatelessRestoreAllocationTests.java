@@ -124,7 +124,7 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
     private record RestoreDeciderAndPressure(SnapshotRestoreAllocationDecider decider, SnapshotRestoreDiskPressure pressure) {}
 
     private static RestoreDeciderAndPressure restoreDecider() {
-        var pressure = new SnapshotRestoreDiskPressure();
+        var pressure = new SnapshotRestoreDiskPressure(Settings.EMPTY);
         return new RestoreDeciderAndPressure(new SnapshotRestoreAllocationDecider(Settings.EMPTY, pressure), pressure);
     }
 
@@ -195,11 +195,14 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
         assertEquals(UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED, primary(state, "index-0").unassignedInfo().lastAllocationStatus());
         assertEquals(1, restore.pressure().unmetDiskShortfalls().size());
         assertEquals(1L, restore.pressure().unmetDiskShortfallBytes());
+        // Default indexing shared cache is 50% → total disk = freeNeeded / 0.5.
+        assertEquals(2L, restore.pressure().unmetTotalDiskBytes());
 
         info.set(info(70 * GB));
         state = service.reroute(state, "exact fit", ActionListener.noop());
         assertTrue(primary(state, "index-0").initializing());
         assertEquals(0, restore.pressure().unmetDiskShortfallBytes());
+        assertEquals(0L, restore.pressure().unmetTotalDiskBytes());
         assertTrue(restore.pressure().unmetDiskShortfalls().isEmpty());
     }
 
@@ -215,6 +218,7 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
         assertEquals(UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED, primary(state, "index-0").unassignedInfo().lastAllocationStatus());
         // Missing disk stats throttle without a known shortfall magnitude.
         assertEquals(0, restore.pressure().unmetDiskShortfallBytes());
+        assertEquals(0L, restore.pressure().unmetTotalDiskBytes());
     }
 
     public void testIncomingAssignmentsConsumeCapacity() {

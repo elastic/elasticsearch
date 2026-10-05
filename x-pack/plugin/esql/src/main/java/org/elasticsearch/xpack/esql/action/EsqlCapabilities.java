@@ -4245,6 +4245,13 @@ public class EsqlCapabilities {
          */
         EXTERNAL_SOURCE_SCORE_FIX,
 
+        /**
+         * A range function of a PromQL instant query, such as {@code rate()} or {@code increase()}, only reads the samples in
+         * its range {@code (time - range, time]}. Before, samples loaded before the range could anchor the range start through
+         * the interpolation from the previous time bucket, so the result depended on the evaluation time.
+         */
+        FIX_PROMQL_INSTANT_RANGE_WINDOW,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

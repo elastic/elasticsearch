@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
@@ -724,7 +725,22 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 window = isImplicitRangePlaceholder(rangeSelector.range()) ? cmd.resolveImplicitRangeWindow() : rangeSelector.range();
             }
             var promqlCtx = new PromqlContext(time, window, child.step(), configuration());
-            return doTranslateAddValueEval(child, functionCall.buildEsqlFunction(child.value(), promqlCtx));
+            Expression function = functionCall.buildEsqlFunction(child.value(), promqlCtx);
+            if (cmd.isInstantQuery() && functionCall.child() instanceof RangeSelector) {
+                function = withFilter(function, emitInstantRangeFilter(window));
+            }
+            return doTranslateAddValueEval(child, function);
+        }
+
+        /**
+         * Restricts a range function of an instant query to its range {@code (time - range, time]}. The source loads more than
+         * the range (at least the lookback delta, and the sample on the range start), and those rows fall into the buckets
+         * before the evaluated one. {@code rate()} and {@code increase()} interpolate the bucket start from a populated
+         * previous bucket, so without this filter an instant result depends on what happened to be loaded before the range.
+         */
+        private Expression emitInstantRangeFilter(Expression window) {
+            var source = cmd.source();
+            return new GreaterThan(source, time, new Sub(source, cmd.end(), window, configuration()));
         }
 
         /**
@@ -958,8 +974,8 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 }
 
                 var uniqueAggregates = new LinkedHashSet<Expression>();
-                uniqueAggregates.addAll(withFilter(leftAgg.aggregates(), left.pendingFilter()));
-                uniqueAggregates.addAll(withFilter(rightAgg.aggregates(), right.pendingFilter()));
+                uniqueAggregates.addAll(withAddedFilter(leftAgg.aggregates(), left.pendingFilter()));
+                uniqueAggregates.addAll(withAddedFilter(rightAgg.aggregates(), right.pendingFilter()));
 
                 // Only the aggregate functions need fresh names: both operands define `value`. Grouping columns keep their
                 // own names - the command projection finds a passthrough label (`labels.pod`) by its canonical name when the
@@ -1197,6 +1213,24 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
     /** PromQL drops series with missing data: filter out rows whose value is null (null label columns are valid). */
     private static LogicalPlan emitNullsFilter(Source source, LogicalPlan plan, Attribute value) {
         return new Filter(source, plan, new IsNotNull(value.source(), value));
+    }
+
+    /**
+     * Attaches an operand's pending filter to its aggregate functions, keeping each function's own filter: an instant range
+     * function reads only its range, and the operand's matchers narrow that further rather than replace it.
+     */
+    private static List<? extends Expression> withAddedFilter(List<? extends Expression> aggregates, Expression filter) {
+        if (filter == null) {
+            return aggregates;
+        }
+        return aggregates.stream()
+            .map(
+                e -> e.transformDown(
+                    AggregateFunction.class,
+                    af -> af.withFilter(af.hasFilter() ? new And(af.source(), af.filter(), filter) : filter)
+                )
+            )
+            .toList();
     }
 
     private static boolean isImplicitRangePlaceholder(Expression range) {

@@ -332,3 +332,32 @@ PROMQL index=k8s time="2024-05-10T00:20:00.000Z" result=(sum(avg_over_time(netwo
 result:double | step:datetime
 98.39583333333334 | 2024-05-10T00:20:00.000Z
 ;
+
+// A range function of an instant query reads only the samples in (time - range, time]. qa/one has a sample exactly at
+// 00:08:00, the start of the range, which must not anchor the range start, and a counter reset at 00:11:32.
+// The value matches Prometheus.
+instant_increase_counter_reset
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: fix_promql_round_to_nearest
+required_capability: fix_promql_instant_range_window
+
+PROMQL index=k8s time="2024-05-10T00:18:00.000Z" increase=(round(sum by (cluster, pod) (increase(network.total_bytes_in{cluster="qa", pod="one"}[10m])), 0.001));
+
+increase:double | step:datetime            | cluster:keyword | pod:keyword
+7739.895        | 2024-05-10T00:18:00.000Z | qa              | one
+;
+
+// A range shorter than the 5m lookback loads samples from before the range, which must not be used to interpolate the
+// range start. qa/three has a counter reset at 00:09:04. The value matches Prometheus.
+instant_rate_counter_reset_short_range
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: fix_promql_round_to_nearest
+required_capability: fix_promql_instant_range_window
+
+PROMQL index=k8s time="2024-05-10T00:10:00.000Z" rate=(round(sum by (cluster, pod) (rate(network.total_bytes_in{cluster="qa", pod="three"}[4m])), 0.001));
+
+rate:double | step:datetime            | cluster:keyword | pod:keyword
+17.169      | 2024-05-10T00:10:00.000Z | qa              | three
+;

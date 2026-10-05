@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
@@ -306,6 +307,55 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         FieldAttribute field = as(rate.field(), FieldAttribute.class);
         assertThat(field.name(), equalTo("network.total_bytes_in"));
         assertTrue(isCounter(field.dataType()));
+    }
+
+    /**
+     * An instant query loads at least the lookback delta, more than a 4m range, and the extra samples fall into the buckets
+     * before the evaluated one. The range function only reads {@code (time - range, time]}, so {@code rate()} cannot
+     * interpolate its start from those buckets.
+     */
+    public void testInstantQueryRangeFunctionReadsOnlyItsRange() {
+        Rate rate = rateFromPromql("PROMQL index=k8s time=\"2024-05-10T00:10:00.000Z\" rate=(rate(network.total_bytes_in[4m]))");
+
+        GreaterThan filter = as(rate.filter(), GreaterThan.class);
+        assertThat(as(filter.left(), Attribute.class).name(), equalTo("@timestamp"));
+        assertThat(filter.right().fold(FoldContext.small()), equalTo(Instant.parse("2024-05-10T00:06:00Z").toEpochMilli()));
+    }
+
+    /**
+     * A range query keeps the ES|QL bucket semantics: the range function is not filtered, so it interpolates at the bucket
+     * boundaries from the adjacent steps.
+     */
+    public void testRangeQueryRangeFunctionIsNotFiltered() {
+        Rate rate = rateFromPromql("PROMQL index=k8s step=5m rate=(rate(network.total_bytes_in[5m]))");
+
+        assertFalse(rate.hasFilter());
+    }
+
+    /**
+     * Fused with the other operand's aggregate, an operand's matchers narrow its range functions' filter rather than replace
+     * it: every rate of an instant binary operation still reads only its range.
+     */
+    public void testInstantQueryFusedOperandKeepsItsRange() {
+        LogicalPlan plan = planPromql(
+            "PROMQL index=k8s time=\"2024-05-10T00:10:00.000Z\" "
+                + "ratio=(sum(rate(network.total_bytes_in{pod=\"one\"}[4m])) / sum(rate(network.total_bytes_in[4m])))",
+            false
+        );
+        List<Rate> rates = plan.collect(TimeSeriesAggregate.class)
+            .getFirst()
+            .aggregates()
+            .stream()
+            .flatMap(e -> e.collect(Rate.class).stream())
+            .toList();
+        assertThat(rates, hasSize(2));
+        for (Rate rate : rates) {
+            assertTrue(
+                rate + " keeps its range",
+                rate.filter()
+                    .anyMatch(e -> e instanceof GreaterThan gt && gt.left() instanceof Attribute a && a.name().equals("@timestamp"))
+            );
+        }
     }
 
     private Rate rateFromPromql(String query) {

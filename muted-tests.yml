@@ -491,6 +491,3 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.es816.ES816HnswBinaryQuantizedVectorsFormatTests
   method: testRandomWithUpdatesAndGraph
   issue: https://github.com/elastic/elasticsearch/issues/160958
-- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=security/authz/60_resolve_index/resolve index respects view_index_metadata privilege}
-  issue: https://github.com/elastic/elasticsearch/issues/160959

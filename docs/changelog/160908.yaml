@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160908
+summary: Account for ignored source blocks in breaker
+type: bug

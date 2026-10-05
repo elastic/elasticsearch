@@ -191,7 +191,7 @@ public class PromqlBuiltinFunctionDefinitions {
                 + "without applying the requested ordering."
         )
         .differenceFromPrometheus(
-            "Supported in this version only as the outermost function of the query; Prometheus also applies an ordering "
+            "Supported in this version only as the outermost function of the query. Prometheus also applies an ordering "
                 + "requested inside an enclosing function call. On a range query the ordering is discarded either way, "
                 + "but Prometheus returns the series ordered by their labels, where {{es}} returns them in input order."
         )
@@ -208,7 +208,7 @@ public class PromqlBuiltinFunctionDefinitions {
                 + "without applying the requested ordering."
         )
         .differenceFromPrometheus(
-            "Supported in this version only as the outermost function of the query; Prometheus also applies an ordering "
+            "Supported in this version only as the outermost function of the query. Prometheus also applies an ordering "
                 + "requested inside an enclosing function call. On a range query the ordering is discarded either way, "
                 + "but Prometheus returns the series ordered by their labels, where {{es}} returns them in input order."
         )

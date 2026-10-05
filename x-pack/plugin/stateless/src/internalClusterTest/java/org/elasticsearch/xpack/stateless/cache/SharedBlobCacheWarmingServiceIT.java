@@ -609,8 +609,11 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
     public void testSearchRecoveryWarmingTimeoutReevaluationWhenSourceStartsShuttingDown() throws Exception {
         final var relocationTimeoutSlice = TimeValue.timeValueMillis(200);
-        // Bounds the accumulated timeout and also caps the grace period taken from the shutdown metadata once it appears.
+        // Caps the grace period taken from the shutdown metadata once it appears.
         final var gracePeriodCap = TimeValue.timeValueSeconds(4);
+        // Bounds the accumulated timeout while the relocation source is not shutting down. Deliberately larger than the grace period cap
+        // so that the shutdown deadline, not this budget, decides when the warming finally times out.
+        final var totalTimeoutCap = TimeValue.timeValueSeconds(10);
         final int numberOfShards = randomIntBetween(1, 5);
 
         final var nodeSettings = Settings.builder()
@@ -634,6 +637,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 TimeValue.timeValueMillis(50)
             )
             .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), gracePeriodCap)
+            .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TOTAL_TIMEOUT_CAP_SETTING.getKey(), totalTimeoutCap)
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .build();
         startMasterAndIndexNode(nodeSettings);
@@ -703,7 +707,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             for (var evaluation : warmingServiceOnTargetNode.searchRecoveryTimeoutEvaluations()) {
                 assertThat(evaluation.plan().timeoutContext(), equalTo("relocation source not shutting down, no cluster shutdown"));
                 assertThat(evaluation.plan().timeout(), equalTo(relocationTimeoutSlice));
-                assertThat(evaluation.plan().totalBudget(), equalTo(gracePeriodCap));
+                assertThat(evaluation.plan().totalBudget(), equalTo(totalTimeoutCap));
                 // Each plan is computed for a shard that genuinely has data to pull from the object store.
                 assertThat(evaluation.totalBytesToWarm(), greaterThan(0L));
             }

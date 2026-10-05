@@ -96,6 +96,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -1282,6 +1283,7 @@ public class SharedBlobCacheWarmingService {
             clusterStateSupplier,
             indexShard,
             bytesToWarm,
+            () -> directory.totalBytesWarmedFromObjectStore() - bytesWarmedAtStart,
             startedMillis,
             race
         );
@@ -1345,6 +1347,7 @@ public class SharedBlobCacheWarmingService {
         private final Supplier<ClusterState> clusterStateSupplier;
         private final IndexShard indexShard;
         private final long bytesToWarm;
+        private final LongSupplier bytesWarmedSoFar;
         private final long startedMillis;
         private final SubscribableListener<SearchRecoveryWaitOutcome> race;
 
@@ -1356,6 +1359,7 @@ public class SharedBlobCacheWarmingService {
             Supplier<ClusterState> clusterStateSupplier,
             IndexShard indexShard,
             long bytesToWarm,
+            LongSupplier bytesWarmedSoFar,
             long startedMillis,
             SubscribableListener<SearchRecoveryWaitOutcome> race
         ) {
@@ -1363,6 +1367,7 @@ public class SharedBlobCacheWarmingService {
             this.clusterStateSupplier = clusterStateSupplier;
             this.indexShard = indexShard;
             this.bytesToWarm = bytesToWarm;
+            this.bytesWarmedSoFar = bytesWarmedSoFar;
             this.startedMillis = startedMillis;
             this.race = race;
             this.latestTimeoutContext = initialPlan.timeoutContext();
@@ -1381,7 +1386,10 @@ public class SharedBlobCacheWarmingService {
             }
             if (searchRecoveryWarmingTimeoutReevaluationEnabled && initialPlan.extendable()) {
                 try {
-                    final var newPlan = searchRecoveryTimeout(clusterStateSupplier.get(), indexShard, bytesToWarm, true);
+                    // Approximate: bytesWarmedSoFar also counts bytes that are not part of bytesToWarm (e.g. header/footer reads), and
+                    // regions that were already cached are never counted, so this can under- or overestimate the bytes still to warm.
+                    final long bytesRemaining = Math.max(0L, bytesToWarm - bytesWarmedSoFar.getAsLong());
+                    final var newPlan = searchRecoveryTimeout(clusterStateSupplier.get(), indexShard, bytesRemaining, true);
                     final var elapsed = TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - startedMillis);
                     final var newTimeout = newPlan.timeoutCappedToTotalBudget(initialPlan, elapsed);
                     if (newTimeout.compareTo(searchRecoveryReevaluationAbortThreshold) >= 0) {
@@ -1546,10 +1554,9 @@ public class SharedBlobCacheWarmingService {
 
         // Data-volume-proportional heuristic: scale remaining time by the fraction of the warming cache this shard occupies.
         final long warmingCacheBytes = Math.round(cacheService.getCacheSize() * searchRecoveryWarmingCacheRatio);
-        // TODO
-        // We're looking at the "remaining" time, but not at the "remaining" bytes to populate.
-        // Instead, this uses the same fixed baseline (which itself is of dubious inspiration).
-        // But it's hard to do the accounting of the bytes warmed for shards for all the relocations of a given node shutting down.
+        // Re-evaluations pass the bytes still to warm (an approximation, see ReevaluatingTimeoutTask#run), the first calculation passes
+        // all of them. The baseline (the warming cache budget) is still fixed, since it's hard to do the accounting of the bytes warmed
+        // for shards for all the relocations of a given node shutting down.
         final double dataVolumeMs = warmingCacheBytes > 0 ? ((double) totalBytesToWarm / warmingCacheBytes) * remaining : 0;
         int ongoingRelocations = countOngoingRelocationsBetween(state, sourceNodeId, targetNodeId);
         // The current shard is itself one such relocation; floor at 1 in case it is not yet visible on the source's RoutingNode.
@@ -1582,6 +1589,8 @@ public class SharedBlobCacheWarmingService {
             return SearchRecoveryTimeout.fixed(TimeValue.timeValueMillis(Math.round(timeoutMs)), context);
         }
         if (reevaluation == false) {
+            // We don't reserve a min budget on a first run, since in some cases we'd end up with no timeout for a given shard.
+            // We want to give them at least one chance for offline warming.
             return SearchRecoveryTimeout.extendable(
                 TimeValue.timeValueMillis(Math.round(timeoutMs)),
                 context,

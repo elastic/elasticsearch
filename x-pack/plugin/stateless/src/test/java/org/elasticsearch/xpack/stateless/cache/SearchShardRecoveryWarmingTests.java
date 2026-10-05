@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
 import org.mockito.Mockito;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -71,6 +72,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -84,6 +86,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.SEARCH_RECOVERY_LOG_FIELD_PREFIX;
 import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.totalBytesToWarm;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -1558,6 +1561,15 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         Settings settings,
         Supplier<SharedBlobCacheWarmingService.SearchRecoveryTimeout> planSupplier
     ) {
+        return newReevaluatingService(threadPool, settings, bytesToWarm -> planSupplier.get());
+    }
+
+    /// Like the overload taking a plan supplier, but the plan is computed from the `totalBytesToWarm` that the re-evaluation passes in.
+    private static SharedBlobCacheWarmingService newReevaluatingService(
+        ThreadPool threadPool,
+        Settings settings,
+        LongFunction<SharedBlobCacheWarmingService.SearchRecoveryTimeout> planForBytesToWarm
+    ) {
         final var clusterSettings = newClusterSettings(settings);
         return new SharedBlobCacheWarmingService(
             Mockito.mock(StatelessSharedBlobCacheService.class),
@@ -1573,7 +1585,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 long totalBytesToWarm,
                 boolean reevaluation
             ) {
-                return planSupplier.get();
+                return planForBytesToWarm.apply(totalBytesToWarm);
             }
 
             @Override
@@ -1785,6 +1797,79 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                     "*timeout extended*context-after-switch*"
                 )
             );
+        }
+    }
+
+    /// Each re-evaluation is given the bytes still to warm, i.e. the bytes to warm at the start minus what has been warmed from the
+    /// object store since then, never below zero. The stand-in plan mimics the data-volume heuristic: while more than half of the bytes
+    /// are still to be warmed it returns a zero timeout, which ends the wait; once warming has progressed it returns an extension.
+    public void testReevaluationLoopUsesBytesStillToWarm() {
+        final long bytesToWarm = 1_000L;
+        final var budget = TimeValue.timeValueMillis(1_000);
+        final var sliceSize = TimeValue.timeValueMillis(200);
+        final var settings = Settings.builder()
+            .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
+            .put(
+                SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(),
+                TimeValue.timeValueMillis(50)
+            )
+            .build();
+
+        // (a) nothing warmed yet: still all bytes to warm, the plan ends the wait
+        // (b) some bytes warmed: the plan extends, and a later re-evaluation sees fewer bytes remaining
+        // (c) more bytes warmed than targeted (the directory counter also covers other reads): remaining is clamped to zero
+        final var warmedFromObjectStore = new AtomicLong();
+        final var bytesRemainingSeen = new ArrayList<Long>();
+        final LongFunction<SharedBlobCacheWarmingService.SearchRecoveryTimeout> plan = bytesRemaining -> {
+            bytesRemainingSeen.add(bytesRemaining);
+            return bytesRemaining > bytesToWarm / 2
+                ? SharedBlobCacheWarmingService.SearchRecoveryTimeout.fixed(TimeValue.ZERO, "data-volume-like")
+                : SharedBlobCacheWarmingService.SearchRecoveryTimeout.fixed(sliceSize, "extension");
+        };
+
+        try (var threadPool = new ReEvaluationThreadPool(getTestName())) {
+            final var service = newReevaluatingService(threadPool, settings, plan);
+            final var directory = mock(BlobStoreCacheDirectory.class);
+            when(directory.totalBytesWarmedFromObjectStore()).thenAnswer(invocation -> warmedFromObjectStore.get());
+
+            // a
+            final var timedOut = new PlainActionFuture<Void>();
+            service.searchRecoveryWarmingListener(
+                SharedBlobCacheWarmingService.SearchRecoveryTimeout.extendable(sliceSize, "initial", budget),
+                () -> null, // unused in this test case
+                randomMockIndexShard(),
+                directory,
+                bytesToWarm,
+                timedOut
+            );
+            threadPool.drainTask().run();
+            safeGet(timedOut);
+            assertThat(bytesRemainingSeen, contains(bytesToWarm));
+            assertThat("a zero timeout must end the wait", threadPool.drainTask(), nullValue());
+
+            // b, c: bytes warmed before the listener is built do not count towards it
+            bytesRemainingSeen.clear();
+            warmedFromObjectStore.set(10_000L);
+            final var resume = new PlainActionFuture<Void>();
+            service.searchRecoveryWarmingListener(
+                SharedBlobCacheWarmingService.SearchRecoveryTimeout.extendable(sliceSize, "initial", budget),
+                () -> null, // unused in this test case
+                randomMockIndexShard(),
+                directory,
+                bytesToWarm,
+                resume
+            );
+            final var task1 = threadPool.drainTask();
+            warmedFromObjectStore.addAndGet(600L);
+            task1.run(); // 400 bytes remaining → extended
+            assertThat(resume.isDone(), is(false));
+            final var task2 = threadPool.drainTask();
+            assertThat("the first re-evaluation must have rescheduled", task2, notNullValue());
+            warmedFromObjectStore.addAndGet(5_000L);
+            task2.run(); // overcounted → clamped to 0 remaining → extended due to equal share
+            assertThat(bytesRemainingSeen, contains(400L, 0L));
+            assertThat(resume.isDone(), is(false));
+            assertThat("the second re-evaluation must have rescheduled", threadPool.drainTask(), notNullValue());
         }
     }
 

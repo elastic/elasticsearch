@@ -458,7 +458,7 @@ Parquet is self-describing, so it has a single dataset setting:
 
 | Setting | Default | Description |
 |---|---|---|
-| `schema_max_fields` {applies_to}`stack: experimental 9.6+` | `1000` | The maximum number of columns a file's schema can have, counting each nested field as a column once groups are flattened. If the file has more columns, the query fails with a circuit-breaking error (HTTP 429), including when the dataset declares its schema. Range 1–100,000. The default comes from the `esql.external.schema_max_fields` node setting. |
+| `schema_max_fields` {applies_to}`stack: experimental 9.6+` | `1000` | The maximum number of columns a file's schema can have, counting each nested field as a column once groups are flattened. If the file has more columns, the query fails with a circuit-breaking error (HTTP 429). A declared schema is held to the limit by its number of declared columns, not by the width of the file. Range 1–100,000. The default comes from the `esql.external.schema_max_fields` node setting. |
 
 ## How schemas are inferred
 

@@ -42,6 +42,7 @@ import org.apache.parquet.schema.Types;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
@@ -2298,15 +2299,55 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Parquet applies the width cap to a declared dataset too: the planning probe and every read resolve the footer's
-     * schema, and the attribute list built from a very wide footer is not charged to the breaker, so there is no
-     * file-width exemption to lift. A user who hits the cap raises {@code schema_max_fields}.
+     * A declared dataset names the columns it reads, so a file wider than the cap is not refused, the same as for the
+     * text formats. The flattened schema is bounded by the breaker instead
+     * ({@link #testFlattenedSchemaIsChargedAndReleased}).
      */
-    public void testDeclaredProvenanceDoesNotLiftTheWidthCap() throws Exception {
+    public void testDeclaredProvenanceLiftsTheWidthCap() throws Exception {
         byte[] data = wideOptionalLongFile(6);
         FormatReader declared = new ParquetFormatReader(blockFactory).withSchemaMaxFields(5).withDeclaredProvenanceBinding(true);
-        CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> declared.metadata(createStorageObject(data)));
+        assertEquals(6, declared.metadata(createStorageObject(data)).schema().size());
+    }
+
+    /**
+     * The attributes a footer is flattened into are charged to the breaker while they are built and released on return.
+     * A breaker that refuses that charge fails the resolution with a 429 and leaves nothing reserved.
+     */
+    public void testFlattenedSchemaIsChargedAndReleased() throws Exception {
+        // Enough columns that the per-column allowance crosses one charge batch.
+        byte[] data = wideOptionalLongFile(1_000);
+        AtomicBoolean charged = new AtomicBoolean();
+        LimitedBreaker roomy = new LimitedBreaker("test", ByteSizeValue.ofMb(64)) {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                if (ParquetFormatReader.SchemaBudget.LABEL.equals(label)) {
+                    charged.set(true);
+                }
+                super.addEstimateBytesAndMaybeBreak(bytes, label);
+            }
+        };
+        ParquetFormatReader reader = new ParquetFormatReader(new BlockFactory(roomy, blockFactory.bigArrays()))
+            .withDeclaredProvenanceBinding(true);
+        reader.clearFooterCachesForTests();
+        assertEquals(1_000, reader.metadata(createStorageObject(data)).schema().size());
+        assertTrue("the flattened schema must be charged", charged.get());
+        assertEquals(0, roomy.getUsed());
+
+        LimitedBreaker refusing = new LimitedBreaker("test", ByteSizeValue.ofMb(64)) {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                if (ParquetFormatReader.SchemaBudget.LABEL.equals(label)) {
+                    throw new CircuitBreakingException("refused [" + label + "]", CircuitBreaker.Durability.TRANSIENT);
+                }
+                super.addEstimateBytesAndMaybeBreak(bytes, label);
+            }
+        };
+        ParquetFormatReader tight = new ParquetFormatReader(new BlockFactory(refusing, blockFactory.bigArrays()))
+            .withDeclaredProvenanceBinding(true);
+        tight.clearFooterCachesForTests();
+        CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> tight.metadata(createStorageObject(data)));
         assertEquals(RestStatus.TOO_MANY_REQUESTS, e.status());
+        assertEquals(0, refusing.getUsed());
     }
 
     /**

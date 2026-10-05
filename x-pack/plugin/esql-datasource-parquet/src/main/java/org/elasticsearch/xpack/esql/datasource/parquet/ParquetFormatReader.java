@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
@@ -553,6 +554,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             maxFooterReadBytes,
             maxFields
         );
+    }
+
+    /**
+     * A declared dataset names the columns it reads, so it is not capped by how many columns the file has, the same as
+     * the text formats. The attribute list built from a wide footer is bounded by the breaker instead (see
+     * {@link #convertParquetSchemaToAttributes}).
+     */
+    @Override
+    public ParquetFormatReader withDeclaredProvenanceBinding(boolean declaredProvenanceBinding) {
+        return declaredProvenanceBinding ? withSchemaMaxFields(Integer.MAX_VALUE) : this;
     }
 
     ParquetFormatReader copySharingCachesForTests() {
@@ -1050,8 +1061,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
     /**
      * The refusal for a schema over {@code maxFields}. Below the ceiling the user can raise the cap; at the ceiling
-     * raising it is rejected too, and declaring the dataset's columns does not lift the cap for Parquet, so say the file
-     * is wider than any Parquet schema the reader supports instead.
+     * raising it is rejected too. Declaring the dataset's columns does not help either: the planner still reads a declared
+     * dataset's footer to check the declared types, at this ceiling. So say the file is wider than any Parquet schema the
+     * reader supports instead.
      */
     static String schemaWidthMessage(int maxFields) {
         if (maxFields >= ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS) {
@@ -3432,19 +3444,69 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * drop legitimate null rows for {@code OPTIONAL} columns.
      */
     private List<Attribute> convertParquetSchemaToAttributes(MessageType schema) {
-        List<Attribute> attributes = new ArrayList<>();
-        for (Type field : schema.getFields()) {
-            collectAttributes(field, field.getName(), 1, field.isRepetition(Type.Repetition.REQUIRED), attributes);
+        // The attributes are charged as they are built and released on return, so a declared read, which the width cap
+        // does not bound, still trips the breaker part-way through a footer with millions of leaves.
+        try (SchemaBudget budget = new SchemaBudget(blockFactory.breaker())) {
+            List<Attribute> attributes = new ArrayList<>();
+            for (Type field : schema.getFields()) {
+                collectAttributes(field, field.getName(), 1, field.isRepetition(Type.Repetition.REQUIRED), attributes, budget);
+            }
+            return attributes;
         }
-        return attributes;
     }
 
-    private void collectAttributes(Type field, String dottedPath, int depth, boolean pathAllRequired, List<Attribute> out) {
+    /**
+     * Charges the circuit breaker for the attributes a footer is flattened into, in batches, so a very wide schema trips
+     * the breaker while it is built rather than after. Each field visited is charged {@link HeapEstimates#columnBytes} of
+     * its dotted path: the attribute for a leaf, the path string the children are built from for a group. Closing
+     * releases everything charged. An allowance, not a measured size.
+     */
+    static final class SchemaBudget implements Releasable {
+        static final String LABEL = "parquet_schema_columns";
+        private static final long BATCH_BYTES = 64 * 1024;
+
+        private final CircuitBreaker breaker;
+        private long reserved;
+        private long pending;
+
+        SchemaBudget(CircuitBreaker breaker) {
+            this.breaker = breaker;
+        }
+
+        void add(String name) {
+            pending += HeapEstimates.columnBytes(name.length());
+            if (pending >= BATCH_BYTES) {
+                long bytes = pending;
+                pending = 0;
+                breaker.addEstimateBytesAndMaybeBreak(bytes, LABEL);
+                reserved += bytes;
+            }
+        }
+
+        @Override
+        public void close() {
+            if (reserved > 0) {
+                breaker.addWithoutBreaking(-reserved);
+                reserved = 0;
+            }
+            pending = 0;
+        }
+    }
+
+    private void collectAttributes(
+        Type field,
+        String dottedPath,
+        int depth,
+        boolean pathAllRequired,
+        List<Attribute> out,
+        SchemaBudget budget
+    ) {
         // Stop at the cap rather than finish the list: a schema is flattened to one attribute per leaf, so a narrow
         // footer of deeply nested groups can still describe far more columns than it has fields.
         if (out.size() >= schemaMaxFields) {
             throw new CircuitBreakingException(schemaWidthMessage(schemaMaxFields), CircuitBreaker.Durability.PERMANENT);
         }
+        budget.add(dottedPath);
         if (depth > MAX_STRUCT_FLATTENING_DEPTH) {
             logger.debug(
                 "Parquet field [{}] exceeds STRUCT flattening depth cap [{}]; emitting as UNSUPPORTED",
@@ -3469,7 +3531,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         }
         for (Type child : group.getFields()) {
             boolean childAllRequired = pathAllRequired && child.isRepetition(Type.Repetition.REQUIRED);
-            collectAttributes(child, dottedPath + "." + child.getName(), depth + 1, childAllRequired, out);
+            collectAttributes(child, dottedPath + "." + child.getName(), depth + 1, childAllRequired, out, budget);
         }
     }
 

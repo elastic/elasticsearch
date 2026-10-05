@@ -185,8 +185,9 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
             putGlobDataset(dataset, "wide_last_" + ext, ext, "first_file_wins", Map.of());
             // LIMIT 1 is answered by the narrow anchor alone, so the wide file is never opened.
             assertThat(ext, values(esql("FROM " + dataset + " | LIMIT 1")), hasSize(1));
-            assertQueryRefused("FROM " + dataset + " | STATS c = COUNT(*)");
             if (ext.equals("ndjson") == false) {
+                // NDJSON does not check a wide later file's width at read time; see the known-gap test below.
+                assertQueryRefused("FROM " + dataset + " | STATS c = COUNT(*)");
                 assertQueryRefused("FROM " + dataset + " | KEEP a, b | LIMIT 100");
             }
             assertNodeStillServes();
@@ -301,15 +302,28 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
     }
 
     /**
-     * Parquet has no declared exemption: it resolves the footer's schema on every path, so a declared dataset over a
-     * file wider than the cap is refused, naming the setting to raise.
+     * A declared Parquet dataset is not held to the width of its files, the same as the text formats: one declared
+     * column over a file wider than a cap of one reads, both for a single file and for a glob whose files are all wider
+     * than the cap, so the outcome does not depend on which file the planner reads.
      */
-    public void testDeclaredParquetIsHeldToTheCap() throws IOException {
+    public void testDeclaredParquetIsNotHeldToTheFileWidth() throws IOException {
         Map<String, Object> mappings = Map.of("dynamic", "false", "properties", Map.of("emp_no", Map.of("type", "integer")));
         String dataset = datasetName("declared_parquet_cap", "employees.parquet");
         DatasetRegistry.putDataset(client(), dataset, DATA_SOURCE, uri("employees.parquet"), Map.of("schema_max_fields", 1), mappings);
         datasets.add(dataset);
-        assertRefused(dataset);
+        assertThat(values(query(dataset)), not(empty()));
+
+        String glob = datasetName("declared_parquet_glob_cap", "parquet_multi");
+        DatasetRegistry.putDataset(
+            client(),
+            glob,
+            DATA_SOURCE,
+            FIXTURE_DIR.resolve("parquet_multi").toUri() + "*.parquet",
+            Map.of("schema_max_fields", 1),
+            mappings
+        );
+        datasets.add(glob);
+        assertThat(values(query(glob)), not(empty()));
     }
 
     private void assertRefused(String dataset) throws IOException {

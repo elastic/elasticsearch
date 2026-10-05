@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
@@ -70,6 +71,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -85,6 +87,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -98,8 +101,10 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.junit.Before;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -8311,6 +8316,127 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * Leaf object whose {@code newStream} is metered so inference bytes reach {@link ExternalPlanningIo}.
+     */
+    private static final class MeteredBytesStorageObject extends AbstractMeteredStorageObject {
+        private final StoragePath path;
+        private final byte[] payload;
+
+        MeteredBytesStorageObject(StoragePath path, byte[] payload) {
+            this.path = path;
+            this.payload = payload;
+        }
+
+        @Override
+        public StorageIdentity storageIdentity() {
+            return StorageIdentity.unique();
+        }
+
+        @Override
+        public InputStream newStream() {
+            counters.addRequest(1L, 0L);
+            return metered(new ByteArrayInputStream(payload));
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            counters.addRequest(1L, 0L);
+            int from = Math.toIntExact(position);
+            int to = Math.toIntExact(Math.min(payload.length, position + length));
+            return metered(new ByteArrayInputStream(payload, from, Math.max(0, to - from)));
+        }
+
+        @Override
+        public long length() {
+            return payload.length;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return Instant.EPOCH;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return path;
+        }
+    }
+
+    private static final class MeteredBytesStorageProvider implements StorageProvider {
+        private final Map<String, List<StorageEntry>> listingsByPrefix;
+        private final StoragePath path;
+        private final byte[] payload;
+
+        MeteredBytesStorageProvider(Map<String, List<StorageEntry>> listingsByPrefix, StoragePath path, byte[] payload) {
+            this.listingsByPrefix = listingsByPrefix;
+            this.path = path;
+            this.payload = payload;
+        }
+
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null;
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath requested) {
+            return new MeteredBytesStorageObject(requested, payload);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath requested, long length) {
+            return new MeteredBytesStorageObject(requested, payload);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath requested, long length, Instant lastModified) {
+            return new MeteredBytesStorageObject(requested, payload);
+        }
+
+        @Override
+        public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
+            List<StorageEntry> entries = listingsByPrefix.getOrDefault(prefix.toString(), List.of());
+            return new StorageIterator() {
+                private final Iterator<StorageEntry> it = entries.iterator();
+
+                @Override
+                public boolean hasNext() {
+                    return it.hasNext();
+                }
+
+                @Override
+                public StorageEntry next() {
+                    if (it.hasNext() == false) {
+                        throw new NoSuchElementException();
+                    }
+                    return it.next();
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        @Override
+        public boolean exists(StoragePath requested) {
+            return path.equals(requested);
+        }
+
+        @Override
+        public List<String> supportedSchemes() {
+            return List.of("s3");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
      * Wraps StubStorageProvider with counters for listObjects and metadata (newObject) calls
      * to verify that the cache eliminates redundant loader invocations.
      */
@@ -8586,6 +8712,89 @@ public class ExternalSourceResolverTests extends ESTestCase {
             );
             assertThat(e.getMessage(), containsString("schema_sample_size must be positive"));
         }
+    }
+
+    /**
+     * The resolver is built in {@code PlanExecutor} before {@code EsqlSession.execute} binds the
+     * reservation. A ctor-time planning-I/O capture is null; the holder must be resolved when each
+     * metadata-read task runs.
+     */
+    public void testPlanningIoBoundAfterConstructionCountsInferenceBytes() throws Exception {
+        assertPlanningIoCountsInferenceBytes(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+    }
+
+    /**
+     * Same as {@link #testPlanningIoBoundAfterConstructionCountsInferenceBytes} but metadata
+     * completion runs on a non-ES thread, so the pin (not the calling ThreadLocal) must carry
+     * the holder.
+     */
+    public void testPlanningIoBoundAfterConstructionCountsInferenceBytesOnAsyncThread() throws Exception {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            assertPlanningIoCountsInferenceBytes(executor);
+        } finally {
+            terminate(executor);
+        }
+    }
+
+    private void assertPlanningIoCountsInferenceBytes(ExecutorService executor) throws Exception {
+        byte[] payload = "{\"n\":1}\n{\"n\":2}\n{\"n\":3}\n".getBytes(StandardCharsets.UTF_8);
+        String path = "s3://bucket/data/events.ndjson";
+        ExternalSourceResolver resolver = createMeteredNdjsonResolver(path, payload, executor);
+        assertNull("ctor must not see a reservation", ExternalPlanningIo.current());
+
+        ExternalPlanningReservation reservation = new ExternalPlanningReservation(new NoopCircuitBreaker("test"));
+        resolver.planning(reservation);
+
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(path), Map.of(), future);
+        ExternalSourceResolution resolution = future.actionGet(30, TimeUnit.SECONDS);
+        assertNotNull(resolution.resolvedSource(path));
+        assertThat(
+            "inference GET must land in the reservation installed after construction",
+            reservation.planningIo().bytesRead(),
+            greaterThan(0L)
+        );
+        assertThat(reservation.planningIo().requestCount(), greaterThan(0L));
+    }
+
+    private ExternalSourceResolver createMeteredNdjsonResolver(String path, byte[] payload, ExecutorService executor) {
+        StoragePath storagePath = StoragePath.of(path);
+        String prefix = storagePath.patternPrefix().toString();
+        Map<String, List<StorageEntry>> listings = Map.of(prefix, List.of(new StorageEntry(storagePath, payload.length, Instant.EPOCH)));
+        StorageProvider storageProvider = new MeteredBytesStorageProvider(listings, storagePath, payload);
+        DataSourcePlugin plugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("s3");
+            }
+
+            @Override
+            public Set<FormatSpec> formatSpecs() {
+                return Set.of(FormatSpec.of("ndjson", ".ndjson"));
+            }
+
+            @Override
+            public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+                return Map.of("s3", stubStorageProviderFactory(storageProvider));
+            }
+
+            @Override
+            public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+                return Map.of("ndjson", (s, bf) -> new NdJsonFormatReader(s, bf, null));
+            }
+        };
+        List<DataSourcePlugin> plugins = List.of(plugin);
+        DataSourceModule module = new DataSourceModule(
+            plugins,
+            DataSourceCapabilities.build(plugins),
+            Settings.EMPTY,
+            blockFactory,
+            executor,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
+        );
+        return new ExternalSourceResolver(executor, module);
     }
 
     /**

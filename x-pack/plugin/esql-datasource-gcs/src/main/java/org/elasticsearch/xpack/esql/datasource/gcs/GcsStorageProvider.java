@@ -26,6 +26,7 @@ import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -316,6 +317,7 @@ public class GcsStorageProvider implements StorageProvider {
         List<StoragePath> directories = new ArrayList<>();
         String pathPrefix = bucketPathPrefix(prefix.scheme(), bucket);
         try {
+            ExternalPlanningIo.addMetadataGet(0);
             var page = storage().list(bucket, Storage.BlobListOption.prefix(objectPrefix), Storage.BlobListOption.currentDirectory());
             for (Blob blob : page.iterateAll()) {
                 if (files.size() + directories.size() >= limit) {
@@ -513,6 +515,7 @@ public class GcsStorageProvider implements StorageProvider {
                         Storage.BlobListOption.currentDirectory() };
                 }
 
+                ExternalPlanningIo.addMetadataGet(0);
                 com.google.api.gax.paging.Page<Blob> page = storage.list(bucket, options);
                 currentIterator = page.iterateAll().iterator();
             } catch (Exception e) {

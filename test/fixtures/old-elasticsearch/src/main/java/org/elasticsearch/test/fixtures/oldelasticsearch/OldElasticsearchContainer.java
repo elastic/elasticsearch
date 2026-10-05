@@ -32,7 +32,7 @@ public class OldElasticsearchContainer extends DockerEnvironmentAwareTestContain
 
     private static final int HTTP_PORT = 9200;
     // Keep in sync with `def fixtureVersion` in test/fixtures/old-elasticsearch/build.gradle.
-    private static final String FIXTURE_IMAGE_VERSION = "1.3";
+    private static final String FIXTURE_IMAGE_VERSION = "1.4";
     private static final Map<String, String> IMAGES = Map.of(
         "0.90.13",
         "docker.elastic.co/elasticsearch-dev/old-elasticsearch-0-90-13-fixture:" + FIXTURE_IMAGE_VERSION,
@@ -71,7 +71,11 @@ public class OldElasticsearchContainer extends DockerEnvironmentAwareTestContain
     private final String version;
 
     public OldElasticsearchContainer(String version, String repoLocation) {
-        super(new PullOrBuildImage(resolveImage(version), localImage(version)));
+        this(version, repoLocation, PullOrBuildImage.DEFAULT_PULL_TIMEOUT);
+    }
+
+    public OldElasticsearchContainer(String version, String repoLocation, Duration pullTimeout) {
+        super(new PullOrBuildImage(resolveImage(version), localImage(version), pullTimeout));
         this.version = version;
         addExposedPort(HTTP_PORT);
         withFileSystemBind(repoLocation, repoLocation);

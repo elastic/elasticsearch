@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 158578
+summary: Do not allow full text function after `UnionAll` if there is TopN in branch
+type: bug

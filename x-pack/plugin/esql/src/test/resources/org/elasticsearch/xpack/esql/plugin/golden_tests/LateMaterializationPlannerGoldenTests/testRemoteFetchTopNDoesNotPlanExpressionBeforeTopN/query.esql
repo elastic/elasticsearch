@@ -1,0 +1,5 @@
+FROM employees
+| EVAL adjusted_salary = salary + 1
+| SORT hire_date
+| LIMIT 20
+| KEEP hire_date, adjusted_salary, emp_no

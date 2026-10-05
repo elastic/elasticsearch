@@ -10,7 +10,7 @@
 package org.elasticsearch.benchmark.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -404,6 +404,28 @@ public class EvalBenchmark {
                 checkMvMinExpected(this, actual);
             }
         },
+        MV_MIN_WITH_NULLS("mv_min_with_nulls") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return mvMinEvaluator();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkMvMinWithNullsExpected(this, actual);
+            }
+        },
+        ABS_BLOCK_SOME_NULLS("abs_block_some_nulls") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return absEvaluator();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkAbsBlockSomeNullsExpected(this, actual);
+            }
+        },
         ROUND_TO_4_VIA_CASE("round_to_4_via_case") {
             @Override
             ExpressionEvaluator evaluator() {
@@ -413,6 +435,22 @@ public class EvalBenchmark {
             @Override
             void checkExpected(Page actual) {
                 checkRoundTo4Expected(this, actual);
+            }
+        },
+        /**
+         * {@code CASE(f % 4 == 0, f + 1, f % 4 == 1, f + 2, f % 4 == 2, f + 3, f + 4)}. Neither the conditions nor the
+         * values are safe to evaluate eagerly, so every arm after the first runs on a filtered page, and the arms
+         * are balanced so each one selects a quarter of the rows.
+         */
+        CASE_4_LAZY_BALANCED("case_4_lazy_balanced") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return case4LazyBalancedEvaluator();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkCase4LazyBalancedExpected(this, actual);
             }
         },
         ROUND_TO_2("round_to_2") {
@@ -721,7 +759,7 @@ public class EvalBenchmark {
     // BlockFactory.<clinit> fires before the LogConfigurator SPI is set up and NPEs.
     // Matches the AggregatorBenchmark pattern.
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
         // EvalBenchmark constructs a fresh evaluator per invocation and discards it. With
         // admission threshold=2 (production default), each invocation would start a fresh
         // admission cycle and route through the Standard (non-JIT-folded) path — defeating
@@ -1040,6 +1078,25 @@ public class EvalBenchmark {
         ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
             FOLD_CONTEXT,
             new Case(Source.EMPTY, ltkb, List.of(b(), ltmb, kb(), ltgb, mb(), gb())),
+            layout(f)
+        ).get(driverContext);
+        assertEvaluatorContains(evaluator, "CaseLazyEvaluator");
+        return evaluator;
+    }
+
+    private static ExpressionEvaluator case4LazyBalancedEvaluator() {
+        FieldAttribute f = longField();
+        Expression four = new Literal(Source.EMPTY, 4L, DataType.LONG);
+        Expression mod = new Mod(Source.EMPTY, f, four);
+        List<Expression> arms = new ArrayList<>();
+        for (int k = 0; k < 3; k++) {
+            arms.add(new Equals(Source.EMPTY, mod, new Literal(Source.EMPTY, (long) k, DataType.LONG)));
+            arms.add(new Add(Source.EMPTY, f, new Literal(Source.EMPTY, (long) k + 1, DataType.LONG), configuration()));
+        }
+        arms.add(new Add(Source.EMPTY, f, new Literal(Source.EMPTY, 4L, DataType.LONG), configuration()));
+        ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
+            FOLD_CONTEXT,
+            new Case(Source.EMPTY, arms.get(0), arms.subList(1, arms.size())),
             layout(f)
         ).get(driverContext);
         assertEvaluatorContains(evaluator, "CaseLazyEvaluator");
@@ -1408,6 +1465,45 @@ public class EvalBenchmark {
         }
     }
 
+    private static void checkMvMinWithNullsExpected(Operation operation, Page actual) {
+        LongBlock b = actual.getBlock(1);
+        for (int i = 0; i < BLOCK_LENGTH; i++) {
+            if (i % 8 == 0) {
+                if (b.isNull(i) == false) {
+                    throw new AssertionError("[" + operation + "] expected null at position [" + i + "]");
+                }
+            } else {
+                if (b.isNull(i)) {
+                    throw new AssertionError("[" + operation + "] unexpected null at position [" + i + "]");
+                }
+                long got = b.getLong(b.getFirstValueIndex(i));
+                if (got != i) {
+                    throw new AssertionError("[" + operation + "] expected [" + i + "] but was [" + got + "]");
+                }
+            }
+        }
+    }
+
+    private static void checkAbsBlockSomeNullsExpected(Operation operation, Page actual) {
+        LongBlock b = actual.getBlock(1);
+        for (int i = 0; i < BLOCK_LENGTH; i++) {
+            if (i % 8 == 0) {
+                if (b.isNull(i) == false) {
+                    throw new AssertionError("[" + operation + "] expected null at position [" + i + "]");
+                }
+            } else {
+                if (b.isNull(i)) {
+                    throw new AssertionError("[" + operation + "] unexpected null at position [" + i + "]");
+                }
+                long expected = i * 100_000L;
+                long got = b.getLong(b.getFirstValueIndex(i));
+                if (got != expected) {
+                    throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + got + "]");
+                }
+            }
+        }
+    }
+
     private static void checkReplaceConstExpected(Operation operation, Page actual) {
         BytesRef expected0 = new BytesRef("X");
         BytesRef expected1 = new BytesRef("bar");
@@ -1462,6 +1558,17 @@ public class EvalBenchmark {
             } else {
                 expected = gb;
             }
+            if (result.getLong(i) != expected) {
+                throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + result.getLong(i) + "]");
+            }
+        }
+    }
+
+    private static void checkCase4LazyBalancedExpected(Operation operation, Page actual) {
+        LongVector f = actual.<LongBlock>getBlock(0).asVector();
+        LongVector result = actual.<LongBlock>getBlock(1).asVector();
+        for (int i = 0; i < BLOCK_LENGTH; i++) {
+            long expected = f.getLong(i) + 1 + (f.getLong(i) % 4);
             if (result.getLong(i) != expected) {
                 throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + result.getLong(i) + "]");
             }
@@ -1570,6 +1677,13 @@ public class EvalBenchmark {
                 }
                 yield new Page(builder.build());
             }
+            case CASE_4_LAZY_BALANCED -> {
+                var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    builder.appendLong(i);
+                }
+                yield new Page(builder.build());
+            }
             case ADD_DOUBLE -> {
                 var builder = blockFactory.newDoubleBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
@@ -1668,6 +1782,32 @@ public class EvalBenchmark {
                     builder.appendLong(i + 1);
                     builder.appendLong(i + 2);
                     builder.endPositionEntry();
+                }
+                yield new Page(builder.build());
+            }
+            case MV_MIN_WITH_NULLS -> {
+                var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    if (i % 8 == 0) {
+                        builder.appendNull();
+                    } else {
+                        builder.beginPositionEntry();
+                        builder.appendLong(i);
+                        builder.appendLong(i + 1);
+                        builder.appendLong(i + 2);
+                        builder.endPositionEntry();
+                    }
+                }
+                yield new Page(builder.build());
+            }
+            case ABS_BLOCK_SOME_NULLS -> {
+                var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    if (i % 8 == 0) {
+                        builder.appendNull();
+                    } else {
+                        builder.appendLong(i * 100_000L);
+                    }
                 }
                 yield new Page(builder.build());
             }

@@ -123,6 +123,7 @@ public final class SourceSchema {
      * For a leaf "status" directly under root, returns "status".
      */
     public String getFullPath(int leafIdx) {
+        // TODO: Could consider caching this in some type of field name object.
         String leafName = leaves.getName(leafIdx);
         int parentIdx = leaves.getParent(leafIdx);
 

@@ -86,8 +86,6 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
 
     @Nullable
     private String routing;
-    @Nullable
-    private String searchSlice;
     private boolean routingFromSlice;
     @Nullable
     private String preference;
@@ -272,7 +270,6 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
         this.waitForCheckpointsTimeout = searchRequest.waitForCheckpointsTimeout;
         this.forceSyntheticSource = searchRequest.forceSyntheticSource;
         this.projectRouting = searchRequest.projectRouting;
-        this.searchSlice = searchRequest.searchSlice;
         this.routingFromSlice = searchRequest.routingFromSlice;
         this.resolvedIndexExpressions = searchRequest.resolvedIndexExpressions;
         this.resolvedTargetProjects = searchRequest.resolvedTargetProjects;
@@ -321,10 +318,20 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
         }
         if (in.getTransportVersion().supports(SliceIndexing.SEARCH_SLICE_ROUTING_STATE_VERSION)) {
             this.routingFromSlice = in.readBoolean();
-            this.searchSlice = in.readOptionalString();
+            if (in.getTransportVersion().supports(SliceIndexing.SLICE_ROUTING_STATE_DERIVED_VERSION) == false) {
+                // older peers also send the slice value, which is derived from routing and routingFromSlice here
+                final String searchSlice = in.readOptionalString();
+                assert Objects.equals(searchSlice, SliceIndexing.toSearchSlice(routing, routingFromSlice))
+                    : "transmitted slice ["
+                        + searchSlice
+                        + "] does not match routing ["
+                        + routing
+                        + "] from slice ["
+                        + routingFromSlice
+                        + "]";
+            }
         } else {
             this.routingFromSlice = false;
-            this.searchSlice = null;
         }
     }
 
@@ -366,8 +373,10 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
             out.writeOptionalString(this.projectRouting);
         }
         if (out.getTransportVersion().supports(SliceIndexing.SEARCH_SLICE_ROUTING_STATE_VERSION)) {
-            out.writeBoolean(this.routingFromSlice);
-            out.writeOptionalString(this.searchSlice);
+            out.writeBoolean(routingFromSlice);
+            if (out.getTransportVersion().supports(SliceIndexing.SLICE_ROUTING_STATE_DERIVED_VERSION) == false) {
+                out.writeOptionalString(searchSlice());
+            }
         }
     }
 
@@ -407,12 +416,6 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
             }
             if (routing() != null && isRoutingFromSlice() == false) {
                 validationException = addValidationError("[routing] cannot be used with point in time", validationException);
-            }
-            if (isRoutingFromSlice()) {
-                validationException = addValidationError(
-                    "[" + SliceIndexing.PARAM_NAME + "] cannot be used with point in time",
-                    validationException
-                );
             }
             if (preference() != null) {
                 validationException = addValidationError("[preference] cannot be used with point in time", validationException);
@@ -573,30 +576,27 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
         return routingFromSlice;
     }
 
-    /**
-     * Returns the requested {@code slice} value when routing comes from {@code slice}.
-     */
-    @Nullable
-    public String searchSlice() {
-        return searchSlice;
+    public SearchRequest setRoutingFromSlice(boolean routingFromSlice) {
+        this.routingFromSlice = routingFromSlice;
+        return this;
     }
 
     /**
-     * Sets the user-provided {@code slice} value and derives routing/provenance from it.
-     * Passing {@code null} clears slice-routing provenance and any routing previously derived from {@code slice}.
+     * Returns the {@code slice} value implied by the routing and its provenance, or {@code null} when routing did not come from
+     * {@code slice}.
      */
-    public SearchRequest searchSlice(@Nullable String searchSlice) {
-        this.searchSlice = searchSlice;
-        if (searchSlice == null) {
-            if (routingFromSlice) {
-                this.routing = null;
-            }
-            this.routingFromSlice = false;
-        } else {
-            this.routingFromSlice = true;
-            this.routing = SliceIndexing.SLICE_ALL.equals(searchSlice) ? null : searchSlice;
-        }
-        return this;
+    @Nullable
+    public String searchSlice() {
+        return SliceIndexing.toSearchSlice(routing, routingFromSlice);
+    }
+
+    /**
+     * Convenience for setting slice-provided routing: equivalent to {@code routing(slice).setRoutingFromSlice(true)}, with
+     * {@link SliceIndexing#SLICE_ALL} mapping to unrestricted routing.
+     */
+    public SearchRequest searchSlice(String searchSlice) {
+        Objects.requireNonNull(searchSlice, "[slice] must not be null");
+        return routing(SliceIndexing.sliceToRouting(searchSlice)).setRoutingFromSlice(true);
     }
 
     /**
@@ -901,7 +901,7 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
             sb.append(", routing[").append(routing).append("]");
         }
         if (routingFromSlice) {
-            sb.append(", slice[").append(searchSlice).append("]");
+            sb.append(", slice[").append(searchSlice()).append("]");
         }
         if (preference != null) {
             sb.append(", preference[").append(preference).append("]");
@@ -921,7 +921,6 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
         return searchType == that.searchType
             && Arrays.equals(indices, that.indices)
             && Objects.equals(routing, that.routing)
-            && Objects.equals(searchSlice, that.searchSlice)
             && routingFromSlice == that.routingFromSlice
             && Objects.equals(preference, that.preference)
             && Objects.equals(source, that.source)
@@ -944,7 +943,6 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
             searchType,
             Arrays.hashCode(indices),
             routing,
-            searchSlice,
             routingFromSlice,
             preference,
             source,
@@ -973,9 +971,6 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
             + indicesOptions
             + ", routing='"
             + routing
-            + '\''
-            + ", searchSlice='"
-            + searchSlice
             + '\''
             + ", routingFromSlice="
             + routingFromSlice

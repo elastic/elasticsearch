@@ -323,7 +323,14 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         assertBusy(() -> assertTrue(sourceBlobContainer.blobExists(randomPurpose(), sourceBlobName)));
 
         final var destinationBlobContainer = repository.blobStore().blobContainer(repository.basePath().add("target"));
-        destinationBlobContainer.copyBlob(randomPurpose(), sourceBlobContainer, sourceBlobName, destinationBlobName, blobBytes.length());
+        destinationBlobContainer.copyBlob(
+            randomPurpose(),
+            sourceBlobContainer,
+            sourceBlobName,
+            destinationBlobName,
+            blobBytes.length(),
+            null
+        );
         assertThat(readFully(destinationBlobContainer.readBlob(randomRetryingPurpose(), destinationBlobName)), equalBytes(blobBytes));
 
         sourceBlobContainer.delete(randomPurpose());
@@ -440,6 +447,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                             bigArrays,
                             randomIntBetween(1, 8) * 1024,
                             ByteSizeUnit.MB.toBytes(1),
+                            ByteSizeValue.ofMb(1).getBytes(),
                             BackoffPolicy.noBackoff(),
                             this.statsCollector(),
                             null,

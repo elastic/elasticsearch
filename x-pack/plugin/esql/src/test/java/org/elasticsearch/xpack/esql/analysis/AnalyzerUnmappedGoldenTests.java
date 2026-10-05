@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
@@ -25,6 +26,7 @@ import java.util.Map;
 public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase {
     private static final String COMPACT_MULTI_TYPE_ES_FIELD = "compact_multi_type_es_field";
     private static final String PACK_DIMS_AGG = "pack_dims_agg";
+    private static final EnumSet<Stage> ANALYSIS_AND_LOCAL_PHYSICAL = EnumSet.of(Stage.ANALYSIS, Stage.LOCAL_PHYSICAL_OPTIMIZATION);
 
     @ParametersFactory(argumentFormatting = "%1$s")
     public static Iterable<Object[]> parameters() {
@@ -386,27 +388,27 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // branches (#142033, "referenced after subqueries"), exactly as "FROM idx1, idx2 | KEEP missing" loads it from every index.
     public void testSubqueryKeepUnmapped() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        runInNullifyAndLoadModes("""
+        runInNullifyLoadAndLoadAllModes("""
             FROM employees, (FROM languages | KEEP language_code)
             | KEEP emp_no, language_code, does_not_exist
             """);
     }
 
-    // does_not_exist is referenced inside the sample_data subquery (STATS grouping): under load it is loaded into that branch's
-    // source and null-filled in the employees branch (Decision A).
+    // does_not_exist is referenced inside the sample_data subquery (STATS grouping): LOAD null-fills it in employees (Decision A);
+    // LOAD_ALL copies the mention onto employees like FORK.
     public void testSubqueryWithStats() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        runInNullifyAndLoadModes("""
+        runInNullifyLoadAndLoadAllModes("""
             FROM employees, (FROM sample_data | STATS max_ts = MAX(@timestamp) BY does_not_exist)
             | KEEP emp_no, max_ts, does_not_exist
             """);
     }
 
-    // unmapped1/unmapped2 are referenced inside the languages subquery (KEEP): under load they are loaded into that branch's source
-    // and null-filled in the employees branch (Decision A).
+    // unmapped1/unmapped2 are referenced inside the languages subquery (KEEP): LOAD null-fills them in employees (Decision A);
+    // LOAD_ALL copies the mention onto employees like FORK.
     public void testSubqueryKeepMultipleUnmapped() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        runInNullifyAndLoadModes("""
+        runInNullifyLoadAndLoadAllModes("""
             FROM employees,
                 (FROM languages | KEEP language_code, unmapped1, unmapped2)
             | KEEP emp_no, language_code, unmapped1, unmapped2
@@ -561,6 +563,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             """;
         nullify(query).since(CompactMultiTypeEsField.CompactMultiTypeEsField).run();
         load(query).since(CompactMultiTypeEsField.CompactMultiTypeEsField).run();
+        loadAll(query).since(CompactMultiTypeEsField.CompactMultiTypeEsField).run();
     }
 
     // A genuine multi-type conflict (short/long/unmapped) is not a two-legged PUNK (types > 1), so it stays UNSUPPORTED through the
@@ -711,7 +714,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // source - the linear/FORK path, unchanged by Step 2.
     public void testSubqueryOnly() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        runInNullifyAndLoadModes("""
+        runInNullifyLoadAndLoadAllModes("""
             FROM
                 (FROM languages
                  | WHERE does_not_exist::LONG > 1)
@@ -725,7 +728,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             "Requires subquery in FROM command support",
             EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
         );
-        runInNullifyAndLoadModes("""
+        runInNullifyLoadAndLoadAllModes("""
             FROM
                 (FROM languages
                  | WHERE does_not_exist1::LONG > 1),
@@ -741,7 +744,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             "Requires subquery in FROM command support",
             EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
         );
-        runInNullifyAndLoadModes("""
+        runInNullifyLoadAndLoadAllModes("""
             FROM
                 (FROM languages
                  | WHERE does_not_exist1::LONG > 1),
@@ -758,7 +761,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             "Requires subquery in FROM command support",
             EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
         );
-        runInNullifyAndLoadModes("""
+        runInNullifyLoadAndLoadAllModes("""
             FROM employees,
                 (FROM languages
                  | WHERE does_not_exist1::LONG > 1)
@@ -767,7 +770,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     // Outer-only reference over a union of an index branch and a ROW branch: does_not_exist loads from _source into the employees
-    // EsRelation, while the ROW branch (can't load) is null-filled by resolveFork alignment. #142033
+    // EsRelation, while the ROW branch (can't load) is null-filled by resolveMergePlan alignment. #142033
     public void testSubqueryWithRowBranchOuterReference() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         assumeTrue("Requires ROW source subqueries", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
@@ -780,7 +783,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // Single subquery merged during analysis (no UnionAll): emp_no_foo is loaded into the merged source (linear path).
     public void testSubqueryMix() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        runInNullifyAndLoadModes("""
+        runInNullifyLoadAndLoadAllModes("""
             FROM
                 (FROM employees
                  | EVAL emp_no_plus = emp_no_foo::LONG + 1
@@ -793,7 +796,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // Single subquery merged during analysis (no UnionAll): emp_no_foo is loaded into the merged source (linear path).
     public void testSubqueryMixWithDropPattern() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        runInNullifyAndLoadModes("""
+        runInNullifyLoadAndLoadAllModes("""
             FROM
                 (FROM employees
                  | EVAL emp_no_plus = emp_no_foo::LONG + 1
@@ -806,7 +809,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // Single subquery merged during analysis (no UnionAll): does_not_exist is loaded into the merged source (linear path).
     public void testSubqueryAfterUnionAllOfStats() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        runInNullifyAndLoadModes("""
+        runInNullifyLoadAndLoadAllModes("""
             FROM
                 (FROM employees
                  | STATS c = COUNT(*) BY does_not_exist)
@@ -818,7 +821,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // branch loads it but STATS drops it, so it null-fills at the union.
     public void testSubqueryAfterUnionAllOfStatsAndMain() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        runInNullifyAndLoadModes("""
+        runInNullifyLoadAndLoadAllModes("""
             FROM employees,
                 (FROM employees | STATS c = count(*))
             | SORT does_not_exist
@@ -826,13 +829,13 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     // does_not_exist1 is referenced inside both language branches (loaded there, in-branch scope) and again in the outer WHERE (resolves
-    // via the union output); does_not_exist2 is outer-only and unmapped everywhere, so it is loaded from _source in all branches (#142033).
+    // via the merge output); does_not_exist2 is outer-only and unmapped everywhere, so it is loaded from _source in all branches (#142033).
     public void testSubquerysWithMainAndSameOptional() throws Exception {
         assumeTrue(
             "Requires subquery in FROM command support",
             EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
         );
-        runInNullifyAndLoadModes("""
+        runInNullifyLoadAndLoadAllModes("""
             FROM employees,
                 (FROM languages
                  | WHERE does_not_exist1::LONG > 1),
@@ -1331,14 +1334,83 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         // A single subquery without a main index is merged into the main query during analysis,
         // so there is no Subquery node in the plan and no branching — this is allowed in load.
-        runInNullifyAndLoadModes("FROM (FROM languages | WHERE language_code > 1)");
+        runInNullifyLoadAndLoadAllModes("FROM (FROM languages | WHERE language_code > 1)");
     }
 
-    // does_not_exist is referenced inside the languages subquery (WHERE + KEEP): under load it is loaded into that branch's source
-    // and null-filled in the employees branch (Decision A in #142033).
+    // Mapped LONG on one subquery index is loaded from _source on the other and implicitly cast; KEEP shrinks the snapshot to that.
+    public void testLoadAllSubqueryMappedLongLoadsOnUnmappedSibling() throws Exception {
+        loadAll("""
+            FROM (FROM partial_mapping_sample_data), (FROM no_mapping_sample_data)
+            | KEEP event_duration
+            """).run();
+    }
+
+    // KEEP of an unmapped name is a mention: LOAD_ALL loads it from _source on the unrestricted sibling too.
+    public void testLoadAllSubqueryKeepUnmappedLoadsOnSibling() throws Exception {
+        loadAll("""
+            FROM (FROM no_mapping_sample_data | KEEP unmapped_message), (FROM partial_mapping_sample_data)
+            | KEEP unmapped_message
+            """).run();
+    }
+
+    public void testLoadAllSubqueryKeepUnmappedLoadsOnSiblingReversed() throws Exception {
+        loadAll("""
+            FROM (FROM partial_mapping_sample_data), (FROM no_mapping_sample_data | KEEP unmapped_message)
+            | KEEP unmapped_message
+            """).run();
+    }
+
+    public void testLoadAllSubqueryKeepLongLoadsOnUnmappedSibling() throws Exception {
+        loadAll("""
+            FROM (FROM partial_mapping_sample_data), (FROM no_mapping_sample_data | KEEP event_duration)
+            | KEEP event_duration
+            """).run();
+    }
+
+    public void testLoadAllSubqueryUnmappedBranchFirstKeepStaysUnsupported() throws Exception {
+        loadAll("""
+            FROM (FROM no_mapping_sample_data | KEEP event_duration), (FROM partial_mapping_sample_data)
+            | KEEP event_duration
+            """).run();
+    }
+
+    public void testLoadAllSubqueryUnmappedBranchFirstWhereStaysUnsupported() throws Exception {
+        loadAll("""
+            FROM (FROM no_mapping_sample_data | WHERE event_duration IS NOT NULL), (FROM partial_mapping_sample_data)
+            | KEEP event_duration
+            """).run();
+    }
+
+    public void testLoadAllSubqueryKeepAmdLoadsOnUnmappedSibling() throws Exception {
+        loadAll("""
+            FROM (FROM k8s-downsampled), (FROM k8s_nonexistent | KEEP network.eth0.tx)
+            | KEEP network.eth0.tx
+            """).run();
+    }
+
+    public void testLoadAllSubqueryKeepStarUnmappedLoadsOnSibling() throws Exception {
+        loadAll("""
+            FROM (FROM no_mapping_sample_data | KEEP unmapped_message, *), (FROM partial_mapping_sample_data)
+            """).run();
+    }
+
+    public void testLoadAllSubqueryKeepStarUnmappedLoadsOnSiblingReversed() throws Exception {
+        loadAll("""
+            FROM (FROM partial_mapping_sample_data), (FROM no_mapping_sample_data | KEEP unmapped_message, *)
+            """).run();
+    }
+
+    public void testLoadAllSubqueryKeepStarLongLoadsOnUnmappedSibling() throws Exception {
+        loadAll("""
+            FROM (FROM partial_mapping_sample_data), (FROM no_mapping_sample_data | KEEP event_duration, *)
+            """).run();
+    }
+
+    // does_not_exist is referenced inside the languages subquery (WHERE + KEEP): LOAD null-fills it in employees (Decision A);
+    // LOAD_ALL copies the mention onto employees like FORK.
     public void testSubqueryLoadsUnmappedFieldReferencedInOneBranch() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        runInNullifyAndLoadModes("""
+        runInNullifyLoadAndLoadAllModes("""
             FROM employees,
                 (FROM languages | WHERE does_not_exist::LONG > 1 | KEEP language_code, does_not_exist)
             | KEEP emp_no, language_code, does_not_exist
@@ -1349,7 +1421,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // it from _source - the in-branch DROP no longer suppresses the broadcast to the sibling. #142033
     public void testSubqueryDropInBranchMaterializesSibling() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        runInNullifyAndLoadModes("""
+        runInNullifyLoadAndLoadAllModes("""
             FROM employees,
                 (FROM languages | DROP does_not_exist)
             | KEEP emp_no, language_code, does_not_exist
@@ -1360,7 +1432,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // branch (#142033), while the languages branch surfaces the value under the new name and null-fills the original name at the union.
     public void testSubqueryRenameInBranchOuterReferencesOriginalName() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        runInNullifyAndLoadModes("""
+        runInNullifyLoadAndLoadAllModes("""
             FROM employees,
                 (FROM languages | RENAME does_not_exist AS renamed)
             | KEEP emp_no, language_code, does_not_exist, renamed
@@ -1387,11 +1459,11 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             """, Map.of("emp_lang_view", "FROM employees, (FROM languages | KEEP language_code, does_not_exist)"));
     }
 
-    // does_not_exist is in-branch (loaded in the languages branch, null-filled in employees); emp_no/language_code each exist in one
-    // branch and null-fill in the other through the union output. Decision A, #142033.
+    // does_not_exist is in-branch (loaded in the languages branch; LOAD null-fills it in employees, LOAD_ALL copies the mention);
+    // emp_no/language_code each exist in one branch and null-fill in the other through the union output.
     public void testSubquery() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        runInNullifyAndLoadModes("""
+        runInNullifyLoadAndLoadAllModes("""
             FROM employees, (FROM languages | WHERE does_not_exist::LONG > 0)
             | KEEP emp_no, language_code
             """);
@@ -1420,6 +1492,69 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             | FORK (WHERE emp_no > 3 | SORT does_not_exist2 | LIMIT 7)
                    (WHERE emp_no > 2 | EVAL xyz = does_not_exist3::KEYWORD)
             """);
+    }
+
+    /**
+     * Coordinator-side LOOKUP JOIN under LOAD_ALL mode. The join runs on the coordinator, so the
+     * data-node fragment must include {@code $$unmapped_fields} in the exchange output for the
+     * coordinator to attach unmapped source fields to each joined row.
+     * Captures both analysis and local-physical-optimization stages to verify the exchange boundary.
+     */
+    public void testLoadAllLookupJoinCoordinator() {
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
+        loadAll(ANALYSIS_AND_LOCAL_PHYSICAL, """
+            FROM partial_mapping_sample_data
+            | EVAL lc = language_code::integer
+            | DROP language_code
+            | LOOKUP JOIN languages_lookup ON lc == language_code
+            """).run();
+    }
+
+    /**
+     * Data-node-side LOOKUP JOIN under LOAD_ALL mode. A {@code SORT} on a lookup-added field
+     * ({@code language_name}) forces the join to execute on data nodes rather than on the
+     * coordinator, exercising the alternative plan shape and confirming that {@code $$unmapped_fields}
+     * is still present in the plan after the join.
+     * Captures both analysis and local-physical-optimization stages to verify the exchange boundary.
+     */
+    public void testLoadAllLookupJoinDataNode() {
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
+        loadAll(ANALYSIS_AND_LOCAL_PHYSICAL, """
+            FROM partial_mapping_sample_data
+            | EVAL lc = language_code::integer
+            | DROP language_code
+            | LOOKUP JOIN languages_lookup ON lc == language_code
+            | SORT language_name
+            """).run();
+    }
+
+    /** Every branch can surface extras, so none of them needs the null {@code $$unmapped_fields} column that aligns branch layouts. */
+    public void testLoadAllForkEveryBranchLoadsExtras() {
+        loadAll("""
+            FROM employees
+            | FORK (WHERE emp_no > 10)
+                   (WHERE salary > 50000)
+            """).run();
+    }
+
+    /**
+     * A pattern-less {@code KEEP} can never let an unmapped source field through, so that branch alone is padded
+     * with a null {@code $$unmapped_fields} to match its sibling.
+     */
+    public void testLoadAllForkPatternLessKeepInOneBranch() {
+        loadAll("""
+            FROM employees
+            | FORK (KEEP emp_no, first_name)
+                   (WHERE salary > 50000)
+            """).run();
+    }
+
+    public void testLoadAllForkPatternLessKeepInEveryBranch() {
+        loadAll("""
+            FROM employees
+            | FORK (KEEP emp_no)
+                   (KEEP first_name)
+            """).run();
     }
 
 }

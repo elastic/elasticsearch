@@ -41,6 +41,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -91,7 +92,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -194,6 +194,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
         ScriptService scriptService,
         ClusterService clusterService,
+        FeatureService featureService,
         Client client,
         QueryCache queryCache,
         IndexStorePlugin.DirectoryFactory directoryFactory,
@@ -237,6 +238,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             this.bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetCacheListener(this));
             this.mapperService = new MapperService(
                 clusterService,
+                featureService,
                 indexSettings,
                 indexAnalyzers,
                 parserConfiguration,
@@ -481,6 +483,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     public synchronized IndexShard createShard(
         final ShardRouting routing,
+        final DiscoveryNode localNode,
+        @Nullable final DiscoveryNode sourceNode,
         final GlobalCheckpointSyncer globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer
     ) throws IOException {
@@ -581,6 +585,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             eventListener.onStoreCreated(shardId);
             indexShard = new IndexShard(
                 routing,
+                recoveryStateFactory,
+                localNode,
+                sourceNode,
                 this.indexSettings,
                 path,
                 store,
@@ -749,8 +756,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
-    public RecoveryState createRecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, DiscoveryNode sourceNode) {
-        return recoveryStateFactory.newRecoveryState(shardRouting, targetNode, sourceNode);
+    // visible for testing
+    IndexStorePlugin.RecoveryStateFactory getRecoveryStateFactory() {
+        return recoveryStateFactory;
     }
 
     @Override

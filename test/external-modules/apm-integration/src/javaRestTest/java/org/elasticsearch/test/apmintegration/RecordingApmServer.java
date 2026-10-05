@@ -28,9 +28,6 @@ import io.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest;
 import io.opentelemetry.proto.collector.trace.v1.ExportTraceServiceResponse;
 import io.opentelemetry.proto.collector.trace.v1.TraceServiceGrpc;
 
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpServer;
-
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
@@ -38,17 +35,13 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.fixtures.tls.TestTlsCertificate;
 import org.junit.rules.ExternalResource;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
-import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -57,7 +50,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
-@SuppressForbidden(reason = "Uses an HTTP server for testing; creates temp files for TLS certificates")
+@SuppressForbidden(reason = "Creates temp files for TLS certificates")
 public class RecordingApmServer extends ExternalResource {
     private static final Logger logger = LogManager.getLogger(RecordingApmServer.class);
 
@@ -83,12 +76,17 @@ public class RecordingApmServer extends ExternalResource {
     private final BlockingQueue<ReceivedTelemetry> received = new LinkedBlockingQueue<>();
 
     /**
-     * The "Resource" (telemetry source identity) observed by this server. The test JVM emits
-     * a single Resource, so we record the first one and ignore the rest.
+     * The "Resource" (telemetry source identity) observed on the metrics and traces paths.
+     * Those signals share one Resource per test JVM, so we record the first one and ignore the rest.
      */
     private final AtomicReference<ReceivedTelemetry.ReceivedResource> resource = new AtomicReference<>();
 
-    private HttpServer server;
+    /**
+     * The Resource observed on the OTLP logs path, kept apart from {@link #resource} because log records
+     * carry the deliberately minimal log-delivery Resource rather than the one metrics and spans use.
+     */
+    private final AtomicReference<ReceivedTelemetry.ReceivedResource> logResource = new AtomicReference<>();
+
     private Server grpcServer;
     private final Thread messageConsumerThread = consumerThread();
     private volatile Consumer<ReceivedTelemetry> consumer;
@@ -97,11 +95,6 @@ public class RecordingApmServer extends ExternalResource {
 
     @Override
     protected void before() throws Throwable {
-        server = HttpServer.create();
-        server.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-        server.createContext("/", this::handle);
-        server.start();
-
         if (mtlsEnabled) {
             mtlsTempDir = Files.createTempDirectory("grpc-mtls-");
             TestTlsCertificate serverCert = TestTlsCertificate.generate("localhost");
@@ -167,9 +160,6 @@ public class RecordingApmServer extends ExternalResource {
     protected void after() {
         running = false;
         messageConsumerThread.interrupt();
-        if (server != null) {
-            server.stop(30);
-        }
         if (grpcServer != null) {
             grpcServer.shutdown();
             try {
@@ -200,8 +190,8 @@ public class RecordingApmServer extends ExternalResource {
     }
 
     /**
-     * Override the HTTP response code for all subsequent responses. Codes {@code >= 400}
-     * short-circuit telemetry parsing to simulate APM server failures.
+     * Make the metrics and traces gRPC services fail with {@code UNAVAILABLE} instead of accepting exports, to
+     * simulate an unreachable APM server. Any code {@code >= 400} triggers this.
      * Call {@link #clearResponseCode()} to restore default.
      */
     public void setResponseCode(int code) {
@@ -213,73 +203,27 @@ public class RecordingApmServer extends ExternalResource {
         this.responseCode = 201;
     }
 
-    private void handle(HttpExchange exchange) throws IOException {
-        try (exchange) {
-            int responseCode = this.responseCode;
-            if (responseCode >= 400) {
-                exchange.getRequestBody().readAllBytes();
-                exchange.sendResponseHeaders(responseCode, 0);
-                return;
-            }
+    /** Route an event parsed from the metrics or traces path. */
+    private void route(ReceivedTelemetry msg) {
+        route(msg, resource);
+    }
 
-            String path = exchange.getRequestURI().getPath();
-            if (running) {
-                try (InputStream requestBody = exchange.getRequestBody()) {
-                    if (requestBody != null) {
-                        // The HTTP server only serves the legacy APM-agent intake; all OTel SDK signals
-                        // (metrics, traces, logs) export over OTLP/gRPC and are handled by the gRPC services below.
-                        switch (path) {
-                            case "/intake/v2/events" -> {
-                                List<String> lines = readJsonMessages(requestBody);
-                                for (String line : lines) {
-                                    ApmIntakeMessageParser.parseLine(line).ifPresent(this::route);
-                                }
-                            }
-                            default -> logger.debug("ignoring request to unhandled path [{}]", path);
-                        }
-                    }
-                }
-            }
-            exchange.sendResponseHeaders(responseCode, 0);
-        } catch (Throwable t) {
-            logger.error("Unexpected error caught when serving HTTP request", t);
-            throw t;
-        }
+    /** Route an event parsed from the OTLP logs path. */
+    private void routeLog(ReceivedTelemetry msg) {
+        route(msg, logResource);
     }
 
     /**
-     * Route a parsed event: {@link ReceivedTelemetry.ReceivedResource} goes to the
-     * {@link #resource} reference (we just need one since the test JVM emits a single
-     * Resource); everything else is queued for consumers.
+     * Route a parsed event: {@link ReceivedTelemetry.ReceivedResource} goes to the given reference
+     * (we just need the first one each signal reports); everything else is queued for consumers.
      */
-    private void route(ReceivedTelemetry msg) {
+    private void route(ReceivedTelemetry msg, AtomicReference<ReceivedTelemetry.ReceivedResource> resourceSlot) {
         logger.debug("telemetry received: {}", msg);
         if (msg instanceof ReceivedTelemetry.ReceivedResource r) {
-            resource.compareAndSet(null, r);
+            resourceSlot.compareAndSet(null, r);
         } else {
             received.add(msg);
         }
-    }
-
-    private List<String> readJsonMessages(InputStream input) {
-        // parse NDJSON
-        return new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8)).lines().toList();
-    }
-
-    public int getPort() {
-        return server.getAddress().getPort();
-    }
-
-    /**
-     * Returns the HTTP address in the format "host:port", properly handling IPv6 addresses with brackets.
-     */
-    public String getHttpAddress() {
-        String host = server.getAddress().getHostString();
-        if (host.contains(":")) {
-            // IPv6 address needs brackets
-            host = "[" + host + "]";
-        }
-        return host + ":" + getPort();
     }
 
     /**
@@ -319,7 +263,7 @@ public class RecordingApmServer extends ExternalResource {
         public void export(ExportLogsServiceRequest request, StreamObserver<ExportLogsServiceResponse> responseObserver) {
             if (running) {
                 try {
-                    OtlpLogsParser.parse(request).forEach(RecordingApmServer.this::route);
+                    OtlpLogsParser.parse(request).forEach(RecordingApmServer.this::routeLog);
                 } catch (Throwable t) {
                     logger.warn("failed to handle gRPC ExportLogsServiceRequest", t);
                 }
@@ -411,11 +355,19 @@ public class RecordingApmServer extends ExternalResource {
     }
 
     /**
-     * @return the first {@link ReceivedTelemetry.ReceivedResource} observed in this server's
-     *         lifetime, or {@code null} if no resource event has arrived yet
+     * @return the first {@link ReceivedTelemetry.ReceivedResource} observed on the metrics or traces
+     *         paths in this server's lifetime, or {@code null} if none has arrived yet
      */
     public ReceivedTelemetry.ReceivedResource resource() {
         return resource.get();
+    }
+
+    /**
+     * @return the first {@link ReceivedTelemetry.ReceivedResource} observed on the OTLP logs path in
+     *         this server's lifetime, or {@code null} if no log batch has arrived yet
+     */
+    public ReceivedTelemetry.ReceivedResource logResource() {
+        return logResource.get();
     }
 
 }

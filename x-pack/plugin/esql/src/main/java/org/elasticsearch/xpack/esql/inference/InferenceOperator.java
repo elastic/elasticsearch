@@ -8,22 +8,26 @@
 package org.elasticsearch.xpack.esql.inference;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.WarningSourceLocation;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -53,10 +57,26 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
     private final Semaphore permits;
 
     /**
+     * Collects the per-row failure warnings emitted when {@link #tolerateFailures} is {@code true}. Built up front rather
+     * than on first failure because {@link #onInferenceRequestFailure} runs concurrently on search threads: a lazily created
+     * collector could be built more than once, and each copy would carry its own {@code MAX_ADDED_WARNINGS} budget.
+     */
+    private final Warnings warnings;
+
+    /**
+     * When {@code true}, an inference request that fails does not fail the whole query: a warning is emitted, the
+     * corresponding output row is filled with null, and processing continues. When {@code false} (the default for
+     * COMPLETION/RERANK and the fold-based inference functions), the first failure fails the query.
+     */
+    private final boolean tolerateFailures;
+
+    /**
      * Constructs a new {@code InferenceOperator}.
      *
      * @param driverContext The driver context.
      * @param inferenceService The inference service to use for executing inference requests.
+     * @param source The source location for per-row failure warnings (only used when {@code tolerateFailures} is true).
+     * @param tolerateFailures Whether a single failed inference request should warn, emit null, and continue instead of failing the query.
      * @param maxOutstandingPages The maximum number of pages processed in parallel.
      * @param maxOutstandingInferenceRequests The maximum number of inference requests to be run in parallel.
      */
@@ -65,6 +85,8 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
         InferenceService inferenceService,
         BulkInferenceRequestItemIterator.Factory inferenceRequestsFactory,
         OutputBuilder outputBuilder,
+        WarningSourceLocation source,
+        boolean tolerateFailures,
         int maxOutstandingPages,
         int maxOutstandingInferenceRequests
     ) {
@@ -74,6 +96,8 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
         this.permits = new Semaphore(maxOutstandingInferenceRequests);
         this.outputBuilder = outputBuilder;
         this.ongoingBulkOperations = ConcurrentCollections.newQueue();
+        this.warnings = driverContext.createWarnings(source);
+        this.tolerateFailures = tolerateFailures;
     }
 
     /**
@@ -84,18 +108,24 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
      * @param inferenceService The inference service to use for executing inference requests.
      * @param inferenceRequestsFactory Factory for creating inference request iterators from input pages.
      * @param outputBuilder Builder for converting inference responses into output pages.
+     * @param source The source location for per-row failure warnings (only used when {@code tolerateFailures} is true).
+     * @param tolerateFailures Whether a single failed inference request should warn, emit null, and continue instead of failing the query.
      */
     public InferenceOperator(
         DriverContext driverContext,
         InferenceService inferenceService,
         BulkInferenceRequestItemIterator.Factory inferenceRequestsFactory,
-        OutputBuilder outputBuilder
+        OutputBuilder outputBuilder,
+        WarningSourceLocation source,
+        boolean tolerateFailures
     ) {
         this(
             driverContext,
             inferenceService,
             inferenceRequestsFactory,
             outputBuilder,
+            source,
+            tolerateFailures,
             DEFAULT_MAX_OUTSTANDING_PAGES,
             DEFAULT_MAX_OUTSTANDING_REQUESTS
         );
@@ -212,7 +242,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
                 ActionListener.runAfter(
                     ActionListener.wrap(
                         inferenceResponse -> bulkOperation.onInferenceResponse(request.createResponse(inferenceResponse)),
-                        bulkOperation::onException
+                        e -> onInferenceRequestFailure(bulkOperation, request, e)
                     ),
                     () -> {
                         permits.release();
@@ -221,6 +251,37 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
                 )
             )
         );
+    }
+
+    /**
+     * Handles a failed inference request.
+     * <p>
+     * When {@link #tolerateFailures} is {@code true}, the failure becomes a warning and the request completes with a null response, so
+     * its output row(s) become null and the bulk operation's remaining requests still complete in sequence. When {@code false}, the
+     * failure fails the whole bulk operation.
+     */
+    private void onInferenceRequestFailure(BulkInferenceOperation bulkOperation, BulkInferenceRequestItem request, Exception e) {
+        if (tolerateFailures && isFatal(e) == false) {
+            bulkOperation.onToleratedInferenceFailure(request.createResponse(null), () -> warnings.registerException(e));
+        } else {
+            bulkOperation.onException(e);
+        }
+    }
+
+    /**
+     * Whether a failure means the query as a whole is in trouble rather than that one row's inference failed. Such a failure
+     * is never swallowed, even when failures are tolerated: continuing would hide a cancellation or memory pressure behind a
+     * column of nulls, and would keep issuing inference requests for a query that should stop. The two types listed here are
+     * the ones ES|QL already treats as fatal elsewhere, see {@code DataNodeRequestSender#trackShardLevelFailure}.
+     * <p>
+     * A callback rejected by its executor reports the rejection and carries the failure it was delivering as a suppressed
+     * exception rather than as a cause, so both are inspected.
+     */
+    private static boolean isFatal(Exception e) {
+        return ExceptionsHelper.unwrapCausesAndSuppressed(
+            e,
+            t -> t instanceof TaskCancelledException || t instanceof CircuitBreakingException
+        ).isPresent();
     }
 
     public interface OutputBuilder {
@@ -407,6 +468,22 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
         }
 
         /**
+         * Records a tolerated failure: {@code registerWarning} runs and the request completes with the given null response, so its
+         * rows become null and the remaining requests carry on. Both happen under the lock so that the warning is registered before
+         * the operation completes, since completion releases the driver and a finished {@link DriverContext} takes no more warnings.
+         * A failure arriving once the operation has failed or completed has no row left to null out and is dropped.
+         */
+        public void onToleratedInferenceFailure(BulkInferenceResponseItem nullResponse, Runnable registerWarning) {
+            synchronized (checkpoint) {
+                if (hasFailure() || isCompleted()) {
+                    return;
+                }
+                registerWarning.run();
+                onInferenceResponse(nullResponse);
+            }
+        }
+
+        /**
          * Handles an exception, failing the entire bulk operation.
          * Only the first exception is recorded; subsequent exceptions are ignored.
          *
@@ -436,7 +513,10 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
                 }
 
                 if (allRequestsSent() && allRequestsProcessed() && completed.compareAndSet(false, true)) {
-                    completionListener.onResponse(Collections.unmodifiableList(responses));
+                    // A copy: getOutput() reads this list on a later turn of the driver, and clearBuffers() empties
+                    // `responses` on failure. A view would carry that clear through to the output builder, which would
+                    // then append no positions and fail the page's position-count invariant.
+                    completionListener.onResponse(List.copyOf(responses));
                     clearBuffers();
                 }
             }

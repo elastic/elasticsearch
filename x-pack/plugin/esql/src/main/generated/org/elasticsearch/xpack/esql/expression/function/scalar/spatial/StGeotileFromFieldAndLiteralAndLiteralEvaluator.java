@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
-import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.util.function.Function;
@@ -32,15 +31,19 @@ public final class StGeotileFromFieldAndLiteralAndLiteralEvaluator implements Ex
 
   private final StGeotile.GeoTileBoundedGrid bounds;
 
+  private final SpatialGridFunction.GeoShapeCellsComputer shapeTiler;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public StGeotileFromFieldAndLiteralAndLiteralEvaluator(Source source, ExpressionEvaluator in,
-      StGeotile.GeoTileBoundedGrid bounds, DriverContext driverContext) {
+      StGeotile.GeoTileBoundedGrid bounds, SpatialGridFunction.GeoShapeCellsComputer shapeTiler,
+      DriverContext driverContext) {
     this.source = source;
     this.in = in;
     this.bounds = bounds;
+    this.shapeTiler = shapeTiler;
     this.driverContext = driverContext;
   }
 
@@ -69,12 +72,7 @@ public final class StGeotileFromFieldAndLiteralAndLiteralEvaluator implements Ex
           result.appendNull();
           continue position;
         }
-        try {
-          StGeotile.fromFieldAndLiteralAndLiteral(result, p, inBlock, this.bounds);
-        } catch (IllegalArgumentException e) {
-          warnings().registerException(e);
-          result.appendNull();
-        }
+        StGeotile.fromFieldAndLiteralAndLiteral(result, p, inBlock, this.bounds, this.shapeTiler);
       }
       return result.build();
     }
@@ -104,16 +102,20 @@ public final class StGeotileFromFieldAndLiteralAndLiteralEvaluator implements Ex
 
     private final Function<DriverContext, StGeotile.GeoTileBoundedGrid> bounds;
 
+    private final Function<DriverContext, SpatialGridFunction.GeoShapeCellsComputer> shapeTiler;
+
     public Factory(Source source, ExpressionEvaluator.Factory in,
-        Function<DriverContext, StGeotile.GeoTileBoundedGrid> bounds) {
+        Function<DriverContext, StGeotile.GeoTileBoundedGrid> bounds,
+        Function<DriverContext, SpatialGridFunction.GeoShapeCellsComputer> shapeTiler) {
       this.source = source;
       this.in = in;
       this.bounds = bounds;
+      this.shapeTiler = shapeTiler;
     }
 
     @Override
     public StGeotileFromFieldAndLiteralAndLiteralEvaluator get(DriverContext context) {
-      return new StGeotileFromFieldAndLiteralAndLiteralEvaluator(source, in.get(context), bounds.apply(context), context);
+      return new StGeotileFromFieldAndLiteralAndLiteralEvaluator(source, in.get(context), bounds.apply(context), shapeTiler.apply(context), context);
     }
 
     @Override

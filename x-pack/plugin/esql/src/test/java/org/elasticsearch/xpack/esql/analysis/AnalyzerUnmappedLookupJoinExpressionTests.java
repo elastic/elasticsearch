@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.hamcrest.Matcher;
 
@@ -24,6 +25,10 @@ import static org.hamcrest.Matchers.containsString;
  * at least one cross-index condition.
  */
 public class AnalyzerUnmappedLookupJoinExpressionTests extends AnalyzerUnmappedTestBase {
+
+    public AnalyzerUnmappedLookupJoinExpressionTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     private static final Matcher<String> UNSUPPORTED_JOIN_FILTER = containsString("Unsupported join filter expression");
 

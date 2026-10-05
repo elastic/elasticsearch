@@ -64,11 +64,13 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
@@ -624,6 +626,55 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             }
         }
         return null;
+    }
+
+    /**
+     * Returns the distinct set of backing indices that cover the given nanosecond epoch timestamps.
+     * For each timestamp, {@link #selectTimeSeriesWriteIndex} is called; if a timestamp falls outside
+     * all known time ranges the current write index is used as a fallback (matching the single-document
+     * behaviour in {@link #getWriteIndex(IndexRequest, ProjectMetadata)}).
+     *
+     * @param timestampsNanos nanosecond epoch timestamps of the documents in the batch
+     * @param project         project metadata used to read backing-index time ranges
+     * @return distinct {@link Index} instances, in the order first encountered
+     */
+    public Set<Index> selectTimeSeriesWriteIndices(long[] timestampsNanos, ProjectMetadata project) {
+        if (timestampsNanos.length == 0) {
+            return Set.of();
+        }
+        long min = timestampsNanos[0];
+        long max = timestampsNanos[0];
+        for (long nanos : timestampsNanos) {
+            if (nanos < min) min = nanos;
+            if (nanos > max) max = nanos;
+        }
+        Index minIndexRaw = selectTimeSeriesWriteIndex(Instant.ofEpochMilli(min / 1_000_000L), project);
+        Index minIndex = minIndexRaw != null ? minIndexRaw : getWriteIndex();
+        if (min == max) {
+            return Set.of(minIndex);
+        }
+        Index maxIndexRaw = selectTimeSeriesWriteIndex(Instant.ofEpochMilli(max / 1_000_000L), project);
+        Index maxIndex = maxIndexRaw != null ? maxIndexRaw : getWriteIndex();
+        // Backing index time ranges don't overlap, so if min and max resolve to the same index all timestamps do.
+        // Only take this shortcut when both raw lookups returned a non-null result: if both min and max are
+        // out of every backing-index window, both fall back to the write index and appear equal even though
+        // a middle timestamp could land on an older backing index.
+        if (minIndexRaw != null && maxIndexRaw != null && minIndex == maxIndex) {
+            return Set.of(minIndex);
+        }
+        Set<Index> result = new LinkedHashSet<>();
+        Index last = null;
+        for (long nanos : timestampsNanos) {
+            Index index = selectTimeSeriesWriteIndex(Instant.ofEpochMilli(nanos / 1_000_000L), project);
+            if (index == null) {
+                index = getWriteIndex();
+            }
+            if (index != last) {
+                result.add(index);
+                last = index;
+            }
+        }
+        return result;
     }
 
     /**
@@ -1410,12 +1461,58 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * access method.
      */
     private boolean isIndexManagedByDataStreamLifecycle(IndexMetadata indexMetadata) {
+        Settings settings = indexMetadata.getSettings();
+        IndexMode indexMode = indexMetadata.getIndexMode();
         var lifecycle = getDataLifecycleForIndex(indexMetadata.getIndex());
-        if (indexMetadata.getLifecyclePolicyName() != null && lifecycle != null && lifecycle.enabled()) {
-            // when both ILM and data stream lifecycle are configured, choose depending on the configured preference for this backing index
-            return PREFER_ILM_SETTING.get(indexMetadata.getSettings()) == false;
+        return lifecycleManagedBy(indexMetadata.getLifecyclePolicyName(), lifecycle, settings, indexMode) == LifecycleManagedBy.DLM;
+    }
+
+    /**
+     * Resolves which lifecycle feature is managing the resources given the provided arguments.
+     * @param ilmPolicy the ILM policy name that is configured or null
+     * @param dataStreamLifecycle the lifecycle configuration or null
+     * @param preferIlmSupplier a supplier of the prefer_ilm value
+     * @param indexMode the index mode of the resource, because LOOKUP resources are unmanaged by definition
+     * @return the enum denoting which feature is managing this resource.
+     */
+    public static LifecycleManagedBy lifecycleManagedBy(
+        String ilmPolicy,
+        DataStreamLifecycle dataStreamLifecycle,
+        BooleanSupplier preferIlmSupplier,
+        IndexMode indexMode
+    ) {
+        if (indexMode == IndexMode.LOOKUP) {
+            return LifecycleManagedBy.UNMANAGED;
         }
-        return lifecycle != null && lifecycle.enabled();
+        boolean lifecycleEnabled = dataStreamLifecycle != null && dataStreamLifecycle.enabled();
+        if (ilmPolicy != null && lifecycleEnabled) {
+            // when both ILM and data stream lifecycle are configured, choose depending on the configured preference for this backing index
+            return preferIlmSupplier.getAsBoolean() ? LifecycleManagedBy.ILM : LifecycleManagedBy.DLM;
+        }
+        if (lifecycleEnabled) {
+            return LifecycleManagedBy.DLM;
+        }
+        if (ilmPolicy != null) {
+            return LifecycleManagedBy.ILM;
+        }
+        return LifecycleManagedBy.UNMANAGED;
+    }
+
+    /**
+     * Resolves which lifecycle feature is managing the resources given the provided arguments.
+     * @param ilmPolicy the ILM policy name that is configured or null
+     * @param dataStreamLifecycle the lifecycle configuration or null
+     * @param settings the settings in case we need to retrieve the prefer_ilm value
+     * @param indexMode the index mode of the resource, because LOOKUP resources are unmanaged by definition
+     * @return the enum denoting which feature is managing this resource.
+     */
+    public static LifecycleManagedBy lifecycleManagedBy(
+        String ilmPolicy,
+        DataStreamLifecycle dataStreamLifecycle,
+        Settings settings,
+        IndexMode indexMode
+    ) {
+        return lifecycleManagedBy(ilmPolicy, dataStreamLifecycle, () -> PREFER_ILM_SETTING.get(settings), indexMode);
     }
 
     /**
@@ -1816,7 +1913,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
         Object rawTimestamp = request.getRawTimestamp();
         Instant timestamp = rawTimestamp != null
-            ? getTimeStampFromRaw(rawTimestamp)
+            ? getTimestampFromRawValue(rawTimestamp)
             : getTimestampFromParser(request.source(), request.getContentType());
         timestamp = getCanonicalTimestampBound(timestamp);
         request.setTimeSeriesTimestamp(timestamp);
@@ -1868,7 +1965,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return dataStreamIndices.subList(firstIndexWithinAgeRange, dataStreamIndices.size());
     }
 
-    private static Instant getTimeStampFromRaw(Object rawTimestamp) {
+    public static Instant getTimestampFromRawValue(Object rawTimestamp) {
         try {
             if (rawTimestamp instanceof Long lTimestamp) {
                 return Instant.ofEpochMilli(lTimestamp);
@@ -2248,6 +2345,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         BACKING_INDICES,
         FAILURE_INDICES,
         ALL
+    }
+
+    public enum LifecycleManagedBy {
+        ILM,
+        DLM,
+        UNMANAGED
     }
 
 }

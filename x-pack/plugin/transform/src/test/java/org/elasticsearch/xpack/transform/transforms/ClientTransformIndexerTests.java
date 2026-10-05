@@ -114,6 +114,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -599,6 +600,67 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 verify(configManager, never()).getTransformCloudCredentialByTokenId(any(), anyBoolean(), any());
             });
         }
+    }
+
+    public void testWrappedClientCachedUntilCredentialReferenceChanges() {
+        var context = new TransformContext(TransformTaskState.STARTED, null, 0, mock(TransformContext.Listener.class));
+        var first = randomPersistedCloudCredential("k1");
+        context.setPersistedCloudCredential(first);
+
+        var parentClient = mock(ParentTaskAssigningClient.class);
+        var wrappedOnce = mock(Client.class);
+        var wrappedTwice = mock(Client.class);
+        var credentialManager = mock(CloudCredentialManager.class);
+        when(credentialManager.wrapClient(eq(parentClient), eq(first))).thenReturn(wrappedOnce);
+
+        var transformExtension = mock(TransformExtension.class);
+        when(transformExtension.getCloudCredentialManager()).thenReturn(credentialManager);
+        when(transformExtension.getTransformDestinationIndexSettings()).thenReturn(Settings.EMPTY);
+
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.executor("generic")).thenReturn(mock(ExecutorService.class));
+
+        var indexer = new ClientTransformIndexer(
+            threadPool,
+            mock(ClusterService.class),
+            mock(IndexNameExpressionResolver.class),
+            transformExtension,
+            new TransformServices(
+                mock(IndexBasedTransformConfigManager.class),
+                mock(TransformCheckpointService.class),
+                mock(TransformAuditor.class),
+                new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
+                mock(TransformNode.class),
+                mock(CrossProjectModeDecider.class),
+                projectId -> false,
+                mock(ProjectResolver.class),
+                mock(TransformCloudCredentialManager.class)
+            ),
+            mock(CheckpointProvider.class),
+            new AtomicReference<>(IndexerState.STOPPED),
+            null,
+            parentClient,
+            mock(TransformIndexerStats.class),
+            TransformConfigTests.randomTransformConfig(),
+            null,
+            new TransformCheckpoint("transform", Instant.now().toEpochMilli(), 0L, Collections.emptyMap(), Instant.now().toEpochMilli()),
+            new TransformCheckpoint("transform", Instant.now().toEpochMilli(), 2L, Collections.emptyMap(), Instant.now().toEpochMilli()),
+            new SeqNoPrimaryTermAndIndex(1, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME),
+            context,
+            false
+        );
+
+        assertThat(indexer.wrappedClient(), sameInstance(wrappedOnce));
+        assertThat(indexer.wrappedClient(), sameInstance(wrappedOnce));
+        verify(credentialManager, times(1)).wrapClient(eq(parentClient), eq(first));
+
+        var second = randomPersistedCloudCredential("k2");
+        when(credentialManager.wrapClient(eq(parentClient), eq(second))).thenReturn(wrappedTwice);
+        context.setPersistedCloudCredential(second);
+
+        assertThat(indexer.wrappedClient(), sameInstance(wrappedTwice));
+        verify(credentialManager, times(1)).wrapClient(eq(parentClient), eq(second));
+        verify(credentialManager, times(2)).wrapClient(any(Client.class), any(PersistedCloudCredential.class));
     }
 
     public void testDoMaybeRefreshCloudTokenLoadFailurePropagates() throws InterruptedException {

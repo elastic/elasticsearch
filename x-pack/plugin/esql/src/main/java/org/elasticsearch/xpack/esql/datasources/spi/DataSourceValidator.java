@@ -48,4 +48,20 @@ public interface DataSourceValidator {
         String resource,
         Map<String, Object> datasetSettings
     );
+
+    /**
+     * Closed auth-mode token for a stored data source, or {@code null} when the mode cannot be
+     * resolved (caller clamps to {@code unknown}). Must not throw; must not read secret values.
+     */
+    default String authModeOrNull(Map<String, DataSourceSetting> stored) {
+        return null;
+    }
+
+    /**
+     * Format and compression tokens for a stored dataset, or {@code null} when this validator
+     * cannot derive them. {@code auto} is never returned as a format.
+     */
+    default DatasetShape datasetShape(Map<String, Object> datasetSettings, String resource) {
+        return null;
+    }
 }

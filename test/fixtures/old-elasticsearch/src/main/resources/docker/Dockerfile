@@ -13,6 +13,11 @@ WORKDIR /tmp
 # - 2.4.5 lives on download.elastic.co under a Maven-style release path.
 # - >=5.0, <7.9 are architecture-independent zips on artifacts.elastic.co.
 # - >=7.9 ship per-architecture archives that bundle their own JDK.
+# The curl download is retried because fetching the ES distribution from
+# artifacts.elastic.co/download.elastic.co occasionally hits transient network errors
+# (e.g. HTTP/2 stream errors, curl exit 92) that otherwise fail the whole image build and,
+# in turn, the dependent test suites (see #156120). This keeps the local fallback build
+# (used when the prebaked fixture image cannot be pulled) resilient.
 RUN set -e; \
  case "$ES_VERSION" in \
    0.90.13|1.7.6) \
@@ -29,7 +34,7 @@ RUN set -e; \
    *) \
      url="https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-${ES_VERSION}.zip"; ext=zip ;; \
  esac; \
- curl -fsSL -o "elasticsearch.${ext}" "$url"; \
+ curl -fsSL --retry 5 --retry-delay 3 --retry-connrefused --retry-all-errors -o "elasticsearch.${ext}" "$url"; \
  if [ "$ext" = "zip" ]; then unzip -q "elasticsearch.${ext}"; else tar -xzf "elasticsearch.${ext}"; fi; \
  rm -f "elasticsearch.${ext}"; \
  mv "elasticsearch-${ES_VERSION}" /usr/share/elasticsearch

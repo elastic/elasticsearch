@@ -14,6 +14,7 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 
 import java.util.concurrent.Executor;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 /**
  * Utility for draining pages from a {@link CloseableIterator} into an {@link AsyncExternalSourceBuffer}
@@ -59,7 +60,7 @@ public final class ExternalSourceDrainUtils {
         BooleanSupplier readCancelled,
         ActionListener<Void> listener
     ) {
-        drainBatch(pages, buffer, executor, readCancelled, listener);
+        drainPagesAsync(pages, buffer, executor, readCancelled, () -> false, defaultPageSink(buffer), listener);
     }
 
     /**
@@ -73,7 +74,33 @@ public final class ExternalSourceDrainUtils {
         Executor executor,
         ActionListener<Void> listener
     ) {
-        drainBatch(pages, buffer, executor, () -> false, listener);
+        drainPagesAsync(pages, buffer, executor, () -> false, listener);
+    }
+
+    /**
+     * Like {@link #drainPagesAsync(CloseableIterator, AsyncExternalSourceBuffer, Executor, BooleanSupplier, ActionListener)}
+     * but stops pulling when {@code stop} is true and delivers each page through {@code pageSink}
+     * (typically the factory {@code deliverPage} that charges a pushed limiter). {@code pageSink}
+     * takes ownership of the page; a page pulled after {@code stop} or {@code noMoreInputs} is
+     * released rather than sunk.
+     */
+    public static void drainPagesAsync(
+        CloseableIterator<Page> pages,
+        AsyncExternalSourceBuffer buffer,
+        Executor executor,
+        BooleanSupplier readCancelled,
+        BooleanSupplier stop,
+        Consumer<Page> pageSink,
+        ActionListener<Void> listener
+    ) {
+        drainBatch(pages, buffer, executor, readCancelled, stop, pageSink, listener);
+    }
+
+    private static Consumer<Page> defaultPageSink(AsyncExternalSourceBuffer buffer) {
+        return page -> {
+            page.allowPassingToDifferentDriver();
+            buffer.addPage(page);
+        };
     }
 
     private static void drainBatch(
@@ -81,21 +108,28 @@ public final class ExternalSourceDrainUtils {
         AsyncExternalSourceBuffer buffer,
         Executor executor,
         BooleanSupplier readCancelled,
+        BooleanSupplier stop,
+        Consumer<Page> pageSink,
         ActionListener<Void> listener
     ) {
         try {
             StorageRetryCancellation.runWithCancellation(readCancelled, () -> {
-                while (pages.hasNext() && buffer.noMoreInputs() == false) {
+                while (buffer.noMoreInputs() == false && stop.getAsBoolean() == false && buffer.readCounters().meteredCpu(pages::hasNext)) {
                     SubscribableListener<Void> space = buffer.waitForSpace();
                     if (space.isDone()) {
-                        if (buffer.noMoreInputs()) break;
-                        Page page = pages.next();
-                        page.allowPassingToDifferentDriver();
-                        buffer.addPage(page);
+                        if (buffer.noMoreInputs() || stop.getAsBoolean()) {
+                            break;
+                        }
+                        Page page = buffer.readCounters().meteredCpu(pages::next);
+                        if (buffer.noMoreInputs() || stop.getAsBoolean()) {
+                            page.releaseBlocks();
+                            break;
+                        }
+                        pageSink.accept(page);
                     } else {
                         space.addListener(ActionListener.wrap(v -> {
                             try {
-                                executor.execute(() -> drainBatch(pages, buffer, executor, readCancelled, listener));
+                                executor.execute(() -> drainBatch(pages, buffer, executor, readCancelled, stop, pageSink, listener));
                             } catch (Exception e) {
                                 listener.onFailure(e);
                             }

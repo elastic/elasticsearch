@@ -9,9 +9,16 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -19,16 +26,22 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -37,7 +50,9 @@ import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -83,7 +98,10 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
           }
         }""";
 
-    private final ShardBatchIndexer shardBatchIndexer = new ShardBatchIndexer(Settings.EMPTY, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+    private final ShardBatchIndexer shardBatchIndexer = new ShardBatchIndexer(
+        new BatchIndexingEnabled(ClusterSettings.createBuiltInClusterSettings()),
+        new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
+    );
 
     private final List<IndexShard> trackedShards = new ArrayList<>();
 
@@ -172,8 +190,6 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         return EscfEncoder.encode(sources, XContentType.JSON);
     }
 
-    // TODO(columnar): add testBatchIndexOnPrimaryStoredSource once stored source mode enables the
-    // columnar path; add tests for long, date, double, etc. once those mappers support columnar.
     public void testBatchIndexOnPrimaryAbortedItem() throws Exception {
         IndexShard shard = newMappedPrimaryShard();
 
@@ -241,6 +257,19 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
               }
             },
             "message": { "type": "keyword" }
+          }
+        }""";
+
+    private static final String RUNTIME_FIELD_MAPPING = """
+        {
+          "dynamic": "strict",
+          "runtime": {
+            "title_upper": { "type": "keyword" }
+          },
+          "properties": {
+            "title":   { "type": "keyword" },
+            "count":   { "type": "integer" },
+            "tag":     { "type": "keyword" }
           }
         }""";
 
@@ -336,6 +365,76 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         }
 
         closeShards(shard);
+    }
+
+    public void testFallbackIndexesRowsThroughSequentialPath() throws Exception {
+        IndexShard shard = newPrimaryShardWithMapping(RUNTIME_FIELD_MAPPING);
+
+        int numDocs = 10;
+        BulkItemRequest[] items = new BulkItemRequest[numDocs];
+        List<BytesReference> sources = new ArrayList<>();
+        Map<String, Map<String, Object>> expectedById = new HashMap<>();
+        for (int i = 0; i < numDocs; i++) {
+            items[i] = new BulkItemRequest(i, indexRequest(Integer.toString(i)));
+            BytesReference source = new BytesArray("{\"title\":\"doc-" + i + "\",\"count\":" + i + ",\"tag\":\"batch\"}");
+            sources.add(source);
+            expectedById.put(Integer.toString(i), asMap(source));
+        }
+
+        try (EscfBatch batch = EscfEncoder.encode(sources, XContentType.JSON)) {
+            for (int i = 0; i < numDocs; i++) {
+                // the shape BulkShardRequest(StreamInput) produces on the receiving node: a row reference and no bytes
+                ((IndexRequest) items[i].request()).indexSource().setSourceRow(batch, i, XContentType.JSON);
+            }
+            BulkShardRequest request = new BulkShardRequest(shard.shardId(), SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
+            request.setBulkShardBatch(new BulkShardBatch(batch));
+            BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, shard);
+
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+
+            // Columnar indexing does not support runtime fields
+            // TODO: Possibly add a test mapper which always returns false for this test.
+            shardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
+            future.actionGet();
+            assertTrue("a runtime field in the mapping must send the batch to the sequential path", context.hasMoreOperationsToExecute());
+
+            // Mimic production runnable
+            while (context.hasMoreOperationsToExecute()) {
+                TransportShardBulkAction.executeBulkItemRequest(
+                    context,
+                    null,
+                    threadPool::absoluteTimeInMillis,
+                    new TransportShardBulkActionTests.NoopMappingUpdatePerformer(),
+                    (listener, mappingVersion) -> {},
+                    ActionTestUtils.assertNoFailureListener(v -> {}),
+                    DocumentParsingProvider.EMPTY_INSTANCE
+                );
+            }
+
+            assertNotNull("the batch must stay attached to the request", request.getBulkShardBatch());
+            for (BulkItemRequest item : items) {
+                assertFalse(item.getPrimaryResponse().toString(), item.getPrimaryResponse().isFailed());
+                assertTrue("the sequential path must not inline the row", ((IndexRequest) item.request()).indexSource().hasSourceRow());
+            }
+            assertDocCount(shard, numDocs);
+
+            // Assert that all items are written by the engine as expected
+            Map<String, Map<String, Object>> translogById = new HashMap<>();
+            try (Translog.Snapshot snapshot = getTranslog(shard).newSnapshot()) {
+                Translog.Operation operation;
+                while ((operation = snapshot.next()) != null) {
+                    Translog.Index index = (Translog.Index) operation;
+                    translogById.put(Uid.decodeId(index.uid()), asMap(index.source()));
+                }
+            }
+            assertThat(translogById, equalTo(expectedById));
+        }
+
+        closeShards(shard);
+    }
+
+    private static Map<String, Object> asMap(BytesReference source) {
+        return XContentHelper.convertToMap(source, false, XContentType.JSON).v2();
     }
 
     public void testBatchIndexOnPrimarySingleDoc() throws Exception {
@@ -626,6 +725,139 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    public void testBatchIndexColumnarNumericFields_noLeak() throws Exception {
+        String numericMapping = """
+            {
+              "dynamic": "strict",
+              "properties": {
+                "count":  { "type": "integer" },
+                "score":  { "type": "double" }
+              }
+            }""";
+        IndexShard shard = newColumnarPrimaryShardWithMapping(numericMapping);
+
+        int numDocs = randomIntBetween(2, 20);
+        BulkItemRequest[] items = new BulkItemRequest[numDocs];
+        List<BytesReference> sources = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            items[i] = new BulkItemRequest(i, new IndexRequest("index").id(Integer.toString(i)));
+            sources.add(new BytesArray("{\"count\":" + i + ",\"score\":" + (i * 1.5) + "}"));
+        }
+
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(
+            shard.shardId(),
+            SplitShardCountSummary.IRRELEVANT,
+            RefreshPolicy.NONE,
+            items
+        );
+        BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
+
+        try (EscfBatch batch = EscfEncoder.encode(sources, XContentType.JSON)) {
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            shardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
+            future.actionGet();
+        }
+
+        assertFalse(context.hasMoreOperationsToExecute());
+        for (int i = 0; i < numDocs; i++) {
+            assertFalse("doc " + i + " should not have failed", items[i].getPrimaryResponse().isFailed());
+        }
+        // MockPageCacheRecycler.ensureAllPagesAreReleased() is called automatically by ESTestCase.after().
+
+        closeShards(shard);
+    }
+
+    /**
+     * Verifies that the columnar batch path applies {@code position_increment_gap} between array elements
+     * identically to the row path. The parity harness only compares column descriptors and never reads
+     * postings, so this end-to-end test pins the invariant against future changes in
+     * {@code IndexingChain}'s {@code fieldGen/first} logic.
+     */
+    public void testBatchIndexTextFieldPositionIncrementGap() throws Exception {
+        String defaultGapMapping = """
+            {
+              "dynamic": "strict",
+              "properties": {
+                "f": { "type": "text" }
+              }
+            }""";
+        String zeroGapMapping = """
+            {
+              "dynamic": "strict",
+              "properties": {
+                "f": { "type": "text", "position_increment_gap": 0 }
+              }
+            }""";
+
+        for (String mapping : new String[] { defaultGapMapping, zeroGapMapping }) {
+            boolean isZeroGap = mapping.contains("position_increment_gap");
+
+            IndexShard rowShard = newColumnarPrimaryShardWithMapping(mapping);
+            indexDoc(rowShard, "1", "{\"f\":[\"quick brown\",\"fox jumps\"]}", XContentType.JSON, null);
+            rowShard.refresh("test");
+            IndexShard batchShard = newColumnarPrimaryShardWithMapping(mapping);
+            BulkItemRequest[] items = { new BulkItemRequest(0, new IndexRequest("index").id("1")) };
+            BulkShardRequest bulkReq = new BulkShardRequest(
+                batchShard.shardId(),
+                SplitShardCountSummary.IRRELEVANT,
+                RefreshPolicy.NONE,
+                items
+            );
+            BulkPrimaryExecutionContext ctx = new BulkPrimaryExecutionContext(bulkReq, batchShard);
+            List<BytesReference> sources = List.of(new BytesArray("{\"f\":[\"quick brown\",\"fox jumps\"]}"));
+            try (EscfBatch batch = EscfEncoder.encode(sources, XContentType.JSON)) {
+                PlainActionFuture<Void> future = new PlainActionFuture<>();
+                shardBatchIndexer.performBatchIndexOnPrimary(items, batch, ctx, future);
+                future.actionGet();
+            }
+            assertFalse("batch indexing should not fail", items[0].getPrimaryResponse().isFailed());
+            batchShard.refresh("test");
+
+            PhraseQuery boundaryPhrase = new PhraseQuery("f", "brown", "fox");
+
+            try (Engine.Searcher rowSearcher = rowShard.acquireSearcher("test")) {
+                TopDocs rowHits = rowSearcher.search(boundaryPhrase, 10);
+                try (Engine.Searcher batchSearcher = batchShard.acquireSearcher("test")) {
+                    TopDocs batchHits = batchSearcher.search(boundaryPhrase, 10);
+                    if (isZeroGap) {
+                        assertThat("row path: gap=0 boundary phrase should match", rowHits.totalHits.value(), equalTo(1L));
+                        assertThat("batch path: gap=0 boundary phrase should match", batchHits.totalHits.value(), equalTo(1L));
+                    } else {
+                        assertThat("row path: default gap boundary phrase should not match", rowHits.totalHits.value(), equalTo(0L));
+                        assertThat("batch path: default gap boundary phrase should not match", batchHits.totalHits.value(), equalTo(0L));
+                    }
+                }
+            }
+
+            try (Engine.Searcher rowSearcher = rowShard.acquireSearcher("test")) {
+                try (Engine.Searcher batchSearcher = batchShard.acquireSearcher("test")) {
+                    for (String term : new String[] { "quick", "fox" }) {
+                        int rowPos = firstPosition(rowSearcher, "f", term);
+                        int batchPos = firstPosition(batchSearcher, "f", term);
+                        assertThat(
+                            "term [" + term + "] position must match between row and batch paths (gap=" + (isZeroGap ? "0" : "100") + ")",
+                            batchPos,
+                            equalTo(rowPos)
+                        );
+                    }
+                }
+            }
+
+            closeShards(rowShard, batchShard);
+        }
+    }
+
+    /** Returns the first token position of {@code term} in {@code field}, or -1 if absent. */
+    private static int firstPosition(Engine.Searcher searcher, String field, String term) throws IOException {
+        Terms terms = searcher.getIndexReader().leaves().get(0).reader().terms(field);
+        if (terms == null) return -1;
+        TermsEnum te = terms.iterator();
+        if (te.seekExact(new BytesRef(term)) == false) return -1;
+        PostingsEnum pe = te.postings(null, PostingsEnum.POSITIONS);
+        if (pe.nextDoc() == PostingsEnum.NO_MORE_DOCS) return -1;
+        return pe.nextPosition();
+    }
+
     public void testBatchIndexOnReplicaNoopResponse() throws Exception {
         IndexShard shard = newMappedPrimaryShard();
 
@@ -652,7 +884,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
             IndexShard replica = newMappedReplicaShard();
 
             ShardBatchIndexer.ReplicaBatchResult result = shardBatchIndexer.performBatchIndexOnReplica(items, batch, replica);
-            // A batch is written as a single contiguous Translog.IndexBatch record, so a NOOP ends the batch where it
+            // A batch is written as a single contiguous IndexOperationBatch.TranslogRecord, so a NOOP ends the batch where it
             // is encountered. With the NOOP at the leading item, nothing is batched and the NOOP plus the remaining
             // items are left to the serial fallback path (which resumes from processedItems).
             assertThat(result.processedItems(), equalTo(0));

@@ -19,6 +19,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
@@ -40,6 +41,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.GroupedLimitOperator;
+import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.HighlightConfig;
 import org.elasticsearch.compute.operator.HighlightOperator;
 import org.elasticsearch.compute.operator.InsertEmptyBucketsOperator;
@@ -54,6 +56,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
 import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
 import org.elasticsearch.compute.operator.PackDimsOperator;
+import org.elasticsearch.compute.operator.ParallelHashAggregationOperator;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
 import org.elasticsearch.compute.operator.SampleOperator;
 import org.elasticsearch.compute.operator.ScoreOperator;
@@ -63,6 +66,7 @@ import org.elasticsearch.compute.operator.SinkOperator.SinkOperatorFactory;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.compute.operator.SparklineGenerateEmptyBucketsOperator;
+import org.elasticsearch.compute.operator.StreamingPageOperator;
 import org.elasticsearch.compute.operator.StringExtractOperator;
 import org.elasticsearch.compute.operator.TimeSeriesCollapseOperator;
 import org.elasticsearch.compute.operator.TsInfoOperator;
@@ -77,11 +81,13 @@ import org.elasticsearch.compute.operator.fuse.RrfConfig;
 import org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.NumericTopNOperator;
+import org.elasticsearch.compute.operator.topn.SharedGlobalTopK;
 import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
 import org.elasticsearch.compute.operator.topn.SharedNumericThreshold;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator.TopNOperatorFactory;
+import org.elasticsearch.compute.operator.topn.TopNPreFilterOperator;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -94,6 +100,8 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.iplocation.api.IpDataLookup;
 import org.elasticsearch.iplocation.api.IpLocationConsumer;
 import org.elasticsearch.iplocation.api.IpLocationService;
@@ -123,15 +131,19 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.AsyncConnectorSourceOperatorFactory;
 import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperatorFactory;
 import org.elasticsearch.xpack.esql.datasources.DeferredExtractionCapable;
 import org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator;
+import org.elasticsearch.xpack.esql.datasources.ExternalLimitSplits;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.Federation;
-import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.PhysicalNames;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
@@ -148,16 +160,22 @@ import org.elasticsearch.xpack.esql.evaluator.command.IpLocationFunctionBridge;
 import org.elasticsearch.xpack.esql.evaluator.command.UserAgentFunctionBridge;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
+import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
+import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.HighlightOptions;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
@@ -194,32 +212,39 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.ReadDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
+import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.SparklineGenerateEmptyBucketsExec;
+import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesCollapseExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNPreFilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnpackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UserAgentExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.DenseVectorExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchHandle;
+import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchOperator;
+import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchService;
 import org.elasticsearch.xpack.esql.score.ScoreMapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -229,6 +254,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -247,7 +273,15 @@ public class LocalExecutionPlanner {
      * Default rows per page for external file sources when {@link ExternalSourceExec#estimatedRowSize()} is unknown
      * or non-positive. Used by {@link #planExternalSource} as the batch size passed to format readers (including NDJSON).
      */
-    public static final int DEFAULT_EXTERNAL_SOURCE_PAGE_SIZE_ROWS = 1000;
+    public static final int DEFAULT_EXTERNAL_SOURCE_PAGE_SIZE_ROWS = ExternalLimitSplits.DEFAULT_PAGE_SIZE_ROWS;
+
+    /**
+     * Minimum pages of work each pushed-LIMIT driver must have. One page per driver
+     * guarantees idle drivers under first-byte latency skew: the shared limiter admits
+     * exactly {@code N / pageSize} pages, so a driver that delivers a second page leaves
+     * a sibling with nothing. Eval saw no idle drivers at 5 or more pages per driver.
+     */
+    static final int MIN_PAGES_PER_LIMIT_DRIVER = ExternalLimitSplits.MIN_PAGES_PER_LIMIT_DRIVER;
 
     private static final Logger logger = LogManager.getLogger(LocalExecutionPlanner.class);
 
@@ -268,6 +302,8 @@ public class LocalExecutionPlanner {
     private final ProjectResolver projectResolver;
     private final AbstractPhysicalOperationProviders physicalOperationProviders;
     private final OperatorFactoryRegistry operatorFactoryRegistry;
+    @Nullable
+    private final RemoteFetchService remoteFetchService;
     @Nullable
     private final Executor parallelWorkerExecutor;
     private final int esqlWorkerPoolSize;
@@ -291,6 +327,7 @@ public class LocalExecutionPlanner {
         ProjectResolver projectResolver,
         AbstractPhysicalOperationProviders physicalOperationProviders,
         OperatorFactoryRegistry operatorFactoryRegistry,
+        @Nullable RemoteFetchService remoteFetchService,
         @Nullable Executor parallelWorkerExecutor,
         int esqlWorkerPoolSize,
         MatcherWatchdog grokMatcherWatchdog
@@ -313,6 +350,7 @@ public class LocalExecutionPlanner {
         this.projectResolver = projectResolver;
         this.physicalOperationProviders = physicalOperationProviders;
         this.operatorFactoryRegistry = operatorFactoryRegistry;
+        this.remoteFetchService = remoteFetchService;
         this.parallelWorkerExecutor = parallelWorkerExecutor;
         this.esqlWorkerPoolSize = esqlWorkerPoolSize;
         // Resolved once by the caller from the live ClusterSettings (the setting is dynamic), then shared
@@ -329,7 +367,8 @@ public class LocalExecutionPlanner {
         FoldContext foldCtx,
         PlannerSettings plannerSettings,
         PhysicalPlan localPhysicalPlan,
-        IndexedByShardId<? extends ShardContext> shardContexts
+        IndexedByShardId<? extends ShardContext> shardContexts,
+        boolean singleNodeOptimizations
     ) {
         final boolean timeSeries = localPhysicalPlan.anyMatch(p -> p instanceof TimeSeriesAggregateExec);
         var context = new LocalExecutionPlannerContext(
@@ -345,7 +384,9 @@ public class LocalExecutionPlanner {
             settings,
             shardContexts,
             physicalOperationProviders.analysisRegistry(),
-            new Holder<>()
+            new Holder<>(),
+            new Holder<>(),
+            singleNodeOptimizations
         );
 
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
@@ -378,7 +419,7 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation plan(PhysicalPlan node, LocalExecutionPlannerContext context) {
         if (node instanceof AggregateExec aggregate) {
-            return planAggregation(aggregate, context);
+            return planAggregation(aggregate, context, false);
         } else if (node instanceof FieldExtractExec fieldExtractExec) {
             return planFieldExtractNode(fieldExtractExec, context);
         } else if (node instanceof ReadDimsExec readDimsExec) {
@@ -389,10 +430,14 @@ public class LocalExecutionPlanner {
             return planUnpackDims(unpackDims, context);
         } else if (node instanceof ExternalFieldExtractExec extExtract) {
             return planExternalFieldExtract(extExtract, context);
+        } else if (node instanceof RemoteFetchExec remoteFetch) {
+            return planRemoteFetch(remoteFetch, context);
         } else if (node instanceof ExchangeExec exchangeExec) {
             return planExchange(exchangeExec, context);
         } else if (node instanceof TopNExec topNExec) {
             return planTopN(topNExec, context);
+        } else if (node instanceof TopNPreFilterExec preFilterExec) {
+            return planTopNPreFilter(preFilterExec, context);
         } else if (node instanceof TopNByExec topNByExec) {
             return planTopNBy(topNByExec, context);
         } else if (node instanceof EvalExec eval) {
@@ -423,6 +468,8 @@ public class LocalExecutionPlanner {
             return planChangePoint(changePoint, context);
         } else if (node instanceof CompletionExec completion) {
             return planCompletion(completion, context);
+        } else if (node instanceof DenseVectorExec denseVector) {
+            return planDenseVector(denseVector, context);
         } else if (node instanceof SampleExec Sample) {
             return planSample(Sample, context);
         } else if (node instanceof IpLocationExec ipLoc) {
@@ -466,7 +513,9 @@ public class LocalExecutionPlanner {
             return planLookupJoin(join, context);
         }
         // output
-        else if (node instanceof OutputExec outputExec) {
+        else if (node instanceof StreamingOutputExec streamingOutput) {
+            return planStreamingOutput(streamingOutput, context);
+        } else if (node instanceof OutputExec outputExec) {
             return planOutput(outputExec, context);
         } else if (node instanceof ExchangeSinkExec exchangeSink) {
             return planExchangeSink(exchangeSink, context);
@@ -589,6 +638,67 @@ public class LocalExecutionPlanner {
         );
     }
 
+    private PhysicalOperation planDenseVector(DenseVectorExec denseVector, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(denseVector.child(), context);
+        String inferenceId = BytesRefs.toString(denseVector.inferenceId().fold(context.foldCtx()));
+
+        List<NamedExpression> fields = denseVector.fields();
+        List<Attribute> generatedFields = denseVector.generatedFields();
+        org.elasticsearch.inference.DataType inputType = denseVector.inputType();
+        TaskType endpointTaskType = denseVector.endpointTaskType();
+        assert endpointTaskType != null : "endpoint task type must be resolved during analysis before planning DENSE_VECTOR";
+
+        // One embedding operator per input field: each embeds its field and appends its <field>_dense_vector column.
+        // Chained so the page accumulates all generated columns. Evaluators read from the growing layout; the original
+        // input fields are never removed, so appending output columns doesn't disturb earlier channels.
+        // The request shape follows the endpoint's task type: a text_embedding endpoint takes a text embedding request; an
+        // embedding endpoint takes an embedding request carrying the typed input. Both warn, null the row, and continue on a
+        // per-row inference failure.
+        // A single batch size applies to every per-field operator this command builds. A configured setting is used as given; an
+        // unconfigured one resolves per endpoint, since the accepted size varies by endpoint.
+        InferenceSettings inferenceSettings = inferenceService.inferenceSettings();
+        int batchSize = inferenceSettings.denseVectorBatchSizeExplicit()
+            ? inferenceSettings.denseVectorBatchSize()
+            : DenseVector.defaultBatchSizeFor(inferenceId);
+        PhysicalOperation operation = source;
+        for (int i = 0; i < fields.size(); i++) {
+            ExpressionEvaluator.Factory inputEvaluatorFactory = EvalMapper.toEvaluator(
+                context.foldCtx(),
+                fields.get(i),
+                operation.layout,
+                context.analysisRegistry()
+            );
+            Layout outputLayout = operation.layout.builder().append(generatedFields.get(i)).build();
+            // Only an embedding endpoint takes the multimodal request shape; every other task type, including an
+            // unresolved one, takes the plain text embedding request.
+            Operator.OperatorFactory operatorFactory = endpointTaskType == TaskType.EMBEDDING
+                ? new EmbeddingOperator.Factory(
+                    inferenceService,
+                    inferenceId,
+                    inputEvaluatorFactory,
+                    inputType,
+                    InputType.INTERNAL_INGEST,
+                    batchSize,
+                    denseVector.timeout(),
+                    denseVector.source(),
+                    true
+                )
+                : new TextEmbeddingOperator.Factory(
+                    inferenceService,
+                    inferenceId,
+                    inputEvaluatorFactory,
+                    InputType.INTERNAL_INGEST,
+                    batchSize,
+                    denseVector.timeout(),
+                    denseVector.source(),
+                    true
+                );
+            operation = operation.with(operatorFactory, outputLayout);
+        }
+
+        return operation;
+    }
+
     private PhysicalOperation planFuseScoreEvalExec(FuseScoreEvalExec fuse, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(fuse.child(), context);
         Layout layout = source.layout;
@@ -611,9 +721,26 @@ public class LocalExecutionPlanner {
         throw new EsqlIllegalArgumentException("unknown FUSE score method [" + fuse.fuseConfig() + "]");
     }
 
-    private PhysicalOperation planAggregation(AggregateExec aggregate, LocalExecutionPlannerContext context) {
+    private PhysicalOperation planAggregation(
+        AggregateExec aggregate,
+        LocalExecutionPlannerContext context,
+        boolean allowPartitionedOutput
+    ) {
         var source = plan(aggregate.child(), context);
-        return physicalOperationProviders.groupingPhysicalOperation(aggregate, source, context);
+        HashAggregationOperator.ParallelConfig parallelConfig = null;
+        if (parallelWorkerExecutor != null) {
+            parallelConfig = new HashAggregationOperator.ParallelConfig(
+                parallelWorkerExecutor,
+                Math.min(EsExecutors.allocatedProcessors(settings), ParallelHashAggregationOperator.MAX_WORKERS),
+                ParallelHashAggregationOperator.PAGE_PER_WORKER,
+                context.queryPragmas()
+                    .aggregationPartitioningCountThreshold(context.plannerSettings().aggregationPartitioningCountThreshold()),
+                context.queryPragmas()
+                    .aggregationPartitioningMemoryThreshold(context.plannerSettings().aggregationPartitioningMemoryThreshold())
+                    .getBytes()
+            );
+        }
+        return physicalOperationProviders.groupingPhysicalOperation(aggregate, source, parallelConfig, allowPartitionedOutput, context);
     }
 
     private PhysicalOperation planEsQueryNode(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
@@ -759,9 +886,45 @@ public class LocalExecutionPlanner {
             passThroughChannels,
             deferredColumnNames,
             deferredColumnTypes,
-            capable::sourceExtractorsFor
+            capable::sourceExtractorsFor,
+            capable.datasetLabel()
         );
         return source.with(factory, newLayout);
+    }
+
+    private PhysicalOperation planRemoteFetch(RemoteFetchExec exec, LocalExecutionPlannerContext context) {
+        if (remoteFetchService == null) {
+            throw new IllegalStateException("RemoteFetchExec requires RemoteFetchService");
+        }
+        PhysicalOperation source = plan(exec.child(), context);
+        Layout.ChannelAndType handle = source.layout.get(exec.handleAttribute().id());
+        if (handle == null) {
+            throw new IllegalStateException(
+                "remote fetch handle attribute [" + exec.handleAttribute() + "] is not present in input layout"
+            );
+        }
+        List<RemoteFetchService.FetchField> requestFields = exec.attributesToFetch()
+            .stream()
+            .map(attr -> new RemoteFetchService.FetchField(fieldName(attr), attr.dataType()))
+            .toList();
+        PhysicalPlan pushdownPlan = exec.pushdownPlan();
+        Layout layout = source.layout.builder().append(exec.fetchedOutputAttributes()).build();
+        return source.with(
+            new RemoteFetchOperator.Factory(
+                handle.channel(),
+                requestFields,
+                exec.fetchedOutputAttributes(),
+                pushdownPlan,
+                configuration,
+                Math.max(1, context.queryPragmas().exchangeBufferSize()),
+                () -> remoteFetchService.newReleasingBatchExchangeClient(parentTask)
+            ),
+            layout
+        );
+    }
+
+    private static String fieldName(Attribute attr) {
+        return attr instanceof FieldAttribute fieldAttribute ? fieldAttribute.fieldName().string() : attr.name();
     }
 
     private PhysicalOperation planOutput(OutputExec outputExec, LocalExecutionPlannerContext context) {
@@ -802,6 +965,13 @@ public class LocalExecutionPlanner {
         return transformer;
     }
 
+    private PhysicalOperation planStreamingOutput(StreamingOutputExec exec, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(exec.child(), context);
+        var output = exec.output();
+        Function<Page, Page> alignment = alignPageToAttributes(output, source.layout);
+        return source.withSink(new StreamingPageOperator.Factory(exec.pageStream(), alignment), source.layout);
+    }
+
     private PhysicalOperation planExchange(ExchangeExec exchangeExec, LocalExecutionPlannerContext context) {
         throw new UnsupportedOperationException("Exchange needs to be replaced with a sink/source");
     }
@@ -809,7 +979,13 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planExchangeSink(ExchangeSinkExec exchangeSink, LocalExecutionPlannerContext context) {
         Objects.requireNonNull(exchangeSinkSupplier, "ExchangeSinkHandler wasn't provided");
         var child = exchangeSink.child();
-        PhysicalOperation source = plan(child, context);
+        PhysicalOperation source;
+        if (child instanceof AggregateExec aggregate) {
+            // allow partitioned output if both partial and final on the same node
+            source = planAggregation(aggregate, context, context.singleNodeOptimizations());
+        } else {
+            source = plan(child, context);
+        }
         if (Assertions.ENABLED) {
             List<Attribute> inputAttributes = exchangeSink.child().output();
             for (Attribute attr : inputAttributes) {
@@ -835,51 +1011,83 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {
         context.lastVisitedTopN.set(topNExec);
         final Integer rowSize = topNExec.estimatedRowSize();
-        PhysicalOperation source = plan(topNExec.child(), context);
-        // Specialisation: a single-key sort over an ExternalSourceExec narrowed by
-        // InsertExternalFieldExtraction to {@code [sortKey, _rowPosition]} can run on the
-        // primitive {@link NumericTopNOperator} instead of the generic byte-encoding one. We
-        // make the decision here — rather than as a separate plan node + optimizer rule — because
-        // the choice is purely an implementation detail (same TopN semantics, different operator)
-        // and every input we need is already on hand at translation time. If the predicate
-        // doesn't match we fall through to the generic factory below; the rule predicate and the
-        // generic fallback share the same plan node.
-        NumericTopNOperator.NumericTopNOperatorFactory numericFactory = tryBuildNumericTopN(topNExec, source, context);
-        if (numericFactory != null) {
-            return source.with(numericFactory, source.layout);
+        LuceneMinCompetitiveTimestampTopN luceneMinCompetitivePilot = context.plannerSettings().minCompetitiveTimestampOptimizationEnabled()
+            ? tryBuildLuceneMinCompetitiveTimestampTopN(topNExec, context.blockFactory, context.foldCtx())
+            : null;
+        if (luceneMinCompetitivePilot != null) {
+            context.luceneMinCompetitivePilot.set(luceneMinCompetitivePilot);
         }
-        var common = topNCommon(rowSize, topNExec.order(), topNExec.limit(), topNExec.docValuesAttributes(), source, context);
-        TopNOperator.ParallelWorkerConfig parallelWorkerConfig = null;
-        if (parallelWorkerExecutor != null) {
-            int workerCount = Math.max(1, Math.min(context.plannerSettings.parallelTopNMaxWorkers(), esqlWorkerPoolSize / 2));
-            parallelWorkerConfig = new TopNOperator.ParallelWorkerConfig(
-                parallelWorkerExecutor,
-                workerCount,
-                2 * workerCount,
-                context.plannerSettings.parallelTopNPromotionThresholdRows()
+        try {
+            PhysicalOperation source = plan(topNExec.child(), context);
+            // Specialisation: a single-key sort over an ExternalSourceExec narrowed by
+            // InsertExternalFieldExtraction to {@code [sortKey, _rowPosition]} can run on the
+            // primitive {@link NumericTopNOperator} instead of the generic byte-encoding one. We
+            // make the decision here — rather than as a separate plan node + optimizer rule — because
+            // the choice is purely an implementation detail (same TopN semantics, different operator)
+            // and every input we need is already on hand at translation time. If the predicate
+            // doesn't match we fall through to the generic factory below; the rule predicate and the
+            // generic fallback share the same plan node.
+            NumericTopNOperator.NumericTopNOperatorFactory numericFactory = tryBuildNumericTopN(topNExec, source, context);
+            if (numericFactory != null) {
+                return source.with(numericFactory, source.layout);
+            }
+            var common = topNCommon(
+                rowSize,
+                topNExec.order(),
+                topNExec.limit(),
+                topNExec.docValuesAttributes(),
+                topNExec.child().output(),
+                source,
+                context
             );
+            TopNOperator.ParallelWorkerConfig parallelWorkerConfig = null;
+            if (parallelWorkerExecutor != null) {
+                int workerCount = Math.max(1, Math.min(context.plannerSettings.parallelTopNMaxWorkers(), esqlWorkerPoolSize / 2));
+                parallelWorkerConfig = new TopNOperator.ParallelWorkerConfig(
+                    parallelWorkerExecutor,
+                    workerCount,
+                    2 * workerCount,
+                    context.plannerSettings.parallelTopNPromotionThresholdRows()
+                );
+            }
+            // For a single keyword/text sort key directly over an external source, publish the generic
+            // TopNOperator's competitive BytesRef bound to DynamicThresholdAware format readers so they
+            // can skip row groups/stripes that cannot contain a globally competitive row. This is the
+            // BYTES_REF counterpart to the numeric NumericTopNOperator + SharedNumericThreshold path.
+            // Wiring the readers and obtaining the supplier are done together so a pre-set supplier on
+            // the TopNExec can never reach the operator without the readers also being wired to it.
+            SharedMinCompetitive.Supplier minCompetitive = tryBuildExternalMinCompetitive(topNExec, source, topNExec.minCompetitive());
+            TopNOperator.GlobalTopKMergeConfig globalTopKMerge = null;
+            if (minCompetitive == null && luceneMinCompetitivePilot != null) {
+                minCompetitive = luceneMinCompetitivePilot.supplier();
+                if (luceneMinCompetitivePilot.globalTopK() != null && common.limit > 1) {
+                    globalTopKMerge = new TopNOperator.GlobalTopKMergeConfig(
+                        luceneMinCompetitivePilot.globalTopK(),
+                        context.plannerSettings().minCompetitiveGlobalMergeBatchPages(),
+                        context.plannerSettings().minCompetitiveGlobalMergeMaxPendingKeys()
+                    );
+                }
+            }
+            return source.with(
+                new TopNOperatorFactory(
+                    common.limit,
+                    asList(common.elementTypes),
+                    asList(common.encoders),
+                    common.orders,
+                    context.pageSize(topNExec, rowSize),
+                    context.plannerSettings.valuesLoadingJumboSize().getBytes(),
+                    topNExec.inputOrdering(),
+                    minCompetitive,
+                    globalTopKMerge,
+                    parallelWorkerConfig
+                ),
+                source.layout
+            );
+        } finally {
+            if (luceneMinCompetitivePilot != null) {
+                context.luceneMinCompetitivePilot.set(null);
+            }
         }
-        // For a single keyword/text sort key directly over an external source, publish the generic
-        // TopNOperator's competitive BytesRef bound to DynamicThresholdAware format readers so they
-        // can skip row groups/stripes that cannot contain a globally competitive row. This is the
-        // BYTES_REF counterpart to the numeric NumericTopNOperator + SharedNumericThreshold path.
-        // Wiring the readers and obtaining the supplier are done together so a pre-set supplier on
-        // the TopNExec can never reach the operator without the readers also being wired to it.
-        SharedMinCompetitive.Supplier minCompetitive = tryBuildExternalMinCompetitive(topNExec, source, topNExec.minCompetitive());
-        return source.with(
-            new TopNOperatorFactory(
-                common.limit,
-                asList(common.elementTypes),
-                asList(common.encoders),
-                common.orders,
-                context.pageSize(topNExec, rowSize),
-                context.plannerSettings.valuesLoadingJumboSize().getBytes(),
-                topNExec.inputOrdering(),
-                minCompetitive,
-                parallelWorkerConfig
-            ),
-            source.layout
-        );
     }
 
     /**
@@ -1074,6 +1282,66 @@ public class LocalExecutionPlanner {
     }
 
     /**
+     * Path B pilot: wire {@link SharedMinCompetitive} between engine {@code TopNOperator} and
+     * {@code LuceneSourceOperator} for {@code TopN → (Project|Filter|FieldExtract)* → EsQuery}
+     * with a single {@code @timestamp}-like sort key.
+     */
+    @Nullable
+    private static LuceneMinCompetitiveTimestampTopN tryBuildLuceneMinCompetitiveTimestampTopN(
+        TopNExec topNExec,
+        BlockFactory blockFactory,
+        FoldContext foldCtx
+    ) {
+        List<Order> orders = topNExec.order();
+        if (orders.size() != 1) {
+            return null;
+        }
+        Order order = orders.get(0);
+        if (order.child() instanceof FieldAttribute fa == false) {
+            return null;
+        }
+        FieldAttribute sortField = (FieldAttribute) order.child();
+        if (PlannerUtils.toElementType(sortField.dataType()) != ElementType.LONG) {
+            return null;
+        }
+        if (topNExec.limit() == null || topNExec.limit().foldable() == false) {
+            return null;
+        }
+        EsQueryExec esQuery = findEsQueryExecForMinCompetitivePilot(topNExec.child());
+        if (esQuery == null) {
+            return null;
+        }
+        if (esQuery.sorts() != null && esQuery.sorts().isEmpty() == false) {
+            return null;
+        }
+        if (esQuery.queryBuilderAndTags().size() != 1) {
+            return null;
+        }
+        SharedMinCompetitive.Supplier supplier = new SharedMinCompetitive.Supplier(
+            blockFactory.breaker(),
+            topNExec.minCompetitiveKeyConfig()
+        );
+        int topCount = ((Number) topNExec.limit().fold(foldCtx)).intValue();
+        SharedGlobalTopK.Supplier globalTopKSupplier = topCount > 0
+            ? new SharedGlobalTopK.Supplier(blockFactory.breaker(), topCount, supplier)
+            : null;
+        return new LuceneMinCompetitiveTimestampTopN(supplier, sortField.qualifiedName(), globalTopKSupplier);
+    }
+
+    @Nullable
+    private static EsQueryExec findEsQueryExecForMinCompetitivePilot(PhysicalPlan plan) {
+        PhysicalPlan current = plan;
+        while (current instanceof UnaryExec unary) {
+            if (current instanceof FilterExec || current instanceof ProjectExec || current instanceof FieldExtractExec) {
+                current = unary.child();
+                continue;
+            }
+            break;
+        }
+        return current instanceof EsQueryExec esQueryExec ? esQueryExec : null;
+    }
+
+    /**
      * Sort-key element types the specialised {@link NumericTopNOperator} can rank. Mirrors the
      * operator's own {@code assertSupportedType} — DATETIME and DATE_NANOS collapse to
      * {@link ElementType#LONG} at planning time (see {@link PlannerUtils#toElementType}), so they
@@ -1146,7 +1414,15 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planTopNBy(TopNByExec topNByExec, LocalExecutionPlannerContext context) {
         final Integer rowSize = topNByExec.estimatedRowSize();
         PhysicalOperation source = plan(topNByExec.child(), context);
-        var common = topNCommon(rowSize, topNByExec.order(), topNByExec.limitPerGroup(), topNByExec.docValuesAttributes(), source, context);
+        var common = topNCommon(
+            rowSize,
+            topNByExec.order(),
+            topNByExec.limitPerGroup(),
+            topNByExec.docValuesAttributes(),
+            topNByExec.child().output(),
+            source,
+            context
+        );
         List<Integer> groupKeys = topNByExec.groupings()
             .stream()
             .map(grouping -> getAttributeChannel(grouping, source.layout, "LIMIT BY expression must be an attribute"))
@@ -1176,6 +1452,7 @@ public class LocalExecutionPlanner {
         List<Order> order,
         Expression limitExpr,
         Set<Attribute> docValuesAttributes,
+        List<Attribute> inputAttributes,
         PhysicalOperation source,
         LocalExecutionPlannerContext context
     ) {
@@ -1183,11 +1460,20 @@ public class LocalExecutionPlanner {
 
         ElementType[] elementTypes = new ElementType[source.layout.numberOfChannels()];
         TopNEncoder[] encoders = new TopNEncoder[source.layout.numberOfChannels()];
+        Set<NameId> remoteFetchHandleIds = inputAttributes.stream()
+            .filter(RemoteFetchHandle::isRemoteFetchHandleCarrier)
+            .map(Attribute::id)
+            .collect(Collectors.toSet());
         List<Layout.ChannelSet> inverse = source.layout.inverse();
         for (int channel = 0; channel < inverse.size(); channel++) {
-            var fieldExtractPreference = fieldExtractPreference(docValuesAttributes, inverse.get(channel).nameIds());
-            elementTypes[channel] = PlannerUtils.toElementType(inverse.get(channel).type(), fieldExtractPreference);
-            encoders[channel] = TopNExec.encoder(inverse.get(channel).type(), context.shardContexts);
+            Layout.ChannelSet channelSet = inverse.get(channel);
+            var fieldExtractPreference = fieldExtractPreference(docValuesAttributes, channelSet.nameIds());
+            elementTypes[channel] = PlannerUtils.toElementType(channelSet.type(), fieldExtractPreference);
+            boolean remoteFetchHandleChannel = channelSet.nameIds().stream().anyMatch(remoteFetchHandleIds::contains);
+            // Handles use a keyword-shaped block to cross generic exchanges, but their contents are binary StreamOutput payloads.
+            encoders[channel] = remoteFetchHandleChannel
+                ? TopNEncoder.DEFAULT_UNSORTABLE
+                : TopNExec.encoder(channelSet.type(), context.shardContexts);
         }
         List<TopNOperator.SortOrder> orders = order.stream().map(o -> {
             int sortByChannel = getAttributeChannel(o.child(), source.layout, "order by expression must be an attribute");
@@ -1230,20 +1516,42 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planEval(EvalExec eval, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(eval.child(), context);
-
+        if (eval.fields().isEmpty()) {
+            return source;
+        }
+        Layout layout = source.layout;
+        Layout.Builder outputLayout = layout.builder();
+        Set<NameId> pendingAliases = new HashSet<>();
+        List<OperatorFactory> operatorFactories = new ArrayList<>(eval.fields().size());
         for (Alias field : eval.fields()) {
+            // don't rebuild the layout for every Alias (which comes with a memory baggage and additional operations), but only when
+            // an Alias references a previous one (in the same EVAL), for example EVAL x = salary + 1, y = coalesce(x, 0), or after
+            // all Aliases of the EVAL have been iterated over
+            if (pendingAliases.isEmpty() == false && refersToPendingAlias(field.child(), pendingAliases)) {
+                layout = outputLayout.build();
+                pendingAliases.clear();
+            }
             var evaluatorSupplier = EvalMapper.toEvaluator(
                 context.foldCtx(),
                 field.child(),
-                source.layout,
+                layout,
                 context.shardContexts,
                 context.analysisRegistry()
             );
-            Layout.Builder layout = source.layout.builder();
-            layout.append(field.toAttribute());
-            source = source.with(new EvalOperatorFactory(evaluatorSupplier), layout.build());
+            outputLayout.append(field.toAttribute());
+            pendingAliases.add(field.id());
+            operatorFactories.add(new EvalOperatorFactory(evaluatorSupplier));
         }
-        return source;
+        return source.with(operatorFactories, outputLayout.build());
+    }
+
+    private static boolean refersToPendingAlias(Expression expression, Set<NameId> pendingAliases) {
+        for (Attribute attribute : expression.references()) {
+            if (pendingAliases.contains(attribute.id())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private PhysicalOperation planDissect(DissectExec dissect, LocalExecutionPlannerContext context) {
@@ -1295,7 +1603,7 @@ public class LocalExecutionPlanner {
             new ColumnExtractOperator.Factory(
                 types,
                 EvalMapper.toEvaluator(context.foldCtx(), grok.inputExpression(), layout, context.analysisRegistry()),
-                new GrokEvaluatorExtracter.Factory(watchdogGrok, grok.pattern().pattern(), fieldToPos, fieldToType)
+                new GrokEvaluatorExtracter.Factory(grok.source(), watchdogGrok, grok.pattern().pattern(), fieldToPos, fieldToType)
             ),
             layout
         );
@@ -1376,7 +1684,7 @@ public class LocalExecutionPlanner {
         // TODO: Merge HighlightOptions and HighlightConfig so we don't have to copy every option here.
         HighlightOptions options = HighlightOptions.from(highlight.options(), context.foldCtx());
         List<String> fieldNames = highlight.fields().stream().map(NamedExpression::name).toList();
-        String analyzerName = options.analyzerName();
+        String analyzerName = HighlightSupport.executionAnalyzerName(options.analyzerName(), highlight.fields());
 
         HighlightQueryBuilders.TranslatedQuery translated = HighlightQueryBuilders.translate(
             queryExpr,
@@ -1973,12 +2281,6 @@ public class LocalExecutionPlanner {
 
         int pushedLimit = externalSource.pushedLimit();
 
-        // Shrink buffer for small limits
-        int effectiveBufferSize = 10;
-        if (pushedLimit != FormatReader.NO_LIMIT) {
-            effectiveBufferSize = Math.min(10, (pushedLimit + pageSize - 1) / pageSize + 1);
-        }
-
         FileList fileList = externalSource.fileList();
         int splitCount = externalSource.splits().size();
         ExternalSliceQueue sliceQueue = null;
@@ -1998,49 +2300,35 @@ public class LocalExecutionPlanner {
             sliceQueue = new ExternalSliceQueue(externalSource.splits());
         }
         if (splitCount > 1) {
-            int maxParallelism = context.queryPragmas().taskConcurrency();
-            if (pushedLimit != FormatReader.NO_LIMIT && pushedLimit <= pageSize) {
-                instanceCount = 1;
-            } else if (pushedLimit != FormatReader.NO_LIMIT) {
-                int pagesNeeded = Math.max(1, (pushedLimit + pageSize - 1) / pageSize);
-                instanceCount = Math.min(pagesNeeded, Math.min(splitCount, maxParallelism));
-            } else {
-                instanceCount = Math.min(splitCount, maxParallelism);
-            }
+            instanceCount = limitDriverCount(pushedLimit, pageSize, splitCount, context.queryPragmas().taskConcurrency());
         }
-        // Carries every name VirtualColumnIterator should materialise: Hive-style partition columns
-        // plus the _file.* metadata columns the user actually requested (these reach the relation
-        // output only via METADATA, or the temporary EXTERNAL shim — they are no longer auto-attached
-        // to every external schema). Passed through SourceOperatorContext.partitionColumnNames
-        // (legacy method name kept to avoid an SPI rename on this PR).
-        // Partition column names come from the serialized PARTITION_COLUMNS_KEY stamp via the node-safe
-        // accessor, NOT the fileList: on a data node the resolved FileList is not serialized (see the
-        // slice-queue note above), so reading it there yields nothing, whereas the stamp travels with the
-        // relation. VirtualColumnIterator materialises each as a constant block even when ONLY a partition
-        // column is projected (e.g. COUNT(p) that safe-missed to a scan): otherwise the operator treats it as
-        // a data column, the reader emits a 0-block page, and the downstream aggregator reads a non-existent
-        // block. The assert checks — rather than trusts — that on the coordinator (where the fileList IS
-        // resolved) the stamp already covers every fileList partition name, so dropping the fileList read
-        // here is a strict no-op.
-        Set<String> virtualColumnNames = new LinkedHashSet<>(externalSource.partitionColumnNames());
+        instanceCount = capInstanceCountByCoveringSplits(instanceCount, pushedLimit, externalSource.splits(), externalSource.config());
+        int effectiveBufferSize = externalSourceBufferSize(pushedLimit, instanceCount, pageSize);
+        // Hive-style partition column names from the serialized PARTITION_COLUMNS_KEY stamp via the
+        // node-safe accessor, not the fileList: on a data node the resolved FileList is not serialized
+        // (see the slice-queue note above), so reading it there yields nothing, whereas the stamp
+        // travels with the relation. VirtualColumnIterator materialises each as a constant block even
+        // when only a partition column is projected (e.g., COUNT(p) that safe-missed to a scan):
+        // otherwise the operator treats it as a data column, the reader emits a 0-block page, and the
+        // downstream aggregator reads a non-existent block. The assert checks that on the coordinator
+        // (where the fileList is resolved) the stamp already covers every fileList partition name.
+        Set<String> partitionColumnNames = externalSource.partitionColumnNames();
         assert fileList == null
             || fileList.partitionMetadata() == null
-            || virtualColumnNames.containsAll(fileList.partitionMetadata().partitionColumns().keySet())
+            || partitionColumnNames.containsAll(fileList.partitionMetadata().partitionColumns().keySet())
             : "partition stamp "
-                + virtualColumnNames
+                + partitionColumnNames
                 + " is missing resolved fileList partition columns "
                 + fileList.partitionMetadata().partitionColumns().keySet();
-        for (Attribute attr : externalSource.output()) {
-            if (FileMetadataColumns.isFileMetadataColumn(attr.name())) {
-                virtualColumnNames.add(attr.name());
-            }
-        }
 
         SourceOperatorContext operatorContext = SourceOperatorContext.builder()
             .sourceType(externalSource.sourceType())
             .path(path)
             .projectedColumns(projectedColumns)
             .attributes(externalSource.output())
+            // Projection-independent, unlike attributes(): a read-configuration identity must not vary with what the query
+            // selects, or a coordinator and a data node would derive different identities for the same read.
+            .unifiedSchema(externalSource.unifiedSchema())
             .batchSize(pageSize)
             .maxBufferSize(effectiveBufferSize)
             .rowLimit(pushedLimit)
@@ -2053,19 +2341,36 @@ public class LocalExecutionPlanner {
             .pushedExpressions(externalSource.pushedExpressions())
             .fileList(fileList)
             .schemaMap(externalSource.schemaMap())
-            .partitionColumnNames(virtualColumnNames)
+            .partitionColumnNames(partitionColumnNames)
             .sliceQueue(sliceQueue)
             .parsingParallelism(context.queryPragmas().parsingParallelism())
             .maxConcurrentOpenSegments(context.queryPragmas().maxConcurrentOpenSegments())
             .maxRecordBytes(Math.toIntExact(context.queryPragmas().maxRecordSize().getBytes()))
             .parallelism(instanceCount)
-            .datasetName(externalSource.datasetName())
             .deferredExtraction(externalSource.deferredExtraction())
             .build();
 
         SourceOperator.SourceOperatorFactory factory = operatorFactoryRegistry.factory(operatorContext);
+        annotateDatasetLabel(externalSource, factory);
         context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
         return PhysicalOperation.fromSource(factory, layout.build());
+    }
+
+    private static void annotateDatasetLabel(ExternalSourceExec externalSource, SourceOperator.SourceOperatorFactory factory) {
+        if (!(factory instanceof AsyncExternalSourceOperatorFactory asyncFactory)) {
+            return;
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> ctx = externalSource.config() == null
+            ? null
+            : (Map<String, Object>) externalSource.config().get(ExternalSourceResolver.DATASET_CONTEXT_KEY);
+        String datasetName = externalSource.datasetName();
+        String datasourceName = ctx == null ? null : (String) ctx.get("datasource");
+        String datasourceType = ctx == null ? null : (String) ctx.get("type");
+        if (datasetName == null && datasourceName == null) {
+            return;
+        }
+        asyncFactory.setDatasetContext(datasetName, datasourceName, datasourceType);
     }
 
     private PhysicalOperation planShow(ShowExec showExec) {
@@ -2112,13 +2417,14 @@ public class LocalExecutionPlanner {
             ),
             source.layout
         );
-        // Add ScoreOperator only on data nodes. Data nodes are able to calculate scores running queries on the resulting docs.
-        if (context.shardContexts.isEmpty() == false && PlannerUtils.usesScoring(filter)) {
+        // Scoring normally needs a data node, which can run the query against the resulting docs. A runtime search is the
+        // exception: it scores per row from the values in the page, so it also contributes on the coordinator.
+        if (PlannerUtils.usesScoring(filter) && (context.shardContexts.isEmpty() == false || scoresWithoutShards(filter.condition()))) {
             // Add scorer operator to add the filter expression scores to the overall scores
             Attribute scoreAttribute = null;
 
             for (Attribute attribute : filter.output()) {
-                if (attribute instanceof MetadataAttribute && MetadataAttribute.SCORE.equals(attribute.name())) {
+                if (MetadataAttribute.isScoreAttribute(attribute)) {
                     scoreAttribute = attribute;
                 }
             }
@@ -2143,6 +2449,14 @@ public class LocalExecutionPlanner {
             );
         }
         return filterOperation;
+    }
+
+    /**
+     * Whether {@code condition} contains a scoring contributor that can be evaluated without a shard context, which
+     * today means a runtime full-text search.
+     */
+    private static boolean scoresWithoutShards(Expression condition) {
+        return condition.anyMatch(e -> e instanceof FullTextFunction ftf && ftf.isRuntimeSearch() && ftf.contributesToScore());
     }
 
     private PhysicalOperation planInsertEmptyBuckets(InsertEmptyBucketsExec insertEmptyBuckets, LocalExecutionPlannerContext context) {
@@ -2212,7 +2526,117 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planLimit(LimitExec limit, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(limit.child(), context);
-        return source.with(new LimitOperator.Factory((Integer) limit.limit().fold(context.foldCtx)), source.layout);
+        LimitOperator.Factory factory = new LimitOperator.Factory((Integer) limit.limit().fold(context.foldCtx));
+        observeExternalLimit(limit.child(), source.sourceOperatorFactory, factory);
+        return source.with(factory, source.layout);
+    }
+
+    /**
+     * Installs the downstream limiter on an external source when {@code child} is a
+     * {@link FilterExec} / {@link EvalExec} / {@link ProjectExec} chain over
+     * {@link ExternalSourceExec}. Pushed LIMIT still wires; the source ignores
+     * observed remaining when it owns a {@code sourceLimiter}.
+     */
+    static void observeExternalLimit(PhysicalPlan child, SourceOperatorFactory sourceFactory, LimitOperator.Factory limitFactory) {
+        if (canObserveExternalLimit(child) == false) {
+            return;
+        }
+        if (sourceFactory instanceof AsyncExternalSourceOperatorFactory aesof) {
+            aesof.setObservedLimiter(limitFactory.limiter());
+        } else if (sourceFactory instanceof AsyncConnectorSourceOperatorFactory acsof) {
+            acsof.setObservedLimiter(limitFactory.limiter());
+        }
+    }
+
+    /**
+     * True when {@code plan} is an {@link ExternalSourceExec} reached through only
+     * {@link FilterExec} / {@link EvalExec} / {@link ProjectExec}. Aggregates, {@code MV_EXPAND},
+     * joins, and {@code LIMIT BY} sit between LIMIT and the source too often for a remaining-row
+     * observation to be meaningful.
+     */
+    static boolean canObserveExternalLimit(PhysicalPlan plan) {
+        PhysicalPlan p = plan;
+        while (true) {
+            if (p instanceof ExternalSourceExec) {
+                return true;
+            }
+            if (p instanceof FilterExec || p instanceof EvalExec || p instanceof ProjectExec) {
+                p = ((UnaryExec) p).child();
+                continue;
+            }
+            return false;
+        }
+    }
+
+    /**
+     * Driver count for an external source. Pushed LIMIT needs {@link #MIN_PAGES_PER_LIMIT_DRIVER}
+     * pages of work per driver so first-byte skew cannot leave a sibling idle. Covering-split
+     * and buffer sizing run after this. No change for {@code N <= pageSize}, no limit, or
+     * filtered LIMIT (no pushed limit). {@code taskConcurrency} still caps the result.
+     */
+    static int limitDriverCount(int pushedLimit, int pageSize, int splitCount, int taskConcurrency) {
+        if (splitCount <= 1) {
+            return 1;
+        }
+        int capped = Math.min(splitCount, Math.max(1, taskConcurrency));
+        if (pushedLimit == FormatReader.NO_LIMIT) {
+            return capped;
+        }
+        return Math.min(ExternalLimitSplits.driverCount(pushedLimit, pageSize, taskConcurrency), capped);
+    }
+
+    /**
+     * Caps driver count at how many splits in list order cover {@code pushedLimit} rows.
+     * Fail closed (return {@code instanceCount} unchanged) when any split lacks stats or the
+     * error policy may drop rows.
+     */
+    static int capInstanceCountByCoveringSplits(
+        int instanceCount,
+        int pushedLimit,
+        List<ExternalSplit> splits,
+        Map<String, Object> config
+    ) {
+        if (pushedLimit == FormatReader.NO_LIMIT || splits.isEmpty()) {
+            return instanceCount;
+        }
+        if (ErrorPolicy.forReader(config, null).isStrict() == false) {
+            return instanceCount;
+        }
+        for (ExternalSplit split : splits) {
+            if (split.splitStats() == null) {
+                return instanceCount;
+            }
+        }
+        return Math.min(instanceCount, coveringSplitCount(splits, pushedLimit));
+    }
+
+    /**
+     * Walks {@code splits} in list order (the same order {@link ExternalSliceQueue} claims),
+     * summing {@code splitStats().rowCount()}. A {@code CoalescedSplit} counts as one queue item.
+     * Callers must have verified every split has stats.
+     */
+    static int coveringSplitCount(List<ExternalSplit> splits, int pushedLimit) {
+        long covered = 0;
+        int count = 0;
+        for (ExternalSplit split : splits) {
+            count++;
+            covered += split.splitStats().rowCount();
+            if (covered >= pushedLimit) {
+                return count;
+            }
+        }
+        return count;
+    }
+
+    /**
+     * Per-driver page buffer after {@code instanceCount} is final. Floor 2, cap 10. Not a row cap.
+     */
+    static int externalSourceBufferSize(int pushedLimit, int instanceCount, int pageSize) {
+        if (pushedLimit == FormatReader.NO_LIMIT) {
+            return 10;
+        }
+        int sharePages = (int) Math.ceilDiv((long) pushedLimit, (long) instanceCount * pageSize);
+        return Math.min(10, Math.max(2, sharePages + 1));
     }
 
     private PhysicalOperation planLimitBy(LimitByExec limitBy, LocalExecutionPlannerContext context) {
@@ -2283,6 +2707,17 @@ public class LocalExecutionPlanner {
         return source.with(new SampleOperator.Factory(probability), source.layout);
     }
 
+    private PhysicalOperation planTopNPreFilter(TopNPreFilterExec preFilter, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(preFilter.child(), context);
+        ElementType keyType = PlannerUtils.toElementType(preFilter.key().dataType());
+        int channel = getAttributeChannel(preFilter.key(), source.layout, "TOP N PRE-FILTER key must be an attribute");
+        int limit = Math.toIntExact(((Number) Foldables.valueOf(context.foldCtx(), preFilter.limit())).longValue());
+        return source.with(
+            new TopNPreFilterOperator.Factory(keyType, channel, preFilter.asc(), preFilter.nullsFirst(), limit),
+            source.layout
+        );
+    }
+
     private PhysicalOperation planSparklineGenerateEmptyBuckets(
         SparklineGenerateEmptyBucketsExec sparkline,
         LocalExecutionPlannerContext context
@@ -2295,7 +2730,7 @@ public class LocalExecutionPlanner {
 
         PhysicalOperation withOperator = source.with(
             new SparklineGenerateEmptyBucketsOperator.Factory(
-                sparkline.values().size(),
+                sparkline.values().stream().map(value -> PlannerUtils.toElementType(value.dataType())).toArray(ElementType[]::new),
                 sparkline.dateBucketRounding(),
                 sparkline.minDate(),
                 sparkline.maxDate()
@@ -2335,21 +2770,28 @@ public class LocalExecutionPlanner {
          * Creates a new physical operation from this operation with the given layout.
          */
         public PhysicalOperation with(Layout layout) {
-            return new PhysicalOperation(this, Optional.empty(), Optional.empty(), layout);
+            return new PhysicalOperation(this, List.of(), Optional.empty(), layout);
         }
 
         /**
          * Creates a new physical operation from this operation with the given intermediate operator and layout.
          */
         public PhysicalOperation with(OperatorFactory operatorFactory, Layout layout) {
-            return new PhysicalOperation(this, Optional.of(operatorFactory), Optional.empty(), layout);
+            return new PhysicalOperation(this, List.of(operatorFactory), Optional.empty(), layout);
+        }
+
+        /**
+         * Creates a new physical operation from this operation with the given intermediate operators, in order, and layout.
+         */
+        public PhysicalOperation with(List<OperatorFactory> operatorFactories, Layout layout) {
+            return new PhysicalOperation(this, operatorFactories, Optional.empty(), layout);
         }
 
         /**
          * Creates a new physical operation from this operation with the given sink and layout.
          */
         public PhysicalOperation withSink(SinkOperatorFactory sink, Layout layout) {
-            return new PhysicalOperation(this, Optional.empty(), Optional.of(sink), layout);
+            return new PhysicalOperation(this, List.of(), Optional.of(sink), layout);
         }
 
         private PhysicalOperation(SourceOperatorFactory sourceOperatorFactory, Layout layout) {
@@ -2361,14 +2803,16 @@ public class LocalExecutionPlanner {
 
         private PhysicalOperation(
             PhysicalOperation physicalOperation,
-            Optional<OperatorFactory> intermediateOperatorFactory,
+            List<OperatorFactory> intermediateOperatorFactories,
             Optional<SinkOperatorFactory> sinkOperatorFactory,
             Layout layout
         ) {
             sourceOperatorFactory = physicalOperation.sourceOperatorFactory;
-            intermediateOperatorFactories = new ArrayList<>();
-            intermediateOperatorFactories.addAll(physicalOperation.intermediateOperatorFactories);
-            intermediateOperatorFactory.ifPresent(intermediateOperatorFactories::add);
+            this.intermediateOperatorFactories = new ArrayList<>(
+                physicalOperation.intermediateOperatorFactories.size() + intermediateOperatorFactories.size()
+            );
+            this.intermediateOperatorFactories.addAll(physicalOperation.intermediateOperatorFactories);
+            this.intermediateOperatorFactories.addAll(intermediateOperatorFactories);
             this.sinkOperatorFactory = sinkOperatorFactory.isPresent() ? sinkOperatorFactory.get() : null;
             this.layout = layout;
         }
@@ -2455,7 +2899,9 @@ public class LocalExecutionPlanner {
         Settings settings,
         IndexedByShardId<? extends ShardContext> shardContexts,
         @Nullable AnalysisRegistry analysisRegistry,
-        Holder<TopNExec> lastVisitedTopN
+        Holder<TopNExec> lastVisitedTopN,
+        Holder<LuceneMinCompetitiveTimestampTopN> luceneMinCompetitivePilot,
+        boolean singleNodeOptimizations
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);

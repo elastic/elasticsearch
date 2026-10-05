@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -45,13 +44,7 @@ public class IbmWatsonxRerankServiceSettings extends IbmWatsonxServiceSettings {
      * @return the parser
      */
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
-        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
-            ModelConfigurations.SERVICE_SETTINGS,
-            ignoreUnknownFields,
-            Builder::new
-        );
-        IbmWatsonxServiceSettings.declareCommonFields(parser);
-        return parser;
+        return IbmWatsonxServiceSettings.buildCommonParser(ignoreUnknownFields, Builder::new);
     }
 
     public static IbmWatsonxRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
@@ -120,11 +113,7 @@ public class IbmWatsonxRerankServiceSettings extends IbmWatsonxServiceSettings {
      */
     private static class Update extends IbmWatsonxServiceSettings.CommonUpdate {
 
-        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
-
-        static {
-            IbmWatsonxServiceSettings.declareCommonUpdatableFields(PARSER);
-        }
+        private static final ObjectParser<Update, Void> PARSER = IbmWatsonxServiceSettings.buildCommonUpdateParser(Update::new);
 
         public IbmWatsonxRerankServiceSettings mergeInto(IbmWatsonxRerankServiceSettings existing) {
             return new IbmWatsonxRerankServiceSettings(

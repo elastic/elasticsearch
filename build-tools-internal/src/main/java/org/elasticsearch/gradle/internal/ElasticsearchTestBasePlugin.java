@@ -13,6 +13,7 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
 
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
+import org.elasticsearch.gradle.internal.flakiness.resolve.FlakinessProjectResolvePlugin;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.test.ErrorReportingTestListener;
 import org.elasticsearch.gradle.internal.test.SimpleCommandLineArgumentProvider;
@@ -28,6 +29,8 @@ import org.gradle.api.configuration.BuildFeatures;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.ProviderFactory;
+import org.gradle.api.tasks.ClasspathNormalizer;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.testing.Test;
@@ -65,6 +68,9 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
         project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
         var buildParams = loadBuildParams(project);
         project.getPluginManager().apply(InternalTestRerunPlugin.class);
+        // Registers this project's own flakinessResolveProject task, but only under -Pflakiness.resolve; the
+        // plugin is inert otherwise. See FlakinessProjectResolvePlugin for why the model is captured lazily.
+        project.getPluginManager().apply(FlakinessProjectResolvePlugin.class);
         project.getPluginManager().apply(GradleTestPolicySetupPlugin.class);
         // for fips mode check
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
@@ -234,8 +240,9 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             });
 
             if (OS.current().equals(OS.WINDOWS) && System.getProperty("tests.timeoutSuite") == null) {
-                // override the suite timeout to 60 mins for windows, because it has the most inefficient filesystem known to man
-                test.systemProperty("tests.timeoutSuite", "3600000!");
+                // Override the suite timeout to 100 min (1h:40m) for windows, because it has the most inefficient filesystem known to man
+                // This choice of 100min was chosen based on a test that took 87 minutes on Windows for DocsClientYamlTestSuiteIT on 8.19
+                test.systemProperty("tests.timeoutSuite", "6000000!");
             }
 
             /*
@@ -267,13 +274,23 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             // patch immutable collections only for "test" task
             FileCollection patchedImmutableCollections = test.getName().equals("test") ? patchedImmutableCollections(project) : null;
             if (patchedImmutableCollections != null) {
-                test.getInputs().files(patchedImmutableCollections);
+                // NAME_ONLY: only the patch content matters, the location is passed via a non-input argument provider.
+                // An absolute-path-sensitive input here would key the cache entry to the checkout location.
+                test.getInputs()
+                    .files(patchedImmutableCollections)
+                    .withPropertyName("patchedImmutableCollections")
+                    .withPathSensitivity(PathSensitivity.NAME_ONLY);
                 test.systemProperty("tests.hackImmutableCollections", "true");
             }
 
             FileCollection entitlementBridge = TEST_TASKS_WITH_ENTITLEMENTS.contains(test.getName()) ? entitlementBridge(project) : null;
             if (entitlementBridge != null) {
-                test.getInputs().files(entitlementBridge);
+                // Classpath normalization so the JAR manifest (which embeds a build timestamp) is ignored,
+                // via the rules in ElasticsearchJavaBasePlugin#configureInputNormalization.
+                test.getInputs()
+                    .files(entitlementBridge)
+                    .withPropertyName("entitlementBridgeJavaBasePatch")
+                    .withNormalizer(ClasspathNormalizer.class);
             }
 
             test.getJvmArgumentProviders().add(() -> {
@@ -333,7 +350,6 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 deps -> { deps.add(project.getDependencies().project(Map.of("path", ":libs:entitlement:bridge"))); }
             );
         }
-        FileCollection bridgeFiles = bridgeConfig;
 
         project.getTasks()
             .withType(Test.class)
@@ -344,13 +360,20 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                     .getByType(SystemPropertyCommandLineArgumentProvider.class);
 
                 // Agent
-                test.getInputs().files(agentFiles).optional(true);
+                test.getInputs()
+                    .files(agentFiles)
+                    .optional(true)
+                    .withPropertyName("entitlementAgent")
+                    .withNormalizer(ClasspathNormalizer.class);
                 nonInputSystemProperties.systemProperty("es.entitlement.agentJar", agentFiles::getAsPath);
                 nonInputSystemProperties.systemProperty("jdk.attach.allowAttachSelf", () -> agentFiles.isEmpty() ? "false" : "true");
 
                 // Bridge
+                // The bridge jar is already declared as a task input in configureJavaBaseModuleOptions (property
+                // "entitlementBridgeJavaBasePatch"), where it is patched into java.base. Registering the same
+                // configuration as an input again here would only fingerprint identical content under a second
+                // property name, so we don't.
                 String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net,jdk.zipfs";
-                test.getInputs().files(bridgeFiles).optional(true);
                 // Tests may not be modular, but the JDK still is
                 test.jvmArgs(
                     "--add-exports=java.base/org.elasticsearch.entitlement.bridge=ALL-UNNAMED,"

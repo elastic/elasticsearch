@@ -13,8 +13,6 @@ import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.DirectAccessInput;
-import org.elasticsearch.foreign.CloseableByteBuffer;
-import org.elasticsearch.nativeaccess.NativeAccess;
 
 import java.io.IOException;
 import java.lang.foreign.Arena;
@@ -23,8 +21,8 @@ import java.lang.foreign.ValueLayout;
 
 /**
  * A test utility that wraps an {@link IndexInput} and implements {@link DirectAccessInput},
- * serving direct {@link MemorySegment} slices backed by {@link CloseableByteBuffer} for
- * deterministic native memory management. The buffers are allocated via {@link NativeAccess}
+ * serving direct {@link MemorySegment} slices backed by a confined {@link Arena} for
+ * deterministic native memory management. The arena is allocated per call
  * and freed eagerly when the action completes.
  */
 public class DirectAccessIndexInput extends FilterIndexInput implements DirectAccessInput {

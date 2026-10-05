@@ -35,11 +35,14 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Builds the OpenTelemetry {@link Resource} attached to every metric, span and log this node exports.
+ * Builds the OpenTelemetry {@link Resource} attached to metrics and spans exported by the OTel SDK.
  *
- * <p>It reproduces the host, OS, process, Kubernetes, container and environment attributes,
- * so APM Server maps them to the same ECS fields. Operators can add or override attributes via the
+ * <p>It reproduces the host, OS, process, Kubernetes, container and environment attributes
+ * expected by APM Server. Operators can add or override attributes via the
  * {@code telemetry.resource.*} setting ({@link OtelSdkSettings#TELEMETRY_RESOURCE_ATTRIBUTES}).
+ *
+ * <p>Log records do not use this resource; their delivery pipeline requires a much narrower one, built
+ * by {@link OtelSdkExportLogsSupplier#logDeliveryResource(String)}.
  */
 final class OtelSdkResource {
 

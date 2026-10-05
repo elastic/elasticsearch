@@ -74,10 +74,11 @@ public class NodeTranslogBuffer implements Releasable {
     }
 
     /**
-     * Returns true if the write to the buffer succeeded. Otherwise, this buffer has been closed for writing and the user must try again
+     * Appends a record carrying one or more operations ({@code seqNos} has one entry per operation).
+     * Returns true if the write to the buffer succeeded. Otherwise, this buffer has been closed for writing and the caller must try again
      * on the next node buffer.
      */
-    boolean writeToBuffer(ShardSyncState shardSyncState, Translog.Serialized operation, long seqNo, Translog.Location location)
+    boolean writeToBuffer(ShardSyncState shardSyncState, Translog.Serialized operation, long[] seqNos, Translog.Location location)
         throws IOException {
         if (semaphore.tryAcquire()) {
             try {
@@ -94,7 +95,7 @@ public class NodeTranslogBuffer implements Releasable {
                         new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler())
                     )
                 );
-                shardBuffer.append(operation, seqNo, location);
+                shardBuffer.append(operation, seqNos, location);
                 bufferSize.getAndAdd(operation.length());
             } finally {
                 semaphore.release();
@@ -227,12 +228,14 @@ public class NodeTranslogBuffer implements Releasable {
             this.seqNos = new LongArrayList();
         }
 
-        private void append(Translog.Serialized operation, long seqNo, Translog.Location location) throws IOException {
+        private void append(Translog.Serialized operation, long[] seqNos, Translog.Location location) throws IOException {
             operation.writeToTranslogBuffer(buffer);
-            seqNos.add(seqNo);
-            minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
-            maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
-            totalOps++;
+            for (long seqNo : seqNos) {
+                this.seqNos.add(seqNo);
+                minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
+                maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
+            }
+            totalOps += seqNos.length;
             this.location = location;
         }
 

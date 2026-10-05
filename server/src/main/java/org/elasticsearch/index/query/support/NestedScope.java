@@ -9,9 +9,12 @@
 
 package org.elasticsearch.index.query.support;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 
+import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.LinkedList;
 
@@ -43,6 +46,29 @@ public final class NestedScope {
      */
     public ObjectMapper previousLevel() {
         return levelStack.pop();
+    }
+
+    /**
+     * Temporarily makes {@code level} the current nested level.
+     *
+     * @param level an ancestor of the current level, or {@code null} for the root document space
+     * @return a {@link Releasable} that restores the levels that were unwound
+     */
+    public Releasable unwindTo(@Nullable NestedObjectMapper level) {
+        if (levelStack.peek() == level) {
+            return () -> {};
+        }
+
+        Deque<NestedObjectMapper> unwound = new ArrayDeque<>();
+        while (levelStack.isEmpty() == false && levelStack.peek() != level) {
+            unwound.push(levelStack.pop());
+        }
+        assert levelStack.peek() == level : "[" + level + "] is not an ancestor of the current nested level";
+        return () -> {
+            while (unwound.isEmpty() == false) {
+                levelStack.push(unwound.pop());
+            }
+        };
     }
 
 }

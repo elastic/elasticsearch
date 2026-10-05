@@ -154,6 +154,7 @@ public class AzureAiStudioService extends SenderService<AzureAiStudioModel> impl
             List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
                 inputs,
                 EMBEDDING_MAX_BATCH_SIZE,
+                getRegexReadLimitFactor(),
                 baseAzureAiStudioModel.getConfigurations().getChunkingSettings()
             ).batchRequestsWithListeners(listener);
 

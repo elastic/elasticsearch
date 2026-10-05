@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigUtils;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -35,6 +36,7 @@ public class CompositeAggregationDataExtractorFactory implements DataExtractorFa
     private final QueryBuilder extraFilters;
     private final Job job;
     private final DatafeedTimingStatsReporter timingStatsReporter;
+    private final DatafeedSearchTelemetry searchTelemetry;
     private final String compositeAggName;
     private final Collection<AggregationBuilder> subAggs;
     private final Collection<PipelineAggregationBuilder> subPipelineAggs;
@@ -51,6 +53,7 @@ public class CompositeAggregationDataExtractorFactory implements DataExtractorFa
         Job job,
         NamedXContentRegistry xContentRegistry,
         DatafeedTimingStatsReporter timingStatsReporter,
+        DatafeedSearchTelemetry searchTelemetry,
         AggregatedSearchRequestBuilder requestBuilder
     ) {
         this.client = Objects.requireNonNull(client);
@@ -58,6 +61,7 @@ public class CompositeAggregationDataExtractorFactory implements DataExtractorFa
         this.extraFilters = extraFilters;
         this.job = Objects.requireNonNull(job);
         this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
+        this.searchTelemetry = Objects.requireNonNull(searchTelemetry);
         this.parsedQuery = datafeedConfig.getParsedQuery(xContentRegistry);
         AggregationBuilder aggregationBuilder = DatafeedConfigUtils.getHistogramAggregation(
             datafeedConfig.getParsedAggregations(xContentRegistry).getAggregatorFactories()
@@ -128,6 +132,7 @@ public class CompositeAggregationDataExtractorFactory implements DataExtractorFa
             client,
             dataExtractorContext,
             timingStatsReporter,
+            searchTelemetry,
             requestBuilder
         );
     }

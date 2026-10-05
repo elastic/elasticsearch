@@ -131,7 +131,19 @@ public final class Alias extends NamedExpression {
     public Attribute toAttribute() {
         if (lazyAttribute == null) {
             lazyAttribute = resolved()
-                ? new ReferenceAttribute(source(), null, name(), dataType(), nullable(), id(), synthetic())
+                // the values analyzer carries across the aliasing boundary just like the data type: covers
+                // EVAL t = TO_TEXT(...) (child is the TO_TEXT) as well as RENAME t AS u and EVAL u = t (child is an
+                // already-carrying reference)
+                ? new ReferenceAttribute(
+                    source(),
+                    null,
+                    name(),
+                    dataType(),
+                    nullable(),
+                    id(),
+                    synthetic(),
+                    AnalyzedTextExpression.valuesAnalyzerOf(child)
+                )
                 : new UnresolvedAttribute(source(), name());
         }
         return lazyAttribute;

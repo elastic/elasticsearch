@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.completion;
 
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.inference.completion.Tool;
@@ -101,7 +101,7 @@ public class AmazonBedrockChatCompletionEntityFactoryTests extends ESTestCase {
             var expectedToolChoice = new ToolChoiceString("any");
             var tools = List.of(new Tool("type", null));
 
-            var request = new UnifiedCompletionRequest(
+            var request = new UnifiedCompletionRequestBody(
                 expectedMessages,
                 expectedModel,
                 expectedMaxToken,
@@ -140,7 +140,7 @@ public class AmazonBedrockChatCompletionEntityFactoryTests extends ESTestCase {
 
             var content = new ContentString("content");
             var message = new Message(content, "user", null, null);
-            var request = new UnifiedCompletionRequest(List.of(message), "modelId", null, null, null, null, null, null);
+            var request = new UnifiedCompletionRequestBody(List.of(message), "modelId", null, null, null, null, null, null);
 
             var entity = AmazonBedrockChatCompletionEntityFactory.createEntity(model, request);
 
@@ -169,7 +169,7 @@ public class AmazonBedrockChatCompletionEntityFactoryTests extends ESTestCase {
 
             var content = new ContentString("content");
             var message = new Message(content, "user", null, null);
-            var request = new UnifiedCompletionRequest(
+            var request = new UnifiedCompletionRequestBody(
                 List.of(message),
                 "modelId",
                 requestMaxToken,
@@ -197,7 +197,7 @@ public class AmazonBedrockChatCompletionEntityFactoryTests extends ESTestCase {
 
             var content = new ContentString("content");
             var message = new Message(content, "user", null, null);
-            var request = new UnifiedCompletionRequest(List.of(message), "modelId", null, null, null, null, null, null);
+            var request = new UnifiedCompletionRequestBody(List.of(message), "modelId", null, null, null, null, null, null);
 
             var entity = AmazonBedrockChatCompletionEntityFactory.createEntity(model, request);
 

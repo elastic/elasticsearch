@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 
@@ -79,19 +78,6 @@ final class ConstantBlockDetection {
             }
         }
         return blockFactory.newConstantDoubleBlockWith(values[0], rows);
-    }
-
-    static Block tryConstantBytesRef(BytesRef[] values, int rows, BlockFactory blockFactory) {
-        if (rows <= 1) {
-            return blockFactory.newConstantBytesRefBlockWith(rows == 0 ? new BytesRef() : values[0], rows);
-        }
-        BytesRef first = values[0];
-        for (int i = 1; i < rows; i++) {
-            if (first.bytesEquals(values[i]) == false) {
-                return null;
-            }
-        }
-        return blockFactory.newConstantBytesRefBlockWith(new BytesRef(first.bytes, first.offset, first.length), rows);
     }
 
     static Block tryAllNull(BitSet nulls, int rows, BlockFactory blockFactory) {

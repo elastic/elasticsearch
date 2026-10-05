@@ -110,6 +110,15 @@ public final class IntBitmap implements BitmapValues {
         NumericUtils.intToSortableBytes(bitmap.last(), dest, 0);
     }
 
+    /**
+     * Whether the bitmap covers the inclusive range {@code [min, max]}, meaning it holds every value in
+     * that range.
+     */
+    @Override
+    public boolean coversRange(long min, long max) {
+        return bitmap.contains(min, max + 1);
+    }
+
     @Override
     public PeekableIterator iterator() {
         return new IntValuesIterator(bitmap.getIntIterator());

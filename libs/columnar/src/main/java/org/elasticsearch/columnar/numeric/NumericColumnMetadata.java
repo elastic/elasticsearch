@@ -11,6 +11,7 @@ package org.elasticsearch.columnar.numeric;
 
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
+import org.elasticsearch.columnar.ColumnMetadata;
 import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnIteratorMetadata;
@@ -19,14 +20,14 @@ import java.io.IOException;
 
 /**
  * Describes a numeric column — single- or multi-valued, in one format. Values live in one
- * ordinal-indexed, block-encoded store in the order they were written (never reordered). Two compact
+ * value-address-indexed, block-encoded store in the order they were written (never reordered). Two compact
  * {@code DirectMonotonic} tables address it:
  *
  * <ul>
  *   <li><b>block offsets</b> — the byte position of each value block; always present.</li>
- *   <li><b>value addresses</b> — the first value ordinal of each document, present only when the
+ *   <li><b>value addresses</b> — the first value address of each document, present only when the
  *       column is multi-valued ({@code numValues > numDocsWithField}). When every document has one
- *       value the table is dropped and a document's ordinal is its rank.</li>
+ *       value the table is dropped and a document's value address is its rank.</li>
  * </ul>
  *
  * Each table stores its data in the data file (read off-heap from the mapped input) and its small
@@ -48,7 +49,7 @@ public record NumericColumnMetadata(
     long valueAddressesDataLength,
     byte[] valueAddressesMeta,
     Skipper skipper
-) {
+) implements ColumnMetadata {
     private static final byte[] NONE = new byte[0];
 
     /** Descriptor of the default pipeline, stored on empty columns that serialize no block payload. */
@@ -57,10 +58,10 @@ public record NumericColumnMetadata(
 
     /**
      * The doc-values skip index for a range-indexed column: a multi-level structure of per-interval
-     * value bounds and doc-id ranges written into the data file, plus the column-wide summary. Present
+     * value bounds and doc-id ranges written into the skip-index file, plus the column-wide summary. Present
      * only when the field carries a range skip index.
      *
-     * @param dataOffset    start of the skip region in the data file
+     * @param dataOffset    start of the skip region in the skip-index file
      * @param dataLength    length of the skip region
      * @param minValue      smallest value in the column
      * @param maxValue      largest value in the column
@@ -145,11 +146,15 @@ public record NumericColumnMetadata(
         );
     }
 
-    /** True when at least one document has more than one value. */
-    public boolean multiValued() {
-        return numValues > numDocsWithField;
+    /**
+     * True when the column tables where each document's values begin. A caller that reads the column by
+     * value address does not need that table, and asks for none however many values a document has.
+     */
+    public boolean hasValueAddresses() {
+        return valueAddressesMeta != null && valueAddressesMeta.length > 0;
     }
 
+    @Override
     public void writeTo(DataOutput out) throws IOException {
         iterator.writeTo(out);
         out.writeVInt(numDocsWithField);
@@ -164,10 +169,11 @@ public record NumericColumnMetadata(
         out.writeBytes(transformIds, 0, transformIds.length);
         out.writeVLong(valuesOffset);
         writeTable(out, blockOffsetsDataOffset, blockOffsetsDataLength, blockOffsetsMeta);
-        if (multiValued()) {
+        writePresence(out, hasValueAddresses());
+        if (hasValueAddresses()) {
             writeTable(out, valueAddressesDataOffset, valueAddressesDataLength, valueAddressesMeta);
         }
-        out.writeByte((byte) (skipper != null ? 1 : 0));
+        writePresence(out, skipper != null);
         if (skipper != null) {
             skipper.writeTo(out);
         }
@@ -208,12 +214,12 @@ public record NumericColumnMetadata(
         long valueAddressesDataOffset = 0;
         long valueAddressesDataLength = 0;
         byte[] valueAddressesMeta = NONE;
-        if (numValues > numDocsWithField) {
+        if (readPresence(in)) {
             valueAddressesDataOffset = in.readVLong();
             valueAddressesDataLength = in.readVLong();
             valueAddressesMeta = readBytes(in);
         }
-        Skipper skipper = in.readByte() == 1 ? Skipper.readFrom(in) : null;
+        Skipper skipper = readPresence(in) ? Skipper.readFrom(in) : null;
         return new NumericColumnMetadata(
             iterator,
             numDocsWithField,
@@ -231,6 +237,15 @@ public record NumericColumnMetadata(
             valueAddressesMeta,
             skipper
         );
+    }
+
+    /** Whether the optional part that follows was written, so the two sides name the flag rather than spell it. */
+    private static void writePresence(DataOutput out, boolean present) throws IOException {
+        out.writeByte((byte) (present ? 1 : 0));
+    }
+
+    private static boolean readPresence(DataInput in) throws IOException {
+        return in.readByte() == 1;
     }
 
     private static void writeTable(DataOutput out, long dataOffset, long dataLength, byte[] meta) throws IOException {

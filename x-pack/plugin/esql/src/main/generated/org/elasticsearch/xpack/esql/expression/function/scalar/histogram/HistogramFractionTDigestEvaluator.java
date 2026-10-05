@@ -79,10 +79,11 @@ public final class HistogramFractionTDigestEvaluator implements ExpressionEvalua
       TDigestHolder histogramScratch = new TDigestHolder();
       DoubleRangeBlockBuilder.DoubleRange bucketScratch = new DoubleRangeBlockBuilder.DoubleRange();
       position: for (int p = 0; p < positionCount; p++) {
+        if (histogramBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (histogramBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -90,10 +91,11 @@ public final class HistogramFractionTDigestEvaluator implements ExpressionEvalua
               result.appendNull();
               continue position;
         }
+        if (bucketBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (bucketBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:

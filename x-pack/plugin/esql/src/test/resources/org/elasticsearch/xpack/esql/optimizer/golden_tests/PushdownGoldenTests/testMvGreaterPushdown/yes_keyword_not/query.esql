@@ -1,0 +1,3 @@
+    FROM all_types
+    | KEEP keyword
+    | WHERE NOT mv_greater(keyword, "m")

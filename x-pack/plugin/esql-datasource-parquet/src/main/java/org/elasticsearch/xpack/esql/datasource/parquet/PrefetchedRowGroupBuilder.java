@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Encoding;
@@ -30,14 +29,12 @@ import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
-import org.elasticsearch.compute.data.UninitializedArrays;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -47,17 +44,17 @@ import java.util.NavigableMap;
 import java.util.Set;
 
 /**
- * Builds a {@link PrefetchedPageReadStore} from prefetched (or, as a fallback, sync-fetched)
- * column chunk bytes for a single Parquet row group. Replaces parquet-mr's
- * {@code internalReadFilteredRowGroup} on the optimized iterator's read path: bytes for skipped
- * pages are never read, so filtered prefetch actually saves I/O end-to-end.
+ * Builds a {@link PrefetchedPageReadStore} from prefetched column chunk bytes for a single Parquet
+ * row group. Replaces parquet-mr's {@code internalReadFilteredRowGroup} on the optimized iterator's
+ * read path: bytes for skipped pages are never read, so filtered prefetch actually saves I/O
+ * end-to-end.
  *
  * <p>For each projected column:
  * <ul>
  *   <li><b>Filtered path</b> (rowRanges + offset index present): walk the offset index and pick
  *       the pages whose row span overlaps the selection; slice each page's bytes from the
  *       prefetched chunks and parse the page header from the slice prefix.</li>
- *   <li><b>Sequential path</b> (no offset index, or no row ranges, or no prefetched chunks):
+ *   <li><b>Sequential path</b> (no offset index or no row ranges):
  *       walk the column chunk linearly via {@link Util#readPageHeader(InputStream)} until
  *       {@code totalSize} bytes are consumed.</li>
  * </ul>
@@ -87,16 +84,12 @@ final class PrefetchedRowGroupBuilder {
      *            {@link ColumnIndexRowRangesComputer}; when {@code null} the entire row group
      *            is loaded
      * @param preloadedMetadata source of {@link OffsetIndex} entries for filtered-path columns
-     * @param prefetchedChunks coalesced byte ranges produced by {@link ColumnChunkPrefetcher},
-     *            keyed by file offset; {@code null} forces the sync fallback through
-     *            {@code storageObject}
-     * @param storageObject sync fallback used when {@code prefetchedChunks} is {@code null}
-     *            or when an individual column lacks an offset index in the filtered path
+     * @param prefetchedChunks non-null coalesced byte ranges produced by
+     *            {@link ColumnChunkPrefetcher}, keyed by file offset
      * @param codecFactory shared {@link PlainCompressionCodecFactory} used to build per-column
      *            decompressors
-     * @param allocator Arrow allocator used by {@link PrefetchedPageReader} to back native
-     *            decompression buffers; allocations are breaker-accounted via
-     *            {@code BlockFactory.arrowAllocator()}'s {@code CircuitBreakerAllocationListener}
+     * @param breaker request breaker used by {@link PrefetchedPageReader} to charge heap
+     *            decompression output for the current data page and cached dictionary
      */
     static PrefetchedPageReadStore build(
         BlockMetaData block,
@@ -106,10 +99,12 @@ final class PrefetchedRowGroupBuilder {
         RowRanges rowRanges,
         PreloadedRowGroupMetadata preloadedMetadata,
         NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> prefetchedChunks,
-        StorageObject storageObject,
         CompressionCodecFactory codecFactory,
-        BufferAllocator allocator
+        CircuitBreaker breaker
     ) {
+        if (prefetchedChunks == null) {
+            throw new IllegalArgumentException("prefetchedChunks must not be null");
+        }
         Map<String, ColumnDescriptor> descriptorsByPath = new HashMap<>();
         for (ColumnDescriptor desc : projectedSchema.getColumns()) {
             descriptorsByPath.put(String.join(".", desc.getPath()), desc);
@@ -143,10 +138,10 @@ final class PrefetchedRowGroupBuilder {
                 BytesInputDecompressor decompressor = codecFactory.getDecompressor(column.getCodec());
                 OffsetIndex offsetIndex = preloadedMetadata != null ? preloadedMetadata.getOffsetIndex(rowGroupOrdinal, path) : null;
 
-                ColumnPageBytesSource source = sourceFor(column, prefetchedChunks, storageObject, rowGroupOrdinal);
+                PrefetchedSource source = new PrefetchedSource(prefetchedChunks, rowGroupOrdinal);
                 PrimitiveType primitiveType = descriptor.getPrimitiveType();
                 PrefetchedPageReader reader;
-                if (rowRanges != null && offsetIndex != null && source.supportsRandomAccess()) {
+                if (rowRanges != null && offsetIndex != null) {
                     reader = buildFiltered(
                         column,
                         primitiveType,
@@ -155,15 +150,27 @@ final class PrefetchedRowGroupBuilder {
                         source,
                         block.getRowCount(),
                         decompressor,
-                        allocator,
+                        breaker,
                         rowGroupOrdinal
                     );
                 } else {
-                    reader = buildSequential(column, primitiveType, source, decompressor, allocator, rowGroupOrdinal);
+                    reader = buildSequential(column, primitiveType, source, decompressor, breaker, rowGroupOrdinal);
                 }
-                readers.put(descriptor, reader);
+                try {
+                    PrefetchedPageReader previous = readers.putIfAbsent(descriptor, reader);
+                    if (previous != null) {
+                        throw new IllegalArgumentException("Duplicate column [" + path + "] in row group [" + rowGroupOrdinal + "]");
+                    }
+                } catch (Throwable t) {
+                    try {
+                        reader.close();
+                    } catch (Throwable closeFailure) {
+                        t.addSuppressed(closeFailure);
+                    }
+                    throw t;
+                }
             }
-            PrefetchedPageReadStore store = new PrefetchedPageReadStore(readers, block.getRowCount());
+            PrefetchedPageReadStore store = new PrefetchedPageReadStore(readers, block.getRowCount(), rowRanges);
             success = true;
             return store;
         } finally {
@@ -196,13 +203,13 @@ final class PrefetchedRowGroupBuilder {
         PrimitiveType primitiveType,
         OffsetIndex offsetIndex,
         RowRanges rowRanges,
-        ColumnPageBytesSource source,
+        PrefetchedSource source,
         long rowGroupRowCount,
         BytesInputDecompressor decompressor,
-        BufferAllocator allocator,
+        CircuitBreaker breaker,
         int rowGroupOrdinal
     ) {
-        DictionaryPage dictPage = readDictionaryPageIfPresent(column, source, rowGroupOrdinal);
+        DictionaryPage dictPage = readDictionaryPageIfPresent(column, source, rowGroupOrdinal, offsetIndex);
         long valueCount = 0;
         List<PrefetchedPageReader.CompressedPage> pages = new ArrayList<>();
         int pageCount = offsetIndex.getPageCount();
@@ -229,26 +236,25 @@ final class PrefetchedRowGroupBuilder {
             pages.add(new PrefetchedPageReader.CompressedPage(decoded, pageStartRow));
             valueCount += decoded.getValueCount();
         }
-        return new PrefetchedPageReader(decompressor, allocator, pages, dictPage, valueCount);
+        return new PrefetchedPageReader(decompressor, breaker, pages, dictPage, valueCount);
     }
 
     /**
-     * Sequential path: walk the entire column chunk page-by-page until {@code totalSize} bytes
-     * are consumed. Used when no offset index is available, no row ranges were supplied, or
-     * the prefetched chunks could not satisfy the column.
+     * Sequential path: walk the fully prefetched column chunk page-by-page until every value is
+     * covered. Used when no offset index is available or no row ranges were supplied.
      */
     private static PrefetchedPageReader buildSequential(
         ColumnChunkMetaData column,
         PrimitiveType primitiveType,
-        ColumnPageBytesSource source,
+        PrefetchedSource source,
         BytesInputDecompressor decompressor,
-        BufferAllocator allocator,
+        CircuitBreaker breaker,
         int rowGroupOrdinal
     ) {
         long startingPos = column.getStartingPos();
         long totalSize = column.getTotalSize();
         long totalValues = column.getValueCount();
-        try (PageHeaderStream stream = source.openStream(startingPos, totalSize, column.getPath().toDotString())) {
+        try (ByteBufferPageHeaderStream stream = source.openStream(startingPos, totalSize, column.getPath().toDotString())) {
             DictionaryPage dictPage = null;
             long valueCount = 0;
             List<PrefetchedPageReader.CompressedPage> pages = new ArrayList<>();
@@ -282,36 +288,29 @@ final class PrefetchedRowGroupBuilder {
                     valueCount += page.getValueCount();
                 }
             }
-            return new PrefetchedPageReader(decompressor, allocator, pages, dictPage, valueCount);
+            return new PrefetchedPageReader(decompressor, breaker, pages, dictPage, valueCount);
         } catch (IOException e) {
-            throw new IllegalArgumentException(
-                "Failed to read column [" + column.getPath().toDotString() + "] in row group [" + rowGroupOrdinal + "]: " + e.getMessage(),
-                e
+            throw ParquetReadFailures.wrap(
+                e,
+                "Failed to read column [" + column.getPath().toDotString() + "] in row group [" + rowGroupOrdinal + "]"
             );
         }
     }
 
     private static DictionaryPage readDictionaryPageIfPresent(
         ColumnChunkMetaData column,
-        ColumnPageBytesSource source,
-        int rowGroupOrdinal
+        PrefetchedSource source,
+        int rowGroupOrdinal,
+        OffsetIndex offsetIndex
     ) {
-        if (column.hasDictionaryPage() == false) {
+        if (offsetIndex.getPageCount() <= 0) {
             return null;
         }
-        long dictOffset = column.getDictionaryPageOffset();
-        // The dictionary slice extends from dictOffset up to the first data page; the prefetcher
-        // includes the whole [dictOffset, firstDataPageOffset) span so the slice is safe. We
-        // always use getFirstDataPageOffset() rather than getStartingPos() because (a) when the
-        // dictionary precedes the data, getStartingPos() returns the dictionary offset (which
-        // would yield a 0-byte span here), and (b) we need the data-page boundary as the upper
-        // bound of the dictionary slice regardless.
-        long firstDataOffset = column.getFirstDataPageOffset();
-        long dictSpan = firstDataOffset - dictOffset;
-        if (dictSpan <= 0) {
+        CoalescedRangeReader.ByteRange dictRange = ColumnChunkPrefetcher.dictionaryPageRange(column, offsetIndex.getOffset(0));
+        if (dictRange == null) {
             return null;
         }
-        ByteBuffer dictSlice = source.slice(dictOffset, (int) dictSpan, column.getPath().toDotString(), -1);
+        ByteBuffer dictSlice = source.slice(dictRange.offset(), (int) dictRange.length(), column.getPath().toDotString(), -1);
         InputStream stream = bufferAsStream(dictSlice);
         try {
             int before = stream.available();
@@ -322,7 +321,7 @@ final class PrefetchedRowGroupBuilder {
             if (header.type != PageType.DICTIONARY_PAGE) {
                 throw new IllegalStateException(
                     "Expected dictionary page at offset ["
-                        + dictOffset
+                        + dictRange.offset()
                         + "] for column ["
                         + column.getPath().toDotString()
                         + "] in row group ["
@@ -334,13 +333,9 @@ final class PrefetchedRowGroupBuilder {
             }
             return makeDictionaryPage(header, payload);
         } catch (IOException e) {
-            throw new UncheckedIOException(
-                "Failed to parse dictionary page for column ["
-                    + column.getPath().toDotString()
-                    + "] in row group ["
-                    + rowGroupOrdinal
-                    + "]",
-                e
+            throw ParquetReadFailures.wrap(
+                e,
+                "Failed to parse dictionary page for column [" + column.getPath().toDotString() + "] in row group [" + rowGroupOrdinal + "]"
             );
         }
     }
@@ -362,9 +357,9 @@ final class PrefetchedRowGroupBuilder {
             ByteBuffer payload = sliceFromBuffer(pageSlice, headerLen, compressedPageSize);
             return makeDataPage(header, payload, primitiveType, firstRowIndex, indexRowCount);
         } catch (IOException e) {
-            throw new UncheckedIOException(
-                "Failed to parse page header for column [" + path + "] in row group [" + rowGroupOrdinal + "]: " + e.getMessage(),
-                e
+            throw ParquetReadFailures.wrap(
+                e,
+                "Failed to parse page header for column [" + path + "] in row group [" + rowGroupOrdinal + "]"
             );
         }
     }
@@ -442,51 +437,15 @@ final class PrefetchedRowGroupBuilder {
     private static DictionaryPage makeDictionaryPage(PageHeader header, ByteBuffer payload) {
         DictionaryPageHeader dph = header.dictionary_page_header;
         Encoding encoding = METADATA_CONVERTER.getEncoding(dph.encoding);
-        // Eagerly copy compressed bytes to a heap byte[]. The payload may alias a PrefetchedChunk's
-        // direct buffer, which can be released before PrefetchedPageReader.readDictionaryPage()
-        // decompresses it. Reading from a freed buffer produces garbage bytes; zstd then sees a
-        // srcSize that doesn't match the actual frame and returns ZSTD_error_srcSize_wrong.
-        byte[] compressedBytes = new byte[payload.remaining()];
-        payload.get(compressedBytes);
-        return new DictionaryPage(BytesInput.from(compressedBytes), header.uncompressed_page_size, dph.num_values, encoding);
-    }
-
-    private static ColumnPageBytesSource sourceFor(
-        ColumnChunkMetaData column,
-        NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks,
-        StorageObject storageObject,
-        int rowGroupOrdinal
-    ) {
-        if (chunks != null) {
-            return new PrefetchedSource(chunks, rowGroupOrdinal);
-        }
-        if (storageObject == null) {
-            throw new IllegalStateException(
-                "No prefetched data and no storage object available for column ["
-                    + column.getPath().toDotString()
-                    + "] in row group ["
-                    + rowGroupOrdinal
-                    + "]"
-            );
-        }
-        return new StorageObjectSource(storageObject, rowGroupOrdinal);
+        // PrefetchedPageReader takes the breaker-accounted defensive copy. Keep this page as a
+        // zero-copy alias until construction so the charge always precedes the allocation.
+        return new DictionaryPage(bytesInputFrom(payload), header.uncompressed_page_size, dph.num_values, encoding);
     }
 
     /**
-     * Source of column page bytes. Two implementations: prefetched (random-access slices into
-     * direct buffers — {@link ColumnChunkPrefetcher} promotes any heap buffer returned by
-     * {@code readBytesAsync} to direct) and storage-object (sequential streaming with no random
-     * access).
+     * Random-access source of column page bytes backed by breaker-accounted prefetched chunks.
      */
-    private interface ColumnPageBytesSource {
-        ByteBuffer slice(long fileOffset, int length, String columnPath, int pageIndex);
-
-        boolean supportsRandomAccess();
-
-        PageHeaderStream openStream(long fileOffset, long totalLength, String columnPath) throws IOException;
-    }
-
-    private static final class PrefetchedSource implements ColumnPageBytesSource {
+    private static final class PrefetchedSource {
         private final NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks;
         private final int rowGroupOrdinal;
 
@@ -495,8 +454,7 @@ final class PrefetchedRowGroupBuilder {
             this.rowGroupOrdinal = rowGroupOrdinal;
         }
 
-        @Override
-        public ByteBuffer slice(long fileOffset, int length, String columnPath, int pageIndex) {
+        ByteBuffer slice(long fileOffset, int length, String columnPath, int pageIndex) {
             Map.Entry<Long, ColumnChunkPrefetcher.PrefetchedChunk> entry = chunks.floorEntry(fileOffset);
             if (entry == null || entry.getValue().covers(fileOffset, length) == false) {
                 throw new IllegalStateException(
@@ -520,62 +478,17 @@ final class PrefetchedRowGroupBuilder {
             return src.slice();
         }
 
-        @Override
-        public boolean supportsRandomAccess() {
-            return true;
-        }
-
-        @Override
-        public PageHeaderStream openStream(long fileOffset, long totalLength, String columnPath) {
+        ByteBufferPageHeaderStream openStream(long fileOffset, long totalLength, String columnPath) {
             ByteBuffer slice = slice(fileOffset, (int) totalLength, columnPath, -1);
             return new ByteBufferPageHeaderStream(slice);
         }
-    }
-
-    private static final class StorageObjectSource implements ColumnPageBytesSource {
-        private final StorageObject storageObject;
-        private final int rowGroupOrdinal;
-
-        StorageObjectSource(StorageObject storageObject, int rowGroupOrdinal) {
-            this.storageObject = storageObject;
-            this.rowGroupOrdinal = rowGroupOrdinal;
-        }
-
-        @Override
-        public ByteBuffer slice(long fileOffset, int length, String columnPath, int pageIndex) {
-            // Filtered path requires random access into prefetched data; without prefetched chunks
-            // we always take the sequential path and never hit this method.
-            throw new UnsupportedOperationException(
-                "StorageObjectSource does not support random-access slicing (column=" + columnPath + " rowGroup=" + rowGroupOrdinal + ")"
-            );
-        }
-
-        @Override
-        public boolean supportsRandomAccess() {
-            return false;
-        }
-
-        @Override
-        public PageHeaderStream openStream(long fileOffset, long totalLength, String columnPath) throws IOException {
-            return new InputStreamPageHeaderStream(storageObject.newStream(fileOffset, totalLength), totalLength);
-        }
-    }
-
-    /**
-     * {@link InputStream} that supports a cheap {@link #readPayload(int)} for the data
-     * immediately following a parsed {@code PageHeader}. The two implementations below either
-     * slice an in-memory buffer directly (zero-copy) or copy from the upstream delegate into
-     * a fresh heap buffer.
-     */
-    private abstract static class PageHeaderStream extends InputStream {
-        abstract ByteBuffer readPayload(int length) throws IOException;
     }
 
     /**
      * Pure in-memory variant: wraps a prefetched buffer and reads page headers + payloads via
      * cursor advance, no I/O at all.
      */
-    private static final class ByteBufferPageHeaderStream extends PageHeaderStream {
+    private static final class ByteBufferPageHeaderStream extends InputStream {
         private final ByteBuffer buffer;
 
         ByteBufferPageHeaderStream(ByteBuffer buffer) {
@@ -609,7 +522,6 @@ final class PrefetchedRowGroupBuilder {
             return buffer.remaining();
         }
 
-        @Override
         ByteBuffer readPayload(int length) {
             if (buffer.remaining() < length) {
                 throw new IllegalStateException("Need " + length + " payload bytes but only " + buffer.remaining() + " remain");
@@ -622,63 +534,6 @@ final class PrefetchedRowGroupBuilder {
 
         @Override
         public void close() {}
-    }
-
-    /**
-     * Sync fallback variant: reads page headers from the underlying input stream and copies the
-     * subsequent payload into a heap buffer (we have no random-access view of the column).
-     */
-    private static final class InputStreamPageHeaderStream extends PageHeaderStream {
-        private final InputStream delegate;
-        private long remaining;
-
-        InputStreamPageHeaderStream(InputStream delegate, long totalLength) {
-            this.delegate = delegate;
-            this.remaining = totalLength;
-        }
-
-        @Override
-        public int read() throws IOException {
-            int b = delegate.read();
-            if (b >= 0) {
-                remaining--;
-            }
-            return b;
-        }
-
-        @Override
-        public int read(byte[] b, int off, int len) throws IOException {
-            int n = delegate.read(b, off, len);
-            if (n > 0) {
-                remaining -= n;
-            }
-            return n;
-        }
-
-        @Override
-        public int available() throws IOException {
-            return (int) Math.min(Integer.MAX_VALUE, Math.max(0, remaining));
-        }
-
-        @Override
-        ByteBuffer readPayload(int length) throws IOException {
-            byte[] buf = UninitializedArrays.newByteArray(length);
-            int total = 0;
-            while (total < length) {
-                int n = delegate.read(buf, total, length - total);
-                if (n < 0) {
-                    throw new IOException("Unexpected end of stream after " + total + " of " + length + " payload bytes");
-                }
-                total += n;
-            }
-            remaining -= length;
-            return ByteBuffer.wrap(buf);
-        }
-
-        @Override
-        public void close() throws IOException {
-            delegate.close();
-        }
     }
 
     // ---------------- ByteBuffer / BytesInput helpers ----------------
@@ -704,8 +559,8 @@ final class PrefetchedRowGroupBuilder {
         if (buffer.hasArray()) {
             return BytesInput.from(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
         }
-        // Direct buffer: wrap as-is so decompressToDirectBuffer sees isDirect()==true and skips
-        // the heap→direct copy that would otherwise fire per page.
+        // Direct buffer: wrap as-is so uncompressed pages alias I/O (no copy). Compressed codecs
+        // see the original slice. This fall-through is for allocator-backed test buffers.
         return BytesInput.from(buffer.duplicate());
     }
 

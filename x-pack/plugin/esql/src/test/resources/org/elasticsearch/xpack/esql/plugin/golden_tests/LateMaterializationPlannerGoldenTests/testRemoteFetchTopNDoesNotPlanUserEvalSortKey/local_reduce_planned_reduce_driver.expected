@@ -1,0 +1,5 @@
+ExchangeSinkExec[[emp_no{f}#0, adjusted_salary{r}#1],false]
+\_ProjectExec[[emp_no{f}#0, adjusted_salary{r}#1]]
+  \_FieldExtractExec[[emp_no{f}#0]<[],[],[]>,_doc{f}#2]
+    \_TopNExec[[Order[adjusted_salary{r}#1,ASC,LAST]],20[INTEGER],28]
+      \_ExchangeSourceExec[[_doc{f}#2, adjusted_salary{r}#1],false]

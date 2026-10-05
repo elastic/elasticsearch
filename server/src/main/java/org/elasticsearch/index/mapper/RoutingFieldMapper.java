@@ -14,14 +14,12 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
@@ -35,6 +33,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.SortedSetDocValuesStringFieldScript;
@@ -146,7 +145,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
             if (indexType.hasDocValues()) {
-                return SortedDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
+                return XSortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
             } else {
                 return super.termQuery(value, context);
             }
@@ -173,7 +172,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         ) {
             failIfNotIndexedNorDocValuesFallback(context);
             if (indexType.hasDocValues()) {
-                return SortedDocValuesField.newSlowRangeQuery(
+                return XSortedSetDocValuesRangeQuery.newSlowRangeQuery(
                     name(),
                     lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
                     upperTerm == null ? null : indexedValueForSearch(upperTerm),
@@ -254,8 +253,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
                 if (caseInsensitive == false) {
                     Term term = new Term(name(), value);
                     if (context.getCircuitBreaker() != null) {
-                        Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
-                        return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
+                        return docValuesWildcardQuery(term, context);
                     }
                     return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
@@ -281,14 +279,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
                 value = AutomatonQueries.collapseConsecutiveQuantifiers(value);
                 Term term = new Term(name(), indexedValueForSearch(value));
                 if (context.getCircuitBreaker() != null) {
-                    Automaton dfa = AutomatonQueries.toRegexpAutomaton(
-                        term,
-                        syntaxFlags,
-                        matchFlags,
-                        maxDeterminizedStates,
-                        context.getCircuitBreaker()
-                    );
-                    return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
+                    return docValuesRegexpQuery(term, syntaxFlags, matchFlags, maxDeterminizedStates, context);
                 }
                 return new RegexpQuery(
                     term,
@@ -402,7 +393,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     private static final IndexableFieldType ROUTING_DV_FIELD_TYPE = SortedDocValuesField.indexedField("", new BytesRef()).fieldType();
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         return true;
     }
 

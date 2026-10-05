@@ -45,7 +45,8 @@ public class MetricValidator {
         "size",
         "utilization",
         "histogram",
-        "time"
+        "time",
+        "duration"
     );
 
     /**
@@ -105,7 +106,7 @@ public class MetricValidator {
          *
          * See https://opentelemetry.io/docs/specs/semconv/registry/attributes
          */
-        static final Set<String> OTEL_ATTRIBUTES = Set.of(MetricAttributes.ERROR_TYPE);
+        static final Set<String> OTEL_ATTRIBUTES = Set.of(MetricAttributes.ERROR_TYPE, "http.response.status_code");
 
         /**
          * Routing attribute consumed by apm-server to direct a datapoint to a specific data stream
@@ -239,6 +240,8 @@ public class MetricValidator {
             Map.entry("es.repositories.snapshots.shards.duration.histogram", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.shards.queue_time.histogram", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.shards.started.total", REPO_SNAPSHOT_ATTRIBUTES),
+            Map.entry("es.repositories.snapshots.shards.unsuccessful.histogram", REPO_SNAPSHOT_ATTRIBUTES),
+            Map.entry("es.repositories.snapshots.shards.unsuccessful.total", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.started.total", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.upload.bytes.total", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.upload.read_time.total", REPO_SNAPSHOT_ATTRIBUTES),

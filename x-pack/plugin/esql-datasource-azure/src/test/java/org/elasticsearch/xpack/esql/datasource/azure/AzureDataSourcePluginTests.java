@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.esql.datasource.azure;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderServices;
 
@@ -58,6 +60,15 @@ public class AzureDataSourcePluginTests extends ESTestCase {
 
         assertTrue("should register the azure validator", validators.containsKey("azure"));
         assertEquals("should register exactly 1 validator", 1, validators.size());
+    }
+
+    public void testSchemeFoldAgreesWithTypeId() {
+        assumeTrue("requires Azure feature flag", azureEnabled());
+        AzureDataSourcePlugin plugin = new AzureDataSourcePlugin();
+        String typeId = plugin.datasourceValidators(Settings.EMPTY).keySet().iterator().next();
+        for (String scheme : plugin.supportedSchemes()) {
+            assertSame(Type.fromTypeId(typeId), Type.fromScheme(scheme));
+        }
     }
 
     public void testDisabledWhenFeatureFlagOff() {
@@ -111,5 +122,10 @@ public class AzureDataSourcePluginTests extends ESTestCase {
         assertNotNull(wasbsFactory);
         assertNotNull(wasbFactory);
         assertEquals(wasbsFactory, wasbFactory);
+    }
+
+    public void testSchemesAreRejectedBySafeForUserMessage() {
+        assertFalse(ExternalFailures.safeForUserMessage("wasbs://account.blob.core.windows.net/container/file.parquet"));
+        assertFalse(ExternalFailures.safeForUserMessage("wasb://account.blob.core.windows.net/container/file.parquet"));
     }
 }

@@ -17,12 +17,17 @@ import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.Instant;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -48,7 +53,7 @@ public class S3RequestCountingTests extends ESTestCase {
 
     private void stubHeadResponse() {
         when(mockS3.headObject(any(HeadObjectRequest.class))).thenReturn(
-            HeadObjectResponse.builder().contentLength(FILE_SIZE).lastModified(LAST_MODIFIED).build()
+            HeadObjectResponse.builder().contentLength(FILE_SIZE).lastModified(LAST_MODIFIED).eTag("\"gen-1\"").build()
         );
     }
 
@@ -119,8 +124,9 @@ public class S3RequestCountingTests extends ESTestCase {
     }
 
     /**
-     * newStream(pos, length) increments {@link StorageObjectMetrics} request counters and records
-     * the requested byte count.
+     * newStream(pos, length) increments {@link StorageObjectMetrics} request counters. Close with
+     * leftover at or below {@link TransientTypingInputStream#MAX_TRAILING_DRAIN_BYTES} drains the
+     * remainder and books those received bytes.
      */
     public void testRangeNewStreamIncrementsMetrics() throws IOException {
         long rangeBytes = 1024L;
@@ -133,6 +139,8 @@ public class S3RequestCountingTests extends ESTestCase {
             new ResponseInputStream<>(resp, AbortableInputStream.create(new ByteArrayInputStream(new byte[(int) rangeBytes])))
         );
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH, FILE_SIZE);
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        obj.attachMetrics(new ExternalSourceMetrics(registry), "s3");
 
         assertEquals(0L, obj.metrics().requestCount());
         obj.newStream(0, rangeBytes).close();
@@ -140,8 +148,33 @@ public class S3RequestCountingTests extends ESTestCase {
         StorageObjectMetrics metrics = obj.metrics();
         assertEquals(1L, metrics.requestCount());
         assertEquals(rangeBytes, metrics.bytesRead());
+        assertEquals("close-with-no-read must publish drained leftover to APM", rangeBytes, apmBytesReadTotal(registry));
         assertTrue("requestNanos should be > 0", metrics.requestNanos() > 0);
         assertEquals(0L, metrics.retryCount());
+    }
+
+    public void testRangeNewStreamDrainThenAbortCountsReceivedBytes() throws IOException {
+        long rangeBytes = 1024L;
+        int drained = 17;
+        GetObjectResponse resp = GetObjectResponse.builder()
+            .contentRange("bytes 0-" + (rangeBytes - 1) + "/" + FILE_SIZE)
+            .contentLength(rangeBytes)
+            .lastModified(LAST_MODIFIED)
+            .build();
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenReturn(
+            new ResponseInputStream<>(resp, AbortableInputStream.create(new ByteArrayInputStream(new byte[(int) rangeBytes])))
+        );
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH, FILE_SIZE);
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        obj.attachMetrics(new ExternalSourceMetrics(registry), "s3");
+        InputStream stream = obj.newStream(0, rangeBytes);
+        assertEquals(drained, stream.read(new byte[drained]));
+        obj.abortStream(stream);
+
+        StorageObjectMetrics metrics = obj.metrics();
+        assertEquals(1L, metrics.requestCount());
+        assertEquals(drained, metrics.bytesRead());
+        assertEquals("abort skips leftover; APM matches drained bytes", drained, apmBytesReadTotal(registry));
     }
 
     /**
@@ -249,7 +282,11 @@ public class S3RequestCountingTests extends ESTestCase {
      * falls back to HEAD for the full metadata.
      */
     public void testMissingContentRangeFallsBackToHead() throws IOException {
-        GetObjectResponse noContentRange = GetObjectResponse.builder().contentLength(1L).lastModified(LAST_MODIFIED).build();
+        GetObjectResponse noContentRange = GetObjectResponse.builder()
+            .contentLength(1L)
+            .lastModified(LAST_MODIFIED)
+            .eTag("\"gen-1\"")
+            .build();
         when(mockS3.getObject(any(GetObjectRequest.class))).thenReturn(
             new ResponseInputStream<>(noContentRange, AbortableInputStream.create(new ByteArrayInputStream(new byte[] { 0 })))
         );
@@ -262,5 +299,13 @@ public class S3RequestCountingTests extends ESTestCase {
         assertTrue(obj.exists());
         verify(mockS3, times(1)).getObject(any(GetObjectRequest.class));
         verify(mockS3, times(1)).headObject(any(HeadObjectRequest.class));
+    }
+
+    private static long apmBytesReadTotal(RecordingMeterRegistry registry) {
+        return registry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_BYTES_READ_TOTAL)
+            .stream()
+            .mapToLong(Measurement::getLong)
+            .sum();
     }
 }

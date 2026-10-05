@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexingOperationListener;
@@ -272,8 +273,41 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         postOperation(delete, result);
     }
 
+    @Override
+    public IndexOperationBatch preIndexBatch(ShardId shardId, IndexOperationBatch batch) {
+        // no per-batch pre-work; overridden to avoid the delegating to default
+        return batch;
+    }
+
+    /**
+     * Batch equivalent of {@link #postIndex(ShardId, Engine.Index, Engine.IndexResult)} call: one
+     * bytes-written record and one segment-writing check per batch, without materializing per-operation
+     * {@link Engine.Index} instances.
+     * <p>
+     * TODO: this overestimates when some docs fail — failed docs did not contribute to the Lucene
+     *  commit, but their bytes are still counted. A future BatchResult abstraction should carry a
+     *  success-only byte count to allow precise accounting.
+     */
+    @Override
+    public void postIndexBatch(ShardId shardId, IndexOperationBatch batch, List<Engine.IndexResult> results) {
+        final int totalBytes = batch.estimatedBytes();
+        if (totalBytes > 0) {
+            statusChecker.bytesWritten(totalBytes);
+        }
+        writePendingIndexingBuffersOnIndexingThread();
+    }
+
+    @Override
+    public void postIndexBatch(ShardId shardId, IndexOperationBatch batch, Exception ex) {
+        // engine level failure: nothing was written; overridden to avoid the delegating to default
+    }
+
     private void postOperation(Engine.Operation operation, Engine.Result result) {
         recordOperationBytes(operation, result);
+        writePendingIndexingBuffersOnIndexingThread();
+    }
+
+    private void writePendingIndexingBuffersOnIndexingThread() {
         // Piggy back on indexing threads to write segments. We're not submitting a task to the index threadpool because we want memory to
         // be reclaimed rapidly. This has the downside of increasing the latency of _bulk requests though. Lucene does the same thing in
         // DocumentsWriter#postUpdate, flushing a segment because the size limit on the RAM buffer was reached happens on the call to
@@ -292,6 +326,11 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         if (result.getResultType() == Engine.Result.Type.SUCCESS) {
             statusChecker.bytesWritten(operation.estimatedSizeInBytes());
         }
+    }
+
+    // visible for testing
+    long getBytesWrittenSinceCheck() {
+        return statusChecker.bytesWrittenSinceCheck.get();
     }
 
     private static final class ShardAndBytesUsed {
@@ -313,7 +352,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         // Last shard ID whose indexing buffer was written. We keep track of it to be able to go over shards in a round-robin fashion.
         private ShardId lastShardId = null;
 
-        /** Shard calls this on each indexing/delete op */
+        /** Shard calls this on each indexing/delete op or once with the summed bytes of a batch */
         public void bytesWritten(int bytes) {
             long totalBytes = bytesWrittenSinceCheck.addAndGet(bytes);
             assert totalBytes >= 0;

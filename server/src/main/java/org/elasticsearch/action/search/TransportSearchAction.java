@@ -78,6 +78,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -103,6 +104,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -335,21 +337,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         final String target = requestedIndices.length == 0
             ? concreteLocalIndicesMetadata.keySet().stream().map(Index::getName).collect(Collectors.joining(","))
             : Strings.arrayToCommaDelimitedString(requestedIndices);
-        if (searchRequest.pointInTimeBuilder() != null && anySliceEnabled) {
-            throw new IllegalArgumentException(
-                "[point in time] is not supported when [index.slice.enabled] is true for search request targeting [" + target + "]"
-            );
-        }
-        searchRequest.routing(
-            SliceIndexing.validateAndResolveSliceRoutingRequirement(
-                anySliceEnabled,
-                fromSlice,
-                searchRequest.routing(),
-                requestedSlice,
-                "search request",
-                target,
-                hasRemoteIndices
-            )
+        SliceIndexing.validateAndResolveSliceRoutingRequirement(
+            anySliceEnabled,
+            fromSlice,
+            searchRequest.routing(),
+            requestedSlice,
+            "search request",
+            target,
+            hasRemoteIndices
         );
         return requestedSlice;
     }
@@ -702,7 +697,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         rewritten.indicesOptions(),
                         rewritten.preference(),
                         rewritten.routing(),
-                        rewritten.searchSlice(),
                         rewritten.isRoutingFromSlice(),
                         rewritten.source() != null ? rewritten.source().query() : null,
                         Objects.requireNonNullElse(rewritten.allowPartialSearchResults(), searchService.defaultAllowPartialSearchResults()),
@@ -784,21 +778,28 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         final boolean allowPartialSearchResults = original.allowPartialSearchResults() != null
             ? original.allowPartialSearchResults()
             : searchService.defaultAllowPartialSearchResults();
-        Rewriteable.rewriteAndFetch(
-            original,
-            searchService.getRewriteContext(
-                timeProvider::absoluteStartMillis,
-                clusterState.getMinTransportVersion(),
-                original.getLocalClusterAlias(),
-                resolvedIndices,
-                original.pointInTimeBuilder(),
-                shouldMinimizeRoundtrips(original),
-                isExplain,
-                isProfile,
-                allowPartialSearchResults
-            ),
+        final QueryRewriteContext rewriteContext = searchService.getRewriteContext(
+            timeProvider::absoluteStartMillis,
+            clusterState.getMinTransportVersion(),
+            original.getLocalClusterAlias(),
+            resolvedIndices,
+            original.pointInTimeBuilder(),
+            shouldMinimizeRoundtrips(original),
+            isExplain,
+            isProfile,
+            allowPartialSearchResults
+        );
+        rewriteContext.setParentTask(new TaskId(clusterService.localNode().getId(), task.getId()));
+        // fail as soon as the search is cancelled, without waiting for the async actions of the rewrite to complete
+        final SubscribableListener<SearchRequest> rewriteResult = new SubscribableListener<>();
+        task.addListener(() -> rewriteResult.onFailure(new TaskCancelledException(task.getReasonCancelled())));
+        Rewriteable.rewriteAndFetch(original, rewriteContext, rewriteResult);
+        // subscribe after the rewrite so that a rewrite that completes synchronously continues on this thread without forking,
+        // and in the thread context of the search since the cancellation may complete the rewrite from another context
+        rewriteResult.addListener(
+            rewriteListener,
             threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
-            rewriteListener
+            threadPool.getThreadContext()
         );
     }
 
@@ -839,8 +840,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         OpenPointInTimeRequest pitReq = new OpenPointInTimeRequest(indices).indicesOptions(request.indicesOptions())
             .preference(request.preference())
-            .routing(request.routing())
             .keepAlive(TimeValue.timeValueMillis(keepAliveMillis));
+        pitReq.routing(request.routing()).setRoutingFromSlice(request.isRoutingFromSlice());
         pitReq.projectRouting(request.getProjectRouting());
 
         client.execute(TransportOpenPointInTimeAction.TYPE, pitReq, listener);
@@ -1437,7 +1438,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         IndicesOptions originalIdxOpts,
         String preference,
         String routing,
-        String searchSlice,
         boolean routingFromSlice,
         QueryBuilder query,
         boolean allowPartialResults,
@@ -1531,7 +1531,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         searchShardsIdxOpts,
                         query,
                         routing,
-                        searchSlice,
                         routingFromSlice,
                         preference,
                         allowPartialResults,
@@ -1551,7 +1550,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(
                         MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
                         indices
-                    ).indicesOptions(searchShardsIdxOpts).local(true).preference(preference).routing(routing);
+                    ).indicesOptions(searchShardsIdxOpts)
+                        .local(true)
+                        .preference(preference)
+                        .routing(routing)
+                        .setRoutingFromSlice(routingFromSlice);
 
                     searchShardsRequest.setParentTask(parentTaskId);
                     transportService.sendRequest(
@@ -2263,6 +2266,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         concreteIndexBoosts,
                         executor,
                         queryResultConsumer,
+                        circuitBreaker,
                         searchRequest,
                         listener,
                         shardIterators,
@@ -2288,6 +2292,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         concreteIndexBoosts,
                         executor,
                         queryResultConsumer,
+                        circuitBreaker,
                         searchRequest,
                         listener,
                         shardIterators,

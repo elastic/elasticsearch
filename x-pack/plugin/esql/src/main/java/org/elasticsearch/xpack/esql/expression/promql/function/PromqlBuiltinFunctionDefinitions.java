@@ -24,10 +24,12 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoField;
+import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateNanos;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
@@ -55,7 +57,11 @@ public class PromqlBuiltinFunctionDefinitions {
         .differenceFromPrometheus(
             "A `k` close to Integer.MAX_VALUE can trip {{es}}'s circuit breaker (the execution engine allocates a "
                 + "buffer sized to `k`, not to the number of matching series), whereas Prometheus has no equivalent limit. "
-                + "A `without` grouping clause is not yet supported."
+                + "A `without` grouping clause is not yet supported. "
+                + "A `NaN` value ranks above `+Inf` rather than last, so a series whose value is `NaN` wins a slot ahead "
+                + "of a series with a comparable value. Prometheus ranks `NaN` farthest from the top and returns the "
+                + "comparable series instead. `bottomk` is unaffected, because its ascending ranking already places "
+                + "`NaN` last."
         )
         .name("topk");
 
@@ -97,6 +103,87 @@ public class PromqlBuiltinFunctionDefinitions {
                 + "A `without` grouping clause is not yet supported."
         )
         .name("limitk");
+
+    /**
+     * {@code label_replace(v, dst_label, replacement, src_label, regex)} matches {@code regex} (fully anchored) against the
+     * value of {@code src_label} and, on a match, sets {@code dst_label} to the expanded {@code replacement}. It manipulates
+     * only labels/identity, never sample values, so it has no ES|QL function to build: it resolves into a dedicated node and
+     * is translated directly (see {@code ResolvePromqlFunctions} / {@code TranslatePromqlToEsqlPlan}).
+     */
+    public static final PromqlFunctionDefinition LABEL_REPLACE = PromqlFunctionDefinition.def()
+        .metadataManipulation(
+            new PromqlFunctionDefinition.PromqlFunctionArity(5, 5),
+            false,
+            List.of(
+                PromqlFunctionDefinition.INSTANT_VECTOR,
+                PromqlFunctionDefinition.PromqlParamInfo.of("dst_label", PromqlDataType.SCALAR, "Name of the label to set."),
+                PromqlFunctionDefinition.PromqlParamInfo.of(
+                    "replacement",
+                    PromqlDataType.SCALAR,
+                    "Replacement value, with `$1`/`$name`/`${name}` capture-group expansion."
+                ),
+                PromqlFunctionDefinition.PromqlParamInfo.of("src_label", PromqlDataType.SCALAR, "Name of the label to read."),
+                PromqlFunctionDefinition.PromqlParamInfo.of(
+                    "regex",
+                    PromqlDataType.SCALAR,
+                    "Regular expression matched against `src_label`."
+                )
+            )
+        )
+        .description(
+            "Matches the regular expression `regex` against the value of the label `src_label`. On a match, sets the label "
+                + "`dst_label` to the expansion of `replacement`, substituting `$1`, `$name`, and `${name}` with the matched "
+                + "capture groups; on no match the input series is returned unchanged."
+        )
+        .example("""
+            sum by (job2) (label_replace(http_requests_total, "job2", "$1", "job", "(.*)-server"))""")
+        .stack(PromqlFunctionDefinition.STACK_GA_9_6)
+        .differenceFromPrometheus(
+            "Supported in this version only when the derived destination label is consumed by an enclosing `by(...)` "
+                + "aggregation. The destination may be a new label or may overwrite a stored label (a dimension or "
+                + "`__name__`). A `without` grouping or a bare (non-aggregated) call are rejected. Regular expressions use "
+                + "the RE2 engine (RE2 syntax including `(?P<name>)`, `$1`/`$name`/`${name}` replacement expansion, no "
+                + "backreferences, fully anchored as `^(?s:regex)$`), matching Prometheus. Reading or overwriting "
+                + "`__name__` behaves like Prometheus only for Prometheus-style data that stores `__name__` as a label; "
+                + "for OpenTelemetry-style metrics the metric name is not exposed as a readable or writable label here."
+        )
+        .name("label_replace");
+
+    /**
+     * {@code label_join(v, dst_label, separator, src_label_1, ... src_label_N)} sets {@code dst_label} to the values of the
+     * source labels joined by {@code separator}. Variadic in the source labels. Like {@code label_replace} it manipulates
+     * only labels/identity and is translated directly rather than lowered through the generic function builder.
+     */
+    public static final PromqlFunctionDefinition LABEL_JOIN = PromqlFunctionDefinition.def()
+        .metadataManipulation(
+            new PromqlFunctionDefinition.PromqlFunctionArity(3, Integer.MAX_VALUE),
+            true,
+            List.of(
+                PromqlFunctionDefinition.INSTANT_VECTOR,
+                PromqlFunctionDefinition.PromqlParamInfo.of("dst_label", PromqlDataType.SCALAR, "Name of the label to set."),
+                PromqlFunctionDefinition.PromqlParamInfo.of(
+                    "separator",
+                    PromqlDataType.SCALAR,
+                    "String inserted between the source values."
+                ),
+                PromqlFunctionDefinition.PromqlParamInfo.of("src_label", PromqlDataType.SCALAR, "Name of a label to join (repeatable).")
+            )
+        )
+        .description(
+            "Joins the values of the source labels `src_label_1` .. `src_label_N` using `separator` and stores the result in "
+                + "the label `dst_label`. A missing source label contributes an empty string."
+        )
+        .example("""
+            sum by (endpoint) (label_join(http_requests_total, "endpoint", "/", "job", "instance"))""")
+        .stack(PromqlFunctionDefinition.STACK_GA_9_6)
+        .differenceFromPrometheus(
+            "Supported in this version only when the derived destination label is consumed by an enclosing `by(...)` "
+                + "aggregation. The destination may be a new label or may overwrite a stored label (a dimension or "
+                + "`__name__`). A `without` grouping or a bare (non-aggregated) call are rejected. Reading or overwriting "
+                + "`__name__` behaves like Prometheus only for Prometheus-style data that stores `__name__` as a label; "
+                + "for OpenTelemetry-style metrics the metric name is not exposed as a readable or writable label here."
+        )
+        .name("label_join");
 
     public static final PromqlFunctionDefinition VECTOR = PromqlFunctionDefinition.def()
         .vectorConversion()
@@ -222,17 +309,13 @@ public class PromqlBuiltinFunctionDefinitions {
     static final PromqlFunctionDefinition ROUND = PromqlFunctionDefinition.def()
         .binaryOptionalValueTransformation(PromqlFunctionDefinition.TO_NEAREST, (source, value, toNearest, configuration) -> {
             if (toNearest == null) {
-                return new Round(source, value, null);
+                return new Round(source, value, null, true);
             } else {
                 return promqlRoundToNearest(source, value, toNearest, configuration);
             }
         })
         .example("round(rate(http_requests_total[5m]))")
         .description("Rounds the sample values to the nearest integer, or to the nearest multiple of the optional argument.")
-        .differenceFromPrometheus(
-            "With a `to_nearest` argument, ties round up, matching Prometheus. Called with a single argument, a `NaN` input "
-                + "returns `0` instead of `NaN`."
-        )
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("round");
 
@@ -240,13 +323,18 @@ public class PromqlBuiltinFunctionDefinitions {
      * PromQL {@code round(v, to_nearest)} rounds to the nearest multiple of {@code to_nearest},
      * with ties resolved by rounding up. Matches Prometheus:
      * {@code floor(v * (1 / to_nearest) + 0.5) / (1 / to_nearest)}.
+     * <p>
+     * The arithmetic nodes built here use the non-finite-preserving math variant so the degenerate {@code to_nearest = 0}
+     * input reproduces Prometheus's result of {@code NaN} ({@code 1 / 0 = +Inf}, {@code v * +Inf = ±Inf/NaN},
+     * {@code floor(...) / +Inf = NaN}) instead of hitting the divide-by-zero guard and dropping the series.
+     * </p>
      */
     private static Expression promqlRoundToNearest(Source source, Expression value, Expression toNearest, Configuration configuration) {
-        Expression inverse = new Div(source, Literal.fromDouble(source, 1.0), toNearest);
+        Expression inverse = new Div(source, Literal.fromDouble(source, 1.0), toNearest, null, true);
         Expression half = Literal.fromDouble(source, 0.5);
-        Expression scaled = new Mul(source, value, inverse);
-        Expression withHalf = new Add(source, scaled, half, configuration);
-        return new Div(source, new Floor(source, withHalf), inverse);
+        Expression scaled = new Mul(source, value, inverse, true);
+        Expression withHalf = new Add(source, scaled, half, configuration, true);
+        return new Div(source, new Floor(source, withHalf), inverse, null, true);
     }
 
     private static PromqlFunctionDefinition.Builder dateExtraction(ChronoField field) {
@@ -277,7 +365,7 @@ public class PromqlBuiltinFunctionDefinitions {
             Expression filter = Literal.TRUE.equals(instantLast.filter())
                 ? metricPresent
                 : new And(source, instantLast.filter(), metricPresent);
-            return new LastOverTime(source, instantLast.timestamp(), filter, instantLast.window(), instantLast.timestamp());
+            return new LastOverTime(source, instantLast.timestamp(), instantLast.timestamp(), filter, instantLast.window());
         }
         if (isDateTime(target.dataType()) || isDateNanos(target.dataType())) {
             return target;

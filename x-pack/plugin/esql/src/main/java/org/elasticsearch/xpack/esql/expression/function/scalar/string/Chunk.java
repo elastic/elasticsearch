@@ -243,11 +243,11 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument, AnyNu
         BytesRefBlock field,
         @Fixed ChunkingSettings chunkingSettings
     ) {
-        int valueCount = field.getValueCount(position);
-        if (valueCount == 0) {
+        if (field.isNull(position)) {
             builder.appendNull();
             return;
         }
+        int valueCount = field.getValueCount(position);
 
         int firstValueIndex = field.getFirstValueIndex(position);
 
@@ -286,6 +286,6 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument, AnyNu
             }
             return value;
         }));
-        return ChunkingSettingsBuilder.fromMap(chunkingSettingsMap);
+        return ChunkingSettingsBuilder.fromMap(chunkingSettingsMap, true, true);
     }
 }

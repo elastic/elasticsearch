@@ -3,7 +3,7 @@
 ## Parameters
 
 `field`
-:   Numeric or date expression from which to derive buckets.
+:   Numeric, date or histogram expression from which to derive buckets.
 
 `buckets`
 :   Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.

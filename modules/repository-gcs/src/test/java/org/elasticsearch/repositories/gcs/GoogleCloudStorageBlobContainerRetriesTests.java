@@ -228,6 +228,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             BigArrays.NON_RECYCLING_INSTANCE,
             randomIntBetween(1, 8) * 1024,
             GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE,
+            ByteSizeValue.ofMb(1).getBytes(),
             BackoffPolicy.linearBackoff(TimeValue.timeValueMillis(1), 3, TimeValue.timeValueSeconds(1)),
             new GcsRepositoryStatsCollector(),
             null,

@@ -30,7 +30,9 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchOperator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -133,6 +135,50 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
 
             // ensure that the _clusters metadata is present only if requested
             assertClusterMetadataInResponse(resp, responseExpectMeta);
+        }
+    }
+
+    public void testRemoteFetchTopNIsDisabledForCrossClusterSearch() throws Exception {
+        client(LOCAL_CLUSTER).admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setPersistentSettings(Settings.builder().put(EsqlFlags.ESQL_REMOTE_FETCH_TOPN.getKey(), true))
+            .get();
+        try {
+            testRemoteFetchTopNIsDisabledForCrossClusterSearchWithSetting();
+        } finally {
+            client(LOCAL_CLUSTER).admin()
+                .cluster()
+                .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setPersistentSettings(Settings.builder().putNull(EsqlFlags.ESQL_REMOTE_FETCH_TOPN.getKey()))
+                .get();
+        }
+    }
+
+    private void testRemoteFetchTopNIsDisabledForCrossClusterSearchWithSetting() throws Exception {
+        setupTwoClusters();
+        QueryPragmas pragmas = new QueryPragmas(
+            Settings.builder()
+                .put(QueryPragmas.TASK_CONCURRENCY.getKey(), 1)
+                .put(QueryPragmas.DATA_PARTITIONING.getKey(), DataPartitioning.SHARD)
+                .build()
+        );
+        // Test a pushable field sort and an expression sort that guarantees a coordinator TopN.
+        for (String sort : List.of("v", "v + 1")) {
+            EsqlQueryRequest request = syncEsqlQueryRequest(
+                "FROM logs-*," + REMOTE_CLUSTER_1 + ":logs-* | SORT " + sort + " DESC | LIMIT 5 | KEEP v, id"
+            ).acceptedPragmaRisks(true).pragmas(pragmas).profile(true);
+
+            try (EsqlQueryResponse response = runQuery(request)) {
+                assertThat(getValuesList(response), hasSize(5));
+                assertFalse(
+                    response.profile()
+                        .drivers()
+                        .stream()
+                        .flatMap(driver -> driver.operators().stream())
+                        .anyMatch(operator -> operator.status() instanceof RemoteFetchOperator.Status)
+                );
+            }
         }
     }
 
@@ -656,7 +702,11 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values.get(0), equalTo(List.of(45L)));
                 assertNotNull(resp.profile());
-                List<DriverProfile> drivers = resp.profile().drivers();
+                List<DriverProfile> drivers = resp.profile()
+                    .drivers()
+                    .stream()
+                    .filter(d -> d.description().equals("node_reduce") == false)
+                    .toList();
                 assertThat(drivers.size(), greaterThanOrEqualTo(2)); // one coordinator and at least one data
                 localOnlyProfiles = drivers.size();
 
@@ -676,8 +726,12 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values.get(0), equalTo(List.of(285L)));
                 assertNotNull(resp.profile());
-                List<DriverProfile> drivers = resp.profile().drivers();
-                assertThat(drivers.size(), greaterThanOrEqualTo(3)); // two coordinators and at least one data
+                List<DriverProfile> drivers = resp.profile()
+                    .drivers()
+                    .stream()
+                    .filter(d -> d.description().equals("node_reduce") == false)
+                    .toList();
+                assertThat(drivers.size(), greaterThanOrEqualTo(2)); // one cluster-level reduction and at least one data node
                 remoteOnlyProfiles = drivers.size();
 
                 EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
@@ -700,7 +754,11 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values.get(0), equalTo(List.of(330L)));
                 assertNotNull(resp.profile());
-                List<DriverProfile> drivers = resp.profile().drivers();
+                List<DriverProfile> drivers = resp.profile()
+                    .drivers()
+                    .stream()
+                    .filter(d -> d.description().equals("node_reduce") == false)
+                    .toList();
                 assertThat(drivers.size(), greaterThanOrEqualTo(4)); // two coordinators and at least two data
                 allProfiles = drivers.size();
 

@@ -78,7 +78,7 @@ public class ExternalParquetHivePartitionedTopNIT extends AbstractExternalDataSo
 
     /**
      * Case 2: an unpinned glob ({@code /**}{@code /*.parquet}) across two partitions with explicit
-     * {@code hive_partitioning:true} and a {@code SORT}, forced to distribute across {@code >= 2} data
+     * {@code partition_detection:hive} and a {@code SORT}, forced to distribute across {@code >= 2} data
      * nodes via {@code external_distribution=round_robin}. Closes the SORT-over-partitioned coverage
      * gap AND exercises the genuinely distributed path: with the coordinator {@code FileList}
      * UNRESOLVED on the data node, the partition-column pin must read the serialized
@@ -93,7 +93,7 @@ public class ExternalParquetHivePartitionedTopNIT extends AbstractExternalDataSo
         writeMultiColumnParquet(root.resolve("STATION=B").resolve("ELEMENT=TMIN"), 2);
         @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
         String glob = StoragePath.fileUri(root) + "/**/*.parquet";
-        String dataset = registerDataset("hive_parquet_topn_unpinned", glob, Map.of("hive_partitioning", true));
+        String dataset = registerDataset("hive_parquet_topn_unpinned", glob, Map.of("partition_detection", "hive"));
 
         // round_robin distributes every split to a data node regardless of plan shape, so the TopN
         // late-materialisation (and the partition-column pin) runs where the coordinator FileList is

@@ -11,6 +11,7 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -500,6 +501,65 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
      */
     public Map<String, IndexSnapshotDetails> indexSnapshotDetails() {
         return indexSnapshotDetails;
+    }
+
+    /**
+     * Returns {@code true} if {@code indexName} is completely captured in this snapshot — i.e.,
+     * every shard of the index was successfully stored.
+     * <p>
+     * An index is complete when all of the following hold:
+     * <ul>
+     *   <li>The index appears in {@link #indices()}.</li>
+     *   <li>The index was not skipped: its {@link IndexSnapshotDetails#getShardCount()} is greater
+     *       than zero (or the entry is absent, indicating a legacy snapshot where shard details
+     *       were not recorded).</li>
+     *   <li>None of {@link #shardFailures()} reference the index.</li>
+     * </ul>
+     * Callers should already exclude snapshots in state {@link SnapshotState#FAILED} or
+     * {@link SnapshotState#IN_PROGRESS} before calling this method.
+     *
+     * @param indexName the index to evaluate
+     */
+    public boolean isIndexComplete(String indexName) {
+        if (indices().contains(indexName) == false) {
+            return false;
+        }
+        IndexSnapshotDetails details = indexSnapshotDetails().get(indexName);
+        if (details != null && details.getShardCount() == 0) {
+            return false;
+        }
+        if (state() == SnapshotState.SUCCESS) {
+            return true;
+        }
+        return shardFailures().stream().noneMatch(f -> indexName.equals(f.index()));
+    }
+
+    /**
+     * Returns {@code true} if {@code dataStream} is completely captured in this snapshot — i.e.,
+     * the stream's metadata and every shard of every backing index were successfully stored.
+     * <p>
+     * A data stream is complete when all of the following hold:
+     * <ul>
+     *   <li>The data stream's name appears in {@link #dataStreams()}, confirming its metadata was
+     *       captured.</li>
+     *   <li>Every backing index from {@link DataStream#getIndices()} satisfies
+     *       {@link #isIndexComplete}.</li>
+     * </ul>
+     * Callers should already exclude snapshots in state {@link SnapshotState#FAILED} or
+     * {@link SnapshotState#IN_PROGRESS} before calling this method.
+     *
+     * @param dataStream the data stream metadata as recorded in the snapshot
+     */
+    public boolean isDataStreamComplete(DataStream dataStream) {
+        if (dataStreams().contains(dataStream.getName()) == false) {
+            return false;
+        }
+        for (var index : dataStream.getIndices()) {
+            if (isIndexComplete(index.getName()) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

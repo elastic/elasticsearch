@@ -10,8 +10,12 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIoAffinity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -23,6 +27,7 @@ import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Decorates a {@link StorageObject} with per-query concurrency budget enforcement. Each I/O
@@ -33,7 +38,7 @@ import java.util.concurrent.TimeoutException;
  * This wrapper is applied on top of the global {@link ConcurrencyLimitedStorageObject} to provide
  * two-level concurrency control: per-query fairness (this layer) + global hard cap (inner layer).
  */
-class QueryBudgetedStorageObject implements StorageObject {
+class QueryBudgetedStorageObject implements StorageObject, ResumeBypassingStorageObject {
 
     private final StorageObject delegate;
     private final QueryConcurrencyBudget budget;
@@ -45,24 +50,24 @@ class QueryBudgetedStorageObject implements StorageObject {
 
     @Override
     public InputStream newStream() throws IOException {
-        acquirePermit();
+        PermitToken token = acquirePermit();
         try {
             InputStream stream = delegate.newStream();
-            return new PermitReleasingInputStream(stream, budget);
+            return new PermitReleasingInputStream(stream, budget, token);
         } catch (Exception e) {
-            budget.release();
+            releasePermit(token);
             throw e;
         }
     }
 
     @Override
     public InputStream newStream(long position, long length) throws IOException {
-        acquirePermit();
+        PermitToken token = acquirePermit();
         try {
             InputStream stream = delegate.newStream(position, length);
-            return new PermitReleasingInputStream(stream, budget);
+            return new PermitReleasingInputStream(stream, budget, token);
         } catch (Exception e) {
-            budget.release();
+            releasePermit(token);
             throw e;
         }
     }
@@ -79,6 +84,21 @@ class QueryBudgetedStorageObject implements StorageObject {
     }
 
     @Override
+    public long lengthForFooterCacheKey() throws IOException {
+        return delegate.lengthForFooterCacheKey();
+    }
+
+    @Override
+    public long knownLength() {
+        return delegate.knownLength();
+    }
+
+    @Override
+    public String contentGeneration() {
+        return delegate.contentGeneration();
+    }
+
+    @Override
     public Instant lastModified() throws IOException {
         return delegate.lastModified();
     }
@@ -91,6 +111,11 @@ class QueryBudgetedStorageObject implements StorageObject {
     @Override
     public StoragePath path() {
         return delegate.path();
+    }
+
+    @Override
+    public StorageIdentity storageIdentity() {
+        return delegate.storageIdentity();
     }
 
     @Override
@@ -113,12 +138,32 @@ class QueryBudgetedStorageObject implements StorageObject {
     }
 
     @Override
+    public InputStream withoutResume(InputStream stream) {
+        return ResumeBypassingStorageObject.withoutResumeThrough(
+            delegate,
+            stream,
+            PermitReleasingInputStream.class,
+            PermitReleasingInputStream::inner
+        );
+    }
+
+    @Override
+    public void bindRowGroup(RowGroupIo io) {
+        budget.bind(io);
+    }
+
+    @Override
+    public long admissionWaitTimeoutMs() {
+        return budget.acquireTimeoutMs();
+    }
+
+    @Override
     public int readBytes(long position, ByteBuffer target) throws IOException {
-        acquirePermit();
+        PermitToken token = acquirePermit();
         try {
             return delegate.readBytes(position, target);
         } finally {
-            budget.release();
+            releasePermit(token);
         }
     }
 
@@ -130,21 +175,34 @@ class QueryBudgetedStorageObject implements StorageObject {
         Executor executor,
         ActionListener<DirectReadBuffer> listener
     ) {
+        startReadBytesAsync(position, length, factory, executor, listener);
+    }
+
+    @Override
+    public Releasable startReadBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
+        final PermitToken token;
         try {
-            acquirePermit();
+            token = acquirePermit();
         } catch (Exception e) {
             listener.onFailure(e);
-            return;
+            return () -> {};
         }
         try {
             // We intentionally use a raw ActionListener instead of ActionListener.wrap so a
             // throw from listener.onResponse(result) does NOT get auto-routed to our onFailure
             // lambda — that would double-release the budget and double-fire the downstream
-            // listener (onResponse + onFailure for the same I/O).
-            delegate.readBytesAsync(position, length, factory, executor, new ActionListener<>() {
+            // listener (onResponse + onFailure for the same I/O). The token captures the lease
+            // from the calling thread; SDK callbacks must not read StorageIoAffinity.current().
+            return delegate.startReadBytesAsync(position, length, factory, executor, new ActionListener<>() {
                 @Override
                 public void onResponse(DirectReadBuffer result) {
-                    budget.release();
+                    releasePermit(token);
                     try {
                         listener.onResponse(result);
                     } catch (Exception e) {
@@ -163,20 +221,22 @@ class QueryBudgetedStorageObject implements StorageObject {
 
                 @Override
                 public void onFailure(Exception e) {
-                    budget.release();
+                    releasePermit(token);
                     listener.onFailure(e);
                 }
             });
         } catch (Exception e) {
-            budget.release();
+            releasePermit(token);
             listener.onFailure(e);
+            return () -> {};
         }
     }
 
     @Override
     public void readBytesAsync(long position, ByteBuffer target, Executor executor, ActionListener<Integer> listener) {
+        final PermitToken token;
         try {
-            acquirePermit();
+            token = acquirePermit();
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -187,7 +247,7 @@ class QueryBudgetedStorageObject implements StorageObject {
             delegate.readBytesAsync(position, target, executor, new ActionListener<>() {
                 @Override
                 public void onResponse(Integer result) {
-                    budget.release();
+                    releasePermit(token);
                     try {
                         listener.onResponse(result);
                     } catch (Exception e) {
@@ -197,12 +257,12 @@ class QueryBudgetedStorageObject implements StorageObject {
 
                 @Override
                 public void onFailure(Exception e) {
-                    budget.release();
+                    releasePermit(token);
                     listener.onFailure(e);
                 }
             });
         } catch (Exception e) {
-            budget.release();
+            releasePermit(token);
             listener.onFailure(e);
         }
     }
@@ -213,28 +273,49 @@ class QueryBudgetedStorageObject implements StorageObject {
     }
 
     @Override
+    public boolean readBytesAsyncReleasesExecutor() {
+        return delegate.readBytesAsyncReleasesExecutor();
+    }
+
+    @Override
     public StorageObjectMetrics metrics() {
         return delegate.metrics();
     }
 
-    private void acquirePermit() {
+    /**
+     * Reads {@link StorageIoAffinity#current()} on the calling thread. SDK completion callbacks
+     * must use the returned token instead of the ThreadLocal.
+     */
+    private PermitToken acquirePermit() {
+        StorageIoAffinity.Scope scope = StorageIoAffinity.current();
+        RowGroupIo lease = scope == null ? null : scope.lease();
+        boolean countGets = scope != null && scope.countGets;
         try {
-            budget.acquire();
+            budget.acquire(lease, countGets);
         } catch (TimeoutException e) {
             throw new EsRejectedExecutionException("Failed to acquire query concurrency budget permit: " + e.getMessage());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new EsRejectedExecutionException("Interrupted while waiting for query concurrency budget permit: " + e);
         }
+        return new PermitToken(lease, countGets);
     }
+
+    private void releasePermit(PermitToken token) {
+        budget.release(token.lease, token.countGets);
+    }
+
+    private record PermitToken(RowGroupIo lease, boolean countGets) {}
 
     private static class PermitReleasingInputStream extends FilterInputStream {
         private final QueryConcurrencyBudget budget;
-        private volatile boolean released;
+        private final PermitToken token;
+        private final AtomicBoolean released = new AtomicBoolean();
 
-        PermitReleasingInputStream(InputStream in, QueryConcurrencyBudget budget) {
+        PermitReleasingInputStream(InputStream in, QueryConcurrencyBudget budget, PermitToken token) {
             super(in);
             this.budget = budget;
+            this.token = token;
         }
 
         InputStream inner() {
@@ -247,9 +328,8 @@ class QueryBudgetedStorageObject implements StorageObject {
          * has been aborted directly via the delegate, so we don't double-close.
          */
         void markReleased() {
-            if (released == false) {
-                released = true;
-                budget.release();
+            if (released.getAndSet(true) == false) {
+                budget.release(token.lease, token.countGets);
             }
         }
 
@@ -258,9 +338,8 @@ class QueryBudgetedStorageObject implements StorageObject {
             try {
                 super.close();
             } finally {
-                if (released == false) {
-                    released = true;
-                    budget.release();
+                if (released.getAndSet(true) == false) {
+                    budget.release(token.lease, token.countGets);
                 }
             }
         }

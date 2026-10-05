@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.esql.datasource.gcs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
 import java.util.Map;
@@ -46,6 +48,15 @@ public class GcsDataSourcePluginTests extends ESTestCase {
 
         assertTrue("should register the gcs validator", validators.containsKey("gcs"));
         assertEquals("should register exactly 1 validator", 1, validators.size());
+    }
+
+    public void testSchemeFoldAgreesWithTypeId() {
+        assumeTrue("requires GCS feature flag", gcsEnabled());
+        GcsDataSourcePlugin plugin = new GcsDataSourcePlugin();
+        String typeId = plugin.datasourceValidators(Settings.EMPTY).keySet().iterator().next();
+        for (String scheme : plugin.supportedSchemes()) {
+            assertSame(Type.fromTypeId(typeId), Type.fromScheme(scheme));
+        }
     }
 
     public void testDisabledWhenFeatureFlagOff() {
@@ -125,5 +136,9 @@ public class GcsDataSourcePluginTests extends ESTestCase {
         // Only gs:// is supported (unlike S3 which has s3, s3a, s3n)
         assertNotNull(providers.get("gs"));
         assertNull(providers.get("gcs"));
+    }
+
+    public void testSchemesAreRejectedBySafeForUserMessage() {
+        assertFalse(ExternalFailures.safeForUserMessage("gs://bucket/path/file.parquet"));
     }
 }

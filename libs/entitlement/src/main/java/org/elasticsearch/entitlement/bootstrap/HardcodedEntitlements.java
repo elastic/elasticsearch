@@ -14,7 +14,6 @@ import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyUtils;
 import org.elasticsearch.entitlement.runtime.policy.Scope;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
-import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ExitVMEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkEntitlement;
@@ -23,14 +22,11 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.ManageThreadsEn
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadJdkImageEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadStoreAttributesEntitlement;
-import org.elasticsearch.entitlement.runtime.policy.entitlements.SetHttpsConnectionPropertiesEntitlement;
-import org.elasticsearch.entitlement.runtime.policy.entitlements.WriteSystemPropertiesEntitlement;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.CONFIG;
 import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.DATA;
@@ -182,6 +178,14 @@ class HardcodedEntitlements {
                     )
                 )
             ),
+            new Scope(
+                "org.elasticsearch.foreign",
+                List.of(
+                    new LoadNativeLibrariesEntitlement(),
+                    new FilesEntitlement(List.of(FilesEntitlement.FileData.ofBaseDirPath(LIB, READ)))
+                )
+            ),
+            new Scope("org.elasticsearch.simdjson", List.of(new LoadNativeLibrariesEntitlement())),
             new Scope("org.elasticsearch.simdvec", List.of(new LoadNativeLibrariesEntitlement()))
         );
 
@@ -221,27 +225,6 @@ class HardcodedEntitlements {
         return new Policy(
             "server",
             serverPolicyPatch == null ? serverScopes : PolicyUtils.mergeScopes(serverScopes, serverPolicyPatch.scopes())
-        );
-    }
-
-    // agents run without a module, so this is a special hack for the apm agent
-    // this should be removed once https://github.com/elastic/elasticsearch/issues/109335 is completed
-    // See also modules/apm/src/main/plugin-metadata/entitlement-policy.yaml
-    static List<Entitlement> agentEntitlements() {
-        return List.of(
-            new CreateClassLoaderEntitlement(),
-            new ManageThreadsEntitlement(),
-            new SetHttpsConnectionPropertiesEntitlement(),
-            new OutboundNetworkEntitlement(),
-            new WriteSystemPropertiesEntitlement(Set.of("AsyncProfiler.safemode")),
-            new LoadNativeLibrariesEntitlement(),
-            new FilesEntitlement(
-                List.of(
-                    FilesEntitlement.FileData.ofBaseDirPath(LOGS, READ_WRITE),
-                    FilesEntitlement.FileData.ofPath(Path.of("/proc/meminfo"), READ),
-                    FilesEntitlement.FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ)
-                )
-            )
         );
     }
 }

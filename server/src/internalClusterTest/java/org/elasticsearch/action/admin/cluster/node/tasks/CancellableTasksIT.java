@@ -560,7 +560,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
                     assertTrue(beforeSendLatches.get(subRequest).await(60, TimeUnit.SECONDS));
                     if (client.getLocalNodeId().equals(subRequest.node.getId()) && subRequest.timeout == false && randomBoolean()) {
                         try {
-                            client.executeLocally(TransportTestAction.ACTION, subRequest, latchedListener);
+                            client.executeAndReturnTask(TransportTestAction.ACTION, subRequest, latchedListener);
                         } catch (TaskCancelledException e) {
                             latchedListener.onFailure(new SendRequestTransportException(subRequest.node, ACTION.name(), e));
                         }

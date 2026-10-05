@@ -8,11 +8,11 @@
 `allow_leading_wildcard`
 :   (boolean) If true, the wildcard characters * and ? are allowed as the first character of the query string. Defaults to true.
 
-`allow_wildcard`
+`analyze_wildcard`
 :   (boolean) If true, the query attempts to analyze wildcard terms in the query string. Defaults to false.
 
 `analyzer`
-:   (keyword) Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the default_field.
+:   (keyword) Analyzer used to convert the text in the query value into tokens. Defaults to the index-time analyzer mapped for the default_field.
 
 `auto_generate_synonyms_phrase_query`
 :   (boolean) If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.

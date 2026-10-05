@@ -10,8 +10,10 @@
 package org.elasticsearch.index.mapper.blockloader;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.util.List;
@@ -28,6 +30,13 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
     @Override
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
         return expectedValue(fieldMapping, value, params, testContext);
+    }
+
+    @Override
+    protected Settings.Builder getSettingsForParams() {
+        // The generated documents hold empty strings and this test expects them back, so it asks the index not to
+        // read them as nulls.
+        return super.getSettingsForParams().put(FieldMapper.EMPTY_KEYWORD_STRING_AS_NULL_SETTING.getKey(), false);
     }
 
     @SuppressWarnings("unchecked")

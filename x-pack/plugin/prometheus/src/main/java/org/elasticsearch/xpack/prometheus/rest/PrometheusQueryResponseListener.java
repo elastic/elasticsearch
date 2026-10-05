@@ -308,13 +308,24 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
                 continue;
             }
             Block labelBlock = page.getBlock(i);
-            // Omit null labels (e.g. a null-filled missing BY label) rather than emitting "". PromQL distinguishes
-            // an absent label from one whose value is empty; this mirrors writeMetricFields on the _timeseries path.
+            // Omit null labels (e.g. a null-filled missing BY label) and empty ones (a label function that emptied a
+            // label): Prometheus treats a label with an empty value as absent. This mirrors writeMetricFields on the
+            // _timeseries path.
             if (labelBlock.isNull(position)) {
                 continue;
             }
+            DataType type = columns.get(i).type();
+            if (type == DataType.KEYWORD || type == DataType.TEXT) {
+                BytesRef val = ((BytesRefBlock) labelBlock).getBytesRef(labelBlock.getFirstValueIndex(position), scratch);
+                if (val.length == 0) {
+                    continue;
+                }
+                builder.field(columns.get(i).name());
+                builder.utf8Value(val.bytes, val.offset, val.length);
+                continue;
+            }
             builder.field(columns.get(i).name());
-            writeLabelValue(builder, labelBlock, columns.get(i).type(), position, zoneId, scratch);
+            writeLabelValue(builder, labelBlock, type, position, zoneId, scratch);
         }
         builder.endObject(); // metric
     }
@@ -473,7 +484,8 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
             String key = prefix + entry.getKey();
             if (entry.getValue() instanceof Map<?, ?> nested) {
                 writeMetricFields(builder, key + ".", nested);
-            } else if (entry.getValue() != null) {
+            } else if (entry.getValue() != null && entry.getValue().toString().isEmpty() == false) {
+                // a label with an empty value is absent in Prometheus
                 builder.field(key, entry.getValue().toString());
             }
         }

@@ -20,44 +20,27 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.stateless.IndexingDiskController;
+import org.elasticsearch.xpack.stateless.SnapshotRestoreDiskPressure;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Prevents snapshot restores from being admitted without space for their local files and a node-wide reserve.
  * <p>
- * During live (non-simulation) allocation, tracks disk shortfalls for restore shards that were THROTTLEd so
- * autoscaling can raise indexing memory demand. State is only updated from {@link #canAllocate}; simulations
- * do not write. Entries are cleared when a shard fits (YES) or is no longer an unassigned snapshot primary.
+ * During live (non-simulation) allocation, records disk shortfalls on {@link SnapshotRestoreDiskPressure} for
+ * restore shards that were THROTTLEd so autoscaling can raise indexing memory demand. Simulations do not write.
+ * Entries are cleared when a shard fits (YES) or is no longer an unassigned snapshot primary.
  */
 public class SnapshotRestoreAllocationDecider extends AllocationDecider {
     private static final String NAME = "stateless_snapshot_restore_storage";
 
     private final RelativeByteSizeValue indexingReservedDisk;
-    /**
-     * Per-shard disk bytes still needed to admit the shard onto some indexing node under the reserve rule.
-     * Updated only from live {@link #canAllocate} decisions.
-     */
-    private final ConcurrentHashMap<ShardId, Long> unmetDiskShortfalls = new ConcurrentHashMap<>();
+    private final SnapshotRestoreDiskPressure diskPressure;
 
-    public SnapshotRestoreAllocationDecider(Settings settings) {
+    public SnapshotRestoreAllocationDecider(Settings settings, SnapshotRestoreDiskPressure diskPressure) {
         this.indexingReservedDisk = IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING.get(settings);
-    }
-
-    /**
-     * Disk bytes currently tracked as unmet for snapshot restores blocked by this decider.
-     * Safe to read from the metrics poll; only {@link #canAllocate} mutates the map.
-     */
-    public long unmetDiskShortfallBytes() {
-        return unmetDiskShortfalls.values().stream().mapToLong(Long::longValue).sum();
-    }
-
-    /**
-     * Snapshot of per-shard unmet disk shortfalls for restores blocked by this decider.
-     */
-    public Map<ShardId, Long> unmetDiskShortfalls() {
-        return Map.copyOf(unmetDiskShortfalls);
+        this.diskPressure = diskPressure;
     }
 
     @Override
@@ -77,7 +60,7 @@ public class SnapshotRestoreAllocationDecider extends AllocationDecider {
         assert shardSize != null : "snapshot shard size should be fetched before capacity decisions";
         if (shardSize == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE) {
             if (live) {
-                unmetDiskShortfalls.remove(shard.shardId());
+                diskPressure.clear(shard.shardId());
             }
             return allocation.decision(Decision.NO, NAME, "snapshot shard size is permanently unavailable");
         }
@@ -103,11 +86,11 @@ public class SnapshotRestoreAllocationDecider extends AllocationDecider {
         boolean fits = freeAfterRestore >= indexingReservedBytes;
         if (live) {
             if (fits) {
-                unmetDiskShortfalls.remove(shard.shardId());
+                diskPressure.clear(shard.shardId());
             } else {
                 long shortfall = indexingReservedBytes - freeAfterRestore;
                 assert shortfall > 0 : shortfall;
-                unmetDiskShortfalls.merge(shard.shardId(), shortfall, Math::min);
+                diskPressure.recordShortfall(shard.shardId(), shortfall);
             }
         }
         return allocation.decision(
@@ -122,21 +105,14 @@ public class SnapshotRestoreAllocationDecider extends AllocationDecider {
     }
 
     private void pruneStaleUnmetShortfalls(RoutingAllocation allocation) {
-        if (unmetDiskShortfalls.isEmpty()) {
-            return;
-        }
-        unmetDiskShortfalls.keySet().removeIf(shardId -> isUnassignedSnapshotPrimary(allocation, shardId) == false);
-    }
-
-    private static boolean isUnassignedSnapshotPrimary(RoutingAllocation allocation, ShardId shardId) {
+        Set<ShardId> live = new HashSet<>();
         for (ShardRouting unassigned : allocation.routingNodes().unassigned()) {
-            if (unassigned.shardId().equals(shardId)
-                && unassigned.primary()
+            if (unassigned.primary()
                 && unassigned.recoverySource() != null
                 && unassigned.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
-                return true;
+                live.add(unassigned.shardId());
             }
         }
-        return false;
+        diskPressure.retainOnly(live);
     }
 }

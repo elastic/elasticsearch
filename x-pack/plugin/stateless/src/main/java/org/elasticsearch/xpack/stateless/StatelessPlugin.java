@@ -566,6 +566,7 @@ public class StatelessPlugin extends Plugin
     private final boolean hasMasterRole;
     private final StatelessIndexSettingProvider statelessIndexSettingProvider;
     private final boolean hollowShardsEnabled;
+    private final SnapshotRestoreDiskPressure snapshotRestoreDiskPressure;
     private final SnapshotRestoreAllocationDecider snapshotRestoreAllocationDecider;
 
     private final SetOnce<CodecProviderFactory> codecProviderFactory = new SetOnce<>();
@@ -640,15 +641,15 @@ public class StatelessPlugin extends Plugin
         hasMasterRole = DiscoveryNode.isMasterNode(settings);
         statelessIndexSettingProvider = new StatelessIndexSettingProvider();
         hollowShardsEnabled = STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(settings);
-        snapshotRestoreAllocationDecider = new SnapshotRestoreAllocationDecider(settings);
+        snapshotRestoreDiskPressure = new SnapshotRestoreDiskPressure();
+        snapshotRestoreAllocationDecider = new SnapshotRestoreAllocationDecider(settings, snapshotRestoreDiskPressure);
     }
 
     /**
-     * Single restore-disk allocation decider instance for this node. Retained so autoscaling can read
-     * unmet restore disk shortfalls recorded during live allocation.
+     * Unmet restore-disk shortfalls recorded during live allocation, for autoscaling metrics.
      */
-    public SnapshotRestoreAllocationDecider getSnapshotRestoreAllocationDecider() {
-        return snapshotRestoreAllocationDecider;
+    public SnapshotRestoreDiskPressure getSnapshotRestoreDiskPressure() {
+        return snapshotRestoreDiskPressure;
     }
 
     @Override

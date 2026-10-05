@@ -27,8 +27,8 @@ import java.util.Map;
 /// [#searchRecoveryTimeout].
 public class SearchRecoveryTimeoutCalculationService {
 
-    public static final String SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_PREFIX = SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME
-        + ".recovery_warming_timeout_reevaluation";
+    public static final String SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_PREFIX =
+        SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_timeout_reevaluation";
     /// Enabling causes offline warming timeouts to be reevaluated to see whether we can afford to continue warming before relocating and
     /// opening a shard. This means that warming for a shard will continue extending until we need to stop to give minimum time slices for
     /// to-be-relocated shards to relocate. Enabling this setting should reduce blob store cache misses after shard relocations.

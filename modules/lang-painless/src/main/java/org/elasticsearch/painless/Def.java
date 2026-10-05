@@ -210,8 +210,9 @@ public final class Def {
     }
 
     /**
-     * Wraps {@code handle} (shape {@code (receiver, scriptThis, userArgs...)}) to charge {@code estimator}'s {@code @allocates}
-     * cost via {@link PainlessScript#$checkAllocBytes(long)} before the call. No-lambda shape only (see {@link #lookupMethod}).
+     * Wraps {@code handle}, whose shape is {@code (receiver, scriptThis, userArgs...)}, so it runs {@code estimator} and
+     * {@link PainlessScript#$checkAllocBytes(long)} before the real call. Callers apply this before any lambda-argument
+     * filters are added, so the handle always has that plain shape here (see {@link #lookupMethod}).
      */
     private static MethodHandle chargeAllocationBeforeCall(
         MethodHandle handle,
@@ -394,13 +395,19 @@ public final class Def {
             handle = MethodHandles.insertArguments(handle, injectStart, injections);
         }
 
-        // Same script-first → receiver-first swap as the simple case; drop the extra slot when not @script_aware.
-        // Allocation is not charged on this (lambda-argument) path — no allocation-annotated target takes a lambda. v1 gap.
+        // Same swap as the simple case: script-first becomes receiver-first, or the extra slot is dropped when the method is not
+        // @script_aware. Charge the allocation here, before the lambda filters are added below. At this point the handle still
+        // has the plain (receiver, scriptThis, userArgs...) shape the estimator expects. Because the filters wrap the charged
+        // handle, the estimator sees the real lambda object, not the recipe placeholder.
         if (scriptThisPushed) {
             if (methodTakesScriptThis) {
                 handle = swapFirstTwoArguments(handle);
             } else {
                 handle = MethodHandles.dropArguments(handle, 1, PainlessScript.class);
+            }
+            Method estimator = painlessLookup.lookupRuntimeAllocationEstimator(receiverClass, name, arity);
+            if (estimator != null) {
+                handle = chargeAllocationBeforeCall(handle, estimator, injections, methodTakesScriptThis);
             }
         }
 

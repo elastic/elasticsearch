@@ -14,9 +14,9 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.columnar.FormatVersion;
+import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.substrate.ChunkBounds;
-import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
+import org.elasticsearch.columnar.substrate.ColumnTestFiles;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -26,28 +26,27 @@ import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
- * A column stages its ordinals, its escapes and its slot counts in temporary files. Writing one can fail
- * partway through, and whatever it opened before the failure is still a file to delete.
+ * A dictionary column stages its ordinals and its escapes in temporary files, and nothing else: every table
+ * and every other stream goes straight into its file. Writing one can fail partway through, and whatever it
+ * opened before the failure is still a file to delete.
  */
 public class StringColumnTempFileTests extends ColumnarStringTestCase {
 
     private static final DictionaryPolicy ROOMY = new DictionaryPolicy(512 * 1024, 0.5, 0.2);
-    private static final String DATA_FILE = "column.cnd";
+    private static final String COLUMN_FILES = "column";
 
     /** Writes {@code docSlots} as a dictionary column into {@code dir}. */
     private void write(Directory dir, BytesRef[][] docSlots) throws IOException {
         final byte[] segmentId = new byte[16];
         random().nextBytes(segmentId);
-        try (IndexOutput out = dir.createOutput(DATA_FILE, IOContext.DEFAULT)) {
-            ColumnarCodecUtil.writeHeader(out, "ColumNARStringData", FormatVersion.CURRENT, segmentId, "");
+        try (ColumnTestFiles.Outputs out = ColumnTestFiles.create(dir, COLUMN_FILES, segmentId)) {
             StringColumnWriter.write(
                 docSlots.length,
-                numDocsWithField(docSlots),
-                numValues(docSlots),
-                numNullSlots(docSlots),
+                totals(docSlots),
                 () -> cursor(docSlots),
                 new StringColumnOptions(
                     ROOMY,
+                    StringColumnOptions.DEFAULT_SUMMARY,
                     randomChunkCodec(),
                     new StringColumnOptions.Sizes(
                         randomValidBlockSize(),
@@ -56,13 +55,14 @@ public class StringColumnTempFileTests extends ColumnarStringTestCase {
                         StringColumnOptions.DEFAULT_PACKED_ORDINAL_BLOCK_SIZE,
                         StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
                         StringColumnOptions.DEFAULT_ESCAPE_RANK_BLOCK_SIZE,
-                        StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE
+                        StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE,
+                        ColumNARDocValuesFormat.MAX_BLOCK_SIZE
                     )
                 ),
                 null,
                 dir,
                 IOContext.DEFAULT,
-                out
+                out.outputs()
             );
         }
     }
@@ -102,12 +102,10 @@ public class StringColumnTempFileTests extends ColumnarStringTestCase {
                 final FailsNthTempOutput counting = new FailsNthTempOutput(real, -1);
                 write(counting, docSlots);
                 total = counting.opened;
-                // Only a column whose slots are out of step with its documents stages counts, so the
-                // multi-valued shape is what puts that file through the failure paths below.
                 assertEquals(
-                    "counts staged for " + (multiValued ? "a multi-valued" : "a single-valued") + " column",
-                    multiValued,
-                    counting.suffixes.contains("columnar-counts")
+                    "the only temporary files, " + (multiValued ? "multi-valued" : "single-valued"),
+                    Set.of("columnar-ordinals", "columnar-escapes"),
+                    counting.suffixes
                 );
             }
             assertThat("a dictionary column stages more than one temporary file", total, greaterThan(1));
@@ -131,7 +129,7 @@ public class StringColumnTempFileTests extends ColumnarStringTestCase {
                                 + "] left behind when the write failed at temporary file "
                                 + failAt
                                 + (multiValued ? " (multi-valued)" : " (single-valued)"),
-                            name.contains("columnar-ordinals") || name.contains("columnar-escapes") || name.contains("columnar-counts")
+                            name.contains("columnar-ordinals") || name.contains("columnar-escapes")
                         );
                     }
                 } finally {
@@ -147,7 +145,7 @@ public class StringColumnTempFileTests extends ColumnarStringTestCase {
 
     /**
      * A dictionary column with escapes among its values. When {@code multiValued}, its documents hold
-     * differing numbers of slots, which is what puts the counts in a temporary file of their own.
+     * differing numbers of slots, so the column writes slot counts too, straight into the addressing.
      */
     private BytesRef[][] column(boolean multiValued) {
         final String[] terms = { "alpha", "bravo", "charlie" };

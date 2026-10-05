@@ -80,8 +80,7 @@ public class AzureRepositorySettingsTests extends ESTestCase {
             Map.of(),
             repositoryServiceThreadPool,
             client,
-            List.of(),
-            SnapshotMetrics.NOOP
+            List.of()
         );
         repositoryServiceClusterService.start();
         repositoriesService.start();

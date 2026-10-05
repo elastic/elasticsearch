@@ -951,7 +951,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     public void testNullResourceWithFormatSpecificSettingNoNullInError() {
         // A missing resource yields exactly two errors: the required-resource error and a generic
         // unknown-setting error for the format-specific key. The targeted "set format" hint only fires
-        // when a resource URI is present to anchor it, so there is no "cannot determine format for [null]".
+        // when a resource URI is present to anchor it, so there is no "cannot determine the format of [null]".
         var e = expectThrows(
             ValidationException.class,
             () -> formatAwareValidator.validateDataset(Map.of(), null, Map.of("delimiter", "|"))
@@ -997,7 +997,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             ValidationException.class,
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("delimiter", "|"))
         );
-        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage("s3://test")), e.validationErrors());
+        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage()), e.validationErrors());
     }
 
     public void testUnknownFormatGenuineTypoReportedAsUnknownSetting() {
@@ -1006,7 +1006,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             ValidationException.class,
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("not_a_setting", "x"))
         );
-        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage("s3://test")), e.validationErrors());
+        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage()), e.validationErrors());
     }
 
     public void testUnknownFormatMixedKeysReportBothDiagnoses() {
@@ -1014,7 +1014,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             ValidationException.class,
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("delimiter", "|", "not_a_setting", "x"))
         );
-        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage("s3://test")), e.validationErrors());
+        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage()), e.validationErrors());
     }
 
     public void testUnknownFormatBaseSettingsOnlyAccepted() {
@@ -1022,7 +1022,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             ValidationException.class,
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("partition_detection", "hive"))
         );
-        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage("s3://test")), e.validationErrors());
+        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage()), e.validationErrors());
     }
 
     public void testFormatAutoFallsBackToExtension() {
@@ -1687,8 +1687,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     ).withAdditionalDatasetKeys(Set.of("region"))
         .withDeprecatedDatasourceKey(
             "region",
-            "[region] on a data source is deprecated and will be ignored; "
-                + "set [region] on the dataset instead, or omit it to have the bucket region detected automatically"
+            "[region] on a data source is ignored; set it on the dataset ([sts_region] on a federated source) or omit it to auto-detect"
         );
 
     public void testValidateDatasetAcceptsRegion() {
@@ -1707,8 +1706,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         );
         assertEquals("us-east-1", stored.get("region").nonSecretValue());
         assertWarnings(
-            "[region] on a data source is deprecated and will be ignored; "
-                + "set [region] on the dataset instead, or omit it to have the bucket region detected automatically"
+            "[region] on a data source is ignored; set it on the dataset ([sts_region] on a federated source) or omit it to auto-detect"
         );
     }
 

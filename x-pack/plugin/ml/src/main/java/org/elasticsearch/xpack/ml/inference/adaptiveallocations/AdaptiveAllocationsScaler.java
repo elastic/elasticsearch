@@ -186,15 +186,6 @@ public class AdaptiveAllocationsScaler {
             numberOfAllocations = Math.min(numberOfAllocations, maxNumberOfAllocations);
         }
 
-        // Applied after user-configured bounds: a hard OOM safety guard that must not be overridden by
-        // min_number_of_allocations when memory is genuinely exhausted. Floored at 1 so this cap can never
-        // itself scale a deployment to zero (that is reserved for the no-requests path below).
-        // neededNumberOfAllocations retains the raw demand for telemetry, visible as the gap between needed
-        // and the applied count.
-        if (maxNumberOfAllocationsByMemory != null) {
-            numberOfAllocations = Math.min(numberOfAllocations, Math.max(1, maxNumberOfAllocationsByMemory));
-        }
-
         if ((minNumberOfAllocations == null || minNumberOfAllocations == 0)
             && timeWithoutRequestsSeconds > scaleToZeroAfterNoRequestsSeconds.get()) {
 

@@ -41,6 +41,7 @@ import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -59,6 +60,11 @@ import static org.elasticsearch.core.Strings.format;
 public class PkiRealm extends Realm implements CachingRealm {
 
     public static final String PKI_CERT_HEADER_NAME = "__SECURITY_CLIENT_CERTIFICATE";
+    public static final String PKI_DN_METADATA_KEY = "pki_dn";
+    public static final String PKI_CERT_FINGERPRINT_METADATA_KEY = "pki_cert_fingerprint";
+    public static final String PKI_PUBLIC_KEY_FINGERPRINT_METADATA_KEY = "pki_public_key_fingerprint";
+    public static final String PKI_DELEGATED_BY_USER_METADATA_KEY = "pki_delegated_by_user";
+    public static final String PKI_DELEGATED_BY_REALM_METADATA_KEY = "pki_delegated_by_realm";
 
     // For client based cert validation, the auth type must be specified but UNKNOWN is an acceptable value
     private static final String AUTH_TYPE = "UNKNOWN";
@@ -220,20 +226,28 @@ public class PkiRealm extends Realm implements CachingRealm {
         }
     }
 
-    private void buildUser(X509AuthenticationToken token, String principal, ActionListener<AuthenticationResult<User>> listener) {
-        final Map<String, Object> metadata;
+    private void buildUser(X509AuthenticationToken token, String principal, ActionListener<AuthenticationResult<User>> listener)
+        throws CertificateEncodingException {
+        final X509Certificate leafCertificate = token.credentials()[0];
+        final byte[] encodedLeafCertificate = leafCertificate.getEncoded();
+        final byte[] encodedPublicKey = leafCertificate.getPublicKey().getEncoded();
+        final Map<String, Object> metadataBuilder = new HashMap<>();
+        metadataBuilder.put(PKI_DN_METADATA_KEY, token.dn());
+        metadataBuilder.put(PKI_CERT_FINGERPRINT_METADATA_KEY, sha256Fingerprint(encodedLeafCertificate));
+        if (encodedPublicKey != null) {
+            metadataBuilder.put(PKI_PUBLIC_KEY_FINGERPRINT_METADATA_KEY, sha256Fingerprint(encodedPublicKey));
+        }
         if (token.isDelegated()) {
-            metadata = Map.of(
-                "pki_dn",
-                token.dn(),
-                "pki_delegated_by_user",
-                token.getDelegateeAuthentication().getEffectiveSubject().getUser().principal(),
-                "pki_delegated_by_realm",
+            metadataBuilder.put(
+                PKI_DELEGATED_BY_USER_METADATA_KEY,
+                token.getDelegateeAuthentication().getEffectiveSubject().getUser().principal()
+            );
+            metadataBuilder.put(
+                PKI_DELEGATED_BY_REALM_METADATA_KEY,
                 token.getDelegateeAuthentication().getEffectiveSubject().getRealm().getName()
             );
-        } else {
-            metadata = Map.of("pki_dn", token.dn());
         }
+        final Map<String, Object> metadata = Map.copyOf(metadataBuilder);
         final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(principal, token.dn(), Set.of(), metadata, config);
         roleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
             final User computedUser = new User(principal, roles.toArray(new String[roles.size()]), null, null, metadata, true);
@@ -381,5 +395,9 @@ public class PkiRealm extends Realm implements CachingRealm {
             digest.update(certificate.getEncoded());
         }
         return new BytesKey(digest.digest());
+    }
+
+    private static String sha256Fingerprint(byte[] encoded) {
+        return MessageDigests.toHexString(MessageDigests.sha256().digest(encoded));
     }
 }

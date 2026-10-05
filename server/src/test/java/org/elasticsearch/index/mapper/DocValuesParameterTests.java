@@ -20,6 +20,7 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
@@ -708,9 +709,12 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * being thrown out.
      */
     public void testOnFailureIgnoreAcceptsDocumentInsteadOfThrowing() throws Exception {
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        Settings.Builder settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName());
+        if (ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()) {
+            settings.put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), false);
+        }
         DocumentMapper mapper = createMapperService(
-            settings,
+            settings.build(),
             fieldMapping(
                 b -> b.field("type", "keyword")
                     .startObject("doc_values")

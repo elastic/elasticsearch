@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -73,6 +74,8 @@ public class AuditIT extends ESRestTestCase {
         .setting("esql.federation.enabled", "true")
         // Endpoints are confined to AWS hosts, so permit loopback the way the esql suites do.
         .setting("esql.external.allowed_endpoint_hosts", "127.0.0.1:*,[::1]:*,localhost:*")
+        // _test REST handler is FeatureFlag-gated (snapshot-on, release-off); AuditIT covers credential masking on it.
+        .feature(FeatureFlag.ESQL_DATA_SOURCE_TEST_CONNECTION)
         .keystore("cluster.state.encryption.password." + ENCRYPTION_PASSWORD_ID, "audit-it-encryption-password")
         .keystore("cluster.state.encryption.active_password_id", ENCRYPTION_PASSWORD_ID)
         .user("admin_user", "admin-password")
@@ -146,6 +149,35 @@ public class AuditIT extends ESRestTestCase {
     }
 
     /**
+     * Verifies that credentials in a {@code POST /_query/data_source/_test} body are masked in the audit log.
+     * The handler implements {@link org.elasticsearch.rest.RestRequestFilter} with the same secret-field mask
+     * as the PUT handler, so {@code access_key}, {@code secret_key}, etc. must not appear in the audit event
+     * even when {@code emit_request_body} is enabled. The probe itself will fail (no real S3 at the endpoint),
+     * but the audit event fires at authentication time and is written regardless of the probe outcome.
+     */
+    public void testFilteringOfTestConnectionCredentials() throws Exception {
+        final String accessKey = randomAlphaOfLength(20);
+        final String secretKey = randomAlphaOfLength(40);
+        final Request request = new Request("POST", "/_query/data_source/_test");
+        request.setJsonEntity(
+            "{\"type\":\"s3\",\"settings\":{\"access_key\":\""
+                + accessKey
+                + "\",\"secret_key\":\""
+                + secretKey
+                + "\",\"endpoint\":\"http://localhost:12345\"}}"
+        );
+        request.addParameter("ignore", "400,500");
+        executeAndVerifyAudit(request, AuditLevel.AUTHENTICATION_SUCCESS, event -> {
+            String body = asInstanceOf(String.class, event.get(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME));
+            assertThat(body, containsString("\"type\""));
+            assertThat(body, not(containsString(accessKey)));
+            assertThat(body, not(containsString(secretKey)));
+            assertThat(toJson(event), not(containsString(accessKey)));
+            assertThat(toJson(event), not(containsString(secretKey)));
+        });
+    }
+
+    /**
      * Verifies that a data source PUT via the {@code source} query parameter is rejected with HTTP 400.
      * Using {@code contentParser()} instead of {@code contentOrSourceParamParser()} in the REST handler
      * prevents successful registration from a query string, which is the primary goal: credentials in
@@ -174,6 +206,108 @@ public class AuditIT extends ESRestTestCase {
         request.addParameter("source_content_type", "application/json");
         request.addParameter("ignore", "400");
         final Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(400));
+    }
+
+    /**
+     * Verifies that a dataset PUT via the {@code source} query parameter is rejected with HTTP 400.
+     * Same residual as {@link #testDataSourceDefinitionInQueryStringRejected}: {@code url.query} may still
+     * appear on authentication audit events because they fire before the handler runs; this test only
+     * asserts that no successful registration occurs.
+     */
+    public void testDatasetDefinitionInQueryStringRejected() throws Exception {
+        final String dataSourceName = randomAlphaOfLength(4).toLowerCase(Locale.ROOT) + randomIntBetween(100, 999);
+        final String datasetName = randomAlphaOfLength(4).toLowerCase(Locale.ROOT) + randomIntBetween(100, 999);
+        final Request putDataSource = new Request("PUT", "/_query/data_source/" + dataSourceName);
+        putDataSource.setJsonEntity("{\"type\":\"s3\",\"settings\":{\"auth\":\"anonymous\",\"endpoint\":\"" + FIXTURE_ENDPOINT + "\"}}");
+        assertThat(client().performRequest(putDataSource).getStatusLine().getStatusCode(), equalTo(200));
+
+        final Request request = new Request("PUT", "/_query/dataset/" + datasetName);
+        request.addParameter(
+            "source",
+            "{\"data_source\":\"" + dataSourceName + "\",\"resource\":\"s3://example-bucket/cloudtrail/*.parquet\"}"
+        );
+        request.addParameter("source_content_type", "application/json");
+        request.addParameter("ignore", "400");
+        final Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(400));
+
+        final Request getDataset = new Request("GET", "/_query/dataset/" + datasetName);
+        getDataset.addParameter("ignore", "404");
+        final Response getResponse = client().performRequest(getDataset);
+        assertThat(getResponse.getStatusLine().getStatusCode(), equalTo(404));
+    }
+
+    /**
+     * Verifies that a data-source secret setting name under {@code settings} is stripped from the audited
+     * dataset PUT body. Registration fails validation because the setting shadows a parent secret; the
+     * audit event still fires at authentication time.
+     */
+    public void testFilteringOfDatasetSettingsSecrets() throws Exception {
+        final String dataSourceName = randomAlphaOfLength(4).toLowerCase(Locale.ROOT) + randomIntBetween(100, 999);
+        final String datasetName = randomAlphaOfLength(4).toLowerCase(Locale.ROOT) + randomIntBetween(100, 999);
+        final String parentAccessKey = randomAlphaOfLength(20);
+        final String parentSecretKey = randomAlphaOfLength(40);
+        final Request putDataSource = new Request("PUT", "/_query/data_source/" + dataSourceName);
+        putDataSource.setJsonEntity(
+            "{\"type\":\"s3\",\"settings\":{\"access_key\":\""
+                + parentAccessKey
+                + "\",\"secret_key\":\""
+                + parentSecretKey
+                + "\",\"endpoint\":\""
+                + FIXTURE_ENDPOINT
+                + "\"}}"
+        );
+        assertThat(client().performRequest(putDataSource).getStatusLine().getStatusCode(), equalTo(200));
+
+        final String shadowedSecretKey = randomAlphaOfLength(40);
+        final Request request = new Request("PUT", "/_query/dataset/" + datasetName);
+        request.setJsonEntity(
+            "{\"data_source\":\""
+                + dataSourceName
+                + "\",\"resource\":\"s3://example-bucket/cloudtrail/*.parquet\","
+                + "\"settings\":{\"secret_key\":\""
+                + shadowedSecretKey
+                + "\"}}"
+        );
+        request.addParameter("ignore", "400");
+        final Response response = executeAndVerifyAudit(request, AuditLevel.AUTHENTICATION_SUCCESS, event -> {
+            String body = asInstanceOf(String.class, event.get(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME));
+            assertThat(body, containsString("\"data_source\""));
+            assertThat(body, not(containsString(shadowedSecretKey)));
+            assertThat(toJson(event), not(containsString(shadowedSecretKey)));
+        });
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(400));
+    }
+
+    /**
+     * Verifies that secret parts of an {@code https} dataset {@code resource} (pre-signed URL signature)
+     * are redacted in the audited body while host, path, and {@code data_source} remain. Registration is
+     * refused (an {@code s3} data source does not accept {@code https} resources); the audit event still
+     * fires at authentication time.
+     */
+    public void testFilteringOfDatasetResourceSignature() throws Exception {
+        final String dataSourceName = randomAlphaOfLength(4).toLowerCase(Locale.ROOT) + randomIntBetween(100, 999);
+        final String datasetName = randomAlphaOfLength(4).toLowerCase(Locale.ROOT) + randomIntBetween(100, 999);
+        final Request putDataSource = new Request("PUT", "/_query/data_source/" + dataSourceName);
+        putDataSource.setJsonEntity("{\"type\":\"s3\",\"settings\":{\"auth\":\"anonymous\",\"endpoint\":\"" + FIXTURE_ENDPOINT + "\"}}");
+        assertThat(client().performRequest(putDataSource).getStatusLine().getStatusCode(), equalTo(200));
+
+        final String signature = randomAlphaOfLength(40);
+        final String hostAndPath = "example-bucket.s3.amazonaws.com/data/sales.csv";
+        final Request request = new Request("PUT", "/_query/dataset/" + datasetName);
+        request.setJsonEntity(
+            "{\"data_source\":\"" + dataSourceName + "\",\"resource\":\"https://" + hostAndPath + "?X-Amz-Signature=" + signature + "\"}"
+        );
+        request.addParameter("ignore", "400");
+        final Response response = executeAndVerifyAudit(request, AuditLevel.AUTHENTICATION_SUCCESS, event -> {
+            String body = asInstanceOf(String.class, event.get(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME));
+            assertThat(body, containsString("\"data_source\":\"" + dataSourceName + "\""));
+            assertThat(body, containsString("\"resource\""));
+            assertThat(body, containsString(hostAndPath));
+            assertThat(body, not(containsString(signature)));
+            assertThat(toJson(event), not(containsString(signature)));
+        });
         assertThat(response.getStatusLine().getStatusCode(), equalTo(400));
     }
 
@@ -322,15 +456,23 @@ public class AuditIT extends ESRestTestCase {
         }, 5, TimeUnit.SECONDS);
     }
 
-    private void executeAndVerifyAudit(Request request, AuditLevel eventType, CheckedConsumer<Map<String, Object>, Exception> assertions)
-        throws Exception {
+    private Response executeAndVerifyAudit(
+        Request request,
+        AuditLevel eventType,
+        CheckedConsumer<Map<String, Object>, Exception> assertions
+    ) throws Exception {
         Instant start = Instant.now();
-        executeRequest(request);
+        Response response = executeRequest(request);
         assertBusy(() -> {
             try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
                 final List<String> lines = Streams.readAllLines(auditLog);
                 final List<Map<String, Object>> events = findEvents(lines, eventType, e -> {
                     if (API_USER.equals(e.get(LoggingAuditTrail.PRINCIPAL_FIELD_NAME)) == false) {
+                        return false;
+                    }
+                    // Match the request under test by path so a preceding setup call (same principal) that
+                    // flushes into this time window cannot make hasSize(1) fail spuriously.
+                    if (request.getEndpoint().equals(e.get(LoggingAuditTrail.URL_PATH_FIELD_NAME)) == false) {
                         return false;
                     }
                     Instant tstamp = ZonedDateTime.parse(String.valueOf(e.get(LoggingAuditTrail.TIMESTAMP)), TSTAMP_FORMATTER).toInstant();
@@ -355,6 +497,7 @@ public class AuditIT extends ESRestTestCase {
 
             }
         }, 5, TimeUnit.SECONDS);
+        return response;
     }
 
     private static Response executeRequest(Request request) throws IOException {

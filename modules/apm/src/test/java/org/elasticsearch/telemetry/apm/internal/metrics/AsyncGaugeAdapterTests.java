@@ -9,10 +9,10 @@
 
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.apm.RecordingOtelMeter;
 import org.elasticsearch.telemetry.metric.DoubleAsyncGauge;
-import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongAsyncGauge;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.test.ESTestCase;
@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.startsWith;
 
 public class AsyncGaugeAdapterTests extends ESTestCase {
     RecordingOtelMeter otelMeter;
@@ -39,7 +40,10 @@ public class AsyncGaugeAdapterTests extends ESTestCase {
     // testing that a value reported is then used in a callback
     public void testLongGaugeRecord() throws Exception {
         AtomicReference<LongWithAttributes> attrs = new AtomicReference<>();
-        LongAsyncGauge gauge = registry.registerLongAsyncGauge("es.test.name.total", "desc", "unit", attrs::get);
+        LongAsyncGauge gauge = registry.registerLongAsyncGauge("es.test.name.total", "desc", "unit", measurement -> {
+            LongWithAttributes observed = attrs.get();
+            measurement.record(observed.value(), observed.attributes());
+        });
 
         attrs.set(new LongWithAttributes(1L, Map.of("es_test_attribute", 1L)));
 
@@ -70,11 +74,14 @@ public class AsyncGaugeAdapterTests extends ESTestCase {
     }
 
     // testing that a value reported is then used in a callback
-    public void testDoubleGaugeRecord() throws Exception {
-        AtomicReference<DoubleWithAttributes> attrs = new AtomicReference<>();
-        DoubleAsyncGauge gauge = registry.registerDoubleAsyncGauge("es.test.name.total", "desc", "unit", attrs::get);
+    public void testDoubleGaugeRecord() {
+        AtomicReference<Tuple<Double, Map<String, Object>>> attrs = new AtomicReference<>();
+        DoubleAsyncGauge gauge = registry.registerDoubleAsyncGauge("es.test.name.total", "desc", "unit", measurement -> {
+            var value = attrs.get();
+            measurement.record(value.v1(), value.v2());
+        });
 
-        attrs.set(new DoubleWithAttributes(1.0d, Map.of("es_test_attribute", 1L)));
+        attrs.set(new Tuple<>(1.0d, Map.of("es_test_attribute", 1L)));
 
         otelMeter.collectMetrics();
 
@@ -83,7 +90,7 @@ public class AsyncGaugeAdapterTests extends ESTestCase {
         assertThat(metrics.get(0).attributes(), equalTo(Map.of("es_test_attribute", 1L)));
         assertThat(metrics.get(0).getDouble(), equalTo(1.0d));
 
-        attrs.set(new DoubleWithAttributes(2.0d, Map.of("es_test_attribute", 5L)));
+        attrs.set(new Tuple<>(2.0d, Map.of("es_test_attribute", 5L)));
 
         otelMeter.getRecorder().resetCalls();
         otelMeter.collectMetrics();
@@ -103,18 +110,8 @@ public class AsyncGaugeAdapterTests extends ESTestCase {
     }
 
     public void testZeroValuedGaugesAreRecorded() {
-        LongAsyncGauge longAsyncGauge = registry.registerLongAsyncGauge(
-            "es.test.long.current",
-            "desc",
-            "unit",
-            () -> new LongWithAttributes(0L)
-        );
-        DoubleAsyncGauge doubleAsyncGauge = registry.registerDoubleAsyncGauge(
-            "es.test.double.current",
-            "desc",
-            "unit",
-            () -> new DoubleWithAttributes(0.0)
-        );
+        LongAsyncGauge longAsyncGauge = registry.registerLongAsyncGauge("es.test.long.current", "desc", "unit", () -> 0L);
+        DoubleAsyncGauge doubleAsyncGauge = registry.registerDoubleAsyncGauge("es.test.double.current", "desc", "unit", () -> 0.0);
 
         otelMeter.collectMetrics();
 
@@ -122,30 +119,23 @@ public class AsyncGaugeAdapterTests extends ESTestCase {
         assertThat(otelMeter.getRecorder().getMeasurements(doubleAsyncGauge), hasSize(1));
     }
 
-    public void testNullGaugeRecord() throws Exception {
-        DoubleAsyncGauge dgauge = registry.registerDoubleAsyncGauge(
-            "es.test.name.total",
-            "desc",
-            "unit",
-            new AtomicReference<DoubleWithAttributes>()::get
-        );
-        otelMeter.collectMetrics();
-        List<Measurement> metrics = otelMeter.getRecorder().getMeasurements(dgauge);
-        assertThat(metrics, hasSize(0));
+    public void testNullGaugeRecords() throws Exception {
+        DoubleAsyncGauge dgauge = registry.registerDoublesAsyncGauge("es.test.name.total", "desc", "unit", () -> null);
+        expectThrows(AssertionError.class, startsWith("must not pass null values to async instruments"), otelMeter::collectMetrics);
+        dgauge.close();
 
-        LongAsyncGauge lgauge = registry.registerLongAsyncGauge(
-            "es.test.name.total",
-            "desc",
-            "unit",
-            new AtomicReference<LongWithAttributes>()::get
-        );
-        otelMeter.collectMetrics();
-        metrics = otelMeter.getRecorder().getMeasurements(lgauge);
-        assertThat(metrics, hasSize(0));
+        LongAsyncGauge lgauge = registry.registerLongsAsyncGauge("es.test.name.total", "desc", "unit", () -> null);
+        expectThrows(AssertionError.class, startsWith("must not pass null values to async instruments"), otelMeter::collectMetrics);
+        lgauge.close();
     }
 
     public void testLongGaugeWithInvalidAttribute() {
-        registry.registerLongAsyncGauge("es.test.name.total", "desc", "unit", () -> new LongWithAttributes(1, Map.of("index", "index1")));
+        registry.registerLongAsyncGauge(
+            "es.test.name.total",
+            "desc",
+            "unit",
+            measurement -> measurement.record(1, Map.of("index", "index1"))
+        );
 
         AssertionError error = assertThrows(AssertionError.class, otelMeter::collectMetrics);
         assertThat(error.getMessage(), containsString("Attribute [index] of [es.test.name.total] is forbidden"));
@@ -156,7 +146,7 @@ public class AsyncGaugeAdapterTests extends ESTestCase {
             "es.test.name.total",
             "desc",
             "unit",
-            () -> new DoubleWithAttributes(1.0, Map.of("es_has_timestamp", "false"))
+            measurement -> measurement.record(1.0, Map.of("es_has_timestamp", "false"))
         );
 
         AssertionError error = assertThrows(AssertionError.class, otelMeter::collectMetrics);
@@ -167,7 +157,7 @@ public class AsyncGaugeAdapterTests extends ESTestCase {
         var anotherMeter = new RecordingOtelMeter();
         var value = new AtomicReference<>(42L);
 
-        var gauge = registry.registerLongAsyncGauge("es.test.name.total", "desc", "thingies", () -> new LongWithAttributes(value.get()));
+        var gauge = registry.registerLongAsyncGauge("es.test.name.total", "desc", "thingies", value::get);
 
         otelMeter.collectMetrics();
         var metrics = otelMeter.getRecorder().getMeasurements(gauge);
@@ -189,7 +179,7 @@ public class AsyncGaugeAdapterTests extends ESTestCase {
     }
 
     public void testLongGaugeIsRemovedFromTheRegistryAfterClosing() throws Exception {
-        var gauge = registry.registerLongAsyncGauge("es.test.name.total", "desc", "thingies", () -> new LongWithAttributes(42));
+        var gauge = registry.registerLongAsyncGauge("es.test.name.total", "desc", "thingies", () -> 42L);
 
         otelMeter.collectMetrics();
         var metrics = otelMeter.getRecorder().getMeasurements(gauge);
@@ -207,7 +197,7 @@ public class AsyncGaugeAdapterTests extends ESTestCase {
     }
 
     public void testDoubleGaugeIsRemovedFromTheRegistryAfterClosing() throws Exception {
-        var gauge = registry.registerDoubleAsyncGauge("es.test.name.total", "desc", "thingies", () -> new DoubleWithAttributes(42.0));
+        var gauge = registry.registerDoubleAsyncGauge("es.test.name.total", "desc", "thingies", () -> 42.0);
 
         otelMeter.collectMetrics();
         var metrics = otelMeter.getRecorder().getMeasurements(gauge);

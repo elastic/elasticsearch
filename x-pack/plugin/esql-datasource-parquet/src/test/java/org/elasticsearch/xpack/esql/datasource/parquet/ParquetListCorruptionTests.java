@@ -68,7 +68,7 @@ public class ParquetListCorruptionTests extends ESTestCase {
         }
         input.validateExhausted();
         assertEquals(4, reader.physicalIndex);
-        assertThat(warnings.getLast(), containsString("discarded [1] orphan values"));
+        assertThat(warnings.getLast(), containsString("[1] list values dropped"));
     }
 
     public void testStringDatetimeListDiscardsLeadingContinuation() {
@@ -129,7 +129,7 @@ public class ParquetListCorruptionTests extends ESTestCase {
         }
         input.validateExhausted();
         assertEquals(4, reader.physicalIndex);
-        assertThat(warnings.getLast(), containsString("discarded [1] orphan values"));
+        assertThat(warnings.getLast(), containsString("[1] list values dropped"));
     }
 
     public void testFooterUndercountFailsInEveryMode() {
@@ -185,7 +185,7 @@ public class ParquetListCorruptionTests extends ESTestCase {
             assertEquals(7, ((IntBlock) block).getInt(0));
         }
         input.validateExhausted();
-        assertThat(warnings.getLast(), containsString("discarded [1] orphan values"));
+        assertThat(warnings.getLast(), containsString("[1] list values dropped"));
     }
 
     public void testRepeatedRecoveryEventIsChargedOnce() {
@@ -200,7 +200,7 @@ public class ParquetListCorruptionTests extends ESTestCase {
 
         handler.recoveredOrphan("x", 0, 1, 1, 1);
         handler.recoveredOrphan("x", 0, 1, 1, 1);
-        assertEquals(1, warnings.stream().filter(warning -> warning.contains("started row [1]")).count());
+        assertEquals(1, warnings.stream().filter(warning -> warning.contains("row [1]:")).count());
 
         ParsingException e = expectThrows(ParsingException.class, () -> handler.recoveredOrphan("x", 0, 2, 2, 1));
         assertThat(e.getMessage(), containsString("[2] structural errors"));
@@ -235,7 +235,7 @@ public class ParquetListCorruptionTests extends ESTestCase {
         assertEquals("orphan charges 1 error", 1L, budget.errorCount());
 
         // completeBatch(100, 0): ensureRowsAtLeast(100) → max(100, 100) = 100; addErrors(0) is a no-op
-        handler.completeBatch(100, 0, SkipWarnings.NOOP);
+        handler.completeBatch(100, 0);
         assertEquals("completeBatch must not double-count rowCount", 100L, budget.rowCount());
         assertEquals("no dropped rows so error count unchanged", 1L, budget.errorCount());
     }
@@ -250,7 +250,7 @@ public class ParquetListCorruptionTests extends ESTestCase {
         );
 
         handler.recoveredOrphan("x", 0, 1, 1, 1);
-        ParsingException e = expectThrows(ParsingException.class, () -> handler.completeBatch(2, 1, SkipWarnings.NOOP));
+        ParsingException e = expectThrows(ParsingException.class, () -> handler.completeBatch(2, 1));
         assertThat(e.getMessage(), containsString("[2] errors"));
     }
 
@@ -261,7 +261,7 @@ public class ParquetListCorruptionTests extends ESTestCase {
                     "recovered list corruption",
                     ParquetColumnDecoding.class.getName(),
                     Level.INFO,
-                    "*started row [1] at a non-zero repetition level; discarded [1] orphan values"
+                    "Malformed list data in [memory://malformed-list.parquet]: column [x], row group [1], row [1]: [1] list values dropped"
                 )
             );
             ErrorPolicy policy = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 1, 0.0, true);

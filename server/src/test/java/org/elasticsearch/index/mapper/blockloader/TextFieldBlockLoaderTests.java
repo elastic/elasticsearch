@@ -65,7 +65,8 @@ public class TextFieldBlockLoaderTests extends BinaryDVBlockLoaderTestCase {
             // See TextFieldMapper.SyntheticSourceHelper#getKeywordFieldMapperForSyntheticSource
             // and TextFieldMapper#canUseSyntheticSourceDelegateForLoading().
             boolean usingSyntheticSourceDelegate = normalizer == null && (docValues || store);
-            boolean canUseSyntheticSourceDelegateForLoading = usingSyntheticSourceDelegate && ignoreAbove == null;
+            boolean canUseSyntheticSourceDelegateForLoading = usingSyntheticSourceDelegate
+                && (ignoreAbove == null || params.indexMode().isStrictColumnar());
             if (canUseSyntheticSourceDelegateForLoading) {
                 return KeywordFieldBlockLoaderTests.expectedValue(keywordMultiFieldMapping, value, params, testContext);
             }

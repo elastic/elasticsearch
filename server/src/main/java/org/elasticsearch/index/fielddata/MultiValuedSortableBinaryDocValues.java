@@ -55,6 +55,15 @@ public abstract class MultiValuedSortableBinaryDocValues extends SortableBinaryD
     }
 
     /**
+     * Reads binary doc values written in the {@link PlainBinary} format: raw bytes per document, no count, no companion field.
+     * Use this when the field is known to be single-valued at mapping time (e.g. a {@code PLAIN} columnar keyword field), skipping
+     * the {@code .counts} probe that {@link #from} performs.
+     */
+    public static SortableBinaryDocValues fromPlain(LeafReader leafReader, String valuesFieldName) throws IOException {
+        return new PlainBinary(DocValues.getBinary(leafReader, valuesFieldName));
+    }
+
+    /**
      * Reader for callers that read inherently multi-valued fields (ex. {@code _ignored_source}). These fields always use either the
      * {@link SeparateCounts} or {@link IntegratedCounts} format, so the single-valued fast path in {@link #from(LeafReader, String)} does
      * not apply.

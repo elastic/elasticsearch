@@ -21,6 +21,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.highlight.DefaultEncoder;
@@ -199,6 +200,10 @@ public class HighlightOperator extends AbstractPageMappingOperator {
 
         @Override
         public void visitLeaf(Query query) {
+            if (query instanceof MatchNoDocsQuery) {
+                // Match-none contributes no terms and can never match, so it must not disable the keep-set optimisation.
+                return;
+            }
             unfilterable = true;
         }
 

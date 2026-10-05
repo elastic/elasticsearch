@@ -21,6 +21,7 @@ import org.reactivestreams.Subscription;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -82,6 +83,7 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
 
     private final CompletableFuture<DirectReadBuffer> resultFuture = new CompletableFuture<>();
     private final AtomicBoolean prepared = new AtomicBoolean();
+    private final AtomicBoolean discarded = new AtomicBoolean();
 
     private volatile R response;
     // Kept so exceptionOccurred() can release the buffer even if the subscriber's onError
@@ -146,6 +148,35 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
         ChunkCopyingSubscriber chunkCopyingSubscriber = new ChunkCopyingSubscriber(resultFuture, expectedLength, factory, path);
         this.subscriber = chunkCopyingSubscriber;
         publisher.subscribe(chunkCopyingSubscriber);
+    }
+
+    /**
+     * Releases a buffer this attempt will not deliver. Idempotent: a second call returns without
+     * throwing and without refunding the breaker charge again.
+     *
+     * <p>The future {@code getObject} returns is not {@link #resultFuture}. Cancelling or failing
+     * that future does not complete this one, and {@link #exceptionOccurred} returns immediately
+     * once {@code resultFuture} is done — including when it already holds a buffer the SDK never
+     * forwarded. {@code whenComplete} closes that parked buffer. When the future is still open,
+     * {@link #exceptionOccurred} closes a buffer the subscriber still holds, the same hook a
+     * superseded cross-region attempt uses.
+     */
+    void discard() {
+        if (discarded.compareAndSet(false, true) == false) {
+            return;
+        }
+        resultFuture.whenComplete((buffer, error) -> {
+            if (buffer != null) {
+                buffer.close();
+            }
+        });
+        // whenComplete above closes a successful result. This check only skips a redundant
+        // exceptionOccurred: once the future is done that method returns immediately and would not
+        // close the buffer. The contract is the method javadoc — call discard() only when this
+        // attempt will not deliver. Do not skip whenComplete to "protect" a delivered buffer.
+        if (resultFuture.isDone() == false) {
+            exceptionOccurred(new CancellationException("read cancelled"));
+        }
     }
 
     @Override
@@ -213,7 +244,7 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
             this.resultFuture = resultFuture;
             this.expectedLength = expectedLength;
             this.factory = factory;
-            this.fill = new KnownLengthBodyFill("S3", path, expectedLength);
+            this.fill = new KnownLengthBodyFill("S3", path.objectName(), expectedLength);
         }
 
         @Override

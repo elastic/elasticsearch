@@ -38,6 +38,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeHighlightImplicitQueryAndFieldsEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests.S3_PATH;
@@ -129,7 +130,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         );
         assertThat(
             error(fullTextAnalyzer().query(HYBRID_FORK + "| KEEP title | WHERE match_phrase(title, \"data\")")),
-            containsString("[MatchPhrase] function cannot search column [title] after FORK")
+            containsString("[MATCH_PHRASE] function cannot search column [title] after FORK")
         );
         assertThat(
             error(fullTextAnalyzer().query(HYBRID_FORK + "| KEEP title | WHERE title : \"data\"")),
@@ -297,6 +298,35 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         // HIGHLIGHT holds full-text functions too, but it analyzes row by row through a MemoryIndex whether or not
         // a FORK precedes it, so the restriction must not reach it even in the shape that blocks push-down
         optimize(fullTextAnalyzer().minimumTransportVersion(Highlight.ESQL_HIGHLIGHT).query(HYBRID_FORK + "| HIGHLIGHT \"data\" ON title"));
+    }
+
+    /**
+     * A full-text WHERE after HIGHLIGHT is only accepted once the optimizer pushes it below HIGHLIGHT. An INLINE STATS whose
+     * output is kept blocks that push-down, so the second WHERE stays above the first HIGHLIGHT and is rejected here even
+     * though analysis accepted it. Without the INLINE STATS the WHERE moves below HIGHLIGHT and the plan is accepted.
+     */
+    public void testFullTextWhereAfterHighlightBlockedByInlineStats() {
+        assumeTrue("INLINE STATS must be enabled", INLINE_STATS.isEnabled());
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        TestAnalyzer analyzer = fullTextAnalyzer().minimumTransportVersion(Highlight.ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS);
+
+        var err = error(analyzer.query("""
+            FROM test
+            | WHERE MATCH(title, "fox")
+            | HIGHLIGHT ON title
+            | INLINE STATS c = COUNT(*)
+            | WHERE MATCH(body, "dog")
+            | HIGHLIGHT ON body
+            """));
+        assertThat(err, containsString("[MATCH] function cannot be used after HIGHLIGHT when it targets an indexed field"));
+
+        optimize(analyzer.query("""
+            FROM test
+            | WHERE MATCH(title, "fox")
+            | HIGHLIGHT ON title
+            | WHERE MATCH(body, "dog")
+            | HIGHLIGHT ON body
+            """));
     }
 
     private TestAnalyzer fullTextAnalyzer() {

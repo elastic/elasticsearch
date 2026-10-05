@@ -221,6 +221,48 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
 
     // --- unsupported constructs are dropped with a warning ---
 
+    // ---- per-function version gating on the view path (elastic/elasticsearch#159672) ----
+    //
+    // CURRENT here is the rewrite's own pin, which is below esql_mv_compare, so it is the window the per-function
+    // gate exists for: the view rewrite runs, and a single-bound range needs a function the targeted nodes lack.
+
+    /**
+     * The view path must reach the translator with the CLUSTER's minimum, not {@code current()}. If it passed
+     * {@code current()} — as the neighbouring field-name extractor deliberately does — the gate would be silently off
+     * here and the branch would ship a function an older node cannot read. Nothing else pins which of the two
+     * spellings this path uses.
+     */
+    public void testViewBranchDropsAGatedFunctionBelowItsPin() {
+        Attribute y = attr("y", DataType.KEYWORD);
+        ViewUnionAll vua = unionWithView("myView", y);
+
+        LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.rangeQuery("y").gt("m"), CONFIG, CURRENT);
+
+        LogicalPlan viewChild = viewChild(result, "myView");
+        assertThat("nothing gated is installed below the pin", viewChild, not(instanceOf(Filter.class)));
+        assertWarnings(
+            "The request filter could not be fully applied to view(s); the following were not applied, "
+                + "[range[single lower bound on keyword]] on view [myView] because "
+                + QueryDslTranslator.VERSION_REASON
+                + ". Use a WHERE clause to filter rows from views instead"
+        );
+    }
+
+    /** At or above the pin the same filter translates and installs, so the gate is the only thing stopping it. */
+    public void testViewBranchInstallsTheSameFilterAtOrAboveThePin() {
+        Attribute y = attr("y", DataType.KEYWORD);
+        ViewUnionAll vua = unionWithView("myView", y);
+
+        LogicalPlan result = ViewRequestFilterRewriter.rewrite(
+            vua,
+            QueryBuilders.rangeQuery("y").gt("m"),
+            CONFIG,
+            TransportVersion.current()
+        );
+
+        assertThat(viewChild(result, "myView"), instanceOf(Filter.class));
+    }
+
     private static final String SKIPPED_WILDCARD_WARNING =
         "The request filter could not be fully applied to view(s); the following Query DSL constructs are not supported and were "
             + "skipped: [wildcard] on view [myView]. Use a WHERE clause to filter rows from views instead";

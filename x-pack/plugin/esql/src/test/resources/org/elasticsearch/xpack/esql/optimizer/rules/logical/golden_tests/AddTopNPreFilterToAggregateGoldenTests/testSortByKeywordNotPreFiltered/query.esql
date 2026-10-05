@@ -1,0 +1,4 @@
+FROM all_types
+| STATS count(*) BY long, keyword
+| SORT keyword, long
+| LIMIT 10

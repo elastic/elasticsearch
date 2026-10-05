@@ -424,12 +424,14 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         }
     }
 
+    private Span getSpan(Traceable traceable) {
+        final Context context = spans.get(traceable.getSpanId());
+        return context == null ? Span.getInvalid() : Span.fromContext(context);
+    }
+
     @Override
     public void addError(Traceable traceable, Throwable throwable) {
-        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
-        if (span == null) {
-            return;
-        }
+        final var span = getSpan(traceable);
         if (recordExceptionStacks) {
             span.recordException(throwable);
             return;
@@ -441,54 +443,35 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     @Override
     public void setAttribute(Traceable traceable, String key, boolean value) {
-        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
-        if (span != null) {
-            span.setAttribute(key, value);
-        }
+        getSpan(traceable).setAttribute(key, value);
     }
 
     @Override
     public void setAttribute(Traceable traceable, String key, double value) {
-        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
-        if (span != null) {
-            span.setAttribute(key, value);
-        }
+        getSpan(traceable).setAttribute(key, value);
     }
 
     @Override
     public void setAttribute(Traceable traceable, String key, long value) {
-        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
-        if (span != null) {
-            span.setAttribute(key, value);
-        }
+        getSpan(traceable).setAttribute(key, value);
     }
 
     @Override
     public void setAttribute(Traceable traceable, String key, String value) {
-        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
-        if (span != null) {
-            span.setAttribute(key, value);
-        }
+        getSpan(traceable).setAttribute(key, value);
     }
 
     public void setAttributes(Traceable traceable, Attributes attributes) {
-        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
-        if (span != null) {
-            span.setAllAttributes(attributes);
-        }
+        getSpan(traceable).setAllAttributes(attributes);
     }
 
     @Override
     public void setStatusToError(Traceable traceable, String description) {
-        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
-        if (span != null) {
-            span.setStatus(StatusCode.ERROR, description);
-        }
+        getSpan(traceable).setStatus(StatusCode.ERROR, description);
     }
 
     public SpanStatusBuilder spanStatusBuilder(Traceable traceable) {
-        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
-        return span == null ? NoopSpanStatusBuilder.INSTANCE : new APMSpanStatusBuilder(span);
+        return new APMSpanStatusBuilder(getSpan(traceable));
     }
 
     private record APMSpanStatusBuilder(Span span) implements SpanStatusBuilder {
@@ -500,22 +483,13 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         }
     }
 
-    private enum NoopSpanStatusBuilder implements SpanStatusBuilder {
-        INSTANCE {
-            @Override
-            public SpanStatusBuilder setStatus(StatusCode statusCode, String description) {
-                return this;
-            }
-        }
-    }
-
     @Override
     public void stopTrace(Traceable traceable) {
         final String spanId = traceable.getSpanId();
-        final var span = Span.fromContextOrNull(spans.remove(spanId));
-        if (span != null) {
+        final Context context = spans.remove(spanId);
+        if (context != null) {
             logger.trace("Finishing trace [{}]", spanId);
-            span.end();
+            Span.fromContext(context).end();
         }
     }
 
@@ -529,10 +503,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     @Override
     public void addEvent(Traceable traceable, String eventName) {
-        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
-        if (span != null) {
-            span.addEvent(eventName);
-        }
+        getSpan(traceable).addEvent(eventName);
     }
 
     private static class MapKeyGetter implements TextMapGetter<Map<String, String>> {

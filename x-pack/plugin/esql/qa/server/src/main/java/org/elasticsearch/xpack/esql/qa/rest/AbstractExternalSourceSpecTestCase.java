@@ -1316,6 +1316,14 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     /** Suffix that triggers multi-file UBN glob resolution (divergent schemas across files) */
     private static final String MULTIFILE_UBN_SUFFIX = "_multifile_ubn";
     /**
+     * Suffix that triggers a two-file UBN fixture where file A stores {@code qty} as {@code INTEGER}
+     * and file B as {@code DOUBLE}. UBN widens {@code INTEGER} to {@code DOUBLE} (one-way), causing
+     * {@code mapFilters} to withhold the {@code qty > N} conjunct for file A and leave only the YES
+     * LIKE filter in the adapted push-down. Used to verify that the late-mat evaluator correctly drops
+     * rows whose city does not match the pattern even though the RECHECK conjunct alone would keep them.
+     */
+    private static final String MULTIFILE_UBN_LIKE_RECHECK_SUFFIX = "_multifile_ubn_like_recheck";
+    /**
      * Suffix that triggers a multi-file glob whose files share the same columns in different
      * physical order (anchor vs reversed non-anchor) with distinct per-column types, used to lock
      * cross-file column-order reconciliation against silent value swaps.
@@ -1360,6 +1368,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         } else if (templateName.endsWith(MULTIFILE_PERM_SUFFIX)) {
             // Column-permutation multi-file template: x_multifile_perm -> multifile_perm/*.<format>
             relativePath = "multifile_perm/*." + format;
+        } else if (templateName.endsWith(MULTIFILE_UBN_LIKE_RECHECK_SUFFIX)) {
+            relativePath = "multifile_ubn_like_recheck/*." + format;
         } else if (templateName.endsWith(MULTIFILE_UBN_SUFFIX)) {
             // UBN multi-file template: employees_multifile_ubn -> multifile_ubn/*.<format>
             relativePath = "multifile_ubn/*." + format;

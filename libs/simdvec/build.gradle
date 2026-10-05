@@ -116,14 +116,15 @@ nativeLibraryBuild {
   modeEnvironmentVariable = 'VEC_NATIVE_BUILD'
   sourceDir = layout.projectDirectory.dir('native')
   sources = ['src/vec/**', 'Makefile']
-  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:6'
+  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:7'
   forwardedEnvironment = ['CLANG_CXX']
 
   dockerCommand = ['make', 'all']
   collect = [
-    'build/libs/vec/shared/aarch64/libvec.dylib': 'darwin-aarch64/libvec.dylib',
-    'build/libs/vec/shared/aarch64/libvec.so'   : 'linux-aarch64/libvec.so',
-    'build/libs/vec/shared/amd64/libvec.so'     : 'linux-x64/libvec.so',
+    'build/libs/vec/shared/aarch64/libvec.dylib' : 'darwin-aarch64/libvec.dylib',
+    'build/libs/vec/shared/aarch64/libvec.so'    : 'linux-aarch64/libvec.so',
+    'build/libs/vec/shared/amd64/libvec.so'      : 'linux-x64/libvec.so',
+    'build/libs/vec/shared/windows-x64/vec.dll'  : 'windows-x64/vec.dll',
   ]
 
   hostCommand { outputDir -> ['make', 'local-install', "DEST=${outputDir.asFile}"] }

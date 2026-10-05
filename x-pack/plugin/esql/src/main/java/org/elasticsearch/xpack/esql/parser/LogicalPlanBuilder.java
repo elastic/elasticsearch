@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
+import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -94,6 +95,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
@@ -397,7 +399,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         List<NamedExpression> metadataFields = List.of(metadataMap.values().toArray(NamedExpression[]::new));
         UnresolvedRelation unresolvedRelation = new UnresolvedRelation(source, table, false, metadataFields, null, command);
         if (subqueries.isEmpty()) {
-            return unresolvedRelation;
+            if (metadataFields.isEmpty()) {
+                return unresolvedRelation;
+            }
+            return new UnresolvedMetadata(source, unresolvedRelation, metadataFields);
         } else {
             // subquery is not supported with time-series indices at the moment
             if (command == SourceCommand.TS) {
@@ -410,13 +415,19 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
             mainQueryAndSubqueries.addAll(subqueries);
 
+            LogicalPlan inner;
             if (mainQueryAndSubqueries.size() == 1) {
                 // if there is only one child, return it directly, no need for UnionAll
-                return table.indexPattern().isEmpty() ? subqueries.get(0).plan() : unresolvedRelation;
+                inner = subqueries.get(0).plan();
             } else {
                 // the output of UnionAll is resolved by analyzer
-                return new UnionAll(source(ctxs.getFirst(), ctxs.getLast()), mainQueryAndSubqueries, List.of());
+                inner = new UnionAll(source(ctxs.getFirst(), ctxs.getLast()), mainQueryAndSubqueries, List.of());
             }
+
+            if (metadataFields.isEmpty()) {
+                return inner;
+            }
+            return new UnresolvedMetadata(source(ctxs.getFirst(), ctxs.getLast()), inner, metadataFields);
         }
     }
 
@@ -1025,16 +1036,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
         Map<String, Object> config = options != null ? foldOptionLiterals(options.keyFoldedMap()) : Map.of();
 
-        // TEMPORARY SHIM — delete when the inline EXTERNAL command is retired in favour of
-        // FROM <dataset>. External metadata is otherwise purely request-driven: a column appears
-        // only when the user names it in a METADATA clause (the FROM path) and surfaces only when
-        // KEEP'd by name. The legacy EXTERNAL command has no METADATA clause, so to preserve its
-        // historical behaviour (_file.* resolvable in WHERE / STATS BY / KEEP) we inject the
-        // _file.* names as if the user had written `METADATA _file.path, _file.name, ...`.
+        // TEMPORARY SHIM: delete when the inline EXTERNAL command is retired in favour of
+        // FROM <dataset>. External metadata is otherwise request-driven: a column appears only
+        // when the user names it in a METADATA clause (the FROM path). That path surfaces the
+        // column in default output and in KEEP *. The legacy EXTERNAL command has no METADATA
+        // clause, so to preserve its historical behaviour (_file.* resolvable in WHERE / STATS BY
+        // / KEEP) we inject the _file.* names as if the user had written
+        // `METADATA _file.path, _file.name, ...`.
         // ResolveExternalRelations.bindMetadataFields binds them to ExternalMetadataAttributes; the
-        // surfacing rule still hides them from default output unless explicitly KEEP'd. The schema
-        // auto-attach that used to glue _file.* onto every external source is gone (it leaked the
-        // columns through DROP / wildcard).
+        // EXTERNAL surfacing rule still hides them from default output unless a Keep lists them.
+        // There is no schema auto-attach of _file.* on every external source: that leaked
+        // columns through DROP / wildcard.
         List<NamedExpression> metadataFields = new ArrayList<>(FileMetadataColumns.NAMES.size());
         for (String name : FileMetadataColumns.NAMES) {
             // _file.record_ref is a FROM-only, request-driven column (it drives _id and forces the
@@ -1045,7 +1057,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
             metadataFields.add(new UnresolvedAttribute(source, name));
         }
-        return new UnresolvedExternalRelation(source, tablePath, config, metadataFields);
+        // The config is whatever the user typed. Framework keys are stripped here because the unknown-key check
+        // deliberately ignores them, so nothing else would reject one a user supplied -- and a supplied
+        // _definition_version would otherwise address a registered dataset's cache entries.
+        return new UnresolvedExternalRelation(source, tablePath, ConfigKeyValidator.withoutFrameworkKeys(config), metadataFields);
     }
 
     /**
@@ -1488,20 +1503,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitHighlightCommand(EsqlBaseParser.HighlightCommandContext ctx) {
         Source source = source(ctx);
-        // `prefix = "..."` renames generated highlight columns; default is "highlight_".
-        final String prefix = highlightPrefix(ctx);
-        // TODO: support the bare form by deriving the query from a preceding full-text WHERE, stopping at row-shaping
-        // commands such as STATS, INLINESTATS, and LOOKUP JOIN.
+        String prefix = highlightPrefix(ctx);
         Expression query = ctx.queryExpression == null ? null : expression(ctx.queryExpression);
-        // TODO: support `HIGHLIGHT ON *` and deriving ON fields from the resolved query. Today fields must be listed.
-        List<NamedExpression> fields = ctx.highlightFields.qualifiedName()
-            .stream()
-            .map(qn -> (NamedExpression) visitQualifiedName(qn))
-            .toList();
-        // Recompute generatedFields when fields can be derived after analysis.
-        List<Attribute> generatedFields = Highlight.generatedAttributesFor(source, prefix, fields);
+        List<NamedExpression> fields = ctx.highlightFields == null ? List.of() : visitQualifiedNamePatterns(ctx.highlightFields, ne -> {
+            if (ne instanceof UnresolvedNamePattern up) {
+                throw new ParsingException(ne.source(), "Invalid pattern [{}] in HIGHLIGHT ON, expected field names or [*]", up.pattern());
+            }
+        });
+        if (fields.size() > 1 && fields.stream().anyMatch(f -> f instanceof UnresolvedStar)) {
+            throw new ParsingException(source, "HIGHLIGHT ON [*] cannot be combined with other fields");
+        }
+        boolean derivedFields = fields.isEmpty() || fields.getFirst() instanceof UnresolvedStar;
+        List<Attribute> generatedFields = derivedFields ? List.of() : Highlight.generatedAttributesFor(source, prefix, fields);
         return p -> applyHighlightOptions(
-            new Highlight(source, p, prefix, query, fields, null, generatedFields),
+            new Highlight(source, p, prefix, query, false, derivedFields, fields, null, generatedFields),
             ctx.commandNamedParameters()
         );
     }

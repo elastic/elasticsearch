@@ -181,6 +181,13 @@ public class CsvColumnarIT extends CsvIT {
         "unmapped_source_excludes",
         "unmapped_source_includes",
         "unmapped_source_subobjects_false",
+        // The partial_mapping fixture again under index.mode=logsdb. Re-moding it to columnar would both defeat the point of the dataset
+        // (it exists to exercise logsdb) and hit the same dynamic:false loss as partial_mapping_sample_data above.
+        "logsdb_partial_mapping",
+        // all_types_unmapped* drop every typed column from mapping-all-types.json so each type lands in _source only - dynamic:false
+        // again, so strict columnar discards them at ingest
+        "all_types_unmapped",
+        "all_types_unmapped_synthetic",
         // Keyword fields with a normalizer (e.g. test_lowercase) store only the normalised form
         // in doc values, losing the original value. Columnar mode therefore cannot reconstruct
         // the original _source for these fields and rejects index creation with

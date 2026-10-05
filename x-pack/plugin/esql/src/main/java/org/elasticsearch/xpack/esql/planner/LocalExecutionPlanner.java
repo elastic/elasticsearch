@@ -201,6 +201,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalFieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -317,6 +318,7 @@ public class LocalExecutionPlanner {
      * tied to the build they run under.
      */
     private final boolean snapshotBuild;
+    private final FetchOperatorProvider fetchOperators;
     @Nullable
     private final Executor parallelWorkerExecutor;
     private final int esqlWorkerPoolSize;
@@ -344,6 +346,7 @@ public class LocalExecutionPlanner {
         AbstractPhysicalOperationProviders physicalOperationProviders,
         OperatorFactoryRegistry operatorFactoryRegistry,
         boolean snapshotBuild,
+        PlannerServices services,
         @Nullable Executor parallelWorkerExecutor,
         int esqlWorkerPoolSize,
         MatcherWatchdog grokMatcherWatchdog,
@@ -369,6 +372,7 @@ public class LocalExecutionPlanner {
         this.physicalOperationProviders = physicalOperationProviders;
         this.operatorFactoryRegistry = operatorFactoryRegistry;
         this.snapshotBuild = snapshotBuild;
+        this.fetchOperators = services.fetch();
         this.parallelWorkerExecutor = parallelWorkerExecutor;
         this.esqlWorkerPoolSize = esqlWorkerPoolSize;
         // Resolved once by the caller from the live ClusterSettings (the setting is dynamic), then shared
@@ -451,6 +455,8 @@ public class LocalExecutionPlanner {
             return planExternalFieldExtract(extExtract, context);
         } else if (node instanceof DocRefEncodeExec docRefEncode) {
             return planDocRefEncode(docRefEncode, context);
+        } else if (node instanceof FetchExec fetch) {
+            return planFetch(fetch, context);
         } else if (node instanceof ExchangeExec exchangeExec) {
             return planExchange(exchangeExec, context);
         } else if (node instanceof TopNExec topNExec) {
@@ -2774,6 +2780,35 @@ public class LocalExecutionPlanner {
             elementTypes.add(PlannerUtils.toElementType(inverse.get(channel).type()));
         }
         return source.with(new GroupedLimitOperator.Factory(limitValue, groupKeys, elementTypes), source.layout);
+    }
+
+    private PhysicalOperation planFetch(FetchExec fetch, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(fetch.left(), context);
+        Layout.ChannelAndType docRef = source.layout.get(fetch.docRef().id());
+        if (docRef == null || docRef.type() != DataType.DOC_REF) {
+            throw new IllegalStateException("fetch reads document references from [" + fetch.docRef() + "] but the input has " + docRef);
+        }
+        Layout layout = source.layout.builder().append(fetch.fetchedAttributes()).build();
+        return source.with(fetchOperators.fetchOperator(fetch, docRef.channel(), fetchedElementTypes(fetch)), layout);
+    }
+
+    /**
+     * The element type of a column depends on how it is loaded, for example a point loaded from doc values is a long.
+     * The fetch plan loads the fetched columns, so its extraction preferences decide.
+     */
+    private static List<ElementType> fetchedElementTypes(FetchExec fetch) {
+        Map<NameId, MappedFieldType.FieldExtractPreference> preferences = new HashMap<>();
+        fetch.fetchPlan().forEachDown(FieldExtractExec.class, extract -> {
+            for (Attribute attr : extract.attributesToExtract()) {
+                preferences.put(attr.id(), extract.fieldExtractPreference(attr));
+            }
+        });
+        return fetch.fetchedAttributes()
+            .stream()
+            .map(
+                a -> PlannerUtils.toElementType(a.dataType(), preferences.getOrDefault(a.id(), MappedFieldType.FieldExtractPreference.NONE))
+            )
+            .toList();
     }
 
     private PhysicalOperation planDocRefEncode(DocRefEncodeExec encode, LocalExecutionPlannerContext context) {

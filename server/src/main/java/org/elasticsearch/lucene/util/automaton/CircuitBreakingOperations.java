@@ -157,10 +157,7 @@ public final class CircuitBreakingOperations {
         // to maximum "effort":
         long effortLimit = workLimit * (long) 10;
 
-        int newStatesCreated = 0;
-        long transitionsAdded = 0;
-        long pendingTransitionBytes = 0;
-        long totalReserved = 0;
+        DeterminizeCharge charge = new DeterminizeCharge(circuitBreaker, label);
 
         try {
             while (worklist.size() > 0) {
@@ -206,27 +203,14 @@ public final class CircuitBreakingOperations {
                             worklist.add(p);
                             b.setAccept(q, accCount > 0);
                             newstate.put(p, q);
-
-                            newStatesCreated++;
-                            if (newStatesCreated % CB_CHECK_INTERVAL == 0) {
-                                long estimatedNewBytes = CB_CHECK_INTERVAL * ESTIMATED_BYTES_PER_STATE;
-                                circuitBreaker.addEstimateBytesAndMaybeBreak(estimatedNewBytes, label);
-                                totalReserved += estimatedNewBytes;
-                            }
+                            charge.stateCreated();
                         } else {
                             assert (accCount > 0 ? true : false) == b.isAccept(q)
                                 : "accCount=" + accCount + " vs existing accept=" + b.isAccept(q) + " states=" + statesSet;
                         }
 
                         b.addTransition(r, q, lastPoint, point - 1);
-                        if (++transitionsAdded > TRANSITIONS_PER_STATE_ESTIMATE * (newStatesCreated + 1)) {
-                            pendingTransitionBytes += ESTIMATED_BYTES_PER_EXTRA_TRANSITION;
-                            if (pendingTransitionBytes >= CHARGE_STEP) {
-                                circuitBreaker.addEstimateBytesAndMaybeBreak(pendingTransitionBytes, label);
-                                totalReserved += pendingTransitionBytes;
-                                pendingTransitionBytes = 0;
-                            }
-                        }
+                        charge.transitionAdded();
                     }
 
                     int[] transitions = points.points[i].ends.transitions;
@@ -256,8 +240,58 @@ public final class CircuitBreakingOperations {
             assert result.isDeterministic();
             return result;
         } finally {
-            if (totalReserved > 0) {
-                circuitBreaker.addWithoutBreaking(-totalReserved, label);
+            charge.release();
+        }
+    }
+
+    /**
+     * What a determinization has reserved on the breaker while it grows. Subset construction allocates for every DFA state
+     * it creates (the worklist entry, the slot in the state map, the builder's row) and for every transition. States are
+     * reserved in batches of {@link #CB_CHECK_INTERVAL} at {@link #ESTIMATED_BYTES_PER_STATE} each, an estimate that already
+     * averages in {@link #TRANSITIONS_PER_STATE_ESTIMATE} transitions per state. A DFA whose states carry more than that,
+     * such as one reading a class of separate characters, is reserved for each transition beyond the average at
+     * {@link #ESTIMATED_BYTES_PER_EXTRA_TRANSITION}, in steps of {@link #CHARGE_STEP} so that a few cost no breaker call and
+     * many are not under-counted. {@link #release} returns all of it; the caller accounts the finished automaton.
+     */
+    private static final class DeterminizeCharge {
+        private final CircuitBreaker breaker;
+        private final String label;
+        private long states;
+        private long transitions;
+        private long pendingTransitionBytes;
+        private long reserved;
+
+        DeterminizeCharge(CircuitBreaker breaker, String label) {
+            this.breaker = breaker;
+            this.label = label;
+        }
+
+        /** A DFA state was created, not counting the initial one: every {@link #CB_CHECK_INTERVAL}th reserves its batch. */
+        void stateCreated() {
+            if (++states % CB_CHECK_INTERVAL == 0) {
+                reserve(CB_CHECK_INTERVAL * ESTIMATED_BYTES_PER_STATE);
+            }
+        }
+
+        /** A DFA transition was added: once past the average per state, each one owes its bytes, reserved a step at a time. */
+        void transitionAdded() {
+            if (++transitions > TRANSITIONS_PER_STATE_ESTIMATE * (states + 1)) {
+                pendingTransitionBytes += ESTIMATED_BYTES_PER_EXTRA_TRANSITION;
+                if (pendingTransitionBytes >= CHARGE_STEP) {
+                    reserve(pendingTransitionBytes);
+                    pendingTransitionBytes = 0;
+                }
+            }
+        }
+
+        private void reserve(long bytes) {
+            breaker.addEstimateBytesAndMaybeBreak(bytes, label);
+            reserved += bytes;
+        }
+
+        void release() {
+            if (reserved > 0) {
+                breaker.addWithoutBreaking(-reserved, label);
             }
         }
     }

@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -24,6 +23,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexVersion;
@@ -41,6 +41,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 
 /**
  * Allocation during snapshot restores: ESA size gate, capacity decider, and storage monitor,
@@ -101,24 +103,11 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
     }
 
     private ClusterInfo info(Map<String, DiskUsage> disks, Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservations) {
-        return new ClusterInfo(
-            disks,
-            disks,
-            Map.of(),
-            Map.of(),
-            Map.of(),
-            reservations,
-            Map.of(),
-            Map.of(),
-            ShardAndIndexHeapUsage.ZERO,
-            Map.of(),
-            Map.of(),
-            Map.of(),
-            Set.of(),
-            Map.of(),
-            Map.of(),
-            Map.of()
-        );
+        return ClusterInfo.builder()
+            .leastAvailableSpaceUsage(disks)
+            .mostAvailableSpaceUsage(disks)
+            .reservedSpace(reservations)
+            .build();
     }
 
     private record RestoreDeciderAndPressure(SnapshotRestoreAllocationDecider decider, SnapshotRestoreDiskPressure pressure) {}
@@ -133,13 +122,16 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
         AtomicReference<ClusterInfo> info,
         AtomicReference<SnapshotShardSizeInfo> sizes
     ) {
+        final Settings settings = Settings.builder().put("cluster.routing.allocation.type", "desired_balance").build();
+        final ClusterSettings clusterSettings = createBuiltInClusterSettings(settings);
         var service = new AllocationService(
             new AllocationDeciders(List.of(restoreDecider, new StatelessAllocationDecider())),
-            createShardsAllocator(Settings.builder().put("cluster.routing.allocation.type", "desired_balance").build()),
+            createShardsAllocator(settings),
             info::get,
             sizes::get,
             new StatelessShardRoutingRoleStrategy(),
-            MeterRegistry.NOOP
+            MeterRegistry.NOOP,
+            clusterSettings
         );
         service.setExistingShardsAllocators(Map.of("stateless", new StatelessExistingShardsAllocator()));
         return service;

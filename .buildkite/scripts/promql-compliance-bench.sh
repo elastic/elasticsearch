@@ -51,7 +51,7 @@ main() {
 	local fixture=$input/$dataset.jsonl
 	local control_log=$output/@$dataset-control.log
 	local test_log=$output/@$dataset-test.log
-	local src dst n=0 rc
+	local src dst n=0 rc base
 	local c_ok c_fail c_err c_skip c_total
 	local t_ok t_fail t_err t_skip t_total
 	local delta status
@@ -108,9 +108,13 @@ main() {
 	trap cleanup EXIT
 
 	log "fetching: $branch"
-	git fetch --no-tags --depth=1 origin "$branch"
+	git fetch --no-tags origin "$branch"
+	# The control is where this PR branched off, not the tip of $branch: a PromQL change that landed on
+	# $branch since would otherwise count as this PR's regression or improvement.
+	base=$(git merge-base "origin/$branch" HEAD) || die "can't find the merge base with origin/$branch"
+	log "control: $base"
 	control=$(mktemp -d "/tmp/$job-control-XXXXXX")
-	git worktree add --detach "$control" "origin/$branch"
+	git worktree add --detach "$control" "$base"
 	uv python install "$python_version"
 
 	log 'running control'

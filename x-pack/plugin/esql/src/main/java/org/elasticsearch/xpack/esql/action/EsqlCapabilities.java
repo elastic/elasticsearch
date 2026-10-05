@@ -3602,7 +3602,7 @@ public class EsqlCapabilities {
          */
         GROK_TYPED_CONVERSION_WARNINGS,
 
-       /**
+        /**
          * {@code SORT _score ASC} pushed down to Lucene sorts ascending. Before this fix the pushed-down sort was always
          * descending, so with a {@code LIMIT} smaller than the number of matches Lucene kept the highest-scoring documents.
          */

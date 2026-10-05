@@ -203,6 +203,7 @@ Duangkaew          | Piveteau          | Duangkaew         | Duangkaew
 // A multivalued condition is false. The CASE is not foldable here, so the condition is
 // dropped by partiallyFold, which has to raise the same warning the evaluator would.
 caseOnFieldsWithMultivalueListCondition
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: fn_case_partial_fold_multivalue_warning
 
 FROM employees

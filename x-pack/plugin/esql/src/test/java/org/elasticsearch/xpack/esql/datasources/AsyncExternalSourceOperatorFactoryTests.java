@@ -1134,6 +1134,93 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     /**
+     * COUNT(*) on a non-leading record-aligned macro-split already carries the coordinator pin on the
+     * split. Execution must bind that pin via {@code withSchema} and must not call {@code metadata()}
+     * (an unranged GET from byte 0).
+     */
+    public void testEmptyProjectionNonLeadingSplitWithReadSchemaSkipsMetadata() throws Exception {
+        List<Attribute> pin = List.of(ref("col0", DataType.KEYWORD), ref("col1", DataType.INTEGER), ref("col2", DataType.DOUBLE));
+        CountingBindAndSplitReader formatReader = runEmptyProjectionNonLeadingMacroSplit(pin);
+
+        assertEquals("pinned empty-projection split must not re-infer via metadata()", 0, formatReader.metadataCalls());
+        assertNotNull("withSchema must still receive the pin", formatReader.withSchemaReceived());
+        assertEquals(pin.size(), formatReader.withSchemaReceived().size());
+        for (int i = 0; i < pin.size(); i++) {
+            assertEquals(pin.get(i).name(), formatReader.withSchemaReceived().get(i).name());
+            assertEquals(pin.get(i).dataType(), formatReader.withSchemaReceived().get(i).dataType());
+        }
+        assertEquals("read() still emits a page", 1, formatReader.readCalls());
+    }
+
+    /**
+     * Unpinned non-leading record-aligned macro-splits keep today's bind: {@code metadata()} then
+     * {@code withSchema} from that inference. Mixed-version coordinators ship {@code readSchema == null}.
+     */
+    public void testEmptyProjectionNonLeadingSplitWithoutReadSchemaStillBinds() throws Exception {
+        CountingBindAndSplitReader formatReader = runEmptyProjectionNonLeadingMacroSplit(null);
+
+        assertEquals("unpinned empty-projection split still infers via metadata()", 1, formatReader.metadataCalls());
+        assertNotNull(formatReader.withSchemaReceived());
+        assertEquals(CountingBindAndSplitReader.INFERRED_SCHEMA.size(), formatReader.withSchemaReceived().size());
+        for (int i = 0; i < CountingBindAndSplitReader.INFERRED_SCHEMA.size(); i++) {
+            assertEquals(CountingBindAndSplitReader.INFERRED_SCHEMA.get(i).name(), formatReader.withSchemaReceived().get(i).name());
+            assertEquals(CountingBindAndSplitReader.INFERRED_SCHEMA.get(i).dataType(), formatReader.withSchemaReceived().get(i).dataType());
+        }
+        assertEquals("read() still emits a page", 1, formatReader.readCalls());
+    }
+
+    private CountingBindAndSplitReader runEmptyProjectionNonLeadingMacroSplit(List<Attribute> readSchema) throws Exception {
+        StoragePath path = StoragePath.of("s3://bucket/data.csv");
+        FileSplit split = FileSplit.withReadSchema(
+            "file",
+            path,
+            // isFirstInFile is true when FIRST_SPLIT_KEY is "true" OR offset == 0; a leading split
+            // skips this bind entirely. Offset must be non-zero and the first-split key must not
+            // be "true" so the empty-projection non-leading gate actually runs.
+            1024L,
+            2048L,
+            ".csv",
+            Map.of(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY, "true", FileSplitProvider.FIRST_SPLIT_KEY, "false"),
+            Map.of(),
+            null,
+            readSchema
+        );
+        CountingBindAndSplitReader formatReader = new CountingBindAndSplitReader();
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            new StubMultiFileStorageProvider(),
+            formatReader,
+            path,
+            List.of(),
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).sliceQueue(new ExternalSliceQueue(List.of(split))).build();
+
+        SourceOperator operator = factory.get(driverContext);
+        List<Page> pages = new ArrayList<>();
+        try {
+            while (operator.isFinished() == false) {
+                Page page = operator.getOutput();
+                if (page != null) {
+                    pages.add(page);
+                }
+            }
+            assertEquals("read() still emits a page", 1, pages.size());
+        } finally {
+            for (Page p : pages) {
+                p.releaseBlocks();
+            }
+            operator.close();
+        }
+        return formatReader;
+    }
+
+    /**
      * Empty-projection COUNT(*) on a non-leading record-aligned split binds schema from a second
      * object. Folding those bytes must not drop the tracked split, so both reads appear in
      * {@code bytes_read}.
@@ -1150,7 +1237,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             "true"
         );
         FileSplit split = FileSplit.withReadSchema("test", path, 100, 100, "ndjson", config, Map.of(), null, null);
-        FormatReader formatReader = new CountingBindAndSplitReader();
+        FormatReader formatReader = new DrainingBindAndSplitReader();
         StorageProvider storageProvider = new MeteredPayloadStorageProvider(path, payload);
 
         DriverContext driverContext = mock(DriverContext.class);
@@ -5367,6 +5454,120 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     /**
+     * Counts {@code metadata()} and records {@code withSchema(...)} so empty-projection bind tests can
+     * distinguish a coordinator pin from a re-inferred schema. Default {@link FormatReader#withSchema}
+     * is identity; this override is required or the pin would never be observed.
+     */
+    private static class CountingBindAndSplitReader implements NoConfigFormatReader {
+        static final List<Attribute> INFERRED_SCHEMA = List.of(ref("inferred_a", DataType.KEYWORD), ref("inferred_b", DataType.LONG));
+
+        private final AtomicInteger metadataCalls;
+        private final AtomicInteger readCalls;
+        private volatile List<Attribute> withSchemaReceived;
+        private volatile boolean replaced;
+
+        CountingBindAndSplitReader() {
+            this(new AtomicInteger(), new AtomicInteger());
+        }
+
+        CountingBindAndSplitReader(AtomicInteger metadataCalls, AtomicInteger readCalls) {
+            this.metadataCalls = metadataCalls;
+            this.readCalls = readCalls;
+        }
+
+        int metadataCalls() {
+            return metadataCalls.get();
+        }
+
+        int readCalls() {
+            return readCalls.get();
+        }
+
+        List<Attribute> withSchemaReceived() {
+            return withSchemaReceived;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            metadataCalls.incrementAndGet();
+            return new SourceMetadata() {
+                @Override
+                public List<Attribute> schema() {
+                    return INFERRED_SCHEMA;
+                }
+
+                @Override
+                public String sourceType() {
+                    return "csv";
+                }
+
+                @Override
+                public String location() {
+                    return "s3://bucket/data.csv";
+                }
+            };
+        }
+
+        @Override
+        public FormatReader withSchema(List<Attribute> schema) {
+            withSchemaReceived = schema;
+            // A distinct instance: production must assign fileReader = withSchema(...). Returning this
+            // would let a dropped assignment still pass, because the original would both record and read.
+            CountingBindAndSplitReader next = new CountingBindAndSplitReader(metadataCalls, readCalls);
+            next.withSchemaReceived = schema;
+            replaced = true;
+            return next;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            if (replaced) {
+                throw new AssertionError("read() after withSchema must use the returned instance");
+            }
+            readCalls.incrementAndGet();
+            Page page = createTestPage();
+            return new CloseableIterator<>() {
+                private boolean consumed = false;
+
+                @Override
+                public boolean hasNext() {
+                    return consumed == false;
+                }
+
+                @Override
+                public Page next() {
+                    if (consumed) {
+                        throw new NoSuchElementException();
+                    }
+                    consumed = true;
+                    return page;
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "counting-bind";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".csv");
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
      * Format reader that emits a single, caller-supplied page (rebuilt per read via the supplier so
      * each read owns fresh, releasable blocks). Used by the partition-collision tests to control
      * the exact file-body page shape the factory adapts.
@@ -5768,7 +5969,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * Reads the object's stream in both {@code metadata} and {@code read} so schema-bind and
      * split bytes are real received counts.
      */
-    private static final class CountingBindAndSplitReader implements NoConfigFormatReader {
+    private static final class DrainingBindAndSplitReader implements NoConfigFormatReader {
         @Override
         public SourceMetadata metadata(StorageObject object) {
             drain(object);

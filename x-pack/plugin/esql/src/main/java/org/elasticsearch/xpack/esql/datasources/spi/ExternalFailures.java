@@ -363,12 +363,14 @@ public final class ExternalFailures {
     }
 
     /**
-     * {@code e} without its cause chain and suppressed failures, after logging them on this node: the REST layer renders
-     * both, and a cause below an {@link ElasticsearchException} that is not an {@link ExternalException} can still be a
-     * storage SDK's exception. Returns {@code e} itself when there is nothing to drop. Otherwise the copy keeps the
-     * status, message, metadata and headers, and the type where the state callers act on can be carried over (breaker
-     * byte counts, cancellation); any other type becomes an {@link ExternalClientException} (400), an
+     * {@code e} without its cause chain, after logging the cause on this node: the REST layer renders both, and a cause
+     * below an {@link ElasticsearchException} that is not an {@link ExternalException} can still be a storage SDK's
+     * exception. Returns {@code e} itself when there is nothing to drop. Otherwise the copy keeps the status, message,
+     * metadata and headers, and the type where the state callers act on can be carried over (breaker byte counts,
+     * cancellation); any other type becomes an {@link ExternalClientException} (400), an
      * {@link ExternalServerException} (500) or an {@link ElasticsearchStatusException} with the same status.
+     * Suppressed {@link ElasticsearchException}s are detached and kept (same as {@link #detach(ExternalException)}), so
+     * cycle detection that walks suppressed links still sees them; other suppressed failures are dropped.
      */
     public static ElasticsearchException detach(ElasticsearchException e) {
         return detach(e, Level.WARN);
@@ -386,6 +388,11 @@ public final class ExternalFailures {
         logger.log(Level.DEBUG, () -> "Failure detached from its cause (cause logged, not forwarded)", e);
         EsRejectedExecutionException copy = new EsRejectedExecutionException(e.getMessage(), e.isExecutorShutdown());
         copy.setStackTrace(e.getStackTrace());
+        for (Throwable suppressed : e.getSuppressed()) {
+            if (suppressed instanceof ElasticsearchException ese) {
+                copy.addSuppressed(detach(ese, Level.DEBUG));
+            }
+        }
         return copy;
     }
 
@@ -421,6 +428,11 @@ public final class ExternalFailures {
             copy.addHttpHeader(key, e.getHttpHeader(key));
         }
         copy.setStackTrace(e.getStackTrace());
+        for (Throwable suppressed : e.getSuppressed()) {
+            if (suppressed instanceof ElasticsearchException ese) {
+                copy.addSuppressed(detach(ese, Level.DEBUG));
+            }
+        }
         return copy;
     }
 

@@ -806,6 +806,22 @@ public class ExternalFailuresTests extends ESTestCase {
     }
 
     /** A cause below an ElasticsearchException that is not an ExternalException is rendered by caused_by too. */
+    /**
+     * A loser that already suppresses the winner must still carry that link after {@link ExternalFailures#classifySuppressed}:
+     * cycle detection walks suppressed links, and dropping them would let the loser be re-attached onto the winner.
+     */
+    public void testClassifySuppressedKeepsElasticsearchExceptionSuppressedLinks() {
+        CircuitBreakingException winner = new CircuitBreakingException("[parquet reader]", CircuitBreaker.Durability.TRANSIENT);
+        CircuitBreakingException loser = new CircuitBreakingException("[parquet sliding window]", CircuitBreaker.Durability.TRANSIENT);
+        loser.addSuppressed(winner);
+
+        RuntimeException classified = ExternalFailures.classifySuppressed(loser);
+        assertThat(classified, instanceOf(CircuitBreakingException.class));
+        assertNull(classified.getCause());
+        assertArrayEquals(new Throwable[] { winner }, classified.getSuppressed());
+        assertSame(winner, classified.getSuppressed()[0]);
+    }
+
     public void testForeignElasticsearchExceptionIsDetached() {
         ElasticsearchException foreign = new ElasticsearchStatusException(
             "read refused",

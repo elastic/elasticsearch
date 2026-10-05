@@ -126,6 +126,7 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
         final TimeSeriesParams.MetricType metricType = randomBoolean() ? null : randomFrom(TimeSeriesParams.MetricType.values());
         final List<String> fields = randomList(1, 5, () -> randomAlphaOfLength(5));
         for (String field : fields) {
+            final String indexAnalyzer = randomBoolean() ? null : randomFrom("standard", "default", "english", "my_analyzer");
             final IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                 field,
                 randomAlphaOfLengthBetween(5, 20),
@@ -136,7 +137,11 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
                 randomBoolean(),
                 metricType,
                 randomBoolean(),
-                meta
+                meta,
+                indexAnalyzer,
+                randomIntBetween(0, 1000),
+                // index-local only when the name is absent
+                indexAnalyzer == null && randomBoolean()
             );
             fieldCaps.put(field, fieldCap);
         }

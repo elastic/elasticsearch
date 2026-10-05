@@ -148,6 +148,13 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
             "inference field flag requires transport version " + FieldCapabilities.FIELD_CAPS_INFERENCE_FIELD,
             hasInferenceField == false || version.supports(FieldCapabilities.FIELD_CAPS_INFERENCE_FIELD)
         );
+        final boolean hasIndexAnalyzer = indexResponses.stream()
+            .flatMap(r -> r.get().values().stream())
+            .anyMatch(fc -> fc.indexAnalyzer() != null || fc.indexLocalAnalyzer());
+        assumeTrue(
+            "index analyzer requires transport version " + FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER,
+            hasIndexAnalyzer == false || version.supports(FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER)
+        );
         final boolean hasPassthrough = indexResponses.stream()
             .flatMap(r -> r.get().values().stream())
             .anyMatch(IndexFieldCapabilities::isPassthrough);

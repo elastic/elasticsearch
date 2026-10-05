@@ -60,11 +60,15 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.session.FieldNameUtils;
@@ -209,19 +213,28 @@ public class Verifier {
 
     /** Fails fast with a 4xx so older recipients never see the node and 5xx on deserialization. */
     private static void checkHighlightSupported(LogicalPlan plan, Failures failures, TransportVersion minimumVersion) {
-        if (minimumVersion.supports(Highlight.ESQL_HIGHLIGHT)) {
-            return;
-        }
-        plan.forEachDown(
-            Highlight.class,
-            highlight -> failures.add(
-                fail(
-                    highlight,
-                    "HIGHLIGHT is not supported on every participating node; "
-                        + "rolling upgrade in progress, or a remote cluster is on an older version"
-                )
-            )
-        );
+        plan.forEachDown(Highlight.class, highlight -> {
+            if (minimumVersion.supports(Highlight.ESQL_HIGHLIGHT) == false) {
+                failures.add(
+                    fail(
+                        highlight,
+                        "HIGHLIGHT is not supported on every participating node; "
+                            + "rolling upgrade in progress, or a remote cluster is on an older version"
+                    )
+                );
+                return;
+            }
+            if ((highlight.implicitQuery() || highlight.derivedFields())
+                && minimumVersion.supports(Highlight.ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS) == false) {
+                failures.add(
+                    fail(
+                        highlight,
+                        "HIGHLIGHT with a derived query or field list is not supported on every participating node; "
+                            + "rolling upgrade in progress, or a remote cluster is on an older version"
+                    )
+                );
+            }
+        });
     }
 
     private static void checkTStepIncompatibleWithTRange(LogicalPlan plan, Failures failures) {
@@ -577,8 +590,10 @@ public class Verifier {
                     fail(
                         p,
                         "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                            + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH and FORK commands; [{}] is not supported yet",
+                            + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; [{}] is not supported yet",
                         p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
+                            : p instanceof ViewUnionAll ? "ViewUnionAll"
+                            : p instanceof NamedSubquery ? "NamedSubquery"
                             : p instanceof TelemetryAware ta ? ta.telemetryLabel()
                             : p.nodeName()
                     )
@@ -604,7 +619,10 @@ public class Verifier {
             // so a LOOKUP JOIN is still a LookupJoin node here and other Join subclasses (InlineJoin etc.) are not admitted.
             || plan instanceof LookupJoin
             || plan instanceof Enrich
-            || plan instanceof Fork;
+            || plan instanceof Fork
+            || (plan instanceof UnionAll && plan instanceof ViewUnionAll == false)
+            || (plan instanceof Subquery && plan instanceof NamedSubquery == false)
+            || plan instanceof AbstractSubqueryJoin;
     }
 
     /**

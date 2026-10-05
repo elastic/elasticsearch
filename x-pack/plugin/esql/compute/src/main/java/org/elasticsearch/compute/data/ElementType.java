@@ -84,16 +84,9 @@ public enum ElementType {
 
     /**
      * Blocks that reference individual lucene documents in a form that stays valid after the rows leave the node that
-     * read them. The block itself comes with the runtime of the fetch phase.
+     * read them.
      */
-    DOC_REF(
-        15,
-        "DocRef",
-        (blockFactory, estimatedSize) -> { throw new UnsupportedOperationException("can't build doc ref blocks yet"); },
-        in -> {
-            throw new UnsupportedOperationException("can't read doc ref blocks yet");
-        }
-    );
+    DOC_REF(15, "DocRef", DocRefBlock::newBlockBuilder, DocRefBlock::readFrom);
 
     private static final TransportVersion ESQL_SERIALIZE_BLOCK_TYPE_CODE = TransportVersion.fromName("esql_serialize_block_type_code");
 

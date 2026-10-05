@@ -921,13 +921,13 @@ public class CaseExtraTests extends ESTestCase {
             page.releaseBlocks();
         }
         driverContext.finish();
-        // Both conditions saw a multivalued row, so both emit a header. The exception line is deduplicated.
-        assertThat(driverContext.warnings(), hasSize(3));
-        assertThat(driverContext.warnings(), hasItem(containsString("evaluation of [c1] failed, treating result as false")));
-        assertThat(driverContext.warnings(), hasItem(containsString("evaluation of [c2] failed, treating result as false")));
+        // Both conditions saw a multivalued row, but multivalue warnings name the enclosing CASE rather than the
+        // condition, so the header and the exception line are each deduplicated across the two conditions.
+        assertThat(driverContext.warnings(), hasSize(2));
+        assertThat(driverContext.warnings(), hasItem(containsString("evaluation of [<case>] failed, treating result as false")));
         assertThat(
             driverContext.warnings(),
-            hasItem(containsString("java.lang.IllegalArgumentException: CASE expects a single-valued boolean"))
+            hasItem(containsString("java.lang.IllegalArgumentException: single-value function encountered multi-value"))
         );
     }
 
@@ -995,10 +995,10 @@ public class CaseExtraTests extends ESTestCase {
         }
         driverContext.finish();
         assertThat(driverContext.warnings(), hasSize(2));
-        assertThat(driverContext.warnings(), hasItem(containsString("evaluation of [c2] failed, treating result as false")));
+        assertThat(driverContext.warnings(), hasItem(containsString("evaluation of [<case>] failed, treating result as false")));
         assertThat(
             driverContext.warnings(),
-            hasItem(containsString("java.lang.IllegalArgumentException: CASE expects a single-valued boolean"))
+            hasItem(containsString("java.lang.IllegalArgumentException: single-value function encountered multi-value"))
         );
     }
 
@@ -1063,10 +1063,10 @@ public class CaseExtraTests extends ESTestCase {
         }
         driverContext.finish();
         assertThat(driverContext.warnings(), hasSize(2));
-        assertThat(driverContext.warnings(), hasItem(containsString("evaluation of [c1] failed, treating result as false")));
+        assertThat(driverContext.warnings(), hasItem(containsString("evaluation of [<case>] failed, treating result as false")));
         assertThat(
             driverContext.warnings(),
-            hasItem(containsString("java.lang.IllegalArgumentException: CASE expects a single-valued boolean"))
+            hasItem(containsString("java.lang.IllegalArgumentException: single-value function encountered multi-value"))
         );
     }
 

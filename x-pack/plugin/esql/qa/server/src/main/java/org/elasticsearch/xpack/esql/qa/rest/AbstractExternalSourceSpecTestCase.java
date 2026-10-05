@@ -994,8 +994,13 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         );
         // HTTP cannot list a directory, so multi-file/Hive-partitioned glob datasets cannot be resolved
         // over it; skip those on the HTTP backend (the glob lives in the dataset's resource template).
+        // The Hive suffixes are matched on suffix + "}}", as the raw-EXTERNAL path above does: a Hive
+        // template that expands to one concrete key needs no listing and must not be skipped here, and a
+        // bare contains() cannot tell it from the glob templates whose name it extends.
         for (DatasetSource source : testCase.datasetSources) {
-            if (source.resource().contains(MULTIFILE_SUFFIX) || source.resource().contains(HIVE_SUFFIX)) {
+            if (source.resource().contains(MULTIFILE_SUFFIX)
+                || source.resource().contains(HIVE_SUFFIX + "}}")
+                || source.resource().contains(HIVE_SHADOW_SUFFIX + "}}")) {
                 assumeTrue("HTTP backend does not support multi-file glob patterns", storageBackend != StorageBackend.HTTP);
             }
         }
@@ -1356,8 +1361,10 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     /**
      * One concrete key inside the Hive-partitioned fixture — no glob, no comma list. The resource shape decides how
      * the file is discovered, and must not decide whether its path contributes columns, so this addresses the single
-     * {@code lang=3} object directly. Naming a key needs no directory listing, so unlike the glob templates it is not
-     * skipped on the HTTP backend.
+     * {@code lang=3} object directly. Naming a key needs no directory listing, which is why the HTTP skip in
+     * {@link #runDatasetMode} matches the glob suffixes on {@code + "}}"} rather than by {@code contains}: this name
+     * extends {@link #HIVE_SUFFIX} and would otherwise be skipped on the one backend that resolves it without a
+     * listing.
      */
     private static final String HIVE_ONE_FILE_SUFFIX = "_hive_one_file";
 

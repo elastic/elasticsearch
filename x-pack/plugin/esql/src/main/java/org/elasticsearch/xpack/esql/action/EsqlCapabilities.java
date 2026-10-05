@@ -3111,6 +3111,11 @@ public class EsqlCapabilities {
          * {@code auto} default it fires on datasets that set no partition settings at all — so a coordinator that
          * predates it answers {@code Unknown column} where one of those columns is named, and one column narrower
          * where it is not.
+         * <p>
+         * It also makes two such datasets FAIL that resolved before, both for the reason the glob rails already
+         * fail: a declared mapping naming a column that collides with a partition key is rejected rather than
+         * silently rebound, on the strict rail and through the non-strict overlay alike. {@code
+         * partition_detection: none} is the escape hatch, and reads the physical column as before.
          */
         EXTERNAL_SINGLE_FILE_PARTITION_COLUMNS,
 

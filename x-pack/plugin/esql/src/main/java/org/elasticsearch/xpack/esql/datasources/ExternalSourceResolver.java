@@ -1200,22 +1200,19 @@ public class ExternalSourceResolver {
             // shim that injects them into the relation's metadataFields). See ResolveExternalRelations.
             List<Attribute> fileSchema = extMetadata.schema();
 
-            // A named key's path carries partition values exactly as a listed key's does, so the resource shape
-            // decides how the file was discovered, not whether its path contributes columns. The partition settings
-            // come off this dataset's own config, and detection is pure path parsing — no additional I/O.
-            FileList singletonList = GlobExpander.fileListOf(
+            FileList singletonList = GlobExpander.fileListWithDetectedPartitions(
                 List.of(storageEntry),
                 path,
-                PartitionConfig.fromConfig(fileConfig),
-                pendingListingWarnings::add
+                PartitionConfig.fromConfig(fileConfig)
             );
+            pendingListingWarnings.addAll(singletonList.listingWarnings());
             // Mirrors this rail's multi-file counterpart, finishFirstFileWins: shadow a same-named physical column
             // (the path-derived value wins, Spark/DuckDB semantics), enrich the coordinator schema with the partition
             // columns, and narrow the per-file mapping to the data-only columns so the mapping width agrees with that
             // schema. Without the narrowing a shadowed column would leave the two disagreeing.
             PartitionMetadata partitionMetadata = singletonList.partitionMetadata();
             List<Attribute> dataOnlySchema = fileSchema;
-            if (fileSchema != null && partitionMetadata != null && partitionMetadata.isEmpty() == false) {
+            if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
                 dataOnlySchema = ExternalSchema.dataAttributesOf(fileSchema, partitionMetadata.partitionColumns().keySet()).attributes();
                 extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingSchemaWarnings::add);
             }
@@ -4212,14 +4209,14 @@ public class ExternalSourceResolver {
         List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredMapping);
         FormatNameResolver.rejectConflictingObjectFormat(storagePath, sourceType, dataSourceModule.formatReaderRegistry());
         long mtimeMillis = meta.mtimeMillis();
-        // A named key's path carries partition values exactly as a listed key's does. Detection is pure path parsing,
-        // so the file list is built here, ahead of the footer read, and its metadata feeds the guard below.
-        FileList singletonList = GlobExpander.fileListOf(
+        // Detection is pure path parsing, so the file list is built here, ahead of the footer read, and its metadata
+        // feeds the guard below.
+        FileList singletonList = GlobExpander.fileListWithDetectedPartitions(
             List.of(new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(mtimeMillis))),
             path,
-            PartitionConfig.fromConfig(config),
-            pendingListingWarnings::add
+            PartitionConfig.fromConfig(config)
         );
+        pendingListingWarnings.addAll(singletonList.listingWarnings());
         PartitionMetadata partitionMetadata = singletonList.partitionMetadata();
         // Cheap no-I/O guard first, then the columnar coercibility check which reads this file's footer (cached when
         // the provider is). As on resolveStrictMultiFile, a declared column colliding with a partition key is

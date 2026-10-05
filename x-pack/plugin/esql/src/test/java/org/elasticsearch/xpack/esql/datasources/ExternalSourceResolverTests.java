@@ -3908,6 +3908,77 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertThat("detail names the shadowed column", warnings.get(1), containsString("column [year]: also a partition key"));
     }
 
+    /**
+     * The strict (declared-schema) single-file path, which is a second rail with its own enrichment and its own
+     * collision rule — the inferred cases above reach none of it.
+     */
+    public void testStrictConcreteResourceBindsPartitionColumns() throws Exception {
+        String key = "s3://bucket/data/year=2024/month=01/file.parquet";
+        Map<String, DatasetFieldMapping> declared = Map.of("value", new DatasetFieldMapping("double", null));
+
+        ExternalSourceResolution.ResolvedSource hive = resolveStrictConcreteKey(key, declared, Map.of("partition_detection", "hive"))
+            .resolvedSource(key);
+        assertNotNull(hive);
+        assertEquals(List.of("value", "year", "month"), hive.metadata().schema().stream().map(Attribute::name).toList());
+        assertEquals(Set.of("year", "month"), hive.fileList().partitionMetadata().partitionColumns().keySet());
+
+        // The template strategy on the same rail, right-aligned to the two directories above the file. The template
+        // binds the literal directory name, so the Hive key= prefix is part of the value.
+        String bare = "s3://bucket/data/2024/01/file.parquet";
+        ExternalSourceResolution.ResolvedSource template = resolveStrictConcreteKey(
+            bare,
+            declared,
+            Map.of("partition_detection", "template", "partition_path", "{year}/{month}")
+        ).resolvedSource(bare);
+        assertNotNull(template);
+        assertEquals(List.of("value", "year", "month"), template.metadata().schema().stream().map(Attribute::name).toList());
+    }
+
+    /** The documented opt-out, on the rail that now detects: {@code none} leaves the declaration as the whole schema. */
+    public void testStrictConcreteResourceWithDetectionNoneBindsNoPartitionColumn() throws Exception {
+        String key = "s3://bucket/data/year=2024/month=01/file.parquet";
+        Map<String, DatasetFieldMapping> declared = Map.of("value", new DatasetFieldMapping("double", null));
+
+        ExternalSourceResolution.ResolvedSource resolved = resolveStrictConcreteKey(key, declared, Map.of("partition_detection", "none"))
+            .resolvedSource(key);
+
+        assertNotNull(resolved);
+        assertEquals(List.of("value"), resolved.metadata().schema().stream().map(Attribute::name).toList());
+        assertNull(resolved.fileList().partitionMetadata());
+    }
+
+    /**
+     * Strict never shadows. A declared column colliding with a partition key is rejected, because under strict the
+     * declaration drives the reader's positional file schema and dropping a declared column would mis-bind reads —
+     * the rule {@code resolveStrictMultiFile} already applies. This is the one case that resolved before this rail
+     * detected partitions, so {@code partition_detection: none} is the way back to it.
+     */
+    public void testStrictConcreteResourceRejectsDeclaredPartitionCollision() throws Exception {
+        String key = "s3://bucket/data/year=2024/file.parquet";
+        Map<String, DatasetFieldMapping> colliding = Map.of("year", new DatasetFieldMapping("keyword", null));
+
+        Exception e = expectThrows(Exception.class, () -> resolveStrictConcreteKey(key, colliding, Map.of("partition_detection", "hive")));
+        assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("declared column [year] collides with a partition column"));
+
+        ExternalSourceResolution.ResolvedSource escaped = resolveStrictConcreteKey(key, colliding, Map.of("partition_detection", "none"))
+            .resolvedSource(key);
+        assertNotNull(escaped);
+        assertEquals(List.of("year"), escaped.metadata().schema().stream().map(Attribute::name).toList());
+    }
+
+    /** Resolves one concrete key under a strict (dynamic=false) declaration, so the strict single-file path is taken. */
+    private ExternalSourceResolution resolveStrictConcreteKey(
+        String key,
+        Map<String, DatasetFieldMapping> properties,
+        Map<String, Object> config
+    ) throws Exception {
+        ExternalSourceResolver resolver = createResolver(Map.of(key, List.of(attr("value", DataType.DOUBLE))), Map.of());
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(key), Map.of(key, new HashMap<>(config)), null, Map.of(key, mapping), null, future);
+        return future.actionGet();
+    }
+
     public void testEnrichSchemaWithPartitionColumnsDirectly() {
         List<Attribute> originalSchema = List.of(attr("a", DataType.INTEGER), attr("b", DataType.KEYWORD));
         ExternalSourceMetadata metadata = createStubMetadata("s3://bucket/file.parquet", originalSchema);

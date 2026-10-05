@@ -71,15 +71,13 @@ public final class GlobExpander {
      * Creates a file list over entries whose paths are the only evidence of their partition columns, detecting those
      * columns here rather than taking metadata the caller already holds. This is what a resource naming concrete keys
      * needs: a named key's path carries partition values exactly as a listed key's does, so what discovered a file
-     * does not decide whether its path contributes columns. Detection is pure path parsing — no I/O.
+     * does not decide whether its path contributes columns. Detection is pure path parsing — no I/O, and the
+     * detector's notices ride the returned list, as they do for a listed one.
      */
-    public static FileList fileListOf(
-        List<StorageEntry> entries,
-        String pattern,
-        PartitionConfig partitionConfig,
-        Consumer<String> warningSink
-    ) {
-        return new GenericFileList(entries, pattern, detectPartitions(entries, partitionConfig, warningSink));
+    public static FileList fileListWithDetectedPartitions(List<StorageEntry> entries, String pattern, PartitionConfig partitionConfig) {
+        List<String> notices = new ArrayList<>();
+        PartitionMetadata partitionMetadata = detectPartitions(entries, partitionConfig, notices::add);
+        return new GenericFileList(entries, pattern, partitionMetadata, notices);
     }
 
     /**
@@ -690,9 +688,7 @@ public final class GlobExpander {
             var obj = provider.newObject(storagePath);
             if (obj.exists()) {
                 StorageEntry entry = new StorageEntry(storagePath, obj.length(), obj.lastModified());
-                List<String> notices = new ArrayList<>();
-                PartitionMetadata partitionMetadata = detectPartitions(List.of(entry), partitionConfig, notices::add);
-                return new GenericFileList(List.of(entry), pattern, partitionMetadata, notices);
+                return fileListWithDetectedPartitions(List.of(entry), pattern, partitionConfig);
             }
             return FileList.EMPTY;
         }

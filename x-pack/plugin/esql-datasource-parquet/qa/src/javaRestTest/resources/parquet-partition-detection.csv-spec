@@ -236,6 +236,7 @@ count:long | lang:integer
 // template binds the literal directory name, so the value is `lang=3` rather than `3`.
 concreteKeyBindsTemplatePartitionColumn
 required_capability: dataset_in_from_command
+required_capability: partition_detection_on_read_path
 required_capability: external_single_file_partition_columns
 dataset: employees_one_key_template: "{{employees_hive_one_file}}" WITH {"partition_detection": "template", "partition_path": "{bucket}"}
 
@@ -250,6 +251,7 @@ count:long | bucket:keyword
 // nothing from the path, so naming the column is an error and counting rows is not.
 concreteKeyDetectionNoneBindsNoPartitionColumn
 required_capability: dataset_in_from_command
+required_capability: partition_detection_on_read_path
 required_capability: external_single_file_partition_columns
 dataset: employees_one_key_none: "{{employees_hive_one_file}}" WITH {"partition_detection": "none"}
 

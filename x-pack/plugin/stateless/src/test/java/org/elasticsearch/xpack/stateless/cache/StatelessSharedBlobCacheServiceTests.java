@@ -58,7 +58,6 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.xpack.stateless.TestUtils.newCacheService;
 import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING;
-import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING;
 import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -399,70 +398,31 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
-    public void testEvictionPolicyOnIndexNodeIsAlwaysDefault() throws IOException {
-        final var settings = Settings.builder()
-            .put(NODE_NAME_SETTING.getKey(), "node")
-            .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.INDEX_ROLE.roleName())
-            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheRegionSizeInBytes(1)).getStringRep())
-            .put(
-                SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(),
-                ByteSizeValue.ofBytes(cacheRegionSizeInBytes(1)).getStringRep()
-            )
-            .put("path.home", createTempDir())
-            .build();
-        final var taskQueue = new DeterministicTaskQueue();
-        final var clusterSettings = createClusterSettings(settings);
-        final var clusterService = ClusterServiceUtils.createClusterService(taskQueue.getThreadPool(), clusterSettings);
-        try (
-            var environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = newCacheService(environment, settings, taskQueue.getThreadPool(), null, clusterService)
-        ) {
-            assertThat(getEvictionPolicy(cacheService), instanceOf(DefaultEvictionPolicy.class));
-
-            clusterSettings.applySettings(
-                Settings.builder()
-                    .put(
-                        STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey(),
-                        StatelessCacheEvictionPolicyType.INDEX_AGE
-                    )
-                    .build()
-            );
-
-            assertThat(getEvictionPolicy(cacheService), instanceOf(DefaultEvictionPolicy.class));
-        }
-    }
-
-    public void testEvictionPolicyOnSearchNodeCanBeChangedDynamically() throws IOException {
-        final var settings = Settings.builder()
-            .put(NODE_NAME_SETTING.getKey(), "node")
-            .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
-            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheRegionSizeInBytes(1)).getStringRep())
-            .put(
-                SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(),
-                ByteSizeValue.ofBytes(cacheRegionSizeInBytes(1)).getStringRep()
-            )
-            .put(STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey(), StatelessCacheEvictionPolicyType.ALWAYS)
-            .put("path.home", createTempDir())
-            .build();
-        final var taskQueue = new DeterministicTaskQueue();
-        final var clusterSettings = createClusterSettings(settings);
-        final var clusterService = ClusterServiceUtils.createClusterService(taskQueue.getThreadPool(), clusterSettings);
-        try (
-            var environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = newCacheService(environment, settings, taskQueue.getThreadPool(), null, clusterService)
-        ) {
-            assertThat(getDelegatePolicy(getEvictionPolicy(cacheService)), instanceOf(DefaultEvictionPolicy.class));
-
-            clusterSettings.applySettings(
-                Settings.builder()
-                    .put(
-                        STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey(),
-                        StatelessCacheEvictionPolicyType.INDEX_AGE
-                    )
-                    .build()
-            );
-
-            assertThat(getDelegatePolicy(getEvictionPolicy(cacheService)), instanceOf(IndexAgeEvictionPolicy.class));
+    public void testDefaultFactoryUsesDefaultEvictionPolicy() throws IOException {
+        for (DiscoveryNodeRole role : List.of(DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE)) {
+            final var settings = Settings.builder()
+                .put(NODE_NAME_SETTING.getKey(), "node")
+                .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), role.roleName())
+                .put(
+                    SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(),
+                    ByteSizeValue.ofBytes(cacheRegionSizeInBytes(1)).getStringRep()
+                )
+                .put(
+                    SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(),
+                    ByteSizeValue.ofBytes(cacheRegionSizeInBytes(1)).getStringRep()
+                )
+                .put(STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
+                .put("path.home", createTempDir())
+                .build();
+            final var taskQueue = new DeterministicTaskQueue();
+            final var clusterSettings = createClusterSettings(settings);
+            final var clusterService = ClusterServiceUtils.createClusterService(taskQueue.getThreadPool(), clusterSettings);
+            try (
+                var environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+                var cacheService = newCacheService(environment, settings, taskQueue.getThreadPool(), null, clusterService)
+            ) {
+                assertThat(getEvictionPolicy(cacheService), instanceOf(DefaultEvictionPolicy.class));
+            }
         }
     }
 
@@ -514,20 +474,10 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
-    EvictionPolicy<FileCacheKey> getDelegatePolicy(EvictionPolicy<FileCacheKey> evictionPolicy) {
-        if (evictionPolicy instanceof SwitchingEvictionPolicy switchingEvictionPolicy) {
-            return switchingEvictionPolicy.getDelegate();
-        }
-        throw new AssertionError("Not a SwitchingEvictionPolicy: " + evictionPolicy);
-    }
-
     private static ClusterSettings createClusterSettings(Settings settings) {
         var settingSet = Sets.newHashSet(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        settingSet.add(PinnedWindowEvictionPolicy.PINNED_WINDOW_DURATION_SETTING);
-        settingSet.add(STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING);
         settingSet.add(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING);
         settingSet.add(StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING);
-        settingSet.add(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING);
         settingSet.add(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING);
         return new ClusterSettings(settings, settingSet);
     }

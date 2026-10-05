@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.blobcache.shared.DefaultEvictionPolicy;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -40,6 +41,7 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
@@ -152,11 +154,7 @@ public class SearchDirectoryTests extends ESTestCase {
                     .put(super.nodeSettings())
                     .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
                     .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
-                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
-                    .put(
-                        StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING.getKey(),
-                        timestampBackfillEnabled
-                    );
+                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize);
                 return settings.build();
             }
 
@@ -207,6 +205,30 @@ public class SearchDirectoryTests extends ESTestCase {
                 ThreadPool threadPool,
                 MeterRegistry MeterRegistry
             ) {
+                if (timestampBackfillEnabled) {
+                    return new StatelessSharedBlobCacheService(
+                        nodeEnvironment,
+                        settings,
+                        clusterSettings,
+                        threadPool,
+                        BlobCacheMetrics.NOOP,
+                        new DefaultEvictionPolicy<FileCacheKey>() {
+                            @Override
+                            public boolean hasTimestampProtection() {
+                                return true;
+                            }
+                        },
+                        System::nanoTime,
+                        threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL),
+                        new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+                    ) {
+                        @Override
+                        protected boolean assertOffsetsWithinFileLength(long offset, long length, long fileLength) {
+                            // this test tries to read beyond the file length
+                            return true;
+                        }
+                    };
+                }
                 StatelessSharedBlobCacheService statelessSharedBlobCacheService = new StatelessSharedBlobCacheService(
                     nodeEnvironment,
                     settings,
@@ -763,7 +785,6 @@ public class SearchDirectoryTests extends ESTestCase {
                     .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
                     .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
                     .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
-                    .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING.getKey(), true)
                     .build();
             }
 
@@ -909,7 +930,7 @@ public class SearchDirectoryTests extends ESTestCase {
                 equalTo(BACKFILL_IN_PROGRESS_TIMESTAMP)
             );
             assertThat(
-                "backfill should be disabled when timestamp backfill setting is off",
+                "backfill should be disabled when the eviction policy has no timestamp protection",
                 directory.timestampBackfillEnabled(),
                 equalTo(false)
             );
@@ -945,7 +966,7 @@ public class SearchDirectoryTests extends ESTestCase {
         // Time-based shard with timestamp backfill enabled.
         try (var node = createFakeStatelessNode(regionSize, cacheSize, true, true)) {
             assertThat(
-                "backfill should be enabled when timestamp backfill setting is on",
+                "backfill should be enabled when the eviction policy has timestamp protection",
                 SearchDirectory.unwrapDirectory(node.searchStore.directory()).timestampBackfillEnabled(),
                 equalTo(true)
             );
@@ -1058,7 +1079,6 @@ public class SearchDirectoryTests extends ESTestCase {
                     .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
                     .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
                     .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
-                    .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING.getKey(), true)
                     .build();
             }
 

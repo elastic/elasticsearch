@@ -28,6 +28,11 @@ public final class TimestampCapturingEvictionPolicy extends DefaultEvictionPolic
     private final Map<FileCacheKey, Collection<CacheRegion<FileCacheKey>>> liveRegions = new ConcurrentHashMap<>();
 
     @Override
+    public boolean hasTimestampProtection() {
+        return true;
+    }
+
+    @Override
     public void onCached(CacheRegion<FileCacheKey> region) {
         super.onCached(region);
         capturedTimestamps.computeIfAbsent(region.key(), k -> new CopyOnWriteArrayList<>()).add(region.timestampMillis());

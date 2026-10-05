@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.DecompressionCodecRegistry;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 
@@ -127,6 +128,11 @@ public class HttpDataSourcePluginTests extends ESTestCase {
      * Mockito stub: {@link FormatReader#formatName()}, {@link FormatReader#fileExtensions()}, and
      * {@link FormatReader#supportsWholeFileCompression()} are the only methods consulted.
      */
+    public void testSchemesAreRejectedBySafeForUserMessage() {
+        assertFalse(ExternalFailures.safeForUserMessage("http://host/path/file.csv"));
+        assertFalse(ExternalFailures.safeForUserMessage("https://host/path/file.csv"));
+    }
+
     private static FormatReaderRegistry csvRegistry() {
         FormatReader csv = mock(FormatReader.class);
         when(csv.formatName()).thenReturn("csv");

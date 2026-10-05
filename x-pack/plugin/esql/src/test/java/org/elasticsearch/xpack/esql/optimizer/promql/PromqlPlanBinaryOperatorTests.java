@@ -20,11 +20,13 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -725,6 +727,48 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
             .findFirst()
             .orElseThrow();
         outer.forEachExpression(Count.class, count -> assertThat(count.hasFilter(), equalTo(false)));
+    }
+
+    /**
+     * A count is at least 1 for an element and a group with none is no element. Fused with the other operand's aggregate,
+     * an operand's count reads 0 in a group that only the other operand's rows create; the plan turns that 0 into null so
+     * the pair drops with the unmatched ones, for the series count and for the sample count alike.
+     */
+    public void testEmptyCountOperandIsNull() {
+        for (String promql : List.of(
+            "count by (cluster) (network.bytes_in) - count by (cluster) (network.cost{pod=\"one\"})",
+            "count_over_time(network.bytes_in[5m]) - count_over_time(network.cost{pod=\"one\"}[5m])",
+            "count(network.bytes_in{pod=~\"nope\"}) - count(network.cost{pod=~\"nope\"})"
+        )) {
+            LogicalPlan plan = planPromql("PROMQL index=k8s step=1m result=(" + promql + ")");
+            List<Expression> zeroAsNull = new ArrayList<>();
+            plan.forEachExpressionDown(Case.class, c -> {
+                if (c.children().getFirst() instanceof Equals eq && eq.right() instanceof Literal l && Long.valueOf(0L).equals(l.value())) {
+                    zeroAsNull.add(c);
+                }
+            });
+            assertThat(promql + ": one null-when-empty count per operand\n" + plan, zeroAsNull, hasSize(2));
+        }
+    }
+
+    /**
+     * The operator leaves a null value for a series without a partner; the enclosing {@code count} counts no element for a
+     * group of such series, so the group is no element either rather than a count of 0.
+     */
+    public void testCountOverUnmatchedPairsIsNoElement() {
+        for (String promql : List.of(
+            "count by (pod) (network.bytes_in / network.cost)",
+            "count by (cluster) (sum by (pod, cluster) (network.bytes_in) / sum by (pod, cluster) (network.cost{pod!=\"one\"}))"
+        )) {
+            LogicalPlan plan = planPromql("PROMQL index=k8s step=1m result=(" + promql + ")");
+            List<Expression> zeroAsNull = new ArrayList<>();
+            plan.forEachExpressionDown(Case.class, c -> {
+                if (c.children().getFirst() instanceof Equals eq && eq.right() instanceof Literal l && Long.valueOf(0L).equals(l.value())) {
+                    zeroAsNull.add(c);
+                }
+            });
+            assertThat(promql + ": the enclosing count maps 0 to no element\n" + plan, zeroAsNull, hasSize(1));
+        }
     }
 
     private static void assertNoIndexBackedPromqlPlan(LogicalPlan plan) {

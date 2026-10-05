@@ -1,0 +1,6 @@
+SET unmapped_fields="nullify";
+FROM sample_data, (FROM sample_data_ts_nanos, (FROM sample_data))
+| WHERE TO_STRING(@timestamp) IS NOT NULL OR does_not_exist IS NULL
+| EVAL s = TO_STRING(@timestamp)
+| FORK (WHERE true) (WHERE true)
+| KEEP s, @timestamp

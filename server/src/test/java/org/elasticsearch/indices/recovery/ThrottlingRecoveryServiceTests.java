@@ -163,7 +163,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+            public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
                 assertThat(threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER), equalTo(projectId2.id()));
             }
         };
@@ -1190,7 +1190,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             listener1,
             mockIndexShard(recoveryState, UUIDs.randomBase64UUID(), stats),
             newIndexMetadata(),
-            l -> l.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, null), ABORT)
+            l -> l.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, null), ABORT)
         );
         final var listener2 = new TestCaptureResultListener(ExpectedRecoveryOutcome.COMPLETED);
         service.enqueue(
@@ -1354,16 +1354,17 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var allocationId2 = UUIDs.randomBase64UUID();
 
         final var listener1 = new TestCaptureResultListener(ExpectedRecoveryOutcome.CANCELLED_STARTED);
+        final var recoveryState1 = newRecoveryState(shardId1);
         service.enqueue(
             ProjectId.DEFAULT,
             listener1,
-            mockIndexShard(newRecoveryState(shardId1), allocationId1, new RecoveryStats()),
+            mockIndexShard(recoveryState1, allocationId1, new RecoveryStats()),
             newIndexMetadata(),
             listener -> {
                 // simulates cancellation of started recovery
                 taskQueue.scheduleAt(
                     taskQueue.getCurrentTimeMillis() + 100,
-                    () -> listener.onRecoveryFailure(new RecoveryCancelledException(shardId1, null, null), FAIL_SEND)
+                    () -> listener.onRecoveryFailure(recoveryState1, new RecoveryCancelledException(shardId1, null, null), FAIL_SEND)
                 );
             }
         );
@@ -1449,17 +1450,22 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, clusterService);
 
         final var blockerShardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
+        final var blockerRecoveryState = newRecoveryState(blockerShardId);
         final var blockerListener = new TestCaptureResultListener(ExpectedRecoveryOutcome.CANCELLED_STARTED);
         service.enqueue(
             ProjectId.DEFAULT,
             blockerListener,
-            mockIndexShard(newRecoveryState(blockerShardId), UUIDs.randomBase64UUID(), stats),
+            mockIndexShard(blockerRecoveryState, UUIDs.randomBase64UUID(), stats),
             newIndexMetadata(),
             listener -> {
                 // occupies the sole concurrency slot
                 taskQueue.scheduleAt(
                     taskQueue.getCurrentTimeMillis() + 100,
-                    () -> listener.onRecoveryFailure(new RecoveryCancelledException(blockerShardId, null, null), FAIL_SEND)
+                    () -> listener.onRecoveryFailure(
+                        blockerRecoveryState,
+                        new RecoveryCancelledException(blockerShardId, null, null),
+                        FAIL_SEND
+                    )
                 );
             }
         );
@@ -1562,7 +1568,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+            public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
                 completed.incrementAndGet();
             }
         };
@@ -1613,6 +1619,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                                     schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
                                 } else {
                                     schedulingListener.onRecoveryFailure(
+                                        recoveryState,
                                         new RecoveryFailedException(
                                             recoveryState,
                                             null,
@@ -1682,7 +1689,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+            public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
                 runningOrPending.decrementAndGet();
                 tasksCompleted.incrementAndGet();
                 refCounted.decRef();
@@ -1759,6 +1766,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
             } else {
                 schedulingListener.onRecoveryFailure(
+                    recoveryState,
                     new RecoveryFailedException(recoveryState, null, new RuntimeException("test recovery task injected failure")),
                     randomFrom(FailureStrategy.values())
                 );
@@ -1802,7 +1810,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         }
 
         @Override
-        public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+        public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
             assert super.isDone() == false;
             switch (expectedOutcome) {
                 case FAILED -> {
@@ -2144,6 +2152,210 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(service.currentQueueSize(), equalTo(0));
     }
 
+    public void testQueueLatencyMillis() {
+        final var taskQueue = new DeterministicTaskQueue();
+        // Start a service with a deterministic thread pool, and maxConcurrentRecoveries set to 1:
+        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, newClusterService(1));
+
+        // Queue is empty: latency should be 0:
+        assertThat(service.queueLatencyMillis(), equalTo(0L));
+
+        // Dispatch a blocker that holds the sole recovery slot so that the next three recoveries go into the queue:
+        final var blockerListener = new AtomicReference<RecoveryListener>();
+        service.enqueue(
+            ProjectId.DEFAULT,
+            noopRecoveryListener(),
+            mockIndexShard(newUnassignedRecoveryState(), UUIDs.randomBase64UUID(), stats),
+            newIndexMetadata(),
+            blockerListener::set
+        );
+        taskQueue.runAllRunnableTasks();
+        assertNotNull("blocker should be dispatched", blockerListener.get());
+        // Queue is still empty, latency should be 0:
+        assertThat(service.queueLatencyMillis(), equalTo(0L));
+
+        // Enqueue a medium priority recovery:
+        final var mediumPriorityListener = new AtomicReference<RecoveryListener>();
+        service.enqueue(
+            ProjectId.DEFAULT,
+            noopRecoveryListener(),
+            mockIndexShard(newRecoveryState(ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED), UUIDs.randomBase64UUID(), stats),
+            newIndexMetadata(),
+            mediumPriorityListener::set
+        );
+        long mediumPriorityEnqueuedTimestamp = taskQueue.getCurrentTimeMillis();
+        taskQueue.runAllRunnableTasks();
+        assertNull(
+            "The medium priority recovery should still be queued as the blocker recovery is using the slot",
+            mediumPriorityListener.get()
+        );
+        // Just enqueued at the current time, latency should be 0:
+        assertThat(service.queueLatencyMillis(), equalTo(0L));
+        // Make time go backwards slightly, assert that the latency reported is still 0 rather than a negative value:
+        taskQueue.runTasksUpToTimeInOrder(taskQueue.getCurrentTimeMillis() - 1);
+        assertThat(service.queueLatencyMillis(), equalTo(0L));
+
+        // Advance the clock, assert that we get report the correct latency:
+        taskQueue.runTasksUpToTimeInOrder(taskQueue.getCurrentTimeMillis() + randomIntBetween(100, 1000));
+        assertThat(service.queueLatencyMillis(), equalTo(taskQueue.getCurrentTimeMillis() - mediumPriorityEnqueuedTimestamp));
+
+        // Enqueue a low priority recovery:
+        final var lowPriorityListener = new AtomicReference<RecoveryListener>();
+        service.enqueue(
+            ProjectId.DEFAULT,
+            noopRecoveryListener(),
+            mockIndexShard(newRecoveryState(ShardRouting.RecoveryPriority.RELOCATE_REBALANCING), UUIDs.randomBase64UUID(), stats),
+            newIndexMetadata(),
+            lowPriorityListener::set
+        );
+        long lowPriorityEnqueuedTimestamp = taskQueue.getCurrentTimeMillis();
+        taskQueue.runAllRunnableTasks();
+        assertNull("The low priority recovery should still be queued as the blocker recovery is using the slot", lowPriorityListener.get());
+
+        taskQueue.runTasksUpToTimeInOrder(taskQueue.getCurrentTimeMillis() + randomIntBetween(1000, 5000));
+        // The medium priority recovery has been queueing longest:
+        assertThat(service.queueLatencyMillis(), equalTo(taskQueue.getCurrentTimeMillis() - mediumPriorityEnqueuedTimestamp));
+
+        // Enqueue a high priority recovery:
+        final var highPriorityListener = new AtomicReference<RecoveryListener>();
+        service.enqueue(
+            ProjectId.DEFAULT,
+            noopRecoveryListener(),
+            mockIndexShard(newRecoveryState(ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY), UUIDs.randomBase64UUID(), stats),
+            newIndexMetadata(),
+            highPriorityListener::set
+        );
+        taskQueue.runAllRunnableTasks();
+        assertNull(
+            "The high priority recovery should still be queued as the blocker recovery is using the slot",
+            highPriorityListener.get()
+        );
+        assertThat(service.currentQueueSize(), equalTo(3));
+
+        taskQueue.runTasksUpToTimeInOrder(taskQueue.getCurrentTimeMillis() + randomIntBetween(1000, 5000));
+        // The medium priority recovery has been queueing longest:
+        assertThat(service.queueLatencyMillis(), equalTo(taskQueue.getCurrentTimeMillis() - mediumPriorityEnqueuedTimestamp));
+
+        // Complete the blocker recovery; the highest priority recovery is dispatched:
+        blockerListener.get().onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+        taskQueue.runAllRunnableTasks();
+        assertNotNull("The high priority recovery should now be dispatched", highPriorityListener.get());
+        assertThat(service.currentQueueSize(), equalTo(2));
+
+        taskQueue.runTasksUpToTimeInOrder(taskQueue.getCurrentTimeMillis() + randomIntBetween(1000, 5000));
+        // The medium priority is still in the queue and has still been queueing longest:
+        assertThat(service.queueLatencyMillis(), equalTo(taskQueue.getCurrentTimeMillis() - mediumPriorityEnqueuedTimestamp));
+
+        // Complete the high priority recovery; the medium priority recovery is dispatched:
+        highPriorityListener.get().onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+        taskQueue.runAllRunnableTasks();
+        assertNotNull("The medium should now be dispatched", mediumPriorityListener.get());
+        assertThat(service.currentQueueSize(), equalTo(1));
+
+        taskQueue.runTasksUpToTimeInOrder(taskQueue.getCurrentTimeMillis() + randomIntBetween(1000, 5000));
+        // The medium priority recovery has now been dequeued, so the low priority recovery has been queueing longest:
+        assertThat(service.queueLatencyMillis(), equalTo(taskQueue.getCurrentTimeMillis() - lowPriorityEnqueuedTimestamp));
+
+        // Complete the medium priority recovery; the low priority recovery is dispatched, and the queue is empty:
+        mediumPriorityListener.get().onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+        taskQueue.runAllRunnableTasks();
+        assertNotNull("The low priority recovery should now be dispatched", lowPriorityListener.get());
+        assertThat(service.currentQueueSize(), equalTo(0));
+
+        taskQueue.runTasksUpToTimeInOrder(taskQueue.getCurrentTimeMillis() + randomIntBetween(1000, 5000));
+        // The queue is empty:
+        assertThat(service.queueLatencyMillis(), equalTo(0L));
+
+        // Complete the low priority recovery to tidy up:
+        lowPriorityListener.get().onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+        taskQueue.runAllRunnableTasks();
+    }
+
+    public void testQueueLatencyMillis_directAndIndirectCancellation() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var clusterService = newClusterService(1);
+        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, clusterService);
+
+        // Dispatch a blocker that holds the sole recovery slot so that the next two recoveries go into the queue:
+        final var blockerInternalListener = new AtomicReference<RecoveryListener>();
+        service.enqueue(
+            ProjectId.DEFAULT,
+            noopRecoveryListener(),
+            mockIndexShard(newUnassignedRecoveryState(), UUIDs.randomBase64UUID(), stats),
+            newIndexMetadata(),
+            blockerInternalListener::set
+        );
+        taskQueue.runAllRunnableTasks();
+        assertNotNull("blocker should be dispatched", blockerInternalListener.get());
+
+        // Enqueue first queued recovery — will be directly cancelled via cancelRecoveries:
+        final var firstShardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
+        final var firstAllocationId = UUIDs.randomBase64UUID();
+        final var firstListener = new TestCaptureResultListener(ExpectedRecoveryOutcome.CANCELLED_IN_QUEUE);
+        service.enqueue(
+            ProjectId.DEFAULT,
+            firstListener,
+            mockIndexShard(newRecoveryState(firstShardId), firstAllocationId, stats),
+            newIndexMetadata(),
+            ignored -> fail("First queued recovery should never be dispatched")
+        );
+        final long firstEnqueuedTimestamp = taskQueue.getCurrentTimeMillis();
+        taskQueue.runAllRunnableTasks();
+        assertThat(service.currentQueueSize(), equalTo(1));
+        // Just enqueued, latency should be 0:
+        assertThat(service.queueLatencyMillis(), equalTo(0L));
+
+        // Wait some time and assert correct latency:
+        taskQueue.runTasksUpToTimeInOrder(taskQueue.getCurrentTimeMillis() + randomIntBetween(100, 1000));
+        assertThat(service.queueLatencyMillis(), equalTo(taskQueue.getCurrentTimeMillis() - firstEnqueuedTimestamp));
+
+        // Enqueue second queued recovery — will be indirectly cancelled via clusterChanged:
+        final var secondShardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
+        final var secondListener = new TestCaptureResultListener(ExpectedRecoveryOutcome.CANCELLED_IN_QUEUE);
+        service.enqueue(
+            ProjectId.DEFAULT,
+            secondListener,
+            mockIndexShard(newRecoveryState(secondShardId), UUIDs.randomBase64UUID(), stats),
+            newIndexMetadata(),
+            ignored -> fail("Second queued recovery should never be dispatched")
+        );
+        final long secondEnqueuedTimestamp = taskQueue.getCurrentTimeMillis();
+        taskQueue.runAllRunnableTasks();
+        assertThat(service.currentQueueSize(), equalTo(2));
+
+        taskQueue.runTasksUpToTimeInOrder(taskQueue.getCurrentTimeMillis() + randomIntBetween(100, 1000));
+        // First recovery has been queued longest:
+        assertThat(service.queueLatencyMillis(), equalTo(taskQueue.getCurrentTimeMillis() - firstEnqueuedTimestamp));
+
+        // Direct-cancel the first recovery:
+        service.cancelRecoveries(Map.of(firstAllocationId, firstShardId));
+        taskQueue.runAllRunnableTasks();
+        assertThat(service.currentQueueSize(), equalTo(1));
+        // Latency now reflects the second recovery, the oldest remaining queued entry:
+        assertThat(service.queueLatencyMillis(), equalTo(taskQueue.getCurrentTimeMillis() - secondEnqueuedTimestamp));
+
+        // Indirect-cancel the second via clusterChanged — its shard is no longer in the routing table:
+        final var event = mock(ClusterChangedEvent.class);
+        final var state = mock(ClusterState.class);
+        final var routingNodes = mock(RoutingNodes.class);
+        final var routingNode = mock(RoutingNode.class);
+        when(event.state()).thenReturn(state);
+        when(state.getRoutingNodes()).thenReturn(routingNodes);
+        when(routingNodes.node(clusterService.localNode().getId())).thenReturn(routingNode);
+        when(routingNode.getByShardId(secondShardId)).thenReturn(null);
+        service.clusterChanged(event);
+        taskQueue.runAllRunnableTasks();
+        assertThat(service.currentQueueSize(), equalTo(0));
+
+        // Queue is now empty, so should report zero latency:
+        assertThat(service.queueLatencyMillis(), equalTo(0L));
+
+        // Complete the blocker to tidy up:
+        blockerInternalListener.get().onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+        taskQueue.runAllRunnableTasks();
+        ensureListenersWereNotified(firstListener, secondListener);
+    }
+
     private static ClusterService newClusterService(int maxConcurrentRecoveries) {
         Settings settings = Settings.builder()
             .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), maxConcurrentRecoveries)
@@ -2288,7 +2500,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+            public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
                 fail(e, "unexpected recovery failure");
             }
         };

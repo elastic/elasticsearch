@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 160650
+pr: 160651
+summary: Push down SORT `_score` ASC as ascending
+type: bug

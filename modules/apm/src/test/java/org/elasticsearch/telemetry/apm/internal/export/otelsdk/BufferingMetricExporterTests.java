@@ -36,6 +36,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.telemetry.InstrumentType.LONG_COUNTER;
 import static org.elasticsearch.telemetry.InstrumentType.LONG_GAUGE;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -101,6 +102,24 @@ public class BufferingMetricExporterTests extends ESTestCase {
         assertBusy(() -> assertThat(countBufferFiles(), equalTo(0)));
         assertThat(delegate.exportedNames(), hasItems("buf", "trigger"));
         assertBusy(() -> assertThat(counter("replays"), hasSize(1)));
+    }
+
+    public void testFailedReplayIsRetried() throws Exception {
+        build(Settings.EMPTY);
+        delegate.setShouldFail(true);
+        exportAndWait("first");
+        exportAndWait("second");
+        safeSleep(200); // let the write window (100ms) expire so the reader can promote the file
+        delegate.clearExported();
+        exporter.flush().join(10, TimeUnit.SECONDS);
+        assertThat("the drain stops at the failed replay of the first batch", delegate.exportedNames(), contains("first"));
+
+        delegate.setShouldFail(false);
+        delegate.clearExported();
+        assertBusy(() -> {
+            exporter.flush().join(10, TimeUnit.SECONDS);
+            assertThat(delegate.exportedNames(), hasItems("first", "second"));
+        });
     }
 
     public void testDiskCapRotatesOldestToMakeRoom() throws Exception {

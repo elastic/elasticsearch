@@ -3,7 +3,8 @@
 A `FROM` subquery cannot contain another `FROM` subquery. Only one
 level of `FROM` nesting is allowed. However, a `FROM` subquery can contain
 [`IN` subqueries](/reference/query-languages/esql/esql-in-subquery.md) in its
-`WHERE` commands.
+`WHERE` commands, `EVAL` commands, and `STATS` or `INLINE STATS` per-aggregate
+`WHERE` filters.
 
 For example, this query is **not supported** because the inner `FROM` itself
 contains subqueries:

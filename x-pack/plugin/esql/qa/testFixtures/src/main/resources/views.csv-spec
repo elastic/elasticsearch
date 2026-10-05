@@ -371,7 +371,7 @@ FROM airports_mp_filtered, airports METADATA _class, _name
 
 abbrev:keyword | _class:keyword | _name:keyword
 LUH            | index          | airports
-LUH            | null           | null
+LUH            | view           | airports_mp_filtered
 ;
 
 airportsLookupJoinViewAirportsStats

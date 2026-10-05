@@ -405,7 +405,8 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
         createView("view_langs_nullfill_it", "FROM languages");
         try (
             var response = run(
-                "FROM view_langs_nullfill_it METADATA _class, _name, _index | KEEP language_code, _class, _name, _index | SORT language_code"
+                "FROM view_langs_nullfill_it METADATA _class, _name, _index "
+                    + "| KEEP language_code, _class, _name, _index | SORT language_code"
             )
         ) {
             List<List<Object>> rows = getValuesList(response);

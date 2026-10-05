@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasource.csv;
 
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -35,6 +38,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * A declared schema over a headered CSV binds its columns by name against the header, and only the first
@@ -127,6 +133,83 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
         }
         assertEquals(rows, seenRows);
         assertEquals((long) (rows - 1) * rows, sum);
+    }
+
+    /**
+     * A declared read is not capped by the file's width, so every chunk after the first charges the scratch it builds to
+     * bind the declaration against the header names chunk 0 passed down, and releases it once bound.
+     */
+    public void testLaterChunksChargeTheDeclaredHeaderBinding() throws Exception {
+        int columns = ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS * 5;
+        StringBuilder csv = new StringBuilder();
+        for (int c = 0; c < columns; c++) {
+            csv.append(c == 0 ? "c" : ",c").append(c);
+        }
+        csv.append('\n');
+        long chunkSize = new CsvFormatReader(blockFactory).minimumSegmentSize();
+        int rows = 0;
+        while (csv.length() < chunkSize * 3) {
+            String value = Integer.toString(rows);
+            for (int c = 0; c < columns; c++) {
+                csv.append(c == 0 ? "" : ",").append(value);
+            }
+            csv.append('\n');
+            rows++;
+        }
+        // A later chunk's binding charge is the only csv_header_columns charge of exactly this size; the header split
+        // charges in batches of names.
+        long headerBindingBytes = (long) columns * (2 * Long.BYTES + CsvFormatReader.HeaderBudget.SET_ENTRY_BYTES);
+        AtomicInteger headerBindings = new AtomicInteger();
+        LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(256)) {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                super.addEstimateBytesAndMaybeBreak(bytes, label);
+                if (label.equals(CsvFormatReader.HeaderBudget.LABEL) && bytes == headerBindingBytes) {
+                    headerBindings.incrementAndGet();
+                }
+            }
+        };
+        BlockFactory charged = new BlockFactory(breaker, BigArrays.NON_RECYCLING_INSTANCE);
+        List<Attribute> declared = List.of(new ReferenceAttribute(Source.EMPTY, null, "c4000", DataType.LONG));
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(charged).withConfig(Map.of("header_row", true))
+            .withDeclaredProvenanceBinding(true)
+            .withSchema(declared);
+
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        long seenRows = 0;
+        try (
+            CloseableIterator<Page> pages = StreamingParallelParsingCoordinator.parallelRead(
+                (SegmentableFormatReader) reader,
+                new ByteArrayInputStream(csv.toString().getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of("c4000"),
+                1000,
+                4,
+                executor,
+                ErrorPolicy.STRICT,
+                declared,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE
+            )
+        ) {
+            while (pages.hasNext()) {
+                Page page = pages.next();
+                try {
+                    seenRows += page.getPositionCount();
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+        assertEquals(rows, seenRows);
+        assertThat(headerBindings.get(), greaterThan(0));
+        assertEquals(0, breaker.getUsed());
     }
 
     public void testDeclaredHeaderedCsvReadsAcrossChunkBoundaries() throws Exception {

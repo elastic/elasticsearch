@@ -80,6 +80,13 @@ public class ParquetFormatReaderConfigKeysTests extends ESTestCase {
         ParquetFormatReader.validateConfig(Map.of("schema_max_fields", ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS));
     }
 
+    /** Declaring the dataset's columns does not lift the cap for Parquet, so the refusal at the ceiling does not suggest it. */
+    public void testSchemaWidthMessageAtTheCeilingDoesNotSuggestDeclaring() {
+        String message = ParquetFormatReader.schemaWidthMessage(ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS);
+        assertThat(message, not(containsString("dynamic: false")));
+        assertThat(message, containsString("wider than any Parquet schema"));
+    }
+
     public void testEmptyConfigConsumesNothing() {
         assertThat(new ParquetFormatReader(NOOP_BLOCK_FACTORY).withConfigTrackingConsumedKeys(Map.of()).consumedKeys(), empty());
     }

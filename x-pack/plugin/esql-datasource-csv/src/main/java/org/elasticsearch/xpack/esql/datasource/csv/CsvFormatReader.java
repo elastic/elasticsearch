@@ -1551,7 +1551,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
                 maybeHintUndecodedNullMarker(sample.rows(), sourceLocation, warningSink);
                 int columns = syntheticColumnCount(sample.rows());
-                checkColumnCap(columns, schemaMaxFields);
+                checkSyntheticColumnCap(columns, schemaMaxFields);
                 try (Releasable charge = chargeSyntheticColumns(columns)) {
                     boolean[] sawUndecodableTemporal = new boolean[columns];
                     List<Attribute> schema = inferSyntheticSchema(
@@ -2271,7 +2271,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                             + "schema by name"
                     );
                 }
-                declaredBinding = bindDeclaredToHeaderNames(headerColumns.toArray(new String[0]), readSchema, object);
+                try (Releasable charged = chargeHeaderBinding(headerColumns.size())) {
+                    declaredBinding = bindDeclaredToHeaderNames(headerColumns.toArray(new String[0]), readSchema, object);
+                }
             }
             warnAbsentDeclaredColumns(declaredBinding, readSchema, context.informationalWarningSink());
             effectiveSchema = readSchema;
@@ -2876,6 +2878,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return () -> breaker.addWithoutBreaking(-bytes);
     }
 
+    /**
+     * Charges the circuit breaker for the scratch a later chunk builds to bind a declared schema against the {@code columns}
+     * header names passed down from chunk 0: two arrays of the names and the duplicate-name set. The names themselves are
+     * already charged by whoever holds them. A declared read is not capped by the file's width, so this is all that bounds
+     * the binding. Release the result once the binding is built.
+     */
+    private Releasable chargeHeaderBinding(int columns) {
+        long bytes = (long) columns * (2 * Long.BYTES + HeaderBudget.SET_ENTRY_BYTES);
+        CircuitBreaker breaker = blockFactory.breaker();
+        breaker.addEstimateBytesAndMaybeBreak(bytes, HeaderBudget.LABEL);
+        return () -> breaker.addWithoutBreaking(-bytes);
+    }
+
     /** Allowance for the digits of a synthesized column name, such as the {@code 12345} in {@code column_12345}. */
     private static final int SYNTHETIC_INDEX_DIGITS = 6;
 
@@ -2937,17 +2952,34 @@ public class CsvFormatReader implements SegmentableFormatReader {
      */
     static void checkColumnCap(int columns, int maxFields) {
         if (columns > maxFields) {
-            throw new CircuitBreakingException(columnCapMessage(maxFields), CircuitBreaker.Durability.PERMANENT);
+            throw new CircuitBreakingException(columnCapMessage(maxFields, true), CircuitBreaker.Durability.PERMANENT);
         }
     }
 
-    static String columnCapMessage(int maxFields) {
+    /**
+     * {@link #checkColumnCap} for the columns a headerless file synthesizes from its widest sampled row. Those are capped
+     * even when the dataset declares its columns, so at the ceiling the refusal does not suggest declaring them.
+     */
+    static void checkSyntheticColumnCap(int columns, int maxFields) {
+        if (columns > maxFields) {
+            throw new CircuitBreakingException(columnCapMessage(maxFields, false), CircuitBreaker.Durability.PERMANENT);
+        }
+    }
+
+    /**
+     * The refusal for a schema over {@code maxFields}. Below the ceiling the user can raise the cap. At the ceiling
+     * raising it is rejected too, so suggest declaring the columns when {@code declarationLiftsCap}, and otherwise say
+     * the file is wider than any schema inference supports.
+     */
+    static String columnCapMessage(int maxFields, boolean declarationLiftsCap) {
         if (maxFields >= ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS) {
             return "schema inference found more than ["
                 + maxFields
                 + "] columns, the most ["
                 + CONFIG_SCHEMA_MAX_FIELDS
-                + "] allows; declare the dataset's columns with [dynamic: false] to skip inference";
+                + (declarationLiftsCap
+                    ? "] allows; declare the dataset's columns with [dynamic: false] to skip inference"
+                    : "] allows; a headerless file cannot have more columns, even when the dataset declares them");
         }
         return "schema inference found more than ["
             + maxFields
@@ -4764,7 +4796,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             SchemaSample wideningWindow = collectWideningWindowAndPrefetch(sample);
             maybeHintUndecodedNullMarker(sample.rows(), messageLocation, warningSink);
             int columns = syntheticColumnCount(sample.rows());
-            checkColumnCap(columns, schemaMaxFields);
+            checkSyntheticColumnCap(columns, schemaMaxFields);
             try (Releasable charge = chargeSyntheticColumns(columns)) {
                 boolean[] sawUndecodableTemporal = new boolean[columns];
                 List<Attribute> schema = inferSyntheticSchema(

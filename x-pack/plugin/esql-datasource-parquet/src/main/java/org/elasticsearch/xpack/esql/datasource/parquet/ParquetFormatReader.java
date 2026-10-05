@@ -1050,7 +1050,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
     /**
      * The refusal for a schema over {@code maxFields}. Below the ceiling the user can raise the cap; at the ceiling
-     * raising it is rejected too, so say the file is wider than any schema inference supports instead.
+     * raising it is rejected too, and declaring the dataset's columns does not lift the cap for Parquet, so say the file
+     * is wider than any Parquet schema the reader supports instead.
      */
     static String schemaWidthMessage(int maxFields) {
         if (maxFields >= ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS) {
@@ -1058,7 +1059,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 + maxFields
                 + "] columns, the most ["
                 + CONFIG_SCHEMA_MAX_FIELDS
-                + "] allows; read a subset of the file's columns by declaring the dataset's columns with [dynamic: false]";
+                + "] allows; the file is wider than any Parquet schema that can be read, even when the dataset declares its columns";
         }
         return "Parquet schema has more than ["
             + maxFields

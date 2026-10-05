@@ -2735,7 +2735,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             // File length plus 1000 bytes. metadata() stays within the limit. The read below throws
             // CircuitBreakingException. The limit is not sized around the sliding window; confirm which
             // charge trips when this assertion is next changed.
-            // The footer parse is charged FOOTER_PARSE_EXPANSION times the footer's size, so allow for that as well.
+            // The footer parse is charged (FOOTER_PARSE_EXPANSION - 1) times the footer's size, so allow for that as well.
             long footerParseAllowance = (ParquetFormatReader.FOOTER_PARSE_EXPANSION - 1) * (parquetFooterRegion(parquetData) - 8);
             var limitedFactory = new BlockFactory(
                 new LimitedBreaker("test", ByteSizeValue.ofBytes(parquetData.length + 1000 + footerParseAllowance)),

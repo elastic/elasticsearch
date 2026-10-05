@@ -81,6 +81,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 public class CsvFormatReaderTests extends ESTestCase {
 
@@ -413,6 +414,21 @@ public class CsvFormatReaderTests extends ESTestCase {
             );
         }
         CsvFormatReader.validateConfig(Map.of("schema_max_fields", ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS), CsvFormatOptions.DEFAULT);
+    }
+
+    /**
+     * At the ceiling raising the cap is refused, so a header-bearing file is pointed at declaring its columns, which lifts
+     * the cap for it. A headerless file is capped even when declared, so it is not.
+     */
+    public void testColumnCapMessageAtTheCeiling() {
+        int ceiling = ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS;
+        assertThat(CsvFormatReader.columnCapMessage(ceiling, true), containsString("dynamic: false"));
+        assertThat(CsvFormatReader.columnCapMessage(ceiling, false), not(containsString("dynamic: false")));
+        CircuitBreakingException e = expectThrows(
+            CircuitBreakingException.class,
+            () -> CsvFormatReader.checkSyntheticColumnCap(ceiling + 1, ceiling)
+        );
+        assertThat(e.getMessage(), containsString("a headerless file cannot have more columns"));
     }
 
     private static String header(int columns) {

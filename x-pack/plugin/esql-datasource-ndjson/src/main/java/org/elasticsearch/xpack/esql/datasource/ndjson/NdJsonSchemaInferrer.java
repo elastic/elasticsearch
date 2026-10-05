@@ -104,12 +104,12 @@ public class NdJsonSchemaInferrer {
      * The field tree and the column list built from it are charged to {@code breaker} while they exist, and released
      * before returning, so the breaker bounds a schema while it is built. The returned attributes belong to the caller,
      * and whether they stay charged after that is the caller's choice: the multi-file gather and the schema interner
-     * charge what they keep, while a single-file resolve and a data-node read keep it uncharged. A flattened nested field
-     * is named by its whole dotted path, so the column list can be orders of magnitude larger than the input that
-     * produced it. A {@code CircuitBreakingException} propagates unchanged and stops inference. It is not a malformed
+     * charge what they keep, as does a streaming data-node read for the schema it binds, while a single-file resolve keeps
+     * it uncharged. A flattened nested field is named by its whole dotted path, so the column list can be orders of
+     * magnitude larger than the input that produced it. A {@code CircuitBreakingException} propagates unchanged and stops inference. It is not a malformed
      * line, so it must never be caught as one.
      * <p>
-     * More than {@code maxFields} fields, objects and leaves alike, fails inference with a client error naming
+     * More than {@code maxFields} fields, objects and leaves alike, fails inference with a {@code CircuitBreakingException} (429) naming
      * {@code schema_max_fields}. Like the breaker, that is not a malformed line: it stops inference at once. Fields are
      * counted as a line is parsed, so the line that crosses the cap is read to its end first, and if it turns out to be
      * malformed it is skipped like any other and its fields are discarded.

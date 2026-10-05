@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160944
+summary: "ES|QL|DS: Cap schema width for CSV, TSV and Parquet datasets"
+type: bug

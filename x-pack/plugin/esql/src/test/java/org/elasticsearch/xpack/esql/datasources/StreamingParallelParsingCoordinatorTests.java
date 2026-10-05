@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
@@ -1971,6 +1972,90 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * A planner-bound read keeps the header names and the schema chunk 0 infers for the rest of the read, and a declared
+     * read is not capped by the file's width, so both stay charged to the breaker until the read closes.
+     */
+    public void testPlannerBoundReadChargesTheSchemaChunkZeroKeepsUntilClose() throws Exception {
+        int columns = 2_000;
+        long retained = WideHeaderLineFormatReader.retainedBytes(columns);
+        byte[] bytes = "a\nb\nc\nd\ne\nf\n".repeat(20).getBytes(StandardCharsets.UTF_8);
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(16));
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> it = parallelReadBoundWithBreaker(
+                new WideHeaderLineFormatReader(64, columns),
+                bytes,
+                breaker,
+                executor
+            );
+            int lines = 0;
+            try (it) {
+                while (it.hasNext()) {
+                    Page page = it.next();
+                    lines += page.getPositionCount();
+                    page.releaseBlocks();
+                    assertThat(breaker.getUsed(), Matchers.greaterThanOrEqualTo(retained));
+                }
+            }
+            assertEquals(120, lines);
+            assertEquals(0L, breaker.getUsed());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /** A schema too wide to keep under the breaker fails the read as a 429 and leaves nothing charged. */
+    public void testPlannerBoundReadTripsOnTheSchemaChunkZeroKeeps() throws Exception {
+        int columns = 2_000;
+        byte[] bytes = "a\nb\nc\n".repeat(20).getBytes(StandardCharsets.UTF_8);
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(WideHeaderLineFormatReader.retainedBytes(columns) / 2));
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> it = parallelReadBoundWithBreaker(
+                new WideHeaderLineFormatReader(64, columns),
+                bytes,
+                breaker,
+                executor
+            );
+            try (it) {
+                expectThrows(CircuitBreakingException.class, () -> collectLines(it));
+            }
+            assertEquals(0L, breaker.getUsed());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private static CloseableIterator<Page> parallelReadBoundWithBreaker(
+        SegmentableFormatReader reader,
+        byte[] bytes,
+        CircuitBreaker breaker,
+        Executor executor
+    ) throws IOException {
+        return StreamingParallelParsingCoordinator.parallelRead(
+            reader,
+            new ByteArrayInputStream(bytes),
+            null,
+            List.of("line"),
+            50,
+            2,
+            executor,
+            ErrorPolicy.STRICT,
+            List.of(new ReferenceAttribute(Source.EMPTY, null, "line", DataType.KEYWORD, Nullability.TRUE, null, false)),
+            0L,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            null,
+            -1L,
+            StripeColumnScope.PROJECTED,
+            StreamingParallelParsingCoordinator.WarningSinks.NONE,
+            StreamingSegmentatorAdmission.unbounded(),
+            breaker,
+            ExternalReadCounters.NOOP,
+            null
+        );
+    }
+
     public void testEarlyCloseReleasesGrowBuffers() throws Exception {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 50; i++) {
@@ -3123,6 +3208,91 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         @Override
         public SourceMetadata metadata(StorageObject object) {
             return delegate.metadata(object);
+        }
+
+        @Override
+        public String formatName() {
+            return delegate.formatName();
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return delegate.fileExtensions();
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
+    }
+
+    /**
+     * {@link LineFormatReader} whose inferred schema is {@code columns} wide and which binds a declared schema by name,
+     * the shape of a declared read over a wide headered file: chunk 0 captures the header names and binds the schema.
+     */
+    private static final class WideHeaderLineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+        private final LineFormatReader delegate;
+        private final int columns;
+
+        WideHeaderLineFormatReader(long minSegment, int columns) {
+            this(new LineFormatReader(minSegment), columns);
+        }
+
+        private WideHeaderLineFormatReader(LineFormatReader delegate, int columns) {
+            this.delegate = delegate;
+            this.columns = columns;
+        }
+
+        private static String name(int column) {
+            return "column_" + column;
+        }
+
+        /** What the coordinator charges for keeping the header names and the bound schema. */
+        static long retainedBytes(int columns) {
+            long bytes = 0;
+            for (int c = 0; c < columns; c++) {
+                bytes += HeapEstimates.stringBytes(name(c)) + HeapEstimates.columnBytes(name(c).length());
+            }
+            return bytes;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            List<Attribute> schema = new ArrayList<>(columns);
+            for (int c = 0; c < columns; c++) {
+                schema.add(new ReferenceAttribute(Source.EMPTY, null, name(c), DataType.KEYWORD, Nullability.TRUE, null, false));
+            }
+            return new SimpleSourceMetadata(schema, formatName(), object.path().toString());
+        }
+
+        @Override
+        public boolean declaredNameBindingNeedsFileStart() {
+            return true;
+        }
+
+        @Override
+        public FormatReader withSchema(List<Attribute> schema) {
+            return new WideHeaderLineFormatReader((LineFormatReader) delegate.withSchema(schema), columns);
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            return delegate.read(object, context);
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return delegate.rowPositionStrategy();
+        }
+
+        @Override
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return delegate.recordSplitter(maxRecordBytes);
+        }
+
+        @Override
+        public long minimumSegmentSize() {
+            return delegate.minimumSegmentSize();
         }
 
         @Override

@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleRangeBlock;
 import org.elasticsearch.compute.data.ElementType;
@@ -47,6 +48,10 @@ interface ValueExtractor {
             // actual pages.
             throw new IllegalStateException("Expected [" + elementType + "] but was [" + block.elementType() + "]");
         }
+        if (block.elementType() == ElementType.NULL && (elementType == ElementType.DOC_REF || elementType == ElementType.DOC)) {
+            // these rows have no null marker, so a null block would shift the bytes of the next channel
+            throw new IllegalStateException("[" + elementType + "] channels can't carry null blocks");
+        }
         return switch (block.elementType()) {
             case BOOLEAN -> ValueExtractorForBoolean.extractorFor(encoder, inKey, (BooleanBlock) block);
             case BYTES_REF -> ValueExtractorForBytesRef.extractorFor(encoder, inKey, (BytesRefBlock) block);
@@ -56,6 +61,7 @@ interface ValueExtractor {
             case DOUBLE -> ValueExtractorForDouble.extractorFor(encoder, inKey, (DoubleBlock) block);
             case NULL -> new ValueExtractorForNull();
             case DOC -> new ValueExtractorForDoc(encoder, ((DocBlock) block).asVector());
+            case DOC_REF -> new ValueExtractorForDocRef(encoder, ((DocRefBlock) block).asVector());
             case AGGREGATE_METRIC_DOUBLE -> new ValueExtractorForAggregateMetricDouble(encoder, (AggregateMetricDoubleBlock) block);
             case LONG_RANGE -> new ValueExtractorForLongRange(encoder, (LongRangeBlock) block);
             case DOUBLE_RANGE -> new ValueExtractorForDoubleRange(encoder, (DoubleRangeBlock) block);

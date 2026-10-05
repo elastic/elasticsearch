@@ -257,8 +257,10 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
     }
 
     /**
-     * Same routing layout as {@link SearchRecoveryTimeoutCalculationServiceTests#testSearchRecoveryNonRelocationWaitsWhenAnotherActiveCopy}: {@link ShardRoutingState#INITIALIZING}
-     * self search replica with a started search peer; warming uses the race listener when {@code endOffsetsToWarm} is set.
+     * Same routing layout as
+     * {@link SearchRecoveryTimeoutCalculationServiceTests#testSearchRecoveryNonRelocationWaitsWhenAnotherActiveCopy}:
+     * {@link ShardRoutingState#INITIALIZING} self search replica with a started search peer; warming uses the race listener
+     * when {@code endOffsetsToWarm} is set.
      */
     public void testWarmCacheForSearchShardRecoveryWithReplica() throws Exception {
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();

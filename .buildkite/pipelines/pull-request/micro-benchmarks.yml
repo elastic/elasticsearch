@@ -6,7 +6,7 @@ config:
   any-included-regions:
     - ^benchmarks/.*
 steps:
-  - label: nightly-micro-benchmarks-smoke
+  - label: micro-benchmarks
     command: .ci/scripts/run-gradle.sh :benchmarks:run --args 'org.elasticsearch.benchmark._nightly'
     timeout_in_minutes: 300
     agents:

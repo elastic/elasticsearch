@@ -184,7 +184,7 @@ public final class MlConfigMetrics extends AbstractLifecycleComponent implements
                 "es.ml.datafeeds.cps.internal_credentials.current",
                 "Count of datafeed configs with a persisted cloud_internal_credential envelope.",
                 "datafeeds",
-                () -> new LongWithAttributes(cpsCounts.internalCredentialCount(), isMasterMap)
+                measurement -> measurement.record(cpsCounts.internalCredentialCount(), isMasterMap)
             )
         );
         metrics.add(

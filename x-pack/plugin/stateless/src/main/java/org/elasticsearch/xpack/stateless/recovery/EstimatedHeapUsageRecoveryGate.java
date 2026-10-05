@@ -10,15 +10,13 @@ package org.elasticsearch.xpack.stateless.recovery;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.SingleObjectCache;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoveryGate;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.telemetry.metric.DoubleAsyncGauge;
-import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
+import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -39,7 +37,7 @@ import java.util.function.ToLongFunction;
 /// to the master ([ShardsMappingSizeCollector#collectShardMappingSizes]) — the same values that, once published, feed the estimates
 /// [EstimatedHeapUsageAllocationDecider] uses — through the master's own summation
 /// ([StatelessMemoryMetricsService#estimateNodeHeapUsage]).
-public class EstimatedHeapUsageRecoveryGate implements RecoveryGate, Releasable {
+public class EstimatedHeapUsageRecoveryGate implements RecoveryGate {
 
     private static final Logger logger = LogManager.getLogger(EstimatedHeapUsageRecoveryGate.class);
     static final String NAME = "estimated_heap";
@@ -57,8 +55,7 @@ public class EstimatedHeapUsageRecoveryGate implements RecoveryGate, Releasable 
     private final EstimatedHeapSettings heapSettings;
     private final SingleObjectCache<Long> estimateCache;
     private final LongGauge estimatedHeapUsageMetric;
-    private volatile double estimatedHeapUsageDeltaPercentage;
-    private final DoubleAsyncGauge estimatedHeapUsageDeltaPercentageMetric;
+    private final DoubleGauge estimatedHeapUsageDeltaPercentageMetric;
     private final LongHistogram estimatedHeapComputationTimeMetric;
 
     /// Builds a gate wired to the node's real services and JVM max heap: the estimate is computed from the exact shard values the
@@ -109,11 +106,10 @@ public class EstimatedHeapUsageRecoveryGate implements RecoveryGate, Releasable 
             "Estimated heap usage used by the recovery gate",
             "bytes"
         );
-        this.estimatedHeapUsageDeltaPercentageMetric = meterRegistry.registerDoubleAsyncGauge(
+        this.estimatedHeapUsageDeltaPercentageMetric = meterRegistry.registerDoubleGauge(
             ESTIMATED_HEAP_USAGE_DELTA_PERCENTAGE_METRIC,
             "High-watermark minus estimated heap usage, in percentage; positive values indicate recovery dispatch may proceed",
-            "percent",
-            () -> new DoubleWithAttributes(estimatedHeapUsageDeltaPercentage)
+            "percent"
         );
         this.estimatedHeapComputationTimeMetric = meterRegistry.registerLongHistogram(
             ESTIMATED_HEAP_COMPUTATION_TIME_METRIC,
@@ -166,7 +162,7 @@ public class EstimatedHeapUsageRecoveryGate implements RecoveryGate, Releasable 
         }
         final double usedPercent = 100.0 * estimatedBytes / maxHeapBytes;
         estimatedHeapUsageMetric.set(estimatedBytes);
-        estimatedHeapUsageDeltaPercentage = heapSettings.highWatermarkPercent() - usedPercent;
+        estimatedHeapUsageDeltaPercentageMetric.set(heapSettings.highWatermarkPercent() - usedPercent);
         if (heapSettings.exceedsHighWatermark(usedPercent)) {
             // The block reason (and the eventual resume) is logged by the recovery scheduler on the blocked <-> may-run transitions.
             return Decision.block(
@@ -181,10 +177,5 @@ public class EstimatedHeapUsageRecoveryGate implements RecoveryGate, Releasable 
             );
         }
         return Decision.RUN;
-    }
-
-    @Override
-    public void close() {
-        estimatedHeapUsageDeltaPercentageMetric.close();
     }
 }

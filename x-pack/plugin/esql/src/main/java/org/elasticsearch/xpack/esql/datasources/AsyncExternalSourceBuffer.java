@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.SuppressedFailures;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -32,6 +33,8 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
+import java.util.function.ToLongFunction;
 
 /**
  * Thread-safe buffer for async external source data.
@@ -150,6 +153,10 @@ public final class AsyncExternalSourceBuffer {
     private volatile FormatReaderStatus formatReaderStatus = null;
     private final ExternalReadCounters readCounters = new ExternalReadCounters();
     private volatile BytesView bytesView = new BytesView(0L, 0L, null);
+    private final LongAdder requestCount = new LongAdder();
+    private final LongAdder retryCount = new LongAdder();
+    private volatile long requestBaseline;
+    private volatile long retryBaseline;
     private volatile int splitsTotal = 0;
     private final AtomicInteger splitsProcessed = new AtomicInteger();
     private volatile int currentSplit = 0;
@@ -477,7 +484,7 @@ public final class AsyncExternalSourceBuffer {
                 // Classify the loser before suppressing so storage-URI messages in raw SDK
                 // exceptions cannot surface through the suppressed[] array on the wire.
                 if (rawFirstFailure != t) {
-                    failure.addSuppressed((t instanceof Error) ? t : ExternalFailures.classifySuppressed(t));
+                    SuppressedFailures.attach(failure, (t instanceof Error) ? t : ExternalFailures.classifySuppressed(t));
                 }
                 return;
             }
@@ -538,18 +545,15 @@ public final class AsyncExternalSourceBuffer {
     }
 
     /**
-     * Adds {@code delta} to the committed total. This is the non-tracking path: it must not run
-     * while {@link #trackStorageObject} is following an object. Mixing the two would publish
-     * {@code object=null} and drop that object's live in-flight delta. Slice-queue and multi-file
-     * producers track; single-file producers also track now and fold via {@link #finishInFlightBytes}.
+     * Adds {@code delta} to the committed total without dropping a tracked object.
+     * COUNT(*) schema folds use this while {@link #trackStorageObject} is following the split.
      */
     public void addBytesRead(long delta) {
         if (delta <= 0) {
             return;
         }
         BytesView view = bytesView;
-        assert view.object() == null : "addBytesRead is the single-file path; it must not overlap tracking";
-        bytesView = new BytesView(view.committed() + delta, view.baseline(), null);
+        bytesView = new BytesView(view.committed() + delta, view.baseline(), view.object());
     }
 
     /**
@@ -569,6 +573,9 @@ public final class AsyncExternalSourceBuffer {
         }
         BytesView view = bytesView;
         bytesView = new BytesView(view.committed(), baseline, object);
+        StorageObjectMetrics metrics = metricsOrZero(object);
+        requestBaseline = metrics.requestCount();
+        retryBaseline = metrics.retryCount();
     }
 
     /**
@@ -590,6 +597,7 @@ public final class AsyncExternalSourceBuffer {
             long current = metrics.bytesRead();
             long delta = Math.max(0L, current - view.baseline());
             bytesView = new BytesView(view.committed() + delta, current, object);
+            foldRequestRetry(metrics, false);
         } catch (Exception e) {
             logger.trace(() -> "telemetry: bytesRead snapshot failed", e);
         }
@@ -608,6 +616,7 @@ public final class AsyncExternalSourceBuffer {
                 StorageObjectMetrics metrics = object.metrics();
                 if (metrics != null) {
                     delta = Math.max(0L, metrics.bytesRead() - view.baseline());
+                    foldRequestRetry(metrics, true);
                 }
             } catch (Exception e) {
                 logger.trace(() -> "telemetry: bytesRead snapshot failed", e);
@@ -615,6 +624,10 @@ public final class AsyncExternalSourceBuffer {
             }
         }
         bytesView = new BytesView(view.committed() + delta, 0L, null);
+        if (object == null) {
+            requestBaseline = 0L;
+            retryBaseline = 0L;
+        }
     }
 
     /** Sets the total number of splits the producer expects to process; callable once when known. */
@@ -661,6 +674,62 @@ public final class AsyncExternalSourceBuffer {
             return view.committed() + Math.max(0L, metrics.bytesRead() - view.baseline());
         } catch (Exception e) {
             return view.committed();
+        }
+    }
+
+    /** Adds {@code delta} completed storage requests observed off the tracked object. */
+    public void addRequestCount(long delta) {
+        if (delta > 0) {
+            requestCount.add(delta);
+        }
+    }
+
+    /** Adds {@code delta} storage retries observed off the tracked object. */
+    public void addRetryCount(long delta) {
+        if (delta > 0) {
+            retryCount.add(delta);
+        }
+    }
+
+    /** Returns completed storage requests, including the live delta on the tracked object. */
+    public long requestCount() {
+        return requestCount.sum() + liveExtra(StorageObjectMetrics::requestCount, requestBaseline);
+    }
+
+    /** Returns storage retries, including the live delta on the tracked object. */
+    public long retryCount() {
+        return retryCount.sum() + liveExtra(StorageObjectMetrics::retryCount, retryBaseline);
+    }
+
+    private void foldRequestRetry(StorageObjectMetrics metrics, boolean clearBaseline) {
+        long requests = metrics.requestCount();
+        long retries = metrics.retryCount();
+        addRequestCount(requests - requestBaseline);
+        addRetryCount(retries - retryBaseline);
+        if (clearBaseline) {
+            requestBaseline = 0L;
+            retryBaseline = 0L;
+        } else {
+            requestBaseline = requests;
+            retryBaseline = retries;
+        }
+    }
+
+    private long liveExtra(ToLongFunction<StorageObjectMetrics> field, long baseline) {
+        StorageObject object = bytesView.object();
+        if (object == null) {
+            return 0L;
+        }
+        long delta = field.applyAsLong(metricsOrZero(object)) - baseline;
+        return delta > 0 ? delta : 0L;
+    }
+
+    private static StorageObjectMetrics metricsOrZero(StorageObject obj) {
+        try {
+            StorageObjectMetrics metrics = obj == null ? null : obj.metrics();
+            return metrics == null ? StorageObjectMetrics.ZERO : metrics;
+        } catch (Exception e) {
+            return StorageObjectMetrics.ZERO;
         }
     }
 

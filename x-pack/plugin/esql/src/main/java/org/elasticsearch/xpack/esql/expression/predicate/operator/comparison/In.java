@@ -533,9 +533,9 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
         }
         if (pushdownPredicates.isPushableAttribute(value)) {
             // When null is in the list, any non-matching row evaluates to null (not false) under
-            // three-valued logic. A Lucene terms query naturally skips the null list entry, but its
-            // filtering effect is still correct for the positive IN direction: matching rows are
-            // included (true) and non-matching rows are excluded (null acts like false in a filter).
+            // three-valued logic. translate() drops null list entries before building the terms query,
+            // which is still correct for the positive IN direction: matching rows are included (true)
+            // and non-matching rows are excluded (null acts like false in a filter).
             // However, negating the terms query for NOT IN would incorrectly include non-matching
             // rows that three-valued logic says should be null (and therefore excluded).
             return list().stream().anyMatch(Expressions::isGuaranteedNull) ? Translatable.YES_BUT_RECHECK_NEGATED : Translatable.YES;

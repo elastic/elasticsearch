@@ -1,0 +1,107 @@
+ProjectExec[[emp_no{f}#0, languages{f}#1]]
+\_LimitExec[1000[INTEGER],null]
+  \_ExchangeExec[[emp_no{f}#0, languages{f}#1],false]
+    \_ProjectExec[[emp_no{f}#0, languages{f}#1]]
+      \_LimitExec[1000[INTEGER],28]
+        \_FilterExec[NOT(IN(10001[INTEGER],null[NULL],emp_no{f}#0) OR languages{f}#1 == 2[INTEGER])]
+          \_FieldExtractExec[[emp_no{f}#0, languages{f}#1]<[],[],[]>,_doc{f}#2]
+            \_EsQueryExec[employees], indexMode[standard], [_doc{f}#2], limit[], sort[] estimatedRowSize[12] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "bool" : {
+    "must" : [
+      {
+        "esql_single_value" : {
+          "field" : "emp_no",
+          "next" : {
+            "bool" : {
+              "must_not" : [
+                {
+                  "terms" : {
+                    "emp_no" : [
+                      10001
+                    ],
+                    "boost" : 0.0
+                  }
+                }
+              ],
+              "boost" : 0.0
+            }
+          },
+          "source" : "emp_no IN (10001, null)@3:18"
+        }
+      },
+      {
+        "esql_single_value" : {
+          "field" : "languages",
+          "next" : {
+            "bool" : {
+              "must_not" : [
+                {
+                  "term" : {
+                    "languages" : {
+                      "value" : 2,
+                      "boost" : 0.0
+                    }
+                  }
+                }
+              ],
+              "boost" : 0.0
+            }
+          },
+          "source" : "languages == 2@3:45"
+        }
+      }
+    ],
+    "filter" : [
+      {
+        "bool" : {
+          "must" : [
+            {
+              "esql_single_value" : {
+                "field" : "emp_no",
+                "next" : {
+                  "bool" : {
+                    "must_not" : [
+                      {
+                        "terms" : {
+                          "emp_no" : [
+                            10001
+                          ],
+                          "boost" : 0.0
+                        }
+                      }
+                    ],
+                    "boost" : 0.0
+                  }
+                },
+                "source" : "emp_no IN (10001, null)@3:18"
+              }
+            },
+            {
+              "esql_single_value" : {
+                "field" : "languages",
+                "next" : {
+                  "bool" : {
+                    "must_not" : [
+                      {
+                        "term" : {
+                          "languages" : {
+                            "value" : 2,
+                            "boost" : 0.0
+                          }
+                        }
+                      }
+                    ],
+                    "boost" : 0.0
+                  }
+                },
+                "source" : "languages == 2@3:45"
+              }
+            }
+          ],
+          "boost" : 1.0
+        }
+      }
+    ],
+    "boost" : 1.0
+  }
+}, tags=[]]]]

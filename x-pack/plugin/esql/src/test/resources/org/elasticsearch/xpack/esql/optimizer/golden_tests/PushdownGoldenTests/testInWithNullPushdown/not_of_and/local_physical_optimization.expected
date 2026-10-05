@@ -1,0 +1,107 @@
+ProjectExec[[emp_no{f}#0]]
+\_LimitExec[1000[INTEGER],null]
+  \_ExchangeExec[[emp_no{f}#0],false]
+    \_ProjectExec[[emp_no{f}#0]]
+      \_LimitExec[1000[INTEGER],24]
+        \_FilterExec[NOT(IN(10001[INTEGER],null[NULL],emp_no{f}#0) AND emp_no{f}#0 < 10003[INTEGER])]
+          \_FieldExtractExec[[emp_no{f}#0]<[],[],[]>,_doc{f}#1]
+            \_EsQueryExec[employees], indexMode[standard], [_doc{f}#1], limit[], sort[] estimatedRowSize[8] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "bool" : {
+    "filter" : [
+      {
+        "bool" : {
+          "should" : [
+            {
+              "esql_single_value" : {
+                "field" : "emp_no",
+                "next" : {
+                  "bool" : {
+                    "must_not" : [
+                      {
+                        "terms" : {
+                          "emp_no" : [
+                            10001
+                          ],
+                          "boost" : 0.0
+                        }
+                      }
+                    ],
+                    "boost" : 0.0
+                  }
+                },
+                "source" : "emp_no IN (10001, null)@3:18"
+              }
+            },
+            {
+              "esql_single_value" : {
+                "field" : "emp_no",
+                "next" : {
+                  "bool" : {
+                    "must_not" : [
+                      {
+                        "range" : {
+                          "emp_no" : {
+                            "lt" : 10003,
+                            "boost" : 0.0
+                          }
+                        }
+                      }
+                    ],
+                    "boost" : 0.0
+                  }
+                },
+                "source" : "emp_no < 10003@3:46"
+              }
+            }
+          ],
+          "boost" : 1.0
+        }
+      }
+    ],
+    "should" : [
+      {
+        "esql_single_value" : {
+          "field" : "emp_no",
+          "next" : {
+            "bool" : {
+              "must_not" : [
+                {
+                  "terms" : {
+                    "emp_no" : [
+                      10001
+                    ],
+                    "boost" : 0.0
+                  }
+                }
+              ],
+              "boost" : 0.0
+            }
+          },
+          "source" : "emp_no IN (10001, null)@3:18"
+        }
+      },
+      {
+        "esql_single_value" : {
+          "field" : "emp_no",
+          "next" : {
+            "bool" : {
+              "must_not" : [
+                {
+                  "range" : {
+                    "emp_no" : {
+                      "lt" : 10003,
+                      "boost" : 0.0
+                    }
+                  }
+                }
+              ],
+              "boost" : 0.0
+            }
+          },
+          "source" : "emp_no < 10003@3:46"
+        }
+      }
+    ],
+    "boost" : 1.0
+  }
+}, tags=[]]]]

@@ -1,0 +1,19 @@
+ProjectExec[[emp_no{f}#0]]
+\_LimitExec[1000[INTEGER],null]
+  \_ExchangeExec[[emp_no{f}#0],false]
+    \_ProjectExec[[emp_no{f}#0]]
+      \_FieldExtractExec[[emp_no{f}#0]<[],[],[]>,_doc{f}#1]
+        \_EsQueryExec[employees], indexMode[standard], [_doc{f}#1], limit[1000], sort[] estimatedRowSize[8] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "emp_no",
+    "next" : {
+      "terms" : {
+        "emp_no" : [
+          10001
+        ],
+        "boost" : 0.0
+      }
+    },
+    "source" : "emp_no IN (10001, null)@3:13"
+  }
+}, tags=[]]]]

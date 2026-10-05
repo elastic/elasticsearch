@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LetBinding;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.Collections;
@@ -63,21 +62,17 @@ public class LetResolverTests extends ESTestCase {
     }
 
     // -----------------------------------------------------------------------
-    // Every binding body is wrapped in NamedSubquery
+    // Binding body substituted directly — no wrapping
     // -----------------------------------------------------------------------
 
-    public void testNonBareBodyIsWrapped() {
-        // A binding whose body is Limit(...) → must be wrapped in NamedSubquery
+    public void testBindingBodySubstitutedDirectly() {
         LogicalPlan body = withLimit(relation("base_index"));
         LetBinding b = binding("top3", body);
 
         LogicalPlan main = relation("top3");
         LogicalPlan result = LetResolver.resolve(main, List.of(b));
 
-        assertThat(result, instanceOf(NamedSubquery.class));
-        NamedSubquery ns = (NamedSubquery) result;
-        assertThat(ns.name(), is("top3"));
-        assertThat(ns.child(), sameInstance(body));
+        assertThat(result, sameInstance(body));
     }
 
     // -----------------------------------------------------------------------
@@ -100,34 +95,19 @@ public class LetResolverTests extends ESTestCase {
 
     public void testChainedBindingsResolveLeftToRight() {
         // LET a = (FROM base | LIMIT 5),
-        // b = (FROM a | LIMIT 3); -- "a" in b's body resolves to the first binding
+        // b = (FROM a | LIMIT 3); -- "a" in b's body resolves to aBody
         // FROM b
-        LogicalPlan base = relation("base");
-        LogicalPlan aBody = withLimit(base);
+        LogicalPlan aBody = withLimit(relation("base"));
         LetBinding a = binding("a", aBody);
 
-        // b's body references "a"
         LogicalPlan bBody = withLimit(relation("a"));
         LetBinding b = binding("b", bBody);
 
-        LogicalPlan main = relation("b");
-        LogicalPlan result = LetResolver.resolve(main, List.of(a, b));
+        LogicalPlan result = LetResolver.resolve(relation("b"), List.of(a, b));
 
-        // Main result should be NamedSubquery("b", ...)
-        assertThat(result, instanceOf(NamedSubquery.class));
-        NamedSubquery nsB = (NamedSubquery) result;
-        assertThat(nsB.name(), is("b"));
-
-        // b's child is the Limit wrapping bBody after "a" was substituted
-        // Inside bBody, relation("a") should have been replaced by NamedSubquery("a", ...)
-        LogicalPlan bChild = nsB.child();
-        assertThat(bChild, instanceOf(Limit.class));
-        Limit limitB = (Limit) bChild;
-        // The Limit's child should be NamedSubquery("a", aBody)
-        assertThat(limitB.child(), instanceOf(NamedSubquery.class));
-        NamedSubquery nsA = (NamedSubquery) limitB.child();
-        assertThat(nsA.name(), is("a"));
-        assertThat(nsA.child(), sameInstance(aBody));
+        // "b" resolves to bBody with "a" substituted: Limit(aBody)
+        assertThat(result, instanceOf(Limit.class));
+        assertThat(((Limit) result).child(), sameInstance(aBody));
     }
 
     // -----------------------------------------------------------------------
@@ -135,26 +115,16 @@ public class LetResolverTests extends ESTestCase {
     // -----------------------------------------------------------------------
 
     public void testSubstitutionIntoMultiplePositions() {
-        // The same binding name referenced twice in the plan; both must be substituted.
+        // "snap" referenced twice in the plan: Limit(Limit(snap))
         LogicalPlan body = withLimit(relation("src"));
         LetBinding b = binding("snap", body);
 
-        // Construct a plan that references "snap" in two branches via a simple
-        // structure — use a Filter wrapping another relation that also references snap.
-        // For simplicity, use two separate UnresolvedRelations and merge via a helper.
-        // We'll verify via transformDown count by building a Limit of Limit of "snap".
-        LogicalPlan inner = withLimit(relation("snap"));   // Limit(snap)
-        LogicalPlan outer = withLimit(inner);              // Limit(Limit(snap))
-
+        LogicalPlan outer = withLimit(withLimit(relation("snap")));
         LogicalPlan result = LetResolver.resolve(outer, List.of(b));
 
-        // The "snap" node inside should have been substituted
+        // Both occurrences of "snap" are replaced by body directly.
         assertThat(result, instanceOf(Limit.class));
-        LogicalPlan innerResult = ((Limit) result).child();
-        assertThat(innerResult, instanceOf(Limit.class));
-        // The leaf should be a NamedSubquery (snap was a non-bare body)
-        LogicalPlan leaf = ((Limit) innerResult).child();
-        assertThat(leaf, instanceOf(NamedSubquery.class));
-        assertThat(((NamedSubquery) leaf).name(), is("snap"));
+        assertThat(((Limit) result).child(), instanceOf(Limit.class));
+        assertThat(((Limit) ((Limit) result).child()).child(), sameInstance(body));
     }
 }

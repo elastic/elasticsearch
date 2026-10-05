@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.xpack.esql.plan.LetBinding;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.LinkedHashMap;
@@ -44,11 +43,6 @@ import java.util.Map;
  * bindings <em>1..N-1</em> only. This makes circular references structurally impossible — no
  * cycle guard or depth limit is needed.</p>
  *
- * <h2>Wrapping</h2>
- * <p>Every binding body is wrapped in a {@link NamedSubquery} so that
- * {@link org.elasticsearch.xpack.esql.view.ViewCompaction} can identify and handle it correctly.
- * {@code ViewCompaction} strips the wrapper via
- * {@code transformDown(NamedSubquery.class, UnaryPlan::child)} before execution.</p>
  */
 public final class LetResolver {
 
@@ -70,10 +64,8 @@ public final class LetResolver {
         // Left fold: build the resolved map incrementally so binding N sees bindings 1..N-1.
         Map<String, LogicalPlan> resolved = new LinkedHashMap<>(letBindings.size());
         for (LetBinding binding : letBindings) {
-            // Substitute earlier bindings into this binding's body (sequential scoping),
-            // then wrap the result so ViewCompaction can identify it as a named subplan.
-            LogicalPlan substitutedBody = substitute(binding.plan(), resolved);
-            resolved.put(binding.name(), new NamedSubquery(substitutedBody.source(), substitutedBody, binding.name()));
+            // Substitute earlier bindings into this binding's body (sequential scoping).
+            resolved.put(binding.name(), substitute(binding.plan(), resolved));
         }
 
         // Substitute the full map into the main query plan.

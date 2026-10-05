@@ -2159,7 +2159,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         }
 
         {
-            // false if a non time series data stream doesn't have a lifecycle, regardless of the default lifecycle for time series
+            // false if a non-time series data stream doesn't have a lifecycle, regardless of the minimum lifecycle for time series
             Metadata.Builder newBuilder = Metadata.builder();
             DataStream unmanagedDataStream = createDataStream(
                 newBuilder,
@@ -2319,14 +2319,17 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         DataStream dataStream,
         Index index,
         Function<String, IndexMetadata> indexMetadataSupplier,
-        boolean expectedWithoutDefaultLifecycle,
-        boolean expectedWithDefaultLifecycle
+        boolean expectedWithMinimumLifecycleDisabled,
+        boolean expectedWithMinimumLifecycleEnabled
     ) {
         assertThat(
             dataStream.isIndexManagedByDataStreamLifecycle(index, indexMetadataSupplier, false),
-            is(expectedWithoutDefaultLifecycle)
+            is(expectedWithMinimumLifecycleDisabled)
         );
-        assertThat(dataStream.isIndexManagedByDataStreamLifecycle(index, indexMetadataSupplier, true), is(expectedWithDefaultLifecycle));
+        assertThat(
+            dataStream.isIndexManagedByDataStreamLifecycle(index, indexMetadataSupplier, true),
+            is(expectedWithMinimumLifecycleEnabled)
+        );
     }
 
     public void testLifecycleManagedBy() {

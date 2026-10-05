@@ -842,8 +842,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * Retrieves the <b>effective</b> lifecycle configuration meant for the backing indices.
      */
     @Nullable
-    public DataStreamLifecycle getEffectiveDataLifecycle(boolean enableLifecycleByDefault) {
-        if (lifecycle == null && enableLifecycleByDefault && indexMode == IndexMode.TIME_SERIES) {
+    public DataStreamLifecycle getEffectiveDataLifecycle(boolean minimumLifecycleEnabled) {
+        if (lifecycle == null && minimumLifecycleEnabled && indexMode == IndexMode.TIME_SERIES) {
             return DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE;
         }
         return lifecycle;
@@ -889,9 +889,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * Retrieves the correct lifecycle for the provided index. Returns null if the index does not belong to this data stream
      */
     @Nullable
-    public DataStreamLifecycle getEffectiveLifecycleForIndex(Index index, boolean enableLifecycleByDefault) {
+    public DataStreamLifecycle getEffectiveLifecycleForIndex(Index index, boolean minimumLifecycleEnabled) {
         if (backingIndices.containsIndex(index.getName())) {
-            return getEffectiveDataLifecycle(enableLifecycleByDefault);
+            return getEffectiveDataLifecycle(minimumLifecycleEnabled);
         }
         if (failureIndices.containsIndex(index.getName())) {
             return getFailuresLifecycle();
@@ -1465,7 +1465,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public boolean isIndexManagedByDataStreamLifecycle(
         Index index,
         Function<String, IndexMetadata> indexMetadataSupplier,
-        boolean defaultLifecycleForTimeSeriesEnabled
+        boolean minimumLifecycleEnabled
     ) {
         if (containsIndex(index.getName()) == false) {
             return false;
@@ -1475,17 +1475,17 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             // the index was deleted
             return false;
         }
-        return isIndexManagedByDataStreamLifecycle(indexMetadata, defaultLifecycleForTimeSeriesEnabled);
+        return isIndexManagedByDataStreamLifecycle(indexMetadata, minimumLifecycleEnabled);
     }
 
     /**
      * Checks if the provided backing index is effectively managed by the data stream lifecycle as part of this data stream.
      * If the index is not a backing index or a failure store index of this data stream we return false.
      */
-    private boolean isIndexManagedByDataStreamLifecycle(IndexMetadata indexMetadata, boolean defaultLifecycleForTimeSeriesEnabled) {
+    private boolean isIndexManagedByDataStreamLifecycle(IndexMetadata indexMetadata, boolean minimumLifecycleEnabled) {
         Settings settings = indexMetadata.getSettings();
         IndexMode indexMode = indexMetadata.getIndexMode();
-        var lifecycle = getEffectiveLifecycleForIndex(indexMetadata.getIndex(), defaultLifecycleForTimeSeriesEnabled);
+        var lifecycle = getEffectiveLifecycleForIndex(indexMetadata.getIndex(), minimumLifecycleEnabled);
         return lifecycleManagedBy(indexMetadata.getLifecyclePolicyName(), lifecycle, settings, indexMode) == LifecycleManagedBy.DLM;
     }
 

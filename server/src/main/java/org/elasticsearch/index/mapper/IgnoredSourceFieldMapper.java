@@ -312,60 +312,13 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
 
             // Only the name is decoded into a String. The value can be arbitrarily large, and callers like the block loaders decode
             // every entry of a document just to find the one they need, so copying the value here is quadratic in the number of fields.
-            int nameByteCount = utf8ByteLength(bytes, off + 4, off + len, nameSize);
+            int nameByteCount = IgnoredSourceNameUtf8.byteLength(bytes, off + 4, off + len, nameSize);
             // One byte per char means the name is pure ASCII, which Latin-1 decoding turns into a plain array copy.
             Charset nameCharset = nameByteCount == nameSize ? StandardCharsets.ISO_8859_1 : StandardCharsets.UTF_8;
             String name = new String(bytes, off + 4, nameByteCount, nameCharset);
 
             BytesRef value = new BytesRef(bytes, off + 4 + nameByteCount, len - nameByteCount - 4);
             return new NameValue(name, parentOffset, value, null);
-        }
-
-        private static final long NON_ASCII_MASK = 0x8080808080808080L;
-
-        /**
-         * Returns the number of UTF-8 bytes, starting at {@code start}, that encode the first {@code charCount} UTF-16 chars.
-         * The header stores the name length in chars, but the name is followed by the value in the blob so its length in bytes has to be
-         * derived by walking the lead bytes. A supplementary code point is four bytes and counts as two chars.
-         * <p>
-         * The walk trusts the name to be well-formed UTF-8, as written by {@link #encode}, and only guards against running past
-         * {@code end} and against a continuation byte where a lead byte is expected, so a corrupt or misframed entry fails here
-         * instead of being read as a different one. As a result the returned length equals {@code charCount} if and only if the name
-         * is pure ASCII.
-         */
-        private static int utf8ByteLength(byte[] bytes, int start, int end, int charCount) {
-            int pos = start;
-            int chars = 0;
-            // Names are mostly ASCII, so skip 8 bytes at a time while all of them are, which is also 8 chars.
-            while (chars + Long.BYTES <= charCount
-                && pos + Long.BYTES <= end
-                && ((long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, pos) & NON_ASCII_MASK) == 0) {
-                pos += Long.BYTES;
-                chars += Long.BYTES;
-            }
-            for (; chars < charCount; chars++) {
-                if (pos >= end) {
-                    throw new IllegalStateException("Failed to decode _ignored_source, name is longer than the entry");
-                }
-                int lead = bytes[pos] & 0xFF;
-                if (lead < 0x80) {
-                    pos += 1;
-                } else if (lead < 0xC0) {
-                    throw new IllegalStateException("Failed to decode _ignored_source, name has an invalid UTF-8 lead byte");
-                } else if (lead < 0xE0) {
-                    pos += 2;
-                } else if (lead < 0xF0) {
-                    pos += 3;
-                } else {
-                    pos += 4;
-                    // a supplementary code point is a surrogate pair in UTF-16
-                    chars++;
-                }
-            }
-            if (pos > end) {
-                throw new IllegalStateException("Failed to decode _ignored_source, name is longer than the entry");
-            }
-            return pos - start;
         }
 
         public static BytesRef encodeFromMap(MappedNameValue mappedNameValue) throws IOException {

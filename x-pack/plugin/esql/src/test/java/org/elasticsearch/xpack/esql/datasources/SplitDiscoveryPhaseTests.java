@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -254,6 +255,11 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
 
         assertEquals(1, guarded.size());
         assertEquals("a projection cannot change how many rows arrive", 5, guarded.get(0).rowLimit());
+
+        LogicalPlan evaled = new Eval(SRC, relation, List.of(new Alias(SRC, "x", relation.output().get(0))));
+        assertTrue("EVAL is Streaming", evaled instanceof Streaming);
+        LogicalPlan evalFragment = new Limit(SRC, new Literal(SRC, 5, DataType.INTEGER), evaled);
+        assertEquals("an EVAL cannot change how many rows arrive", 5, SplitDiscoveryPhase.guardedRelations(evalFragment).get(0).rowLimit());
     }
 
     /**
@@ -978,6 +984,37 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         recorder.lastContext = null;
         SplitDiscoveryPhase.resolveExternalSplits(dataOnly, factories);
         assertEquals(Set.of(), recorder.lastContext.retainedPartitionKeys());
+    }
+
+    public void testRetainedPartitionKeysOmitDerivedLocation() throws Exception {
+        StoragePath path = StoragePath.of("s3://bucket/data/year=2024/a.parquet");
+        PartitionMetadata partitions = new PartitionMetadata(Map.of("year", DataType.INTEGER), Map.of(path, Map.of("year", 2024)));
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(path, 100, Instant.EPOCH)),
+            "s3://bucket/data/year=*/a.parquet",
+            partitions
+        );
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet").withAttributes(
+            List.of(
+                fieldAttr("year", DataType.INTEGER),
+                new ExternalMetadataAttribute(SRC, FileMetadataColumns.PATH, DataType.KEYWORD),
+                new ExternalMetadataAttribute(SRC, FileMetadataColumns.NAME, DataType.KEYWORD),
+                new ExternalMetadataAttribute(SRC, FileMetadataColumns.DIRECTORY, DataType.KEYWORD),
+                new ExternalMetadataAttribute(SRC, FileMetadataColumns.SIZE, DataType.LONG),
+                new ExternalMetadataAttribute(SRC, FileMetadataColumns.MODIFIED, DataType.DATETIME),
+                new ExternalMetadataAttribute(SRC, FileMetadataColumns.RECORD_REF, DataType.LONG)
+            )
+        );
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
+
+        Set<String> expected = Set.of("year", FileMetadataColumns.SIZE, FileMetadataColumns.MODIFIED);
+        SplitDiscoveryPhase.resolveExternalSplits(exec, factories);
+        assertEquals(expected, recorder.lastContext.retainedPartitionKeys());
+
+        recorder.lastContext = null;
+        discoverAsync(exec, factories);
+        assertEquals(expected, recorder.lastContext.retainedPartitionKeys());
     }
 
     /**

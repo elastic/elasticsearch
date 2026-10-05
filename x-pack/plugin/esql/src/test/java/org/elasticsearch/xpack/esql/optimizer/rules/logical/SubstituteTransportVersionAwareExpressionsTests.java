@@ -18,10 +18,13 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Variance;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acosh;
@@ -68,6 +71,8 @@ public class SubstituteTransportVersionAwareExpressionsTests extends ESTestCase 
     );
     private static final TransportVersion ESQL_PROMQL_NON_FINITE_ROUND = TransportVersion.fromName("esql_promql_non_finite_round");
     private static final TransportVersion ESQL_PROMQL_NON_FINITE_MAX_MIN = TransportVersion.fromName("esql_promql_non_finite_max_min");
+    private static final TransportVersion ESQL_PROMQL_NON_FINITE_AVG = TransportVersion.fromName("esql_promql_non_finite_avg");
+    private static final TransportVersion ESQL_PROMQL_NON_FINITE_STDDEV = TransportVersion.fromName("esql_promql_non_finite_stddev");
 
     public void testSumNotReplacedWithOldVersion() {
         Expression field = getFieldAttribute("f", DataType.LONG);
@@ -214,6 +219,51 @@ public class SubstituteTransportVersionAwareExpressionsTests extends ESTestCase 
     }
 
     /**
+     * The non-finite (PromQL) {@code Avg} whose surrogate preserves non-finite results is downgraded to its strict variant
+     * on a cluster that predates non-finite support, matching the scalar operators.
+     */
+    public void testNonFiniteAvgDowngradedWithOldVersion() {
+        assertNonFiniteMathDowngradedAndIdempotent(new Avg(EMPTY, getFieldAttribute("f", DataType.DOUBLE), true));
+    }
+
+    public void testNonFiniteAvgNotChangedWithCurrentVersion() {
+        Expression nonFinite = new Avg(EMPTY, getFieldAttribute("f", DataType.DOUBLE), true);
+        TransportVersion newVersion = TransportVersionUtils.randomVersionSupporting(ESQL_PROMQL_NON_FINITE_AVG);
+        assertSame(nonFinite, SubstituteTransportVersionAwareExpressions.rule(nonFinite, newVersion));
+    }
+
+    public void testStrictAvgUnchangedWithOldVersion() {
+        Expression strict = new Avg(EMPTY, getFieldAttribute("f", DataType.DOUBLE), false);
+        TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(ESQL_PROMQL_NON_FINITE_MATH);
+        assertSame(strict, SubstituteTransportVersionAwareExpressions.rule(strict, oldVersion));
+    }
+
+    /**
+     * The non-finite (PromQL) {@code StdDev}/{@code Variance}, which report non-finite aggregations as {@code NaN}, are
+     * downgraded to their strict variants on a cluster that predates non-finite support, matching the scalar operators.
+     */
+    public void testNonFiniteStdDevAndVarianceDowngradedWithOldVersion() {
+        assertNonFiniteMathDowngradedAndIdempotent(new StdDev(EMPTY, getFieldAttribute("f", DataType.DOUBLE), true));
+        assertNonFiniteMathDowngradedAndIdempotent(new Variance(EMPTY, getFieldAttribute("f", DataType.DOUBLE), true));
+    }
+
+    public void testNonFiniteStdDevAndVarianceNotChangedWithCurrentVersion() {
+        TransportVersion newVersion = TransportVersionUtils.randomVersionSupporting(ESQL_PROMQL_NON_FINITE_STDDEV);
+        Expression stdDev = new StdDev(EMPTY, getFieldAttribute("f", DataType.DOUBLE), true);
+        assertSame(stdDev, SubstituteTransportVersionAwareExpressions.rule(stdDev, newVersion));
+        Expression variance = new Variance(EMPTY, getFieldAttribute("f", DataType.DOUBLE), true);
+        assertSame(variance, SubstituteTransportVersionAwareExpressions.rule(variance, newVersion));
+    }
+
+    public void testStrictStdDevAndVarianceUnchangedWithOldVersion() {
+        TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(ESQL_PROMQL_NON_FINITE_MATH);
+        Expression stdDev = new StdDev(EMPTY, getFieldAttribute("f", DataType.DOUBLE), false);
+        assertSame(stdDev, SubstituteTransportVersionAwareExpressions.rule(stdDev, oldVersion));
+        Expression variance = new Variance(EMPTY, getFieldAttribute("f", DataType.DOUBLE), false);
+        assertSame(variance, SubstituteTransportVersionAwareExpressions.rule(variance, oldVersion));
+    }
+
+    /**
      * The non-finite (PromQL) {@code Max}/{@code Min}, which use Prometheus non-finite semantics, are downgraded to their
      * strict variants on a cluster that predates non-finite support, matching the scalar operators.
      */
@@ -238,6 +288,10 @@ public class SubstituteTransportVersionAwareExpressionsTests extends ESTestCase 
         assertSame(min, SubstituteTransportVersionAwareExpressions.rule(min, oldVersion));
     }
 
+    /**
+     * Arithmetic operations that carry a {@link org.elasticsearch.xpack.esql.session.Configuration} must keep it when
+     * downgraded to the strict variant.
+     */
     public void testNonFiniteArithmeticDowngradePreservesConfiguration() {
         Add add = new Add(EMPTY, getFieldAttribute("l", DataType.DOUBLE), getFieldAttribute("r", DataType.DOUBLE), TEST_CFG, true);
         TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(ESQL_PROMQL_NON_FINITE_MATH);
@@ -248,6 +302,9 @@ public class SubstituteTransportVersionAwareExpressionsTests extends ESTestCase 
         assertThat(((Add) result).configuration(), sameInstance(TEST_CFG));
     }
 
+    /**
+     * {@code log} can be unary ({@code ln}) or binary; the downgrade must preserve whichever arity the original had.
+     */
     public void testNonFiniteLogPreservesUnaryAndBinaryForms() {
         Expression value = getFieldAttribute("v", DataType.DOUBLE);
         Expression base = getFieldAttribute("b", DataType.DOUBLE);
@@ -288,8 +345,11 @@ public class SubstituteTransportVersionAwareExpressionsTests extends ESTestCase 
         assertVariantsDiffer(new Div(EMPTY, f, g, DataType.DOUBLE, true), new Div(EMPTY, f, g, DataType.DOUBLE, false));
         assertVariantsDiffer(new Mod(EMPTY, f, g, true), new Mod(EMPTY, f, g, false));
         assertVariantsDiffer(new Round(EMPTY, f, null, true), new Round(EMPTY, f, null, false));
+        assertVariantsDiffer(new Avg(EMPTY, f, true), new Avg(EMPTY, f, false));
         assertVariantsDiffer(new Max(EMPTY, f, true), new Max(EMPTY, f, false));
         assertVariantsDiffer(new Min(EMPTY, f, true), new Min(EMPTY, f, false));
+        assertVariantsDiffer(new StdDev(EMPTY, f, true), new StdDev(EMPTY, f, false));
+        assertVariantsDiffer(new Variance(EMPTY, f, true), new Variance(EMPTY, f, false));
     }
 
     /**

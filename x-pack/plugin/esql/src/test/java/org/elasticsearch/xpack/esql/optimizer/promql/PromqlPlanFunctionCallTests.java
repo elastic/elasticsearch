@@ -427,11 +427,13 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
     }
 
     /**
-     * PromQL arithmetic is translated to the non-finite-preserving operators; native ES|QL EVAL uses the
-     * strict variants. The two must not be mixed: a PromQL {@code / 0} keeps {@code ±Inf}/{@code NaN}, while the same
-     * native division is rejected.
+     * Scope guard for the PromQL-only non-finite-math invariant: expressions that preserve non-finite results
+     * ({@link NonFiniteSupport#allowNonFinite()} is {@code true}) must be produced ONLY by the PromQL translation and
+     * never by natively-parsed ES|QL. A native {@code EVAL} division and a native {@code STATS AVG} stay strict and
+     * introduce no non-finite expression, while the PromQL translation of a division produces the non-finite variant.
      */
     public void testNonFiniteMathIsPromqlOnly() {
+        // Native ES|QL EVAL division is strict and introduces no non-finite-preserving expression.
         LogicalPlan nativeEval = optimizedPlan("FROM test | EVAL x = salary / emp_no");
         assertThat(nonFiniteExpressions(nativeEval), empty());
         List<Div> nativeDivs = new ArrayList<>();
@@ -439,11 +441,35 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertThat(nativeDivs, not(empty()));
         nativeDivs.forEach(div -> assertFalse("native Div must be strict", div.allowNonFinite()));
 
+        // The PromQL translation of a division produces the non-finite-preserving variant.
         LogicalPlan promql = planPromql("PROMQL index=k8s step=1h result=(sum by (cluster) (network.cost) / 0)");
         List<Div> promqlDivs = new ArrayList<>();
         promql.forEachExpressionDown(Div.class, promqlDivs::add);
         assertThat(promqlDivs, not(empty()));
         assertTrue("PromQL Div must allow non-finite results", promqlDivs.stream().anyMatch(NonFiniteSupport::allowNonFinite));
+
+        // Native ES|QL STATS AVG also stays strict: its surrogate division is finite-only.
+        LogicalPlan nativeStats = optimizedPlan("FROM test | STATS a = AVG(salary)");
+        assertThat(nonFiniteExpressions(nativeStats), empty());
+
+        // The PromQL translation of an average also produces a non-finite variant: the non-finite Avg (and/or the
+        // non-finite Div its surrogate builds) preserves non-finite results, whereas native STATS AVG above stays strict.
+        LogicalPlan promqlAvg = planPromql("PROMQL index=k8s step=1h result=(avg(sum by (cluster) (network.cost)))");
+        assertThat(nonFiniteExpressions(promqlAvg), not(empty()));
+
+        // Native ES|QL STATS STD_DEV / VARIANCE stay strict: they introduce no non-finite-preserving expression.
+        assertThat(nonFiniteExpressions(optimizedPlan("FROM test | STATS s = STD_DEV(salary)")), empty());
+        assertThat(nonFiniteExpressions(optimizedPlan("FROM test | STATS v = VARIANCE(salary)")), empty());
+
+        // The PromQL translation of stddev / stdvar produces the non-finite variants.
+        assertThat(
+            nonFiniteExpressions(planPromql("PROMQL index=k8s step=1h result=(stddev(sum by (cluster) (network.cost)))")),
+            not(empty())
+        );
+        assertThat(
+            nonFiniteExpressions(planPromql("PROMQL index=k8s step=1h result=(stdvar(sum by (cluster) (network.cost)))")),
+            not(empty())
+        );
 
         // Native ES|QL STATS MAX / MIN stay strict: they introduce no non-finite-preserving expression.
         assertThat(nonFiniteExpressions(optimizedPlan("FROM test | STATS m = MAX(salary)")), empty());

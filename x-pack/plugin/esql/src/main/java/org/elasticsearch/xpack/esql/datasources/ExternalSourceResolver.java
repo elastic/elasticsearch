@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -48,6 +49,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
@@ -580,8 +582,19 @@ public class ExternalSourceResolver {
         this.restorableContext = threadContext == null ? null : threadContext.newRestorableContext(true);
         // Restore the captured request ThreadContext and install cancellation on every metadata-read
         // task so footer-load waiters and per-file continuations see the caller's headers, and so a
-        // pool rejection still reaches AbstractRunnable.onRejection.
-        this.metadataReadExecutor = ExternalIoExecutors.restoring(executor, this.restorableContext, this::isCancelled);
+        // pool rejection still reaches AbstractRunnable.onRejection. Planning I/O is resolved when
+        // the task runs: the resolver is built in PlanExecutor before EsqlSession.execute binds
+        // the reservation, so a ctor-time capture is always null.
+        this.metadataReadExecutor = ExternalIoExecutors.preserving(
+            ExternalIoExecutors.restoring(executor, this.restorableContext, this::isCancelled),
+            command -> {
+                ExternalPlanningReservation reservation = planningReservation;
+                ExternalPlanningIo planningIo = reservation != null ? reservation.planningIo() : ExternalPlanningIo.current();
+                try (Releasable ignored = ExternalPlanningIo.activate(planningIo)) {
+                    command.run();
+                }
+            }
+        );
     }
 
     /**

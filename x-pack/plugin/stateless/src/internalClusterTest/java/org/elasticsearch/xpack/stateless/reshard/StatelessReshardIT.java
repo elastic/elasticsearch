@@ -3923,12 +3923,6 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             }
             return false;
         });
-        /*
-        awaitClusterState(state -> {
-            targetShardNodeId.set(state.routingTable().index(indexName).shard(1).primaryShard().currentNodeId());
-            return targetShardNodeId.get() != null;
-        });
-         */
         var targetShardNode = nodeIdsToNames().get(targetShardNodeId.get());
         assertNotEquals(sourceShardOldNode, targetShardNode);
         var sourceShardNewNode = indexNodes.stream()

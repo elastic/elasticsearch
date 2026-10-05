@@ -286,6 +286,8 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
                 AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR, GEOHASH, GEOTILE, GEOHEX, EXPONENTIAL_HISTOGRAM, TDIGEST, HISTOGRAM, TSID_DATA_TYPE,
                 DATE_RANGE, DOUBLE_RANGE, PARTIAL_AGG, FLATTENED -> TopNEncoder.DEFAULT_UNSORTABLE;
             case UNSUPPORTED -> TopNEncoder.UNSUPPORTED;
+            // no operator carries document references through TopN yet, the fetch phase is planned but not executed
+            case DOC_REF -> throw new IllegalStateException("TopN cannot carry [" + type + "] yet");
         };
         if (Assertions.ENABLED) {
             TopNEncoder keyEncoder = keyEncoder(type);

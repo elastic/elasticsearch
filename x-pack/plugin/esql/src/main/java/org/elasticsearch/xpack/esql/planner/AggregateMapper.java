@@ -115,7 +115,7 @@ public final class AggregateMapper {
             case DOUBLE_RANGE -> DataType.DOUBLE_RANGE;
             // Dense vectors are internally represented as float blocks
             case FLOAT -> DataType.DENSE_VECTOR;
-            case NULL, COMPOSITE, AGGREGATE_METRIC_DOUBLE, UNKNOWN -> throw new EsqlIllegalArgumentException(
+            case NULL, COMPOSITE, AGGREGATE_METRIC_DOUBLE, DOC_REF, UNKNOWN -> throw new EsqlIllegalArgumentException(
                 "unsupported agg type: " + elementType
             );
         };

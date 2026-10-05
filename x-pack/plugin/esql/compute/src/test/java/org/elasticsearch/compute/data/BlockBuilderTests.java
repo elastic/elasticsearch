@@ -34,7 +34,11 @@ public class BlockBuilderTests extends ESTestCase {
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
         for (ElementType e : ElementType.values()) {
-            if (e == ElementType.UNKNOWN || e == ElementType.NULL || e == ElementType.DOC || e == ElementType.COMPOSITE) {
+            if (e == ElementType.UNKNOWN
+                || e == ElementType.NULL
+                || e == ElementType.DOC
+                || e == ElementType.DOC_REF
+                || e == ElementType.COMPOSITE) {
                 continue;
             }
             params.add(new Object[] { e });

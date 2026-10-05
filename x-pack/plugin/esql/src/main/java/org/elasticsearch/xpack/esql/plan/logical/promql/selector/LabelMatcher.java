@@ -18,7 +18,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
 import org.elasticsearch.lucene.util.automaton.CircuitBreakingRegExp;
-import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
@@ -148,7 +147,7 @@ public class LabelMatcher implements NodeStringRenderable {
             return automaton;
         }
         // A bad pattern is the user's, so every failure is a client error; QlIllegalArgumentException would be a 500.
-        // minimize() and complement() determinize too, so the guard covers the whole build, not just the parse.
+        // determinize() and complement() throw it too, so the guard covers the whole build, not just the parse.
         try {
             automaton = buildAutomaton();
         } catch (TooComplexToDeterminizeException e) {
@@ -161,10 +160,6 @@ public class LabelMatcher implements NodeStringRenderable {
     }
 
     private static final String BREAKER_LABEL = "promql_label_matcher";
-    /** Three table references, one reverse-edge entry and its share of the list that holds it, per state and alphabet point. */
-    private static final long MINIMIZE_BYTES_PER_CELL = 64;
-    /** The per-state partition set, split block and bit sets. */
-    private static final long MINIMIZE_BYTES_PER_STATE = 128;
 
     private Automaton buildAutomaton() {
         // Matchers are built while parsing, before any request breaker exists, so each build is bounded the way constant
@@ -193,18 +188,14 @@ public class LabelMatcher implements NodeStringRenderable {
                 result = matcher.isRegex() ? regexAutomaton(v, breaker) : Automata.makeString(v);
             }
             held += hold(result, breaker);
+            // The DFA is not minimized. Everything read from it (isTotal, isEmpty, run and getSingleton) needs a deterministic
+            // automaton without dead states, which determinize and complement both produce, and a matcher does not outlive
+            // the planning of its query, so the smaller automaton would not be worth a step whose memory can only be guessed.
             result = CircuitBreakingOperations.determinize(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, breaker, BREAKER_LABEL);
             held += hold(result, breaker);
-            // Hopcroft minimization builds three states-by-alphabet tables plus a reverse-edge list per cell, far larger than
-            // the DFA itself; complement then totalizes and copies it. Charge both before either runs.
-            long tables = (long) result.getNumStates() * result.getStartPoints().length * MINIMIZE_BYTES_PER_CELL + (long) result
-                .getNumStates() * MINIMIZE_BYTES_PER_STATE + 3 * result.ramBytesUsed();
-            breaker.addEstimateBytesAndMaybeBreak(tables, BREAKER_LABEL);
-            held += tables;
-            result = MinimizationOperations.minimize(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
             // negate if needed
             if (matcher == NEQ || matcher == NREG) {
-                result = Operations.complement(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+                result = CircuitBreakingOperations.complement(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, breaker, BREAKER_LABEL);
             }
             return result;
         } finally {

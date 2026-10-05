@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -130,6 +131,22 @@ public interface Layout {
                 if (channel != null && channel.nameIds.contains(id)) {
                     channel.nameIds.remove(id);
                     channel.nameIds.add(id1);
+                }
+            }
+        }
+
+        /**
+         * Moves the channel of {@code id} to {@code replacement} and gives it {@code type}, for an operator that replaces
+         * a column with a column of another type at the same channel. Operators planned above it read the new type.
+         */
+        public void replace(NameId id, NameId replacement, DataType type) {
+            for (int c = 0; c < channels.size(); c++) {
+                ChannelSet channel = channels.get(c);
+                if (channel != null && channel.nameIds.contains(id)) {
+                    Set<NameId> ids = new HashSet<>(channel.nameIds);
+                    ids.remove(id);
+                    ids.add(replacement);
+                    channels.set(c, new ChannelSet(ids, type));
                 }
             }
         }

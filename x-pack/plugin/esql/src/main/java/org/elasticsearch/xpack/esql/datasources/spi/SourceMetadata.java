@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -128,5 +129,43 @@ public interface SourceMetadata {
      */
     default Map<String, Object> config() {
         return Map.of();
+    }
+
+    /**
+     * Keys for the schema-sample width, stored in {@link #sourceMetadata()} so they travel with
+     * the coordinator metadata map and are not serialized onto {@code FileSplit}.
+     */
+    String SAMPLE_BYTES_KEY = "_sample.bytes";
+    String SAMPLE_ROWS_KEY = "_sample.rows";
+
+    /**
+     * Bytes covered by the schema sample, or 0 when the schema was not inferred from a sample.
+     * Split discovery uses {@code sampleBytes / sampleRows} as the row width under LIMIT.
+     */
+    default long sampleBytes() {
+        return sampleNumber(sourceMetadata(), SAMPLE_BYTES_KEY);
+    }
+
+    /**
+     * Rows in the schema sample, or 0 when the schema was not inferred from a sample.
+     */
+    default int sampleRows() {
+        return (int) sampleNumber(sourceMetadata(), SAMPLE_ROWS_KEY);
+    }
+
+    private static long sampleNumber(Map<String, Object> metadata, String key) {
+        Object value = metadata == null ? null : metadata.get(key);
+        return value instanceof Number number ? number.longValue() : 0L;
+    }
+
+    /** Copies {@code base} with sample width keys when both counts are positive. */
+    static Map<String, Object> withSample(Map<String, Object> base, long sampleBytes, int sampleRows) {
+        if (sampleBytes <= 0 || sampleRows <= 0) {
+            return base == null ? Map.of() : base;
+        }
+        Map<String, Object> copy = base == null || base.isEmpty() ? new HashMap<>() : new HashMap<>(base);
+        copy.put(SAMPLE_BYTES_KEY, sampleBytes);
+        copy.put(SAMPLE_ROWS_KEY, sampleRows);
+        return copy;
     }
 }

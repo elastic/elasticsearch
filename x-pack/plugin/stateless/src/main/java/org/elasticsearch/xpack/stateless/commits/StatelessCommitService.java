@@ -1854,18 +1854,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 .map(PendingUploadVirtualBatchCompoundCommit::commit);
         }
 
-        private Optional<VirtualBatchedCompoundCommit> getMaxPendingUploadBccWithUnpausedUpload() {
-            return pendingUploadBccGenerations.values()
-                .stream()
-                // Freezing a VBCC does not consult maxGenerationToUpload, so while the shard is relocating this map
-                // can hold generations above the pinned bound. Whatever survives the filter is safe to hand out. If no
-                // bound is pinned yet then the one markRelocating later pins is the max pending generation at that
-                // point, which is at or above anything pending now.
-                .filter(pending -> pauseUpload(pending.commit().getMaxGeneration()) == false)
-                .max(Comparator.comparing(PendingUploadVirtualBatchCompoundCommit::getPrimaryTermAndGeneration))
-                .map(PendingUploadVirtualBatchCompoundCommit::commit);
-        }
-
         /**
          * Reads the value range for the `@timestamp` field, for the commit's new additional segments,
          * from the underlying lucene directory of the passed-in commit.
@@ -3163,8 +3151,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         /// A VBCC that is past the [#maxGenerationToUpload] during relocation must not be handed to a search shard,
         /// which would otherwise read offsets into a blob that is never written.
         ///
-        /// While the shard has a pending or pinned upload bound this falls back to [#getMaxPendingUploadBccWithUnpausedUpload].
-        /// A recovering search shard then gets a slightly older commit and catches up through the normal notification path.
+        /// While a relocation upload bound listener is installed this returns `null`, so the recovering search shard falls back to
+        /// the requested or last uploaded commit, and catches up through the normal notification path.
         ///
         /// The bound is deliberately checked after reading the VBCC, so finding none means no bound applied when the VBCC
         /// was read. The generation sampled by the `markRelocating` of any later handoff is then at or above whatever was
@@ -3172,10 +3160,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         @Nullable
         private VirtualBatchedCompoundCommit getLatestVirtualBccForUnpromotableRecovery() {
             final var virtualBcc = getCurrentVirtualBcc();
-            if (virtualBcc != null && relocationUploadBoundListener == null) {
-                return virtualBcc;
+            if (relocationUploadBoundListener != null) {
+                return null;
             }
-            return getMaxPendingUploadBccWithUnpausedUpload().orElse(null);
+            return virtualBcc;
         }
 
         /**

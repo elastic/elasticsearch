@@ -2558,7 +2558,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
-    public void testRegisterCommitForUnpromotableRecoveryPrefersPendingUploadBccWithinMaxGenerationToUpload() throws Exception {
+    public void testRegisterCommitForUnpromotableRecoveryFallsBackToUploadedBccWhileUploadBoundListenerInstalled() throws Exception {
         final Set<String> uploadedBlobs = Collections.newSetFromMap(new ConcurrentHashMap<>());
         final var blockedBlobName = new AtomicReference<String>();
         final var blockUpload = new CountDownLatch(1);
@@ -2620,9 +2620,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
                 final var response = registerFuture.actionGet();
                 assertThat(
-                    "the pending-upload commit within the bound is preferred over both the merged commit and the last uploaded BCC",
+                    "registration falls back to the uploaded BCC while an upload bound listener is installed",
                     response.getCompoundCommit().generation(),
-                    equalTo(pendingCommit.getGeneration())
+                    equalTo(uploadedCommit.getGeneration())
                 );
 
                 blockUpload.countDown();

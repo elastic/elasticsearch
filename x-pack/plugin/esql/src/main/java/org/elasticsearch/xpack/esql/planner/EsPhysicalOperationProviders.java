@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.data.DocRefOrigin;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.LuceneCountOperator;
@@ -110,6 +111,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.lucene.search.Queries.newNonNestedFilter;
 import static org.elasticsearch.compute.lucene.query.LuceneSourceOperator.NO_LIMIT;
@@ -465,7 +467,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         private final String fullFieldName;
 
         DefaultShardContextForUnmappedField(DefaultShardContext ctx, String fullFieldName) {
-            super(ctx.index, ctx.releasable, ctx.ctx, ctx.aliasFilter);
+            super(ctx.index, ctx.releasable, ctx.ctx, ctx.aliasFilter, ctx.origin);
             this.fullFieldName = fullFieldName;
         }
 
@@ -797,8 +799,27 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         private final AliasFilter aliasFilter;
         private final String shardIdentifier;
         private final ShardSearchStats shardSearchStats;
+        private final Supplier<DocRefOrigin> origin;
 
+        /**
+         * A context for shards whose rows never leave the node as document references, like lookup indices.
+         */
         public DefaultShardContext(int index, Releasable releasable, SearchExecutionContext ctx, AliasFilter aliasFilter) {
+            this(index, releasable, ctx, aliasFilter, () -> {
+                throw new IllegalStateException("shard [" + ctx.getFullyQualifiedIndex().getName() + "] can't reference documents");
+            });
+        }
+
+        /**
+         * @param origin computes {@link #origin()} the first time a row of this shard becomes a document reference
+         */
+        public DefaultShardContext(
+            int index,
+            Releasable releasable,
+            SearchExecutionContext ctx,
+            AliasFilter aliasFilter,
+            Supplier<DocRefOrigin> origin
+        ) {
             this.index = index;
             this.releasable = releasable;
             this.ctx = ctx;
@@ -806,6 +827,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             // Build the shardIdentifier once up front so we can reuse references to it in many places.
             this.shardIdentifier = this.ctx.getFullyQualifiedIndex().getName() + ":" + this.ctx.getShardId();
             this.shardSearchStats = ctx.stats();
+            this.origin = origin;
+        }
+
+        @Override
+        public DocRefOrigin origin() {
+            return origin.get();
         }
 
         @Override

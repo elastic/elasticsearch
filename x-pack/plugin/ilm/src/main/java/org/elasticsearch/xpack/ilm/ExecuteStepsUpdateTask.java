@@ -244,13 +244,13 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
             }
         }
         assert indexToStepKeysForAsyncActions.size() <= 1 : "we expect a maximum of one single spawned index currently";
-        boolean defaultLifecycleForTimeSeriesEnabled = dataStreamLifecycleSettings.defaultLifecycleForTimeSeriesEnabled();
+        boolean minimumLifecycleEnabled = dataStreamLifecycleSettings.minimumLifecycleEnabled();
         for (Map.Entry<String, Step.StepKey> indexAndStepKey : indexToStepKeysForAsyncActions.entrySet()) {
             final String indexName = indexAndStepKey.getKey();
             final Step.StepKey nextStep = indexAndStepKey.getValue();
             final IndexMetadata indexMeta = newState.metadata().index(indexName);
             if (indexMeta != null) {
-                if (newState.metadata().isIndexManagedByILM(indexMeta, defaultLifecycleForTimeSeriesEnabled)) {
+                if (newState.metadata().isIndexManagedByILM(indexMeta, minimumLifecycleEnabled)) {
                     if (nextStep != null && nextStep != TerminalPolicyStep.KEY) {
                         logger.trace(
                             "[{}] index has been spawed from a different index's ({}) "

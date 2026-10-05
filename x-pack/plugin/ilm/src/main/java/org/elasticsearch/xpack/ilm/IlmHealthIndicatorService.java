@@ -355,12 +355,12 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         public List<IndexMetadata> find() {
             final var project = getDefaultILMProject(clusterService.state());
             var now = nowSupplier.getAsLong();
-            boolean defaultLifecycleForTimeSeriesEnabled = dataStreamLifecycleSettings.defaultLifecycleForTimeSeriesEnabled();
+            boolean minimumLifecycleEnabled = dataStreamLifecycleSettings.minimumLifecycleEnabled();
 
             return project.indices()
                 .values()
                 .stream()
-                .filter(indexMetadata -> project.isIndexManagedByILM(indexMetadata, defaultLifecycleForTimeSeriesEnabled))
+                .filter(indexMetadata -> project.isIndexManagedByILM(indexMetadata, minimumLifecycleEnabled))
                 .filter(md -> isStagnated(rules, now, md))
                 .toList();
         }

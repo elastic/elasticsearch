@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -36,6 +37,7 @@ public class LogsDBColumnarUsageTransportAction extends XPackUsageFeatureTranspo
     private final ClusterService clusterService;
     private final Client client;
     private final ProjectResolver projectResolver;
+    private final DataStreamLifecycleSettings dataStreamLifecycleSettings;
 
     @Inject
     public LogsDBColumnarUsageTransportAction(
@@ -44,12 +46,14 @@ public class LogsDBColumnarUsageTransportAction extends XPackUsageFeatureTranspo
         ThreadPool threadPool,
         ActionFilters actionFilters,
         Client client,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        DataStreamLifecycleSettings dataStreamLifecycleSettings
     ) {
         super(XPackUsageFeatureAction.LOGSDB_COLUMNAR.name(), transportService, clusterService, threadPool, actionFilters);
         this.clusterService = clusterService;
         this.client = client;
         this.projectResolver = projectResolver;
+        this.dataStreamLifecycleSettings = dataStreamLifecycleSettings;
     }
 
     @Override
@@ -64,8 +68,7 @@ public class LogsDBColumnarUsageTransportAction extends XPackUsageFeatureTranspo
             projectMetadata,
             clusterService.getClusterSettings(),
             IndexMode.LOGSDB_COLUMNAR,
-            // default DLM is not applied on logsdb_columnar (yet)
-            false
+            dataStreamLifecycleSettings.minimumLifecycleEnabled()
         );
 
         final DiscoveryNode[] nodes = state.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
@@ -92,7 +95,7 @@ public class LogsDBColumnarUsageTransportAction extends XPackUsageFeatureTranspo
         ProjectMetadata projectMetadata,
         ClusterSettings clusterSettings,
         IndexMode indexMode,
-        boolean defaultLifecycleForTimeSeriesEnabled
+        boolean minimumLifecycleEnabled
     ) {
         // cluster.columnar.enabled is a cluster setting that controls whether all columnar index modes are enabled. If this is disabled,
         // then creating any new indices with columnar index modes will fail.
@@ -121,7 +124,7 @@ public class LogsDBColumnarUsageTransportAction extends XPackUsageFeatureTranspo
             dataStreamsCount++;
             switch (DataStream.lifecycleManagedBy(
                 writeIndexMetadata.getLifecyclePolicyName(),
-                dataStream.getEffectiveLifecycleForIndex(writeIndex, defaultLifecycleForTimeSeriesEnabled),
+                dataStream.getEffectiveLifecycleForIndex(writeIndex, minimumLifecycleEnabled),
                 writeIndexMetadata.getSettings(),
                 writeIndexMetadata.getIndexMode()
             )) {

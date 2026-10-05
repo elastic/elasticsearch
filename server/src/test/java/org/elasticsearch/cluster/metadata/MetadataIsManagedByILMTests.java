@@ -116,7 +116,7 @@ public class MetadataIsManagedByILMTests extends ESTestCase {
         }
 
         {
-            // ILM policy configured but ILM not preferred, the flag enables the default lifecycle which takes over
+            // ILM policy configured but ILM not preferred, the flag enables the minimum lifecycle which takes over
             IndexMetadata indexMetadata = createIndexMetadataBuilderForIndex(
                 DataStream.getDefaultBackingIndexName(dataStreamName, 1),
                 Settings.builder().put("index.lifecycle.name", "metrics").put(IndexSettings.PREFER_ILM, false).build()

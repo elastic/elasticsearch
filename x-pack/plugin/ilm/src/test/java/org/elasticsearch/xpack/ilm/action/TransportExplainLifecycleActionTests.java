@@ -227,10 +227,10 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
     }
 
     /**
-     * A backing index of a time series data stream without a configured lifecycle is managed by ILM, unless the default lifecycle for
+     * A backing index of a time series data stream without a configured lifecycle is managed by ILM, unless the minimum lifecycle for
      * time series is enabled and the index does not prefer ILM.
      */
-    public void testGetIndexLifecycleExplainResponse_timeSeriesDataStreamWithDefaultLifecycle() throws IOException {
+    public void testGetIndexLifecycleExplainResponse_timeSeriesDataStreamWithMinimumLifecycle() throws IOException {
         String dataStreamName = "metrics-prod";
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         IndexMetadata indexMetadata = IndexMetadata.builder(backingIndexName)

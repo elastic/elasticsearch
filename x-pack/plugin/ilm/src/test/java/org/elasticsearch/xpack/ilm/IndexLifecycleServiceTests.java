@@ -200,10 +200,10 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
     /**
      * A backing index of a time series data stream without a configured lifecycle that does not prefer ILM should only be
-     * processed by ILM when the default lifecycle for time series is disabled.
+     * processed by ILM when the minimum lifecycle for time series is disabled.
      */
     @SuppressWarnings("unchecked")
-    public void testTimeSeriesIndexSkippedWhenDefaultLifecycleEnabled() {
+    public void testTimeSeriesIndexSkippedWhenMinimumLifecycleEnabled() {
         String policyName = randomAlphaOfLengthBetween(1, 20);
         Step.StepKey currentStepKey = randomStepKey();
         IndexLifecycleRunnerTests.MockClusterStateActionStep mockStep = new IndexLifecycleRunnerTests.MockClusterStateActionStep(
@@ -243,7 +243,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         ClusterChangedEvent event = new ClusterChangedEvent("_source", currentState, ClusterState.EMPTY_STATE);
         indexLifecycleService.applyClusterState(event);
         indexLifecycleService.triggerPolicies(currentState, true);
-        Mockito.verify(mockTaskQueue, times(dataStreamLifecycleSettings.defaultLifecycleForTimeSeriesEnabled() ? 0 : 1))
+        Mockito.verify(mockTaskQueue, times(dataStreamLifecycleSettings.minimumLifecycleEnabled() ? 0 : 1))
             .submitTask(anyString(), any(), any());
     }
 
@@ -735,7 +735,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
     private DataStreamLifecycleSettings createDataStreamLifecycleSettings(boolean enabled) {
         var dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings());
-        dataStreamLifecycleSettings.setDefaultLifecycleForTimeSeriesEnabled(enabled);
+        dataStreamLifecycleSettings.setMinimumLifecycleEnabled(enabled);
         return dataStreamLifecycleSettings;
     }
 }

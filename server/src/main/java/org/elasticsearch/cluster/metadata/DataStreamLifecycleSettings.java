@@ -119,7 +119,7 @@ public class DataStreamLifecycleSettings {
     private volatile DataStreamGlobalRetention dataGlobalRetention;
     @Nullable
     private volatile DataStreamGlobalRetention failuresGlobalRetention;
-    private volatile boolean defaultLifecycleForTimeSeriesEnabled = false;
+    private volatile boolean minimumLifecycleEnabled = false;
 
     private DataStreamLifecycleSettings() {
 
@@ -189,8 +189,8 @@ public class DataStreamLifecycleSettings {
     /**
      * Strictly for testing
      */
-    public void setDefaultLifecycleForTimeSeriesEnabled(boolean defaultLifecycleForTimeSeriesEnabled) {
-        this.defaultLifecycleForTimeSeriesEnabled = defaultLifecycleForTimeSeriesEnabled;
+    public void setMinimumLifecycleEnabled(boolean minimumLifecycleEnabled) {
+        this.minimumLifecycleEnabled = minimumLifecycleEnabled;
     }
 
     private static void validateIsolatedRetentionValue(@Nullable TimeValue retention, String settingName) {
@@ -265,7 +265,7 @@ public class DataStreamLifecycleSettings {
         return getDefaultRetention(failureStore) != null || getMaxRetention() != null;
     }
 
-    public boolean defaultLifecycleForTimeSeriesEnabled() {
-        return false;
+    public boolean minimumLifecycleEnabled() {
+        return minimumLifecycleEnabled;
     }
 }

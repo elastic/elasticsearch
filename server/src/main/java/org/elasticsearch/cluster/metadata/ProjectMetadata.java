@@ -1153,7 +1153,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
      * data stream that's potentially managed by data stream lifecycle and the value of the
      * {@link org.elasticsearch.index.IndexSettings#PREFER_ILM_SETTING}
      */
-    public boolean isIndexManagedByILM(IndexMetadata indexMetadata, boolean defaultLifecycleForTimeSeriesEnabled) {
+    public boolean isIndexManagedByILM(IndexMetadata indexMetadata, boolean minimumLifecycleEnabled) {
         IndexMode indexMode = indexMetadata.getIndexMode();
         // Short-circuit follow-up checks
         if (Strings.hasText(indexMetadata.getLifecyclePolicyName()) == false || indexMode == IndexMode.LOOKUP) {
@@ -1172,10 +1172,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         if (parentDataStream == null) {
             return true;
         }
-        DataStreamLifecycle lifecycle = parentDataStream.getEffectiveLifecycleForIndex(
-            indexMetadata.getIndex(),
-            defaultLifecycleForTimeSeriesEnabled
-        );
+        DataStreamLifecycle lifecycle = parentDataStream.getEffectiveLifecycleForIndex(indexMetadata.getIndex(), minimumLifecycleEnabled);
         return DataStream.lifecycleManagedBy(
             indexMetadata.getLifecyclePolicyName(),
             lifecycle,

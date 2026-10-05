@@ -122,7 +122,7 @@ public class TransportExplainLifecycleAction extends TransportLocalProjectMetada
         boolean rolloverOnlyIfHasDocuments = LifecycleSettings.LIFECYCLE_ROLLOVER_ONLY_IF_HAS_DOCUMENTS_SETTING.get(
             project.cluster().metadata().settings()
         );
-        boolean defaultLifecycleForTimeSeriesEnabled = dataStreamLifecycleSettings.defaultLifecycleForTimeSeriesEnabled();
+        boolean minimumLifecycleEnabled = dataStreamLifecycleSettings.minimumLifecycleEnabled();
         Map<String, IndexLifecycleExplainResponse> indexResponses = new TreeMap<>();
         for (String index : concreteIndices) {
             final IndexLifecycleExplainResponse indexResponse;
@@ -134,7 +134,7 @@ public class TransportExplainLifecycleAction extends TransportLocalProjectMetada
                     request.onlyManaged(),
                     xContentRegistry,
                     rolloverOnlyIfHasDocuments,
-                    defaultLifecycleForTimeSeriesEnabled
+                    minimumLifecycleEnabled
                 );
             } catch (IOException e) {
                 listener.onFailure(new ElasticsearchParseException("failed to parse phase definition for index [" + index + "]", e));
@@ -158,7 +158,7 @@ public class TransportExplainLifecycleAction extends TransportLocalProjectMetada
         boolean onlyManaged,
         NamedXContentRegistry xContentRegistry,
         boolean rolloverOnlyIfHasDocuments,
-        boolean defaultLifecycleForTimeSeriesEnabled
+        boolean minimumLifecycleEnabled
     ) throws IOException {
         IndexMetadata indexMetadata = project.index(indexName);
         Settings idxSettings = indexMetadata.getSettings();
@@ -203,7 +203,7 @@ public class TransportExplainLifecycleAction extends TransportLocalProjectMetada
         }
 
         final IndexLifecycleExplainResponse indexResponse;
-        if (project.isIndexManagedByILM(indexMetadata, defaultLifecycleForTimeSeriesEnabled)) {
+        if (project.isIndexManagedByILM(indexMetadata, minimumLifecycleEnabled)) {
             final IndexLifecycleMetadata indexLifecycleMetadata = project.custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
             final boolean policyExists = indexLifecycleMetadata.getPolicies().containsKey(policyName);
             // If this is requesting only errors, only include indices in the error step or which are using a nonexistent policy

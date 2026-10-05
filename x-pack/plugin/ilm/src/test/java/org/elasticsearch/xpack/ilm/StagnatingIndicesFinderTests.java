@@ -93,9 +93,9 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
 
     /**
      * A backing index of a time series data stream without a configured lifecycle that does not prefer ILM is only considered managed
-     * by ILM, and thus a stagnation candidate, when the default lifecycle for time series is disabled.
+     * by ILM, and thus a stagnation candidate, when the minimum lifecycle for time series is disabled.
      */
-    public void testStagnatingIndicesFinderTimeSeriesDataStreamWithDefaultLifecycle() {
+    public void testStagnatingIndicesFinderTimeSeriesDataStreamWithMinimumLifecycle() {
         var maxTimeOnAction = randomTimeValueInDays();
         var maxTimeOnStep = randomTimeValueInDays();
         long maxRetriesPerStep = randomLongBetween(2, 100);
@@ -378,7 +378,7 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
 
     private DataStreamLifecycleSettings createDataStreamLifecycleSettings(boolean enabled) {
         var dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings());
-        dataStreamLifecycleSettings.setDefaultLifecycleForTimeSeriesEnabled(enabled);
+        dataStreamLifecycleSettings.setMinimumLifecycleEnabled(enabled);
         return dataStreamLifecycleSettings;
     }
 }

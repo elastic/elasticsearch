@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -33,6 +34,7 @@ public class ColumnarUsageTransportAction extends XPackUsageFeatureTransportActi
     private final ClusterService clusterService;
     private final Client client;
     private final ProjectResolver projectResolver;
+    private final DataStreamLifecycleSettings dataStreamLifecycleSettings;
 
     @Inject
     public ColumnarUsageTransportAction(
@@ -41,12 +43,14 @@ public class ColumnarUsageTransportAction extends XPackUsageFeatureTransportActi
         ThreadPool threadPool,
         ActionFilters actionFilters,
         Client client,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        DataStreamLifecycleSettings dataStreamLifecycleSettings
     ) {
         super(XPackUsageFeatureAction.COLUMNAR.name(), transportService, clusterService, threadPool, actionFilters);
         this.clusterService = clusterService;
         this.client = client;
         this.projectResolver = projectResolver;
+        this.dataStreamLifecycleSettings = dataStreamLifecycleSettings;
     }
 
     @Override
@@ -61,8 +65,7 @@ public class ColumnarUsageTransportAction extends XPackUsageFeatureTransportActi
             projectMetadata,
             clusterService.getClusterSettings(),
             IndexMode.COLUMNAR,
-            // Default lifecycle does not apply to columnar
-            false
+            dataStreamLifecycleSettings.minimumLifecycleEnabled()
         );
 
         final DiscoveryNode[] nodes = state.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new);

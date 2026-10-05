@@ -202,7 +202,7 @@ public class IndexLifecycleService
      */
     private void maybeRunAsyncActions(ProjectState state) {
         final ProjectMetadata projectMetadata = state.metadata();
-        boolean defaultLifecycleForTimeSeriesEnabled = dataStreamLifecycleSettings.defaultLifecycleForTimeSeriesEnabled();
+        boolean minimumLifecycleEnabled = dataStreamLifecycleSettings.minimumLifecycleEnabled();
         final IndexLifecycleMetadata currentMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE);
         if (currentMetadata == null) {
             return;
@@ -214,7 +214,7 @@ public class IndexLifecycleService
 
         boolean safeToStop = true; // true until proven false by a run policy
         for (IndexMetadata idxMeta : projectMetadata.indices().values()) {
-            if (projectMetadata.isIndexManagedByILM(idxMeta, defaultLifecycleForTimeSeriesEnabled) == false) {
+            if (projectMetadata.isIndexManagedByILM(idxMeta, minimumLifecycleEnabled) == false) {
                 continue;
             }
             String policyName = idxMeta.getLifecyclePolicyName();
@@ -489,7 +489,7 @@ public class IndexLifecycleService
     void triggerPolicies(ProjectState state, boolean fromClusterStateChange) {
         final var projectMetadata = state.metadata();
         IndexLifecycleMetadata currentMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE);
-        boolean defaultLifecycleForTimeSeriesEnabled = dataStreamLifecycleSettings.defaultLifecycleForTimeSeriesEnabled();
+        boolean minimumLifecycleEnabled = dataStreamLifecycleSettings.minimumLifecycleEnabled();
 
         OperationMode currentMode = currentILMMode(projectMetadata);
         if (currentMetadata == null) {
@@ -510,7 +510,7 @@ public class IndexLifecycleService
         // managed by the Index Lifecycle Service they have a index.lifecycle.name setting
         // associated to a policy
         for (IndexMetadata idxMeta : projectMetadata.indices().values()) {
-            if (projectMetadata.isIndexManagedByILM(idxMeta, defaultLifecycleForTimeSeriesEnabled)) {
+            if (projectMetadata.isIndexManagedByILM(idxMeta, minimumLifecycleEnabled)) {
                 String policyName = idxMeta.getLifecyclePolicyName();
                 final LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
                 StepKey stepKey = Step.getCurrentStepKey(lifecycleState);

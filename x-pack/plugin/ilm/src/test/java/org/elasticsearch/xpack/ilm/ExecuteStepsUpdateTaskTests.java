@@ -412,7 +412,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
 
     private DataStreamLifecycleSettings createDataStreamLifecycleSettings(boolean enabled) {
         var dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings());
-        dataStreamLifecycleSettings.setDefaultLifecycleForTimeSeriesEnabled(enabled);
+        dataStreamLifecycleSettings.setMinimumLifecycleEnabled(enabled);
         return dataStreamLifecycleSettings;
     }
 }

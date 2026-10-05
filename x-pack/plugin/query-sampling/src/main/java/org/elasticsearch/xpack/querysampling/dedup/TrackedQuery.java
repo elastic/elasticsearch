@@ -19,6 +19,7 @@ public final class TrackedQuery {
     private long multiplicity;
     private double weightedMultiplicity;
     private double lastArrivalWeight;
+    private double logUnseen;
     private double logSurvival;
     private boolean sampled;
 
@@ -30,6 +31,22 @@ public final class TrackedQuery {
         multiplicity++;
         weightedMultiplicity += weight;
         lastArrivalWeight = weight;
+        // each of the arrivals this one stands for had the chance of 1/weight of being captured and missed it
+        // with the complement; for a weight of one that is -infinity, the query is certain to have been seen
+        logUnseen += weight * Math.log1p(-1.0 / weight);
+    }
+
+    /**
+     * Estimate of the probability that the query was captured at least once, given how often it arrived.
+     * Queries that were never captured are not known to the tracker, so this is what tells how much of the
+     * population the known ones stand for: a query whose arrivals were captured at 1% is seen with a
+     * chance well below one, and queries like it are under-represented among the known ones.
+     * <p>
+     * The arrivals that were not captured are not known, so the estimate counts each captured one for as
+     * many arrivals as it stands for.
+     */
+    public synchronized double seenProbability() {
+        return -Math.expm1(logUnseen);
     }
 
     /**

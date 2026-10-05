@@ -47,6 +47,35 @@ public class MultiplicityTrackerTests extends ESTestCase {
         assertThat(query.weightedMultiplicity(), closeTo(10 + 10 + 2, 1e-9));
     }
 
+    public void testQueriesThatWereAlwaysCapturedAreCertainlySeen() {
+        MultiplicityTracker tracker = new MultiplicityTracker(10);
+        QueryFingerprint a = new QueryFingerprint(1, 1);
+
+        assertThat(tracker.record(a).seenProbability(), equalTo(1.0));
+        assertThat(tracker.record(a, 0.5).seenProbability(), equalTo(1.0));
+    }
+
+    public void testSeenProbabilityOfAQueryCapturedRarely() {
+        MultiplicityTracker tracker = new MultiplicityTracker(10);
+        QueryFingerprint a = new QueryFingerprint(1, 1);
+
+        // one capture at 1% stands for 100 arrivals, which were all missed with probability 0.99^100
+        assertThat(tracker.record(a, 0.01).seenProbability(), closeTo(1 - Math.pow(0.99, 100), 1e-9));
+        // another one stands for 100 more
+        assertThat(tracker.record(a, 0.01).seenProbability(), closeTo(1 - Math.pow(0.99, 200), 1e-9));
+    }
+
+    public void testSeenProbabilityFollowsTheRateOfEveryArrival() {
+        MultiplicityTracker tracker = new MultiplicityTracker(10);
+        QueryFingerprint a = new QueryFingerprint(1, 1);
+
+        tracker.record(a, 0.1);
+        double seen = tracker.record(a, 0.5).seenProbability();
+
+        // 10 arrivals at a rate of 0.1 and 2 at a rate of 0.5
+        assertThat(seen, closeTo(1 - Math.pow(0.9, 10) * Math.pow(0.5, 2), 1e-9));
+    }
+
     public void testStopsTrackingNewQueriesWhenFull() {
         MultiplicityTracker tracker = new MultiplicityTracker(2);
         QueryFingerprint known = new QueryFingerprint(1, 1);

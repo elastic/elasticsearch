@@ -64,6 +64,25 @@ public final class ExternalSourceSettings {
      */
     public static final int BLOB_STORE_GET_SIZE_BYTES = 10 * 1024 * 1024;
 
+    /**
+     * Heap bytes to allocate for a fill or sliding-window buffer. {@code requestedMax} is the format ceiling
+     * (NDJSON {@code minimumSegmentSize}, Parquet window) and must be non-negative. When
+     * {@code knownObjectBytes} is a real object size, tiny objects pay that size instead of the ceiling
+     * (at least one byte when the ceiling is at least one). Negative {@code knownObjectBytes} — including
+     * {@code StorageObject.READ_TO_END} — means unknown, so the result is {@code requestedMax} capped at
+     * {@link Integer#MAX_VALUE}. The returned value always fits a {@code byte[]} length.
+     */
+    public static int ioFillBytes(long requestedMax, long knownObjectBytes) {
+        if (requestedMax < 0) {
+            throw new IllegalArgumentException("requestedMax must be non-negative [" + requestedMax + "]");
+        }
+        long max = Math.min(requestedMax, Integer.MAX_VALUE);
+        if (knownObjectBytes < 0) {
+            return (int) max;
+        }
+        return (int) Math.min(max, Math.max(1L, knownObjectBytes));
+    }
+
     /** Heap share reserved for in-flight blob-store buffers: {@code M = min(heap / this, half the request breaker)}. */
     static final int BLOB_STORE_MEMORY_HEAP_DIVISOR = 4;
 
@@ -317,11 +336,13 @@ public final class ExternalSourceSettings {
     /**
      * Hard cap on the number of files glob expansion keeps after listing filters ({@code _file.*})
      * before aborting. Protects against degenerate globs (e.g. {@code s3://bucket/*}) on large buckets.
-     * Default: 10,000 — generous for legitimate use, catches truly degenerate cases.
+     * Default: 25,000 — generous for legitimate use, catches truly degenerate cases. Planning memory for
+     * the kept files is charged to the request breaker, so raising this cap fails a query that does not
+     * fit with a circuit-breaking exception instead of exhausting the heap.
      */
     public static final Setting<Integer> MAX_DISCOVERED_FILES = Setting.intSetting(
         "esql.external.max_discovered_files",
-        10000,
+        25_000,
         1,
         1000000,
         Setting.Property.NodeScope,
@@ -395,6 +416,54 @@ public final class ExternalSourceSettings {
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+
+    /** Default for {@link #SCHEMA_MAX_FIELDS}, matching the default of {@code index.mapping.total_fields.limit}. */
+    public static final int DEFAULT_SCHEMA_MAX_FIELDS = 1000;
+
+    /**
+     * Ceiling for {@link #SCHEMA_MAX_FIELDS} and for a dataset's {@code schema_max_fields}. Unlike a mapping, which
+     * grows a few fields at a time, a resolved schema is built in one go on the coordinating node from bytes the
+     * caller controls, so neither the node nor a dataset may lift the cap without bound. 100,000 sits well above any
+     * legitimate schema while staying far below the widths that exhaust a small heap. Long names are still bounded
+     * only by the circuit breaker charge.
+     */
+    public static final int MAX_SCHEMA_MAX_FIELDS = 100_000;
+
+    /**
+     * Fields a format reader may materialise while resolving a file's schema before it refuses the file, counting
+     * every object and leaf field the way {@code index.mapping.total_fields.limit} does. A small file can describe a
+     * schema far larger than itself, and schema resolution runs on the coordinating node during planning. This is
+     * the node-wide default for schema inference, read by the NDJSON reader today and meant for every format that
+     * infers a schema; a dataset overrides it with its {@code schema_max_fields} key, as an index overrides its
+     * mapping limit. Readers capture it from the node settings, so a change needs a restart.
+     */
+    public static final Setting<Integer> SCHEMA_MAX_FIELDS = Setting.intSetting(
+        "esql.external.schema_max_fields",
+        DEFAULT_SCHEMA_MAX_FIELDS,
+        1,
+        MAX_SCHEMA_MAX_FIELDS,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Parses a dataset's {@code schema_max_fields} under the same bounds as {@link #SCHEMA_MAX_FIELDS}. The dataset key
+     * reaches a format reader as a raw config value rather than through the setting, so the setting's own bounds never
+     * see it. Returns {@code defaultValue} when the dataset does not set the key.
+     */
+    public static int parseDatasetSchemaMaxFields(Object value, String key, int defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+        try {
+            return Setting.parseInt(value.toString(), 1, MAX_SCHEMA_MAX_FIELDS, key);
+        } catch (NumberFormatException e) {
+            // Setting.parseInt rethrows the JDK's message, which does not name the key, when the value is not a number.
+            throw new IllegalArgumentException(
+                "[" + key + "] must be an integer between 1 and " + MAX_SCHEMA_MAX_FIELDS + ", got [" + value + "]",
+                e
+            );
+        }
+    }
 
     /**
      * Deprecated pre-rename key for {@link #WORKLOAD_IDENTITY_ENABLED}, from before the external-dataset settings
@@ -589,6 +658,7 @@ public final class ExternalSourceSettings {
             MAX_GLOB_EXPANSION,
             MAX_DECOMPRESSION_RATIO,
             MAX_DECOMPRESSION_RATIO_ZSTD,
+            SCHEMA_MAX_FIELDS,
             WORKLOAD_IDENTITY_ENABLED,
             WORKLOAD_IDENTITY_ENABLED_OLD,
             MANAGED_IDENTITY_ENABLED,

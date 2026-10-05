@@ -157,15 +157,22 @@ public final class DatasetListingService {
         String path,
         StoragePath storagePath,
         StorageProvider provider,
+        String storageIdentity,
+        String secretIdentity,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         Map<String, Object> config,
         PlanningMemory memory,
         BooleanSupplier cancelled
     ) throws Exception {
+        // The two identities are passed in rather than derived here: only the provider that would list this prefix
+        // knows which of its settings name the same store twice and which of them are declared secret, and the
+        // resolver already holds what it reported. Re-deriving would take a fresh lease and decrypt again.
         ListingCacheKey listingKey = ListingCacheKey.build(
             storagePath.scheme(),
             storagePath.host(),
             storagePath.path(),
+            storageIdentity,
+            secretIdentity,
             ExternalSourceResolver.storageConfig(config),
             // intentional raw config: only reads partition-filter keys, not auth/connection params from _datasource
             GlobExpander.listingCacheDiscriminator(path, hints, config)

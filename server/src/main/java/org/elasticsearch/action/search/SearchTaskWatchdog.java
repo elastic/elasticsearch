@@ -83,7 +83,7 @@ public class SearchTaskWatchdog extends AbstractLifecycleComponent {
     /// stacks closer to the moment of detection at the cost of a meaningless CPU percentage column.
     public static final Setting<TimeValue> HOT_THREADS_INTERVAL = Setting.timeSetting(
         "search.task_watchdog.hot_threads.interval",
-        TimeValue.timeValueMillis(500),
+        TimeValue.timeValueMillis(10),
         TimeValue.timeValueMillis(1),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -101,7 +101,7 @@ public class SearchTaskWatchdog extends AbstractLifecycleComponent {
     /// much of the slow task's execution one dump spans.
     public static final Setting<TimeValue> HOT_THREADS_SNAPSHOT_DELAY = Setting.timeSetting(
         "search.task_watchdog.hot_threads.snapshot_delay",
-        TimeValue.timeValueMillis(10),
+        TimeValue.timeValueMillis(30),
         TimeValue.ZERO,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic

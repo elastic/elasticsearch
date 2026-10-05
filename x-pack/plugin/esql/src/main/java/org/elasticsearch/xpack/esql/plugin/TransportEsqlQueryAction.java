@@ -472,16 +472,18 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         if (hasExternalSources(result) == false) {
             return;
         }
+        // ci and qp are safe to fetch here: hasExternalSources() confirmed executionInfo() != null,
+        // and completionInfo() / queryProfile() are plain getters.
+        var ci = result.completionInfo();
+        var qp = result.executionInfo().queryProfile();
         // APM and phone-home CPU recording — independent of the billing listener so that a failure
         // here never silently suppresses the billing call below.
         try {
-            var ci = result.completionInfo();
-            var qp = result.executionInfo().queryProfile();
-            var planningSpan = qp.planning().timeSpan();
-            long planningNanos = planningSpan != null ? planningSpan.durationInNanos() : 0L;
+            // planning().timeSpan() is non-null by the time we reach the success path:
+            // EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning calls planning().stop() before execution starts.
             planExecutor.dataSourceModule()
                 .externalSourceMetrics()
-                .recordQueryCpu(ci.cpuNanos(), ci.readCpuNanos(), planningNanos, qp.splitDiscoveryCpuNanos());
+                .recordQueryCpu(ci.cpuNanos(), ci.readCpuNanos(), qp.planning().timeSpan().durationInNanos(), qp.splitDiscoveryCpuNanos());
         } catch (Exception ex) {
             logger.warn("failed to record query CPU metrics", ex);
         }
@@ -489,8 +491,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         // above never silently skips this call.
         if (metricsCollector.equals(QueryMetricsListener.NOOP) == false) {
             try {
-                var ci = result.completionInfo();
-                var qp = result.executionInfo().queryProfile();
                 metricsCollector.onQueryCompleted(
                     Map.of(
                         QueryMetricsListener.PLANNING_NANOS,

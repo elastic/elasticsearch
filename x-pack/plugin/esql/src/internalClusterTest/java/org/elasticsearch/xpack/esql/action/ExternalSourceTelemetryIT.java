@@ -833,8 +833,9 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
     public void testQueryCpuMetricsFireWithoutListener() throws Exception {
         assumeFalse("Windows has unreliable timer resolution; CPU counters may be zero", Constants.WINDOWS);
         Path dir = createTempDir();
+        // 1000 rows: ensures measurable CPU time even on coarse-timer CI environments.
         StringBuilder csv = new StringBuilder("emp_no:integer,first_name:keyword\n");
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 1000; i++) {
             csv.append(i).append(",name_").append(i).append('\n');
         }
         Files.writeString(dir.resolve("cpu_test.csv"), csv.toString());
@@ -868,7 +869,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
 
         resetAllMeters();
 
-        try (var ignored = run(syncEsqlQueryRequest("FROM emp_cpu | LIMIT 20"), TIMEOUT)) {}
+        try (var ignored = run(syncEsqlQueryRequest("FROM emp_cpu | LIMIT 2000"), TIMEOUT)) {}
 
         collectAllMeters();
 

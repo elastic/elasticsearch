@@ -59,4 +59,21 @@ public final class FetchPhaseOutcomes {
         }
         return first;
     }
+
+    /**
+     * The decision {@code EXPLAIN} shows, {@code null} when the query left the fetch phase alone: the build lacks the
+     * feature, or the cluster setting is off and the query sets no pragma. Such queries keep their {@code EXPLAIN} output.
+     */
+    @Nullable
+    public Decision explained() {
+        Decision summary = summary();
+        if (summary == null) {
+            return null;
+        }
+        return switch (summary.outcome()) {
+            case DISABLED_FEATURE_FLAG, DISABLED_SETTING -> null;
+            case ENABLED, DISABLED_PRAGMA, MIXED_VERSION_FALLBACK, APPLIED, INELIGIBLE_SHAPE, INELIGIBLE_NO_DEFERRABLE_FIELDS,
+                INELIGIBLE_REMOTE_CLUSTER, INCONSISTENT_PROJECTION -> summary;
+        };
+    }
 }

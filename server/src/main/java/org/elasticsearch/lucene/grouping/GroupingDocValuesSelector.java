@@ -242,6 +242,8 @@ abstract class GroupingDocValuesSelector<T> extends GroupSelector<T> {
             };
         }
 
+        // TODO: group on the page ordinals ColumNAR can hand over, rather than on each document's bytes.
+        // https://github.com/elastic/elasticsearch/issues/160993
         private static GroupValues binaryValues(SortableBinaryDocValues binary) {
             return new GroupValues() {
                 private BytesRef value;

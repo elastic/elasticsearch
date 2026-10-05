@@ -244,7 +244,9 @@ public final class BlockUtils {
             case TDIGEST -> ((TDigestBlockBuilder) builder).appendTDigest((TDigestHolder) val);
             case LONG_RANGE -> ((LongRangeBlockBuilder) builder).appendLongRange((LongRangeBlockBuilder.LongRange) val);
             case DOUBLE_RANGE -> ((DoubleRangeBlockBuilder) builder).appendDoubleRange((DoubleRangeBlockBuilder.DoubleRange) val);
-            case DOC, COMPOSITE, NULL, UNKNOWN -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
+            case DOC, DOC_REF, COMPOSITE, NULL, UNKNOWN -> throw new UnsupportedOperationException(
+                "unsupported element type [" + type + "]"
+            );
         }
     }
 
@@ -365,7 +367,7 @@ public final class BlockUtils {
                 DoubleRangeBlock b = (DoubleRangeBlock) block;
                 yield b.getDoubleRange(offset, new DoubleRangeBlockBuilder.DoubleRange());
             }
-            case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
+            case DOC_REF, UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
         };
     }
 }

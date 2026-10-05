@@ -120,7 +120,7 @@ public class AddGarbageRowsSourceOperator extends SourceOperator {
             switch (block.elementType()) {
                 case BOOLEAN -> ((BooleanBlock.Builder) newBlocks[b]).appendBoolean(ESTestCase.randomBoolean());
                 case BYTES_REF -> ((BytesRefBlock.Builder) newBlocks[b]).appendBytesRef(new BytesRef(ESTestCase.randomAlphaOfLength(5)));
-                case COMPOSITE, DOC, UNKNOWN -> throw new UnsupportedOperationException();
+                case COMPOSITE, DOC, DOC_REF, UNKNOWN -> throw new UnsupportedOperationException();
                 case INT -> ((IntBlock.Builder) newBlocks[b]).appendInt(ESTestCase.randomInt());
                 case LONG -> ((LongBlock.Builder) newBlocks[b]).appendLong(ESTestCase.randomLong());
                 case NULL -> newBlocks[b].appendNull();

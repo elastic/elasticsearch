@@ -47,6 +47,10 @@ public class ExtractorTests extends ESTestCase {
                 case UNKNOWN -> {
                     supportsNull = false;
                 }
+                case DOC_REF -> {
+                    // the block comes with the fetch phase runtime
+                    supportsNull = false;
+                }
                 case COMPOSITE -> {
                     // TODO: add later
                     supportsNull = false;

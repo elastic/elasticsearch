@@ -48,7 +48,7 @@ public enum TypeGroup {
             .filter(DataType::isRepresentable)
             .filter(DataType::isSortable)
             .filter(t -> t != DataType.NULL)
-            .filter(t -> t != DataType.DOC_DATA_TYPE && t != DataType.TSID_DATA_TYPE)
+            .filter(t -> t != DataType.DOC_DATA_TYPE && t != DataType.DOC_REF && t != DataType.TSID_DATA_TYPE)
             .filter(
                 t -> t != DataType.DENSE_VECTOR
                     && t != DataType.AGGREGATE_METRIC_DOUBLE
@@ -68,6 +68,7 @@ public enum TypeGroup {
             .filter(DataType::isRepresentable)
             .filter(t -> t != DataType.NULL)
             .filter(t -> t != DataType.DOC_DATA_TYPE)
+            .filter(t -> t != DataType.DOC_REF)
             .filter(t -> t != DataType.TSID_DATA_TYPE)
             .toList()
     );

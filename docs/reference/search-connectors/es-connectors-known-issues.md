@@ -316,7 +316,7 @@ The connector service has the following known issues:
 
 * **SharePoint Online DLS exposes unpublished site pages to viewers**
 
-    Unpublished pages kept view ACLs from their published state, so users with former view access could still find them in Elasticsearch after unpublish.
+    Unpublished pages kept view ACLs from their published state, so users with former view access could still find them in Elasticsearch after the page was unpublished.
 
     **Affected versions**: All versions with SharePoint Online DLS enabled, through 8.19.21, 9.0.0–9.3.9, 9.4.0–9.4.7, and 9.5.0–9.5.4.
 

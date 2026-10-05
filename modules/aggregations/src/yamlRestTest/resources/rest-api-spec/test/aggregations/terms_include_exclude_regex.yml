@@ -1,18 +1,20 @@
 setup:
   - requires:
-      test_runner_features: [capabilities, arbitrary_key]
+      test_runner_features: [capabilities]
       capabilities:
         - method: GET
           path: /_search
           capabilities: [ aggregation_include_exclude_regex_charged ]
       reason: "include/exclude regex is compiled on the shard through the charged compiler since 9.6"
 
+  # One copy of one shard, so the node that builds the automaton is the one whose breaker is read in the last test.
   - do:
       indices.create:
         index: test_terms
         body:
           settings:
             number_of_shards: 1
+            number_of_replicas: 0
           mappings:
             properties:
               str:
@@ -169,6 +171,11 @@ teardown:
             indices.breaker.request.limit: "100mb"
 
   - do:
+      search_shards:
+        index: test_terms
+  - set: { shards.0.0.node: node_id }
+
+  - do:
       catch: /circuit_breaking_exception/
       search:
         rest_total_hits_as_int: true
@@ -185,11 +192,8 @@ teardown:
   - match: { error.root_cause.0.reason: "/.*Data\\stoo\\slarge,\\sdata\\sfor\\s\\[regexp\\].*/" }
 
   - do:
-      nodes.info: {}
-  - set:
-      nodes._arbitrary_key_: node_id
-  - do:
       nodes.stats:
+        node_id: $node_id
         metric: [ breaker ]
   - gte:   { nodes.$node_id.breakers.request.tripped: 1 }
   - match: { nodes.$node_id.breakers.request.estimated_size_in_bytes: 0 }
@@ -223,5 +227,6 @@ teardown:
 
   - do:
       nodes.stats:
+        node_id: $node_id
         metric: [ breaker ]
   - match: { nodes.$node_id.breakers.request.estimated_size_in_bytes: 0 }

@@ -100,6 +100,71 @@ public class ExternalSourceMetricsTests extends ESTestCase {
         assertThat(requests.get(1).attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("gcs"));
     }
 
+    public void testAddRequestZeroPlusAddBytesPlusPublishStreamBytesIsOneRequest() {
+        StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
+        counters.attach(metrics, "s3");
+        counters.addRequest(TimeUnit.MILLISECONDS.toNanos(9), 0L);
+        counters.addBytes(100L);
+        counters.publishStreamBytes(200L);
+
+        assertThat(counters.snapshot().requestCount(), equalTo(1L));
+        assertThat(counters.snapshot().bytesRead(), equalTo(100L));
+
+        assertThat(single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_REQUESTS_TOTAL).getLong(), equalTo(1L));
+        Measurement bytes = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_BYTES_READ_TOTAL);
+        assertThat(bytes.getLong(), equalTo(200L));
+        assertThat(bytes.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
+        assertThat(single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.STORAGE_REQUESTS_DURATION).getLong(), equalTo(9L));
+    }
+
+    public void testAddBytesDoesNotPublishTelemetry() {
+        StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
+        counters.attach(metrics, "http");
+        counters.addBytes(100L);
+
+        assertThat(counters.snapshot().bytesRead(), equalTo(100L));
+        assertThat(measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_BYTES_READ_TOTAL), hasSize(0));
+        assertThat(measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_REQUESTS_TOTAL), hasSize(0));
+    }
+
+    public void testPublishStreamBytesDoesNotMintRequests() {
+        StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
+        counters.attach(metrics, "gcs");
+        counters.addBytes(100L);
+        counters.publishStreamBytes(200L);
+
+        assertThat(counters.snapshot().requestCount(), equalTo(0L));
+        assertThat(counters.snapshot().bytesRead(), equalTo(100L));
+        assertThat(measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_REQUESTS_TOTAL), hasSize(0));
+        Measurement bytes = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_BYTES_READ_TOTAL);
+        assertThat(bytes.getLong(), equalTo(200L));
+        assertThat(bytes.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("gcs"));
+    }
+
+    public void testRecordBytesEmitsBytesOnly() {
+        metrics.recordBytes(4096L, "azure");
+
+        assertThat(measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_REQUESTS_TOTAL), hasSize(0));
+        Measurement bytes = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_BYTES_READ_TOTAL);
+        assertThat(bytes.getLong(), equalTo(4096L));
+        assertThat(bytes.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("azure"));
+    }
+
+    public void testRecordBytesSkipsNonPositive() {
+        metrics.recordBytes(0L, "s3");
+        metrics.recordBytes(-4L, "s3");
+        assertThat(measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_BYTES_READ_TOTAL), hasSize(0));
+    }
+
+    public void testPublishStreamBytesDoesNotEmitWhenNotAttached() {
+        StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
+        counters.addBytes(2048L);
+        counters.publishStreamBytes(2048L);
+
+        assertThat(counters.snapshot().bytesRead(), equalTo(2048L));
+        assertThat(measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_BYTES_READ_TOTAL), hasSize(0));
+    }
+
     public void testCountersDoNotEmitWhenNotAttached() {
         StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
         counters.addRequest(1234L, 4096L);

@@ -9,11 +9,15 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.common.util.CachedSupplier;
+import org.elasticsearch.compute.data.DocRefOrigin;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 
@@ -79,7 +83,22 @@ class ComputeSearchContext implements Releasable {
             queryWarnings
         );
         searchContext.addReleasable(searchExecutionContext::releaseQueryConstructionMemory);
-        return new DefaultShardContext(index, this, searchExecutionContext, searchContext.request().getAliasFilter());
+        return new DefaultShardContext(
+            index,
+            this,
+            searchExecutionContext,
+            searchContext.request().getAliasFilter(),
+            CachedSupplier.wrap(() -> origin(searchContext))
+        );
+    }
+
+    /**
+     * Names the reader of this shard for rows that leave the node as document references.
+     */
+    private static DocRefOrigin origin(SearchContext searchContext) {
+        SearchShardTarget target = searchContext.shardTarget();
+        String clusterAlias = target.getClusterAlias() == null ? RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY : target.getClusterAlias();
+        return new DocRefOrigin(clusterAlias, target.getNodeId(), target.getShardId(), searchContext.readerContext().id());
     }
 
     @Override

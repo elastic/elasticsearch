@@ -28,6 +28,7 @@ public interface StatelessExtensionProvider {
         HollowShardsService hollowShardsService,
         SearchShardSizeCollector searchShardSizeCollector,
         StatelessMemoryMetricsService statelessMemoryMetricsService,
-        ObjectStoreService objectStoreService
+        ObjectStoreService objectStoreService,
+        SnapshotRestoreDiskPressure snapshotRestoreDiskPressure
     ) {}
 }

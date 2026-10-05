@@ -14,10 +14,8 @@ import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
-import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.List;
@@ -328,13 +326,13 @@ public class BlobCacheMetrics {
             BLOB_CACHE_READ_TOTAL,
             "The number of cache reads (warming not included)",
             "count",
-            () -> new LongWithAttributes(readCount.longValue())
+            readCount::longValue
         );
         meterRegistry.registerLongAsyncGauge(
             BLOB_CACHE_MISS_TOTAL,
             "The number of cache misses (warming not included)",
             "count",
-            () -> new LongWithAttributes(missCount.longValue())
+            missCount::longValue
         );
         // adding this helps search for high or low miss ratio. It will be since boot of the node though. More advanced queries can use
         // deltas of the totals to see miss ratio over time.
@@ -343,7 +341,7 @@ public class BlobCacheMetrics {
             "The fraction of cache reads that missed data (warming not included)",
             "fraction",
             // read misses before reads on purpose
-            () -> new DoubleWithAttributes(Math.min((double) missCount.longValue() / Math.max(readCount.longValue(), 1L), 1.0d))
+            () -> Math.min((double) missCount.longValue() / Math.max(readCount.longValue(), 1L), 1.0d)
         );
     }
 

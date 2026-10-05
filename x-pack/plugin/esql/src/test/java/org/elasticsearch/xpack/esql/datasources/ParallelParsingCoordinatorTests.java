@@ -32,6 +32,7 @@ import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -1489,6 +1490,119 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * COUNT(*) on a file-leading split already carries the coordinator pin. Execution must not call
+     * {@code metadata()} (CsvFormatReader.metadata opens no-arg {@code newStream()}). File width then
+     * comes from {@code FormatReadContext.readSchema}; this test does not wrap the reader to observe
+     * {@code withSchema} separately.
+     */
+    public void testParallelReadEmptyProjectionWithReadSchemaSkipsLeaderMetadata() throws Exception {
+        String header = "a,b,c\n";
+        String row = "1,2,3\n";
+        StringBuilder sb = new StringBuilder(header);
+        while (sb.length() < 3 * 1024 * 1024) {
+            sb.append(row);
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        long headerBytes = header.getBytes(StandardCharsets.UTF_8).length;
+        long rowBytes = row.getBytes(StandardCharsets.UTF_8).length;
+        assertEquals("fixture must be complete rows only", 0, (bytes.length - headerBytes) % rowBytes);
+        long expectedRows = (bytes.length - headerBytes) / rowBytes;
+        NoArgStreamCountingStorageObject obj = new NoArgStreamCountingStorageObject(bytes);
+        SegmentableFormatReader reader = (SegmentableFormatReader) new CsvFormatReader(blockFactory()).withConfig(Map.of("mode", "plain"));
+        assertTrue(
+            "payload must exceed 2*minimumSegmentSize so sequential fallback cannot open no-arg newStream",
+            bytes.length > 2L * reader.minimumSegmentSize()
+        );
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, "a", DataType.INTEGER),
+            new ReferenceAttribute(Source.EMPTY, "b", DataType.INTEGER),
+            new ReferenceAttribute(Source.EMPTY, "c", DataType.INTEGER)
+        );
+
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
+                reader,
+                obj,
+                List.of(),
+                500,
+                4,
+                exec,
+                null,
+                true,
+                true,
+                readSchema,
+                0L
+            );
+            long rows = 0;
+            try (iter) {
+                while (iter.hasNext()) {
+                    Page p = iter.next();
+                    rows += p.getPositionCount();
+                    p.releaseBlocks();
+                }
+            }
+            assertEquals("pinned leader must not open no-arg newStream (metadata GET)", 0, obj.noArgOpens());
+            assertEquals(expectedRows, rows);
+        } finally {
+            exec.shutdown();
+        }
+    }
+
+    /**
+     * Empty {@code List.of()} is a present pin that must still infer: {@code metadata()} /
+     * no-arg {@code newStream()}. File width comes from inference, not width 0.
+     */
+    public void testParallelReadEmptyProjectionEmptyReadSchemaStillInfersLeaderMetadata() throws Exception {
+        String header = "a,b,c\n";
+        String row = "1,2,3\n";
+        StringBuilder sb = new StringBuilder(header);
+        while (sb.length() < 3 * 1024 * 1024) {
+            sb.append(row);
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        long headerBytes = header.getBytes(StandardCharsets.UTF_8).length;
+        long rowBytes = row.getBytes(StandardCharsets.UTF_8).length;
+        assertEquals("fixture must be complete rows only", 0, (bytes.length - headerBytes) % rowBytes);
+        long expectedRows = (bytes.length - headerBytes) / rowBytes;
+        NoArgStreamCountingStorageObject obj = new NoArgStreamCountingStorageObject(bytes);
+        SegmentableFormatReader reader = (SegmentableFormatReader) new CsvFormatReader(blockFactory()).withConfig(Map.of("mode", "plain"));
+        assertTrue(
+            "payload must exceed 2*minimumSegmentSize so sequential fallback cannot open no-arg newStream",
+            bytes.length > 2L * reader.minimumSegmentSize()
+        );
+
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
+                reader,
+                obj,
+                List.of(),
+                500,
+                4,
+                exec,
+                null,
+                true,
+                true,
+                List.of(),
+                0L
+            );
+            long rows = 0;
+            try (iter) {
+                while (iter.hasNext()) {
+                    Page p = iter.next();
+                    rows += p.getPositionCount();
+                    p.releaseBlocks();
+                }
+            }
+            assertEquals("empty List.of() pin must still open no-arg newStream (metadata GET)", 1, obj.noArgOpens());
+            assertEquals(expectedRows, rows);
+        } finally {
+            exec.shutdown();
+        }
+    }
+
     public void testParallelReadEmptyProjectionNonLeadingCsvMacroSplitSkipsMetadataRebind() throws Exception {
         String header = "a,b,c\n";
         StringBuilder sb = new StringBuilder(header);
@@ -2742,6 +2856,28 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         @Override
         public StoragePath path() {
             return StoragePath.of("mem://test");
+        }
+    }
+
+    /**
+     * Counts no-arg {@code newStream()} opens. {@link CsvFormatReader#metadata} uses that overload;
+     * {@link StreamCountingStorageObject} ignores it, so it cannot prove a metadata GET was skipped.
+     */
+    private static class NoArgStreamCountingStorageObject extends InMemoryStorageObject {
+        private final AtomicInteger noArgOpens = new AtomicInteger();
+
+        NoArgStreamCountingStorageObject(byte[] data) {
+            super(data);
+        }
+
+        @Override
+        public InputStream newStream() {
+            noArgOpens.incrementAndGet();
+            return super.newStream();
+        }
+
+        int noArgOpens() {
+            return noArgOpens.get();
         }
     }
 

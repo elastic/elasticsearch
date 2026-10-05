@@ -13,7 +13,11 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.MeteredInputStream;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetricsCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -149,17 +153,21 @@ public class S3StorageObjectAbortStreamTests extends ESTestCase {
         int leftover = TransientTypingInputStream.MAX_TRAILING_DRAIN_BYTES;
         int read = 8;
         byte[] payload = new byte[read + leftover];
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        ExternalSourceMetrics metrics = new ExternalSourceMetrics(registry);
         StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
+        counters.attach(metrics, "s3");
         TransientTypingInputStream typed = new TransientTypingInputStream(
             new ByteArrayInputStream(payload),
             PATH,
             payload.length,
-            leftoverBytes -> counters.addBytes(leftoverBytes)
+            leftoverBytes -> counters.publishDrainedBytes(leftoverBytes)
         );
         MeteredInputStream metered = new MeteredInputStream(typed, counters, typed::abort);
         assertEquals(read, metered.read(new byte[read]));
         metered.close();
         assertEquals(payload.length, counters.snapshot().bytesRead());
+        assertEquals("profile and APM must both include leftover drain", payload.length, apmBytesReadTotal(registry));
     }
 
     public void testCloseAbortsRemainderAbove64KiB() throws IOException {
@@ -168,20 +176,32 @@ public class S3StorageObjectAbortStreamTests extends ESTestCase {
         byte[] payload = new byte[read + leftover];
         AtomicBoolean abortCalled = new AtomicBoolean();
         AtomicBoolean closeCalled = new AtomicBoolean();
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        ExternalSourceMetrics metrics = new ExternalSourceMetrics(registry);
         StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
+        counters.attach(metrics, "s3");
         AbortableInputStream inner = new AbortableInputStream(new ByteArrayInputStream(payload), abortCalled, closeCalled);
         TransientTypingInputStream typed = new TransientTypingInputStream(
             inner,
             PATH,
             payload.length,
-            leftoverBytes -> counters.addBytes(leftoverBytes)
+            leftoverBytes -> counters.publishDrainedBytes(leftoverBytes)
         );
         MeteredInputStream metered = new MeteredInputStream(typed, counters, typed::abort);
         assertEquals(read, metered.read(new byte[read]));
         metered.close();
         assertEquals(read, counters.snapshot().bytesRead());
+        assertEquals("abort skips leftover; APM is delivered-to-caller only", read, apmBytesReadTotal(registry));
         assertTrue(abortCalled.get());
         assertFalse(closeCalled.get());
+    }
+
+    private static long apmBytesReadTotal(RecordingMeterRegistry registry) {
+        return registry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_BYTES_READ_TOTAL)
+            .stream()
+            .mapToLong(Measurement::getLong)
+            .sum();
     }
 
     /**

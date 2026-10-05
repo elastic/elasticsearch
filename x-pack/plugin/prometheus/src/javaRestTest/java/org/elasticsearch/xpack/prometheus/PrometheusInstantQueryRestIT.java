@@ -462,6 +462,19 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertBinopInstantGroups("sum by (host, __name__) (tx) / on (host) sum by (host, __name__) (rx)", "host", txRxRatios());
     }
 
+    /**
+     * {@code vector(s)} in an {@code or} fills what the other side lacks: its steps are its own, so the instant query's range
+     * filter still drops the sample exactly one lookback before the query time, and the range query keeps one step per row.
+     */
+    public void testInstantOrConstantVector() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME.minusSeconds(300));
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("tx or vector(0)", 10, 30, 12, 0);
+        assertBinopInstantValues("vector(0) or tx", 0, 10, 30, 12);
+        assertBinopInstantValues("sum(tx) or vector(0)", 52);
+        assertBinopInstantValues("sum(tx{host=~\"nope\"}) or vector(0)", 0);
+    }
+
     private ObjectPath executeBinopInstantQuery(String expression) throws IOException {
         Request request = prometheusReadRequest(
             "/_prometheus/api/v1/query",
@@ -508,4 +521,22 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertThat(error.getMessage(), containsString("duplicate"));
     }
 
+    /**
+     * {@code vector(s)} is one series with no labels at every step: an aggregate over it is itself, it pairs only with
+     * another label-less vector, and a comparison filters it like any other vector. Against a vector without a concrete
+     * label set it is rejected rather than broadcast to every series.
+     */
+    public void testInstantConstantVector() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("sum(vector(1))", 1);
+        assertBinopInstantValues("count(vector(5))", 1);
+        assertBinopInstantValues("vector(1) + vector(2)", 3);
+        assertBinopInstantValues("sum(tx) + vector(1)", 53);
+        assertBinopInstantValues("sum by (cluster) (tx) + vector(1)");
+        ResponseException error = expectThrows(ResponseException.class, () -> executeBinopInstantQuery("tx * vector(2)"));
+        assertThat(error.getMessage(), containsString("binary operations between vector() and a vector without a concrete label set"));
+        assertBinopInstantValues("abs(vector(-1)) * 3", 3);
+        assertBinopInstantValues("vector(1) > 2");
+        assertBinopInstantValues("vector(3) > 2", 3);
+    }
 }

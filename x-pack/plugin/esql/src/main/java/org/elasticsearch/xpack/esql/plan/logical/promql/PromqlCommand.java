@@ -540,7 +540,21 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                                 // https://github.com/elastic/elasticsearch/issues/157669
                                 // Operand shapes that produce them: without aggregations (#157671), label functions (#157672).
                                 failures.add(fail(lp, "vector matching requires operands with concrete label sets [{}]", lp.sourceText()));
-                            }
+                            } else if (scalarOperand == false
+                                && hasSourceBackedExpression(binaryOperator.left()) != hasSourceBackedExpression(binaryOperator.right())
+                                && (hasConcreteLabels(binaryOperator.left()) == false
+                                    || hasConcreteLabels(binaryOperator.right()) == false)) {
+                                        // vector(s) is one series with no labels, so it pairs only with series that have no labels
+                                        // either: telling those apart needs the match keys of the TODO above.
+                                        failures.add(
+                                            fail(
+                                                lp,
+                                                "binary operations between vector() and a vector without a concrete label set "
+                                                    + "are not supported at this time [{}]",
+                                                lp.sourceText()
+                                            )
+                                        );
+                                    }
                     }
                     if (binaryOperator instanceof VectorBinaryComparison comp) {
                         if (comp.match() == VectorMatch.NONE && root.get() == false) {

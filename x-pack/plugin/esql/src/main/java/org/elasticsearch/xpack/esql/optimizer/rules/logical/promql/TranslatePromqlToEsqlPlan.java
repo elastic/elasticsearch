@@ -310,23 +310,22 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 plan = pushDownSrcTimestampFilter(plan, filter);
             }
 
-            if (ir.kind().constant == false) {
-                // TimeSeriesAggregate always applies because InstantSelectors adds implicit last_over_time().
-                // TODO: with metric references without last_over_time, a plain Aggregate could do (#141501 discussion).
-                if (ir.kind().afterInitialAggregation == false) {
-                    IntermediateResult collapsed = collapse(ir.with(plan, ir.header(), value), ir.header(), value);
-                    plan = collapsed.plan();
-                    value = collapsed.value();
-                }
-                if (branch instanceof VectorBinaryComparison comparison && comparison.filterMode()) {
-                    VectorMatch match = comparison.match();
-                    if ((match.filter() != VectorMatch.Filter.NONE || match.grouping() != Joining.NONE) == false) {
-                        // Filter-mode comparison (metric > x): keep the left operand's value, filter rows by the comparison.
-                        // A vector-matched comparison already applied its filter inside the join translation.
-                        ToDouble right = new ToDouble(comparison.right().source(), ((LiteralSelector) comparison.right()).literal());
-                        var condition = comparison.op().asFunction().create(comparison.source(), value, right, configuration());
-                        plan = new Filter(comparison.source(), plan, condition);
-                    }
+            // TimeSeriesAggregate always applies because InstantSelectors adds implicit last_over_time().
+            // TODO: with metric references without last_over_time, a plain Aggregate could do (#141501 discussion).
+            if (ir.kind().afterInitialAggregation == false) {
+                IntermediateResult collapsed = collapse(ir.with(plan, ir.header(), value), ir.header(), value);
+                plan = collapsed.plan();
+                value = collapsed.value();
+            }
+            if (branch instanceof VectorBinaryComparison comparison && comparison.filterMode()) {
+                VectorMatch match = comparison.match();
+                if ((match.filter() != VectorMatch.Filter.NONE || match.grouping() != Joining.NONE) == false) {
+                    // Filter-mode comparison (metric > x): keep the left operand's value, filter rows by the comparison - a
+                    // constant included (`vector(1) > 2` is empty). A vector-matched comparison already applied its filter
+                    // inside the join translation.
+                    ToDouble right = new ToDouble(comparison.right().source(), ((LiteralSelector) comparison.right()).literal());
+                    var condition = comparison.op().asFunction().create(comparison.source(), value, right, configuration());
+                    plan = new Filter(comparison.source(), plan, condition);
                 }
             }
 
@@ -402,9 +401,12 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             };
             Translation translation = new Translation(cmd, analyzer, stepBucketAlias, childRequired, time);
             IntermediateResult ir = translation.doTranslateNode(agg.child());
-            if (ir.kind().constant) {
+            if (ir.isEmpty()) {
                 return ir;
             }
+            // A constant vector is one `{}` series per step whatever the source holds: the aggregate regroups its
+            // compile-time table (`sum(vector(1))` is 1), never one copy of it per stored series.
+            ir = doTranslateTryInline(ir);
             Header header = switch (agg.grouping()) {
                 case BY -> finite(mapFinite(agg.output()));
                 case WITHOUT -> regroupWithout(ir.header(), keys);
@@ -518,14 +520,9 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         }
 
         private static IntermediateResult table(LogicalPlan plan, IntermediateResult input, Header header, Alias value) {
-            return new IntermediateResult(
-                plan,
-                header,
-                value.toAttribute(),
-                input.step(),
-                input.pendingFilter(),
-                Kind.AFTER_INITIAL_AGGREGATE
-            );
+            // an aggregate over a constant table is still a compile-time relation over the query's steps
+            Kind kind = input.kind().constant ? Kind.CONSTANT : Kind.AFTER_INITIAL_AGGREGATE;
+            return new IntermediateResult(plan, header, value.toAttribute(), input.step(), input.pendingFilter(), kind);
         }
 
         /**
@@ -661,7 +658,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             IntermediateResult result = new Translation(cmd, analyzer, stepBucketAlias, childRequired, time).doTranslateNode(
                 function.child()
             );
-            if (result.kind().constant) {
+            if (result.isEmpty()) {
                 return result;
             }
 
@@ -716,7 +713,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         /** Translates a generic PromQL function call (rate, ceil, abs, etc.) into an expression over the child's value. */
         private IntermediateResult doTranslateFunc(PromqlFunctionCall functionCall) {
             IntermediateResult child = doTranslateNode(functionCall.child());
-            if (child.kind().constant) {
+            if (child.isEmpty()) {
                 return child;
             }
             Expression window = AggregateFunction.NO_WINDOW;
@@ -747,7 +744,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             IntermediateResult child = new Translation(cmd, analyzer, stepBucketAlias, childRequired, time).doTranslateNode(
                 relabel.child()
             );
-            if (child.kind().constant) {
+            if (child.isEmpty()) {
                 return child;
             }
 
@@ -774,14 +771,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 plan = new Project(cmd.source(), plan, unshadowed);
             }
             Header header = aggregated.header().union(finite(List.of(name)));
-            return new IntermediateResult(
-                plan,
-                header,
-                aggregated.value(),
-                aggregated.step(),
-                aggregated.pendingFilter(),
-                Kind.AFTER_INITIAL_AGGREGATE
-            );
+            return aggregated.with(plan, header, aggregated.value());
         }
 
         /**
@@ -874,6 +864,9 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             }
 
             IntermediateResult right = doTranslateNode(binaryOp.right());
+            if (left.kind().constant || right.kind().constant) {
+                return doTranslateBinaryOpOverConstant(binaryOp, left, right);
+            }
             Expression rightExpr = new ToDouble(right.value().source(), right.value());
             Expression binaryExpr = binaryOp.binaryOp().asFunction().create(binaryOp.source(), leftExpr, rightExpr, configuration());
 
@@ -892,6 +885,54 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 : Kind.BEFORE_INITIAL_AGGREGATE;
             IntermediateResult result = new IntermediateResult(plan, shape, null, left.step(), filter, kind);
             return doTranslateAddValueEval(result, binaryExpr);
+        }
+
+        /**
+         * Composes a binary operator over a compile-time table ({@code sum(vector(1)) * 2}): the other operand must be an
+         * expression over any row - a literal, {@code time()}, {@code vector(s)} - which the table carries over its own step
+         * column, and the result is a compile-time table too. Another table (an aggregate over the source, or over
+         * {@code vector(s)} again) is a second relation the shared aggregate cannot hold.
+         */
+        private IntermediateResult doTranslateBinaryOpOverConstant(
+            VectorBinaryOperator binaryOp,
+            IntermediateResult left,
+            IntermediateResult right
+        ) {
+            boolean carriesLeft = right.kind().constant && isOverAnyRow(left);
+            IntermediateResult table = carriesLeft ? right : left;
+            IntermediateResult carried = carriesLeft ? left : right;
+            if (table.kind().constant == false || isOverAnyRow(carried) == false) {
+                throw new VerificationException(
+                    "binary operations between [{}] and [{}] are not supported at this time",
+                    binaryOp.left().sourceText(),
+                    binaryOp.right().sourceText()
+                );
+            }
+            Expression carriedValue = carried.value().transformUp(Attribute.class, a -> isStep(carried, a) ? table.step() : a);
+            Expression leftValue = carriesLeft ? carriedValue : table.value();
+            Expression rightValue = carriesLeft ? table.value() : carriedValue;
+            Expression leftExpr = new ToDouble(leftValue.source(), leftValue);
+            Expression rightExpr = new ToDouble(rightValue.source(), rightValue);
+            Expression binaryExpr = binaryOp.binaryOp().asFunction().create(binaryOp.source(), leftExpr, rightExpr, configuration());
+            Header shape = left.header().equals(Header.EMPTY) == false ? left.header() : right.header();
+            IntermediateResult result = new IntermediateResult(
+                table.plan(),
+                shape,
+                null,
+                table.step(),
+                table.pendingFilter(),
+                Kind.CONSTANT
+            );
+            return doTranslateAddValueEval(result, binaryExpr);
+        }
+
+        /** Whether the value refers to nothing but a step column: an expression any table with a step column can carry. */
+        private boolean isOverAnyRow(IntermediateResult t) {
+            return t.value().references().stream().allMatch(ref -> isStep(t, ref));
+        }
+
+        private boolean isStep(IntermediateResult t, Attribute attribute) {
+            return attribute.semanticEquals(t.step()) || attribute.semanticEquals(cmd.stepAttribute());
         }
 
         /**

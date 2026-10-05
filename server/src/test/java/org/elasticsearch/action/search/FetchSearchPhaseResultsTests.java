@@ -12,11 +12,11 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,13 +24,10 @@ import java.util.List;
 import static org.elasticsearch.action.search.FetchSearchPhaseTests.requestBreaker;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class FetchSearchPhaseResultsTests extends ESTestCase {
-
-    @BeforeClass
-    public static void checkAccountingFeatureFlag() {
-        assumeTrue("requires the coordinator fetch accounting feature flag", FetchSearchPhaseResults.ACCOUNTING_FEATURE_FLAG.isEnabled());
-    }
 
     public void testChargeIsHeldUntilTheResultsAreReleased() {
         CircuitBreaker breaker = requestBreaker("1gb");
@@ -91,8 +88,7 @@ public class FetchSearchPhaseResultsTests extends ESTestCase {
         }
     }
 
-    public void testResultAlreadyChargedOnTheCoordinatorIsNotChargedAgain() {
-        assumeTrue("requires the coordinator fetch accounting feature flag", FetchSearchPhaseResults.ACCOUNTING_FEATURE_FLAG.isEnabled());
+    public void testChargeHandedOverByTheChunkedPathIsTakenOverNotChargedAgain() {
         CircuitBreaker breaker = requestBreaker("1gb");
         FetchSearchResult handedOver = fetchResult(0, 1);
         // What the chunked path does: it charged for these hits while accumulating them, then handed the charge over.
@@ -102,11 +98,79 @@ public class FetchSearchPhaseResultsTests extends ESTestCase {
         try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker)) {
             results.reserve(handedOver);
             assertThat("reserve must not estimate these hits a second time", breaker.getUsed(), equalTo(charged));
+            assertFalse("the collection owns the charge now", handedOver.isChargedOnCoordinator());
 
             results.close();
-            assertThat("the collection holds no charge for a result that carries its own", breaker.getUsed(), equalTo(charged));
+            assertThat(breaker.getUsed(), equalTo(0L));
         } finally {
             handedOver.decRef();
+        }
+        // Releasing the result gave nothing back, since it no longer holds a charge.
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testTransferCoversAChargeHandedOverByTheChunkedPath() {
+        CircuitBreaker breaker = requestBreaker("1gb");
+        FetchSearchResult handedOver = fetchResult(0, 1);
+        long charged = 4096L;
+        breaker.addWithoutBreaking(charged);
+        handedOver.setCoordinatorSearchHitsSizeBytes(charged, breaker);
+        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker)) {
+            results.reserve(handedOver);
+
+            Releasable charge = results.transferCharge();
+            assertThat("the chunked route's charge has to reach the response too", charge, notNullValue());
+            results.close();
+            assertThat(breaker.getUsed(), equalTo(charged));
+
+            charge.close();
+            assertThat(breaker.getUsed(), equalTo(0L));
+        } finally {
+            handedOver.decRef();
+        }
+    }
+
+    public void testChargeSumsAcrossChunkedAndEstimatedShards() {
+        // The route is picked per data node, so a rolling upgrade puts both kinds of shard in one fetch.
+        CircuitBreaker breaker = requestBreaker("1gb");
+        FetchSearchResult handedOver = fetchResult(0, 1);
+        long charged = 4096L;
+        breaker.addWithoutBreaking(charged);
+        handedOver.setCoordinatorSearchHitsSizeBytes(charged, breaker);
+        FetchSearchResult estimated = fetchResult(1, 2);
+        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(2, breaker)) {
+            results.reserve(handedOver);
+            results.reserve(estimated);
+            long expected = charged + hitBytes(estimated);
+            assertThat(breaker.getUsed(), equalTo(expected));
+
+            Releasable charge = results.transferCharge();
+            results.close();
+            assertThat("one charge covers both routes", breaker.getUsed(), equalTo(expected));
+
+            charge.close();
+            assertThat(breaker.getUsed(), equalTo(0L));
+        } finally {
+            handedOver.decRef();
+            estimated.decRef();
+        }
+    }
+
+    public void testChunkedShardArrivingAfterReleaseGivesItsChargeStraightBack() {
+        CircuitBreaker breaker = requestBreaker("1gb");
+        FetchSearchResult inFlight = fetchResult(0, 1);
+        long charged = 4096L;
+        breaker.addWithoutBreaking(charged);
+        inFlight.setCoordinatorSearchHitsSizeBytes(charged, breaker);
+        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker)) {
+            // A phase failure released the collection while this shard was still in flight.
+            results.close();
+
+            results.reserve(inFlight);
+            assertThat("reserve has to give back a charge it took over but cannot hold", breaker.getUsed(), equalTo(0L));
+            assertFalse(inFlight.isChargedOnCoordinator());
+        } finally {
+            inFlight.decRef();
         }
         assertThat(breaker.getUsed(), equalTo(0L));
     }
@@ -122,6 +186,57 @@ public class FetchSearchPhaseResultsTests extends ESTestCase {
             assertThat(breaker.getUsed(), equalTo(0L));
 
             results.reserve(inFlight);
+            assertThat(breaker.getUsed(), equalTo(0L));
+        } finally {
+            early.decRef();
+            inFlight.decRef();
+        }
+    }
+
+    public void testTransferHandsTheChargeToTheCallerAndClosesBecomeNoOps() {
+        CircuitBreaker breaker = requestBreaker("1gb");
+        FetchSearchResult result = fetchResult(0, 3);
+        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker)) {
+            long expected = hitBytes(result);
+            results.reserve(result);
+
+            Releasable charge = results.transferCharge();
+            assertThat(charge, notNullValue());
+            // The caller now owns the charge, so close() must not also release it.
+            assertThat(breaker.getUsed(), equalTo(expected));
+            results.close();
+            assertThat(breaker.getUsed(), equalTo(expected));
+
+            charge.close();
+            assertThat(breaker.getUsed(), equalTo(0L));
+        } finally {
+            result.decRef();
+        }
+    }
+
+    public void testTransferWithNothingReservedReturnsNull() {
+        CircuitBreaker breaker = requestBreaker("1gb");
+        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker)) {
+            assertThat(results.transferCharge(), nullValue());
+            results.close();
+            assertThat(breaker.getUsed(), equalTo(0L));
+        }
+    }
+
+    public void testShardArrivingAfterTransferGivesItsChargeStraightBack() {
+        CircuitBreaker breaker = requestBreaker("1gb");
+        FetchSearchResult early = fetchResult(0, 2);
+        FetchSearchResult inFlight = fetchResult(1, 2);
+        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(2, breaker)) {
+            long expected = hitBytes(early);
+            results.reserve(early);
+            Releasable charge = results.transferCharge();
+
+            // A shard that was still in flight when the response was built must not add to the transferred charge.
+            results.reserve(inFlight);
+            assertThat(breaker.getUsed(), equalTo(expected));
+
+            charge.close();
             assertThat(breaker.getUsed(), equalTo(0L));
         } finally {
             early.decRef();

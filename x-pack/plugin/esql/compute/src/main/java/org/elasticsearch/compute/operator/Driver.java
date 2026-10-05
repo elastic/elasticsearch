@@ -85,6 +85,12 @@ public class Driver implements Releasable, Describable {
     private final Supplier<String> description;
     protected List<Operator> activeOperators;
     private final List<OperatorStatus> statusOfCompletedOperators = new ArrayList<>();
+    /**
+     * Operators that asked to be resnapshotted after {@code waitForAsyncActions}. Index is into
+     * {@link #statusOfCompletedOperators}. Mutated only after {@link #isFinished()} when the
+     * driver loop is dead.
+     */
+    private final List<PendingFinalStatus> pendingFinalStatus = new ArrayList<>();
     private final Releasable releasable;
     private final long statusNanos;
 
@@ -243,13 +249,25 @@ public class Driver implements Releasable, Describable {
             }
             if (isFinished()) {
                 finishNanos = now;
-                updateStatus(
-                    finishNanos - lastStatusUpdateTime,
-                    iterationsSinceLastStatusUpdate,
-                    DriverStatus.Status.DONE,
-                    "driver done",
-                    now
-                );
+                if (pendingFinalStatus.isEmpty()) {
+                    updateStatus(
+                        finishNanos - lastStatusUpdateTime,
+                        iterationsSinceLastStatusUpdate,
+                        DriverStatus.Status.DONE,
+                        "driver done",
+                        now
+                    );
+                } else {
+                    // Delay DONE until waitForAsyncActions so a later resnapshot of kept operators
+                    // is the status the profile sees. Last-loop CPU still lands on this update.
+                    updateStatus(
+                        finishNanos - lastStatusUpdateTime,
+                        iterationsSinceLastStatusUpdate,
+                        DriverStatus.Status.RUNNING,
+                        "driver finishing",
+                        now
+                    );
+                }
                 driverContext.finish();
                 Releasables.close(releasable, driverContext.getSnapshot());
                 return Operator.NOT_BLOCKED.listener();
@@ -405,6 +423,7 @@ public class Driver implements Releasable, Describable {
                 Iterator<Operator> finishedOperators = this.activeOperators.subList(0, index + 1).iterator();
                 while (finishedOperators.hasNext()) {
                     Operator op = finishedOperators.next();
+                    int statusIndex = statusOfCompletedOperators.size();
                     statusOfCompletedOperators.add(new OperatorStatus(op.toString(), op.status()));
                     if (op instanceof SourceOperator sourceOperator) {
                         long now = currentTimeNanosSupplier.getAsLong();
@@ -412,6 +431,9 @@ public class Driver implements Releasable, Describable {
                         sourceOperator.reportSearchLoad(now - lastStatusUpdate, now);
                     }
                     op.close();
+                    if (op.finalStatusAfterAsyncActions()) {
+                        pendingFinalStatus.add(new PendingFinalStatus(statusIndex, op));
+                    }
                     finishedOperators.remove();
                 }
 
@@ -565,11 +587,21 @@ public class Driver implements Releasable, Describable {
             @Override
             public void onFailure(Exception e) {
                 driver.drainAndCloseOperators(e);
-                onComplete(ActionListener.running(() -> listener.onFailure(e)));
+                driver.driverContext.waitForAsyncActions(
+                    ContextPreservingActionListener.wrapPreservingContext(
+                        ActionListener.running(() -> listener.onFailure(e)),
+                        threadContext
+                    )
+                );
             }
 
             void onComplete(ActionListener<Void> listener) {
-                driver.driverContext.waitForAsyncActions(ContextPreservingActionListener.wrapPreservingContext(listener, threadContext));
+                driver.driverContext.waitForAsyncActions(
+                    ContextPreservingActionListener.wrapPreservingContext(ActionListener.wrap(ignored -> {
+                        driver.publishFinalStatusIfNeeded();
+                        listener.onResponse(null);
+                    }, listener::onFailure), threadContext)
+                );
             }
         };
         task = (AbstractRunnable) threadContext.preserveContext(task); // Preserve warnings and such
@@ -655,6 +687,24 @@ public class Driver implements Releasable, Describable {
      * @param extraIterations how many iterations to add to the previous status
      * @param status the status of the overall driver request
      */
+    /**
+     * Replaces kept operator statuses after async close and publishes {@code DONE}.
+     * May run on a producer thread; the driver loop is already dead.
+     */
+    private void publishFinalStatusIfNeeded() {
+        if (pendingFinalStatus.isEmpty()) {
+            return;
+        }
+        for (PendingFinalStatus pending : pendingFinalStatus) {
+            Operator op = pending.operator;
+            statusOfCompletedOperators.set(pending.index, new OperatorStatus(op.toString(), op.status()));
+        }
+        pendingFinalStatus.clear();
+        updateStatus(0, 0, DriverStatus.Status.DONE, "driver done", System.nanoTime());
+    }
+
+    private record PendingFinalStatus(int index, Operator operator) {}
+
     private void updateStatus(long extraCpuNanos, int extraIterations, DriverStatus.Status status, String reason, long nowNanos) {
         this.status.getAndUpdate(prev -> {
             long now = System.currentTimeMillis();

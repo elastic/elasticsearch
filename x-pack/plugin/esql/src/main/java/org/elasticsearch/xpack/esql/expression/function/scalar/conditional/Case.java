@@ -11,6 +11,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -41,7 +42,9 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.IntStream;
@@ -54,12 +57,28 @@ public final class Case extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Case", Case::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Case.class)
         .unaryVariadic(Case::new)
-        .capabilities("flattened")
+        // A one value list condition is single valued, so it picks a branch like a plain boolean.
+        // A multivalued one warns even when the CASE is only partially folded, and reports the
+        // same message the other functions use.
+        .capabilities(
+            "flattened",
+            "single_value_list_condition",
+            "partial_fold_multivalue_warning",
+            "standard_multivalue_message",
+            "multivalue_warning_names_function"
+        )
         .name("case");
 
+    private static final String MULTIVALUE_CONDITION_MESSAGE = "single-value function encountered multi-value";
+
     record Condition(Expression condition, Expression value) {
-        ConditionEvaluatorSupplier toEvaluator(ToEvaluator toEvaluator) {
-            return new ConditionEvaluatorSupplier(condition.source(), toEvaluator.apply(condition), toEvaluator.apply(value));
+        /**
+         * @param caseSource the source of the enclosing {@code CASE}, which multivalue warnings
+         *                   are reported against so that they name the function rather than one
+         *                   of its arguments
+         */
+        ConditionEvaluatorSupplier toEvaluator(ToEvaluator toEvaluator, Source caseSource) {
+            return new ConditionEvaluatorSupplier(caseSource, toEvaluator.apply(condition), toEvaluator.apply(value));
         }
     }
 
@@ -270,46 +289,126 @@ public final class Case extends EsqlScalarFunction {
 
     @Override
     public boolean foldable() {
-        for (Condition condition : conditions) {
-            if (condition.condition.foldable() == false) {
-                return false;
-            }
-            /* Given the current condition is foldable,
-                if we have already folded the condition into a Literal
-                    If True, Case is foldable if the value is foldable
-                    If False, Case is foldable if the rest of the conditions are foldable
-                Otherwise
-                    if the value is foldable and the rest of the conditions are foldable, Case is foldable
-             */
-            if (condition.condition instanceof Literal literal) {
-                if (Boolean.TRUE.equals(literal.value())) {
-                    // The condition is literally TRUE, so only the matching value needs to be foldable.
-                    return condition.value.foldable();
-                } else {
-                    continue;
+        // Nested CASE values are walked here rather than recursed into, so a deep
+        // CASE(true, CASE(true, ...), ...) cannot overflow the stack.
+        Deque<Case> nested = null;
+        Case current = this;
+        while (current != null) {
+            Expression takenValue = null;
+            for (Condition condition : current.conditions) {
+                if (condition.condition.foldable() == false) {
+                    return false;
+                }
+                /* Given the current condition is foldable,
+                    if we have already folded the condition into a Literal
+                        If True, Case is foldable if the value is foldable
+                        If False, Case is foldable if the rest of the conditions are foldable
+                    Otherwise
+                        if the value is foldable and the rest of the conditions are foldable, Case is foldable
+                 */
+                if (condition.condition instanceof Literal literal) {
+                    if (isTrue(literal.value())) {
+                        // The condition is literally TRUE, so only the matching value needs to be foldable.
+                        takenValue = condition.value;
+                        break;
+                    } else {
+                        continue;
+                    }
+                }
+                if (condition.value instanceof Case c) {
+                    nested = defer(nested, c);
+                } else if (condition.value.foldable() == false) {
+                    return false;
                 }
             }
-            if (condition.value.foldable() == false) {
+            Expression last = takenValue == null ? current.elseValue : takenValue;
+            if (last instanceof Case c) {
+                nested = defer(nested, c);
+            } else if (last.foldable() == false) {
                 return false;
             }
+            current = nested == null || nested.isEmpty() ? null : nested.pop();
         }
-        return elseValue.foldable();
+        return true;
+    }
+
+    private static Deque<Case> defer(Deque<Case> nested, Case c) {
+        if (nested == null) {
+            nested = new ArrayDeque<>();
+        }
+        nested.push(c);
+        return nested;
     }
 
     @Override
     public Object fold(FoldContext ctx) {
-        DataType type = dataType();
-        if (type == DataType.DATE_PERIOD || type == DataType.TIME_DURATION) {
-            // These can't be managed by evaluators, we have to fold them manually.
-            // TODO manage warnings for MV condition (evaluators take care of that, here we don't have the components)
-            for (Condition condition : conditions) {
-                if (Boolean.TRUE.equals(condition.condition.fold(ctx))) {
-                    return condition.value.fold(ctx);
-                }
-            }
-            return elseValue.fold(ctx);
+        // Walk nested CASE along the taken branch so CASE(true, CASE(true, ...), ...)
+        // cannot overflow the stack.
+        Expression remaining = this;
+        while (remaining instanceof Case current) {
+            remaining = takenBranch(ctx, current);
         }
-        return super.fold(ctx);
+        return remaining.fold(ctx);
+    }
+
+    /**
+     * {@link PlannerUtils#toElementType} rejects these types, so they can't go in a
+     * {@link Block} and there is no evaluator to fold them with.
+     */
+    private static boolean hasNoEvaluator(Case c) {
+        DataType type = c.dataType();
+        return type == DataType.DATE_PERIOD || type == DataType.TIME_DURATION;
+    }
+
+    /**
+     * Is this the {@code true} the evaluator sees? {@code CaseLazyEvaluator#eval} reads the value
+     * out of the Block, so a one value list is single valued and counts, while more than one is
+     * multivalued and is treated as false.
+     */
+    private static boolean isTrue(Object value) {
+        if (value instanceof List<?> values) {
+            return values.size() == 1 && Boolean.TRUE.equals(values.getFirst());
+        }
+        return Boolean.TRUE.equals(value);
+    }
+
+    private static Expression takenBranch(FoldContext ctx, Case current) {
+        for (Condition condition : current.conditions) {
+            Object folded = condition.condition.fold(ctx);
+            warnIfMultivaluedCondition(current, folded);
+            if (isTrue(folded)) {
+                return condition.value;
+            }
+        }
+        return current.elseValue;
+    }
+
+    /**
+     * The two warnings {@link Warnings#registerException} raises for a multivalued condition.
+     * Planning drops such a condition without building an evaluator, in {@link #takenBranch} and
+     * in {@link #partiallyFold}, so the warning the evaluator would have raised has to come from
+     * here instead. Types with no evaluator have never warned and still don't.
+     * <p>
+     *     There is no {@link DriverContext} to collect these, so they go straight to the response
+     *     headers, like {@code SpatialGridFunction#foldWarningConsumer}. Keep the text in step
+     *     with {@link Warnings}, including the 20 from its {@code MAX_ADDED_WARNINGS}, or a
+     *     planned CASE warns differently from an evaluated one.
+     * </p>
+     */
+    private static void warnIfMultivaluedCondition(Case c, Object folded) {
+        if (folded instanceof List<?> values && values.size() > 1 && hasNoEvaluator(c) == false) {
+            Source source = c.source();
+            String location = source.viewName() == null
+                ? format("Line {}:{}: ", source.lineNumber(), source.columnNumber())
+                : format("Line {}:{} (in view [{}]): ", source.lineNumber(), source.columnNumber(), source.viewName());
+            HeaderWarning.addWarning(
+                "{}evaluation of [{}] failed, treating result as false. Only first {} failures recorded.",
+                location,
+                source.text(),
+                20
+            );
+            HeaderWarning.addWarning(location + IllegalArgumentException.class.getName() + ": " + MULTIVALUE_CONDITION_MESSAGE);
+        }
     }
 
     /**
@@ -340,10 +439,12 @@ public final class Case extends EsqlScalarFunction {
                 continue;
             }
             modified = true;
-            if (Boolean.TRUE.equals(condition.condition.fold(ctx))) {
+            Object folded = condition.condition.fold(ctx);
+            warnIfMultivaluedCondition(this, folded);
+            if (isTrue(folded)) {
                 /*
                  * `fold` can make four things here:
-                 * 1. `TRUE`
+                 * 1. `TRUE`, or a one element list holding it, which is single valued
                  * 2. `FALSE`
                  * 3. null
                  * 4. A list with more than one `TRUE` or `FALSE` in it.
@@ -394,7 +495,7 @@ public final class Case extends EsqlScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        List<ConditionEvaluatorSupplier> conditionsFactories = conditions.stream().map(c -> c.toEvaluator(toEvaluator)).toList();
+        List<ConditionEvaluatorSupplier> conditionsFactories = conditions.stream().map(c -> c.toEvaluator(toEvaluator, source())).toList();
         ExpressionEvaluator.Factory elseValueFactory = toEvaluator.apply(elseValue);
         ElementType resultType = PlannerUtils.toElementType(dataType());
 
@@ -450,7 +551,7 @@ public final class Case extends EsqlScalarFunction {
         }
 
         public void registerMultivalue() {
-            conditionWarnings.registerException(new IllegalArgumentException("CASE expects a single-valued boolean"));
+            conditionWarnings.registerException(new IllegalArgumentException(MULTIVALUE_CONDITION_MESSAGE));
         }
 
         public long baseRamBytesUsed() {

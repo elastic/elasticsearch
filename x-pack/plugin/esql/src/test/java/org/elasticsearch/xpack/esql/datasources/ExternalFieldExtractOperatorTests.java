@@ -28,6 +28,7 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.AsyncOperatorTestCase;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.operator.blocksource.AbstractBlockSourceOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
@@ -805,7 +806,9 @@ public class ExternalFieldExtractOperatorTests extends AsyncOperatorTestCase {
                 built = true;
                 return result;
             } finally {
-                if (built == false) org.elasticsearch.core.Releasables.closeExpectNoException(result);
+                if (built == false) {
+                    Releasables.closeExpectNoException(result);
+                }
             }
         }
 
@@ -837,7 +840,7 @@ public class ExternalFieldExtractOperatorTests extends AsyncOperatorTestCase {
                 return result;
             } finally {
                 if (built == false) {
-                    org.elasticsearch.core.Releasables.closeExpectNoException(result);
+                    Releasables.closeExpectNoException(result);
                 }
             }
         }

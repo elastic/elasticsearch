@@ -118,9 +118,8 @@ public abstract class AbstractColumnarArrayOrderSyntheticSourceTestCase extends 
 
     public void testEmptyStringDistinctFromNull() throws IOException {
         // The distinction is what [index.mapping.empty_keyword_string_as_null] gives up, so this asks for it off.
-        var mapper = columnarMapperService(
-            Settings.builder().put(FieldMapper.EMPTY_KEYWORD_STRING_AS_NULL_SETTING.getKey(), false)
-        ).documentMapper();
+        var mapper = columnarMapperService(Settings.builder().put(FieldMapper.EMPTY_KEYWORD_STRING_AS_NULL_SETTING.getKey(), false))
+            .documentMapper();
         assertEquals("""
             {"field":""}""", syntheticSource(mapper, b -> b.array("field", "")));
         assertEquals("""

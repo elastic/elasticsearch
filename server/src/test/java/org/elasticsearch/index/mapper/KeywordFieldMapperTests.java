@@ -24,7 +24,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.analysis.MockLowerCaseFilter;
@@ -36,6 +35,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
@@ -2169,7 +2169,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         final MapperService mapperService = emptyStringAsNull(b -> b.field("type", "keyword"));
         final SearchExecutionContext context = createSearchExecutionContext(mapperService);
         final MappedFieldType fieldType = mapperService.fieldType("field");
-        final Query expected = new BooleanQuery.Builder().add(new MatchAllDocsQuery(), BooleanClause.Occur.FILTER)
+        final Query expected = new BooleanQuery.Builder().add(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.FILTER)
             .add(fieldType.existsQuery(context), BooleanClause.Occur.MUST_NOT)
             .build();
         assertEquals(expected, fieldType.termQuery("", context));

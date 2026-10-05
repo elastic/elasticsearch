@@ -20,6 +20,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
@@ -468,6 +469,9 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
         return Settings.builder()
             .put(IndexSettings.MODE.getKey(), mode)
             .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), codecEnabled)
+            // The documents below hold empty strings and these tests expect them back, so the index is asked not to
+            // read them as nulls.
+            .put(FieldMapper.EMPTY_KEYWORD_STRING_AS_NULL_SETTING.getKey(), false)
             .build();
     }
 

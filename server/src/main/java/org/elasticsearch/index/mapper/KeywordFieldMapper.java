@@ -33,7 +33,6 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -54,6 +53,7 @@ import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.GroupedReleasables;
 import org.elasticsearch.core.Nullable;
@@ -683,7 +683,10 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final IndexVersion indexVersion;
         private final DocValuesDiskFormat diskFormat;
         private final boolean preservesArrayOrder;
-        /** Whether a searched-for {@code ""} asks for the documents that hold no value; see {@link FieldMapper#EMPTY_KEYWORD_STRING_AS_NULL_SETTING}. */
+        /**
+         * Whether a searched-for {@code ""} asks for the documents that hold no value; see
+         * {@link FieldMapper#EMPTY_KEYWORD_STRING_AS_NULL_SETTING}.
+         */
         private final boolean emptyStringAsNull;
 
         public KeywordFieldType(
@@ -1082,7 +1085,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         /** The documents that hold no value for this field. */
         private Query noValueQuery(SearchExecutionContext context) {
-            return new BooleanQuery.Builder().add(new MatchAllDocsQuery(), BooleanClause.Occur.FILTER)
+            return new BooleanQuery.Builder().add(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.FILTER)
                 .add(existsQuery(context), BooleanClause.Occur.MUST_NOT)
                 .build();
         }

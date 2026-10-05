@@ -466,51 +466,33 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
-    public void testCacheMaintenanceSettingsFallBackToCacheBoostPreference() {
+    public void testCacheMaintenanceSettingsDefaultToTrueIndependentlyOfCacheBoostPreference() {
         for (boolean cacheBoostPreferenceEnabled : new boolean[] { true, false }) {
             final var settings = Settings.builder()
                 .put(STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), cacheBoostPreferenceEnabled)
                 .build();
             for (Setting<Boolean> maintenanceSetting : CACHE_MAINTENANCE_SETTINGS) {
-                assertThat(maintenanceSetting.get(settings), equalTo(cacheBoostPreferenceEnabled));
+                assertThat(maintenanceSetting.get(settings), is(true));
             }
         }
         for (Setting<Boolean> maintenanceSetting : CACHE_MAINTENANCE_SETTINGS) {
-            assertThat("unset boost preference leaves the maintenance settings off", maintenanceSetting.get(Settings.EMPTY), is(false));
+            assertThat(
+                "maintenance settings default to true regardless of boost preference",
+                maintenanceSetting.get(Settings.EMPTY),
+                is(true)
+            );
         }
     }
 
-    public void testExplicitCacheMaintenanceSettingOverridesCacheBoostPreference() {
-        for (boolean cacheBoostPreferenceEnabled : new boolean[] { true, false }) {
-            for (Setting<Boolean> overriddenSetting : CACHE_MAINTENANCE_SETTINGS) {
-                final var settings = Settings.builder()
-                    .put(STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), cacheBoostPreferenceEnabled)
-                    .put(overriddenSetting.getKey(), cacheBoostPreferenceEnabled == false)
-                    .build();
-                assertThat(overriddenSetting.get(settings), equalTo(cacheBoostPreferenceEnabled == false));
-                for (Setting<Boolean> otherSetting : CACHE_MAINTENANCE_SETTINGS) {
-                    if (otherSetting.getKey().equals(overriddenSetting.getKey()) == false) {
-                        assertThat(otherSetting.get(settings), equalTo(cacheBoostPreferenceEnabled));
-                    }
+    public void testExplicitCacheMaintenanceSettingOverride() {
+        for (Setting<Boolean> overriddenSetting : CACHE_MAINTENANCE_SETTINGS) {
+            final var settings = Settings.builder().put(overriddenSetting.getKey(), false).build();
+            assertThat(overriddenSetting.get(settings), is(false));
+            for (Setting<Boolean> otherSetting : CACHE_MAINTENANCE_SETTINGS) {
+                if (otherSetting.getKey().equals(overriddenSetting.getKey()) == false) {
+                    assertThat(otherSetting.get(settings), is(true));
                 }
             }
-        }
-    }
-
-    /// Removing a cluster-level override must return the setting to the value derived from the node's boost preference, not to `false`.
-    public void testCacheMaintenanceSettingResetsToCacheBoostPreferenceDerivedValue() {
-        final var nodeSettings = Settings.builder().put(STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true).build();
-        for (Setting<Boolean> maintenanceSetting : CACHE_MAINTENANCE_SETTINGS) {
-            final var clusterSettings = createClusterSettings(nodeSettings);
-            final var enabled = new AtomicBoolean();
-            clusterSettings.initializeAndWatch(maintenanceSetting, enabled::set);
-            assertTrue(enabled.get());
-
-            clusterSettings.applySettings(Settings.builder().put(maintenanceSetting.getKey(), false).build());
-            assertFalse(enabled.get());
-
-            clusterSettings.applySettings(Settings.EMPTY);
-            assertTrue(enabled.get());
         }
     }
 

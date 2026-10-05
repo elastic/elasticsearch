@@ -232,9 +232,18 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
         // accumulators). Sizing against the breaker budget (not total heap) leaves headroom for the
         // untracked allocations from the S3 client's Netty infrastructure and the format-specific
         // parsing pipeline.
+        //
+        // ZSTD is tighter. PanamaZstdInputStream holds an 8 MiB native back-reference window plus
+        // staging copies; window growth is addWithoutBreaking, and schema metadata decompresses
+        // with a null breaker. Four rows per key (the uncompressed default) then kills the 512 MB
+        // node before the hash table trips — ConnectionClosedException, not 429. One row per key
+        // still creates the same groups. Pipelined STATS then cancels the GET mid-frame, which
+        // surfaces as 400 Truncated zstd rather than 429; sequential parse plus allowing that
+        // abort keep the node-alive invariant without disabling the test.
         long breakerBudget = clusterHeapMax * ExternalClusters.BREAKER_LIMIT_PERCENT / 100;
         int baseDistinctKeys = (int) Math.min(MAX_ROWS / 4, breakerBudget / 64L * 3 / 2);
-        int baseRowCount = baseDistinctKeys * 4;
+        int rowsPerKey = compression == Compression.ZSTD ? 1 : 4;
+        int baseRowCount = baseDistinctKeys * rowsPerKey;
         // Same key across attempts so the fixture's blob map holds at most one payload per test
         // method — otherwise five attempts × ~200 MB pile up in the test JVM heap.
         String key = scenarioKey("statsblowup", format, compression);
@@ -243,7 +252,7 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
         // key's extension, so the dataset carries no WITH settings.
         String dataset = datasetName("statsblowup", format, compression);
         DatasetRegistry.ensureDataset(adminClient(), dataset, DATA_SOURCE, "s3://" + BUCKET + "/" + key, null);
-        assertCircuitBreaks(attempt -> {
+        TryCircuitBreaking blowup = attempt -> {
             int distinctKeys = (int) Math.min(MAX_ROWS / 4, (long) baseDistinctKeys * attempt);
             int rowCount = (int) Math.min(MAX_ROWS, (long) baseRowCount * attempt);
             byte[] payload = HeapAttackExternalFixtures.maybeCompress(
@@ -253,8 +262,13 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
             );
             S3FixtureUtils.addBlobToFixture(handler(), key, payload);
             String esql = "FROM " + dataset + " | STATS c = COUNT(*) BY id";
-            return runQueryAsMap(esql);
-        });
+            return runQueryAsMap(esql, compression == Compression.ZSTD);
+        };
+        if (compression == Compression.ZSTD) {
+            assertCircuitBreaksAllowingCancelledDecompress(blowup);
+        } else {
+            assertCircuitBreaks(blowup);
+        }
     }
 
     /*
@@ -311,11 +325,19 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
         );
     }
 
-    private Map<String, Object> runQueryAsMap(String esql) throws IOException {
+    /**
+     * @param sequentialParse {@code true} pins {@code external_parsing_parallelism} to 1 so a
+     *                        {@code .csv.zst} read stays on the sequential codec path. Parallel
+     *                        streaming parse wraps a cancelled GET as {@code Truncated zstd input}.
+     */
+    private Map<String, Object> runQueryAsMap(String esql, boolean sequentialParse) throws IOException {
         // Wrap in JSON {"query":"..."} the same way HeapAttackRestHelpers#query expects.
-        String body = "{\"query\":\"" + esql.replace("\"", "\\\"") + "\"}";
-        Response response = query(body, null);
-        Map<String, Object> map = responseAsMap(response);
-        return map;
+        StringBuilder body = new StringBuilder("{\"query\":\"").append(esql.replace("\"", "\\\"")).append("\"");
+        if (sequentialParse) {
+            body.append(", \"pragma\": {\"external_parsing_parallelism\": 1}");
+        }
+        body.append("}");
+        Response response = query(body.toString(), null);
+        return responseAsMap(response);
     }
 }

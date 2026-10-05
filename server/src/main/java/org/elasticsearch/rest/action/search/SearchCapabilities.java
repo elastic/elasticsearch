@@ -82,6 +82,12 @@ public final class SearchCapabilities {
      * build and the include/exclude product bounded by a work limit.
      */
     private static final String AGGREGATION_INCLUDE_EXCLUDE_REGEX_CHARGED = "aggregation_include_exclude_regex_charged";
+    /**
+     * The regexp query builds its automaton through the charged compiler, each step reserved on the request breaker before
+     * it runs, so a pattern whose build is predicted to exceed the breaker's limit is refused with a circuit breaking
+     * exception and nothing stays reserved afterwards.
+     */
+    private static final String REGEXP_QUERY_CHARGED = "regexp_query_charged";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -123,6 +129,7 @@ public final class SearchCapabilities {
         capabilities.add(KEYED_FLATTENED_UNSUPPORTED_QUERIES_BAD_REQUEST);
         capabilities.add(AGGREGATION_INCLUDE_EXCLUDE_REGEX_LENGTH_LIMIT);
         capabilities.add(AGGREGATION_INCLUDE_EXCLUDE_REGEX_CHARGED);
+        capabilities.add(REGEXP_QUERY_CHARGED);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

@@ -1,6 +1,6 @@
 setup:
   - requires:
-      test_runner_features: [capabilities]
+      test_runner_features: [capabilities, arbitrary_key]
       capabilities:
         - method: GET
           path: /_search
@@ -33,6 +33,15 @@ setup:
           - { str: banana }
           - { index: { _id: "5" } }
           - { str: berry }
+
+---
+teardown:
+  # The request breaker limit is lowered by one of the tests below; restore the default for whatever runs next.
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            indices.breaker.request.limit: null
 
 ---
 "include and exclude together keep terms that match include but not exclude":
@@ -146,3 +155,73 @@ setup:
                 exclude: ".*(qmdki|asnmw|quahb|ulcxj|kqjbo|idscv|xvbjx|qmiws|hmvdn|pazys|uxsys|wadot|mnmxs|nyjtj|wozqk|kmjha|qmjmx|iirja|oahjs|zobzf|cofob|plkgx|cnvsq|ppaxr|tfbbn|fcvhw|sfdsr|yymdy|newpf|xeooq|duqtl|gdvlb|mjwby|rldow|tfnrr|ttjzf|empsa|weesp|usklb|bhxji|himaa|itqzr|lpzcn|rrbkn|ovjvw|fxjoy|bnjpj|aiyve|tishk|ammhc|sjeax|slyqv|pkrxw|owrhi|ulzuv|tiaes|apmxt|inwbm|xzgmp|emesj|diowh|smjfa|wmgho|eucuk|qleds|nygtf|hwpbc|etoum|vdbsh|ccffa|jajwd|pxruq|nwjsy|hburv|cignv|uhyex|mzxav|zqbwb|shwfr|njfmm|jwhvf|jxmss|ombba|jxrjj|dapgn|zbjfn|okfae|wcboo|cjdwj|mtymk|vpomh|puifz|saqvf|mxcrw|dkwjd|jxynh|wblgw|otihb|lfyua|uhkrf|zonde|ywzcv|sjfcl|obyiu|vyzdf|hpdvm|uzgqz|raned|ipqaa|ajzlm|dcrkv|udbqs|brqfi|lknlo|lvkgw|mwens|cyhfh|dboea|swvhf|fpbqg).*"
   - match:
       error.root_cause.0.reason: "/.*too.complex.to.determinize.*/"
+
+---
+"a build predicted to exceed the request breaker is refused, and the reservation is released":
+  # The compiler reserves an upper bound on each step of the build on the request breaker before running it. With the
+  # breaker's limit lowered, a pattern whose predicted size is above it is refused before anything is built, the
+  # breaker's trip count moves, and nothing stays reserved once the request has failed. The pattern is sized so that the
+  # test node could build it even uncharged, so a regression in the charging fails the status assertion below.
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            indices.breaker.request.limit: "100mb"
+
+  - do:
+      catch: /circuit_breaking_exception/
+      search:
+        rest_total_hits_as_int: true
+        index: test_terms
+        body:
+          size: 0
+          aggs:
+            terms_agg:
+              terms:
+                field: str
+                include: "x?{2000}"
+  - match: { status: 429 }
+  - match: { error.root_cause.0.type: circuit_breaking_exception }
+  - match: { error.root_cause.0.reason: "/.*Data\\stoo\\slarge,\\sdata\\sfor\\s\\[regexp\\].*/" }
+
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+  - do:
+      nodes.stats:
+        metric: [ breaker ]
+  - gte:   { nodes.$node_id.breakers.request.tripped: 1 }
+  - match: { nodes.$node_id.breakers.request.estimated_size_in_bytes: 0 }
+
+  # Under the same limit, the same shape at a size whose prediction fits builds and runs, as does a long bounded repeat.
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_terms
+        body:
+          size: 0
+          aggs:
+            terms_agg:
+              terms:
+                field: str
+                include: "x?{300}"
+  - length: { aggregations.terms_agg.buckets: 0 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_terms
+        body:
+          size: 0
+          aggs:
+            terms_agg:
+              terms:
+                field: str
+                include: ".{0,10000}"
+  - length: { aggregations.terms_agg.buckets: 5 }
+
+  - do:
+      nodes.stats:
+        metric: [ breaker ]
+  - match: { nodes.$node_id.breakers.request.estimated_size_in_bytes: 0 }

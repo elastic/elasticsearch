@@ -197,6 +197,70 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
         assertThat(new ObjectPath(hits2.getFirst()).evaluate("metrics." + metric2), equalTo(100.0));
     }
 
+    public void testRemoteWriteIndexesExemplar() throws Exception {
+        long timestamp = System.currentTimeMillis();
+        String metricName = "metric_with_exemplar";
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(
+                RemoteWrite.TimeSeries.newBuilder()
+                    .addLabels(label("__name__", metricName))
+                    .addLabels(label("job", "test_job"))
+                    .addExemplars(
+                        RemoteWrite.Exemplar.newBuilder()
+                            .addLabels(label("trace_id", "0af7651916cd43dd8448eb211c80319c"))
+                            .addLabels(label("span_id", "b7ad6b7169203331"))
+                            .setValue(42.5)
+                            .setTimestamp(timestamp)
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+
+        sendAndAssertSuccess(writeRequest);
+
+        ObjectPath source = searchSingleDoc("exemplars-generic.prometheus-default", metricName);
+        assertThat(source.evaluate("@timestamp"), notNullValue());
+        assertThat(source.evaluate("data_stream.type"), equalTo("exemplars"));
+        assertThat(source.evaluate("data_stream.dataset"), equalTo("generic.prometheus"));
+        assertThat(source.evaluate("data_stream.namespace"), equalTo("default"));
+        assertThat(source.evaluate("labels.__name__"), equalTo(metricName));
+        assertThat(source.evaluate("labels.job"), equalTo("test_job"));
+        assertThat(source.evaluate("exemplar_labels.trace_id"), equalTo("0af7651916cd43dd8448eb211c80319c"));
+        assertThat(source.evaluate("exemplar_labels.span_id"), equalTo("b7ad6b7169203331"));
+        assertThat(source.evaluate("value"), equalTo(42.5));
+    }
+
+    public void testRemoteWriteDeduplicatesExemplarsWithMissingTimestamps() throws Exception {
+        String metricName = "metric_with_duplicate_exemplars";
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(
+                RemoteWrite.TimeSeries.newBuilder()
+                    .addLabels(label("__name__", metricName))
+                    .addExemplars(
+                        RemoteWrite.Exemplar.newBuilder()
+                            .addLabels(label("trace_id", "0af7651916cd43dd8448eb211c80319c"))
+                            .setValue(42.5)
+                            .build()
+                    )
+                    .addExemplars(
+                        RemoteWrite.Exemplar.newBuilder()
+                            .addLabels(label("trace_id", "6af7651916cd43dd8448eb211c80319f"))
+                            .setValue(84.0)
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+
+        sendAndAssertSuccess(writeRequest);
+
+        ObjectPath source = searchSingleDoc("exemplars-generic.prometheus-default", metricName);
+        assertThat(source.evaluate("@timestamp"), notNullValue());
+        assertThat(source.evaluate("exemplar_labels.trace_id"), equalTo("0af7651916cd43dd8448eb211c80319c"));
+        assertThat(source.evaluate("value"), equalTo(42.5));
+    }
+
     public void testRemoteWriteDropsNaNSamples() throws Exception {
         long timestamp = System.currentTimeMillis();
         String metricName = "nan_metric";

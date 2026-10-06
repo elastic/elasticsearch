@@ -24,12 +24,14 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
@@ -72,8 +74,16 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
         when(transportService.getTaskManager()).thenReturn(mock(TaskManager.class));
         threadPool = mock(ThreadPool.class);
         when(threadPool.executor(ThreadPool.Names.WRITE)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        when(threadPool.absoluteTimeInMillis()).thenReturn(System.currentTimeMillis());
 
-        action = new PrometheusRemoteWriteTransportAction(transportService, ActionFilters.EMPTY, threadPool, client, Settings.EMPTY);
+        action = new PrometheusRemoteWriteTransportAction(
+            transportService,
+            ActionFilters.EMPTY,
+            threadPool,
+            client,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            Settings.EMPTY
+        );
     }
 
     @After
@@ -117,6 +127,114 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
             .build();
 
         executeRequest(createWriteRequest(writeRequest, "generic", "default"));
+    }
+
+    public void testSuccessWithExemplarOnly() throws Exception {
+        long now = System.currentTimeMillis();
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(
+                RemoteWrite.TimeSeries.newBuilder()
+                    .addLabels(RemoteWrite.Label.newBuilder().setName("__name__").setValue("test_metric").build())
+                    .addLabels(RemoteWrite.Label.newBuilder().setName("job").setValue("test").build())
+                    .addLabels(RemoteWrite.Label.newBuilder().setName("data_stream_dataset").setValue("custom").build())
+                    .addExemplars(
+                        RemoteWrite.Exemplar.newBuilder()
+                            .addLabels(RemoteWrite.Label.newBuilder().setName("trace_id").setValue("abc123").build())
+                            .setValue(21.0)
+                            .setTimestamp(now)
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+
+        BulkRequest bulk = executeAndCaptureBulkRequest(writeRequest, "generic", "default");
+        assertThat(bulk.numberOfActions(), equalTo(1));
+        IndexRequest exemplarRequest = (IndexRequest) bulk.requests().getFirst();
+        assertThat(exemplarRequest.index(), equalTo("exemplars-custom.prometheus-default"));
+
+        ObjectPath source = new ObjectPath(exemplarRequest.sourceAsMap());
+        assertThat(source.evaluate("@timestamp"), equalTo(now));
+        assertThat(source.evaluate("data_stream.type"), equalTo("exemplars"));
+        assertThat(source.evaluate("data_stream.dataset"), equalTo("custom.prometheus"));
+        assertThat(source.evaluate("data_stream.namespace"), equalTo("default"));
+        assertThat(source.evaluate("labels.__name__"), equalTo("test_metric"));
+        assertThat(source.evaluate("labels.job"), equalTo("test"));
+        assertNull(source.evaluate("labels.data_stream_dataset"));
+        assertThat(source.evaluate("exemplar_labels.trace_id"), equalTo("abc123"));
+        assertThat(source.evaluate("value"), equalTo(21.0));
+    }
+
+    public void testDuplicateExemplarTimestampsAreDropped() throws Exception {
+        long timestamp = System.currentTimeMillis();
+        RemoteWrite.TimeSeries timeSeries = RemoteWrite.TimeSeries.newBuilder()
+            .addLabels(RemoteWrite.Label.newBuilder().setName("__name__").setValue("test_metric").build())
+            .addLabels(RemoteWrite.Label.newBuilder().setName("job").setValue("test").build())
+            .addExemplars(createExemplar("trace_id", "first", 1.0, timestamp))
+            .addExemplars(createExemplar("trace_id", "second", 2.0, timestamp))
+            .build();
+
+        BulkRequest bulk = executeAndCaptureBulkRequest(
+            RemoteWrite.WriteRequest.newBuilder().addTimeseries(timeSeries).build(),
+            "generic",
+            "default"
+        );
+
+        assertThat(bulk.numberOfActions(), equalTo(1));
+        ObjectPath source = new ObjectPath(((IndexRequest) bulk.requests().getFirst()).sourceAsMap());
+        assertThat(source.evaluate("exemplar_labels.trace_id"), equalTo("first"));
+    }
+
+    public void testSameExemplarTimestampForDifferentSeriesIsRetained() {
+        long timestamp = System.currentTimeMillis();
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(createExemplarTimeSeries("first_metric", timestamp))
+            .addTimeseries(createExemplarTimeSeries("second_metric", timestamp))
+            .build();
+
+        BulkRequest bulk = executeAndCaptureBulkRequest(writeRequest, "generic", "default");
+
+        assertThat(bulk.numberOfActions(), equalTo(2));
+    }
+
+    public void testMissingExemplarTimestampsUseRequestTimestamp() throws Exception {
+        long requestTimestamp = randomLongBetween(1, Long.MAX_VALUE);
+        when(threadPool.absoluteTimeInMillis()).thenReturn(requestTimestamp);
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(createExemplarTimeSeries("first_metric", 0))
+            .addTimeseries(createExemplarTimeSeries("second_metric", 0))
+            .build();
+
+        BulkRequest bulk = executeAndCaptureBulkRequest(writeRequest, "generic", "default");
+
+        assertThat(bulk.numberOfActions(), equalTo(2));
+        for (DocWriteRequest<?> request : bulk.requests()) {
+            ObjectPath source = new ObjectPath(((IndexRequest) request).sourceAsMap());
+            assertThat(source.evaluate("@timestamp"), equalTo(requestTimestamp));
+        }
+        verify(threadPool).absoluteTimeInMillis();
+    }
+
+    public void testExemplarFailureIsReportedSeparatelyFromSamples() {
+        long timestamp = System.currentTimeMillis();
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(
+                createTimeSeries("test_metric", 42.0, timestamp).toBuilder()
+                    .addExemplars(createExemplar("trace_id", "abc123", 21.0, timestamp))
+                    .build()
+            )
+            .build();
+        BulkResponse bulkResponse = new BulkResponse(
+            new BulkItemResponse[] {
+                successResponse(),
+                failureResponse("exemplars-generic.prometheus-default", RestStatus.BAD_REQUEST, "bad exemplar") },
+            0
+        );
+
+        Exception e = executeRequestExpectingFailure(createWriteRequest(writeRequest, "generic", "default"), bulkResponse);
+
+        assertThat(e.getMessage(), containsString("1 of 1 exemplars failed"));
+        assertThat(e.getMessage(), containsString("bad exemplar"));
     }
 
     public void test429() {
@@ -183,6 +301,26 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("missing __name__ label"));
     }
 
+    public void testTimeseriesWithoutNameLabelReportsSamplesAndExemplars() {
+        long timestamp = System.currentTimeMillis();
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(
+                RemoteWrite.TimeSeries.newBuilder()
+                    .addLabels(RemoteWrite.Label.newBuilder().setName("job").setValue("test").build())
+                    .addSamples(RemoteWrite.Sample.newBuilder().setValue(42.0).setTimestamp(timestamp).build())
+                    .addExemplars(createExemplar("trace_id", "abc123", 21.0, timestamp))
+                    .build()
+            )
+            .build();
+
+        Exception e = executeRequestExpectingFailure(createWriteRequest(writeRequest, "generic", "default"));
+
+        assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("1 of 1 samples and 1 of 1 exemplars failed"));
+        assertThat(e.getMessage(), containsString("1 sample(s) dropped due to missing __name__ label"));
+        assertThat(e.getMessage(), containsString("1 exemplar(s) dropped due to missing __name__ label"));
+    }
+
     public void testPartialSuccessWithDroppedSamples() {
         long now = System.currentTimeMillis();
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
@@ -246,6 +384,7 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
             })),
             threadPool,
             client,
+            BigArrays.NON_RECYCLING_INSTANCE,
             Settings.EMPTY
         );
 
@@ -264,7 +403,14 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
             .put(HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_CONTENT_LENGTH.getKey(), "1kb")
             .put(HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_EXPANDED_CONTENT_LENGTH.getKey(), "10kb")
             .build();
-        action = new PrometheusRemoteWriteTransportAction(transportService, ActionFilters.EMPTY, threadPool, client, settings);
+        action = new PrometheusRemoteWriteTransportAction(
+            transportService,
+            ActionFilters.EMPTY,
+            threadPool,
+            client,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            settings
+        );
 
         // ~1 KiB label value × enough samples that IndexRequest#ramBytesUsed() exceeds the 10 KiB limit
         String largeLabelValue = "x".repeat(1024);
@@ -289,7 +435,14 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
             .put(HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_CONTENT_LENGTH.getKey(), "1kb")
             .put(HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_EXPANDED_CONTENT_LENGTH.getKey(), "10kb")
             .build();
-        action = new PrometheusRemoteWriteTransportAction(transportService, ActionFilters.EMPTY, threadPool, client, settings);
+        action = new PrometheusRemoteWriteTransportAction(
+            transportService,
+            ActionFilters.EMPTY,
+            threadPool,
+            client,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            settings
+        );
 
         String largeLabelValue = "x".repeat(1024);
         RemoteWrite.TimeSeries.Builder seriesBuilder = RemoteWrite.TimeSeries.newBuilder()
@@ -393,6 +546,20 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
         verify(responseListener).onResponse(any());
     }
 
+    private BulkRequest executeAndCaptureBulkRequest(RemoteWrite.WriteRequest writeRequest, String dataset, String namespace) {
+        ArgumentCaptor<BulkRequest> bulkCaptor = ArgumentCaptor.forClass(BulkRequest.class);
+        ArgumentCaptor<ActionListener<BulkResponse>> bulkListenerCaptor = ArgumentCaptor.captor();
+        doNothing().when(client).execute(eq(TransportBulkAction.TYPE), bulkCaptor.capture(), bulkListenerCaptor.capture());
+
+        @SuppressWarnings("unchecked")
+        ActionListener<RemoteWriteResponse> responseListener = mock(ActionListener.class, CALLS_REAL_METHODS);
+        action.doExecute(null, createWriteRequest(writeRequest, dataset, namespace), responseListener);
+        bulkListenerCaptor.getValue().onResponse(new BulkResponse(new BulkItemResponse[] {}, 0));
+
+        verify(responseListener).onResponse(any());
+        return bulkCaptor.getValue();
+    }
+
     private Exception executeRequestExpectingFailure(RemoteWriteRequest request) {
         return executeRequestExpectingFailure(request, listener -> listener.onResponse(new BulkResponse(new BulkItemResponse[] {}, 0)));
     }
@@ -480,6 +647,21 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
             .addLabels(RemoteWrite.Label.newBuilder().setName("__name__").setValue(metricName).build())
             .addLabels(RemoteWrite.Label.newBuilder().setName("job").setValue("test_job").build())
             .addSamples(RemoteWrite.Sample.newBuilder().setValue(value).setTimestamp(timestamp).build())
+            .build();
+    }
+
+    private static RemoteWrite.TimeSeries createExemplarTimeSeries(String metricName, long timestamp) {
+        return RemoteWrite.TimeSeries.newBuilder()
+            .addLabels(RemoteWrite.Label.newBuilder().setName("__name__").setValue(metricName).build())
+            .addExemplars(createExemplar("trace_id", "abc123", 21.0, timestamp))
+            .build();
+    }
+
+    private static RemoteWrite.Exemplar createExemplar(String labelName, String labelValue, double value, long timestamp) {
+        return RemoteWrite.Exemplar.newBuilder()
+            .addLabels(RemoteWrite.Label.newBuilder().setName(labelName).setValue(labelValue).build())
+            .setValue(value)
+            .setTimestamp(timestamp)
             .build();
     }
 

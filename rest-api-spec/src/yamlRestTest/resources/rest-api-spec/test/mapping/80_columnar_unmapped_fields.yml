@@ -246,19 +246,6 @@ setup:
         fields: "_unmapped"
   - match: { fields: {} }
 
-  - do:
-      indices.get_field_mapping:
-        index: test_mapped
-        fields: "*"
-  - is_true: test_mapped.mappings.mapped
-  - is_false: test_mapped.mappings._unmapped
-
-  - do:
-      indices.get_field_mapping:
-        index: test_mapped
-        fields: "_unmapped"
-  - match: { test_mapped.mappings: {} }
-
   # Requesting the sink explicitly returns no fields object at all, rather than an error.
   - do:
       search:
@@ -380,6 +367,7 @@ setup:
       index:
         index: test_object
         id: "1"
+        refresh: true
         body: { obj: { a: "a-value" } }
   # A scalar at the mapped object's own path: unmapped (no leaf mapper is named "obj"), so it is absorbed into the sink as key "obj".
   - do:

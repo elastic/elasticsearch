@@ -2537,6 +2537,29 @@ public class VerifierTests extends AnalyzerTestCase {
         checkFullTextFunctionsWithNonBooleanFunctions("KNN", "knn(vector, [1, 2, 3])", "function");
     }
 
+    public void testScoreComparedWithRuntimeSearchRejected() {
+        String prefix = "from test metadata _score | eval t = to_text(concat(title, body)), b = true | where ";
+        Matcher<String> message = containsString(
+            "[_score] can't be used with runtime search [MATCH] inside OR, NOT or a comparison, as it would see the score from "
+                + "before the search"
+        );
+        fullText().error(prefix + "(match(t, \"cat\") and _score > 1.5) == true", message);
+        fullText().error(prefix + "(match(t, \"cat\") and _score > 1.5) != false", message);
+        fullText().error(prefix + "(match(t, \"cat\") and _score > 1.5) == b", message);
+        fullText().error(prefix + "(match(t, \"cat\") and _score > 1.5) == (length(title) > 3)", message);
+        fullText().error(
+            prefix + "(match_phrase(t, \"cat\") and _score > 1.5) == true",
+            containsString("[_score] can't be used with runtime search [MATCH_PHRASE] inside OR, NOT or a comparison")
+        );
+    }
+
+    public void testScoreComparedWithCopyOrIndexedSearchAccepted() {
+        fullText().query(
+            "from test metadata _score | eval t = to_text(concat(title, body)), s = _score | where (match(t, \"cat\") and s < 0.5) == true"
+        );
+        fullText().query("from test metadata _score | where (match(title, \"cat\") and _score > 1.5) == true");
+    }
+
     private void checkFullTextFunctionsWithNonBooleanFunctions(String functionName, String functionInvocation, String functionType) {
         if (functionType.equals("operator") == false) {
             // The following tests are only possible for functions from a parsing perspective

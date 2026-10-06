@@ -106,8 +106,9 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
 
     public void testRuntimeScorerAndScoreOutsideAConjunctionRejected() {
         String prefix = "from test metadata _score | eval t = to_text(concat(title, body)) | where ";
-        String rest = " inside OR or NOT, as it would see the score from before the search; filter on [_score] with a top-level AND "
-            + "or a separate WHERE instead";
+        String rest =
+            " inside OR, NOT or a comparison, as it would see the score from before the search; filter on [_score] with a top-level AND "
+                + "or a separate WHERE instead";
         String matchMessage = "[_score] can't be used with runtime search [MATCH]" + rest;
         assertThat(error(fullTextAnalyzer().query(prefix + "match(t, \"cat\") or _score > 1.5")), containsString(matchMessage));
         assertThat(error(fullTextAnalyzer().query(prefix + "not (match(t, \"cat\") and _score > 1.5)")), containsString(matchMessage));
@@ -134,7 +135,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
      */
     public void testScoreCopiedBeforeRuntimeScorerAndOredWithItRejected() {
         String prefix = "from test metadata _score | eval t = to_text(concat(title, body)) | ";
-        String message = "[_score] can't be used with runtime search [MATCH] inside OR or NOT";
+        String message = "[_score] can't be used with runtime search [MATCH] inside OR, NOT or a comparison";
         assertThat(
             error(fullTextAnalyzer().query(prefix + "eval s = _score | where s < 0.5 or match(t, \"cat\") | keep s")),
             containsString(message)
@@ -162,7 +163,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             VerificationException.class,
             () -> datasetPlan("FROM ds METADATA _score | WHERE MATCH(first_name, \"foo\") OR _score > 1.5", "ds", S3_PATH, schema)
         );
-        assertThat(e.getMessage(), containsString("[_score] can't be used with runtime search [MATCH] inside OR or NOT"));
+        assertThat(e.getMessage(), containsString("[_score] can't be used with runtime search [MATCH] inside OR, NOT or a comparison"));
         datasetPlan("FROM ds METADATA _score | WHERE MATCH(first_name, \"foo\") AND _score > 1.5", "ds", S3_PATH, schema);
     }
 

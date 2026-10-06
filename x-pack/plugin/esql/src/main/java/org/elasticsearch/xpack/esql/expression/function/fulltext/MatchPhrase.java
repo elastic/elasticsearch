@@ -133,8 +133,9 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
             A filter on `_score` only sees that contribution when the `MATCH_PHRASE` appears earlier in the
             query, or in the same `WHERE` combined with `AND`. A `_score` filter before the `MATCH_PHRASE`
             sees the score from before it, which is 0.0 if no earlier search has contributed to it. Combining
-            `_score` with a `MATCH_PHRASE` on an expression using `OR` or `NOT` fails with an error, because
-            the `_score` side would see the score from before the search.
+            `_score` with a `MATCH_PHRASE` on an expression using `OR`, `NOT` or a comparison (such as
+            `== true`) fails with an error, because the `_score` side would see the score from before the
+            search.
 
             When searching `text` expressions, <<esql-function-named-params,function named parameters>>
             (match_phrase query options) are supported. As on an indexed field, the `analyzer` option

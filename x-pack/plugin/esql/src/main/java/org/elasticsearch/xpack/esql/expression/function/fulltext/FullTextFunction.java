@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificatio
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.RewriteableAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -248,6 +249,7 @@ public abstract class FullTextFunction extends Function
     private static void checkFullTextQueryFunctions(LogicalPlan plan, Failures failures) {
         if (plan instanceof Filter f) {
             checkFullTextFunctionsInFilter(f, failures, false);
+            checkScoreComparedWithRuntimeScorer(f.condition(), failures);
         } else if (plan instanceof Aggregate agg) {
             checkFullTextFunctionsInAggs(agg, failures);
         } else if (plan instanceof LookupJoin lookupJoin) {
@@ -287,9 +289,9 @@ public abstract class FullTextFunction extends Function
 
     /**
      * A {@code _score} predicate can only be evaluated after a runtime scorer in the same filter when the two are separate
-     * conjuncts (see {@code PushDownAndCombineFilters}); anywhere else it would see the score from before the search ran.
-     * Only run after optimization: a search on an alias or RENAME of an indexed field looks like a runtime search when
-     * analyzed, but push-down turns it back into one that scores at the source.
+     * conjuncts (see {@code SplitScorePredicatesFromRuntimeSearch}); anywhere else it would see the score from before the
+     * search ran. Only run after optimization: a search on an alias or RENAME of an indexed field looks like a runtime
+     * search when analyzed, but push-down turns it back into one that scores at the source.
      */
     private static void checkScoreOutsideConjunctionWithRuntimeScorer(Expression condition, Failures failures) {
         for (Expression conjunct : Predicates.splitAnd(condition)) {
@@ -298,19 +300,41 @@ public abstract class FullTextFunction extends Function
             }
             conjunct.forEachDown(FullTextFunction.class, ftf -> {
                 if (ftf.isRuntimeSearch() && ftf.contributesToScore()) {
-                    failures.add(
-                        fail(
-                            conjunct,
-                            "[{}] can't be used with runtime search [{}] inside OR or NOT, as it would see the score from before "
-                                + "the search; filter on [{}] with a top-level AND or a separate WHERE instead",
-                            MetadataAttribute.SCORE,
-                            ftf.functionName(),
-                            MetadataAttribute.SCORE
-                        )
-                    );
+                    failures.add(scoreWithRuntimeScorerFailure(conjunct, ftf));
                 }
             });
         }
+    }
+
+    /**
+     * A comparison hides a {@code _score} predicate ANDed with a runtime scorer from
+     * {@code SplitScorePredicatesFromRuntimeSearch}, which can't split it out, and optimization can then fold the
+     * comparison away, leaving a predicate that sees the score from before the search but passes
+     * {@link #checkScoreOutsideConjunctionWithRuntimeScorer}. Only run after analysis, while every {@code _score} is one
+     * written in the query: optimization substitutes {@code _score} for a copy of it, which holds the score from before
+     * the search and can be compared freely.
+     */
+    private static void checkScoreComparedWithRuntimeScorer(Expression condition, Failures failures) {
+        condition.forEachDown(EsqlBinaryComparison.class, comparison -> {
+            if (comparison.anyMatch(MetadataAttribute::isScoreAttribute)) {
+                comparison.forEachDown(FullTextFunction.class, ftf -> {
+                    if (ftf.isRuntimeSearch() && ftf.contributesToScore()) {
+                        failures.add(scoreWithRuntimeScorerFailure(comparison, ftf));
+                    }
+                });
+            }
+        });
+    }
+
+    private static Failure scoreWithRuntimeScorerFailure(Expression expression, FullTextFunction ftf) {
+        return fail(
+            expression,
+            "[{}] can't be used with runtime search [{}] inside OR, NOT or a comparison, as it would see the score from before "
+                + "the search; filter on [{}] with a top-level AND or a separate WHERE instead",
+            MetadataAttribute.SCORE,
+            ftf.functionName(),
+            MetadataAttribute.SCORE
+        );
     }
 
     private static void checkFullTextQueryFunctionForCondition(

@@ -3074,6 +3074,72 @@ book_no:keyword | _score:double
 7350            | 2.0
 ;
 
+matchOnRuntimeTextAndScoreFilterUnderDoubleNot
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: runtime_score_fix
+
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE NOT (NOT (match(content, "Tolkien Rings") AND _score > 1.5))
+| STATS c = COUNT(*), min_score = MIN(_score), max_score = MAX(_score)
+;
+
+c:long | min_score:double | max_score:double
+6      | 2.0              | 2.0
+;
+
+matchOnRuntimeTextAndScoreFilterOrFalse
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: runtime_score_fix
+
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE (match(content, "Tolkien Rings") AND _score > 1.5) OR false
+| STATS c = COUNT(*), min_score = MIN(_score), max_score = MAX(_score)
+;
+
+c:long | min_score:double | max_score:double
+6      | 2.0              | 2.0
+;
+
+matchOnRuntimeTextAndScoreFilterInBothOrBranches
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: runtime_score_fix
+
+// the shared match is factored out of the OR, leaving the _score filter to see its score
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE (match(content, "Tolkien Rings") AND _score > 1.5) OR (match(content, "Tolkien Rings") AND book_no == "2130")
+| STATS c = COUNT(*), min_score = MIN(_score), max_score = MAX(_score)
+;
+
+c:long | min_score:double | max_score:double
+7      | 1.0              | 2.0
+;
+
+matchOnRuntimeTextAndScoreAliasFilterComparedToTrue
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: runtime_score_fix
+
+// s holds the score from before the match, 0.0, so the filter on it keeps every match
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description)), s = _score
+| WHERE (match(content, "Tolkien Rings") AND s < 0.5) == true
+| STATS c = COUNT(*), min_score = MIN(_score), max_score = MAX(_score)
+;
+
+c:long | min_score:double | max_score:double
+16     | 1.0              | 2.0
+;
+
 matchOnRuntimeTextThenScoreAndKeywordFilter
 required_capability: match_function
 required_capability: metadata_score

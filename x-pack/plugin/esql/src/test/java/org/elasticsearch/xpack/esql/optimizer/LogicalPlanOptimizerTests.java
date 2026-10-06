@@ -298,6 +298,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         );
     }
 
+    public void testScoreAndRuntimeSearchUnderSimplifiableBooleansAreSplit() {
+        String prefix = "from test metadata _score | eval t = to_text(concat(first_name, last_name)) | where ";
+        String scored = "(match(t, \"cat\") and _score > 1.5)";
+        assertScoreFilteredBelowRuntimeSearch(plan(prefix + "not (not " + scored + ") | keep _score"), false);
+        assertScoreFilteredBelowRuntimeSearch(plan(prefix + scored + " or false | keep _score"), false);
+        assertScoreFilteredBelowRuntimeSearch(plan(prefix + scored + " or " + scored + " | keep _score"), false);
+        assertScoreFilteredBelowRuntimeSearch(plan(prefix + scored + " or (match(t, \"cat\") and emp_no == 10001) | keep _score"), false);
+    }
+
     public void testScoreIndependentPredicateAfterRuntimeSearchPushesToSource() {
         LogicalPlan plan = plan("""
             from test metadata _score

@@ -7,9 +7,15 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch;
 
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
@@ -30,6 +36,9 @@ import java.util.List;
  *     <li>the relation produces it, so a document reference is enough to load it,</li>
  *     <li>{@link Fetchability#isFetchable} accepts it,</li>
  *     <li>the coordinator cut does not read it. A sort key is eager even when the query does not return it.</li>
+ *     <li>no {@link Eval} of the fragment reads its values. The data node loads those for every row the {@code Eval}
+ *     sees, so the fetch would read them a second time. In {@code SORT a + 1 | LIMIT 10 | KEEP a}, the sort key is an
+ *     {@code Eval} of {@code a}, so {@code a} is eager.</li>
  * </ul>
  * Everything else that crosses the exchange stays eager, which keeps the fetch partial rather than all or nothing:
  * {@code _score}, values computed inside the fragment, and fields that may be unmapped all keep crossing as values.
@@ -59,12 +68,14 @@ public final class AttributeDemand {
     public static Demand analyze(Project fragmentRoot, EsRelation relation, PhysicalPlan coordinatorCut) {
         AttributeSet relationOutput = relation.outputSet();
         AttributeSet readByCut = coordinatorCut.references();
+        AttributeSet loadedBeforeTheCut = loadedByEvals(fragmentRoot.child());
         List<Attribute> eager = new ArrayList<>();
         List<Attribute> deferred = new ArrayList<>();
         for (Attribute attribute : fragmentRoot.output()) {
             boolean defer = relationOutput.contains(attribute)
                 && Fetchability.isFetchable(attribute)
-                && readByCut.contains(attribute) == false;
+                && readByCut.contains(attribute) == false
+                && loadedBeforeTheCut.contains(attribute) == false;
             (defer ? deferred : eager).add(attribute);
         }
 
@@ -78,5 +89,37 @@ public final class AttributeDemand {
             }
         }
         return new Demand(List.copyOf(eager), List.copyOf(deferred), List.copyOf(local));
+    }
+
+    /**
+     * The attributes whose values an {@link Eval} of the fragment reads, so the data node loads them before the cut.
+     * <p>
+     * A field passed straight to a function the loader may compute itself, like {@code LENGTH(message)}, doesn't count.
+     * The data node may load the length and never the message, and only the data node can tell. Filters don't count
+     * either: Lucene usually answers them without loading values. Where these guesses are wrong, the column is read
+     * twice, once before the cut and once by the fetch.
+     */
+    private static AttributeSet loadedByEvals(LogicalPlan fragmentBody) {
+        AttributeSet.Builder loaded = AttributeSet.builder();
+        fragmentBody.forEachDown(Eval.class, eval -> {
+            for (Alias field : eval.fields()) {
+                collectValueReads(field.child(), loaded);
+            }
+        });
+        return loaded.build();
+    }
+
+    private static void collectValueReads(Expression expression, AttributeSet.Builder reads) {
+        if (expression instanceof Attribute attribute) {
+            reads.add(attribute);
+            return;
+        }
+        boolean mayFuseIntoTheLoad = expression instanceof BlockLoaderExpression;
+        for (Expression child : expression.children()) {
+            if (mayFuseIntoTheLoad && child instanceof FieldAttribute) {
+                continue;
+            }
+            collectValueReads(child, reads);
+        }
     }
 }

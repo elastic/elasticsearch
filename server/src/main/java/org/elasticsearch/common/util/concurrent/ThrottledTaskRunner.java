@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Releasable;
 
 import java.util.concurrent.Executor;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.common.Strings.format;
 
@@ -31,7 +32,7 @@ public class ThrottledTaskRunner extends AbstractThrottledTaskRunner<ActionListe
      * see {@link AbstractThrottledTaskRunner#enqueueTask(ActionListener)}.
      */
     public Executor asExecutor() {
-        return new ThrottledExecutorAdapter(this);
+        return new ThrottledExecutorAdapter(getTaskRunnerName(), this::enqueueTask);
     }
 
     /**
@@ -42,18 +43,20 @@ public class ThrottledTaskRunner extends AbstractThrottledTaskRunner<ActionListe
             ThrottledExecutorAdapter.class
         );
 
-        private final ThrottledTaskRunner throttledTaskRunner;
+        private final String taskRunnerName;
+        private final Consumer<ActionListener<Releasable>> enqueuer;
 
         /**
          * Be extra careful that any forked off work is NOT throttled by the passed-in {@param throttledTaskRunner}.
          */
-        ThrottledExecutorAdapter(ThrottledTaskRunner throttledTaskRunner) {
-            this.throttledTaskRunner = throttledTaskRunner;
+        ThrottledExecutorAdapter(String taskRunnerName, Consumer<ActionListener<Releasable>> enqueuer) {
+            this.taskRunnerName = taskRunnerName;
+            this.enqueuer = enqueuer;
         }
 
         @Override
         public void execute(Runnable task) {
-            throttledTaskRunner.enqueueTask(new ActionListener<>() {
+            enqueuer.accept(new ActionListener<>() {
                 @Override
                 public void onResponse(Releasable releasable) {
                     try (releasable) {
@@ -67,7 +70,7 @@ public class ThrottledTaskRunner extends AbstractThrottledTaskRunner<ActionListe
                     logger.warn(
                         () -> format(
                             "[%s] failed to execute task %s by executor [%s]",
-                            throttledTaskRunner.getTaskRunnerName(),
+                            taskRunnerName,
                             task,
                             ThrottledExecutorAdapter.class.getCanonicalName()
                         ),

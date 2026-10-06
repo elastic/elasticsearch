@@ -42,8 +42,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.InstrumentedThrottledTaskRunner;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
-import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.FixForMultiProject;
@@ -67,6 +67,7 @@ import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
@@ -389,14 +390,15 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
     private final long slowTranslogUploadLogThresholdMillis;
 
-    private final ThrottledTaskRunner bccMultipartUploadTaskRunner;
+    private final InstrumentedThrottledTaskRunner<ActionListener<Releasable>> bccMultipartUploadTaskRunner;
 
     public ObjectStoreService(
         Settings settings,
         RepositoriesService repositoriesService,
         ThreadPool threadPool,
         ClusterService clusterService,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        MeterRegistry meterRegistry
     ) {
         this.settings = settings;
         this.repositoriesService = repositoriesService;
@@ -422,10 +424,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         this.concurrentMultipartUploads = OBJECT_STORE_CONCURRENT_MULTIPART_UPLOADS.get(settings);
         this.cacheSearchRecoveryBcc = CACHE_SEARCH_RECOVERY_BCC_ENABLED_SETTING.get(settings);
         this.slowTranslogUploadLogThresholdMillis = OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING.get(settings).getMillis();
-        this.bccMultipartUploadTaskRunner = new ThrottledTaskRunner(
+        this.bccMultipartUploadTaskRunner = new InstrumentedThrottledTaskRunner<ActionListener<Releasable>>(
             "bcc-concurrent-multipart-upload",
             Math.max(1, threadPool.info(StatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax()),
-            threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL)
+            threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL),
+            meterRegistry,
+            threadPool::relativeTimeInNanos
         );
     }
 
@@ -1749,7 +1753,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                             ),
                             false,
                             // Ensure that one large upload doesn't starve other uploads
-                            bccMultipartUploadTaskRunner.asExecutor()
+                            InstrumentedThrottledTaskRunner.asExecutor(bccMultipartUploadTaskRunner)
 
                         );
                     } finally {

@@ -7,7 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasource.grpc;
 
+import io.grpc.Status;
+
+import org.apache.arrow.flight.CallStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
@@ -71,5 +75,14 @@ public class FlightStorageProviderTests extends ESTestCase {
         StoragePath path = StoragePath.of("http://localhost:47470/employees");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new FlightStorageProvider().newObject(path));
         assertTrue(e.getMessage().contains("flight://"));
+    }
+
+    /**
+     * {@link ExternalFailures#composedByStorageClient} withholds this client's text by package; a client exception it
+     * does not recognise would put the remote server's message in the response.
+     */
+    public void testClientExceptionsAreStorageClientText() {
+        assertTrue(ExternalFailures.composedByStorageClient(CallStatus.UNAUTHORIZED.withDescription("denied").toRuntimeException()));
+        assertTrue(ExternalFailures.composedByStorageClient(Status.PERMISSION_DENIED.withDescription("denied").asRuntimeException()));
     }
 }

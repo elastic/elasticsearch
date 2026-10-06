@@ -74,7 +74,10 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
         }
         {
             // null for unmanaged index
-            ExplainIndexDataStreamLifecycle indexDataStreamLifecycle = ExplainIndexDataStreamLifecycle.unmanagedIndexResponse("my-index");
+            ExplainIndexDataStreamLifecycle indexDataStreamLifecycle = ExplainIndexDataStreamLifecycle.unmanagedIndexResponse(
+                "my-index",
+                null
+            );
             assertThat(indexDataStreamLifecycle.getGenerationTime(() -> now), is(nullValue()));
         }
 
@@ -108,7 +111,10 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
         }
         {
             // null for unmanaged index
-            ExplainIndexDataStreamLifecycle indexDataStreamLifecycle = ExplainIndexDataStreamLifecycle.unmanagedIndexResponse("my-index");
+            ExplainIndexDataStreamLifecycle indexDataStreamLifecycle = ExplainIndexDataStreamLifecycle.unmanagedIndexResponse(
+                "my-index",
+                null
+            );
             assertThat(indexDataStreamLifecycle.getTimeSinceIndexCreation(() -> now), is(nullValue()));
         }
 
@@ -149,7 +155,10 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
         }
         {
             // null for unmanaged index
-            ExplainIndexDataStreamLifecycle indexDataStreamLifecycle = ExplainIndexDataStreamLifecycle.unmanagedIndexResponse("my-index");
+            ExplainIndexDataStreamLifecycle indexDataStreamLifecycle = ExplainIndexDataStreamLifecycle.unmanagedIndexResponse(
+                "my-index",
+                null
+            );
             assertThat(indexDataStreamLifecycle.getTimeSinceRollover(() -> now), is(nullValue()));
         }
 
@@ -217,6 +226,47 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
         assertThat(roundTripped.getFrozenTransitionStatus(), is(nullValue()));
     }
 
+    public void testUnmanagedReasonXContent() throws IOException {
+        String reason = randomAlphaOfLength(20);
+        Map<String, Object> withReason = getXContentMap(
+            ExplainIndexDataStreamLifecycle.unmanagedIndexResponse("my-index", reason),
+            null,
+            null
+        );
+        assertThat(withReason.get("managed_by_lifecycle"), is(false));
+        assertThat(withReason.get("unmanaged_reason"), is(reason));
+
+        Map<String, Object> withoutReason = getXContentMap(
+            ExplainIndexDataStreamLifecycle.unmanagedIndexResponse("my-index", null),
+            null,
+            null
+        );
+        assertThat(withoutReason.containsKey("unmanaged_reason"), is(false));
+
+        Map<String, Object> managed = getXContentMap(
+            createManagedIndexDataStreamLifecycleExplanation(System.currentTimeMillis(), DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE),
+            null,
+            null
+        );
+        assertThat(managed.containsKey("unmanaged_reason"), is(false));
+    }
+
+    public void testUnmanagedReasonSerialization() throws IOException {
+        ExplainIndexDataStreamLifecycle unmanaged = ExplainIndexDataStreamLifecycle.unmanagedIndexResponse(
+            "my-index",
+            randomAlphaOfLength(20)
+        );
+        assertThat(copyInstance(unmanaged).getUnmanagedReason(), is(unmanaged.getUnmanagedReason()));
+        assertThat(copyInstance(unmanaged), is(unmanaged));
+
+        ExplainIndexDataStreamLifecycle roundTripped = copyInstance(
+            unmanaged,
+            TransportVersionUtils.randomVersionNotSupporting(ExplainIndexDataStreamLifecycle.EXPLAIN_INDEX_UNMANAGED_REASON)
+        );
+        assertThat(roundTripped.isManagedByLifecycle(), is(false));
+        assertThat(roundTripped.getUnmanagedReason(), is(nullValue()));
+    }
+
     @SuppressWarnings("unchecked")
     public void testToXContent() throws Exception {
         TimeValue configuredRetention = TimeValue.timeValueDays(100);
@@ -279,6 +329,12 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
 
     @Override
     protected ExplainIndexDataStreamLifecycle createTestInstance() {
+        if (rarely()) {
+            return ExplainIndexDataStreamLifecycle.unmanagedIndexResponse(
+                randomAlphaOfLengthBetween(10, 30),
+                randomBoolean() ? randomAlphaOfLengthBetween(10, 50) : null
+            );
+        }
         return createManagedIndexDataStreamLifecycleExplanation(
             System.nanoTime(),
             randomBoolean() ? DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE : null,

@@ -22,6 +22,7 @@ import org.elasticsearch.benchmark.index.mapper.MapperServiceFactory;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -50,6 +51,7 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.Warnings;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentType;
@@ -80,6 +82,7 @@ import java.util.Locale;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.LongStream;
 
 /**
  * Loads the columns of some documents of one shard, the work the fetch driver of one shard does for a fetch request.
@@ -93,6 +96,10 @@ import java.util.concurrent.TimeUnit;
  * The index looks like a log: a timestamp, two keywords, a status code and a message of about 200 bytes, in about 30
  * segments. {@code source} is the whole {@code _source}, what the Rally ES|QL queries return. {@code keywords} are
  * doc values. {@code message} is a text field, which loads from {@code _source}.
+ * <p>
+ * {@code random} documents are spread over the whole index, like the best matches of a full text query. {@code newest}
+ * are the last documents indexed, like the winners of {@code SORT @timestamp DESC} on logs indexed in time order. They
+ * sit next to each other in the newest segments, dense enough for the loader to read stored fields sequentially.
  */
 @Warmup(iterations = 5, time = 1)
 @Measurement(iterations = 7, time = 1)
@@ -140,25 +147,42 @@ public class FetchLoadBenchmark {
             try {
                 benchmark.setupIndex();
                 for (String columns : new String[] { "source", "keywords", "message" }) {
-                    benchmark.fields = benchmark.fields(columns);
-                    long[] checksums = new long[2];
-                    String[] shapes = { "fetch", "shuffled" };
-                    for (int s = 0; s < shapes.length; s++) {
-                        benchmark.shape = shapes[s];
-                        benchmark.seed = 1;
-                        benchmark.chooseDocs();
-                        checksums[s] = benchmark.load();
-                    }
-                    if (checksums[0] != checksums[1] || checksums[0] == 0) {
-                        throw new AssertionError(
-                            "[" + sourceMode + "][" + columns + "] fetch loaded [" + checksums[0] + "] but shuffled [" + checksums[1] + "]"
-                        );
+                    for (String distribution : new String[] { "random", "newest" }) {
+                        benchmark.fields = benchmark.fields(columns);
+                        benchmark.distribution = distribution;
+                        long fetch = benchmark.checksumOf("fetch");
+                        long shuffled = benchmark.checksumOf("shuffled");
+                        if (fetch != shuffled || fetch == 0) {
+                            throw new AssertionError(
+                                "["
+                                    + sourceMode
+                                    + "]["
+                                    + columns
+                                    + "]["
+                                    + distribution
+                                    + "] fetch loaded ["
+                                    + fetch
+                                    + "] but shuffled ["
+                                    + shuffled
+                                    + "]"
+                            );
+                        }
                     }
                 }
             } finally {
                 benchmark.teardownIndex();
             }
         }
+    }
+
+    /**
+     * Loads the documents of the first iteration in {@code shape}.
+     */
+    private long checksumOf(String shape) {
+        this.shape = shape;
+        seed = 1;
+        chooseDocs();
+        return load();
     }
 
     @Param({ "20", "100", "500" })
@@ -172,6 +196,9 @@ public class FetchLoadBenchmark {
 
     @Param({ "stored", "synthetic" })
     public String sourceMode;
+
+    @Param({ "random", "newest" })
+    public String distribution;
 
     private int indexSize = 100_000;
     /** Each iteration loads other documents, the same for both shapes. */
@@ -232,7 +259,8 @@ public class FetchLoadBenchmark {
                 }
                 writer.commit();
             }
-            reader = DirectoryReader.open(directory);
+            // the engine wraps its readers like this, and only a wrapped leaf reads stored fields sequentially
+            reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), new ShardId("benchmark", "_na_", 0));
             fields = fields(columns);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -245,7 +273,11 @@ public class FetchLoadBenchmark {
     @Setup(Level.Iteration)
     public void chooseDocs() {
         Random random = new Random(seed++);
-        long[] chosen = random.longs(0, indexSize).distinct().limit(docs).toArray();
+        long[] chosen = switch (distribution) {
+            case "random" -> random.longs(0, indexSize).distinct().limit(docs).toArray();
+            case "newest" -> LongStream.range(indexSize - docs, indexSize).toArray();
+            default -> throw new IllegalArgumentException("unknown distribution [" + distribution + "]");
+        };
         Arrays.sort(chosen);
         segments = new int[docs];
         docIds = new int[docs];

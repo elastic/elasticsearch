@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.rest;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.settings.SecureString;
@@ -16,7 +17,7 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
 public class SearchableSnapshotsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-    public SearchableSnapshotsClientYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
+    public SearchableSnapshotsClientYamlTestSuiteIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

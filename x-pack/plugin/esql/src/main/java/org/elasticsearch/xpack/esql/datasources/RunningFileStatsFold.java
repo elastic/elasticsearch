@@ -128,11 +128,11 @@ final class RunningFileStatsFold {
     }
 
     /**
-     * Whether this fold has given up, so further {@link #accept} is a no-op and {@link #finish} returns null.
-     * A gather consults it to stop reading for an aggregate that is already unreachable.
+     * Whether an aggregate is still reachable. Once false, every further {@link #accept} is a no-op and
+     * {@link #finish} returns null, so a gather reading on its behalf is reading for nothing.
      */
-    boolean failed() {
-        return failed;
+    synchronized boolean canStillProduceAnAggregate() {
+        return failed == false;
     }
 
     /**

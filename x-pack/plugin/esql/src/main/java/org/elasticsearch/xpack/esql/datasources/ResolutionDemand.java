@@ -37,7 +37,8 @@ public enum ResolutionDemand {
      * discovery is skipped. The footers it reads are ones a later phase would have read anyway.
      * <p>
      * Elected from the query's shape alone, so it is asked of formats that cannot answer it. The gather
-     * stops early in that case rather than reading every file; see {@code remainingReadsBuyNothing}.
+     * then stops once a read would feed neither the fold nor the schema cache; see
+     * {@code remainingReadsBuyNothing}.
      */
     EAGER_STATS;
 

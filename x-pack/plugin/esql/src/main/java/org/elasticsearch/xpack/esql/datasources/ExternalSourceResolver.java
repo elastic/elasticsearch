@@ -2300,14 +2300,13 @@ public class ExternalSourceResolver {
         for (int i = 0; i < listing.fileCount(); i++) {
             pathToMtime.put(listing.path(i).toString(), listing.lastModifiedMillis(i));
         }
-        if (pathToReadConfig != null && pathToReadConfig.size() < listing.fileCount()) {
-            // A cut-short gather recorded only the files it reached, and the per-path gate is
-            // all-or-nothing - a partial map would narrow it silently. The next full resolve registers.
-            return null;
-        }
         Map<String, Object> referenceMetadata = referenceMeta.sourceMetadata();
         Object stamped = referenceMetadata != null ? referenceMetadata.get(ExternalStats.CONFIG_FINGERPRINT_KEY) : null;
         String fingerprint = stamped instanceof String s ? s : formatConfigIdentity(listing.path(0).objectName(), storageConfig(config));
+        // A cut-short gather records read configs only for the files it reached. Registering on that
+        // partial map is deliberate: an unrecorded path falls back to the config-level check, the anchor
+        // is always recorded, and suppressing instead would deny the promise to the refused-budget
+        // datasets that have no other warm path.
         cacheService.registerPendingDatasetAggregate(
             datasetKey,
             pathToMtime,
@@ -2648,16 +2647,11 @@ public class ExternalSourceResolver {
         @Nullable RunningFileStatsFold fold,
         @Nullable SchemaFanOutAdmission admission
     ) {
-        if (purpose.requiresEveryFile() || fold == null) {
-            return false;
-        }
-        synchronized (fold) {
-            if (fold.failed() == false) {
-                return false;
-            }
-        }
-        // A null admission never meant to cache: non-cacheable provider, or a single file.
-        return admission == null || admission.refused();
+        // A null admission never meant to cache: a non-cacheable provider, or a single file.
+        return purpose.requiresEveryFile() == false
+            && fold != null
+            && fold.canStillProduceAnAggregate() == false
+            && (admission == null || admission.willRetainEntries() == false);
     }
 
     /**
@@ -2668,7 +2662,8 @@ public class ExternalSourceResolver {
      * cancellation signal is checked before each dispatch (a cancelled wide glob stops issuing reads promptly and
      * surfaces {@link TaskCancelledException}), and the async reads run on {@link #metadataReadExecutor} so an
      * executor-backed synchronous read's backoff aborts on cancel. The first failure is propagated to {@code listener}
-     * and short-circuits the remaining files, as does {@link #remainingReadsBuyNothing}.
+     * and short-circuits the remaining files. {@link #remainingReadsBuyNothing} also ends the gather, but
+     * completes normally, leaving {@code null} for each unread file.
      * <p>
      * When a {@link #planningReservation} is set, the method opens a {@link ExternalPlanningReservation.Run} and charges
      * {@link #gatheredFileBytes} per resolved file to the circuit breaker, so concurrent gather fan-outs from different
@@ -2932,10 +2927,10 @@ public class ExternalSourceResolver {
             this.fileCount = fileCount;
         }
 
-        /** Sized against the budget and refused, so no entry will be retained. False until one file is read. */
-        boolean refused() {
+        /** Whether entries this fan-out reads will be kept. True until one is sized against the budget and refused. */
+        boolean willRetainEntries() {
             synchronized (this) {
-                return refuse;
+                return refuse == false;
             }
         }
 

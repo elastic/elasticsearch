@@ -13,10 +13,10 @@ Like [`TS`](/reference/query-languages/esql/commands/ts.md), it enables time ser
 
 ## Syntax
 
-The `PROMQL` command accepts zero or more space-separated `<option>=<value>` pairs, followed by a named PromQL expression.
+The `PROMQL` command accepts zero or more space-separated `<option>=<value>` pairs, followed by a PromQL expression in parentheses that can be prefixed with a result name.
 
 ```esql
-PROMQL [ <option>=<value> ... ] <result_name>=(<PromQL Expression>)
+PROMQL [ <option>=<value> ... ] [ <result_name>= ](<PromQL Expression>)
 ```
 
 ## Options
@@ -149,24 +149,17 @@ A fixed window is only useful when you need exactly that window, such as the rat
 ### Single-value results [esql-promql-single-value]
 
 A range query returns a value for every step. To get a single value per series, such as for a metric or gauge chart
-or a ranking:
+or a ranking, use an [instant query](#esql-promql-instant-query) for the current value. In Kibana, set `time=?_tend`
+to evaluate the expression at the end of the time range of the date picker
+(refer to [time range parameters](docs-content://explore-analyze/query-filter/languages/esql-kibana.md)):
 
-- For the current value, use an [instant query](#esql-promql-instant-query). In Kibana, set `time=?_tend` to evaluate
-  the expression at the end of the time range of the date picker
-  (refer to [time range parameters](docs-content://explore-analyze/query-filter/languages/esql-kibana.md)):
+```esql
+PROMQL index=metrics-generic.prometheus-* time=?_tend http_rate=(sum(rate(http_requests_total)))
+```
 
-  ```esql
-  PROMQL index=metrics-generic.prometheus-* time=?_tend http_rate=(sum(rate(http_requests_total)))
-  ```
-
-- For a value over the whole time range, such as a total, collapse the steps of a range query with `STATS`.
-  With an implicit range selector, the window of each step is one step wide, so summing the increase of each step
-  gives the increase over the whole time range:
-
-  ```esql
-  PROMQL index=metrics-generic.prometheus-* requests=(sum(increase(http_requests_total)))
-  | STATS total_requests = SUM(requests)
-  ```
+There's no reliable way yet to get a value over the whole time range, such as a total. Summing the steps of a range
+query, such as with `STATS SUM(...)`, overstates it when the step is shorter than `scrape_interval`, as the windows of
+the steps overlap.
 
 ## Limitations [esql-promql-limitations]
 

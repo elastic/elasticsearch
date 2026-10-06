@@ -239,7 +239,7 @@ public class FillNullTests extends ESTestCase {
             FillNull materialized = materialize(fillNull, List.of(b), TEST_CFG);
             Literal fill = fillLiteralFor(materialized, "b");
             assertEquals("[" + value + "] must fill the BOOLEAN column", DataType.BOOLEAN, fill.dataType());
-            assertEquals("[" + value + "] must fill the matching boolean", Boolean.parseBoolean(value), fill.value());
+            assertEquals("[" + value + "] must fill the matching boolean", "true".equalsIgnoreCase(value), fill.value());
             assertTrue("[" + value + "] must not be reported", unfillableNames(materialized).isEmpty());
         }
     }

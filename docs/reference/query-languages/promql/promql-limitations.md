@@ -45,6 +45,7 @@ The following constructs are not evaluated yet, so they return a client error (4
 - Binary set operators: `and` and `unless`. The `or` operator is supported only at the top level of an expression and a top-level `or` chain supports at most 8 operands; a nested `or`, or a chain of more than 8 operands, returns a client error (4xx).
 - Comparison operators: evaluated only at the top level of an expression and only with a scalar literal on the right-hand side. Comparisons between two instant vectors, and nested comparisons, return a client error (4xx).
 - Group modifiers: `on(...)`, `ignoring(...)`, `group_left`, `group_right`
+- Metric name matchers: a selector must name exactly one metric, either as `metric{...}` or as `{__name__="metric", ...}`. Matching metric names with `!=`, `=~`, or `!~` on `__name__` (for example, `{__name__!="tx"}` or `{__name__=~"http_.*"}`) is not supported yet.
 - Functions: see [Not yet supported](functions.md#promql-not-supported) for the full list of recognized but unimplemented functions.
 
 ## Native histograms [promql-limitations-native-histograms]

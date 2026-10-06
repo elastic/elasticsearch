@@ -1102,6 +1102,36 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
          * so {@link #serializeColumns} can reuse it without a second {@code getBytesRef} call.
          */
         private int collectRowSizes(int positionOffset, int requested) {
+            if (anyNullable) {
+                return collectRowSizesWithNulls(positionOffset, requested);
+            }
+            final int brCount = brVectors.length;
+            int offset = 0;
+            int rows = 0;
+            for (int i = 0; i < requested; i++) {
+                int sz = fixedRowBase;
+                for (int b = 0; b < brCount; b++) {
+                    final BytesRef br = brVectors[b].getBytesRef(positionOffset + i, bytesRefCache[b][i]);
+                    bytesRefCache[b][i] = br;
+                    sz += br.length;
+                }
+                if (rows > 0 && offset + sz > CHUNK_SOFT_CAP) {
+                    break;
+                }
+                rowKeys[i].offset = offset;
+                rowKeys[i].length = sz;
+                offset += sz;
+                rows++;
+            }
+            return rows;
+        }
+
+        /**
+         * {@link #collectRowSizes} for a page some key column arrived without a vector for, which also records
+         * the columns each row holds no value in. A column holding none is left out of the row's size, since a
+         * null takes no bytes beyond its bit in the prefix.
+         */
+        private int collectRowSizesWithNulls(int positionOffset, int requested) {
             final int brCount = brVectors.length;
             int offset = 0;
             int rows = 0;
@@ -1109,16 +1139,14 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
                 final int position = positionOffset + i;
                 int sz = fixedRowBase;
                 long nulls = 0;
-                if (anyNullable) {
-                    for (int g = 0; g < nullableBlocks.length; g++) {
-                        final Block block = nullableBlocks[g];
-                        if (block != null && block.isNull(position)) {
-                            nulls |= 1L << g;
-                            sz -= fixedContribution[g];
-                        }
+                for (int g = 0; g < nullableBlocks.length; g++) {
+                    final Block block = nullableBlocks[g];
+                    if (block != null && block.isNull(position)) {
+                        nulls |= 1L << g;
+                        sz -= fixedContribution[g];
                     }
-                    rowNulls[i] = nulls;
                 }
+                rowNulls[i] = nulls;
                 for (int b = 0; b < brCount; b++) {
                     final int g = bytesRefSpecIdx[b];
                     if ((nulls & (1L << g)) != 0) {
@@ -1220,13 +1248,22 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
 
         private void serializeColumns(int positionOffset, int rows, int[] cursors) {
             // The prefix says which columns a row holds no value in; the bytes of the rest are overwritten below.
-            for (int i = 0; i < rows; i++) {
-                final int o = rowKeys[i].offset;
-                final long nulls = anyNullable ? rowNulls[i] : 0L;
-                for (int b = 0; b < nullTrackingBytes; b++) {
-                    keyBuf[o + b] = (byte) (nulls >>> (b * Byte.SIZE));
+            if (anyNullable) {
+                for (int i = 0; i < rows; i++) {
+                    final int o = rowKeys[i].offset;
+                    for (int b = 0; b < nullTrackingBytes; b++) {
+                        keyBuf[o + b] = (byte) (rowNulls[i] >>> (b * Byte.SIZE));
+                    }
+                    cursors[i] = o + nullTrackingBytes;
                 }
-                cursors[i] = o + nullTrackingBytes;
+            } else {
+                for (int i = 0; i < rows; i++) {
+                    final int o = rowKeys[i].offset;
+                    for (int b = 0; b < nullTrackingBytes; b++) {
+                        keyBuf[o + b] = 0;
+                    }
+                    cursors[i] = o + nullTrackingBytes;
+                }
             }
             for (int g = 0; g < specs.size(); g++) {
                 final Vector vector = vectors[g];

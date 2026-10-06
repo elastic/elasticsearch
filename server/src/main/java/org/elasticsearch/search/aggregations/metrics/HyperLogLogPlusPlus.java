@@ -23,6 +23,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
+import java.io.EOFException;
 import java.io.IOException;
 
 /**
@@ -168,6 +169,17 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         return hllBuckets.ramBytesUsed() + hll.ramBytesUsed() + lc.ramBytesUsed();
     }
 
+    /**
+     * Merges the registers {@code registers[offset, offset + 2^precision)} into the bucket, upgrading it to HyperLogLog first if needed.
+     */
+    void addRunLens(long bucketOrd, byte[] registers, int offset) {
+        long hllBucket = bucketOrd < hllBuckets.size() ? hllBuckets.get(bucketOrd) - 1 : -1;
+        if (hllBucket < 0) {
+            hllBucket = upgradeToHll(bucketOrd);
+        }
+        hll.mergeRegisters(hllBucket, registers, offset);
+    }
+
     void addRunLen(long bucketOrd, int register, int runLen) {
         long hllBucket = bucketOrd < hllBuckets.size() ? hllBuckets.get(bucketOrd) - 1 : -1;
         if (hllBucket < 0) {
@@ -220,6 +232,18 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             }
             return;
         }
+        if (algorithm == HYPERLOGLOG) {
+            if (precision != precision()) {
+                throw new IllegalArgumentException();
+            }
+            final int registers = 1 << precision;
+            if (in.available() < registers) {
+                throw new EOFException("expected " + registers + " registers but only " + in.available() + " bytes remain");
+            }
+            // The registers follow the header as raw bytes, so merge them straight out of the buffer.
+            addRunLens(bucket, other.bytes, in.getPosition());
+            return;
+        }
         // fallback
         in.reset(other.bytes, other.offset, other.length);
         try (AbstractHyperLogLogPlusPlus otherHll = readFrom(in, hll.bigArrays)) {
@@ -233,6 +257,13 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
         if (other.getAlgorithm(otherBucket) == LINEAR_COUNTING) {
             merge(thisBucket, other.getLinearCounting(otherBucket));
+        } else if (other instanceof HyperLogLogPlusPlus otherHll) {
+            final long otherHllBucket = otherHll.hllBuckets.get(otherBucket) - 1;
+            long hllBucket = thisBucket < hllBuckets.size() ? hllBuckets.get(thisBucket) - 1 : -1;
+            if (hllBucket < 0) {
+                hllBucket = upgradeToHll(thisBucket);
+            }
+            hll.mergeRegisters(hllBucket, otherHll.hll, otherHllBucket);
         } else {
             merge(thisBucket, other.getHyperLogLog(otherBucket));
         }
@@ -295,6 +326,35 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         @Override
         protected RunLenIterator getRunLens(long bucketOrd) {
             return new HyperLogLogIterator(this, bucketOrd);
+        }
+
+        /**
+         * Sets each register of the bucket to the larger of its value and the corresponding byte of
+         * {@code src[srcOffset, srcOffset + m)}, in bulk.
+         */
+        void mergeRegisters(long bucketOrd, byte[] src, int srcOffset) {
+            final long start = bucketOrd << p;
+            final BytesRef dest = new BytesRef();
+            // When the bytes are not materialized, dest is the live storage and is updated in place; otherwise it is a copy to write back.
+            final boolean copied = runLens.get(start, m, dest);
+            maxInto(dest.bytes, dest.offset, src, srcOffset, m);
+            if (copied) {
+                runLens.set(start, dest.bytes, dest.offset, m);
+            }
+        }
+
+        /** As {@link #mergeRegisters(long, byte[], int)} with the registers of a bucket of another HyperLogLog of the same precision. */
+        void mergeRegisters(long bucketOrd, HyperLogLog other, long otherBucketOrd) {
+            final BytesRef src = new BytesRef();
+            other.runLens.get(otherBucketOrd << p, m, src);
+            // If the source was materialized it is a private copy, and otherwise it is read before the destination is touched.
+            mergeRegisters(bucketOrd, src.bytes, src.offset);
+        }
+
+        private static void maxInto(byte[] dest, int destOffset, byte[] src, int srcOffset, int length) {
+            for (int i = 0; i < length; i++) {
+                dest[destOffset + i] = (byte) Math.max(dest[destOffset + i], src[srcOffset + i]);
+            }
         }
 
         protected long newBucket() {

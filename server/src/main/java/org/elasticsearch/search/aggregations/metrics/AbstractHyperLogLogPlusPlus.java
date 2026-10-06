@@ -117,10 +117,9 @@ public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlg
             return counts;
         } else {
             HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(precision, bigArrays, 1);
-            final int registers = 1 << precision;
-            for (int i = 0; i < registers; ++i) {
-                counts.addRunLen(0, i, in.readByte());
-            }
+            final byte[] registers = new byte[1 << precision];
+            in.readBytes(registers, 0, registers.length);
+            counts.addRunLens(0, registers, 0);
             return counts;
         }
     }

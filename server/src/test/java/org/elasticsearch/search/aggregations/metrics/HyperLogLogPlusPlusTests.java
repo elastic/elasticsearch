@@ -11,9 +11,11 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import com.carrotsearch.hppc.BitMixer;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LimitedBreaker;
@@ -22,6 +24,8 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.EOFException;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -255,6 +259,98 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
                     assertThat("group=" + g + " values=" + values, values, hasSize((int) cardinality));
                 }
             }
+        }
+    }
+
+    /**
+     * Merges states in bulk, either from serialized bytes ({@code combine}), from another structure ({@code merge}) or after
+     * deserializing ({@code readFrom}), and checks the result against one structure that collected every hash directly. Registers
+     * only grow, so the result must not depend on how the hashes were split up or merged.
+     */
+    public void testBulkMergePaths() throws IOException {
+        final int precision = randomIntBetween(MIN_PRECISION, 12);
+        final int threshold = (int) ((1 << precision) / 4 * 0.75);
+        final BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+        try (
+            HyperLogLogPlusPlus reference = new HyperLogLogPlusPlus(precision, bigArrays, 1);
+            HyperLogLogPlusPlus dest = new HyperLogLogPlusPlus(precision, bigArrays, 1)
+        ) {
+            final int destBucket = randomIntBetween(0, 3);
+            // The destination may start in linear counting or HyperLogLog, or empty.
+            final int initial = randomBoolean() ? 0 : between(1, 4 * threshold);
+            for (int i = 0; i < initial; i++) {
+                final long hash = BitMixer.mix64(randomLong());
+                dest.collect(destBucket, hash);
+                reference.collect(0, hash);
+            }
+            final int sources = between(1, 5);
+            for (int s = 0; s < sources; s++) {
+                try (HyperLogLogPlusPlus source = new HyperLogLogPlusPlus(precision, bigArrays, 1)) {
+                    final int values = between(1, 4 * threshold);
+                    for (int i = 0; i < values; i++) {
+                        final long hash = BitMixer.mix64(randomLong());
+                        source.collect(0, hash);
+                        reference.collect(0, hash);
+                    }
+                    switch (between(0, 2)) {
+                        case 0 -> {
+                            final BytesStreamOutput out = new BytesStreamOutput();
+                            source.writeTo(0, out);
+                            // Surround the serialized bytes with padding to check the offset is respected.
+                            final BytesRef serialized = out.bytes().toBytesRef();
+                            final byte[] padded = new byte[serialized.length + 7 + 5];
+                            System.arraycopy(serialized.bytes, serialized.offset, padded, 7, serialized.length);
+                            dest.combine(destBucket, new BytesRef(padded, 7, serialized.length));
+                        }
+                        case 1 -> dest.merge(destBucket, source, 0);
+                        case 2 -> {
+                            final BytesStreamOutput out = new BytesStreamOutput();
+                            source.writeTo(0, out);
+                            try (
+                                AbstractHyperLogLogPlusPlus read = AbstractHyperLogLogPlusPlus.readFrom(
+                                    out.bytes().streamInput(),
+                                    bigArrays
+                                )
+                            ) {
+                                dest.merge(destBucket, read, 0);
+                            }
+                        }
+                        default -> throw new AssertionError();
+                    }
+                }
+            }
+            assertThat(dest.getAlgorithm(destBucket), equalTo(reference.getAlgorithm(0)));
+            if (reference.getAlgorithm(0) == AbstractHyperLogLogPlusPlus.HYPERLOGLOG) {
+                // Serialized HyperLogLog is the raw registers, so this compares every register.
+                final BytesStreamOutput expected = new BytesStreamOutput();
+                final BytesStreamOutput actual = new BytesStreamOutput();
+                reference.writeTo(0, expected);
+                dest.writeTo(destBucket, actual);
+                assertThat(actual.bytes(), equalTo(expected.bytes()));
+            } else {
+                assertTrue(reference.equals(0, dest, destBucket));
+            }
+            assertThat(dest.cardinality(destBucket), equalTo(reference.cardinality(0)));
+        }
+    }
+
+    public void testCombineHyperLogLogChecksPrecisionAndLength() throws IOException {
+        final BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+        final int precision = randomIntBetween(MIN_PRECISION, 10);
+        try (
+            HyperLogLogPlusPlus source = new HyperLogLogPlusPlus(precision, bigArrays, 1);
+            HyperLogLogPlusPlus dest = new HyperLogLogPlusPlus(precision, bigArrays, 1);
+            HyperLogLogPlusPlus otherPrecision = new HyperLogLogPlusPlus(precision + 1, bigArrays, 1)
+        ) {
+            source.upgradeToHll(0);
+            otherPrecision.upgradeToHll(0);
+            final BytesStreamOutput out = new BytesStreamOutput();
+            source.writeTo(0, out);
+            final BytesRef bytes = out.bytes().toBytesRef();
+            expectThrows(EOFException.class, () -> dest.combine(0, new BytesRef(bytes.bytes, bytes.offset, bytes.length - between(1, 3))));
+            final BytesStreamOutput otherOut = new BytesStreamOutput();
+            otherPrecision.writeTo(0, otherOut);
+            expectThrows(IllegalArgumentException.class, () -> dest.combine(0, otherOut.bytes().toBytesRef()));
         }
     }
 }

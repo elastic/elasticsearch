@@ -20,7 +20,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -31,6 +33,7 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.recovery.RegisterCommitResponse;
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 
@@ -301,7 +304,9 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTes
     ///
     /// The sequence forced here:
     /// - The old primary enters `RELOCATING`, pinning `maxGenerationToUpload = M`.
-    /// - A force merge on the old node creates generation `M+1`, whose upload is paused for good.
+    /// - A force merge on the old node creates generation `M+1`, whose upload is paused for good. With a flushing force merge,
+    ///   `M+1` is frozen and pending upload. Otherwise it is created by the post-merge refresh and usually stays in the current,
+    ///   unfrozen VBCC, which is the VBCC a registration would otherwise hand out.
     /// - A recovering search shard registers with the old primary, which is still the primary in the routing table.
     /// - The handoff completes and generation `M+1` is discarded, never reaching the object store.
     ///
@@ -309,6 +314,9 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTes
         final Settings indexNodeSettings = Settings.builder()
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), Boolean.FALSE)
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
+            // Refresh after every merge, so that a force merge without flush still creates a commit.
+            .put(IndexEngine.MERGE_FORCE_REFRESH_SIZE.getKey(), ByteSizeValue.ZERO)
             .build();
 
         final var oldIndexNode = startMasterAndIndexNode(indexNodeSettings);
@@ -409,11 +417,11 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTes
             safeAwait(pauseRegistration);
 
             logger.info("--> force merging on the old node to create a commit above maxGenerationToUpload");
-            client(oldIndexNode).admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).execute();
+            client(oldIndexNode).admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).setFlush(randomBoolean()).execute();
 
             assertBusy(
                 () -> assertThat(
-                    sourceCommitService.getMaxPendingOrUploadedGeneration(sourceShard.shardId()),
+                    getMaxCurrentOrPendingUploadGeneration(sourceCommitService, sourceShard.shardId()),
                     greaterThan(maxGenerationToUpload)
                 )
             );
@@ -440,5 +448,13 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTes
             assertNoFailures(searchResponse);
             assertEquals(2000, searchResponse.getHits().getTotalHits().value());
         });
+    }
+
+    private static long getMaxCurrentOrPendingUploadGeneration(StatelessCommitService commitService, ShardId shardId) {
+        final var currentVirtualBcc = commitService.getCurrentVirtualBcc(shardId);
+        return Math.max(
+            currentVirtualBcc != null ? currentVirtualBcc.getMaxGeneration() : -1L,
+            commitService.getMaxPendingOrUploadedGeneration(shardId)
+        );
     }
 }

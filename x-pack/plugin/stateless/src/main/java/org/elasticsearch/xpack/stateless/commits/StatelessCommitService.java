@@ -1858,6 +1858,18 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 .map(PendingUploadVirtualBatchCompoundCommit::commit);
         }
 
+        private Optional<VirtualBatchedCompoundCommit> getMaxPendingUploadBccWithUnpausedUpload() {
+            return pendingUploadBccGenerations.values()
+                .stream()
+                // Freezing a VBCC does not consult maxGenerationToUpload, so while the shard is relocating this map
+                // can hold generations above the pinned bound. Whatever survives the filter is safe to hand out. If no
+                // bound is pinned yet then the one markRelocating later pins is the max pending generation at that
+                // point, which is at or above anything pending now.
+                .filter(pending -> pauseUpload(pending.commit().getMaxGeneration()) == false)
+                .max(Comparator.comparing(PendingUploadVirtualBatchCompoundCommit::getPrimaryTermAndGeneration))
+                .map(PendingUploadVirtualBatchCompoundCommit::commit);
+        }
+
         private Optional<VirtualBatchedCompoundCommit> getMaxPendingUploadBccBeforeGeneration(long generation) {
             return pendingUploadBccGenerations.values()
                 .stream()
@@ -3022,7 +3034,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
                     assert relocationUploadBoundListener != null && relocationUploadBoundListener.isDone()
                         : "relocation upload bound listener should have been completed by markRelocating";
-                    // Cleared last, as getLatestVirtualBccForUnpromotableRecovery hands out the current or pending VBCC once this is null
+                    // Cleared last, as getLatestVirtualBccForUnpromotableRecovery hands out the current VBCC once this is null
                     relocationUploadBoundListener = null;
                 }
                 // If the index is concurrently deleted, the state will be CLOSED. We always want to reprocess the deferred deletions.
@@ -3163,8 +3175,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         /// A VBCC that is past the [#maxGenerationToUpload] during relocation must not be handed to a search shard,
         /// which would otherwise read offsets into a blob that is never written.
         ///
-        /// While a relocation upload bound listener is installed this returns `null`, so the recovering search shard falls back to
-        /// the requested or last uploaded commit, and catches up through the normal notification path.
+        /// While a relocation upload bound listener is installed this falls back to [#getMaxPendingUploadBccWithUnpausedUpload].
+        /// A recovering search shard then gets a slightly older commit and catches up through the normal notification path.
         ///
         /// Otherwise this returns the current VBCC, or the newest VBCC pending upload if there is no current one.
         ///
@@ -3173,12 +3185,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         /// seen, so the bound it pins covers it, including anything appended to that VBCC in the meantime.
         @Nullable
         private VirtualBatchedCompoundCommit getLatestVirtualBccForUnpromotableRecovery() {
-            final var currentVirtualBcc = getCurrentVirtualBcc();
-            final var virtualBcc = currentVirtualBcc != null ? currentVirtualBcc : getMaxPendingUploadBcc().orElse(null);
-            if (relocationUploadBoundListener != null) {
-                return null;
+            final var virtualBcc = getCurrentVirtualBcc();
+            if (virtualBcc != null && relocationUploadBoundListener == null) {
+                return virtualBcc;
             }
-            return virtualBcc;
+            return getMaxPendingUploadBccWithUnpausedUpload().orElse(null);
         }
 
         /**

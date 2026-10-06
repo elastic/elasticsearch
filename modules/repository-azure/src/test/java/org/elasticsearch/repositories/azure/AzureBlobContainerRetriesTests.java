@@ -364,7 +364,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
     }
 
     @TestIssueLogging(
-        value = "org.elasticsearch.repositories.azure:TRACE",
+        value = "org.elasticsearch.repositories.azure:TRACE,com.azure:DEBUG,reactor.netty:DEBUG",
         issueUrl = "https://github.com/elastic/elasticsearch/issues/152914"
     )
     public void testWriteLargeBlob() throws Exception {

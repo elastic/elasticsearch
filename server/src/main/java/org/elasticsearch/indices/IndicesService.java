@@ -87,6 +87,7 @@ import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
@@ -257,6 +258,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
+    private final FeatureService featureService;
     private final ProjectResolver projectResolver;
     private final Client client;
     private volatile Map<String, IndexService> indices = Map.of();
@@ -334,6 +336,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.bigArrays = builder.bigArrays;
         this.scriptService = builder.scriptService;
         this.clusterService = builder.clusterService;
+        this.featureService = builder.featureService;
         this.threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
             threadPool,
             clusterService.getClusterSettings(),
@@ -859,6 +862,7 @@ public class IndicesService extends AbstractLifecycleComponent
             threadPoolMergeExecutorService,
             scriptService,
             clusterService,
+            featureService,
             client,
             indicesQueryCache,
             mapperRegistry,
@@ -952,7 +956,14 @@ public class IndicesService extends AbstractLifecycleComponent
             // optimization, we only do so when we are sure they are the same.
             .filter(dm -> indexMetadata.mapping() != null && dm.mappingSource() == indexMetadata.mapping().source())
             .orElse(null);
-        return indexModule.newIndexMapperService(clusterService, parserConfig, mapperRegistry, scriptService, documentMapper);
+        return indexModule.newIndexMapperService(
+            clusterService,
+            featureService,
+            parserConfig,
+            mapperRegistry,
+            scriptService,
+            documentMapper
+        );
     }
 
     /**

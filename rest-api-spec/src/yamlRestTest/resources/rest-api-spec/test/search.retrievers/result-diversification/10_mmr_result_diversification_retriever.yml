@@ -208,12 +208,14 @@ teardown:
       search:
         index: test-result-diversification-index
         body:
-          retriever:
-            knn:
-              field: "textvector"
-              query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
-              k: 10
-              num_candidates: 10
+          knn:
+            field: "textvector"
+            query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+            k: 10
+            num_candidates: 10
+          sort:
+            - _score: desc
+            - id: asc
 
   - match: { hits.total.value: 10 }
   - length: { hits.hits: 10 }
@@ -301,12 +303,14 @@ teardown:
       search:
         index: test-result-diversification-index
         body:
-          retriever:
-            knn:
-              field: "textvector"
-              query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
-              k: 10
-              num_candidates: 10
+          knn:
+            field: "textvector"
+            query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+            k: 10
+            num_candidates: 10
+          sort:
+            - _score: desc
+            - id: asc
 
   - match: { hits.total.value: 10 }
   - length: { hits.hits: 10 }
@@ -452,12 +456,14 @@ teardown:
       search:
         index: "test-result-diversification-index*"
         body:
-          retriever:
-            knn:
-              field: "textvector"
-              query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
-              k: 10
-              num_candidates: 10
+          knn:
+            field: "textvector"
+            query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+            k: 10
+            num_candidates: 10
+          sort:
+            - _score: desc
+            - id: asc
 
   - match: { hits.total.value: 10 }
   - length: { hits.hits: 10 }

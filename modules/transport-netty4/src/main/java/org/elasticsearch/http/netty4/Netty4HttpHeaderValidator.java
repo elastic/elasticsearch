@@ -15,6 +15,7 @@ import io.netty.handler.codec.DecoderResult;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpRequest;
+import io.netty.util.ReferenceCountUtil;
 import io.netty.util.ReferenceCounted;
 
 import org.elasticsearch.action.ActionListener;
@@ -93,6 +94,14 @@ public class Netty4HttpHeaderValidator extends ChannelDuplexHandler {
             } else {
                 ctx.read();
             }
+        }
+    }
+
+    @Override
+    public void handlerRemoved(ChannelHandlerContext ctx) {
+        assert ctx.channel().eventLoop().inEventLoop();
+        while (buffer.isEmpty() == false) {
+            ReferenceCountUtil.release(buffer.pollFirst());
         }
     }
 

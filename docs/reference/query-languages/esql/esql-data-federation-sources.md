@@ -48,7 +48,7 @@ Click **Connect data source** to open a flyout where you define the connection:
 
 - **Data source type**: the storage system to connect to, such as **Amazon S3**.
 - **Name**: a unique name for the data source. Names must be lowercase and cannot begin with `-`, `_`, or `+`.
-- **Description**: an optional description.
+- **Description**: an optional description (up to 1,000 characters).
 - **Endpoint**: an optional Amazon S3 endpoint override, given as an absolute `https` URL naming a supported AWS S3 endpoint. Leave it empty to have the endpoint resolved from the region.
 - **Authentication**: select an authentication model from the dropdown, then fill in the credentials it requires.
 
@@ -84,6 +84,8 @@ Data source names follow the same naming rules as index names: lowercase only, a
 :::
 
 A cluster holds at most 100 data sources by default. In {{stack}} deployments, if you need more than 100 data sources, then you can raise the limit using the [`esql.data_sources.max_count`](esql-data-federation-cluster-settings.md#object-limits) cluster setting.
+
+The optional `description` can be at most 1,000 characters long.
 
 ::::{tab-set}
 :group: api-ref

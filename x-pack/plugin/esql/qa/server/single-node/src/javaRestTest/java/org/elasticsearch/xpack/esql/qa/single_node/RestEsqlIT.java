@@ -441,8 +441,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
 
         assertEquals("ns", parsedProfile.get("displayTimeUnit"));
         List<Map<String, Object>> events = (List<Map<String, Object>>) parsedProfile.get("traceEvents");
-        // At least 1 metadata event to declare the node, and 2 events each for the data, node_reduce and final drivers, resp.
-        assertThat(events.size(), greaterThanOrEqualTo(7));
+        // At least 1 metadata event to declare the node, and 2 events each for the data and final drivers, resp.
+        assertThat(events.size(), greaterThanOrEqualTo(5));
 
         String clusterName = "test-cluster";
         Set<String> expectedProcessNames = new HashSet<>();

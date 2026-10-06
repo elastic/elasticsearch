@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.inference.AbstractDenseEmbeddingOperatorTestCase;
@@ -41,6 +42,7 @@ public class TextEmbeddingOperatorTests extends AbstractDenseEmbeddingOperatorTe
             inferenceService,
             SIMPLE_INFERENCE_ID,
             evaluatorFactory(inputChannel),
+            InputType.INTERNAL_INGEST,
             batchSize,
             null,
             Source.EMPTY,

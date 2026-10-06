@@ -87,13 +87,16 @@ public final class ExternalSourceCacheSettings {
      */
     public static final Setting<TimeValue> LISTING_TTL_OLD = Setting.positiveTimeSetting(
         "esql.source.cache.listing.ttl",
-        TimeValue.timeValueSeconds(30),
+        TimeValue.timeValueMinutes(5),
         Setting.Property.DeprecatedWarning,
         Setting.Property.NodeScope
     );
 
     // Only the listing cache carries a time-based refresh: it discovers file identity and has no per-file
     // key to invalidate on. The schema and dataset-aggregate caches invalidate by identity, not by a clock.
+    // Default is five minutes after write (the deprecated key's default; this key falls back to it). A file
+    // added or removed becomes visible on the next query once that elapses. Lower the setting for faster
+    // visibility. File metadata (length, mtime) shares this TTL. Re-lists stay query-triggered.
     public static final Setting<TimeValue> LISTING_TTL = Setting.positiveTimeSetting(
         "esql.external.cache.listing.ttl",
         LISTING_TTL_OLD,
@@ -175,7 +178,7 @@ public final class ExternalSourceCacheSettings {
      * <p>
      * This is a <em>working-set</em> LRU, not a function of
      * {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings#MAX_DISCOVERED_FILES}
-     * (10k default, up to 1M allowed). The
+     * (25k default, up to 1M allowed). The
      * weigher is {@code byte[].length} only — a few KiB of uncounted object overhead per entry at
      * capacity is fine; do not size this so the cache would admit on the order of a million
      * entries. 0.5% of an 8 GB heap is ~41 MiB, enough for a typical working set of tiny-file

@@ -15,11 +15,13 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -1491,4 +1493,102 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertNoResponseWarnings();
     }
 
+    /**
+     * Resolution keys a per-file schema map over the listing it held. Under the modes that answer a schema from part
+     * of a dataset, that listing is a prefix, and a file with no entry is read under its own schema instead of the
+     * one every file is pinned to — which is the opposite of what those modes promise.
+     */
+    public void testFilesTheResolverNeverListedAreReadUnderTheDatasetsSchema() {
+        ExternalSchema anchor = new ExternalSchema(List.of(new ReferenceAttribute(Source.EMPTY, "v", DataType.LONG)));
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, null);
+        StoragePath resolved = StoragePath.of("s3://b/a.parquet");
+        StoragePath discovered = StoragePath.of("s3://b/b.parquet");
+        // The resolved file also carries a harvest, which the unlisted one cannot have.
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> known = Map.of(
+            resolved,
+            new SchemaReconciliation.FileSchemaInfo(anchor, mapping, null, Map.of("v", DataType.INTEGER))
+        );
+
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> pinned = SchemaReconciliation.pinnedOver(
+            known,
+            GlobExpander.fileListOf(
+                List.of(new StorageEntry(resolved, 1, Instant.EPOCH), new StorageEntry(discovered, 1, Instant.EPOCH)),
+                "s3://b/*.parquet"
+            )
+        );
+
+        assertEquals(2, pinned.size());
+        assertSame("a file the resolver listed keeps its own entry", known.get(resolved), pinned.get(resolved));
+        SchemaReconciliation.FileSchemaInfo filled = pinned.get(discovered);
+        assertSame("and one it did not reads under the same schema", anchor, filled.fileSchema());
+        assertSame(mapping, filled.mapping());
+        assertNull("with no harvest, because nobody harvested it", filled.statistics());
+        assertNull(filled.inferredTypes());
+    }
+
+    /** Every file already keyed: the map is the answer, untouched. */
+    public void testACompleteSchemaMapIsLeftAlone() {
+        ExternalSchema anchor = new ExternalSchema(List.of(new ReferenceAttribute(Source.EMPTY, "v", DataType.LONG)));
+        StoragePath only = StoragePath.of("s3://b/a.parquet");
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> known = Map.of(
+            only,
+            new SchemaReconciliation.FileSchemaInfo(anchor, null, null)
+        );
+
+        assertSame(
+            known,
+            SchemaReconciliation.pinnedOver(known, GlobExpander.fileListOf(List.of(new StorageEntry(only, 1, Instant.EPOCH)), "s3://b/*"))
+        );
+    }
+
+    /** No map at all means no file was pinned, so there is no dataset-wide schema to extend. */
+    public void testAnEmptySchemaMapStaysEmpty() {
+        assertSame(
+            Map.of(),
+            SchemaReconciliation.pinnedOver(
+                Map.of(),
+                GlobExpander.fileListOf(List.of(new StorageEntry(StoragePath.of("s3://b/a.parquet"), 1, Instant.EPOCH)), "s3://b/*")
+            )
+        );
+    }
+
+    /**
+     * Per-file read schemas mean the listing covered every file, because the modes that read them all are the modes
+     * that list them all. A map like that with a file missing is a contradiction, and filling it by picking one
+     * file's schema for another's would be a silent wrong read.
+     */
+    public void testPerFileSchemasCannotBeExtendedToAFileNobodyListed() {
+        StoragePath first = StoragePath.of("s3://b/a.parquet");
+        StoragePath second = StoragePath.of("s3://b/b.parquet");
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> perFile = Map.of(
+            first,
+            new SchemaReconciliation.FileSchemaInfo(
+                new ExternalSchema(List.of(new ReferenceAttribute(Source.EMPTY, "v", DataType.LONG))),
+                null,
+                null
+            ),
+            second,
+            new SchemaReconciliation.FileSchemaInfo(
+                new ExternalSchema(List.of(new ReferenceAttribute(Source.EMPTY, "w", DataType.KEYWORD))),
+                null,
+                null
+            )
+        );
+
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> SchemaReconciliation.pinnedOver(
+                perFile,
+                GlobExpander.fileListOf(
+                    List.of(
+                        new StorageEntry(first, 1, Instant.EPOCH),
+                        new StorageEntry(second, 1, Instant.EPOCH),
+                        new StorageEntry(StoragePath.of("s3://b/c.parquet"), 1, Instant.EPOCH)
+                    ),
+                    "s3://b/*.parquet"
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("per-file read schemas"));
+    }
 }

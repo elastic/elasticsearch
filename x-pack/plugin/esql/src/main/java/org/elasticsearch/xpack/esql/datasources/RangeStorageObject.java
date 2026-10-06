@@ -29,7 +29,7 @@ import java.util.concurrent.Executor;
  * Used for every {@link FileSplit} so format readers and splittable decompressors
  * only see the split's compressed byte span (including offset {@code 0}).
  */
-class RangeStorageObject implements StorageObject {
+class RangeStorageObject implements StorageObject, ResumeBypassingStorageObject {
 
     private final StorageObject delegate;
     private final long offset;
@@ -142,6 +142,12 @@ class RangeStorageObject implements StorageObject {
         // non-draining abort (e.g. Abortable.abort()). Falling through to the SPI default
         // stream.close() would drain the entire response body for partial reads.
         delegate.abortStream(stream);
+    }
+
+    @Override
+    public InputStream withoutResume(InputStream stream) {
+        // Streams pass through unwrapped, so route to the delegate the same way abortStream does.
+        return ResumeBypassingStorageObject.withoutResume(delegate, stream);
     }
 
     @Override

@@ -751,6 +751,17 @@ public class ParamsParserTests extends AbstractStatementParserTests {
         }
     }
 
+    public void testPatternGlobTakesParamCharactersLiterally() {
+        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
+        LogicalPlan plan = query(
+            "from test | keep ??f1.*, ?f2",
+            new QueryParams(List.of(paramAsConstant("f1", "a*b"), paramAsPattern("f2", "c\\*")))
+        );
+        Keep keep = as(plan, Keep.class);
+        assertEquals("a\\*b.*", as(keep.projections().get(0), UnresolvedNamePattern.class).glob());
+        assertEquals("c\\\\*", as(keep.projections().get(1), UnresolvedNamePattern.class).glob());
+    }
+
     public void testInvalidDoubleParamsNames() {
         assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
         expectError(

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.glob;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
@@ -40,8 +41,8 @@ final class FileListCompactor {
      * The directory-grouped encoding is only built when {@link PartitionMetadata} was detected — that is
      * the cost heuristic for layouts with repeated directories worth grouping. Building that candidate also
      * rewrites its partition metadata via {@link PartitionMetadata#shareByGroups(short[], int)} so identical
-     * Hive tuples are stored once per directory; if the dictionary encoding is then kept, the shared copy is
-     * discarded with the candidate and the dictionary list carries the unshared metadata. {@link GlobExpander}
+     * Hive tuples are stored once per directory. Both encodings receive those shared rows when grouping
+     * succeeded; overflow ({@code groupedCandidate == null}) keeps the unshared metadata. {@link GlobExpander}
      * attaches no partition metadata when hive partitioning is off, so such listings take the dictionary
      * encoding directly.
      */
@@ -59,7 +60,11 @@ final class FileListCompactor {
         String normalizedBase = normalizeBase(basePath);
         PartitionMetadata pm = raw.partitionMetadata();
         FileList groupedCandidate = pm != null && pm.isEmpty() == false ? tryDirectoryGrouped(normalizedBase, raw) : null;
-        FileList dictCandidate = tryDictionary(normalizedBase, raw);
+        // A grouped candidate already shared one row per directory. The dictionary list must carry those
+        // rows too, so a dictionary win still reports rowCount as the directory count. Overflow (null
+        // candidate) keeps the unshared metadata.
+        PartitionMetadata dictionaryMetadata = groupedCandidate == null ? pm : groupedCandidate.partitionMetadata();
+        FileList dictCandidate = tryDictionary(normalizedBase, raw, dictionaryMetadata);
         // Collect the listed keys once so both candidates verify against one array instead of walking the raw
         // entries again per candidate. These are stored strings; the reconstruction cost sits on the candidate
         // side. Skipped when neither encoding was built, since then there is nothing to verify.
@@ -228,7 +233,7 @@ final class FileListCompactor {
         PartitionMetadata pm = raw.partitionMetadata();
         if (pm != null && pm.isEmpty() == false) {
             // One value row per directory group when that shrinks storage (Hive tuples are per-directory).
-            // Sharing runs only for the directory-grouped encoding; dictionary compaction keeps one row per file.
+            // compact() also hands this metadata to the dictionary candidate so both encodings share rows.
             pm = pm.shareByGroups(fileGroups, numGroups);
         }
         return new DirectoryGroupedFileList(
@@ -252,7 +257,7 @@ final class FileListCompactor {
     // Dictionary-encoded encoding
     // ------------------------------------------------------------------
 
-    private static FileList tryDictionary(String normalizedBase, GenericFileList raw) {
+    private static FileList tryDictionary(String normalizedBase, GenericFileList raw, @Nullable PartitionMetadata partitionMetadata) {
         List<StorageEntry> files = raw.files();
         int count = files.size();
         long[] sizes = new long[count];
@@ -360,7 +365,7 @@ final class FileListCompactor {
             mtimes,
             sharedExt,
             raw.originalPattern(),
-            raw.partitionMetadata(),
+            partitionMetadata,
             count,
             raw.fileSetFingerprint(),
             raw.listingWarnings()

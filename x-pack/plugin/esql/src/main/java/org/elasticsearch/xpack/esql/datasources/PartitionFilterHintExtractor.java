@@ -105,6 +105,22 @@ public final class PartitionFilterHintExtractor {
     }
 
     /**
+     * The hints in a set of conjuncts already bound to one relation occurrence, for a caller that holds the
+     * filters rather than the plan they came from.
+     * <p>
+     * {@link #extract} exists for the phase before analysis, where one listing serves every occurrence of a path
+     * and hints must therefore be intersected across them. A caller discovering files for a single occurrence has
+     * no such constraint: the filters it holds are that occurrence's, and narrowing to them starves nobody.
+     */
+    public static List<PartitionFilterHint> fromConjuncts(List<Expression> conjuncts, Set<String> requestedMetadata) {
+        List<PartitionFilterHint> hints = new ArrayList<>();
+        for (Expression conjunct : conjuncts) {
+            extractFromExpression(conjunct, hints, requestedMetadata);
+        }
+        return hints;
+    }
+
+    /**
      * Walks top-down (pipeline-last node first), carrying the conjuncts that guard the relations below.
      *
      * <p>Two things can disqualify a conjunct on the way down, and both are decided by {@link PartitionPruningRule}:

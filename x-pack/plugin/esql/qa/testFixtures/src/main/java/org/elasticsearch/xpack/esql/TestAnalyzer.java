@@ -719,7 +719,7 @@ public class TestAnalyzer {
             viewBranchKeys.add(namedSubquery.name());
         }
         if (subplans.size() == 1) {
-            return namedSubqueries.get(0).child();
+            return subplans.values().iterator().next();
         } else {
             return new ViewUnionAll(ur.source(), subplans, viewBranchKeys, List.of());
         }

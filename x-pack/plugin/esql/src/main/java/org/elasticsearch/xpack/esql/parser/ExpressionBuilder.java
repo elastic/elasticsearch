@@ -523,8 +523,16 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if (hasPattern) {
             // add . as optional matching
             List<Automaton> list = new ArrayList<>(objects.size());
+            StringBuilder glob = new StringBuilder();
             for (var o : objects) {
-                list.add(o instanceof Automaton a ? a : Automata.makeString(o.toString()));
+                if (o instanceof Automaton a) {
+                    list.add(a);
+                    glob.append('*');
+                } else {
+                    String literal = o.toString();
+                    list.add(Automata.makeString(literal));
+                    appendGlobLiteral(glob, literal);
+                }
             }
             // use the fast run variant
             try {
@@ -534,7 +542,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                         Operations.determinize(Operations.concatenate(list), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
                     ),
                     patternString.toString(),
-                    nameString.toString()
+                    nameString.toString(),
+                    glob.toString()
                 );
             } catch (TooComplexToDeterminizeException e) {
                 throw new ParsingException("Pattern was too complex to determinize", e);
@@ -551,6 +560,20 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             }
         }
         return result;
+    }
+
+    /**
+     * Appends {@code literal} to the glob, escaping {@code *} and {@code \\} so they match literally.
+     * Used by unmapped_fields LOAD_ALL functionality.
+     */
+    private static void appendGlobLiteral(StringBuilder glob, String literal) {
+        for (int i = 0; i < literal.length(); i++) {
+            char c = literal.charAt(i);
+            if (c == '*' || c == '\\') {
+                glob.append('\\');
+            }
+            glob.append(c);
+        }
     }
 
     static List<String> breakIntoFragments(String idPattern) {
@@ -1322,7 +1345,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if (value != null && classification != VALUE) {
             if (classification == PATTERN) {
                 // let visitQualifiedNamePattern create a real UnresolvedNamePattern with Automaton
-                return new UnresolvedNamePattern(parameterSource, null, value.toString(), value.toString());
+                return new UnresolvedNamePattern(parameterSource, null, value.toString(), value.toString(), null);
             } else {
                 return new UnresolvedAttribute(parameterSource, value.toString());
             }

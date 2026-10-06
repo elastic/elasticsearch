@@ -17,8 +17,12 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -57,6 +61,8 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -66,6 +72,7 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -90,15 +97,23 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvide
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
+import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOperator;
+import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
@@ -109,6 +124,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.DenseVectorExec;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -121,6 +137,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -130,10 +147,13 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
@@ -726,7 +746,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             PlannerSettings.DEFAULTS.minCompetitiveTimestampOptimizationEnabled(),
             PlannerSettings.DEFAULTS.minCompetitiveGlobalMergeBatchPages(),
             PlannerSettings.DEFAULTS.minCompetitiveGlobalMergeMaxPendingKeys(),
-            PlannerSettings.DEFAULTS.aggregationPartitioningCountThreshold()
+            PlannerSettings.DEFAULTS.aggregationPartitioningCountThreshold(),
+            PlannerSettings.DEFAULTS.aggregationPartitioningMemoryThreshold()
         );
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",
@@ -1206,12 +1227,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
      * Plans then runs a Mapper-shaped InnerJoin physical plan end to end.
      */
     private List<Page> runInnerJoin(PhysicalPlan innerJoin) throws IOException {
-        var op = planInnerJoin(innerJoin).driverFactories.get(0).driverSupplier().physicalOperation();
-        var blockFactory = TestBlockFactory.getNonBreakingInstance();
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        var runner = new TestDriverRunner().builder(driverContext);
-        runner.input(op.sourceOperatorFactory.get(driverContext));
-        return runner.run(op.intermediateOperatorFactories.toArray(new Operator.OperatorFactory[0]));
+        return runPlanned(planInnerJoin(innerJoin).driverFactories.get(0).driverSupplier().physicalOperation());
     }
 
     /** Asserts single-key InnerJoin pages in InnerJoin.output() order: build value, then left key. */
@@ -1235,18 +1251,237 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
      * columns, in InnerJoin.output() order (added build columns, then left join keys).
      */
     private void assertInnerJoinRows(List<Page> results, List<List<Long>> expectedRows) {
+        assertThat(longRows(results), equalTo(expectedRows));
+    }
+
+    /**
+     * Aliases of one {@code Eval} that read aliases defined earlier in the same {@code Eval} (a chain, an alias reading
+     * only the input between them, one reading two earlier ones, a bare copy of an earlier one, and a last one named like
+     * the input column) read the right channels.
+     */
+    public void testEvalAliasesReadingEarlierAliases() throws IOException {
+        ReferenceAttribute x = new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG);
+        Alias a = new Alias(Source.EMPTY, "a", add(x, literal(1)));
+        Alias b = new Alias(Source.EMPTY, "b", add(a.toAttribute(), literal(10)));
+        Alias c = new Alias(Source.EMPTY, "c", add(x, literal(100)));
+        Alias d = new Alias(Source.EMPTY, "d", add(b.toAttribute(), c.toAttribute()));
+        Alias copy = new Alias(Source.EMPTY, "copy", d.toAttribute());
+        Alias shadow = new Alias(Source.EMPTY, "x", add(copy.toAttribute(), literal(1000)));
+        List<Alias> aliases = List.of(a, b, c, d, copy, shadow);
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        Page input = new Page(blockFactory.newLongArrayVector(new long[] { 1, 2, 3 }, 3).asBlock());
+
+        var operation = planEval(List.of(x), input, aliases);
+        assertThat(operation.intermediateOperatorFactories, hasSize(aliases.size()));
+        assertThat(operation.layout().numberOfChannels(), equalTo(1 + aliases.size()));
+        assertThat(operation.layout().get(x.id()).channel(), equalTo(0));
+        for (int i = 0; i < aliases.size(); i++) {
+            assertThat(operation.layout().get(aliases.get(i).id()).channel(), equalTo(1 + i));
+        }
+
         List<List<Long>> rows = new ArrayList<>();
-        for (Page page : results) {
+        for (long v : new long[] { 1, 2, 3 }) {
+            long av = v + 1;
+            long bv = av + 10;
+            long cv = v + 100;
+            long dv = bv + cv;
+            rows.add(List.of(v, av, bv, cv, dv, dv, dv + 1000));
+        }
+        assertThat(longRows(runPlanned(operation)), equalTo(rows));
+    }
+
+    /**
+     * Simulating a {@code FILLNULL <value> ON *} command: many aliases that each read only their own input column.
+     * EVAL f1 = COALESCE(f1, -1), f2 = COALESCE(f2, -1), f3 = COALESCE(f3, -1).....
+     */
+    public void testEvalManyAliasesReadingOnlyInputs() throws IOException {
+        int columns = between(50, 200);
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        List<Attribute> inputs = new ArrayList<>(columns);
+        List<Alias> aliases = new ArrayList<>(columns);
+        Block[] blocks = new Block[columns];
+        for (int i = 0; i < columns; i++) {
+            ReferenceAttribute f = new ReferenceAttribute(Source.EMPTY, "f" + i, DataType.LONG);
+            inputs.add(f);
+            aliases.add(new Alias(Source.EMPTY, "f" + i, new Coalesce(Source.EMPTY, f, List.of(literal(-1)))));
+            try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(3)) {
+                blocks[i] = builder.appendLong(i).appendNull().appendLong(2L * i).build();
+            }
+        }
+
+        var operation = planEval(inputs, new Page(blocks), aliases);
+        assertThat(operation.intermediateOperatorFactories, hasSize(columns));
+        // EVAL never overwrites a channel; it always adds a new one, and the old column is only hidden later by a projection
+        // thus the twice the number of channels here at this point
+        assertThat(operation.layout().numberOfChannels(), equalTo(2 * columns));
+        for (int i = 0; i < columns; i++) {
+            assertThat(operation.layout().get(aliases.get(i).id()).channel(), equalTo(columns + i));
+        }
+
+        List<List<Long>> rows = longRows(runPlanned(operation));
+        assertThat(rows, hasSize(3));
+        for (int i = 0; i < columns; i++) {
+            assertThat(rows.get(0).get(columns + i), equalTo((long) i));
+            assertThat(rows.get(1).get(columns + i), equalTo(-1L));
+            assertThat(rows.get(2).get(columns + i), equalTo(2L * i));
+        }
+    }
+
+    private Add add(Expression left, Expression right) {
+        return new Add(Source.EMPTY, left, right, config());
+    }
+
+    private static Literal literal(long value) {
+        return new Literal(Source.EMPTY, value, DataType.LONG);
+    }
+
+    private LocalExecutionPlanner.PhysicalOperation planEval(List<Attribute> inputs, Page input, List<Alias> aliases) throws IOException {
+        PhysicalPlan plan = new EvalExec(Source.EMPTY, new LocalSourceExec(Source.EMPTY, inputs, LocalSupplier.of(input)), aliases);
+        return planner().plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            plan,
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
+        ).driverFactories.get(0).driverSupplier().physicalOperation();
+    }
+
+    private static List<Page> runPlanned(LocalExecutionPlanner.PhysicalOperation operation) {
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        var runner = new TestDriverRunner().builder(driverContext);
+        runner.input(operation.sourceOperatorFactory.get(driverContext));
+        return runner.run(operation.intermediateOperatorFactories.toArray(new Operator.OperatorFactory[0]));
+    }
+
+    /** Every row of {@code pages} as a list of its {@code long} values, {@code null} where the position is null. */
+    private static List<List<Long>> longRows(List<Page> pages) {
+        List<List<Long>> rows = new ArrayList<>();
+        for (Page page : pages) {
             for (int p = 0; p < page.getPositionCount(); p++) {
                 List<Long> row = new ArrayList<>();
                 for (int b = 0; b < page.getBlockCount(); b++) {
                     LongBlock block = page.getBlock(b);
-                    row.add(block.getLong(block.getFirstValueIndex(p)));
+                    row.add(block.isNull(p) ? null : block.getLong(block.getFirstValueIndex(p)));
                 }
                 rows.add(row);
             }
         }
-        assertThat(rows, equalTo(expectedRows));
+        return rows;
+    }
+
+    public void testUnsetDenseVectorBatchSizeResolvesToTheEndpointSizeForEisJina() throws IOException {
+        assertDenseVectorBatchSize(DenseVector.EIS_JINA_V5_INFERENCE_ID, null, DenseVector.EIS_JINA_V5_MAX_BATCH_SIZE);
+    }
+
+    public void testUnsetDenseVectorBatchSizeResolvesToTheEndpointSizeForTheDefaultEndpoint() throws IOException {
+        assertDenseVectorBatchSize(DenseVector.DEFAULT_INFERENCE_ID, null, DenseVector.DEFAULT_INFERENCE_ID_MAX_BATCH_SIZE);
+    }
+
+    public void testUnsetDenseVectorBatchSizeResolvesToTheUnnamedSizeForAUserEndpoint() throws IOException {
+        assertDenseVectorBatchSize("my-own-embedding-endpoint", null, DenseVector.UNNAMED_ENDPOINT_BATCH_SIZE);
+    }
+
+    public void testConfiguredDenseVectorBatchSizeIsUsedForAUserEndpoint() throws IOException {
+        int configured = between(1, InferenceSettings.DENSE_VECTOR_MAX_BATCH_SIZE);
+        assertDenseVectorBatchSize("my-own-embedding-endpoint", configured, configured);
+    }
+
+    /** A configured size is used even where it exceeds what {@link DenseVector#defaultBatchSizeFor} would have chosen. */
+    public void testConfiguredDenseVectorBatchSizeOverridesTheEndpointSize() throws IOException {
+        int configured = DenseVector.EIS_JINA_V5_MAX_BATCH_SIZE + between(1, 100);
+        assertDenseVectorBatchSize(DenseVector.EIS_JINA_V5_INFERENCE_ID, configured, configured);
+    }
+
+    public void testConfiguredDenseVectorBatchSizeBelowTheEndpointSizeIsUsed() throws IOException {
+        assertDenseVectorBatchSize(DenseVector.EIS_JINA_V5_INFERENCE_ID, 4, 4);
+    }
+
+    public void testDenseVectorEmbeddingUsesInternalIngestInputType() throws IOException {
+        EmbeddingOperator.Factory embedding = (EmbeddingOperator.Factory) denseVectorOperatorFactory(
+            "my-own-embedding-endpoint",
+            null,
+            TaskType.EMBEDDING
+        );
+        assertThat(embedding.inputType(), equalTo(InputType.INTERNAL_INGEST));
+    }
+
+    /**
+     * Plans a DENSE_VECTOR over a single keyword column and asserts the batch size the embedding operator is built with, reading
+     * it off the operator rather than recomputing it here. A null {@code configuredBatchSize} leaves the setting unset.
+     */
+    private void assertDenseVectorBatchSize(String inferenceId, Integer configuredBatchSize, int expectedBatchSize) throws IOException {
+        TextEmbeddingOperator.Factory embedding = (TextEmbeddingOperator.Factory) denseVectorOperatorFactory(
+            inferenceId,
+            configuredBatchSize,
+            TaskType.TEXT_EMBEDDING
+        );
+        assertThat(embedding.inferenceId(), equalTo(inferenceId));
+        assertThat(embedding.batchSize(), equalTo(expectedBatchSize));
+        assertThat(embedding.inputType(), equalTo(InputType.INTERNAL_INGEST));
+    }
+
+    private Operator.OperatorFactory denseVectorOperatorFactory(String inferenceId, Integer configuredBatchSize, TaskType endpointTaskType)
+        throws IOException {
+        ReferenceAttribute input = new ReferenceAttribute(Source.EMPTY, "input", DataType.KEYWORD);
+        ReferenceAttribute generated = new ReferenceAttribute(Source.EMPTY, "input_dense_vector", DataType.DENSE_VECTOR);
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        LocalSourceExec source = new LocalSourceExec(
+            Source.EMPTY,
+            List.of(input),
+            LocalSupplier.of(new Page(blockFactory.newConstantBytesRefBlockWith(new BytesRef("a book title"), 1)))
+        );
+        DenseVectorExec denseVector = new DenseVectorExec(
+            Source.EMPTY,
+            source,
+            Literal.keyword(Source.EMPTY, inferenceId),
+            List.of(input),
+            List.of(generated),
+            null,
+            org.elasticsearch.inference.DataType.TEXT,
+            endpointTaskType
+        );
+
+        LocalExecutionPlanner.LocalExecutionPlan plan = planner(null, true, inferenceService(configuredBatchSize)).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            denseVector,
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
+        );
+
+        List<Operator.OperatorFactory> factories = plan.driverFactories.get(0)
+            .driverSupplier()
+            .physicalOperation().intermediateOperatorFactories;
+        Class<?> expectedFactory = endpointTaskType == TaskType.EMBEDDING
+            ? EmbeddingOperator.Factory.class
+            : TextEmbeddingOperator.Factory.class;
+        return factories.stream()
+            .filter(expectedFactory::isInstance)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no embedding operator factory in " + factories));
+    }
+
+    /**
+     * An {@link InferenceService} carrying the given dense vector batch size, or none when {@code denseVectorBatchSize} is null.
+     * {@link Client} and {@link ClusterService} are mocked because planning reads nothing from them beyond
+     * {@link InferenceService#inferenceSettings()}; standing either up for real would pull in a transport and a cluster state this
+     * test never touches.
+     */
+    private InferenceService inferenceService(Integer denseVectorBatchSize) {
+        Settings.Builder builder = Settings.builder();
+        if (denseVectorBatchSize != null) {
+            builder.put(InferenceSettings.DENSE_VECTOR_BATCH_SIZE_SETTING.getKey(), denseVectorBatchSize);
+        }
+        Settings inferenceSettings = builder.build();
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(inferenceSettings);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(inferenceSettings, new HashSet<>(InferenceSettings.getSettings()))
+        );
+        return new InferenceService(mock(Client.class), clusterService);
     }
 
     private LocalExecutionPlanner planner() throws IOException {
@@ -1258,6 +1493,14 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     private LocalExecutionPlanner planner(OperatorFactoryRegistry operatorFactoryRegistry, boolean federationEnabled) throws IOException {
+        return planner(operatorFactoryRegistry, federationEnabled, null);
+    }
+
+    private LocalExecutionPlanner planner(
+        OperatorFactoryRegistry operatorFactoryRegistry,
+        boolean federationEnabled,
+        InferenceService inferenceService
+    ) throws IOException {
         List<EsPhysicalOperationProviders.ShardContext> shardContexts = createShardContexts();
         return new LocalExecutionPlanner(
             "test",
@@ -1276,7 +1519,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null,
             null,
             null,
-            null,
+            inferenceService,
             null,
             null,
             null,

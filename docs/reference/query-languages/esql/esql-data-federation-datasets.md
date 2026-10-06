@@ -78,7 +78,7 @@ Click **Add dataset** to open a flyout where you define the dataset:
 
 - **Data source**: the connected data source to read through.
 - **Name**: a unique name for use in queries. Names must be lowercase and cannot begin with `-`, `_`, or `+`. A dataset cannot share a name with any existing index, data stream, alias, or view.
-- **Description**: an optional description.
+- **Description**: an optional description (up to 1,000 characters).
 - **Resource**: the URI and glob pattern that selects the files to read. Refer to [resource patterns](esql-data-federation-patterns.md) for the pattern language.
 - **Format**: the file format. This selection is required in the {{kib}} UI. The API can omit `settings.format` when the resource pattern implies exactly one format. Extensionless or mixed patterns require `format`. Refer to [supported file formats](#supported-file-formats).
 
@@ -104,6 +104,8 @@ Datasets are managed under the `/_query/dataset` endpoint. All dataset operation
 :::{important}
 A dataset cannot have the same name as an existing index, data stream, alias, or view, because dataset names share the same namespace. Dataset names must be lowercase and cannot begin with `-`, `_`, or `+`.
 :::
+
+The optional `description` can be at most 1,000 characters long.
 
 $$$s3-resource-requirements$$$
 :::{dropdown} S3 bucket names an `s3` dataset cannot use

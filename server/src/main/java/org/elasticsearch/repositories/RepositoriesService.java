@@ -59,6 +59,7 @@ import org.elasticsearch.repositories.VerifyNodeRepositoryAction.Request;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.telemetry.metric.LongAsyncGauge;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -136,6 +137,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private final RepositoriesStatsArchive repositoriesStatsArchive;
 
     private final List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks;
+    private final LongAsyncGauge snapshotShardsInProgressMetric;
 
     private volatile String defaultRepository;
 
@@ -171,7 +173,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         this.defaultRepository = DEFAULT_REPOSITORY_SETTING.get(settings);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DEFAULT_REPOSITORY_SETTING, this::setDefaultRepository, this::validateDefaultRepository);
-        snapshotMetrics.createSnapshotShardsInProgressMetric(this::getShardSnapshotsInProgress);
+        this.snapshotShardsInProgressMetric = snapshotMetrics.createSnapshotShardsInProgressMetric(this::getShardSnapshotsInProgress);
     }
 
     /**
@@ -1386,7 +1388,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     protected void doStart() {}
 
     @Override
-    protected void doStop() {}
+    protected void doStop() {
+        snapshotShardsInProgressMetric.close();
+    }
 
     @Override
     protected void doClose() throws IOException {

@@ -621,7 +621,8 @@ public class Verifier {
             || plan instanceof Enrich
             || plan instanceof Fork
             || (plan instanceof UnionAll && plan instanceof ViewUnionAll == false)
-            || (plan instanceof Subquery && plan instanceof NamedSubquery == false);
+            || (plan instanceof Subquery && plan instanceof NamedSubquery == false)
+            || plan instanceof AbstractSubqueryJoin;
     }
 
     /**

@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * using exponential backoff with jitter. Throttling errors (429/503) get a higher
  * retry budget than other transient errors.
  */
-class RetryableStorageObject implements StorageObject {
+class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObject {
 
     private static final Logger logger = LogManager.getLogger(RetryableStorageObject.class);
 
@@ -276,6 +276,18 @@ class RetryableStorageObject implements StorageObject {
         } else {
             delegate.abortStream(stream);
         }
+    }
+
+    /**
+     * Returns the live provider stream behind {@code stream} if it came from this class, else {@code stream}.
+     * Reading the result bypasses resume, so a fault surfaces to the caller instead of sleeping through a
+     * backoff and re-opening a GET for a stream about to be aborted anyway.
+     */
+    @Override
+    public InputStream withoutResume(InputStream stream) {
+        return stream instanceof ResumingInputStream resuming
+            ? ResumeBypassingStorageObject.withoutResume(delegate, resuming.currentStream())
+            : stream;
     }
 
     @Override

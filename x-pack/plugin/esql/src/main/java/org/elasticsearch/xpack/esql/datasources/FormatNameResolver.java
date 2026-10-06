@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -211,13 +212,46 @@ public final class FormatNameResolver {
         return implied.iterator().next();
     }
 
+    /**
+     * Refuses a listed file whose own name implies a format the dataset does not read.
+     * <p>
+     * Checked once per distinct extension rather than once per file. With {@code config} absent, what a name
+     * resolves to depends only on the part of it from the first dot - the extension chain, compression suffix and
+     * all - so two names sharing that share an answer. The part before it cannot reach the decision. A name with
+     * no dot has no extension to imply anything and is left to the per-object check, which allows it.
+     * <p>
+     * The saving is the point on a large dataset: a listing of ninety thousand parquet objects asks the registry
+     * once, not ninety thousand times, and the walk is what a query pays before it reads a row.
+     */
     public static void rejectConflictingListedFormats(FileList listing, String datasetFormat, FormatReaderRegistry registry) {
         if (listing == null || listing.isResolved() == false || registry == null) {
             return;
         }
+        Set<String> checked = new HashSet<>();
         for (int i = 0; i < listing.fileCount(); i++) {
-            rejectConflictingObjectFormat(listing.path(i), datasetFormat, registry);
+            StoragePath path = listing.path(i);
+            String extension = extensionChainOf(path);
+            // No extension to share: the per-object check decides this one on its own.
+            if (extension == null || checked.add(extension)) {
+                rejectConflictingObjectFormat(path, datasetFormat, registry);
+            }
         }
+    }
+
+    /**
+     * The part of an object name that decides which format it implies: everything from the first dot, lowercased.
+     * {@code null} when the name carries no dot at all. Deliberately conservative - {@code a.b.parquet} keys apart
+     * from {@code a.parquet}, which costs a second registry lookup and cannot produce a different answer than
+     * checking the file itself would have.
+     */
+    @Nullable
+    private static String extensionChainOf(StoragePath path) {
+        String objectName = path == null ? null : path.objectName();
+        if (objectName == null) {
+            return null;
+        }
+        int firstDot = objectName.indexOf('.');
+        return firstDot < 0 ? null : objectName.substring(firstDot).toLowerCase(Locale.ROOT);
     }
 
     public static void rejectConflictingObjectFormat(StoragePath path, String datasetFormat, FormatReaderRegistry registry) {

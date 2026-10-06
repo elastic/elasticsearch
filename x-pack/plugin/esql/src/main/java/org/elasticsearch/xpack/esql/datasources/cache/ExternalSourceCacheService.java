@@ -49,11 +49,11 @@ import java.util.function.LongFunction;
  *       {@code (path, mtime, config)}. No time expiry: a changed file has a new mtime, hence a new key.</li>
  *   <li>Dataset-aggregate cache (~2% of budget) — the memoized whole-dataset row count, keyed by the
  *       file-set fingerprint. No time expiry; kept separate so per-file churn cannot evict it.</li>
- *   <li>File-metadata cache (count-bounded, 30s TTL) — {@code {length, mtime}} per path, so a repeated
- *       resolve skips the stat. Like listing it is freshness-discovery (it holds the CURRENT mtime, which
- *       gates the identity-keyed caches above), so it keeps a short TTL.</li>
- *   <li>Listing cache (~78% of budget, 30s TTL) — the file set under a prefix, isolated by credential
- *       hash. Discovers file identity and has no per-file key to invalidate on, hence the TTL.</li>
+ *   <li>File-metadata cache (count-bounded, listing TTL, five minutes by default) — {@code {length, mtime}}
+ *       per path, so a repeated resolve skips the stat. Like listing it is freshness-discovery (it holds the
+ *       CURRENT mtime, which gates the identity-keyed caches above), so it keeps that TTL.</li>
+ *   <li>Listing cache (~78% of budget, five minutes by default) — the file set under a prefix, isolated by
+ *       credential hash. Discovers file identity and has no per-file key to invalidate on, hence the TTL.</li>
  * </ul>
  * The identity-keyed caches (schema, dataset-aggregate) are bounded by weight + LRU, never by a clock — a
  * timer would only discard still-valid, expensively harvested entries. Both also refuse a single entry
@@ -354,6 +354,11 @@ public class ExternalSourceCacheService implements Closeable {
             return;
         }
         putSchemaIfWithinCeiling(key, entry);
+    }
+
+    /** Byte budget of the per-file schema cache (one fifth of the external cache). */
+    public long schemaBudget() {
+        return schemaBudget;
     }
 
     /**

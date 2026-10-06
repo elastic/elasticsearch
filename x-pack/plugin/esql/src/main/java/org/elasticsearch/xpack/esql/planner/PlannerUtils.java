@@ -765,7 +765,7 @@ public class PlannerUtils {
         .build();
 
     public static boolean usesScoring(QueryPlan<?> plan) {
-        return plan.output().stream().anyMatch(attr -> attr instanceof MetadataAttribute ma && ma.name().equals(MetadataAttribute.SCORE));
+        return plan.output().stream().anyMatch(MetadataAttribute::isScoreAttribute);
     }
 
     /**

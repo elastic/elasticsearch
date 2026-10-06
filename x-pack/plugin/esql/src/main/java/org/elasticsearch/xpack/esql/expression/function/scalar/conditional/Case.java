@@ -15,6 +15,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.ToMask;
@@ -47,7 +48,6 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.function.Function;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -526,7 +526,9 @@ public final class Case extends EsqlScalarFunction {
                  */
                 driverContext.createWarningsTreatedAsFalse(conditionSource),
                 condition.get(driverContext),
-                value.get(driverContext)
+                condition.eagerEvalSafeInLazy(),
+                value.get(driverContext),
+                value.eagerEvalSafeInLazy()
             );
         }
 
@@ -536,9 +538,24 @@ public final class Case extends EsqlScalarFunction {
         }
     }
 
-    record ConditionEvaluator(Warnings conditionWarnings, ExpressionEvaluator condition, ExpressionEvaluator value) implements Releasable {
+    /**
+     * A single {@code condition, value} arm of a {@code CASE}.
+     * <p>
+     *     {@code conditionEagerEvalSafe} and {@code valueEagerEvalSafe} carry
+     *     {@link ExpressionEvaluator.Factory#eagerEvalSafeInLazy()} over to evaluation time. When
+     *     {@code true} the {@link CaseLazyEvaluator} runs the child over the whole {@link Page} and
+     *     just reads the positions it needs, instead of first filtering the page down to those positions.
+     * </p>
+     */
+    record ConditionEvaluator(
+        Warnings conditionWarnings,
+        ExpressionEvaluator condition,
+        boolean conditionEagerEvalSafe,
+        ExpressionEvaluator value,
+        boolean valueEagerEvalSafe
+    ) implements Releasable {
 
-        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CaseLazyEvaluator.class);
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConditionEvaluator.class);
 
         @Override
         public void close() {
@@ -551,7 +568,7 @@ public final class Case extends EsqlScalarFunction {
         }
 
         public void registerMultivalue() {
-            conditionWarnings.registerException(new IllegalArgumentException(MULTIVALUE_CONDITION_MESSAGE));
+            conditionWarnings.registerException(IllegalArgumentException.class, MULTIVALUE_CONDITION_MESSAGE);
         }
 
         public long baseRamBytesUsed() {
@@ -573,7 +590,13 @@ public final class Case extends EsqlScalarFunction {
                     conditions.add(cond.apply(context));
                 }
                 elseValue = elseValueFactory.get(context);
-                ExpressionEvaluator result = new CaseLazyEvaluator(context.blockFactory(), resultType, conditions, elseValue);
+                ExpressionEvaluator result = new CaseLazyEvaluator(
+                    context.blockFactory(),
+                    resultType,
+                    conditions,
+                    elseValue,
+                    elseValueFactory.eagerEvalSafeInLazy()
+                );
                 conditions = null;
                 elseValue = null;
                 return result;
@@ -588,62 +611,246 @@ public final class Case extends EsqlScalarFunction {
         }
     }
 
-    private record CaseLazyEvaluator(
-        BlockFactory blockFactory,
-        ElementType resultType,
-        List<ConditionEvaluator> conditions,
-        ExpressionEvaluator elseVal
-    ) implements ExpressionEvaluator {
+    /**
+     * Evaluates {@code CASE} lazily, one <strong>arm</strong> at a time rather than one position at a time.
+     * <p>
+     *     An arm is one {@code condition, value} pair of the {@code CASE}, the branch that is taken when
+     *     that condition is the first one to be {@code true}. The trailing else value is the final arm,
+     *     taken when no condition matched. So {@code CASE(a, x, b, y, z)} has three arms: {@code a -> x},
+     *     {@code b -> y} and the else arm {@code z}.
+     * </p>
+     * <p>
+     *     Laziness is required for correctness: a condition may only be evaluated for the positions
+     *     where all previous conditions were not {@code true}, and a value may only be evaluated for
+     *     the positions where its condition is the first {@code true} one. Otherwise we’d emit
+     *     warnings (or do expensive work) for positions whose result never uses that arm.
+     * </p>
+     * <p>
+     *     We keep an ascending array of the positions that are still unresolved. For each arm we
+     *     evaluate the condition either on the whole page, when every position is still unresolved
+     *     or when the condition is {@link ExpressionEvaluator.Factory#eagerEvalSafeInLazy() safe to
+     *     evaluate eagerly}, or on the page {@link Page#filter filtered} down to the unresolved
+     *     positions. The matching positions are then removed from the unresolved set and the arm’s
+     *     value is evaluated the same way, either on the whole page or on the page filtered to just
+     *     those positions. Finally the per-arm result blocks are scattered back into a single block
+     *     in page order. Because filtering preserves order, the index of a position inside a filtered
+     *     arm block is just the number of earlier positions that landed in the same arm.
+     * </p>
+     * <p>
+     *     This costs at most one {@link Page#filter} per arm rather than one per position, and no
+     *     filtering at all for eager-safe children like literals and field loads.
+     * </p>
+     */
+    private static final class CaseLazyEvaluator implements ExpressionEvaluator {
 
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CaseLazyEvaluator.class);
 
+        private final BlockFactory blockFactory;
+        private final ElementType resultType;
+        private final List<ConditionEvaluator> conditions;
+        private final ExpressionEvaluator elseVal;
+        private final boolean elseEagerEvalSafe;
+
+        /*
+         * Per-position scratch space, allocated lazily and grown to the largest page seen so
+         * we don't allocate four fresh arrays for every page. An evaluator is only ever used
+         * by a single driver at a time and eval is not re-entrant, so reusing these is safe.
+         * Their contents are never read before being written within an eval call.
+         */
+        private int[] armOf = new int[0];
+        private int[] remaining = new int[0];
+        private int[] matched = new int[0];
+        private int[] nextRemaining = new int[0];
+
+        CaseLazyEvaluator(
+            BlockFactory blockFactory,
+            ElementType resultType,
+            List<ConditionEvaluator> conditions,
+            ExpressionEvaluator elseVal,
+            boolean elseEagerEvalSafe
+        ) {
+            this.blockFactory = blockFactory;
+            this.resultType = resultType;
+            this.conditions = conditions;
+            this.elseVal = elseVal;
+            this.elseEagerEvalSafe = elseEagerEvalSafe;
+        }
+
         @Override
         public Block eval(Page page) {
-            /*
-             * We have to evaluate lazily so any errors or warnings that would be
-             * produced by the right hand side are avoided. And so if anything
-             * on the right hand side is slow we skip it.
-             *
-             * And it'd be good if that lazy evaluation were fast. But this
-             * implementation isn’t . It’s fairly simple - running position at
-             * a time - but it’s not at all fast.
-             */
             int positionCount = page.getPositionCount();
-            try (Block.Builder result = resultType.newBlockBuilder(positionCount, blockFactory)) {
-                position: for (int p = 0; p < positionCount; p++) {
-                    int[] positions = new int[] { p };
-                    Page limited = new Page(
-                        1,
-                        IntStream.range(0, page.getBlockCount())
-                            .mapToObj(b -> page.getBlock(b).filter(false, positions))
-                            .toArray(Block[]::new)
-                    );
-                    try (Releasable ignored = limited::releaseBlocks) {
-                        for (ConditionEvaluator condition : conditions) {
-                            try (BooleanBlock b = (BooleanBlock) condition.condition.eval(limited)) {
-                                if (b.isNull(0)) {
-                                    continue;
+            int armCount = conditions.size() + 1;
+            /*
+             * arms[i] holds the block produced by the value of condition i, arms[armCount - 1]
+             * the block produced by the else value. Arms that no position selected stay null.
+             * armEvaluatedOnFullPage[i] is true when arms[i] was evaluated on the whole page,
+             * so position p lives at index p in the block. Otherwise the block only contains
+             * the positions that selected the arm, in ascending order.
+             */
+            Block[] arms = new Block[armCount];
+            boolean[] armEvaluatedOnFullPage = new boolean[armCount];
+            if (armOf.length < positionCount) {
+                armOf = new int[positionCount];
+                remaining = new int[positionCount];
+                matched = new int[positionCount];
+                nextRemaining = new int[positionCount];
+            }
+            int[] armOf = this.armOf;
+            int[] remaining = this.remaining;
+            int[] matched = this.matched;
+            int[] nextRemaining = this.nextRemaining;
+            for (int p = 0; p < positionCount; p++) {
+                remaining[p] = p;
+            }
+            int remainingCount = positionCount;
+            try {
+                for (int arm = 0; arm < conditions.size() && remainingCount > 0; arm++) {
+                    ConditionEvaluator condition = conditions.get(arm);
+                    boolean fullPage = remainingCount == positionCount || condition.conditionEagerEvalSafe();
+                    // TODO filter only the channels the child reads; filtering every block copies columns the arm never looks at
+                    Page conditionPage = fullPage ? page : page.filter(false, remaining, 0, remainingCount);
+                    int matchedCount = 0;
+                    int nextRemainingCount = 0;
+                    boolean sawMultivalue = false;
+                    try (BooleanBlock b = (BooleanBlock) condition.condition.eval(conditionPage)) {
+                        BooleanVector v = b.asVector();
+                        if (v != null) {
+                            // Fast path: no nulls or multivalues to check for.
+                            for (int j = 0; j < remainingCount; j++) {
+                                int p = remaining[j];
+                                if (v.getBoolean(fullPage ? p : j)) {
+                                    matched[matchedCount++] = p;
+                                } else {
+                                    nextRemaining[nextRemainingCount++] = p;
                                 }
-                                if (b.getValueCount(0) > 1) {
-                                    condition.registerMultivalue();
-                                    continue;
+                            }
+                        } else {
+                            for (int j = 0; j < remainingCount; j++) {
+                                int p = remaining[j];
+                                int idx = fullPage ? p : j;
+                                boolean selected;
+                                if (b.isNull(idx)) {
+                                    selected = false;
+                                } else if (b.getValueCount(idx) > 1) {
+                                    sawMultivalue = true;
+                                    selected = false;
+                                } else {
+                                    selected = b.getBoolean(b.getFirstValueIndex(idx));
                                 }
-                                if (false == b.getBoolean(b.getFirstValueIndex(0))) {
-                                    continue;
-                                }
-                                try (Block values = condition.value.eval(limited)) {
-                                    result.copyFrom(values, 0, 1);
-                                    continue position;
+                                if (selected) {
+                                    matched[matchedCount++] = p;
+                                } else {
+                                    nextRemaining[nextRemainingCount++] = p;
                                 }
                             }
                         }
-                        try (Block values = elseVal.eval(limited)) {
-                            result.copyFrom(values, 0, 1);
+                    } finally {
+                        if (conditionPage != page) {
+                            conditionPage.releaseBlocks();
                         }
                     }
+                    if (sawMultivalue) {
+                        condition.registerMultivalue();
+                    }
+                    if (matchedCount > 0) {
+                        boolean valueFullPage = matchedCount == positionCount || condition.valueEagerEvalSafe();
+                        arms[arm] = evalArm(page, condition.value, valueFullPage, matched, matchedCount);
+                        armEvaluatedOnFullPage[arm] = valueFullPage;
+                        for (int j = 0; j < matchedCount; j++) {
+                            armOf[matched[j]] = arm;
+                        }
+                    }
+                    int[] tmp = remaining;
+                    remaining = nextRemaining;
+                    nextRemaining = tmp;
+                    remainingCount = nextRemainingCount;
                 }
-                return result.build();
+                if (remainingCount > 0) {
+                    int arm = armCount - 1;
+                    boolean elseFullPage = remainingCount == positionCount || elseEagerEvalSafe;
+                    arms[arm] = evalArm(page, elseVal, elseFullPage, remaining, remainingCount);
+                    armEvaluatedOnFullPage[arm] = elseFullPage;
+                    for (int j = 0; j < remainingCount; j++) {
+                        armOf[remaining[j]] = arm;
+                    }
+                }
+
+                /*
+                 * If a single arm was selected then it must have been selected by every position
+                 * and, because nothing was resolved before it, evaluated on the whole page. So
+                 * we can hand its block back directly without copying.
+                 */
+                int onlyArm = -1;
+                int selectedArms = 0;
+                for (int arm = 0; arm < armCount; arm++) {
+                    if (arms[arm] != null) {
+                        onlyArm = arm;
+                        selectedArms++;
+                    }
+                }
+                if (selectedArms == 1 && armEvaluatedOnFullPage[onlyArm]) {
+                    Block result = arms[onlyArm];
+                    arms[onlyArm] = null;
+                    return result;
+                }
+
+                /*
+                 * Scatter the arm blocks back into page order, copying each run of consecutive
+                 * positions that picked the same arm with a single copyFrom. cursor[arm] tracks how
+                 * far we've read into an arm block that was evaluated on a filtered page.
+                 */
+                int[] cursor = new int[armCount];
+                try (Block.Builder result = resultType.newBlockBuilder(positionCount, blockFactory)) {
+                    int p = 0;
+                    while (p < positionCount) {
+                        int arm = armOf[p];
+                        int end = p + 1;
+                        while (end < positionCount && armOf[end] == arm) {
+                            end++;
+                        }
+                        int length = end - p;
+                        if (armEvaluatedOnFullPage[arm]) {
+                            result.copyFrom(arms[arm], p, end);
+                        } else {
+                            result.copyFrom(arms[arm], cursor[arm], cursor[arm] + length);
+                            cursor[arm] += length;
+                        }
+                        p = end;
+                    }
+                    return result.build();
+                }
+            } finally {
+                Releasables.closeExpectNoException(arms);
             }
+        }
+
+        /**
+         * Evaluate an arm’s value for the {@code selectedCount} positions in {@code selected}. When
+         * {@code fullPage} is set the value is evaluated on the whole page, which the caller does for
+         * eager-safe values and for values that every position selected. Otherwise it is evaluated on
+         * the page filtered down to just the selected positions so that the value never sees, and never
+         * warns about, positions that another arm resolved.
+         */
+        private static Block evalArm(Page page, ExpressionEvaluator value, boolean fullPage, int[] selected, int selectedCount) {
+            Block result;
+            if (fullPage) {
+                result = value.eval(page);
+            } else {
+                // TODO filter only the channels the child reads; filtering every block copies columns the arm never looks at
+                Page valuePage = page.filter(false, selected, 0, selectedCount);
+                try {
+                    result = value.eval(valuePage);
+                } finally {
+                    valuePage.releaseBlocks();
+                }
+            }
+            assert result.getPositionCount() == (fullPage ? page.getPositionCount() : selectedCount)
+                : "arm produced ["
+                    + result.getPositionCount()
+                    + "] positions, expected ["
+                    + (fullPage ? page.getPositionCount() : selectedCount)
+                    + "]";
+            return result;
         }
 
         @Override
@@ -700,7 +907,7 @@ public final class Case extends EsqlScalarFunction {
         ExpressionEvaluator elseVal
     ) implements ExpressionEvaluator {
 
-        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CaseLazyEvaluator.class);
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CaseEagerEvaluator.class);
 
         @Override
         public Block eval(Page page) {

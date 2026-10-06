@@ -81,7 +81,7 @@ available). Windows x64 and Intel macOS are excluded at the FFM binding layer.
 ## Building the native library
 
 The native library is built via the `Makefile` in `native/`. For cross-compilation
-of all three platform binaries (darwin-aarch64, linux-aarch64, linux-x64), use the
+of all four platform binaries (darwin-aarch64, linux-aarch64, linux-x64, windows-x64), use the
 shared Docker-based toolchain image (`es-native-cross-toolchain`, shared with
 `libs/simdvec`):
 

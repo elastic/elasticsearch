@@ -31,6 +31,12 @@ public interface LibraryProvider<T> {
      */
     T load();
 
+    /**
+     * Whether the library may be used on the current platform, i.e. the current platform is not listed
+     * in {@link LibrarySpecification#unavailableOn()}. Does not load the native library.
+     */
+    boolean availableOnCurrentPlatform();
+
     final class Holder {
         private Holder() {}
 
@@ -59,5 +65,15 @@ public interface LibraryProvider<T> {
             return null;
         }
         return provider.load();
+    }
+
+    /**
+     * Whether the given library may be used on the current platform, answered from its
+     * {@link LibrarySpecification#unavailableOn()} without loading the native library. For callers
+     * that must decide before {@link #lookupLibrary} runs; {@code false} if no provider is registered.
+     */
+    static boolean isAvailableOnCurrentPlatform(Class<?> cls) {
+        LibraryProvider<?> provider = Holder.PROVIDERS.get(cls);
+        return provider != null && provider.availableOnCurrentPlatform();
     }
 }

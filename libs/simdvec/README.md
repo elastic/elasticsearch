@@ -68,8 +68,8 @@ The native kernels cover single-pair and bulk scoring for:
 ## Building the native library
 
 The native library is built via the `Makefile` in `native/`. For
-cross-compilation of all three platform binaries (darwin-aarch64,
-linux-aarch64, linux-x64), use the shared Docker-based toolchain image
+cross-compilation of all four platform binaries (darwin-aarch64,
+linux-aarch64, linux-x64, windows-x64), use the shared Docker-based toolchain image
 (`es-native-cross-toolchain`, also used by `libs/simdjson`):
 
 ```bash

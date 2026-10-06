@@ -13,6 +13,7 @@ import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
+import org.elasticsearch.xpack.esql.planner.FetchOperatorProvider;
 
 import java.util.List;
 
@@ -21,6 +22,11 @@ import java.util.List;
  * {@code EXPLAIN} runs over empty sources, and fails on the first row because it can't load documents.
  */
 public final class FetchOperator extends AbstractPageMappingOperator {
+    /**
+     * Plans each {@link FetchExec} into this operator.
+     */
+    public static final FetchOperatorProvider PROVIDER = (exec, docRefChannel, fetchedTypes) -> new Factory(docRefChannel, fetchedTypes);
+
     /**
      * @param docRefChannel the input channel that holds the document references
      * @param fetchedTypes  the element type of each fetched column

@@ -23,16 +23,15 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Base class for the error and type validation tests of {@link InferenceFunction}s taking
- * {@code (input, inference_id [, options])}. Subclasses supply the valid signatures via {@code cases()} and the
- * function constructor via {@link #buildFunction}; the expected error messages are the same for all of them.
+ * Base class for the error-message and type-validation tests of {@link InferenceFunction}s that take
+ * {@code (input, inference_id [, options])}. Subclasses supply the valid signatures through {@code cases()} and the
+ * function constructor through {@link #buildFunction}. The expected error messages don't vary between subclasses,
+ * so this base class generates them once.
  */
 public abstract class AbstractInferenceFunctionErrorTestCase extends ErrorsForCasesWithoutExamplesTestCase {
 
     /**
-     * Build the inference function under test.
-     *
-     * @param options the trailing options map, or {@code null} for signatures exercising the two argument form
+     * Build the inference function under test. {@code options} is {@code null} for the two-argument form.
      */
     protected abstract Expression buildFunction(Source source, Expression input, Expression inferenceId, Expression options);
 
@@ -47,9 +46,9 @@ public abstract class AbstractInferenceFunctionErrorTestCase extends ErrorsForCa
     }
 
     /**
-     * Inference functions report two kinds of error the generic machinery doesn't produce: {@code null} arguments
-     * are rejected by {@code isNotNull} before any type check, and the trailing options argument must be a map
-     * expression rather than a value of some accepted type.
+     * Inference functions report two kinds of error the generic machinery doesn't produce. First,
+     * {@code isNotNull} rejects a {@code null} argument before any type check runs. Second, the trailing options
+     * argument must be a map expression, not just any accepted-looking value.
      */
     protected static String inferenceTypeErrorMessage(
         boolean includeOrdinal,

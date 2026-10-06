@@ -19,16 +19,16 @@ import java.util.List;
 import java.util.function.Supplier;
 
 /**
- * Base class for the tests of {@link InferenceFunction}s taking {@code (input, inference_id [, options])}, where
+ * Base class for tests of {@link InferenceFunction}s that take {@code (input, inference_id [, options])}, where
  * {@code options} is an optional trailing map expression.
  * <p>
- * These extend {@link AbstractFunctionTestCase} directly rather than {@link AbstractScalarFunctionTestCase}:
- * inference functions have no per-row evaluator and are never executed as ordinary scalar functions. They can only
- * be folded, via a dedicated pre-optimizer pass ({@code FoldInferenceFunctions}) that runs a real inference call
- * outside {@link org.elasticsearch.xpack.esql.core.expression.Expression#fold}, so the evaluator-based test
- * machinery in {@link AbstractScalarFunctionTestCase} does not apply here. That folding behavior is already covered
- * end-to-end in {@code InferenceFunctionEvaluatorTests}; subclasses are limited to exercising {@code resolveType}
- * and the declared type signatures.
+ * Subclasses extend {@link AbstractFunctionTestCase} directly, not {@link AbstractScalarFunctionTestCase}.
+ * Inference functions have no per-row evaluator, so they never run as ordinary scalar functions. The only way to
+ * resolve one to a value is folding: a dedicated pre-optimizer pass ({@code FoldInferenceFunctions}) makes a real
+ * inference call outside {@link org.elasticsearch.xpack.esql.core.expression.Expression#fold}. That means the
+ * evaluator-based test machinery in {@link AbstractScalarFunctionTestCase} does not apply here.
+ * {@code InferenceFunctionEvaluatorTests} already covers that folding behavior end-to-end, so subclasses only need
+ * to exercise {@code resolveType} and the declared type signatures.
  */
 public abstract class AbstractInferenceFunctionTestCase extends AbstractFunctionTestCase {
 
@@ -37,9 +37,7 @@ public abstract class AbstractInferenceFunctionTestCase extends AbstractFunction
     }
 
     /**
-     * Build the inference function under test.
-     *
-     * @param options the trailing options map, or {@code null} for test cases exercising the two argument form
+     * Build the inference function under test. {@code options} is {@code null} for the two-argument form.
      */
     protected abstract Expression buildFunction(Source source, Expression input, Expression inferenceId, Expression options);
 
@@ -58,11 +56,11 @@ public abstract class AbstractInferenceFunctionTestCase extends AbstractFunction
     }
 
     /**
-     * Inference functions require their {@code input}/{@code inference_id} arguments to be foldable, so (unlike
-     * {@link AbstractScalarFunctionTestCase}, which checks this via per-row evaluation) there is nothing that
-     * otherwise confirms a declared {@link TestCaseSupplier} case actually produces a resolving expression once
-     * built. This guards against a case whose declared types look right but whose built expression does not
-     * actually resolve, e.g. because {@link #buildFunction} dropped an argument or an options map is malformed.
+     * Inference functions require their {@code input}/{@code inference_id} arguments to be foldable.
+     * {@link AbstractScalarFunctionTestCase} checks that a test case actually resolves by evaluating it row by row,
+     * but that machinery doesn't apply here (see the class Javadoc above). Without this test, nothing would catch a
+     * {@link TestCaseSupplier} case whose declared types look right but whose built expression doesn't actually
+     * resolve, for example because {@link #buildFunction} dropped an argument or an options map is malformed.
      */
     public final void testResolvesWithLiteralArguments() {
         Expression expression = buildLiteralExpression(testCase);

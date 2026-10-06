@@ -3608,6 +3608,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ColumnMapping mapping = info.mapping();
         assertEquals(1, mapping.width());
         assertFalse(mapping.isIdentity());
+        // 'name' is at physical position 1; the shadowed physical 'year' (position 0) is not read.
+        assertEquals(1, mapping.localIndex(0));
+        assertNull(mapping.cast(0));
 
         List<String> warnings = resolution.warnings();
         assertEquals(2, warnings.size());
@@ -3658,6 +3661,33 @@ public class ExternalSourceResolverTests extends ESTestCase {
         resolver.resolve(List.of(path), Map.of(path, new HashMap<>()), null, Map.of(path, declared), null, future);
         Exception e = expectThrows(Exception.class, future::actionGet);
         assertThat(e.getMessage(), containsString("collides with a partition column"));
+    }
+
+    public void testNonStrictOverlayRejectsDeclaredPartitionCollisionOnSingleFile() throws Exception {
+        String path = "s3://bucket/data/year=2024/file.parquet";
+        List<Attribute> schema = List.of(attr("value", DataType.DOUBLE));
+        Map<String, List<Attribute>> schemasByPath = Map.of(path, schema);
+        DatasetMapping overlay = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, Map.of("year", new DatasetFieldMapping("integer", null)))
+        );
+
+        ExternalSourceResolver resolver = createResolver(schemasByPath, Map.of());
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(path), Map.of(path, new HashMap<>()), null, Map.of(path, overlay), null, future);
+        Exception e = expectThrows(Exception.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("collides with a partition column"));
+    }
+
+    public void testSingleFileReservedPartitionRenameReachesResolutionWarnings() throws Exception {
+        String path = "s3://bucket/data/_index=alpha/file.parquet";
+        List<Attribute> schema = List.of(attr("value", DataType.DOUBLE));
+        Map<String, List<Attribute>> schemasByPath = Map.of(path, schema);
+
+        ExternalSourceResolution resolution = resolveSingleFile(path, schemasByPath);
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(path);
+        assertNotNull(resolved);
+        assertThat(columnNames(resolved.metadata().schema()), hasItem("_partition._index"));
+        assertThat(resolution.warnings(), hasItem("partition key [_index] is named [_partition._index]"));
     }
 
     // ===== ExternalSchema type preservation =====
@@ -6780,6 +6810,30 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolution resolution = future.actionGet();
 
         assertEquals(1, resolution.resolvedSource(file).fileList().fileCount());
+        assertThat(metadataReads.get(), greaterThan(0));
+        assertEquals(baseline, breaker.getUsed());
+        assertEquals(0L, reservation.queryHeld());
+    }
+
+    /**
+     * Detection on a Hive-shaped concrete key must not start charging listing bytes. The single-file
+     * rail still skips {@code chargeListingPlanning}; partition columns come off the one path, not a listing.
+     */
+    public void testSingleFileHiveResolveDoesNotChargePlanningBytes() throws Exception {
+        String file = "s3://bucket/data/year=2024/month=01/file.parquet";
+        Map<String, List<Attribute>> schemas = Map.of(file, List.of(attr("value", DataType.DOUBLE)));
+        CircuitBreaker breaker = requestBreaker("1gb");
+        AtomicInteger metadataReads = new AtomicInteger();
+        ExternalSourceResolver resolver = planningResolver(schemas, Map.of(), breaker, metadataReads);
+        EsqlExecutionInfo info = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        ExternalPlanningReservation reservation = bindPlanning(resolver, info, breaker);
+        long baseline = breaker.getUsed();
+
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(file), Map.of(file, new HashMap<>()), future);
+        ExternalSourceResolution resolution = future.actionGet();
+
+        assertEquals(Set.of("value", "year", "month"), columnNames(resolution.resolvedSource(file).metadata().schema()));
         assertThat(metadataReads.get(), greaterThan(0));
         assertEquals(baseline, breaker.getUsed());
         assertEquals(0L, reservation.queryHeld());

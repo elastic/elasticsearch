@@ -100,11 +100,21 @@ public class StreamOutputToBytesTests extends ESTestCase {
                 final var value = randomInt();
                 return s -> s.writeIntLE(value);
             }, () -> {
+                final var values = randomInts(between(0, maxFieldLen / Integer.BYTES)).toArray();
+                final var offset = between(0, values.length);
+                final var length = between(0, values.length - offset);
+                return s -> s.writeIntsLE(values, offset, length);
+            }, () -> {
                 final var value = randomLong();
                 return s -> s.writeLong(value);
             }, () -> {
                 final var value = randomLong();
                 return s -> s.writeLongLE(value);
+            }, () -> {
+                final var values = randomLongs(between(0, maxFieldLen / Long.BYTES)).toArray();
+                final var offset = between(0, values.length);
+                final var length = between(0, values.length - offset);
+                return s -> s.writeLongsLE(values, offset, length);
             }, () -> {
                 final var value = randomInt() >> between(0, Integer.SIZE);
                 return s -> s.writeVInt(value);

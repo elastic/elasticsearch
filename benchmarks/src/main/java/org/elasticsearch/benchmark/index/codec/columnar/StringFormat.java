@@ -253,7 +253,7 @@ public enum StringFormat {
     private SummaryPolicy summaryPolicy() {
         return switch (this) {
             case COLUMNAR -> ColumNARDocValuesFormat.DEFAULT_SUMMARY_POLICY;
-            case COLUMNAR_DICTIONARY -> new SummaryPolicy(4 << 20);
+            case COLUMNAR_DICTIONARY -> SummaryPolicy.sized(4 << 20);
             // Nothing is surveyed where no dictionary is allowed, so there is nothing to leave behind either.
             case COLUMNAR_PLAIN -> SummaryPolicy.NONE;
             default -> throw new IllegalStateException("not a columnar format: " + this);

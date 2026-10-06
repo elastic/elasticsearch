@@ -62,7 +62,7 @@ public class OrcStorageObjectAdapter extends FileSystem {
         try {
             this.cacheKey = FooterByteCache.Key.keyFor(storageObject);
         } catch (IOException e) {
-            throw new UncheckedIOException("Failed to read storage object length for [" + storageObject.path() + "]", e);
+            throw new UncheckedIOException("Failed to read storage object length for [" + storageObject.path().objectName() + "]", e);
         }
         setConf(new Configuration(false));
     }

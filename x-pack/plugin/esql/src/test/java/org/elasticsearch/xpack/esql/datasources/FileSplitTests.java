@@ -8,11 +8,13 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -366,5 +368,64 @@ public class FileSplitTests extends ESTestCase {
         assertEquals(split, deserialized);
         assertEquals(new BytesRef("a.parquet"), deserialized.partitionValues().get(FileMetadataColumns.NAME));
         assertEquals(2024, deserialized.partitionValues().get("year"));
+    }
+
+    public void testCurrentTransportVersionOmitsDerivedLocationKeys() throws IOException {
+        StoragePath path = StoragePath.of("s3://bucket/data/year=2024/file.parquet");
+        FileSplit split = new FileSplit("file", path, 0, 100, ".parquet", Map.of(), Map.of("year", 2024));
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(TransportVersion.current());
+        split.writeTo(out);
+
+        StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(TransportVersion.current());
+        FileSplit deserialized = new FileSplit(in);
+
+        assertFalse(deserialized.partitionValues().containsKey(FileMetadataColumns.PATH));
+        assertFalse(deserialized.partitionValues().containsKey(FileMetadataColumns.NAME));
+        assertFalse(deserialized.partitionValues().containsKey(FileMetadataColumns.DIRECTORY));
+        assertEquals(2024, deserialized.partitionValues().get("year"));
+        assertFalse(split.partitionValues().containsKey(FileMetadataColumns.PATH));
+    }
+
+    public void testOlderTransportVersionWritesDerivedLocationKeys() throws IOException {
+        StoragePath path = StoragePath.of("s3://bucket/data/year=2024/file.parquet");
+        Map<String, Object> stored = Map.of("year", 2024, FileMetadataColumns.SIZE, 100L);
+        FileSplit split = new FileSplit("file", path, 0, 40, ".parquet", Map.of(), stored);
+        TransportVersion old = TransportVersionUtils.getPreviousVersion(FileSplit.ESQL_DERIVE_FILE_LOCATION);
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(old);
+        split.writeTo(out);
+
+        assertEquals(100L, split.partitionValues().get(FileMetadataColumns.SIZE));
+        assertFalse(
+            "writing an older version must not mutate the stored map",
+            split.partitionValues().containsKey(FileMetadataColumns.PATH)
+        );
+
+        StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(old);
+        FileSplit deserialized = new FileSplit(in);
+        assertEquals(new BytesRef(path.toString()), deserialized.partitionValues().get(FileMetadataColumns.PATH));
+        assertEquals(new BytesRef(path.objectName()), deserialized.partitionValues().get(FileMetadataColumns.NAME));
+        assertEquals(new BytesRef(path.parentDirectory().toString()), deserialized.partitionValues().get(FileMetadataColumns.DIRECTORY));
+        assertEquals(100L, deserialized.partitionValues().get(FileMetadataColumns.SIZE));
+        assertEquals(2024, deserialized.partitionValues().get("year"));
+
+        BytesRef legacyPath = new BytesRef("s3://bucket/legacy.parquet");
+        Map<String, Object> withPath = new LinkedHashMap<>();
+        withPath.put(FileMetadataColumns.PATH, legacyPath);
+        withPath.put("year", 2024);
+        FileSplit legacy = new FileSplit("file", path, 0, 40, ".parquet", Map.of(), withPath);
+        BytesStreamOutput legacyOut = new BytesStreamOutput();
+        legacyOut.setTransportVersion(old);
+        legacy.writeTo(legacyOut);
+        StreamInput legacyIn = legacyOut.bytes().streamInput();
+        legacyIn.setTransportVersion(old);
+        FileSplit legacyRead = new FileSplit(legacyIn);
+        assertEquals(legacyPath, legacyRead.partitionValues().get(FileMetadataColumns.PATH));
+        assertEquals(legacyPath, legacy.partitionValues().get(FileMetadataColumns.PATH));
+        assertEquals(new BytesRef(path.objectName()), legacyRead.partitionValues().get(FileMetadataColumns.NAME));
+        assertEquals(new BytesRef(path.parentDirectory().toString()), legacyRead.partitionValues().get(FileMetadataColumns.DIRECTORY));
     }
 }

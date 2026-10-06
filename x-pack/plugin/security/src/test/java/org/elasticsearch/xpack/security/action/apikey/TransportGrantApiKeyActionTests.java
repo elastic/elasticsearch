@@ -91,7 +91,15 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         TransportService transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
 
-        action = new TransportGrantApiKeyAction(
+        action = newTransportGrantApiKeyAction(transportService, threadContext, false);
+    }
+
+    private TransportGrantApiKeyAction newTransportGrantApiKeyAction(
+        TransportService transportService,
+        ThreadContext threadContext,
+        boolean stateless
+    ) {
+        return new TransportGrantApiKeyAction(
             transportService,
             ActionFilters.EMPTY,
             threadContext,
@@ -99,7 +107,8 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
             authorizationService,
             apiKeyService,
             resolver,
-            mock(PluggableAuthenticatorChain.class)
+            mock(PluggableAuthenticatorChain.class),
+            stateless
         );
     }
 
@@ -490,6 +499,30 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         assertThat(future.actionGet(), sameInstance(response));
         verify(authorizationService, never()).authorize(any(), any(), any(), anyActionListener());
         assertServiceAccountCredentialsCleared(request);
+    }
+
+    public void testUserManagedServiceAccountGrantIsRejectedInServerless() throws Exception {
+        final TransportService transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        action = newTransportGrantApiKeyAction(transportService, threadPool.getThreadContext(), true);
+
+        final GrantApiKeyRequest request = mockRequest();
+        request.getGrant().setType("_user_managed_service_account");
+        try (ServiceAccountToken serviceAccountToken = ServiceAccountToken.newToken(new ServiceAccountId("apps", "worker"), "token-1")) {
+            request.getGrant().setServiceAccountToken(serviceAccountToken.asBearerString());
+        }
+
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        action.execute(null, request, future);
+
+        final ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, future::actionGet);
+        assertThat(e, throwableWithMessage("grant_type [_user_managed_service_account] is not available when running in serverless mode"));
+        assertThat(e.status(), is(RestStatus.BAD_REQUEST));
+        expectThrows(IllegalStateException.class, () -> request.getGrant().getServiceAccountToken().getChars());
+        verifyNoMoreInteractions(authenticationService);
+        verifyNoMoreInteractions(authorizationService);
+        verifyNoMoreInteractions(apiKeyService);
+        verifyNoMoreInteractions(resolver);
     }
 
     public void testGrantApiKeyWithBuiltInServiceAccountTokenFails() throws Exception {

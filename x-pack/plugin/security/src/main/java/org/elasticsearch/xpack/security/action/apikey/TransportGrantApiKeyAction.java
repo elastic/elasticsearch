@@ -7,10 +7,14 @@
 
 package org.elasticsearch.xpack.security.action.apikey;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -32,6 +36,8 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.core.security.action.Grant.USER_MANAGED_SERVICE_ACCOUNT_GRANT_TYPE;
+
 /**
  * Implementation of the action needed to create an API key on behalf of another user (using an OAuth style "grant")
  */
@@ -40,6 +46,7 @@ public final class TransportGrantApiKeyAction extends TransportGrantAction<Grant
     private final ApiKeyService apiKeyService;
     private final ApiKeyUserRoleDescriptorResolver resolver;
     private final List<CustomTokenAuthenticator> customTokenAuthenticators;
+    private final boolean stateless;
 
     @Inject
     public TransportGrantApiKeyAction(
@@ -51,7 +58,8 @@ public final class TransportGrantApiKeyAction extends TransportGrantAction<Grant
         ApiKeyService apiKeyService,
         CompositeRolesStore rolesStore,
         NamedXContentRegistry xContentRegistry,
-        PluggableAuthenticatorChain pluggableAuthenticatorChain
+        PluggableAuthenticatorChain pluggableAuthenticatorChain,
+        Settings settings
     ) {
         this(
             transportService,
@@ -61,9 +69,9 @@ public final class TransportGrantApiKeyAction extends TransportGrantAction<Grant
             authorizationService,
             apiKeyService,
             new ApiKeyUserRoleDescriptorResolver(rolesStore, xContentRegistry),
-            pluggableAuthenticatorChain
+            pluggableAuthenticatorChain,
+            DiscoveryNode.isStateless(settings)
         );
-
     }
 
     TransportGrantApiKeyAction(
@@ -74,7 +82,8 @@ public final class TransportGrantApiKeyAction extends TransportGrantAction<Grant
         AuthorizationService authorizationService,
         ApiKeyService apiKeyService,
         ApiKeyUserRoleDescriptorResolver resolver,
-        PluggableAuthenticatorChain pluggableAuthenticatorChain
+        PluggableAuthenticatorChain pluggableAuthenticatorChain,
+        boolean stateless
     ) {
         super(GrantApiKeyAction.NAME, transportService, actionFilters, authenticationService, authorizationService, threadContext);
         this.apiKeyService = apiKeyService;
@@ -84,6 +93,24 @@ public final class TransportGrantApiKeyAction extends TransportGrantAction<Grant
             .filter(CustomTokenAuthenticator.class::isInstance)
             .map(CustomTokenAuthenticator.class::cast)
             .toList();
+        this.stateless = stateless;
+    }
+
+    @Override
+    protected AuthenticationToken getAuthenticationToken(Grant grant) {
+        // The user-managed service account REST handlers have no ServerlessScope, so they are not activated in
+        // serverless. This grant can only name an account created through those APIs.
+        if (stateless && USER_MANAGED_SERVICE_ACCOUNT_GRANT_TYPE.equals(grant.getType())) {
+            if (grant.getServiceAccountToken() != null) {
+                grant.getServiceAccountToken().close();
+            }
+            throw new ElasticsearchStatusException(
+                "grant_type [{}] is not available when running in serverless mode",
+                RestStatus.BAD_REQUEST,
+                USER_MANAGED_SERVICE_ACCOUNT_GRANT_TYPE
+            );
+        }
+        return super.getAuthenticationToken(grant);
     }
 
     @Override

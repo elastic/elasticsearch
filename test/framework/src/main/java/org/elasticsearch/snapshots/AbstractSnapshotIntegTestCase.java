@@ -641,6 +641,37 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     /**
+     * Blocks all data nodes for the given repository, kicks off a non-blocking restore of
+     * {@code snapshotName} to reconstruct {@code indexName}, and waits until the primary shard is
+     * INITIALIZING with a snapshot recovery source and a data node has actually
+     * hit the block.
+     *
+     * <p>Pair with {@link #unblockAndDeleteRestoringIndex(String, String)} in a {@code finally}
+     * block to clean up after each test.
+     */
+    protected void blockAndStartRestore(String repoName, String snapshotName, String indexName) throws Exception {
+        blockAllDataNodes(repoName);
+        clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+            .setIndices(indexName)
+            .setWaitForCompletion(false)
+            .execute();
+        awaitPrimaryInSnapshotRestore(indexName);
+        waitForBlockOnAnyDataNode(repoName);
+    }
+
+    /**
+     * Unblocks all data nodes for the given repository and deletes {@code indexName}, cancelling
+     * any in-progress restore.
+     *
+     * <p>Designed to be called from a {@code finally} block after
+     * {@link #blockAndStartRestore(String, String, String)}.
+     */
+    protected void unblockAndDeleteRestoringIndex(String repoName, String indexName) throws Exception {
+        unblockAllDataNodes(repoName);
+        assertAcked(indicesAdmin().prepareDelete(indexName));
+    }
+
+    /**
      * Waits until the named snapshot has at least one shard in {@link SnapshotsInProgress.ShardSnapshotStatus#UNASSIGNED_QUEUED},
      * confirming the shard is queued behind another in-progress operation.
      */

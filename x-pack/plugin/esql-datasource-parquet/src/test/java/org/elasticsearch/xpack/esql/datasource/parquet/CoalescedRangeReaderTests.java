@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.LimitedBreaker;
@@ -1119,16 +1120,11 @@ public class CoalescedRangeReaderTests extends ESTestCase {
 
     public void testPerGetWaitsBeforeStartReadBytesAsync() throws Exception {
         byte[] data = sequentialBytes(32);
-        ParquetIoWatermark watermark = new ParquetIoWatermark(50);
+        ParquetIoWatermark watermark = new ParquetIoWatermark(50, 30_000L);
         RowGroupIo owner = new RowGroupIo();
         watermark.admitWait(80, owner, 1_000L);
         AtomicInteger starts = new AtomicInteger();
         CountingStorage storage = new CountingStorage(data) {
-            @Override
-            public long admissionWaitTimeoutMs() {
-                return 1_000L;
-            }
-
             @Override
             public Releasable startReadBytesAsync(
                 long position,
@@ -1163,6 +1159,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         thread.join();
         assertNull(error.get());
         assertEquals(1, starts.get());
+        assertEquals(0, watermark.forcedAdmits());
         resultRef.get().release().close();
     }
 
@@ -1242,6 +1239,144 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         }
         assertEquals(80, watermark.used());
         watermark.release(80);
+    }
+
+    /**
+     * Sync PER_GET must bound the byte wait to one deadline per {@code readCoalescedSync} call,
+     * not a fresh timeout on every merged GET.
+     */
+    public void testPerGetByteWaitBoundedPerCall() throws Exception {
+        byte[] data = sequentialBytes(64);
+        ParquetIoWatermark watermark = new ParquetIoWatermark(100);
+        RowGroupIo owner = new RowGroupIo();
+        // Over the cap, with room for exactly three forced 10-byte GET footprints under the 2x force limit.
+        watermark.admitWait(200 - 3 * HeapFootprint.byteArrayBytes(10), owner, 1_000L);
+        CountingStorage storage = new CountingStorage(data);
+        List<ByteRange> ranges = List.of(new ByteRange(0, 10), new ByteRange(20, 10), new ByteRange(40, 10));
+        long start = System.nanoTime();
+        CoalescedRangeResult result = null;
+        try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(new RowGroupIo(), false)) {
+            result = CoalescedRangeReader.readCoalescedSync(
+                storage,
+                ranges,
+                0,
+                breaker,
+                watermark,
+                null,
+                ParquetIoWatermark.ByteGate.PER_GET
+            );
+        }
+        long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+        try {
+            assertNotNull(result);
+            assertEquals(3, storage.syncGets.get());
+            assertEquals(3, watermark.forcedAdmits());
+            assertTrue(
+                "one coalesced call must not wait a fresh deadline per GET, elapsedMs=" + elapsedMs,
+                elapsedMs >= 500L && elapsedMs < 3_000L
+            );
+        } finally {
+            if (result != null) {
+                result.release().close();
+            }
+            watermark.release(watermark.used());
+        }
+    }
+
+    public void testForcedAdmitStillTripsRequestBreaker() throws Exception {
+        byte[] data = sequentialBytes(64);
+        CircuitBreaker smallBreaker = new LimitedBreaker("small", ByteSizeValue.ofBytes(32));
+        ParquetIoWatermark watermark = new ParquetIoWatermark(100, 50L);
+        RowGroupIo owner = new RowGroupIo();
+        watermark.admitWait(110, owner, 1_000L);
+        CircuitBreakingException e;
+        try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(new RowGroupIo(), false)) {
+            e = expectThrows(
+                CircuitBreakingException.class,
+                () -> CoalescedRangeReader.readCoalescedSync(
+                    new CountingStorage(data),
+                    List.of(new ByteRange(0, 64)),
+                    0,
+                    smallBreaker,
+                    watermark,
+                    null,
+                    ParquetIoWatermark.ByteGate.PER_GET
+                )
+            );
+        }
+        assertThat(e.getMessage(), containsString("over test limit"));
+        assertEquals(0L, smallBreaker.getUsed());
+        assertEquals(110, watermark.used());
+        assertEquals(1, watermark.forcedAdmits());
+    }
+
+    public void testAsyncPerGetUsesOneDeadlinePerCall() throws Exception {
+        byte[] data = sequentialBytes(64);
+        ParquetIoWatermark watermark = new ParquetIoWatermark(100, 200L);
+        RowGroupIo owner = new RowGroupIo();
+        // Over the cap, with room for exactly three forced 10-byte GET footprints under the 2x force limit.
+        watermark.admitWait(200 - 3 * HeapFootprint.byteArrayBytes(10), owner, 1_000L);
+        AtomicInteger starts = new AtomicInteger();
+        CountingStorage storage = new CountingStorage(data) {
+            @Override
+            public Releasable startReadBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
+                starts.incrementAndGet();
+                return super.startReadBytesAsync(position, length, factory, executor, listener);
+            }
+        };
+        CountDownLatch listenerDone = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        AtomicReference<CoalescedRangeResult> success = new AtomicReference<>();
+        long start = System.nanoTime();
+        try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(new RowGroupIo(), false)) {
+            CoalescedRangeReader.readCoalesced(
+                storage,
+                List.of(new ByteRange(0, 10), new ByteRange(20, 10), new ByteRange(40, 10)),
+                0,
+                breaker,
+                watermark,
+                null,
+                null,
+                ParquetIoWatermark.ByteGate.PER_GET,
+                Runnable::run,
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(CoalescedRangeResult result) {
+                        success.set(result);
+                        listenerDone.countDown();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        error.set(e);
+                        listenerDone.countDown();
+                    }
+                }
+            );
+        }
+        assertTrue(listenerDone.await(5, TimeUnit.SECONDS));
+        long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+        try {
+            assertNull(error.get());
+            assertNotNull(success.get());
+            assertTrue(
+                "one async call must wait the budget once then charge, elapsedMs=" + elapsedMs,
+                elapsedMs >= 100L && elapsedMs < 600L
+            );
+            assertEquals(3, watermark.forcedAdmits());
+            assertEquals(3, starts.get());
+        } finally {
+            if (success.get() != null) {
+                success.get().release().close();
+            }
+            watermark.release(watermark.used());
+        }
     }
 
     private static FooterByteCache footerCache() {

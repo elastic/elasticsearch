@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.datasource.s3;
 
 import software.amazon.awssdk.core.SdkSystemSetting;
+import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.sts.model.StsException;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
@@ -275,5 +278,15 @@ public class S3DataSourcePluginTests extends ESTestCase {
                 System.getProperty(SdkSystemSetting.AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE.property())
             );
         }
+    }
+
+    /**
+     * {@link ExternalFailures#composedByStorageClient} withholds this client's text by package; a client exception it
+     * does not recognise would put the remote's refusal (the principal's and the resource's ARNs) in the response.
+     */
+    public void testClientExceptionsAreStorageClientText() {
+        assertTrue(ExternalFailures.composedByStorageClient(S3Exception.builder().message("Access Denied").build()));
+        assertTrue(ExternalFailures.composedByStorageClient(SdkClientException.create("Unable to load credentials")));
+        assertTrue(ExternalFailures.composedByStorageClient(StsException.builder().message("not authorized").build()));
     }
 }

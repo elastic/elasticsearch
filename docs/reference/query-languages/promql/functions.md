@@ -74,6 +74,16 @@ Functions that convert between scalars and instant vectors.
 :::
 ::::
 
+### Sorting functions
+
+Functions that order an instant vector by sample value.
+
+::::{dropdown} Sorting function list
+:open:
+:::{include} _snippets/generated/x-pack-esql/functions/lists/sorting-overview.md
+:::
+::::
+
 ## Not yet supported [promql-not-supported]
 
 The following PromQL functions are recognized but not yet supported in {{es}}. Using them returns a client error (4xx):

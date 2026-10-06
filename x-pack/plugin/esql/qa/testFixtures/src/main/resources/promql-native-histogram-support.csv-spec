@@ -329,3 +329,15 @@ PROMQL index=exp_histo_sample step=2h start="2025-09-25T02:00:00.000Z" end="2025
 result:double      | step:datetime
 0.4036584577596794 | 2025-09-25T02:00:00.000Z
 ;
+
+///////////////////////////////////////////////////////////////////////////////
+// sort / sort_desc drop native-histogram samples (Prometheus filterFloats)
+///////////////////////////////////////////////////////////////////////////////
+
+sort_native_histogram_returns_empty
+required_capability: promql_sort
+required_capability: promql_instant_query
+PROMQL index=exp_histo_sample time="2025-09-25T00:02:00.000Z" result=(sort(responseTime{instance="instance-1"}));
+
+result:double | step:datetime | _timeseries:keyword
+;

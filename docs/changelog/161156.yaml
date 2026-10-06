@@ -1,0 +1,6 @@
+area: Highlighting
+issues: []
+pr: 161156
+summary: Fix inference field highlighting when values come from direct assignment
+  and `copy_to`
+type: bug

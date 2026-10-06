@@ -12,14 +12,14 @@ import org.elasticsearch.xpack.transform.transforms.scheduling.TransformSchedule
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
+import java.util.function.Predicate;
 
 class TransformRetryableStartUpListener<Response> implements TransformScheduler.Listener {
     private final String transformId;
     private final Consumer<ActionListener<Response>> action;
     private final ActionListener<Response> actionListener;
     private final ActionListener<Boolean> retryScheduledListener;
-    private final Supplier<Boolean> shouldRetry;
+    private final Predicate<Exception> shouldRetry;
     private final TransformContext context;
     private final AtomicBoolean isFirstRun;
     private final AtomicBoolean shouldRunAction;
@@ -33,8 +33,9 @@ class TransformRetryableStartUpListener<Response> implements TransformScheduler.
      *                       invoked.
      * @param retryScheduledListener retryScheduledListener will be notified after the first call. If true, another thread has started the
      *                               retry process. If false, the original call was successful, and no retries will happen.
-     * @param shouldRetry allows an external entity to gracefully stop these retries, invoking the actionListener's #onFailure method.
-     *                    Note that external entities are still required to deregister this listener from the Scheduler.
+     * @param shouldRetry tested against each failure to decide whether to keep retrying. Returning false invokes the
+     *                    actionListener's #onFailure method, ending the retries. Note that external entities are still required to
+     *                    deregister this listener from the Scheduler.
      * @param context the transform's context object. This listener will update the StartUpFailureCount information in the context as it
      *                encounters errors and retries.
      */
@@ -43,7 +44,7 @@ class TransformRetryableStartUpListener<Response> implements TransformScheduler.
         Consumer<ActionListener<Response>> action,
         ActionListener<Response> actionListener,
         ActionListener<Boolean> retryScheduledListener,
-        Supplier<Boolean> shouldRetry,
+        Predicate<Exception> shouldRetry,
         TransformContext context
     ) {
         this.transformId = transformId;
@@ -82,7 +83,7 @@ class TransformRetryableStartUpListener<Response> implements TransformScheduler.
     }
 
     private void actionFailed(Exception e) {
-        if (shouldRetry.get()) {
+        if (shouldRetry.test(e)) {
             maybeNotifyRetryListener(true);
             recordError(e);
             shouldRunAction.set(true);

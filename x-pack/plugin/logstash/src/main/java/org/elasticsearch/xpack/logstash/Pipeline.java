@@ -17,11 +17,8 @@ import java.util.Iterator;
 import java.util.Map;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class Pipeline {
-
-    public static final int MAX_DESCRIPTION_LENGTH = 1024;
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<Pipeline, String> PARSER = new ConstructingObjectParser<>(
@@ -35,13 +32,11 @@ public class Pipeline {
                 (Map<String, Object>) iterator.next(),
                 (String) iterator.next(),
                 (String) iterator.next(),
-                (Map<String, Object>) iterator.next(),
-                (String) iterator.next()
+                (Map<String, Object>) iterator.next()
             );
         }
     );
 
-    public static final ParseField DESCRIPTION = new ParseField("description");
     public static final ParseField LAST_MODIFIED = new ParseField("last_modified");
     public static final ParseField PIPELINE_METADATA = new ParseField("pipeline_metadata");
     public static final ParseField USERNAME = new ParseField("username");
@@ -57,7 +52,6 @@ public class Pipeline {
         PARSER.declareString(constructorArg(), USERNAME);
         PARSER.declareString(constructorArg(), PIPELINE);
         PARSER.declareObject(constructorArg(), (parser, s) -> parser.map(), PIPELINE_SETTINGS);
-        PARSER.declareField(optionalConstructorArg(), (parser, s) -> validateDescription(parser.text()), DESCRIPTION, ValueType.STRING);
     }
 
     private final String id;
@@ -66,7 +60,6 @@ public class Pipeline {
     private final String username;
     private final String pipeline;
     private final Map<String, Object> pipelineSettings;
-    private final String description;
 
     public Pipeline(
         String id,
@@ -74,8 +67,7 @@ public class Pipeline {
         Map<String, Object> pipelineMetadata,
         String username,
         String pipeline,
-        Map<String, Object> pipelineSettings,
-        String description
+        Map<String, Object> pipelineSettings
     ) {
         this.id = id;
         this.lastModified = lastModified;
@@ -83,7 +75,6 @@ public class Pipeline {
         this.username = username;
         this.pipeline = pipeline;
         this.pipelineSettings = pipelineSettings;
-        this.description = description;
     }
 
     public String getId() {
@@ -108,16 +99,5 @@ public class Pipeline {
 
     public Map<String, Object> getPipelineSettings() {
         return pipelineSettings;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    private static String validateDescription(String description) {
-        if (description.length() > MAX_DESCRIPTION_LENGTH) {
-            throw new IllegalArgumentException("[description] accepts maximum 1024 characters in length.");
-        }
-        return description;
     }
 }

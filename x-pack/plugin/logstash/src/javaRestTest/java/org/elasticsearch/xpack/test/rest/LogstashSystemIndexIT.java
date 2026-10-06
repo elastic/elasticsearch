@@ -203,18 +203,6 @@ public class LogstashSystemIndexIT extends ESRestTestCase {
         }
     }
 
-    public void testPipelineDescriptionLengthLimit() throws IOException {
-        Request putRequest = new Request("PUT", "/_logstash/pipeline/test_pipeline");
-        putRequest.setJsonEntity(getPipelineJson("2020-03-09T15:42:30.229Z", randomAlphaOfLength(1025)));
-
-        ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(putRequest));
-        Response response = exception.getResponse();
-        assertThat(response.getStatusLine().getStatusCode(), is(400));
-
-        String responseBody = EntityUtils.toString(response.getEntity());
-        assertThat(responseBody, containsString("[description] accepts maximum 1024 characters in length."));
-    }
-
     public void testPipelineSizeLimit() throws IOException {
         // Temporarily lower the limit so we don't need to allocate megabytes in the test
         final int smallLimit = 100;

@@ -5836,3 +5836,36 @@ FROM employees
 s1:long  | s2:long
 4824955  | 4825055
 ;
+
+inlineStatsAggsOfConstantsWithNoMatchingFilter
+required_capability: inline_stats
+required_capability: fix_fold_null
+
+FROM employees
+| KEEP emp_no
+| WHERE emp_no < 10003
+| INLINE STATS m = MAX(1), f = MAX(1) WHERE emp_no > 10005, s = SUM(1)
+| SORT emp_no
+;
+
+emp_no:integer | m:integer | f:integer | s:long
+10001          | 1         | null      | 2
+10002          | 1         | null      | 2
+;
+
+inlineStatsAggsOfConstantsWithFilterByGroup
+required_capability: inline_stats
+required_capability: fix_fold_null
+
+FROM employees
+| KEEP emp_no, languages
+| WHERE emp_no < 10004
+| INLINE STATS m = MAX(1), f = MAX(1) WHERE emp_no > 10001 BY languages
+| SORT emp_no
+;
+
+emp_no:integer | m:integer | f:integer | languages:integer
+10001          | 1         | null      | 2
+10002          | 1         | 1         | 5
+10003          | 1         | 1         | 4
+;

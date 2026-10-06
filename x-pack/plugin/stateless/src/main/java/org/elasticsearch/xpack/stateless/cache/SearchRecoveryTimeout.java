@@ -92,8 +92,6 @@ public record SearchRecoveryTimeout(TimeValue timeout, TimeoutContext timeoutCon
 
     /// Whether the wait may continue with this plan, which a re-evaluation computed on expiry of the `previous` plan. The caller has
     /// already checked that `previous` is [#extendable()], so only rules about this plan and the transition between the two live here.
-    /// A data-volume plan is not itself extendable, so it is the last slice of a wait, and it is only accepted as the first plan after the
-    /// source started shutting down, never after a plan that was already computed for a shutting-down source.
     public boolean shouldExtendAfter(SearchRecoveryTimeout previous) {
         assert previous.extendable();
         return switch (timeoutContext) {

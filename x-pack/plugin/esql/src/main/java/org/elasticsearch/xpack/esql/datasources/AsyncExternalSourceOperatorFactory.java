@@ -1979,18 +1979,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         ActionListener<Void> completionListener
     ) {
         signal.addListener(ActionListener.wrap(v -> {
-            boolean transferred = false;
+            boolean consumed = false;
             try {
                 if (state.buffer.noMoreInputs() || noFurtherCandidates()) {
+                    consumed = true;
                     page.releaseBlocks();
-                    transferred = true;
                 } else {
+                    consumed = true;
                     deliverPage(page, state);
-                    transferred = true;
                 }
                 producerExecutor.execute(() -> runProducerLoop(state, completionListener));
             } catch (Exception e) {
-                if (transferred == false) {
+                if (consumed == false) {
                     page.releaseBlocks();
                 }
                 clearCurrentIterator(state);
@@ -2009,19 +2009,23 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     private void deliverPage(Page page, AsyncExternalSourceBuffer buffer) {
-        if (sourceLimiter == null) {
+        boolean consumed = false;
+        try {
+            if (sourceLimiter != null) {
+                int accepted = sourceLimiter.tryAccumulateHits(page.getPositionCount());
+                if (accepted == 0) {
+                    return;
+                }
+            }
+            // Full page: downstream LimitOperator slices overflow. Do not slice here.
             page.allowPassingToDifferentDriver();
+            consumed = true;
             buffer.addPage(page);
-            return;
+        } finally {
+            if (consumed == false) {
+                page.releaseBlocks();
+            }
         }
-        int accepted = sourceLimiter.tryAccumulateHits(page.getPositionCount());
-        if (accepted == 0) {
-            page.releaseBlocks();
-            return;
-        }
-        // Full page: downstream LimitOperator slices overflow. Do not slice here.
-        page.allowPassingToDifferentDriver();
-        buffer.addPage(page);
     }
 
     /**
@@ -2153,23 +2157,32 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 boolean recordAlignedMacro = FileSplitProvider.isRecordAlignedMacroSplit(fileSplit);
                 boolean firstSplit = FileSplitProvider.isFirstInFile(fileSplit);
                 if (cols.isEmpty() && recordAlignedMacro && firstSplit == false) {
-                    // COUNT(*)/empty-projection path on a non-leading record-aligned macro-split:
-                    // bind schema from the full file (header-bearing formats like CSV need file-leading bytes).
-                    // Cache per file path to avoid redundant metadata fetches across splits of the same file.
-                    List<Attribute> cachedSchema = fileSplit.path().equals(state.lastSchemaPath) ? state.lastBoundSchema : null;
-                    if (cachedSchema == null) {
-                        StorageObject schemaObj = FileSplitProvider.newObjectForFile(storageProvider, fileSplit);
-                        attachStorageMetrics(schemaObj);
-                        SourceMetadata meta = fileReader.metadata(schemaObj);
-                        foldObjectMetrics(state.buffer, schemaObj);
-                        if (meta != null && meta.schema() != null && meta.schema().isEmpty() == false) {
-                            cachedSchema = meta.schema();
+                    // COUNT(*)/empty-projection on a non-leading record-aligned macro-split. The coordinator
+                    // pin is already on the split; bind it in memory and skip execution metadata() (an
+                    // unranged GET from byte 0). Translate to physical names — same as FormatReadContext
+                    // below. Do not seed lastBoundSchema from the pin; that cache is metadata()-only.
+                    // Unpinned / empty pin still infers from the file (matches PPC; FileSplit empty→null,
+                    // but a deserialized empty list must not withSchema(width 0)). When that GET does
+                    // run, fold its bytes into the tracked split so bytes_read keeps both reads.
+                    if (perFileReadSchema != null && perFileReadSchema.isEmpty() == false) {
+                        fileReader = fileReader.withSchema(PhysicalNames.translateSchema(perFileReadSchema, renames));
+                    } else {
+                        // Cache per file path to avoid redundant metadata fetches across splits of the same file.
+                        List<Attribute> cachedSchema = fileSplit.path().equals(state.lastSchemaPath) ? state.lastBoundSchema : null;
+                        if (cachedSchema == null) {
+                            StorageObject schemaObj = FileSplitProvider.newObjectForFile(storageProvider, fileSplit);
+                            attachStorageMetrics(schemaObj);
+                            SourceMetadata meta = fileReader.metadata(schemaObj);
+                            foldObjectMetrics(state.buffer, schemaObj);
+                            if (meta != null && meta.schema() != null && meta.schema().isEmpty() == false) {
+                                cachedSchema = meta.schema();
+                            }
                         }
-                    }
-                    if (cachedSchema != null) {
-                        fileReader = fileReader.withSchema(cachedSchema);
-                        state.lastSchemaPath = fileSplit.path();
-                        state.lastBoundSchema = cachedSchema;
+                        if (cachedSchema != null) {
+                            fileReader = fileReader.withSchema(cachedSchema);
+                            state.lastSchemaPath = fileSplit.path();
+                            state.lastBoundSchema = cachedSchema;
+                        }
                     }
                 }
                 // Compressed-offset splits (bzip2 block-aligned / zstd-indexed): splitStartByte is a

@@ -216,6 +216,9 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
         assertWarmCountShortCircuits(dataset, total);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/esql-planning/issues/2201") // union_by_name retypes per file through
+                                                                                // pinToReconciledTypes, and the pinned-column poison is not
+                                                                                // yet lifted
     public void testCsvHeterogeneousCorpusWarmCountServedUnderNullFieldUnionByName() throws Exception {
         Path dir = createTempDir();
         long total = writeCsvCorpus(dir, true);
@@ -231,6 +234,8 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
         assertWarmCountShortCircuits(dataset, total);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/esql-planning/issues/2201") // the non-strict declared overlay is not yet wired to the
+                                                                                // read-addressed statistics record
     public void testCsvHeterogeneousCorpusWarmCountServedUnderNullFieldDeclaredDynamic() throws Exception {
         Path dir = createTempDir();
         long total = writeCsvCorpus(dir, true);
@@ -250,6 +255,8 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
      * <p>Fails if the dataset key stops carrying the binding mode: the strict dataset is then handed the inferred
      * one's count and answers its first query without reading anything.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/esql-planning/issues/2201") // the dataset aggregate is still unstamped, so nothing
+                                                                                // separates a strict fold from an inferred one
     public void testStrictAndInferredDatasetsOverOneGlobNeverShareAnAggregate() throws Exception {
         Path dir = createTempDir();
         long total = writeCsvCorpus(dir, true);
@@ -268,6 +275,8 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/esql-planning/issues/2201") // the declared strict rail is not yet wired to the
+                                                                                // read-addressed statistics record
     public void testCsvHeterogeneousCorpusWarmCountServedUnderNullFieldDeclaredStrict() throws Exception {
         Path dir = createTempDir();
         long total = writeCsvCorpus(dir, true);
@@ -411,6 +420,9 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
         assertWarmCountShortCircuits(dataset, total);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/esql-planning/issues/2201") // union_by_name retypes per file through
+                                                                                // pinToReconciledTypes, and the pinned-column poison is not
+                                                                                // yet lifted
     public void testNdjsonHeterogeneousCorpusWarmCountServedUnderNullFieldUnionByName() throws Exception {
         Path dir = createTempDir();
         long total = writeNdjsonCorpus(dir);

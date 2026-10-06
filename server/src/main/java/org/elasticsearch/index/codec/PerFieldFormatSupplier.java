@@ -44,6 +44,7 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -330,7 +331,11 @@ public class PerFieldFormatSupplier {
     }
 
     private boolean excludeFields(String fieldName) {
-        return fieldName.startsWith("_") && INCLUDE_META_FIELDS.contains(fieldName) == false;
+        // The _unmapped sink holds ordinary user data despite its leading underscore, so it and all of its subfields - _keyed, the ignored
+        // values, the .counts companion - are matched by prefix rather than enumerated, which would go stale as encodings add subfields.
+        return fieldName.startsWith("_")
+            && INCLUDE_META_FIELDS.contains(fieldName) == false
+            && fieldName.startsWith(FlattenedFieldMapper.UNMAPPED_SINK_NAME) == false;
     }
 
     private boolean excludeMapperTypes(String fieldName) {

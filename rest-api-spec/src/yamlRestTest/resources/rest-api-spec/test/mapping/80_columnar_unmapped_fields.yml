@@ -1,0 +1,169 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes, flattened_unmapped_fields ]
+      reason: "columnar index modes and the flattened _unmapped sink are required"
+
+  # Empty mapping: every field in a document is unmapped and therefore absorbed into the sink. The empty properties block matters: an index
+  # created without any mappings has no mapping source for the sink to be injected into, so its first document would be dynamically mapped.
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.flattened_unmapped_fields.enabled: true
+          mappings:
+            properties: {}
+
+  # Same index with one concrete field, for the tests that need a mapped field alongside the absorbed ones.
+  - do:
+      indices.create:
+        index: test_mapped
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.flattened_unmapped_fields.enabled: true
+          mappings:
+            properties:
+              mapped:
+                type: long
+
+---
+"absorbed fields create no mappers":
+  - do:
+      index:
+        index: test
+        id: "1"
+        refresh: true
+        body:
+          bare: "bare-value"
+          outer:
+            inner:
+              leaf: "leaf-value"
+
+  # No field in the document got a mapper of its own: they all went to the sink, which is never serialized.
+  - do:
+      indices.get_mapping:
+        index: test
+  - match: { test.mappings: {} }
+
+---
+"absorbed names stay unmapped in _search":
+  # The sink is not readable from _search
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { index: { _id: "1" } }
+          - { color: "red" }
+
+  - do:
+      search:
+        index: test
+        body: { query: { exists: { field: color } } }
+  - match: { hits.total.value: 0 }
+
+---
+"the sink itself is never exposed as a field":
+  # The sink is internal storage: absent from everything that enumerates field names, and its own name resolves like any other unmapped name.
+  - do:
+      index:
+        index: test_mapped
+        id: "1"
+        refresh: true
+        body:
+          mapped: 42
+          bare: "bare-value"
+
+  - do:
+      field_caps:
+        index: test_mapped
+        fields: "*"
+  - is_true: fields.mapped
+  - is_false: fields._unmapped
+
+  # Get field mapping reads the mappers directly rather than the field type lookup, so it hides the sink on its own.
+  - do:
+      indices.get_field_mapping:
+        index: test_mapped
+        fields: "*"
+  - match: { test_mapped.mappings.mapped.mapping.mapped.type: long }
+  - is_false: test_mapped.mappings._unmapped
+
+  - do:
+      indices.get_field_mapping:
+        index: test_mapped
+        fields: "_unmapped"
+  - match: { test_mapped.mappings: {} }
+
+  - do:
+      search:
+        index: test_mapped
+        body: { query: { match_all: {} }, fields: [ "*" ] }
+  - match: { hits.hits.0.fields.mapped: [ 42 ] }
+  - is_false: hits.hits.0.fields._unmapped
+
+  # Requesting the sink explicitly returns no fields object at all, rather than an error.
+  - do:
+      search:
+        index: test_mapped
+        body: { query: { match_all: {} }, fields: [ "_unmapped" ] }
+  - is_false: hits.hits.0.fields
+
+  # An absorbed key addressed through the sink's name does not resolve either.
+  - do:
+      search:
+        index: test_mapped
+        body: { query: { term: { _unmapped.bare: "bare-value" } } }
+  - match: { hits.total.value: 0 }
+
+---
+"exists on a mapped object still matches its mapped leaves":
+  # exists on an object name retries as name.* when the exact name resolves to nothing. On a sink index that behavior must be unchanged: a
+  # scalar absorbed at the mapped object's own path (possible in columnar mode, where subobjects is always false) stays unmapped and never
+  # leaks into the expansion.
+  - do:
+      indices.create:
+        index: test_object
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.flattened_unmapped_fields.enabled: true
+          mappings:
+            properties:
+              obj:
+                properties:
+                  a:
+                    type: keyword
+  - do:
+      index:
+        index: test_object
+        id: "1"
+        refresh: true
+        body: { obj: { a: "a-value" } }
+  # A scalar at the mapped object's own path: unmapped (no leaf mapper is named "obj"), so it is absorbed into the sink as key "obj".
+  - do:
+      index:
+        index: test_object
+        id: "2"
+        refresh: true
+        body: { obj: "scalar-value" }
+
+  # Only the mapped leaf expansion matches; the absorbed scalar stays unmapped.
+  - do:
+      search:
+        index: test_object
+        body: { query: { exists: { field: obj } } }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  - do:
+      search:
+        index: test_object
+        body: { query: { term: { obj: "scalar-value" } } }
+  - match: { hits.total.value: 0 }

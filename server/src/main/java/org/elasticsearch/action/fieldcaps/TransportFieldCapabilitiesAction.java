@@ -148,14 +148,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         this.forceConnectTimeoutSecs = clusterService.getSettings().getAsTime("search.ccs.force_connect_timeout", null);
         this.crossProjectModeDecider = crossProjectModeDecider;
         // _id aggregate depends on this setting
-        clusterService.getClusterSettings()
-            .initializeAndWatch(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING, v -> {
-                if (v) {
-                    cache = null;
-                } else {
-                    cache = new FieldCapsCache();
-                }
-            });
+        clusterService.getClusterSettings().initializeAndWatch(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING, v -> {
+            if (v) {
+                cache = null;
+            } else {
+                cache = new FieldCapsCache();
+            }
+        });
     }
 
     @Override

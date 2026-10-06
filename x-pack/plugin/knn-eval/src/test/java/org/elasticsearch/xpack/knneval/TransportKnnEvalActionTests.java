@@ -46,6 +46,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -83,6 +84,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -100,9 +102,16 @@ public class TransportKnnEvalActionTests extends ESTestCase {
 
     /** A real {@link ClusterSettings}, since the action reading it is the point; only {@link ClusterService} is mocked. */
     private static ClusterService clusterService(boolean allowExpensiveQueries) {
+        return clusterService(allowExpensiveQueries, true);
+    }
+
+    private static ClusterService clusterService(boolean allowExpensiveQueries, boolean knnEvalEnabled) {
         ClusterSettings clusterSettings = new ClusterSettings(
-            Settings.builder().put(SearchService.ALLOW_EXPENSIVE_QUERIES.getKey(), allowExpensiveQueries).build(),
-            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+            Settings.builder()
+                .put(SearchService.ALLOW_EXPENSIVE_QUERIES.getKey(), allowExpensiveQueries)
+                .put(KnnEvalPlugin.ENABLED.getKey(), knnEvalEnabled)
+                .build(),
+            Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(KnnEvalPlugin.ENABLED))
         );
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
@@ -407,6 +416,24 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         assertThat(response.getFailures().get("q0").getMessage(), containsString("fewer than [k=5]"));
         // no query has a reference result, so no candidate pass runs
         assertEquals(0, client.candidateSearches);
+    }
+
+    public void testDisabledSettingRefusesEveryEvaluationBeforeAnySearch() {
+        RecordingClient client = new RecordingClient();
+        TransportKnnEvalAction disabled = new TransportKnnEvalAction(
+            ActionFilters.EMPTY,
+            client,
+            MockUtils.setupTransportServiceWithThreadpoolExecutor(),
+            clusterService(true, false)
+        );
+        PlainActionFuture<KnnEvalResponse> future = new PlainActionFuture<>();
+        disabled.doExecute(
+            null,
+            new KnnEvalRequest(specWithBaseline(new KnnEvalSettings(100.0f, null, null, false)), new String[] { "index" }),
+            future
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
+        assertThat(e.getMessage(), containsString("[_knn_eval] is disabled by [search.knn_eval.enabled]"));
     }
 
     public void testExactBaselineIsGatedOnAllowExpensiveQueries() {

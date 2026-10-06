@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.knneval;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -22,6 +23,21 @@ import java.util.function.Supplier;
 public class KnnEvalPlugin extends Plugin implements ActionPlugin {
 
     static final ActionType<KnnEvalResponse> KNN_EVAL_ACTION = new ActionType<>("indices:data/read/knn_eval");
+
+    /**
+     * Lets operators refuse new evaluations without a release. Evaluations already running are stopped through the task API.
+     */
+    static final Setting<Boolean> ENABLED = Setting.boolSetting(
+        "search.knn_eval.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.OperatorDynamic
+    );
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(ENABLED);
+    }
 
     @Override
     public List<ActionHandler> getActions() {

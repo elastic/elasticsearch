@@ -113,6 +113,12 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         if (checkCancelled(task, listener)) {
             return;
         }
+        if (clusterService.getClusterSettings().get(KnnEvalPlugin.ENABLED) == false) {
+            listener.onFailure(
+                new IllegalArgumentException("[" + RestKnnEvalAction.ENDPOINT + "] is disabled by [" + KnnEvalPlugin.ENABLED.getKey() + "]")
+            );
+            return;
+        }
         if (request.getKnnEvalSpec().getBaseline().isExact()
             && clusterService.getClusterSettings().get(SearchService.ALLOW_EXPENSIVE_QUERIES) == false) {
             // a full scan is what that setting exists to keep off a cluster; an approximate baseline is an ordinary kNN search

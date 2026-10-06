@@ -728,6 +728,25 @@ teardown:
   - is_true: failures.bad
 
 ---
+"A query vector with the wrong number of dimensions is rejected up front":
+  - do:
+      catch: /query vector \[q1\] has \[3\] dimensions but field \[emb\] has \[64\]/
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 3
+          query_source:
+            from: vectors
+            vectors:
+              - id: q1
+                query_vector: [ 0.1, 0.2, 0.3 ]
+          baseline:
+            visit_percentage: 100
+          knn_settings:
+            - visit_percentage: 100
+
+---
 "k must be positive":
   - do:
       catch: bad_request

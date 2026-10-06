@@ -487,6 +487,22 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         assertFalse(client.pointInTimeOpened);
     }
 
+    public void testQueryDimensionsMustMatchTheField() {
+        List<KnnEvalQuery> queries = List.of(
+            new KnnEvalQuery("ok", VectorData.fromFloats(new float[] { 1, 2, 3 })),
+            new KnnEvalQuery("short", VectorData.fromFloats(new float[] { 1, 2 }))
+        );
+        assertEquals(
+            "query vector [short] has [2] dimensions but field [emb] has [3]",
+            expectThrows(IllegalArgumentException.class, () -> TransportKnnEvalAction.validateQueryDimensions("emb", 3, queries))
+                .getMessage()
+        );
+        TransportKnnEvalAction.validateQueryDimensions("emb", 3, queries.subList(0, 1));
+        // sampled queries come from the field and encoded vectors are only decodable per search
+        TransportKnnEvalAction.validateQueryDimensions("emb", 3, null);
+        TransportKnnEvalAction.validateQueryDimensions("emb", 3, List.of(new KnnEvalQuery("enc", VectorData.fromStringVector("AAAA"))));
+    }
+
     public void testNestedAncestorIsTheNearestNestedPrefix() {
         Map<String, FieldCapabilities> nested = Map.of("nested", RecordingClient.fieldCapabilities("x", "nested"));
         Map<String, FieldCapabilities> object = Map.of("object", RecordingClient.fieldCapabilities("x", "object"));

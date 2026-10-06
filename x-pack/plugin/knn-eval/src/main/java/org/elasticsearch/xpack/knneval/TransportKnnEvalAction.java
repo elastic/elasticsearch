@@ -49,6 +49,7 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -181,7 +182,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         client.execute(
             GetFieldMappingsAction.INSTANCE,
             mappingsRequest,
-            listener.<GetFieldMappingsResponse>map(response -> rescoreOf(field, response))
+            listener.<GetFieldMappingsResponse>map(response -> rescoreOf(spec, response))
                 .delegateResponse((delegate, e) -> delegate.onFailure(mappingLookupFailure(field, e)))
         );
     }
@@ -202,7 +203,8 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         return e;
     }
 
-    private static KnnEvalRescore rescoreOf(String field, GetFieldMappingsResponse response) {
+    private static KnnEvalRescore rescoreOf(KnnEvalSpec spec, GetFieldMappingsResponse response) {
+        String field = spec.getField();
         Map<String, Object> fieldMapping = null;
         FieldResolution firstResolution = null;
         for (Map<String, FieldMappingMetadata> indexMappings : response.mappings().values()) {
@@ -224,7 +226,32 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
                 );
             }
         }
-        return KnnEvalRescore.fromFieldMapping(field, fieldMapping);
+        KnnEvalRescore rescore = KnnEvalRescore.fromFieldMapping(field, fieldMapping);
+        validateQueryDimensions(field, firstResolution.dims(), spec.getQueries());
+        return rescore;
+    }
+
+    /** Every search would fail the same way, so say so once instead of reporting each query. Encoded vectors are only decodable later. */
+    static void validateQueryDimensions(String field, @Nullable Integer dims, @Nullable List<KnnEvalQuery> queries) {
+        if (dims == null || queries == null) {
+            return;
+        }
+        for (KnnEvalQuery query : queries) {
+            VectorData vector = query.getQueryVector();
+            if (vector.isStringVector() == false && vector.size() != dims) {
+                throw new IllegalArgumentException(
+                    "query vector ["
+                        + query.getId()
+                        + "] has ["
+                        + vector.size()
+                        + "] dimensions but field ["
+                        + field
+                        + "] has ["
+                        + dims
+                        + "]"
+                );
+            }
+        }
     }
 
     private void openPointInTime(Task task, KnnEvalRequest request, KnnEvalRescore rescore, ActionListener<KnnEvalResponse> listener) {

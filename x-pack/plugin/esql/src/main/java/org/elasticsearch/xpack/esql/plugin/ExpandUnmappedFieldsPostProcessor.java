@@ -19,6 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.analysis.UnmappedFieldsOrdering;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -123,6 +124,11 @@ public final class ExpandUnmappedFieldsPostProcessor {
         if (unmappedIdx == -1) {
             return result;
         }
+        // From #160286: the expansion below is a CPU-heavy, coordinator-side scan over every row of every page, so it must run on the
+        // esql_worker pool (EsqlSession dispatches it there) rather than a transport/search thread. The guard sits after the no-op early
+        // return so the "no unmapped fields" path, which completes inline on the calling thread, is unaffected. assertCurrentThreadPool is
+        // a no-op on test threads, so unit tests that call expand() directly are not impacted.
+        assert ThreadPool.assertCurrentThreadPool(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME);
         double reservationFactor = plannerSettings.sourceReservationFactor();
         UnmappedFieldsAttribute unmappedAttribute = (UnmappedFieldsAttribute) schema.get(unmappedIdx);
         UnmappedFieldsPattern pattern = unmappedAttribute.pattern();

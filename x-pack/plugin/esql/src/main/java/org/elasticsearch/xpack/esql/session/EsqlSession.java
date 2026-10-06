@@ -675,7 +675,7 @@ public class EsqlSession {
                                 threadPool.executor(EsqlPlugin.computePool())
                                     .execute(
                                         ActionRunnable.wrapReleasing(l, () -> Releasables.closeExpectNoException(inner.pages()), ll -> {
-                                            assert ThreadPool.assertCurrentThreadPool(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME);
+                                            // The esql_worker invariant is asserted inside ExpandUnmappedFieldsPostProcessor.expand().
                                             ll.onResponse(
                                                 new Versioned<>(
                                                     ExpandUnmappedFieldsPostProcessor.expand(

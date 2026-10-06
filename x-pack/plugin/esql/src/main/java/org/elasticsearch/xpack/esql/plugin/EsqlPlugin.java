@@ -151,6 +151,7 @@ import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.fetch.FetchService;
 import org.elasticsearch.xpack.esql.fetch.lifetime.FetchContextListener;
 import org.elasticsearch.xpack.esql.fetch.lifetime.FetchContextService;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
@@ -756,6 +757,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsqlFlags.ESQL_FETCH_PHASE,
                 FetchContextService.MAX_OPEN_CONTEXTS,
                 FetchContextService.CONTEXT_KEEP_ALIVE,
+                FetchService.MAX_CONCURRENT_SHARD_TASKS,
                 ViewService.MAX_VIEWS_COUNT_SETTING,
                 ViewService.MAX_VIEW_LENGTH_SETTING,
                 ViewResolver.MAX_VIEW_DEPTH_SETTING,

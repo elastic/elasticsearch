@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.ComputeExecutor;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
@@ -98,6 +100,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.fetch.FetchPhaseServices;
+import org.elasticsearch.xpack.esql.fetch.FetchService;
 import org.elasticsearch.xpack.esql.fetch.lifetime.FetchContextLease;
 import org.elasticsearch.xpack.esql.fetch.lifetime.FetchContextService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -122,6 +125,7 @@ import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.ExplainPlanTransformer;
+import org.elasticsearch.xpack.esql.planner.FetchSourceProvider;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.NodeReduceSplit;
 import org.elasticsearch.xpack.esql.planner.PlannerServices;
@@ -293,6 +297,16 @@ public class ComputeService {
         this.plannerSettings = transportActionServices.plannerSettings();
         this.operatorFactoryRegistry = operatorFactoryRegistry;
         this.formatReaderRegistry = formatReaderRegistry;
+        new FetchService(
+            transportService,
+            clusterService,
+            searchService,
+            fetchPhaseServices.contextService(),
+            blockFactory,
+            threadPool.executor(EsqlPlugin.computePool()),
+            plannerSettings::get,
+            this::fetchPlanner
+        ).registerHandlers();
     }
 
     /** The minimum transport version of the nodes that may read the splits planned here. */
@@ -2212,6 +2226,58 @@ public class ComputeService {
 
             return DriverCompletionInfo.excludingProfiles(drivers, planningBytesRead, approximated);
         });
+    }
+
+    /**
+     * The planner of one fetch request on this node, built like the planners of the query phase. A fetch plan has no
+     * exchange.
+     */
+    private LocalExecutionPlanner fetchPlanner(
+        String sessionId,
+        String clusterAlias,
+        CancellableTask task,
+        Configuration configuration,
+        FoldContext foldCtx,
+        IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts,
+        FetchSourceProvider fetchSources
+    ) {
+        EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
+            foldCtx,
+            shardContexts,
+            searchService.getIndicesService().getAnalysis(),
+            plannerSettings.get(),
+            directoryBytesReadSupplier(searchService.getIndicesService()),
+            QueryWarnings.EMIT
+        );
+        ThreadPool workerThreadPool = transportService.getThreadPool();
+        return new LocalExecutionPlanner(
+            sessionId,
+            clusterAlias,
+            task,
+            bigArrays,
+            blockFactory,
+            clusterService.getSettings(),
+            configuration,
+            () -> {
+                throw new IllegalStateException("a fetch plan reads no exchange");
+            },
+            () -> { throw new IllegalStateException("a fetch plan writes no exchange"); },
+            enrichLookupService,
+            lookupFromIndexService,
+            inferenceService,
+            userAgentParserRegistry,
+            ipLocationService,
+            projectResolver,
+            projectResolver.getProjectMetadata(clusterService.state()),
+            physicalOperationProviders,
+            operatorFactoryRegistry,
+            Build.current().isSnapshot(),
+            PlannerServices.forFetchPlan(fetchSources),
+            workerThreadPool.executor(EsqlPlugin.computePool()),
+            workerThreadPool.info(EsqlPlugin.computePool()).getMax(),
+            grokMatcherWatchdog.get(),
+            clusterService.state().getMinTransportVersion()
+        );
     }
 
     /**

@@ -79,6 +79,13 @@ public final class FetchContextListener implements SearchOperationListener, Inde
         }
     }
 
+    /**
+     * Whether ES|QL opened {@code readerContext} for its fetch phase, rather than a search, a scroll or a point in time.
+     */
+    public static boolean isFetchContext(ReaderContext readerContext) {
+        return readerContext.getFromContext(MARKER_KEY) != null;
+    }
+
     private final ThreadContext threadContext;
     private final SecurityContext securityContext;
     /**

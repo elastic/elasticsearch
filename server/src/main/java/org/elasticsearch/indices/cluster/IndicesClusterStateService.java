@@ -1360,6 +1360,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     ) {
         // If local recovery retry is not enabled or recovery source is RESHARD_SPLIT
         // we notify master instead.
+        // todo: Remove RESHARD_SPLIT exclusion once local retries support it
         FailureStrategy finalStrategy = failureStrategy.equals(FailureStrategy.RETRY)
             && (localRecoveryRetryEnabled == false || shardRouting.recoverySource().getType().equals(Type.RESHARD_SPLIT))
                 ? FailureStrategy.FAIL_SEND

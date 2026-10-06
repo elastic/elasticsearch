@@ -1,4 +1,8 @@
-# Building the native libraries
+# Native library cross-compilation toolchain
+
+Every native library under `libs/` (libvec in `libs/simdvec`, libsimdjson in `libs/simdjson`, ...) is
+built with the toolchain in this directory. Each library keeps its own `Makefile` and publish script
+in `libs/<library>/native/`.
 
 All four targets — `darwin-aarch64`, `linux-aarch64`, `linux-x64`, `windows-x64` — are
 cross-compiled inside a single toolchain image. Windows uses llvm-mingw (clang, mingw-w64 and UCRT),
@@ -13,6 +17,8 @@ the `--target=` flag.
 
 This document explains the workflow for building a library for all four targets.
 Details and the reasoning behind each piece is in the comments of the files themselves.
+Paths such as `./build_cross_toolchain_image.sh` are relative to this directory; Gradle commands
+run from the repository root.
 
 | File | Role                                                                                                        |
 |---|-------------------------------------------------------------------------------------------------------------|
@@ -21,8 +27,8 @@ Details and the reasoning behind each piece is in the comments of the files them
 | `darwin-sysroot/versions.env` | Pinned Apple component tags and libc++ version.                                                             |
 | `darwin-sysroot/assemble.sh` | Assembles the Darwin sysroot. Runs during the image build only.                                             |
 | `darwin-sysroot/probe.cpp` | Declares which system headers the sysroot must support.                                                     |
-| `Makefile` | Compile and link rules for one library.                                                                     |
-| `publish_vec_binaries.sh` | Runs `make all` in the image and uploads the result. Holds the library `VERSION`.                           |
+| `libs/<library>/native/Makefile` | Compile and link rules for one library.                                                    |
+| `libs/<library>/native/publish_<library>_binaries.sh` | Runs `make all` in the image and uploads the result. Holds the library `VERSION`. |
 
 `probe.cpp` is the one to know about: `assemble.sh` compiles it to decide which xnu headers to
 keep, so the sysroot contains exactly the system headers reachable from the includes listed
@@ -30,8 +36,9 @@ there.
 
 ## Build and test a library
 
-The `VEC_NATIVE_BUILD` environment variable makes Gradle build the library from source instead of
-using the published artifact; tests then run against what was just built.
+Each library has an environment variable (`VEC_NATIVE_BUILD` for libvec, `SIMDJSON_NATIVE_BUILD` for
+libsimdjson, ...) that makes Gradle build it from source instead of using the published artifact;
+tests then run against what was just built. The examples below use libvec.
 
 Fast iteration, using the host compiler and (on a Mac) the Xcode SDK, for the host platform only:
 
@@ -49,22 +56,23 @@ VEC_NATIVE_BUILD=docker ./gradlew --no-daemon :libs:simdvec:test
 To try a toolchain image you built locally, point the build at it with `NATIVE_TOOLCHAIN_IMAGE`:
 
 ```sh
-libs/simdvec/native/build_cross_toolchain_image.sh --local    # tags es-native-cross-toolchain:local
+libs/native-toolchain/build_cross_toolchain_image.sh --local  # tags es-native-cross-toolchain:local
 rm -rf libs/simdvec/native/build                              # make does not see an image change
 NATIVE_TOOLCHAIN_IMAGE=es-native-cross-toolchain:local VEC_NATIVE_BUILD=docker \
   ./gradlew --no-daemon :libs:simdvec:test
 ```
 
-`make` only rebuilds what is out of date relative to the sources, so delete `native/build` whenever
-the outputs must be rebuilt for another reason, such as a new image. `--no-daemon` avoids a reused
-Gradle daemon whose environment cannot start `docker` ("A problem occurred starting process
-'command 'docker''").
+`make` only rebuilds what is out of date relative to the sources, so delete the library's
+`native/build` whenever the outputs must be rebuilt for another reason, such as a new image.
+`--no-daemon` avoids a reused Gradle daemon whose environment cannot start `docker` ("A problem
+occurred starting process 'command 'docker''").
 
-To publish, run `./publish_vec_binaries.sh` from `libs/simdvec/native` (see *Publish a library*).
-With `--local` it builds with `es-native-cross-toolchain:local` and only writes a local zip.
-Publishing needs `ARTIFACTORY_API_KEY`, and refuses to overwrite an existing version.
+To publish, run the library's `publish_<library>_binaries.sh` from its `native/` directory (see
+*Publish a library*). With `--local` it builds with `es-native-cross-toolchain:local` and only
+writes a local zip. Publishing needs `ARTIFACTORY_API_KEY`, and refuses to overwrite an existing
+version.
 
-Useful checks on a Darwin build:
+Useful checks on a Darwin build (libvec, from `libs/simdvec/native`):
 
 ```sh
 # imports; must all exist on the target OS, as the Darwin link resolves them at load time

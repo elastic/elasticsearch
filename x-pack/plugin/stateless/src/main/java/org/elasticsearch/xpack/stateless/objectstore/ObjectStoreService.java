@@ -425,7 +425,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         this.cacheSearchRecoveryBcc = CACHE_SEARCH_RECOVERY_BCC_ENABLED_SETTING.get(settings);
         this.slowTranslogUploadLogThresholdMillis = OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING.get(settings).getMillis();
         this.bccMultipartUploadTaskRunner = new InstrumentedThrottledTaskRunner<ActionListener<Releasable>>(
-            "bcc-concurrent-multipart-upload",
+            "bcc_multipart_upload_runner",
             Math.max(1, threadPool.info(StatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax()),
             threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL),
             meterRegistry,

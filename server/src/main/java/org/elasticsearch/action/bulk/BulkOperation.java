@@ -58,6 +58,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -669,11 +670,10 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
      * @param failureStoreCandidate the data stream the original request was being written to, or null if no data stream was involved.
      *                              Requests are only routed to a failure store if they are headed to a data stream with an active failure
      *                              store.
-     * @param error the shard-level error the request encountered. Version conflicts and exceptions related to backpressure (including
-     *              retryable cluster blocks) are not redirected. Non-retryable cluster blocks, such as an index write block, describe a
-     *              permanent condition of the target index rather than backpressure, so those documents are redirected. The exception is a
-     *              non-retryable block with a 429 status (for example the flood-stage disk block), which is treated as backpressure and
-     *              is not redirected.
+     * @param error the shard-level error the request encountered. Version conflicts and exceptions related to backpressure are not
+     *              redirected. A cluster block exception holds every block that applies to the index, so it is treated as backpressure if
+     *              any one of its blocks is retryable or has a 429 status (for example the flood-stage disk block). Otherwise the blocks,
+     *              such as an index write block, describe a permanent condition of the target index and the document is redirected.
      * @return true if the request and error should be redirected to the provided data stream's failure store, false if it should not
      */
     private boolean shouldRedirectRequestToFailureStore(boolean isFailureStoreRequest, DataStream failureStoreCandidate, Throwable error) {
@@ -684,7 +684,9 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             case VersionConflictEngineException err -> false;
             case EsRejectedExecutionException err -> false;
             case CircuitBreakingException err -> false;
-            case ClusterBlockException err when err.retryable() -> false;
+            case ClusterBlockException err -> err.blocks()
+                .stream()
+                .noneMatch(block -> block.retryable() || block.status() == RestStatus.TOO_MANY_REQUESTS);
             case ElasticsearchException err -> err.status().getStatus() != 429;
             default -> true;
         };

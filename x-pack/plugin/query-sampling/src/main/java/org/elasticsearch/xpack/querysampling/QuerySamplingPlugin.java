@@ -17,8 +17,10 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -32,6 +34,7 @@ import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
 import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingGroundTruthAction;
 import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingStatsAction;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
+import org.elasticsearch.xpack.querysampling.storage.QuerySamplingIndex;
 import org.elasticsearch.xpack.querysampling.storage.Tier1Buffer;
 
 import java.util.Collection;
@@ -44,7 +47,7 @@ import java.util.function.Supplier;
  * estimated without replaying all traffic. The pipeline runs on the coordinating node and is designed
  * to stay off the search critical path.
  */
-public class QuerySamplingPlugin extends Plugin implements ActionPlugin {
+public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemIndexPlugin {
 
     public static final FeatureFlag QUERY_SAMPLING_FEATURE_FLAG = new FeatureFlag("query_sampling");
 
@@ -114,6 +117,24 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin {
             return List.of();
         }
         return List.of(new RestQuerySamplingStatsAction(), new RestQuerySamplingGroundTruthAction());
+    }
+
+    @Override
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+        if (QUERY_SAMPLING_FEATURE_FLAG.isEnabled() == false) {
+            return List.of();
+        }
+        return List.of(QuerySamplingIndex.descriptor());
+    }
+
+    @Override
+    public String getFeatureName() {
+        return "query_sampling";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Stores the sampled kNN queries used to estimate the quality of search";
     }
 
     @Override

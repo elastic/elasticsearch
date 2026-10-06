@@ -1,0 +1,7 @@
+area: "Data streams, TSDB"
+issues:
+ - 161001
+pr: 161117
+summary: "[TSDB] not all documents with invalid timestamps are redirected to the failure\
+  \ store. [#161001]"
+type: bug

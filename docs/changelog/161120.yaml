@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161120
+summary: "ES|QL|DS: bind headered CSV/TSV files by own header"
+type: bug

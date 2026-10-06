@@ -2109,6 +2109,98 @@ Return of the King Being the Third Part of The Lord of the Rings | null
 ;
 
 
+# books and books_english disagree on title's analyzer, so HIGHLIGHT uses each row's own index analyzer.
+# english stems "Rings" for the books_english row, and standard does not for the books row. No warning.
+# SORT | LIMIT moves HIGHLIGHT to the coordinator, which still needs each row's index.
+highlightPerIndexAnalyzerUsesEachIndexAnalyzer
+required_capability: highlight_mapping_analyzer
+
+FROM books,books_english METADATA _index
+| WHERE MATCH(title, "ring") AND book_no IN ("2714", "2936")
+| SORT _index, book_no
+| LIMIT 10
+| HIGHLIGHT
+| KEEP _index, book_no, highlight_title
+;
+
+_index:keyword | book_no:keyword | highlight_title:keyword
+books          | 2936            | Fellowship of the <em>Ring</em> 2ND Edition
+books_english  | 2714            | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+books_english  | 2936            | Fellowship of the <em>Ring</em> 2ND Edition
+;
+
+
+# Without METADATA _index, HIGHLIGHT still gets each row's index, through the KEEP below it.
+# Only books_english matches "ring" against "Rings". Also runs against remote indices in the CCS suite.
+highlightPerIndexAnalyzerThroughKeep
+required_capability: highlight_mapping_analyzer
+
+FROM books,books_english
+| WHERE MATCH(title, "ring") AND book_no == "2714"
+| KEEP book_no, title
+| HIGHLIGHT "ring" ON title
+| KEEP book_no, highlight_title
+;
+
+book_no:keyword | highlight_title:keyword
+2714            | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+;
+
+
+# Bare HIGHLIGHT without METADATA _index. The query and fields come from the WHERE, and the row's index from a synthetic _index.
+highlightPerIndexAnalyzerImplicitQueryWithoutMetadata
+required_capability: highlight_mapping_analyzer
+
+FROM books,books_english
+| WHERE MATCH(title, "ring") AND book_no == "2714"
+| HIGHLIGHT
+| KEEP title, highlight_title
+;
+
+title:text | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+;
+
+
+# HIGHLIGHT's internal index key must not keep otherwise identical rows apart in DEDUP.
+# A second HIGHLIGHT after DEDUP has no single source index and falls back to standard.
+highlightPerIndexAnalyzerBeforeDedup
+required_capability: highlight_mapping_analyzer
+required_capability: dedup_command
+
+FROM books,books_english
+| WHERE book_no == "2936"
+| KEEP title
+| HIGHLIGHT "ring" ON title
+| DEDUP
+| HIGHLIGHT prefix = "again_" "ring" ON title
+| KEEP title, highlight_title, again_title
+;
+
+warningRegex:HIGHLIGHT on \[title\] falls back to \[standard\]: the queried indices disagree on the analyzer for this field.*
+title:text | highlight_title:keyword | again_title:keyword
+Fellowship of the Ring 2ND Edition | Fellowship of the <em>Ring</em> 2ND Edition | Fellowship of the <em>Ring</em> 2ND Edition
+;
+
+
+# After STATS a row has no single source index, so HIGHLIGHT uses standard and emits a warning.
+# "ring" matches "Ring", not "Rings".
+highlightPerIndexAnalyzerAfterStatsFallsBackToStandard
+required_capability: highlight_mapping_analyzer
+
+FROM books,books_english
+| WHERE MATCH(title, "ring") AND book_no == "2714"
+| STATS c = COUNT(*) BY title
+| HIGHLIGHT "ring" ON title
+| KEEP title, highlight_title
+;
+
+warningRegex:HIGHLIGHT on \[title\] falls back to \[standard\]: the queried indices disagree on the analyzer for this field.*
+title:text | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | null
+;
+
+
 # ON title, description (both mapping english). MATCH on description leaves highlight_title null.
 # number_of_fragments 0 returns the whole value.
 highlightMappingAnalyzerOnStar

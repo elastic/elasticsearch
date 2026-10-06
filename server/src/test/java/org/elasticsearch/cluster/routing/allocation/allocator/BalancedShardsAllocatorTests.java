@@ -1544,6 +1544,14 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         return ClusterInfo.builder().shardSizes(indexSizes).build();
     }
 
+    /**
+     * Builds a cluster state with nodes {@code node-1} and {@code node-2} and the given single-shard indices.
+     * Every shard is either left unassigned or started on {@code node-1}, chosen at random for the whole cluster.
+     */
+    private static ClusterState createStateWithIndices(IndexMetadata.Builder... indexMetadataBuilders) {
+        return createStateWithIndices(List.of("node-1", "node-2"), shardId -> "node-1", indexMetadataBuilders);
+    }
+
     private static IndexMetadata.Builder anIndex(String name) {
         return anIndex(name, indexSettings(IndexVersion.current(), 1, 0));
     }

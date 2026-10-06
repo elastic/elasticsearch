@@ -688,12 +688,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardFlushIT
   method: testPreFlushWaitsForOngoingFlushes
   issue: https://github.com/elastic/elasticsearch/issues/161089
-- class: org.elasticsearch.index.reindex.RestoringShardReindexIT
-  method: testReindexFromRestoringSourceFailsFastWithServiceUnavailable
-  issue: https://github.com/elastic/elasticsearch/issues/161090
-- class: org.elasticsearch.index.reindex.RestoringShardReindexIT
-  method: testDeleteByQueryWhileRestoringParks
-  issue: https://github.com/elastic/elasticsearch/issues/161091
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecMatchFunctionIT
   method: test {csv-spec:match-function.matchWithScoreSortAscending}
   issue: https://github.com/elastic/elasticsearch/issues/161124

@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.querysampling;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.support.MappedActionFilter;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
@@ -35,12 +37,15 @@ import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingGroundTruthAc
 import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingStatsAction;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
 import org.elasticsearch.xpack.querysampling.storage.QuerySamplingIndex;
+import org.elasticsearch.xpack.querysampling.storage.SampleWriter;
 import org.elasticsearch.xpack.querysampling.storage.Tier1Buffer;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.core.ClientHelper.QUERY_SAMPLING_ORIGIN;
 
 /**
  * Keeps a small, continuously maintained sample of live kNN queries so that production recall can be
@@ -55,6 +60,9 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
     private static final int QUEUE_SIZE = 1000;
     private static final int MAX_DISTINCT_QUERIES = 100_000;
     private static final TimeValue MULTIPLICITY_WINDOW = TimeValue.timeValueHours(1);
+    private static final int WRITE_BATCH_SIZE = 100;
+    private static final int MAX_PENDING_WRITES = 1000;
+    private static final TimeValue WRITE_INTERVAL = TimeValue.timeValueSeconds(1);
     private static final int TIER1_CAPACITY = 10_000;
     private static final double ACCEPTANCE_SCALE = 1.0;
     private static final long HEAD_THRESHOLD = 100;
@@ -88,10 +96,22 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
     public Collection<?> createComponents(PluginServices services) {
         MultiplicityTracker tracker = new MultiplicityTracker(MAX_DISTINCT_QUERIES, MULTIPLICITY_WINDOW, System::nanoTime);
         Tier1Buffer buffer = new Tier1Buffer(TIER1_CAPACITY);
+        // a new id for every run of the sampler: its weights only make sense against the counts it keeps
+        OriginSettingClient client = new OriginSettingClient(services.client(), QUERY_SAMPLING_ORIGIN);
+        SampleWriter writer = new SampleWriter(
+            UUIDs.randomBase64UUID(),
+            client::bulk,
+            services.threadPool(),
+            services.threadPool().generic(),
+            services.threadPool()::absoluteTimeInMillis,
+            WRITE_BATCH_SIZE,
+            MAX_PENDING_WRITES,
+            WRITE_INTERVAL
+        );
         SamplingPipeline pipeline = new SamplingPipeline(
             tracker,
             new QuerySampler(ACCEPTANCE_SCALE, HEAD_THRESHOLD, Randomness.get()),
-            List.of(buffer)
+            List.of(buffer, writer)
         );
         CaptureHandoff handoff = new CaptureHandoff(services.threadPool().executor(THREAD_POOL_NAME), pipeline);
         QueryCaptureFilter filter = new QueryCaptureFilter(services.clusterService().getClusterSettings(), handoff);

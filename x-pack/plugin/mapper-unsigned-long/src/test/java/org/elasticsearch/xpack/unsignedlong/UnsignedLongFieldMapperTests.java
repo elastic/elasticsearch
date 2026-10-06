@@ -451,15 +451,15 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
 
     public void testColumnarArrayOrderRoundTrip() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.name()).build();
-        DocumentMapper mapper = createMapperService(
+        MapperService mapperService = createMapperService(
             settings,
             mapping(b -> b.startObject("field").field("type", "unsigned_long").endObject())
-        ).documentMapper();
+        );
         // Stay in the signed-long range so JSON emits a plain number and Java's Long.toString matches the synthetic-source format.
         long v1 = randomNonNegativeLong();
         long v2 = randomNonNegativeLong();
         long v3 = randomNonNegativeLong();
-        String src = syntheticSource(mapper, b -> b.array("field", v2, v1, v3, v2));
+        String src = syntheticSource(mapperService, b -> b.array("field", v2, v1, v3, v2));
         assertThat(src, containsString("\"field\":[" + v2 + "," + v1 + "," + v3 + "," + v2 + "]"));
     }
 

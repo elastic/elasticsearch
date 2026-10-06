@@ -399,11 +399,11 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
             b.startObject("field2").field("type", "match_only_text").endObject();
         });
         var settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
-        DocumentMapper mapper = createMapperService(IndexVersions.UPGRADE_TO_LUCENE_10_2_2, settings, () -> true, mappings)
-            .documentMapper();
+        MapperService mapperService = createMapperService(IndexVersions.UPGRADE_TO_LUCENE_10_2_2, settings, () -> true, mappings);
+        DocumentMapper mapper = mapperService.documentMapper();
 
         try (Directory directory = newDirectory()) {
-            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
+            RandomIndexWriter iw = indexWriterForSyntheticSource(mapperService, directory);
 
             LuceneDocument document = new LuceneDocument();
             document.add(new StringField("field1", "foo", Field.Store.NO));
@@ -818,10 +818,10 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
 
     public void testColumnarArrayOrderRoundTrip() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        DocumentMapper mapper = createMapperService(
+        MapperService mapperService = createMapperService(
             settings,
             mapping(b -> b.startObject("field").field("type", "match_only_text").field("doc_values", true).endObject())
-        ).documentMapper();
+        );
 
         String v1 = randomAlphanumericOfLength(4);
         String v2 = randomAlphanumericOfLength(4);
@@ -829,7 +829,7 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         // Duplicate v2 and an interleaved null: sorted-deduped doc-values order would reorder/collapse them and drop the null; the in-order
         // binary doc values must restore arrival order, the duplicate, and the null position.
         assertThat(
-            syntheticSource(mapper, b -> b.array("field", v2, v1, null, v3, v2)),
+            syntheticSource(mapperService, b -> b.array("field", v2, v1, null, v3, v2)),
             containsString("\"field\":[\"" + v2 + "\",\"" + v1 + "\",null,\"" + v3 + "\",\"" + v2 + "\"]")
         );
     }

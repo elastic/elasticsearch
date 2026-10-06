@@ -32,7 +32,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.newDirectory;
-import static org.apache.lucene.tests.util.LuceneTestCase.random;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -193,7 +192,7 @@ public class BlockLoaderTestRunner {
             throw new IllegalStateException("need to set fieldName");
         }
         try (Directory directory = newDirectory()) {
-            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+            RandomIndexWriter iw = TestIndexWriterBuilder.mapped(mapperService).build(directory);
 
             LuceneDocument doc = this.document().rootDoc();
 
@@ -205,6 +204,7 @@ public class BlockLoaderTestRunner {
             iw.close();
 
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                MapperServiceTestCase.assertDocValuesWrittenAsMapped(mapperService, reader);
                 LeafReaderContext context = reader.leaves().getFirst();
                 return load(createBlockLoader(fieldName), context);
             }

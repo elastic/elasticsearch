@@ -633,11 +633,10 @@ public class IpFieldMapperTests extends MapperTestCase {
 
     public void testColumnarArrayOrderRoundTrip() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        DocumentMapper mapper = createMapperService(settings, mapping(b -> b.startObject("field").field("type", "ip").endObject()))
-            .documentMapper();
+        MapperService mapperService = createMapperService(settings, mapping(b -> b.startObject("field").field("type", "ip").endObject()));
 
         // Arrival order differs from the binary-sorted order (10.0.0.1 < 172.16.5.4 < 192.168.1.10); duplicate and null must survive.
-        String result = syntheticSource(mapper, b -> {
+        String result = syntheticSource(mapperService, b -> {
             b.startArray("field");
             b.value("192.168.1.10");
             b.value("10.0.0.1");

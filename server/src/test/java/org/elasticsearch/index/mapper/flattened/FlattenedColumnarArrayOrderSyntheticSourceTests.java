@@ -13,7 +13,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.test.WildcardFieldMaskingReader;
@@ -32,12 +32,12 @@ import java.util.Set;
  */
 public class FlattenedColumnarArrayOrderSyntheticSourceTests extends MapperServiceTestCase {
 
-    private DocumentMapper columnarMapper() throws IOException {
+    private MapperService columnarMapperService() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         return createMapperService(
             settings,
             mapping(b -> b.startObject("field").field("type", "flattened").field("preserve_leaf_arrays", "exact").endObject())
-        ).documentMapper();
+        );
     }
 
     /**
@@ -61,7 +61,7 @@ public class FlattenedColumnarArrayOrderSyntheticSourceTests extends MapperServi
     // --- metadata ---
 
     public void testStoresArrayValuesInOrder() throws IOException {
-        var mapper = columnarMapper();
+        var mapper = columnarMapperService().documentMapper();
         var fieldMapper = mapper.mappers().getMapper("field");
         assertTrue("flattened columnar path must store array values in order", fieldMapper.storesArrayValuesInOrder());
         assertNull("flattened columnar path must not use an offsets sidecar field", fieldMapper.getOffsetFieldName());
@@ -70,51 +70,54 @@ public class FlattenedColumnarArrayOrderSyntheticSourceTests extends MapperServi
     // --- single key, single value ---
 
     public void testSingleValueCollapsesToScalar() throws IOException {
-        var mapper = columnarMapper();
+        MapperService mapperService = columnarMapperService();
         assertEquals("""
-            {"field":{"key":"a"}}""", syntheticSource(mapper, b -> b.startObject("field").field("key", "a").endObject()));
+            {"field":{"key":"a"}}""", syntheticSource(mapperService, b -> b.startObject("field").field("key", "a").endObject()));
     }
 
     // --- single key, array ---
 
     public void testOrderAndDuplicatesPreservedWithinKey() throws IOException {
-        var mapper = columnarMapper();
+        MapperService mapperService = columnarMapperService();
         assertEquals(
             """
                 {"field":{"key":["b","a","a","c"]}}""",
             syntheticSource(
-                mapper,
+                mapperService,
                 b -> b.startObject("field").startArray("key").value("b").value("a").value("a").value("c").endArray().endObject()
             )
         );
     }
 
     public void testInterleavedNullsPreservedWithinKey() throws IOException {
-        var mapper = columnarMapper();
+        MapperService mapperService = columnarMapperService();
         assertEquals(
             """
                 {"field":{"key":["a",null,"b"]}}""",
-            syntheticSource(mapper, b -> b.startObject("field").startArray("key").value("a").nullValue().value("b").endArray().endObject())
+            syntheticSource(
+                mapperService,
+                b -> b.startObject("field").startArray("key").value("a").nullValue().value("b").endArray().endObject()
+            )
         );
     }
 
     public void testAllNullArray() throws IOException {
-        var mapper = columnarMapper();
+        MapperService mapperService = columnarMapperService();
         assertEquals(
             """
                 {"field":{"key":[null,null]}}""",
-            syntheticSource(mapper, b -> b.startObject("field").startArray("key").nullValue().nullValue().endArray().endObject())
+            syntheticSource(mapperService, b -> b.startObject("field").startArray("key").nullValue().nullValue().endArray().endObject())
         );
     }
 
     public void testLoneNull() throws IOException {
         // A single-element null array is indistinguishable from a scalar null in flattened fields
         // (no type mapping exists to distinguish them), so it round-trips as a scalar null.
-        var mapper = columnarMapper();
+        MapperService mapperService = columnarMapperService();
         assertEquals(
             """
                 {"field":{"key":null}}""",
-            syntheticSource(mapper, b -> b.startObject("field").startArray("key").nullValue().endArray().endObject())
+            syntheticSource(mapperService, b -> b.startObject("field").startArray("key").nullValue().endArray().endObject())
         );
     }
 
@@ -122,22 +125,22 @@ public class FlattenedColumnarArrayOrderSyntheticSourceTests extends MapperServi
 
     public void testMultipleKeysSortedInOutput() throws IOException {
         // Keys appear in sorted order in synthetic _source regardless of indexing order.
-        var mapper = columnarMapper();
+        MapperService mapperService = columnarMapperService();
         assertEquals(
             """
                 {"field":{"a":"x","z":"y"}}""",
-            syntheticSource(mapper, b -> b.startObject("field").field("z", "y").field("a", "x").endObject())
+            syntheticSource(mapperService, b -> b.startObject("field").field("z", "y").field("a", "x").endObject())
         );
     }
 
     public void testMultipleKeysEachWithArrayOrder() throws IOException {
         // Each key independently preserves its array ordering.
-        var mapper = columnarMapper();
+        MapperService mapperService = columnarMapperService();
         assertEquals(
             """
                 {"field":{"a":["c","b"],"z":["x","y"]}}""",
             syntheticSource(
-                mapper,
+                mapperService,
                 b -> b.startObject("field")
                     .startArray("a")
                     .value("c")
@@ -153,12 +156,12 @@ public class FlattenedColumnarArrayOrderSyntheticSourceTests extends MapperServi
     }
 
     public void testMultipleKeysWithArraysAndNulls() throws IOException {
-        var mapper = columnarMapper();
+        MapperService mapperService = columnarMapperService();
         assertEquals(
             """
                 {"field":{"a":["v2",null,"v1"],"b":"w"}}""",
             syntheticSource(
-                mapper,
+                mapperService,
                 b -> b.startObject("field").startArray("a").value("v2").nullValue().value("v1").endArray().field("b", "w").endObject()
             )
         );
@@ -168,7 +171,7 @@ public class FlattenedColumnarArrayOrderSyntheticSourceTests extends MapperServi
 
     public void testIgnoreAboveIsNoOpValuesStayInDocumentOrder() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        DocumentMapper mapper = createMapperService(
+        MapperService mapperService = createMapperService(
             settings,
             mapping(
                 b -> b.startObject("field")
@@ -177,12 +180,12 @@ public class FlattenedColumnarArrayOrderSyntheticSourceTests extends MapperServi
                     .field("ignore_above", 3)
                     .endObject()
             )
-        ).documentMapper();
+        );
         assertEquals(
             """
                 {"field":{"k":["cc","aaaa","bb"]}}""",
             syntheticSource(
-                mapper,
+                mapperService,
                 b -> b.startObject("field").startArray("k").value("cc").value("aaaa").value("bb").endArray().endObject()
             )
         );
@@ -192,7 +195,7 @@ public class FlattenedColumnarArrayOrderSyntheticSourceTests extends MapperServi
         // When every value for a key exceeds ignore_above, the key does not appear in slotsByKey at all.
         // The ArrayOrderKeyedValueProducer union of slotsByKey and ignoredByKey must still emit the key.
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        DocumentMapper mapper = createMapperService(
+        MapperService mapperService = createMapperService(
             settings,
             mapping(
                 b -> b.startObject("field")
@@ -201,8 +204,8 @@ public class FlattenedColumnarArrayOrderSyntheticSourceTests extends MapperServi
                     .field("ignore_above", 3)
                     .endObject()
             )
-        ).documentMapper();
+        );
         assertEquals("""
-            {"field":{"k":"toolong"}}""", syntheticSource(mapper, b -> b.startObject("field").field("k", "toolong").endObject()));
+            {"field":{"k":"toolong"}}""", syntheticSource(mapperService, b -> b.startObject("field").field("k", "toolong").endObject()));
     }
 }

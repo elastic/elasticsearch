@@ -75,6 +75,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.OnFailureStoredValues;
@@ -821,12 +822,13 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             .put("index.mapping.source.mode", "synthetic")
             .build();
         var indexSettings = createIndexSettings(indexVersion, mapperSettings);
-        DocumentMapper mapper = createMapperService(indexVersion, mapperSettings, mapping(b -> {
+        MapperService mapperService = createMapperService(indexVersion, mapperSettings, mapping(b -> {
             b.startObject("foo").field("type", "keyword").endObject();
-        })).documentMapper();
+        }));
+        DocumentMapper mapper = mapperService.documentMapper();
 
         try (Directory directory = newDirectory()) {
-            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
+            RandomIndexWriter iw = indexWriterForSyntheticSource(mapperService, directory);
             ParsedDocument doc = mapper.parse(source(b -> {
                 b.field("fieldA", "testA");
                 b.field("fieldB", "testB");
@@ -982,9 +984,10 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         var format = IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings);
         assertEquals(IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE, format);
 
-        DocumentMapper mapper = createMapperService(indexVersion, mapperSettings, mapping(b -> {
+        MapperService mapperService = createMapperService(indexVersion, mapperSettings, mapping(b -> {
             b.startObject("foo").field("type", "keyword").endObject();
-        })).documentMapper();
+        }));
+        DocumentMapper mapper = mapperService.documentMapper();
 
         // A role that grants everything except one field, exactly like the reported "logs-* minus dns.question.*" role.
         var filter = new CharacterRunAutomaton(
@@ -996,7 +999,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         // The first entry is always "fieldA": "testA", i.e. a 16-byte singular blob (4 header + 6 name + 6 encoded value).
         StringBuilder expected = new StringBuilder("{");
         try (Directory directory = newDirectory()) {
-            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
+            RandomIndexWriter iw = indexWriterForSyntheticSource(mapperService, directory);
             ParsedDocument doc = mapper.parse(source(b -> {
                 b.field("fieldA", "testA");
                 for (int i = 1; i < survivingCount; i++) {
@@ -1049,16 +1052,17 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings)
         );
 
-        DocumentMapper mapper = createMapperService(indexVersion, mapperSettings, mapping(b -> {
+        MapperService mapperService = createMapperService(indexVersion, mapperSettings, mapping(b -> {
             b.startObject("foo").field("type", "keyword").endObject();
-        })).documentMapper();
+        }));
+        DocumentMapper mapper = mapperService.documentMapper();
 
         // Grant-only role: grants fieldA but NOT _ignored_source. With the bug, _ignored_source was completely hidden,
         // making the loader see an empty iterator and silently drop fieldA's value.
         var filter = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "fieldA" }, null));
 
         try (Directory directory = newDirectory()) {
-            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
+            RandomIndexWriter iw = indexWriterForSyntheticSource(mapperService, directory);
             ParsedDocument doc = mapper.parse(source(b -> {
                 b.field("fieldA", "valueA");
                 b.field("fieldB", "valueB");  // must be filtered out by FLS
@@ -1094,17 +1098,18 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         var indexSettings = createIndexSettings(indexVersion, mapperSettings);
         var format = IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings);
 
-        DocumentMapper mapper = createMapperService(indexVersion, mapperSettings, mapping(b -> {
+        MapperService mapperService = createMapperService(indexVersion, mapperSettings, mapping(b -> {
             b.startObject("keep").field("type", "long").endObject();
             b.startObject("excluded").field("type", "long").endObject();
-        })).documentMapper();
+        }));
+        DocumentMapper mapper = mapperService.documentMapper();
 
         var filter = new CharacterRunAutomaton(
             FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "*" }, new String[] { "excluded" })
         );
 
         try (Directory directory = newDirectory()) {
-            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
+            RandomIndexWriter iw = indexWriterForSyntheticSource(mapperService, directory);
             ParsedDocument doc = mapper.parse(source(b -> {
                 b.array("keep", 3, 1, 2);
                 b.array("excluded", 30, 10, 20);
@@ -1141,14 +1146,15 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         var indexSettings = createIndexSettings(indexVersion, mapperSettings);
         var format = IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings);
 
-        DocumentMapper mapper = createMapperService(indexVersion, mapperSettings, mapping(b -> {
+        MapperService mapperService = createMapperService(indexVersion, mapperSettings, mapping(b -> {
             b.startObject("keep").field("type", "long").field("ignore_malformed", true).endObject();
-        })).documentMapper();
+        }));
+        DocumentMapper mapper = mapperService.documentMapper();
 
         var filter = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "keep" }, null));
 
         try (Directory directory = newDirectory()) {
-            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
+            RandomIndexWriter iw = indexWriterForSyntheticSource(mapperService, directory);
             ParsedDocument doc = mapper.parse(source(b -> b.array("keep", "aa", "bb")));
             doc.updateSeqID(0, 0);
             doc.version().setLongValue(0);

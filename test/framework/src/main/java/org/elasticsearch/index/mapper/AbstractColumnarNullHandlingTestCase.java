@@ -142,7 +142,7 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
                 withCodec,
                 ColumnarDocValuesFormatSelector.useColumnarCodec(mapperService.getIndexSettings())
             );
-            assertEquals("codec=" + withCodec, expected, syntheticSource(mapperService.documentMapper(), doc));
+            assertEquals("codec=" + withCodec, expected, syntheticSource(mapperService, doc));
         }
     }
 

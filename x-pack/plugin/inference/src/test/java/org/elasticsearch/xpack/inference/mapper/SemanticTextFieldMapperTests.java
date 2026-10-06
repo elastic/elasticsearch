@@ -422,15 +422,14 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             IndexVersion.current(),
             SourceFieldMapper.Mode.SYNTHETIC
         );
-        DocumentMapper mapper = mapperService.documentMapper();
 
-        assertThat(syntheticSource(mapper, b -> b.field("field", "some text")), equalTo("{\"field\":\"some text\"}"));
+        assertThat(syntheticSource(mapperService, b -> b.field("field", "some text")), equalTo("{\"field\":\"some text\"}"));
         // Document order and duplicates are preserved for multi-valued fields.
-        assertThat(syntheticSource(mapper, b -> b.array("field", "b", "a", "b")), equalTo("{\"field\":[\"b\",\"a\",\"b\"]}"));
+        assertThat(syntheticSource(mapperService, b -> b.array("field", "b", "a", "b")), equalTo("{\"field\":[\"b\",\"a\",\"b\"]}"));
         // A single-element array is rebuilt as a scalar (standard synthetic-source normalization, not specific to this field).
-        assertThat(syntheticSource(mapper, b -> b.array("field", "only")), equalTo("{\"field\":\"only\"}"));
+        assertThat(syntheticSource(mapperService, b -> b.array("field", "only")), equalTo("{\"field\":\"only\"}"));
         // A null value leaves the field absent from the rebuilt source.
-        assertThat(syntheticSource(mapper, b -> b.nullField("field")), equalTo("{}"));
+        assertThat(syntheticSource(mapperService, b -> b.nullField("field")), equalTo("{}"));
     }
 
     /**

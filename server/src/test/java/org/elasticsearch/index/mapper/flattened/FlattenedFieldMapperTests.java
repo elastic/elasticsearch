@@ -9,12 +9,11 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
@@ -23,6 +22,7 @@ import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -51,6 +51,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TestBlock;
+import org.elasticsearch.index.mapper.TestIndexWriterBuilder;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldType;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType;
@@ -1616,16 +1617,16 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     public void testSyntheticSourceWithOnlyIgnoredValues() throws IOException {
         // given
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build();
-        DocumentMapper mapper = createMapperService(
+        MapperService mapperService = createMapperService(
             IndexVersions.STORE_IGNORED_FLATTENED_FIELDS_IN_BINARY_DOC_VALUES,
             settings,
             mapping(b -> {
                 b.startObject("field").field("type", "flattened").field("ignore_above", 1).endObject();
             })
-        ).documentMapper();
+        );
 
         // when
-        var syntheticSource = syntheticSource(mapper, b -> {
+        var syntheticSource = syntheticSource(mapperService, b -> {
             b.startObject("field");
             {
                 b.field("key1", "val1");
@@ -1646,11 +1647,11 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     }
 
     public void testSyntheticSourceWithOnlyIgnoredValuesStoredFields() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field").field("type", "flattened").field("ignore_above", 1).endObject();
-        })).documentMapper();
+        }));
 
-        var syntheticSource = syntheticSource(mapper, b -> {
+        var syntheticSource = syntheticSource(mapperService, b -> {
             b.startObject("field");
             {
                 b.field("key1", "val1");
@@ -1667,11 +1668,11 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     }
 
     public void testSyntheticSourceWithCommonLeafField() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(
-            mapping(b -> { b.startObject("field").field("type", "flattened").endObject(); })
-        ).documentMapper();
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field").field("type", "flattened").endObject();
+        }));
 
-        var syntheticSource = syntheticSource(mapper, b -> {
+        var syntheticSource = syntheticSource(mapperService, b -> {
             b.startObject("field");
             {
                 b.startObject("obj1").field("key", "foo").endObject();
@@ -1684,11 +1685,11 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     }
 
     public void testSyntheticSourceWithScalarObjectMismatch() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(
-            mapping(b -> { b.startObject("field").field("type", "flattened").endObject(); })
-        ).documentMapper();
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field").field("type", "flattened").endObject();
+        }));
 
-        var syntheticSource = syntheticSource(mapper, b -> {
+        var syntheticSource = syntheticSource(mapperService, b -> {
             b.startObject("field");
             {
                 b.field("key1.key2", "foo");
@@ -1707,11 +1708,11 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     }
 
     public void testSyntheticSourceWithScalarObjectMismatchArray() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(
-            mapping(b -> { b.startObject("field").field("type", "flattened").endObject(); })
-        ).documentMapper();
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field").field("type", "flattened").endObject();
+        }));
 
-        var syntheticSource = syntheticSource(mapper, b -> {
+        var syntheticSource = syntheticSource(mapperService, b -> {
             b.startObject("field");
             {
                 b.array("key1.key2", "qux", "foo");
@@ -1729,11 +1730,11 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     }
 
     public void testSyntheticSourceWithEmptyObject() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(
-            mapping(b -> { b.startObject("field").field("type", "flattened").endObject(); })
-        ).documentMapper();
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field").field("type", "flattened").endObject();
+        }));
 
-        var syntheticSource = syntheticSource(mapper, b -> {
+        var syntheticSource = syntheticSource(mapperService, b -> {
             b.startObject("field");
             {
                 b.field("key1", "foo");
@@ -1747,15 +1748,15 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     }
 
     public void testSyntheticSourceWithMatchesInNestedPath() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(
-            mapping(b -> { b.startObject("field").field("type", "flattened").endObject(); })
-        ).documentMapper();
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field").field("type", "flattened").endObject();
+        }));
 
         // This test covers a scenario that previously had a bug.
         // Since a.b.c and b.b.d have a matching middle key `b`, and b.b.d starts with a `b`,
         // startObject was not called for the first `b` in b.b.d.
         // For a full explanation see this comment: https://github.com/elastic/elasticsearch/pull/129600#issuecomment-3024476134
-        var syntheticSource = syntheticSource(mapper, b -> {
+        var syntheticSource = syntheticSource(mapperService, b -> {
             b.startObject("field");
             {
                 b.startObject("a");
@@ -1776,22 +1777,22 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     }
 
     public void testPreserveLeafArraysExactSingleValue() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field").field("type", "flattened").field("preserve_leaf_arrays", "exact").endObject();
-        })).documentMapper();
+        }));
 
         CheckedConsumer<XContentBuilder, IOException> example = b -> b.startObject("field")
             .field("leaf", "foo")
             .array("leaf2", "bar")
             .endObject();
 
-        assertThat(syntheticSource(mapper, example), equalTo("{\"field\":{\"leaf\":\"foo\",\"leaf2\":\"bar\"}}"));
+        assertThat(syntheticSource(mapperService, example), equalTo("{\"field\":{\"leaf\":\"foo\",\"leaf2\":\"bar\"}}"));
     }
 
     public void testPreserveLeafArraysExactWithObjectArrays() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field").field("type", "flattened").field("preserve_leaf_arrays", "exact").endObject();
-        })).documentMapper();
+        }));
 
         CheckedConsumer<XContentBuilder, IOException> example = b -> {
             b.startObject("field");
@@ -1809,7 +1810,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.endObject();
         };
 
-        assertThat(syntheticSource(mapper, example), equalTo("{\"field\":{\"sub1\":{\"sub2\":[\"foo\",\"bar\",\"baz\",\"bat\"]}}}"));
+        assertThat(syntheticSource(mapperService, example), equalTo("{\"field\":{\"sub1\":{\"sub2\":[\"foo\",\"bar\",\"baz\",\"bat\"]}}}"));
     }
 
     /**
@@ -1822,9 +1823,9 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
      * <a href="https://github.com/elastic/elasticsearch/issues/153014">#153014</a>.
      */
     public void testPreserveLeafArraysExactWithFieldMultiplicity() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field").field("type", "flattened").field("preserve_leaf_arrays", "exact").endObject();
-        })).documentMapper();
+        }));
 
         CheckedConsumer<XContentBuilder, IOException> example = b -> {
             b.startArray("field");
@@ -1839,20 +1840,20 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.endArray();
         };
 
-        assertThat(syntheticSource(mapper, example), equalTo("{\"field\":{\"key\":[\"b\",\"a\",\"c\"]}}"));
+        assertThat(syntheticSource(mapperService, example), equalTo("{\"field\":{\"key\":[\"b\",\"a\",\"c\"]}}"));
     }
 
     public void testPreserveLeafArraysExactWithAllNulls() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field").field("type", "flattened").field("preserve_leaf_arrays", "exact").endObject();
-        })).documentMapper();
+        }));
 
         CheckedConsumer<XContentBuilder, IOException> example = b -> b.startObject("field")
             .nullField("leaf")
             .array("leaf2", null, null)
             .endObject();
 
-        assertThat(syntheticSource(mapper, example), equalTo("{\"field\":{\"leaf\":null,\"leaf2\":[null,null]}}"));
+        assertThat(syntheticSource(mapperService, example), equalTo("{\"field\":{\"leaf\":null,\"leaf2\":[null,null]}}"));
     }
 
     private static void flattenedPreserveLeafArrayExample(XContentBuilder b) throws IOException {
@@ -1872,11 +1873,11 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     }
 
     public void testSyntheticSourceSortedSetDocValuesWithPreserveLeafArraysLossy() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field").field("type", "flattened").field("preserve_leaf_arrays", "lossy").endObject();
-        })).documentMapper();
+        }));
 
-        assertThat(syntheticSource(mapper, FlattenedFieldMapperTests::flattenedPreserveLeafArrayExample), equalTo("""
+        assertThat(syntheticSource(mapperService, FlattenedFieldMapperTests::flattenedPreserveLeafArrayExample), equalTo("""
             {"field":{"leaf_key":["apple","banana","moon","zebra"]}}"""));
     }
 
@@ -1885,20 +1886,20 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             .put("index.mapping.source.mode", "synthetic")
             .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
             .build();
-        DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
             b.startObject("field").field("type", "flattened").field("preserve_leaf_arrays", "lossy").endObject();
-        })).documentMapper();
+        }));
 
-        assertThat(syntheticSource(mapper, FlattenedFieldMapperTests::flattenedPreserveLeafArrayExample), equalTo("""
+        assertThat(syntheticSource(mapperService, FlattenedFieldMapperTests::flattenedPreserveLeafArrayExample), equalTo("""
             {"field":{"leaf_key":["apple","banana","moon","zebra"]}}"""));
     }
 
     public void testSyntheticSourceSortedSetDocValuesWithPreserveLeafArraysExact() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field").field("type", "flattened").field("preserve_leaf_arrays", "exact").endObject();
-        })).documentMapper();
+        }));
 
-        assertThat(syntheticSource(mapper, FlattenedFieldMapperTests::flattenedPreserveLeafArrayExample), equalTo("""
+        assertThat(syntheticSource(mapperService, FlattenedFieldMapperTests::flattenedPreserveLeafArrayExample), equalTo("""
             {"field":{"leaf_key":["zebra","apple",null,"moon","apple",null,"banana"]}}"""));
     }
 
@@ -1907,20 +1908,20 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             .put("index.mapping.source.mode", "synthetic")
             .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
             .build();
-        DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
             b.startObject("field").field("type", "flattened").field("preserve_leaf_arrays", "exact").endObject();
-        })).documentMapper();
+        }));
 
-        assertThat(syntheticSource(mapper, FlattenedFieldMapperTests::flattenedPreserveLeafArrayExample), equalTo("""
+        assertThat(syntheticSource(mapperService, FlattenedFieldMapperTests::flattenedPreserveLeafArrayExample), equalTo("""
             {"field":{"leaf_key":["zebra","apple",null,"moon","apple",null,"banana"]}}"""));
     }
 
     public void testMultipleDotsInPath() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(
-            mapping(b -> { b.startObject("field").field("type", "flattened").endObject(); })
-        ).documentMapper();
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field").field("type", "flattened").endObject();
+        }));
 
-        var syntheticSource = syntheticSource(mapper, b -> {
+        var syntheticSource = syntheticSource(mapperService, b -> {
             b.startObject("field");
             {
                 b.startObject(".");
@@ -1937,7 +1938,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     }
 
     public void testSyntheticSourceWithMappedProperties() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             {
                 b.field("type", "flattened");
@@ -1948,9 +1949,9 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
                 b.endObject();
             }
             b.endObject();
-        })).documentMapper();
+        }));
 
-        var syntheticSource = syntheticSource(mapper, b -> {
+        var syntheticSource = syntheticSource(mapperService, b -> {
             b.startObject("field");
             {
                 b.startObject("host").field("name", "server-a").endObject();
@@ -1962,7 +1963,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     }
 
     public void testSyntheticSourceWithMappedPropertiesOnly() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             {
                 b.field("type", "flattened");
@@ -1974,9 +1975,9 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
                 b.endObject();
             }
             b.endObject();
-        })).documentMapper();
+        }));
 
-        var syntheticSource = syntheticSource(mapper, b -> {
+        var syntheticSource = syntheticSource(mapperService, b -> {
             b.startObject("field");
             {
                 b.field("status", "ok");
@@ -1988,7 +1989,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     }
 
     public void testSyntheticSourceMappedPropertyFieldOrdering() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             {
                 b.field("type", "flattened");
@@ -1999,9 +2000,9 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
                 b.endObject();
             }
             b.endObject();
-        })).documentMapper();
+        }));
 
-        var syntheticSource = syntheticSource(mapper, b -> {
+        var syntheticSource = syntheticSource(mapperService, b -> {
             b.startObject("field");
             {
                 b.field("a_unmapped", "val_a");
@@ -2042,7 +2043,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     }
 
     public void testSyntheticSourceWithUnmappedKeysOnly() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             {
                 b.field("type", "flattened");
@@ -2053,9 +2054,9 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
                 b.endObject();
             }
             b.endObject();
-        })).documentMapper();
+        }));
 
-        var syntheticSource = syntheticSource(mapper, b -> {
+        var syntheticSource = syntheticSource(mapperService, b -> {
             b.startObject("field");
             {
                 b.field("unmapped", "value");
@@ -2383,11 +2384,12 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     public void testDocValuesLoaderResetsBinaryDocValuesAcrossLeafReaders() throws IOException {
         // given: two documents — one with a flattened field, one without — in separate segments
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build();
-        DocumentMapper mapper = createMapperService(
+        MapperService mapperService = createMapperService(
             IndexVersions.STORE_IGNORED_FLATTENED_FIELDS_IN_BINARY_DOC_VALUES,
             settings,
             mapping(b -> b.startObject("field").field("type", "flattened").endObject())
-        ).documentMapper();
+        );
+        DocumentMapper mapper = mapperService.documentMapper();
 
         ParsedDocument docWithField = mapper.parse(
             source(b -> b.startObject("field").field("key", "value").endObject().field("@timestamp", "2025-01-01T00:00:00Z"))
@@ -2400,9 +2402,12 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         docWithoutField.version().setLongValue(1);
 
         try (Directory directory = newDirectory()) {
-            IndexWriterConfig config = new IndexWriterConfig();
-            config.setMergePolicy(NoMergePolicy.INSTANCE);
-            try (IndexWriter writer = new IndexWriter(directory, config)) {
+            try (
+                RandomIndexWriter writer = TestIndexWriterBuilder.mapped(mapperService)
+                    .analyzer(new StandardAnalyzer())
+                    .mergePolicy(NoMergePolicy.INSTANCE)
+                    .build(directory)
+            ) {
                 writer.addDocuments(docWithField.docs());
                 writer.commit();
                 writer.addDocuments(docWithoutField.docs());
@@ -2449,11 +2454,12 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     public void testDocValuesLoaderResetsIgnoredDocValuesAcrossLeafReaders() throws IOException {
         // given: ignored values stored in binary doc values (LogsDB with ignore_above)
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build();
-        DocumentMapper mapper = createMapperService(
+        MapperService mapperService = createMapperService(
             IndexVersions.STORE_IGNORED_FLATTENED_FIELDS_IN_BINARY_DOC_VALUES,
             settings,
             mapping(b -> b.startObject("field").field("type", "flattened").field("ignore_above", 1).endObject())
-        ).documentMapper();
+        );
+        DocumentMapper mapper = mapperService.documentMapper();
 
         // All values exceed ignore_above=1, so they go to the ignored field
         ParsedDocument docWithIgnored = mapper.parse(
@@ -2467,9 +2473,12 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         docWithoutField.version().setLongValue(1);
 
         try (Directory directory = newDirectory()) {
-            IndexWriterConfig config = new IndexWriterConfig();
-            config.setMergePolicy(NoMergePolicy.INSTANCE);
-            try (IndexWriter writer = new IndexWriter(directory, config)) {
+            try (
+                RandomIndexWriter writer = TestIndexWriterBuilder.mapped(mapperService)
+                    .analyzer(new StandardAnalyzer())
+                    .mergePolicy(NoMergePolicy.INSTANCE)
+                    .build(directory)
+            ) {
                 writer.addDocuments(docWithIgnored.docs());
                 writer.commit();
                 writer.addDocuments(docWithoutField.docs());

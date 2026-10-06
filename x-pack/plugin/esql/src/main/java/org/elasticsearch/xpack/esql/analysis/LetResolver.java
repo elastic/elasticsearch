@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
 import org.elasticsearch.xpack.esql.plan.LetBinding;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -73,17 +75,31 @@ public final class LetResolver {
     }
 
     /**
-     * Replaces every {@link UnresolvedRelation} whose index-pattern string exactly matches a key
-     * in {@code resolved} with the corresponding bound plan.
+     * Replaces every {@link UnresolvedRelation} whose index-pattern string exactly matches a key in {@code resolved} with the
+     * corresponding bound plan. Also substitutes into subquery plans embedded in {@link InSubquery} and {@link MultiColumnInSubquery}
+     * expressions, since those plans are not reachable through the standard plan-tree traversal.
      */
     private static LogicalPlan substitute(LogicalPlan plan, Map<String, LogicalPlan> resolved) {
         if (resolved.isEmpty()) {
             return plan;
         }
-        return plan.transformDown(UnresolvedRelation.class, ur -> {
-            String pattern = ur.indexPattern().indexPattern();
-            LogicalPlan bound = resolved.get(pattern);
-            return bound != null ? bound : ur;
+        return plan.transformDown(p -> {
+            if (p instanceof UnresolvedRelation ur) {
+                String pattern = ur.indexPattern().indexPattern();
+                LogicalPlan bound = resolved.get(pattern);
+                return bound != null ? bound : ur;
+            }
+            // InSubquery and MultiColumnInSubquery carry a LogicalPlan field that is not part of the expression
+            // children, so plan.transformDown(UnresolvedRelation.class, ...) cannot reach it.
+            // Substitute into those plans explicitly here, one plan-node at a time (transformDown handles children).
+            LogicalPlan result = p.transformExpressionsOnly(InSubquery.class, inSub -> {
+                LogicalPlan newSubquery = substitute(inSub.subquery(), resolved);
+                return newSubquery != inSub.subquery() ? new InSubquery(inSub.source(), inSub.value(), newSubquery) : inSub;
+            });
+            return result.transformExpressionsOnly(MultiColumnInSubquery.class, mcsub -> {
+                LogicalPlan newSubquery = substitute(mcsub.subquery(), resolved);
+                return newSubquery != mcsub.subquery() ? new MultiColumnInSubquery(mcsub.source(), mcsub.values(), newSubquery) : mcsub;
+            });
         });
     }
 

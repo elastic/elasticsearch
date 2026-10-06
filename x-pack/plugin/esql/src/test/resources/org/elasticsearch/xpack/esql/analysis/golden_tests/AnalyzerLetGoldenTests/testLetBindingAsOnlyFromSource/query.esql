@@ -1,0 +1,4 @@
+LET filtered_employees = (FROM employees | WHERE emp_no > 10020 | KEEP emp_no, languages);
+FROM filtered_employees
+| WHERE languages > 1
+| SORT emp_no

@@ -1,0 +1,5 @@
+LET active_langs = (FROM languages | WHERE language_code > 1 | KEEP language_code);
+FROM employees
+| WHERE languages IN active_langs
+| KEEP emp_no, languages
+| SORT emp_no

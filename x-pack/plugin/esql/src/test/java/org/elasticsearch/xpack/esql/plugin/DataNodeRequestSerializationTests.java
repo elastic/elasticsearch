@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -54,7 +55,9 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DataNodeRequestSerializationTests extends AbstractWireSerializingTestCase<DataNodeRequest> {
     @Override
@@ -113,7 +116,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             randomBoolean(),
             List.of(),
             randomBoolean(),
-            randomNonNegativeLong()
+            randomNonNegativeLong(),
+            randomFetchContextKeepAlive()
         );
         request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong());
         return request;
@@ -135,6 +139,55 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         DataNodeRequest current = copyInstance(request, TransportVersion.current());
         assertThat(current.declineIfNotReady(), equalTo(request.declineIfNotReady()));
         assertThat(current.requiredClusterStateVersion(), equalTo(request.requiredClusterStateVersion()));
+    }
+
+    private static TimeValue randomFetchContextKeepAlive() {
+        return randomBoolean() ? null : TimeValue.timeValueSeconds(between(1, 600));
+    }
+
+    public void testFetchContextKeepAliveRoundTrips() throws IOException {
+        DataNodeRequest request = withFetchContextKeepAlive(createTestInstance(), TimeValue.timeValueMinutes(3));
+
+        DataNodeRequest copy = copyInstance(request, TransportVersion.current());
+
+        assertThat(copy.fetchContextKeepAlive(), equalTo(TimeValue.timeValueMinutes(3)));
+        assertThat(copy.getDescription(), containsString("fetchContextKeepAlive=3m"));
+    }
+
+    /**
+     * The plan of a request that asks for fetch contexts carries document references, which only fetch contexts serve.
+     * An older node can't open them, so the request must not reach it as if it had asked for none.
+     */
+    public void testFetchContextsNeverReachAnOlderNode() throws IOException {
+        TransportVersion older = TransportVersionUtils.getPreviousVersion(DataNodeRequest.ESQL_FETCH_CONTEXTS);
+        DataNodeRequest withoutContexts = withFetchContextKeepAlive(createTestInstance(), null);
+        assertThat(copyInstance(withoutContexts, older).fetchContextKeepAlive(), nullValue());
+
+        DataNodeRequest withContexts = withFetchContextKeepAlive(withoutContexts, TimeValue.timeValueMinutes(1));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> copyInstance(withContexts, older));
+        assertThat(e.getMessage(), containsString("for fetch contexts"));
+    }
+
+    private static DataNodeRequest withFetchContextKeepAlive(DataNodeRequest in, TimeValue fetchContextKeepAlive) {
+        DataNodeRequest request = new DataNodeRequest(
+            in.sessionId(),
+            in.configuration(),
+            in.clusterAlias(),
+            in.shards(),
+            in.aliasFilters(),
+            in.plan(),
+            in.indices(),
+            in.indicesOptions(),
+            in.runNodeLevelReduction(),
+            in.reductionLateMaterialization(),
+            in.singleNodeOptimizations(),
+            in.externalSplits(),
+            in.declineIfNotReady(),
+            in.requiredClusterStateVersion(),
+            fetchContextKeepAlive
+        );
+        request.setParentTask(in.getParentTask());
+        return request;
     }
 
     public void testLoadAllUnmappedFieldsAttributeRoundTripsInPhysicalPlan() throws IOException {
@@ -200,9 +253,10 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         var singleNodeOptimizations = in.singleNodeOptimizations();
         var declineIfNotReady = in.declineIfNotReady();
         var requiredClusterStateVersion = in.requiredClusterStateVersion();
+        var fetchContextKeepAlive = in.fetchContextKeepAlive();
         TaskId parentTask = in.getParentTask();
 
-        switch (between(0, 12)) {
+        switch (between(0, 13)) {
             case 0 -> sessionId = randomValueOtherThan(sessionId, () -> randomAlphaOfLength(20));
             case 1 -> configuration = randomValueOtherThan(configuration, () -> randomConfiguration());
             case 2 -> shards = randomValueOtherThan(
@@ -253,6 +307,10 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             case 10 -> singleNodeOptimizations = singleNodeOptimizations == false;
             case 11 -> declineIfNotReady = declineIfNotReady == false;
             case 12 -> requiredClusterStateVersion = randomValueOtherThan(requiredClusterStateVersion, ESTestCase::randomNonNegativeLong);
+            case 13 -> fetchContextKeepAlive = randomValueOtherThan(
+                fetchContextKeepAlive,
+                DataNodeRequestSerializationTests::randomFetchContextKeepAlive
+            );
             default -> throw new AssertionError("invalid value");
         }
 
@@ -270,7 +328,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             singleNodeOptimizations,
             List.of(),
             declineIfNotReady,
-            requiredClusterStateVersion
+            requiredClusterStateVersion,
+            fetchContextKeepAlive
         );
         request.setParentTask(parentTask);
         return request;

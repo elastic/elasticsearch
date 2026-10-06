@@ -1463,7 +1463,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             request.singleNodeOptimizations(),
             request.externalSplits(),
             request.declineIfNotReady(),
-            request.requiredClusterStateVersion()
+            request.requiredClusterStateVersion(),
+            request.fetchContextKeepAlive()
         );
         // the sender doesn't support retry on shard failures, so we need to fail fast here.
         final boolean failFastOnShardFailures = supportShardLevelRetryFailure(channelVersion) == false;

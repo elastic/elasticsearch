@@ -667,17 +667,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             RelationClass relationClass = view ? RelationClass.VIEW : RelationClass.SUBQUERY;
-            String relationName = view ? ((NamedSubquery) subquery).name() : null;
+            Expression relationName = MetadataAttribute.keywordOrNull(src, view ? ((NamedSubquery) subquery).name() : null);
             List<Alias> values = new ArrayList<>(relationColumns.size());
             for (NamedExpression column : relationColumns) {
-                Expression value = switch (column.name()) {
-                    case MetadataAttribute.RELATION_CLASS -> Literal.keyword(src, relationClass.value());
-                    case MetadataAttribute.RELATION_NAME -> relationName == null
-                        ? new Literal(src, null, KEYWORD)
-                        : Literal.keyword(src, relationName);
-                    default -> throw new IllegalStateException("unexpected relation column: " + column.name());
-                };
-                values.add(new Alias(src, column.name(), value));
+                values.add(
+                    new Alias(src, column.name(), MetadataAttribute.relationColumnValue(column.name(), src, relationClass, relationName))
+                );
             }
             return new Eval(src, base, values);
         }

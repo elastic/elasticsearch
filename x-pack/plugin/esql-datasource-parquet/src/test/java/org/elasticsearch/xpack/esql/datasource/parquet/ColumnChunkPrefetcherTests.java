@@ -665,7 +665,7 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
             new ColMeta("col_b", 700, 300),
             new ColMeta("col_c", 1100, 200)
         );
-        assertThat(ColumnChunkPrefetcher.computePrefetchBytes(block, null), equalTo(1200L));
+        assertThat(ColumnChunkPrefetcher.computePrefetchBytes(block, null), equalTo(HeapFootprint.byteArrayBytes(1200)));
     }
 
     public void testComputePrefetchBytesWithProjection() {
@@ -675,7 +675,10 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
             new ColMeta("col_b", 700, 300),
             new ColMeta("col_c", 1100, 200)
         );
-        assertThat(ColumnChunkPrefetcher.computePrefetchBytes(block, Set.of("col_a", "col_c")), equalTo(1200L));
+        assertThat(
+            ColumnChunkPrefetcher.computePrefetchBytes(block, Set.of("col_a", "col_c")),
+            equalTo(HeapFootprint.byteArrayBytes(1200))
+        );
     }
 
     public void testComputePrefetchBytesNoMatchingProjection() {
@@ -685,12 +688,12 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
 
     public void testComputePrefetchBytesNullProjection() {
         BlockMetaData block = createBlockWithColumns(new ColMeta("col_a", 100, 500));
-        assertThat(ColumnChunkPrefetcher.computePrefetchBytes(block, null), equalTo(500L));
+        assertThat(ColumnChunkPrefetcher.computePrefetchBytes(block, null), equalTo(HeapFootprint.byteArrayBytes(500)));
     }
 
     public void testComputePrefetchBytesSkipsZeroSizeColumns() {
         BlockMetaData block = createBlockWithColumns(new ColMeta("col_a", 100, 500), new ColMeta("col_b", 700, 0));
-        assertThat(ColumnChunkPrefetcher.computePrefetchBytes(block, null), equalTo(500L));
+        assertThat(ColumnChunkPrefetcher.computePrefetchBytes(block, null), equalTo(HeapFootprint.byteArrayBytes(500)));
     }
 
     public void testComputePrefetchBytesIncludesCoalescingGaps() {
@@ -699,7 +702,22 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
         BlockMetaData block = createBlockWithColumns(new ColMeta("col_a", 0, 100), new ColMeta("col_b", 200, 100));
         long prefetchBytes = ColumnChunkPrefetcher.computePrefetchBytes(block, null);
         // Merged range: [0, 300) = 300 bytes (includes the 100-byte gap)
-        assertThat(prefetchBytes, equalTo(300L));
+        assertThat(prefetchBytes, equalTo(HeapFootprint.byteArrayBytes(300)));
+    }
+
+    /**
+     * The look-ahead estimate is the heap the merged buffers occupy, not their payload: a range just over half a G1
+     * region is humongous and rounds up to whole regions, so admitting its payload would overshoot the watermark cap
+     * by the rounding once the buffer allocates. Two ranges separated by more than the coalescing gap stay two
+     * buffers, each rounded on its own.
+     */
+    public void testComputePrefetchBytesSumsPerBufferFootprint() {
+        long gap = CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP;
+        int chunk = 3 * 1024 * 1024;
+        BlockMetaData block = createBlockWithColumns(new ColMeta("col_a", 0, chunk), new ColMeta("col_b", chunk + gap + 1, chunk));
+        long expected = 2 * HeapFootprint.byteArrayBytes(chunk);
+        assertThat(ColumnChunkPrefetcher.computePrefetchBytes(block, null), equalTo(expected));
+        assertThat(ColumnChunkPrefetcher.computePrefetchBytes(block, Set.of("col_a")), equalTo(HeapFootprint.byteArrayBytes(chunk)));
     }
 
     public void testComputePrefetchBytesEmptyBlock() {

@@ -19,6 +19,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIoAffinity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -283,7 +284,11 @@ final class CoalescedRangeReader {
             Releasable handle;
             try {
                 if (byteGate == ParquetIoWatermark.ByteGate.PER_GET && ioWatermark != null) {
-                    assignedHold = ioWatermark.admitWait(mr.length(), requireLease(scope), storageObject.admissionWaitTimeoutMs());
+                    assignedHold = ioWatermark.admitWait(
+                        HeapFootprint.byteArrayBytes(mr.length()),
+                        requireLease(scope),
+                        storageObject.admissionWaitTimeoutMs()
+                    );
                     rangeFactory = ParquetIoWatermark.bufferFactory(breaker, ioWatermark, assignedHold);
                 }
                 final ParquetIoWatermark.AdmitHold holdForGet = assignedHold;
@@ -435,7 +440,11 @@ final class CoalescedRangeReader {
                 DirectBufferFactory rangeFactory = factory;
                 try {
                     if (byteGate == ParquetIoWatermark.ByteGate.PER_GET && ioWatermark != null) {
-                        perGetHold = ioWatermark.admitWait(mr.length(), requireLease(scope), storageObject.admissionWaitTimeoutMs());
+                        perGetHold = ioWatermark.admitWait(
+                            HeapFootprint.byteArrayBytes(mr.length()),
+                            requireLease(scope),
+                            storageObject.admissionWaitTimeoutMs()
+                        );
                         rangeFactory = ParquetIoWatermark.bufferFactory(breaker, ioWatermark, perGetHold);
                     }
                     DirectReadBuffer result = rangeFactory.allocateWritableWindow(length);

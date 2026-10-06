@@ -97,6 +97,30 @@ PUT /_query/dataset/vpc_flow
 `account` and `region` are not in the spec, so they stay on their own names. `WHERE region == "eu-west-1"` still
 skips those folders.
 
+When a mapping exposes the file column as `@timestamp`, bind `@timestamp` and omit the unit: the column
+is already a date. Binding `start` matches nothing after the rename; `start` is no longer in the query.
+
+```console
+PUT /_query/dataset/vpc_flow
+{
+  "data_source": "prod_s3_logs",
+  "resource": "s3://logs/AWSLogs/*/*/*/*/*/*.gz",
+  "settings": {
+    "format": "csv",
+    "partition_path": "{account}/{region}/{year}/{month}/{day}",
+    "partition_spec": "year(@timestamp), month(@timestamp), day(@timestamp)"
+  },
+  "mappings": {
+    "properties": {
+      "@timestamp": { "type": "date", "path": "start", "format": "epoch_second" }
+    }
+  }
+}
+```
+
+A time range on `@timestamp` (for example Kibana's time picker) already narrows the year folders in the
+listing. Skipping day folders for that same range is a follow-up.
+
 Renamed folders need an explicit key. `yyy=year(ts), mo=month(ts)` with `partition_path: {yyy}/{mo}` maps
 the file column onto those folder names. `year(ts)` alone would look for a key named `year` and miss `yyy`.
 `mo=month(ts)` alone also misses: a month folder needs a year, either as `yyy=year(ts)` or as a path key
@@ -119,3 +143,4 @@ The following table shows how different query patterns interact with `partition_
 | 9 | any filter on `ts` | `year(ts)` but the path key is `yyy` | Nothing from that binding. Warning: the key was not detected. |
 | 10 | `WHERE start > T` | `year(start)` on unix seconds (default unit `millis`) | Nothing. Warning: the unit is likely wrong. |
 | 11 | `WHERE ts > T` | `yyy=year(ts), mo=month(ts)` and `partition_path: {yyy}/{mo}` | Same combined range as row 4, on the renamed keys. |
+| 12 | `WHERE @timestamp > T` | `year(@timestamp), month(@timestamp), day(@timestamp)` after mapping `start` to `@timestamp` | Same combined range as row 5. No unit: the column is a date. Binding `start` matches nothing. |

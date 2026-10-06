@@ -1752,8 +1752,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
     /**
      * Same dead fold, but the entries will be kept, so the gather reads every file: warming the per-file
      * rail is worth the reads on its own. Differs from
-     * {@link #testStatsGatherStopsOnceTheFoldIsDeadAndNothingWillBeCached} only in cache budget — a rule
-     * keyed on the format would stop here and be wrong.
+     * {@link #testStatsGatherStopsOnceTheFoldIsDeadAndNothingWillBeCached} in being cacheable at all; the
+     * budget-only contrast is {@link #testStatsGatherStopsWhenTheSchemaBudgetRefusesTheFanOut}. A rule keyed
+     * on the format would stop here and be wrong.
      */
     public void testStatsGatherStillFansOutWhenTheCacheWillKeepTheEntries() throws Exception {
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {

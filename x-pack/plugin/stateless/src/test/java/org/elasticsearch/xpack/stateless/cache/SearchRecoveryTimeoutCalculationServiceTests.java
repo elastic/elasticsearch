@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
 import org.mockito.Mockito;
 
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -681,6 +682,85 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             // the first calculation of the shutdown phase still lets the data-volume heuristic win
             final var firstPlan = service.searchRecoveryTimeout(state, mockIndexShard(self), totalBytesToWarm);
             assertThat(firstPlan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME));
+        }
+    }
+
+    /// [SearchRecoveryTimeout#shouldExtendAfter] for every pair of contexts: any extendable context can be the previous plan (the loop
+    /// stops before re-evaluating after a non-extendable one), and any context can be the re-evaluated plan. Every pair is listed
+    /// explicitly, either as extending or as stopping, so that a new [TimeoutContext] fails this test until a decision is made for it.
+    public void testShouldExtendAfterForEveryTransition() {
+        final var anotherActiveCopy = TimeoutContext.NON_RELOCATION_ANOTHER_ACTIVE_COPY;
+        final var reshardTarget = TimeoutContext.RESHARD_SPLIT_TARGET;
+        final var noShutdown = TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN;
+        final var metadataPresent = TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT;
+        final var graceElapsed = TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_GRACE_ELAPSED;
+        final var dataVolume = TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME;
+        final var equalShare = TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE;
+        final var savedTime = TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE_SAVED_TIME;
+        final var skip = TimeoutContext.SKIP;
+
+        // previous context -> pair(v1: contexts of the re-evaluated plan that extend the wait, v2: contexts that stop it)
+        final Map<TimeoutContext, Tuple<Set<TimeoutContext>, Set<TimeoutContext>>> transitions = Map.of(
+            // no shutdown involved yet: everything but "nothing to wait for" extends, including the first data-volume plan
+            anotherActiveCopy,
+            Tuple.tuple(
+                EnumSet.of(anotherActiveCopy, reshardTarget, noShutdown, metadataPresent, dataVolume, equalShare, savedTime),
+                EnumSet.of(graceElapsed, skip)
+            ),
+            noShutdown,
+            Tuple.tuple(
+                EnumSet.of(anotherActiveCopy, reshardTarget, noShutdown, metadataPresent, dataVolume, equalShare, savedTime),
+                EnumSet.of(graceElapsed, skip)
+            ),
+            // staying in "metadata present" does not extend again
+            metadataPresent,
+            Tuple.tuple(
+                EnumSet.of(anotherActiveCopy, reshardTarget, noShutdown, dataVolume, equalShare, savedTime),
+                EnumSet.of(metadataPresent, graceElapsed, skip)
+            ),
+            // within the shutdown phase only time saved by finished shards is handed out, a data-volume plan never follows
+            equalShare,
+            Tuple.tuple(
+                EnumSet.of(anotherActiveCopy, reshardTarget, noShutdown, metadataPresent, equalShare, savedTime),
+                EnumSet.of(dataVolume, graceElapsed, skip)
+            ),
+            savedTime,
+            Tuple.tuple(
+                EnumSet.of(anotherActiveCopy, reshardTarget, noShutdown, metadataPresent, equalShare, savedTime),
+                EnumSet.of(dataVolume, graceElapsed, skip)
+            )
+        );
+
+        final var extendablePreviousContexts = EnumSet.noneOf(TimeoutContext.class);
+        for (final var context : TimeoutContext.values()) {
+            if (context.extendable()) {
+                extendablePreviousContexts.add(context);
+            }
+        }
+        assertThat("every extendable context must have its transitions listed", transitions.keySet(), equalTo(extendablePreviousContexts));
+
+        for (final var entry : transitions.entrySet()) {
+            final var previousContext = entry.getKey();
+            final var extending = entry.getValue().v1();
+            final var stopping = entry.getValue().v2();
+            final var decided = EnumSet.copyOf(extending);
+            decided.addAll(stopping);
+            assertThat("every context must be decided after " + previousContext, decided, equalTo(EnumSet.allOf(TimeoutContext.class)));
+            assertThat(
+                "a context cannot both extend and stop after " + previousContext,
+                extending.size() + stopping.size(),
+                equalTo(decided.size())
+            );
+
+            final var previous = new SearchRecoveryTimeout(TimeValue.timeValueMillis(100), previousContext);
+            for (final var context : TimeoutContext.values()) {
+                final var reevaluated = new SearchRecoveryTimeout(TimeValue.timeValueMillis(100), context);
+                assertThat(
+                    previousContext + " -> " + context,
+                    reevaluated.shouldExtendAfter(previous),
+                    equalTo(extending.contains(context))
+                );
+            }
         }
     }
 

@@ -15,12 +15,28 @@ import java.util.Objects;
 /**
  * The services from outside the planner that {@link LocalExecutionPlanner} builds operators with.
  *
- * @param remoteFetch the transport of the remote fetch prototype, {@code null} when the planner never meets it
- * @param fetch       the operators of the fetch phase
+ * @param remoteFetch  the transport of the remote fetch prototype, {@code null} when the planner never meets it
+ * @param fetch        the operators of the fetch phase
+ * @param fetchSources the source of the fetch plan of a fetch request
  */
-public record PlannerServices(@Nullable RemoteFetchService remoteFetch, FetchOperatorProvider fetch) {
+public record PlannerServices(@Nullable RemoteFetchService remoteFetch, FetchOperatorProvider fetch, FetchSourceProvider fetchSources) {
     public PlannerServices {
         Objects.requireNonNull(fetch, "fetch");
+        Objects.requireNonNull(fetchSources, "fetchSources");
+    }
+
+    /**
+     * For planners that never run a fetch plan.
+     */
+    public PlannerServices(@Nullable RemoteFetchService remoteFetch, FetchOperatorProvider fetch) {
+        this(remoteFetch, fetch, FetchSourceProvider.UNSUPPORTED);
+    }
+
+    /**
+     * For the planner of a fetch request, which plans nothing but the fetch plan.
+     */
+    public static PlannerServices forFetchPlan(FetchSourceProvider fetchSources) {
+        return new PlannerServices(null, FetchOperatorProvider.UNSUPPORTED, fetchSources);
     }
 
     /**

@@ -50,6 +50,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.operator.ProjectOperator;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
+import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.StreamingPageOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
@@ -165,6 +166,7 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -1809,6 +1811,114 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         );
         assertThat(e.getMessage(), containsString("fetch reads document references from [$$doc_ref"));
         assertThat(e.getMessage(), containsString("but the input has null"));
+    }
+
+    /**
+     * The fetch plan of a fetch request runs one driver per shard of the request, from the source the request provides
+     * into the sink that collects the pages of the request.
+     */
+    public void testFetchPlanRunsOneDriverPerShardIntoTheRootSink() throws IOException {
+        FieldAttribute message = new FieldAttribute(
+            Source.EMPTY,
+            "message",
+            new EsField("message", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        SourceOperator.SourceOperatorFactory source = new SourceOperator.SourceOperatorFactory() {
+            @Override
+            public SourceOperator get(DriverContext driverContext) {
+                throw new AssertionError("planning doesn't build operators");
+            }
+
+            @Override
+            public String describe() {
+                return "fetch source";
+            }
+        };
+        SinkOperator.SinkOperatorFactory sink = new SinkOperator.SinkOperatorFactory() {
+            @Override
+            public SinkOperator get(DriverContext driverContext) {
+                throw new AssertionError("planning doesn't build operators");
+            }
+
+            @Override
+            public String describe() {
+                return "collector";
+            }
+        };
+        AtomicReference<Integer> maxPageSize = new AtomicReference<>();
+        FetchSourceProvider sources = (exec, pageSize) -> {
+            maxPageSize.set(pageSize);
+            return new FetchSourceProvider.FetchSource(source, 3);
+        };
+        LocalExecutionPlanner.LocalExecutionPlan plan = planner(null, true, null, null, PlannerServices.forFetchPlan(sources)).plan(
+            "fetch",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            fetchPlan(message),
+            ConstantShardContextIndexedByShardId.INSTANCE,
+            sink
+        );
+
+        LocalExecutionPlanner.DriverFactory driverFactory = plan.driverFactories.get(0);
+        assertThat(
+            driverFactory.driverParallelism(),
+            equalTo(new LocalExecutionPlanner.DriverParallelism(LocalExecutionPlanner.DriverParallelism.Type.DATA_PARALLELISM, 3))
+        );
+        LocalExecutionPlanner.PhysicalOperation operation = driverFactory.driverSupplier().physicalOperation();
+        assertThat(operation.sourceOperatorFactory, sameInstance(source));
+        assertThat(operation.sinkOperatorFactory, sameInstance(sink));
+        assertThat(maxPageSize.get(), greaterThan(0));
+        assertThat(operation.layout.numberOfChannels(), equalTo(1));
+        assertThat(operation.layout.get(message.id()).channel(), equalTo(0));
+    }
+
+    /**
+     * Only the planner of a fetch request knows the documents a fetch plan loads.
+     */
+    public void testFetchPlanNeedsAFetchRequest() throws IOException {
+        FieldAttribute message = new FieldAttribute(
+            Source.EMPTY,
+            "message",
+            new EsField("message", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        SinkOperator.SinkOperatorFactory sink = new SinkOperator.SinkOperatorFactory() {
+            @Override
+            public SinkOperator get(DriverContext driverContext) {
+                throw new AssertionError("planning stops before the sink");
+            }
+
+            @Override
+            public String describe() {
+                return "collector";
+            }
+        };
+        LocalExecutionPlanner planner = planner();
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> planner.plan(
+                "fetch",
+                FoldContext.small(),
+                PlannerSettings.DEFAULTS,
+                fetchPlan(message),
+                ConstantShardContextIndexedByShardId.INSTANCE,
+                sink
+            )
+        );
+        assertThat(e.getMessage(), equalTo("this planner can't run a fetch plan"));
+    }
+
+    private static PhysicalPlan fetchPlan(Attribute fetched) {
+        Attribute fetchDoc = new FieldAttribute(Source.EMPTY, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
+        return new ProjectExec(
+            Source.EMPTY,
+            new FieldExtractExec(
+                Source.EMPTY,
+                new FetchSourceExec(Source.EMPTY, fetchDoc, 64),
+                List.of(fetched),
+                MappedFieldType.FieldExtractPreference.NONE
+            ),
+            List.of(fetched)
+        );
     }
 
     private LocalExecutionPlanner planner() throws IOException {

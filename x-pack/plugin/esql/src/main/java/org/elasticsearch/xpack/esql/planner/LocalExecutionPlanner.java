@@ -194,6 +194,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalFieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
+import org.elasticsearch.xpack.esql.plan.physical.FetchSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -310,6 +311,7 @@ public class LocalExecutionPlanner {
     @Nullable
     private final RemoteFetchService remoteFetchService;
     private final FetchOperatorProvider fetchOperators;
+    private final FetchSourceProvider fetchSources;
     @Nullable
     private final Executor parallelWorkerExecutor;
     private final int esqlWorkerPoolSize;
@@ -363,6 +365,7 @@ public class LocalExecutionPlanner {
         this.operatorFactoryRegistry = operatorFactoryRegistry;
         this.remoteFetchService = services.remoteFetch();
         this.fetchOperators = services.fetch();
+        this.fetchSources = services.fetchSources();
         this.parallelWorkerExecutor = parallelWorkerExecutor;
         this.esqlWorkerPoolSize = esqlWorkerPoolSize;
         // Resolved once by the caller from the live ClusterSettings (the setting is dynamic), then shared
@@ -382,6 +385,32 @@ public class LocalExecutionPlanner {
         PhysicalPlan localPhysicalPlan,
         IndexedByShardId<? extends ShardContext> shardContexts,
         boolean singleNodeOptimizations
+    ) {
+        return plan(description, foldCtx, plannerSettings, localPhysicalPlan, shardContexts, singleNodeOptimizations, null);
+    }
+
+    /**
+     * Plans a plan whose root is no sink, like the fetch plan of a fetch request. Every driver ends in {@code rootSink}.
+     */
+    public LocalExecutionPlan plan(
+        String description,
+        FoldContext foldCtx,
+        PlannerSettings plannerSettings,
+        PhysicalPlan localPhysicalPlan,
+        IndexedByShardId<? extends ShardContext> shardContexts,
+        SinkOperatorFactory rootSink
+    ) {
+        return plan(description, foldCtx, plannerSettings, localPhysicalPlan, shardContexts, false, Objects.requireNonNull(rootSink));
+    }
+
+    private LocalExecutionPlan plan(
+        String description,
+        FoldContext foldCtx,
+        PlannerSettings plannerSettings,
+        PhysicalPlan localPhysicalPlan,
+        IndexedByShardId<? extends ShardContext> shardContexts,
+        boolean singleNodeOptimizations,
+        @Nullable SinkOperatorFactory rootSink
     ) {
         final boolean timeSeries = localPhysicalPlan.anyMatch(p -> p instanceof TimeSeriesAggregateExec);
         var context = new LocalExecutionPlannerContext(
@@ -408,6 +437,9 @@ public class LocalExecutionPlanner {
             a -> a.getMode().isOutputPartial() ? a : new ProjectExec(a.source(), a, Expressions.asAttributes(a.aggregates()))
         );
         PhysicalOperation physicalOperation = plan(localPhysicalPlan, context);
+        if (rootSink != null) {
+            physicalOperation = physicalOperation.withSink(rootSink, physicalOperation.layout);
+        }
 
         final TimeValue statusInterval = configuration.pragmas().statusInterval();
         context.addDriverFactory(
@@ -508,6 +540,8 @@ public class LocalExecutionPlanner {
         // source nodes
         else if (node instanceof EsQueryExec esQuery) {
             return planEsQueryNode(esQuery, context);
+        } else if (node instanceof FetchSourceExec fetchSource) {
+            return planFetchSource(fetchSource, context);
         } else if (node instanceof EsStatsQueryExec statsQuery) {
             return planEsStats(statsQuery, context);
         } else if (node instanceof LocalSourceExec localSource) {
@@ -2726,6 +2760,15 @@ public class LocalExecutionPlanner {
         }
         Layout layout = source.layout.builder().append(fetch.fetchedAttributes()).build();
         return source.with(fetchOperators.fetchOperator(fetch, docRef.channel(), fetchedElementTypes(fetch)), layout);
+    }
+
+    private PhysicalOperation planFetchSource(FetchSourceExec source, LocalExecutionPlannerContext context) {
+        FetchSourceProvider.FetchSource fetch = fetchSources.fetchSource(source, context.pageSize(source, source.estimatedRowSize()));
+        // each driver loads one shard of the fetch request
+        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, fetch.drivers()));
+        Layout.Builder layout = new Layout.Builder();
+        layout.append(source.doc());
+        return PhysicalOperation.fromSource(fetch.factory(), layout.build());
     }
 
     /**

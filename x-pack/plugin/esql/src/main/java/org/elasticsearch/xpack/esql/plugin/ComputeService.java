@@ -96,6 +96,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.fetch.FetchPhaseServices;
 import org.elasticsearch.xpack.esql.fetch.FetchService;
+import org.elasticsearch.xpack.esql.fetch.QueryFetchScope;
 import org.elasticsearch.xpack.esql.fetch.lifetime.FetchContextLease;
 import org.elasticsearch.xpack.esql.fetch.lifetime.FetchContextService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -113,6 +114,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -121,6 +123,7 @@ import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.ExplainPlanTransformer;
+import org.elasticsearch.xpack.esql.planner.FetchOperatorProvider;
 import org.elasticsearch.xpack.esql.planner.FetchSourceProvider;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.NodeReduceSplit;
@@ -201,6 +204,10 @@ import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.GROK_WATCHDOG_MAX_E
 public class ComputeService {
     public static final String DATA_DESCRIPTION = "data";
     public static final String REDUCE_DESCRIPTION = "node_reduce";
+    /**
+     * Describes the drivers that load fetched columns on the nodes that hold the documents.
+     */
+    public static final String FETCH_DESCRIPTION = "fetch";
     public static final String DATA_ACTION_NAME = EsqlQueryAction.NAME + "/data";
     public static final String CLUSTER_ACTION_NAME = EsqlQueryAction.NAME + "/cluster";
     static final String LOCAL_CLUSTER = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
@@ -262,7 +269,6 @@ public class ComputeService {
             transportActionServices.clusterService().getClusterSettings()
         );
         fetchContextService.registerHandlers();
-        this.fetchPhaseServices = FetchPhaseServices.create(fetchContextService);
         this.inferenceService = transportActionServices.inferenceService();
         this.userAgentParserRegistry = transportActionServices.userAgentParserRegistry();
         this.ipLocationService = transportActionServices.ipLocationService();
@@ -292,16 +298,18 @@ public class ComputeService {
         this.plannerSettings = transportActionServices.plannerSettings();
         this.operatorFactoryRegistry = operatorFactoryRegistry;
         this.formatReaderRegistry = formatReaderRegistry;
-        new FetchService(
+        FetchService fetchService = new FetchService(
             transportService,
             clusterService,
             searchService,
-            fetchPhaseServices.contextService(),
+            fetchContextService,
             blockFactory,
             threadPool.executor(EsqlPlugin.computePool()),
             plannerSettings::get,
             this::fetchPlanner
-        ).registerHandlers();
+        );
+        fetchService.registerHandlers();
+        this.fetchPhaseServices = FetchPhaseServices.create(fetchContextService, fetchService, clusterService);
     }
 
     /** The minimum transport version of the nodes that may read the splits planned here. */
@@ -1574,6 +1582,18 @@ public class ComputeService {
                         })
                     )
                 ) {
+                    // the fetches of the query send their requests as children of its task, and count their drivers as its own
+                    FetchOperatorProvider fetchOperators = coordinatorPlan.anyMatch(FetchExec.class::isInstance)
+                        ? fetchPhaseServices.operatorProvider(
+                            new QueryFetchScope(
+                                rootTask,
+                                sessionId,
+                                configuration,
+                                coordinatorPlan.collect(FetchExec.class).size(),
+                                localListener::acquireCompute
+                            )
+                        )
+                        : FetchOperatorProvider.UNSUPPORTED;
                     runCompute(
                         rootTask,
                         new ComputeContext(
@@ -1587,7 +1607,8 @@ public class ComputeService {
                             exchangeSource::createExchangeSource,
                             exchangeSinkSupplier,
                             false,
-                            false
+                            false,
+                            fetchOperators
                         ),
                         coordinatorPlan,
                         plannerSettings.get(),
@@ -1898,7 +1919,7 @@ public class ComputeService {
                 projectResolver.getProjectMetadata(clusterService.state()),
                 physicalOperationProviders,
                 operatorFactoryRegistry,
-                new PlannerServices(remoteFetchService, fetchPhaseServices.operatorProvider()),
+                new PlannerServices(remoteFetchService, context.fetchOperators()),
                 parallelWorkerExecutor,
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get(),

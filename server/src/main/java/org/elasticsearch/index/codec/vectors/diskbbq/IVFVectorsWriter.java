@@ -748,9 +748,7 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
             writeMeta(fieldInfo, 0, centroidOffset, 0, 0, 0, null, 0, 0, 0, 0, ivfSegmentConfig, false);
             return;
         }
-        // now open the temp file and build the index structures. It is expected these files to be read in sequential order.
-        // Even when the file might be sample, the reads will be always in increase order, therefore we set the ReadAdvice to SEQUENTIAL
-        // so the OS can optimize read ahead in low memory situations.
+        // now open the temp file and build the index structures. Clustering reads it in increasing order, over several passes.
         final IOContext sequentialContext = IOContext.DEFAULT.withHints(DataAccessHint.SEQUENTIAL);
         try (
             IndexInput vectors = mergeState.segmentInfo.dir.openInput(tempRawVectorsFileName, sequentialContext);
@@ -765,7 +763,7 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
                 vectorValues = byteVectorValues;
             } else {
                 byteVectorValues = null;
-                floatVectorValues = getKMeansFloatVectorValues(fieldInfo, docs, vectors, numVectors, sequentialContext);
+                floatVectorValues = getKMeansFloatVectorValues(fieldInfo, docs, vectors, numVectors);
                 vectorValues = floatVectorValues;
             }
 
@@ -900,10 +898,9 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         FieldInfo fieldInfo,
         IndexInput docs,
         IndexInput vectors,
-        int numVectors,
-        IOContext baseContext
+        int numVectors
     ) throws IOException {
-        return KMeansFloatVectorValues.build(vectors, docs, numVectors, fieldInfo.getVectorDimension(), baseContext);
+        return KMeansFloatVectorValues.build(vectors, docs, numVectors, fieldInfo.getVectorDimension());
     }
 
     private static int writeVectorValues(

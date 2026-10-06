@@ -10,6 +10,7 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.misc.store.DirectIODirectory;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FileSwitchDirectory;
@@ -21,8 +22,11 @@ import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
+import org.apache.lucene.store.NoReuseHint;
 import org.apache.lucene.store.ReadAdvice;
+import org.apache.lucene.store.ReadOnceHint;
 import org.apache.lucene.store.SimpleFSLockFactory;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -154,12 +158,26 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         return MMapDirectory.NO_FILES;
     }
 
+    /**
+     * The advice a mapping is opened with, from what the caller says about the file. Random and sequential advice take a
+     * mapping out of the recency tracking that decides which pages the kernel reclaims first, so they are only given to a
+     * file whose pages are not reused, a no-reuse or read-once hint; the access hint then picks which. A merge or flush
+     * context alone gives no advice: a merge that builds a graph reads its vectors at random, over and over.
+     */
     public static BiFunction<String, IOContext, Optional<ReadAdvice>> getReadAdviceFunc() {
         return (name, context) -> {
             if (context.hints().contains(StandardIOBehaviorHint.INSTANCE)) {
                 return Optional.of(ReadAdvice.NORMAL);
             }
-            return MMapDirectory.ADVISE_BY_CONTEXT.apply(name, context);
+            if (context.hints().contains(NoReuseHint.INSTANCE) || context.hints().contains(ReadOnceHint.INSTANCE)) {
+                if (context.hints().contains(DataAccessHint.RANDOM)) {
+                    return Optional.of(ReadAdvice.RANDOM);
+                }
+                if (context.hints().contains(DataAccessHint.SEQUENTIAL)) {
+                    return Optional.of(ReadAdvice.SEQUENTIAL);
+                }
+            }
+            return Optional.of(Constants.DEFAULT_READADVICE);
         };
     }
 

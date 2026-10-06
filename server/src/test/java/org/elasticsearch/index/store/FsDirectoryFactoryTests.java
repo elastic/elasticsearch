@@ -9,8 +9,10 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.store.FlushInfo;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -19,6 +21,8 @@ import org.apache.lucene.store.MergeInfo;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.NoLockFactory;
+import org.apache.lucene.store.NoReuseHint;
+import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.store.SleepingLockWrapper;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.mockfile.FilterPath;
@@ -29,6 +33,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.StandardIOBehaviorHint;
 import org.elasticsearch.index.codec.vectors.DirectIOContext;
 import org.elasticsearch.index.codec.vectors.es818.DirectIOHint;
 import org.elasticsearch.index.shard.ShardId;
@@ -53,6 +58,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -235,6 +241,59 @@ public class FsDirectoryFactoryTests extends ESTestCase {
         }
         dir.deleteFile("_sample.vec");
         return direct;
+    }
+
+    /**
+     * Random and sequential advice both cost a mapping its recency, so only a file that says it is not read again gets
+     * either, and the access pattern then picks which. How the file came to be opened, by a merge or a flush, decides nothing.
+     */
+    public void testReadAdviceFollowsWhatTheFileSays() {
+        var advice = FsDirectoryFactory.getReadAdviceFunc();
+        Optional<ReadAdvice> unadvised = Optional.of(Constants.DEFAULT_READADVICE);
+
+        assertEquals(unadvised, advice.apply("_0.vec", IOContext.DEFAULT));
+        assertEquals("read again, so it keeps its recency", unadvised, advice.apply("_0.vec", randomAccess()));
+        assertEquals("read again, so it keeps its recency", unadvised, advice.apply("_0.vec", sequentialAccess()));
+        assertEquals("no access pattern to act on", unadvised, advice.apply("_0.vec", IOContext.DEFAULT.withHints(NoReuseHint.INSTANCE)));
+        assertEquals(Optional.of(ReadAdvice.RANDOM), advice.apply("_0.vec", randomAccess().union(NoReuseHint.INSTANCE)));
+        assertEquals(Optional.of(ReadAdvice.SEQUENTIAL), advice.apply("_0.vec", sequentialAccess().union(NoReuseHint.INSTANCE)));
+        assertEquals("read once is not read again", Optional.of(ReadAdvice.SEQUENTIAL), advice.apply("_0.si", IOContext.READONCE));
+
+        IOContext merge = IOContext.merge(new MergeInfo(1, 1L, false, 1));
+        assertEquals("a merge alone is not a reason", unadvised, advice.apply("_0.vec", merge));
+        assertEquals(
+            "a merge building a graph reads at random and again",
+            unadvised,
+            advice.apply("_0.vec", merge.withHints(DataAccessHint.RANDOM))
+        );
+        assertEquals(
+            "a merge that streams but does not say so",
+            unadvised,
+            advice.apply("_0.vec", merge.withHints(DataAccessHint.SEQUENTIAL))
+        );
+        assertEquals(
+            "a merge that reads front to back and does not come back",
+            Optional.of(ReadAdvice.SEQUENTIAL),
+            advice.apply("_0.vec", merge.withHints(DataAccessHint.SEQUENTIAL, NoReuseHint.INSTANCE))
+        );
+        assertEquals("a flush alone is not a reason", unadvised, advice.apply("_0.vec", IOContext.flush(new FlushInfo(1, 1L))));
+
+        assertEquals(
+            "standard I/O behaviour overrides what the file says",
+            Optional.of(ReadAdvice.NORMAL),
+            advice.apply(
+                "_0.vec",
+                IOContext.DEFAULT.withHints(StandardIOBehaviorHint.INSTANCE, DataAccessHint.RANDOM, NoReuseHint.INSTANCE)
+            )
+        );
+    }
+
+    private static IOContext randomAccess() {
+        return IOContext.DEFAULT.withHints(DataAccessHint.RANDOM);
+    }
+
+    private static IOContext sequentialAccess() {
+        return IOContext.DEFAULT.withHints(DataAccessHint.SEQUENTIAL);
     }
 
     public void testOnlyRawVectorFilesGoToTheMergeDelegate() {

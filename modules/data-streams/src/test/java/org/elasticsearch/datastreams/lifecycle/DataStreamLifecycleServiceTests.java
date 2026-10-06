@@ -1378,7 +1378,7 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
             errorStore,
             mock(AllocationService.class),
             new DataStreamLifecycleHealthInfoPublisher(Settings.EMPTY, getTransportRequestsRecordingClient(), clusterService, errorStore),
-            globalRetentionSettings,
+            dataStreamLifecycleSettings,
             ignored -> Set.of()
         );
         assertThat(service.getLastRunDuration(), is(nullValue()));

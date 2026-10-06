@@ -243,28 +243,34 @@ public class IndexEngine extends InternalEngine {
     }
 
     /**
-     * Prefetches the min/max {@code _id} .tim blocks in each segment so the first id lookups after a primary relocation do not
-     * block on a cold read from the object store. Best-effort: only boundary blocks are prefetched; interior lookups will still
-     * cold-read on first access.
+     * Prefetches the min/max {@code _id} .tim blocks in the last {@code maxSegments} segments so the first id
+     * lookups after a primary relocation do not block on a cold read from the object store. Best-effort: only boundary blocks of
+     * the most recent segments are prefetched; other lookups will still cold-read on first access. Segments without {@code _id}
+     * terms still count towards {@code maxSegments}, as the bound limits how far back the leaves are visited.
      */
-    public void prewarmIdLookups() {
+    public void prewarmIdLookups(int maxSegments) {
         performActionWithDirectoryReader(SearcherScope.INTERNAL, reader -> {
-            for (LeafReaderContext leaf : reader.leaves()) {
-                var terms = leaf.reader().terms(IdFieldMapper.NAME);
-                if (terms == null) {
-                    continue; // no-op segment
-                }
-                BytesRef min = terms.getMin();
-                if (min != null) {
-                    terms.iterator().prepareSeekExact(min);
-                }
-                BytesRef max = terms.getMax();
-                if (max != null) {
-                    terms.iterator().prepareSeekExact(max);
-                }
-            }
+            prewarmIdLookups(reader.leaves(), maxSegments);
             return null;
         });
+    }
+
+    static void prewarmIdLookups(List<LeafReaderContext> leaves, int maxSegments) throws IOException {
+        final int lowestLeaf = Math.max(0, leaves.size() - maxSegments);
+        for (int i = leaves.size() - 1; i >= lowestLeaf; i--) {
+            var terms = leaves.get(i).reader().terms(IdFieldMapper.NAME);
+            if (terms == null) {
+                continue; // no-op segment
+            }
+            BytesRef min = terms.getMin();
+            if (min != null) {
+                terms.iterator().prepareSeekExact(min);
+            }
+            BytesRef max = terms.getMax();
+            if (max != null) {
+                terms.iterator().prepareSeekExact(max);
+            }
+        }
     }
 
     /**

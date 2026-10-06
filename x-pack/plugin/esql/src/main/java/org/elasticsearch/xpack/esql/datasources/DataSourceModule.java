@@ -184,6 +184,46 @@ public final class DataSourceModule implements Closeable {
         LocalFileAccess localFileAccess,
         @Nullable ExecutorService splitDiscoveryExecutor
     ) {
+        this(
+            dataSourcePlugins,
+            capabilities,
+            settings,
+            blockFactory,
+            executor,
+            credentials,
+            managedIdentityEnabled,
+            threadPool,
+            environment,
+            resourceWatcherService,
+            meterRegistry,
+            localFileAccess,
+            splitDiscoveryExecutor,
+            null
+        );
+    }
+
+    /**
+     * @param listingService how split discovery lists a dataset whose schema's listing was a prefix: production passes
+     *                       the one over the node's watched listing caps and shared listing cache, so split discovery
+     *                       is on the same caps and cache as resolution. {@code null} lists live under the node's own
+     *                       settings, which is what the shorter constructors - tests - want.
+     */
+    public DataSourceModule(
+        List<DataSourcePlugin> dataSourcePlugins,
+        DataSourceCapabilities capabilities,
+        Settings settings,
+        BlockFactory blockFactory,
+        ExecutorService executor,
+        DataSourceCredentials credentials,
+        BooleanSupplier managedIdentityEnabled,
+        @Nullable ThreadPool threadPool,
+        @Nullable Environment environment,
+        @Nullable ResourceWatcherService resourceWatcherService,
+        @Nullable MeterRegistry meterRegistry,
+        LocalFileAccess localFileAccess,
+        @Nullable ExecutorService splitDiscoveryExecutor,
+        @Nullable DatasetListingService listingService
+    ) {
         this.capabilities = capabilities;
         this.credentials = credentials;
         // Always create a live accumulator so phone-home counters work even when APM is disabled.
@@ -353,7 +393,8 @@ public final class DataSourceModule implements Closeable {
             splitDiscoveryExecutor != null ? splitDiscoveryExecutor : executor,
             blockFactory,
             effectiveLocalFileAccess,
-            externalSourceMetrics
+            externalSourceMetrics,
+            listingService
         );
         sourceFactoryMap.put("file", fileFallback);
         // Also register under each format name so OperatorFactoryRegistry can look up

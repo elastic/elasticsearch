@@ -228,21 +228,33 @@ public final class DslKeywordSearchChecks {
 
         @Override
         public void check(final DuelContext ctx) {
-            assertSort(ctx, SortOrder.ASC, SortMode.MIN);
-            assertSort(ctx, SortOrder.DESC, SortMode.MAX);
+            // Missing documents sort to either end, which the binary sort field decides on its own.
+            for (String missing : List.of("_last", "_first")) {
+                assertSort(ctx, SortOrder.ASC, SortMode.MIN, missing);
+                assertSort(ctx, SortOrder.DESC, SortMode.MAX, missing);
+            }
         }
 
-        private void assertSort(final DuelContext ctx, final SortOrder order, final SortMode mode) {
-            final List<String> baseline = sortedHits(ctx.client(), ctx.baselineIndex(), ctx.keywordField(), ctx.docIdField(), order, mode);
+        private void assertSort(final DuelContext ctx, final SortOrder order, final SortMode mode, final String missing) {
+            final List<String> baseline = sortedHits(
+                ctx.client(),
+                ctx.baselineIndex(),
+                ctx.keywordField(),
+                ctx.docIdField(),
+                order,
+                mode,
+                missing
+            );
             final List<String> contender = sortedHits(
                 ctx.client(),
                 ctx.contenderIndex(),
                 ctx.keywordField(),
                 ctx.docIdField(),
                 order,
-                mode
+                mode,
+                missing
             );
-            final String context = ctx.failureContext(name() + "[" + order + "," + mode + "]");
+            final String context = ctx.failureContext(name() + "[" + order + "," + mode + ",missing=" + missing + "]");
             if (baseline.size() != ctx.docs().size()) {
                 throw new AssertionError(
                     context + " stage=[baseline-completeness] expected " + ctx.docs().size() + " hits but got " + baseline.size()
@@ -285,14 +297,15 @@ public final class DslKeywordSearchChecks {
         final String keywordField,
         final String docIdField,
         final SortOrder order,
-        final SortMode mode
+        final SortMode mode,
+        final String missing
     ) {
         final List<String> ordered = new ArrayList<>();
         assertResponse(
             client.prepareSearch(index)
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setSize(MAX_HITS)
-                .addSort(SortBuilders.fieldSort(keywordField).order(order).sortMode(mode))
+                .addSort(SortBuilders.fieldSort(keywordField).order(order).sortMode(mode).missing(missing))
                 .addSort(SortBuilders.fieldSort(docIdField).order(SortOrder.ASC)),
             response -> {
                 for (final SearchHit hit : response.getHits().getHits()) {

@@ -752,15 +752,21 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     ) {
         final User user = authentication.getEffectiveSubject().getUser();
         final boolean isSystem = user instanceof InternalUser;
-        if ((isSystem && events.contains(SYSTEM_ACCESS_GRANTED)) || ((isSystem == false) && events.contains(ACCESS_GRANTED))) {
-            final Optional<String[]> indices = Optional.ofNullable(indices(msg));
-            String realm = ApiKeyService.getCreatorRealmName(authentication);
-            final var ctx = new AuditEventContext(
-                indices.orElse(null),
-                principalRoles(authorizationInfo),
-                realm,
-                AuditSubject.from(authentication)
-            );
+        final boolean logAccessGranted = (isSystem && events.contains(SYSTEM_ACCESS_GRANTED))
+            || ((isSystem == false) && events.contains(ACCESS_GRANTED));
+        final boolean logSecurityConfigChange = events.contains(SECURITY_CONFIG_CHANGE) && SECURITY_CHANGE_ACTIONS.contains(action);
+        if (logAccessGranted == false && logSecurityConfigChange == false) {
+            return;
+        }
+        final Optional<String[]> indices = Optional.ofNullable(indices(msg));
+        String realm = ApiKeyService.getCreatorRealmName(authentication);
+        final var ctx = new AuditEventContext(
+            indices.orElse(null),
+            principalRoles(authorizationInfo),
+            realm,
+            AuditSubject.from(authentication)
+        );
+        if (logAccessGranted) {
             if (customizer.suppress(ctx) == false
                 && eventFilterPolicyRegistry.ignorePredicate()
                     .test(
@@ -786,101 +792,105 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .build();
             }
         }
-        // "Security config change" records are not filtered out by ignore policies (i.e. they are always printed).
-        // The security changes here are the consequences of *user* requests,
+        // "Security config change" records are not filtered out by ignore policies or by AuditLogCustomizer#suppress
+        // (i.e. they are always printed). The security changes here are the consequences of *user* requests,
         // so in a strict interpretation we should filter them out if there are ignore policies in place for the causing user,
         // but we do NOT do that because filtering out audit records of security changes can be unexpectedly dangerous.
-        if (events.contains(SECURITY_CONFIG_CHANGE) && SECURITY_CHANGE_ACTIONS.contains(action)) {
+        // The same context is attached for rewrite only. It is not a reason to drop the event.
+        if (logSecurityConfigChange) {
             try {
                 if (msg instanceof PutUserRequest) {
                     assert PutUserAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody((PutUserRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId, authentication, ctx).withRequestBody((PutUserRequest) msg).build();
                 } else if (msg instanceof PutRoleRequest) {
                     assert PutRoleAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody((PutRoleRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId, authentication, ctx).withRequestBody((PutRoleRequest) msg).build();
                 } else if (msg instanceof BulkPutRolesRequest bulkPutRolesRequest) {
                     assert ActionTypes.BULK_PUT_ROLES.name().equals(action);
                     for (RoleDescriptor roleDescriptor : bulkPutRolesRequest.getRoles()) {
-                        securityChangeLogEntryBuilder(requestId, authentication).withRequestBody(roleDescriptor.getName(), roleDescriptor)
-                            .build();
+                        securityChangeLogEntryBuilder(requestId, authentication, ctx).withRequestBody(
+                            roleDescriptor.getName(),
+                            roleDescriptor
+                        ).build();
                     }
                 } else if (msg instanceof PutRoleMappingRequest) {
                     assert PutRoleMappingAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody((PutRoleMappingRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId, authentication, ctx).withRequestBody((PutRoleMappingRequest) msg).build();
                 } else if (msg instanceof SetEnabledRequest) {
                     assert TransportSetEnabledAction.TYPE.name().equals(action);
-                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody((SetEnabledRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId, authentication, ctx).withRequestBody((SetEnabledRequest) msg).build();
                 } else if (msg instanceof ChangePasswordRequest) {
                     assert TransportChangePasswordAction.TYPE.name().equals(action);
-                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody((ChangePasswordRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId, authentication, ctx).withRequestBody((ChangePasswordRequest) msg).build();
                 } else if (msg instanceof CreateApiKeyRequest) {
                     assert CreateApiKeyAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody((CreateApiKeyRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId, authentication, ctx).withRequestBody((CreateApiKeyRequest) msg).build();
                 } else if (msg instanceof GrantApiKeyRequest) {
                     assert GrantApiKeyAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody((GrantApiKeyRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId, authentication, ctx).withRequestBody((GrantApiKeyRequest) msg).build();
                 } else if (msg instanceof CloneApiKeyRequest cloneApiKeyRequest) {
                     assert CloneApiKeyAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody(cloneApiKeyRequest).build();
+                    securityChangeLogEntryBuilder(requestId, authentication, ctx).withRequestBody(cloneApiKeyRequest).build();
                 } else if (msg instanceof PutPrivilegesRequest) {
                     assert PutPrivilegesAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody((PutPrivilegesRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId, authentication, ctx).withRequestBody((PutPrivilegesRequest) msg).build();
                 } else if (msg instanceof DeleteUserRequest) {
                     assert DeleteUserAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody((DeleteUserRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId, authentication, ctx).withRequestBody((DeleteUserRequest) msg).build();
                 } else if (msg instanceof DeleteRoleRequest) {
                     assert DeleteRoleAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody((DeleteRoleRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId, authentication, ctx).withRequestBody((DeleteRoleRequest) msg).build();
                 } else if (msg instanceof BulkDeleteRolesRequest bulkDeleteRolesRequest) {
                     assert ActionTypes.BULK_DELETE_ROLES.name().equals(action);
                     for (String roleName : bulkDeleteRolesRequest.getRoleNames()) {
-                        securityChangeLogEntryBuilder(requestId, authentication).withDeleteRole(roleName).build();
+                        securityChangeLogEntryBuilder(requestId, authentication, ctx).withDeleteRole(roleName).build();
                     }
                 } else if (msg instanceof DeleteRoleMappingRequest) {
                     assert DeleteRoleMappingAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody((DeleteRoleMappingRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId, authentication, ctx).withRequestBody((DeleteRoleMappingRequest) msg).build();
                 } else if (msg instanceof InvalidateApiKeyRequest) {
                     assert InvalidateApiKeyAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody((InvalidateApiKeyRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId, authentication, ctx).withRequestBody((InvalidateApiKeyRequest) msg).build();
                 } else if (msg instanceof DeletePrivilegesRequest) {
                     assert DeletePrivilegesAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody((DeletePrivilegesRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId, authentication, ctx).withRequestBody((DeletePrivilegesRequest) msg).build();
                 } else if (msg instanceof CreateServiceAccountTokenRequest createServiceAccountTokenRequest) {
                     assert CreateServiceAccountTokenAction.NAME.equals(action)
                         || CreateUserManagedServiceAccountTokenAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody(createServiceAccountTokenRequest).build();
+                    securityChangeLogEntryBuilder(requestId, authentication, ctx).withRequestBody(createServiceAccountTokenRequest).build();
                 } else if (msg instanceof PutUserManagedServiceAccountRequest putUserManagedServiceAccountRequest) {
                     assert PutUserManagedServiceAccountAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody(putUserManagedServiceAccountRequest).build();
+                    securityChangeLogEntryBuilder(requestId, authentication, ctx).withRequestBody(putUserManagedServiceAccountRequest)
+                        .build();
                 } else if (msg instanceof DeleteUserManagedServiceAccountRequest deleteUserManagedServiceAccountRequest) {
                     assert DeleteUserManagedServiceAccountAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody(deleteUserManagedServiceAccountRequest)
+                    securityChangeLogEntryBuilder(requestId, authentication, ctx).withRequestBody(deleteUserManagedServiceAccountRequest)
                         .build();
                 } else if (msg instanceof DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest) {
                     assert DeleteServiceAccountTokenAction.NAME.equals(action)
                         || DeleteUserManagedServiceAccountTokenAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody(deleteServiceAccountTokenRequest).build();
+                    securityChangeLogEntryBuilder(requestId, authentication, ctx).withRequestBody(deleteServiceAccountTokenRequest).build();
                 } else if (msg instanceof final ActivateProfileRequest activateProfileRequest) {
                     assert ActivateProfileAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody(activateProfileRequest).build();
+                    securityChangeLogEntryBuilder(requestId, authentication, ctx).withRequestBody(activateProfileRequest).build();
                 } else if (msg instanceof final UpdateProfileDataRequest updateProfileDataRequest) {
                     assert UpdateProfileDataAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody(updateProfileDataRequest).build();
+                    securityChangeLogEntryBuilder(requestId, authentication, ctx).withRequestBody(updateProfileDataRequest).build();
                 } else if (msg instanceof final SetProfileEnabledRequest setProfileEnabledRequest) {
                     assert SetProfileEnabledAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody(setProfileEnabledRequest).build();
+                    securityChangeLogEntryBuilder(requestId, authentication, ctx).withRequestBody(setProfileEnabledRequest).build();
                 } else if (msg instanceof final UpdateApiKeyRequest updateApiKeyRequest) {
                     assert UpdateApiKeyAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody(updateApiKeyRequest).build();
+                    securityChangeLogEntryBuilder(requestId, authentication, ctx).withRequestBody(updateApiKeyRequest).build();
                 } else if (msg instanceof final BulkUpdateApiKeyRequest bulkUpdateApiKeyRequest) {
                     assert BulkUpdateApiKeyAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody(bulkUpdateApiKeyRequest).build();
+                    securityChangeLogEntryBuilder(requestId, authentication, ctx).withRequestBody(bulkUpdateApiKeyRequest).build();
                 } else if (msg instanceof final CreateCrossClusterApiKeyRequest createCrossClusterApiKeyRequest) {
                     assert CreateCrossClusterApiKeyAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody(createCrossClusterApiKeyRequest).build();
+                    securityChangeLogEntryBuilder(requestId, authentication, ctx).withRequestBody(createCrossClusterApiKeyRequest).build();
                 } else if (msg instanceof final UpdateCrossClusterApiKeyRequest updateCrossClusterApiKeyRequest) {
                     assert UpdateCrossClusterApiKeyAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody(updateCrossClusterApiKeyRequest).build();
+                    securityChangeLogEntryBuilder(requestId, authentication, ctx).withRequestBody(updateCrossClusterApiKeyRequest).build();
                 } else {
                     throw new IllegalStateException(
                         "Unknown message class type ["
@@ -1227,9 +1237,14 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         return maxRequestBodyBytes;
     }
 
-    private LogEntryBuilder securityChangeLogEntryBuilder(String requestId, Authentication authentication) {
+    private LogEntryBuilder securityChangeLogEntryBuilder(
+        String requestId,
+        Authentication authentication,
+        AuditEventContext securityChangeContext
+    ) {
         LogEntryBuilder builder = new LogEntryBuilder(false).with(EVENT_TYPE_FIELD_NAME, SECURITY_CHANGE_ORIGIN_FIELD_VALUE)
-            .withRequestId(requestId);
+            .withRequestId(requestId)
+            .withContext(securityChangeContext);
         if (includeSecurityConfigChangeActor) {
             builder.withAuthentication(authentication);
         }

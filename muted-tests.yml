@@ -700,3 +700,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecMatchFunctionIT
   method: test {csv-spec:match-function.matchWithScoreSortAscending}
   issue: https://github.com/elastic/elasticsearch/issues/161124
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecMatchFunctionIT
+  method: test {csv-spec:match-function.matchWithScoreSortAscending}
+  issue: https://github.com/elastic/elasticsearch/issues/161125

@@ -676,7 +676,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         }
 
         @Override
-        public ValueFetcher directValueFetcher(SearchExecutionContext context) {
+        protected ValueFetcher directValueFetcher(SearchExecutionContext context) {
             if (useLegacyFormat) {
                 return SourceValueFetcher.toString(getOriginalTextFieldName(name()), context, null);
             }

@@ -1149,7 +1149,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
          * Fetches only the values assigned directly to this field, leaving out the values copied in through {@code copy_to}.
          * Chunk offsets are relative to these values.
          */
-        public ValueFetcher directValueFetcher(SearchExecutionContext context) {
+        protected ValueFetcher directValueFetcher(SearchExecutionContext context) {
             if (readsOriginalValuesFromDocValues(context)) {
                 // When _source is rebuilt from doc values, read the original value straight from the binary store so retrieval does not
                 // have to rebuild _source.

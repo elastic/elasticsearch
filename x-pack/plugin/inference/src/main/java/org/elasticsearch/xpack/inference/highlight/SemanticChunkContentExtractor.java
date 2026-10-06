@@ -7,22 +7,17 @@
 
 package org.elasticsearch.xpack.inference.highlight;
 
-import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.FieldHighlightContext;
 import org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
-import org.elasticsearch.xpack.inference.mapper.OriginalValuesSemanticFieldValueFetcher;
 import org.elasticsearch.xpack.inference.mapper.SemanticFieldContent;
-import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper.SemanticFieldType;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 
 class SemanticChunkContentExtractor implements ChunkContentExtractor {
     private final FieldHighlightContext context;
@@ -69,17 +64,12 @@ class SemanticChunkContentExtractor implements ChunkContentExtractor {
             throw new IllegalStateException("Field [" + sourceField + "] is not mapped");
         }
 
-        // Chunk offsets only cover the values directly assigned to the source field, so exclude copy_to values
-        ValueFetcher fetcher;
-        if (sourceFieldType instanceof SemanticFieldType semanticFieldType) {
-            fetcher = semanticFieldType.directValueFetcher(searchContext);
-        } else {
-            fetcher = new OriginalValuesSemanticFieldValueFetcher(
-                Set.of(sourceField),
-                searchContext.getIndexSettings().getIgnoredSourceFormat()
-            );
-        }
-        fetcher.setNextReader(hitContext.readerContext());
-        return new SemanticFieldContent(fetcher.fetchValues(hitContext.source(), hitContext.docId(), new ArrayList<>()));
+        return SemanticFieldContent.load(
+            sourceFieldType,
+            searchContext,
+            hitContext.readerContext(),
+            hitContext.source(),
+            hitContext.docId()
+        );
     }
 }

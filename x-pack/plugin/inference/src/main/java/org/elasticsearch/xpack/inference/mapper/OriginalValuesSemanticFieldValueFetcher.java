@@ -14,16 +14,13 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import java.util.Map;
 import java.util.Set;
 
-public class OriginalValuesSemanticFieldValueFetcher extends SourceValueFetcher {
-    public OriginalValuesSemanticFieldValueFetcher(
-        Set<String> sourcePaths,
-        IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
-    ) {
-        super(sourcePaths, null, ignoredSourceFormat);
-    }
-
+class OriginalValuesSemanticFieldValueFetcher extends SourceValueFetcher {
     OriginalValuesSemanticFieldValueFetcher(String fieldName, SearchExecutionContext context) {
         super(fieldName, context);
+    }
+
+    OriginalValuesSemanticFieldValueFetcher(Set<String> sourcePaths, IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat) {
+        super(sourcePaths, null, ignoredSourceFormat);
     }
 
     @Override

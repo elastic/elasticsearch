@@ -50,6 +50,36 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
         );
     }
 
+    /**
+     * The weight is computed once at construction, because the shared {@code Cache} runs its weigher twice on
+     * every hit that is not already at the LRU head ({@code Cache.promote} -> {@code relinkAtHead} ->
+     * {@code unlink} subtracting it and {@code linkAtHead} adding it back). The failure mode of precomputing is
+     * therefore a STALE weight, so what needs pinning is that the enrichment helper recomputes: a harvest grows
+     * the metadata map by megabytes, and an entry still reporting its pre-harvest weight would let the store hold
+     * far more than its budget while believing it was inside it.
+     */
+    public void testEnrichmentRecomputesTheWeightRatherThanCarryingTheOldOne() {
+        SchemaCacheEntry seeded = entryWithMin("s3://b/f.csv", "a");
+        long seededWeight = seeded.estimatedBytes();
+
+        Map<String, Object> harvested = new LinkedHashMap<>(seeded.safeMetadata());
+        harvested.put("_stats.columns.c.max", "x".repeat(1_000_000));
+        SchemaCacheEntry enriched = seeded.withSafeMetadata(harvested);
+
+        assertThat(
+            "an enriched entry must charge for the metadata it now holds, not for what it held when it was built",
+            enriched.estimatedBytes(),
+            greaterThan(seededWeight + 1_000_000)
+        );
+        assertThat("enrichment must not mutate the entry it was derived from", seeded.estimatedBytes(), equalTo(seededWeight));
+    }
+
+    /** Repeated reads of one immutable entry must agree; a weigher called twice per promote must see one value. */
+    public void testWeightIsStableAcrossReads() {
+        SchemaCacheEntry entry = entryWithMin("s3://b/f.csv", "a");
+        assertThat(entry.estimatedBytes(), equalTo(entry.estimatedBytes()));
+    }
+
     public void testSchemaEntryWeightChargesTheSizeOfAStoredColumnExtremum() {
         SchemaCacheEntry small = entryWithMin("s3://b/f.csv", "a");
         SchemaCacheEntry large = entryWithMin("s3://b/f.csv", "x".repeat(1_000_000));

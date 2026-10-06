@@ -17,7 +17,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors.HotThreadsOnLargeQue
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -136,7 +135,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
                 ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + THREAD_POOL_METRIC_NAME_UTILIZATION,
                 "fraction of maximum thread time utilized for " + threadPoolName,
                 "fraction",
-                () -> new DoubleWithAttributes(pollUtilization(UtilizationTrackingPurpose.APM), Map.of())
+                () -> pollUtilization(UtilizationTrackingPurpose.APM)
             )
         );
         if (threadUtilizationRate != null) {
@@ -145,7 +144,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
                     ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + THREAD_POOL_METRIC_NAME_UTILIZATION_EWMR,
                     "EWMR-based fraction of maximum thread time utilized for " + threadPoolName,
                     "fraction",
-                    () -> new DoubleWithAttributes(getAverageUtilization(), Map.of())
+                    this::getAverageUtilization
                 )
             );
         }

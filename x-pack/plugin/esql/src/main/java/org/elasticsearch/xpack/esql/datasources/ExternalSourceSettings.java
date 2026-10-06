@@ -64,6 +64,25 @@ public final class ExternalSourceSettings {
      */
     public static final int BLOB_STORE_GET_SIZE_BYTES = 10 * 1024 * 1024;
 
+    /**
+     * Heap bytes to allocate for a fill or sliding-window buffer. {@code requestedMax} is the format ceiling
+     * (NDJSON {@code minimumSegmentSize}, Parquet window) and must be non-negative. When
+     * {@code knownObjectBytes} is a real object size, tiny objects pay that size instead of the ceiling
+     * (at least one byte when the ceiling is at least one). Negative {@code knownObjectBytes} — including
+     * {@code StorageObject.READ_TO_END} — means unknown, so the result is {@code requestedMax} capped at
+     * {@link Integer#MAX_VALUE}. The returned value always fits a {@code byte[]} length.
+     */
+    public static int ioFillBytes(long requestedMax, long knownObjectBytes) {
+        if (requestedMax < 0) {
+            throw new IllegalArgumentException("requestedMax must be non-negative [" + requestedMax + "]");
+        }
+        long max = Math.min(requestedMax, Integer.MAX_VALUE);
+        if (knownObjectBytes < 0) {
+            return (int) max;
+        }
+        return (int) Math.min(max, Math.max(1L, knownObjectBytes));
+    }
+
     /** Heap share reserved for in-flight blob-store buffers: {@code M = min(heap / this, half the request breaker)}. */
     static final int BLOB_STORE_MEMORY_HEAP_DIVISOR = 4;
 

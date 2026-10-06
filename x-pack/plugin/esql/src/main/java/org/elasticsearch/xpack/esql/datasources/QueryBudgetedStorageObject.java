@@ -27,6 +27,7 @@ import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Decorates a {@link StorageObject} with per-query concurrency budget enforcement. Each I/O
@@ -309,7 +310,7 @@ class QueryBudgetedStorageObject implements StorageObject, ResumeBypassingStorag
     private static class PermitReleasingInputStream extends FilterInputStream {
         private final QueryConcurrencyBudget budget;
         private final PermitToken token;
-        private volatile boolean released;
+        private final AtomicBoolean released = new AtomicBoolean();
 
         PermitReleasingInputStream(InputStream in, QueryConcurrencyBudget budget, PermitToken token) {
             super(in);
@@ -327,8 +328,7 @@ class QueryBudgetedStorageObject implements StorageObject, ResumeBypassingStorag
          * has been aborted directly via the delegate, so we don't double-close.
          */
         void markReleased() {
-            if (released == false) {
-                released = true;
+            if (released.getAndSet(true) == false) {
                 budget.release(token.lease, token.countGets);
             }
         }
@@ -338,8 +338,7 @@ class QueryBudgetedStorageObject implements StorageObject, ResumeBypassingStorag
             try {
                 super.close();
             } finally {
-                if (released == false) {
-                    released = true;
+                if (released.getAndSet(true) == false) {
                     budget.release(token.lease, token.countGets);
                 }
             }

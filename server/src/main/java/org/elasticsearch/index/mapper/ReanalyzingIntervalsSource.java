@@ -122,24 +122,28 @@ public final class ReanalyzingIntervalsSource extends IntervalsSource {
                 return isSet;
             }
 
+            /**
+             * A document whose values hold no interval leaves {@code in} unset, and a disjunction goes on asking
+             * its sub-iterators for intervals after they are spent, so each of these answers for a spent one.
+             */
             @Override
             public int start() {
-                return in.start();
+                return in == null ? NO_MORE_INTERVALS : in.start();
             }
 
             @Override
             public int end() {
-                return in.end();
+                return in == null ? NO_MORE_INTERVALS : in.end();
             }
 
             @Override
             public int gaps() {
-                return in.gaps();
+                return in == null ? 0 : in.gaps();
             }
 
             @Override
             public int nextInterval() throws IOException {
-                return in.nextInterval();
+                return in == null ? NO_MORE_INTERVALS : in.nextInterval();
             }
 
             @Override

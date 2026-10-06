@@ -22,9 +22,11 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.IntervalIterator;
+import org.apache.lucene.queries.intervals.IntervalQuery;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
@@ -43,6 +45,41 @@ public class ReanalyzingIntervalsSourceTests extends ESTestCase {
 
     private static final IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> SOURCE_FETCHER_PROVIDER =
         context -> docID -> Collections.<Object>singletonList(context.reader().storedFields().document(docID).get("body"));
+
+    /**
+     * A disjunction keeps its spent sub-iterators and goes on asking them for intervals, so one whose last
+     * candidate held no interval has to answer for a spent iterator rather than for nothing at all.
+     */
+    public void testADisjunctionOverASourceWhoseLastCandidateDoesNotMatch() throws IOException {
+        final FieldType ft = new FieldType(TextField.TYPE_STORED);
+        ft.setIndexOptions(IndexOptions.DOCS);
+        ft.freeze();
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(Lucene.STANDARD_ANALYZER))) {
+            for (String body : List.of("quick brown", "a b", "c d")) {
+                final Document doc = new Document();
+                doc.add(new Field("body", body, ft));
+                w.addDocument(doc);
+            }
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                // The wildcard rule has every document as a candidate and the last of them holds no interval; each
+                // rule is read over the values of its own candidates, as a field with no positions answers them.
+                final IntervalsSource wildcard = new ReanalyzingIntervalsSource(
+                    Intervals.wildcard(new BytesRef("qu*k")),
+                    Queries.ALL_DOCS_INSTANCE,
+                    SOURCE_FETCHER_PROVIDER,
+                    Lucene.STANDARD_ANALYZER
+                );
+                final IntervalsSource term = new ReanalyzingIntervalsSource(
+                    Intervals.term(new BytesRef("brown")),
+                    new TermQuery(new Term("body", "brown")),
+                    SOURCE_FETCHER_PROVIDER,
+                    Lucene.STANDARD_ANALYZER
+                );
+                final IndexSearcher searcher = newSearcher(reader);
+                assertEquals(1, searcher.count(new IntervalQuery("body", Intervals.or(wildcard, term))));
+            }
+        }
+    }
 
     public void testIntervals() throws IOException {
         final FieldType ft = new FieldType(TextField.TYPE_STORED);

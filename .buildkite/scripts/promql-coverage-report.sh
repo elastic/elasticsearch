@@ -9,6 +9,10 @@ output=/tmp/$job-output
 cache=$work/.cache
 artifact=promcheck.tar.gz
 control=
+# Marks the PR comment this script owns, so a later revision replaces it rather than adding another.
+marker='<!-- promql-coverage-report -->'
+# Changed cases listed per kind in the comment; the full logs are build artifacts.
+max_rows=50
 
 die() { printf '%s: %s\n' "$prog" "$*" >&2; exit 1; }
 log() { printf -- '--- %s\n' "$*" >&2; }
@@ -29,6 +33,68 @@ counts() {
 			print ok, fail, err, skip, total
 		}
 	' "$1" || die "failed to parse summary from $1"
+}
+
+# Every case of a promcheck log as "<case>\t<status>\t<expression>", colour codes stripped.
+outcomes() {
+	awk '
+		{ gsub(/\033\[[0-9;]*m/, "") }
+		/^\[[0-9]+\] [A-Z]+/ { id = substr($1, 2, length($1) - 2); status[id] = $2; order[++n] = id; next }
+		n && /^[[:space:]]+expr:/ { e = $0; sub(/^[[:space:]]+expr:[[:space:]]*/, "", e); expr[order[n]] = e }
+		END { for (i = 1; i <= n; i++) printf "%s\t%s\t%s\n", order[i], status[order[i]], expr[order[i]] }
+	' "$1"
+}
+
+# Cases that pass in one run and not the other: "<regression|improvement>\t<case>\t<control>\t<test>\t<expression>".
+changes() {
+	awk -F'\t' '
+		NR == FNR { before[$1] = $2; next }
+		($1 in before) && ((before[$1] == "OK") != ($2 == "OK")) {
+			printf "%s\t%s\t%s\t%s\t%s\n", ($2 == "OK" ? "improvement" : "regression"), $1, before[$1], $2, $3
+		}
+	' <(outcomes "$1") <(outcomes "$2")
+}
+
+# A collapsible markdown table of one kind of change, at most $max_rows rows.
+section() {
+	local file=$1 kind=$2 title=$3 n
+	n=$(awk -F'\t' -v kind="$kind" '$1 == kind' "$file" | wc -l | tr -d ' ')
+	((n)) || return 0
+	printf '\n<details><summary>%s (%d)</summary>\n\n| case | base | revision | query |\n|---|---|---|---|\n' "$title" "$n"
+	awk -F'\t' -v kind="$kind" -v max="$max_rows" '
+		$1 != kind { next }
+		++n <= max {
+			e = $5
+			if (length(e) > 160) e = substr(e, 1, 157) "..."
+			gsub(/`/, "'"'"'", e)
+			gsub(/\|/, "\\|", e)
+			printf "| %s | %s | %s | `%s` |\n", $2, $3, $4, e
+		}
+		END { if (n > max) printf "\n_%d more in the build artifacts._\n", n - max }
+	' "$file"
+	printf '\n</details>\n'
+}
+
+# Posts the report on the PR, replacing the comment of an earlier revision. Failing to post is logged, not fatal.
+post() {
+	local file=$1 pr=${BUILDKITE_PULL_REQUEST:-false} repo id
+	repo=${BUILDKITE_REPO:-https://github.com/elastic/elasticsearch.git}
+	repo=${repo#*github.com[:/]}
+	repo=${repo%.git}
+	if [[ ! $pr =~ ^[0-9]+$ ]]; then
+		log 'not a pull request: skipping the report comment'
+		return 0
+	fi
+	if ! command -v gh >/dev/null; then
+		log 'missing gh: skipping the report comment'
+		return 0
+	fi
+	id=$(gh api --paginate "repos/$repo/issues/$pr/comments" --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | tail -n 1) || id=
+	if [[ $id ]]; then
+		gh api -X PATCH "repos/$repo/issues/comments/$id" -F "body=@$file" >/dev/null
+	else
+		gh api -X POST "repos/$repo/issues/$pr/comments" -F "body=@$file" >/dev/null
+	fi || log "failed to post the report comment on $repo#$pr"
 }
 
 cleanup() {
@@ -54,7 +120,9 @@ main() {
 	local src dst n=0 rc base
 	local c_ok c_fail c_err c_skip c_total
 	local t_ok t_fail t_err t_skip t_total
-	local delta status
+	local delta status revision
+	local changes_tsv=$output/@$dataset-changes.tsv
+	local report_md=$output/@$dataset-report.md
 
 	for cmd in curl find git jq tar tee uv; do
 		command -v "$cmd" >/dev/null || die "missing: $cmd"
@@ -156,6 +224,22 @@ main() {
 	fi
 
 	log "$status: ok=$c_ok fail=$c_fail err=$c_err skip=$c_skip total=$c_total -> ok=$t_ok fail=$t_fail err=$t_err skip=$t_skip total=$t_total delta_ok=${delta:+$delta}"
+
+	revision=$(git rev-parse HEAD)
+	changes "$control_log" "$test_log" > "$changes_tsv"
+	{
+		printf '%s\n### PromQL coverage: %s\n\n' "$marker" "$dataset"
+		printf 'Revision `%s` against its merge base `%s`, promcheck %s' "${revision:0:12}" "${base:0:12}" "$version"
+		[[ -z ${BUILDKITE_BUILD_URL:-} ]] || printf ' ([build](%s))' "$BUILDKITE_BUILD_URL"
+		printf '.\n\n| | ok | fail | err | skip | total |\n|---|---|---|---|---|---|\n'
+		printf '| base | %s | %s | %s | %s | %s |\n' "$c_ok" "$c_fail" "$c_err" "$c_skip" "$c_total"
+		printf '| revision | %s | %s | %s | %s | %s |\n' "$t_ok" "$t_fail" "$t_err" "$t_skip" "$t_total"
+		printf '\n**%s**: %+d ok.\n' "$status" "$delta"
+		section "$changes_tsv" regression 'Regressions'
+		section "$changes_tsv" improvement 'Improvements'
+	} > "$report_md"
+	post "$report_md"
+
 	((delta >= 0))
 }
 

@@ -10,50 +10,49 @@ Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
 === Bug fixes
 
 ES|QL::
-* Circuitbreak Base64 and `MvConcat/Zip` {es-pull}159659[#159659]
-* Fix NPE when folding regex {es-pull}158768[#158768] (issue: {es-issue}158748[#158748])
-* Fix `isPartial` flag handling {es-pull}157475[#157475] (issue: {es-issue}157440[#157440])
-* Fix nested fields conflicting with object fields {es-pull}158573[#158573] (issue: {es-issue}154011[#154011])
-* Warn on GROK typed conversion failure {es-pull}160574[#160574] (issue: {es-issue}160564[#160564])
+* Fixes a `NullPointerException` that occurred when ES|QL folded a regular expression that evaluated to `null` {es-pull}158768[#158768] (issue: {es-issue}158748[#158748])
+* Fixes the `isPartial` flag in ES|QL responses so that it is set correctly {es-pull}157475[#157475] (issue: {es-issue}157440[#157440])
+* Fixes ES|QL queries on indices where a nested field conflicts with an object field {es-pull}158573[#158573] (issue: {es-issue}154011[#154011])
+* Makes the ES|QL `TO_BASE64`, `FROM_BASE64`, `MV_ZIP`, and `MV_CONCAT` functions respect the circuit breaker, so large inputs return a circuit breaker error instead of exhausting memory {es-pull}159659[#159659]
+* Returns `null` values and a warning, rather than failing the query, when a typed `GROK` capture such as `%{NUMBER:n:int}` matches a value that can't be converted to the requested type {es-pull}160574[#160574]
 
 Extract&Transform::
-* Limit the connector description length {es-pull}159638[#159638]
+* Limits the length of a connector description to 8192 characters {es-pull}159638[#159638]
 
 Geo::
-* Bound geometry nesting depth at construction {es-pull}160004[#160004]
-* Fix H3 great-circle latitude correction edge selection {es-pull}160228[#160228] (issue: {es-issue}159682[#159682])
+* Fixes the latitude correction in H3 cell bounds calculations so that it checks both edges adjacent to the extreme-latitude vertex {es-pull}160228[#160228] (issue: {es-issue}159682[#159682])
+* Limits the nesting depth of geometry collections when a geometry is created, preventing excessive recursion when a `geo_shape` runtime field emits deeply nested geometries {es-pull}160004[#160004]
 
 Infra/Core::
-* Skip unrelated files when scanning config dir for log4j2.properties {es-pull}150016[#150016]
+* Ignores unrelated files when scanning the configuration directory for `log4j2.properties` {es-pull}150016[#150016]
 
 Machine Learning::
-* Auto-stop datafeed after consecutive extraction failures {es-pull}159554[#159554] (issue: {es-issue}158426[#158426])
+* Adds the `max_consecutive_extraction_failures` datafeed setting. A real-time datafeed now stops automatically after repeated consecutive extraction failures instead of retrying indefinitely {es-pull}159554[#159554] (issue: {es-issue}158426[#158426])
 
 Search::
-* Improve consistency checks for PIT ids {es-pull}160179[#160179]
-* Release late shard results after a phase failure {es-pull}160439[#160439] (issue: {es-issue}160321[#160321])
+* Improves consistency checks for point in time (PIT) IDs {es-pull}160179[#160179]
+* Fixes a memory leak where shard results that arrived after a search phase failed were never released {es-pull}160439[#160439] (issue: {es-issue}160321[#160321])
 
 Security::
-* Consistency improvements for shard-level requests {es-pull}159691[#159691]
+* Improves consistency checks for shard-level requests {es-pull}159691[#159691]
 
 Templates::
-* Reduce memory usage when serializing when retrieving component and composable templates via the GET APIs- {es-pull}158175[#158175]
+* Reduces memory usage when retrieving component templates and composable index templates by streaming the response from the get component template and get index template APIs {es-pull}158175[#158175]
 
 [[enhancement-8.19.23]]
 [float]
 === Enhancements
 
 Authorization::
-* [XM Cyber] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` {es-pull}160185[#160185]
+* Grants the `kibana_system` role the `manage`, `create_index`, `read`, `index`, `write`, and `delete` privileges on the XM Cyber indices (`logs-xm_cyber.device-*`, `logs-xm_cyber.product-*`, and `logs-xm_cyber.vulnerability_index-*`). This lets the ILM delete step succeed for these indices {es-pull}160185[#160185]
 
 [[upgrade-8.19.23]]
 [float]
 === Upgrades
 
 Infra/Core::
-* Upgrade Jackson to 2.21.7 {es-pull}160501[#160501]
+* Upgrades Jackson to 2.21.7 {es-pull}160501[#160501]
 
 Network::
-* Netty upgrade 4.1.138.Final {es-pull}159561[#159561]
-
+* Upgrades Netty to 4.1.138.Final {es-pull}159561[#159561]
 

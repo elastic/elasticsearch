@@ -254,9 +254,13 @@ public class ComputeService {
         this.driverRunner = new DriverTaskRunner(transportService, searchExecutor);
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
-        this.fetchPhaseServices = FetchPhaseServices.create(
-            new FetchContextService(searchService, threadPool, transportActionServices.clusterService().getClusterSettings())
+        FetchContextService fetchContextService = new FetchContextService(
+            searchService,
+            transportService,
+            transportActionServices.clusterService().getClusterSettings()
         );
+        fetchContextService.registerHandlers();
+        this.fetchPhaseServices = FetchPhaseServices.create(fetchContextService);
         this.inferenceService = transportActionServices.inferenceService();
         this.userAgentParserRegistry = transportActionServices.userAgentParserRegistry();
         this.ipLocationService = transportActionServices.ipLocationService();

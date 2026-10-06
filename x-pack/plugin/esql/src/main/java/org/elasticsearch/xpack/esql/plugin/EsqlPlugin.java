@@ -755,6 +755,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsqlFlags.ESQL_METRICS_INFO_MAX_TIME_RANGE,
                 EsqlFlags.ESQL_FETCH_PHASE,
                 FetchContextService.MAX_OPEN_CONTEXTS,
+                FetchContextService.CONTEXT_KEEP_ALIVE,
                 ViewService.MAX_VIEWS_COUNT_SETTING,
                 ViewService.MAX_VIEW_LENGTH_SETTING,
                 ViewResolver.MAX_VIEW_DEPTH_SETTING,

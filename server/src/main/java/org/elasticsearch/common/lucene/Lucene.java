@@ -38,6 +38,7 @@ import org.apache.lucene.index.NoMergeScheduler;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.search.BinarySortField;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FieldDoc;
@@ -653,6 +654,10 @@ public class Lucene {
             newSortField.setMissingValue(sortField.getMissingValue());
             return newSortField;
         } else if (sortField.getClass() == SortedSetSortField.class) {
+            SortField newSortField = new SortField(sortField.getField(), SortField.Type.STRING, sortField.getReverse());
+            newSortField.setMissingValue(sortField.getMissingValue());
+            return newSortField;
+        } else if (sortField instanceof BinarySortField) {
             SortField newSortField = new SortField(sortField.getField(), SortField.Type.STRING, sortField.getReverse());
             newSortField.setMissingValue(sortField.getMissingValue());
             return newSortField;

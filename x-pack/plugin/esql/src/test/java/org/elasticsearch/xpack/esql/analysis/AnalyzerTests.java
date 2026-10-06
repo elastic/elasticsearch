@@ -7568,7 +7568,8 @@ public class AnalyzerTests extends AnalyzerTestCase {
             );
         for (String query : List.of(
             "FROM (FROM books), (FROM books | RENAME other AS title) | HIGHLIGHT \"ring\" ON title",
-            "FROM (FROM books*), (FROM books* | LOOKUP JOIN reviews_lookup ON book_no | RENAME review AS title) | HIGHLIGHT \"ring\" ON title",
+            "FROM (FROM books*), (FROM books* | LOOKUP JOIN reviews_lookup ON book_no | RENAME review AS title) "
+                + "| HIGHLIGHT \"ring\" ON title",
             "FROM (FROM local_a,idx_c), (FROM unreported_b,idx_c) | HIGHLIGHT \"ring\" ON title"
         )) {
             Highlight highlight = soleHighlight(analyzer.query(query));

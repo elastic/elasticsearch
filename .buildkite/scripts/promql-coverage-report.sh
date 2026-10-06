@@ -54,24 +54,20 @@ changes() {
 	' <(outcomes "$1") <(outcomes "$2")
 }
 
-# A collapsible markdown table of one kind of change, at most $max_rows rows; $4 links the full list.
-section() {
-	local file=$1 kind=$2 title=$3 n
-	n=$(awk -F'\t' -v kind="$kind" '$1 == kind' "$file" | wc -l | tr -d ' ')
-	((n)) || return 0
-	printf '\n<details><summary>%s (%d)</summary>\n\n| case | base | revision | query |\n|---|---|---|---|\n' "$title" "$n"
-	awk -F'\t' -v kind="$kind" -v max="$max_rows" '
-		$1 != kind { next }
+# Changed cases as a markdown table, regressions first, at most $max_rows rows; $2 links the full list.
+table() {
+	local file=$1 link=$2
+	printf '| case | change | query |\n|---|---|---|\n'
+	sort -t "$(printf '\t')" -k1,1r -k2,2n "$file" | awk -F'\t' -v max="$max_rows" -v link="$link" '
 		++n <= max {
 			e = $5
 			if (length(e) > 160) e = substr(e, 1, 157) "..."
 			gsub(/`/, "'"'"'", e)
 			gsub(/\|/, "\\|", e)
-			printf "| %s | %s | %s | `%s` |\n", $2, $3, $4, e
+			printf "| %s | %s → %s | `%s` |\n", $2, $3, $4, e
 		}
 		END { if (n > max) printf "\n_%d more in %s._\n", n - max, link }
-	' link="$4" "$file"
-	printf '\n</details>\n'
+	'
 }
 
 # Shows the report on the build, the way the other CI reports do, and offers it to the build bot's PR comment.
@@ -108,7 +104,8 @@ main() {
 	local src dst n=0 rc base
 	local c_ok c_fail c_err c_skip c_total
 	local t_ok t_fail t_err t_skip t_total
-	local delta status revision
+	local delta status revision regressions improvements
+	local repo_url=https://github.com/elastic/elasticsearch
 	local changes_tsv=$output/@$dataset-changes.tsv
 	local report_md=$output/@$dataset-report.md
 	# Artifacts keep their absolute path without the leading slash.
@@ -217,16 +214,17 @@ main() {
 
 	revision=$(git rev-parse HEAD)
 	changes "$control_log" "$test_log" > "$changes_tsv"
+	regressions=$(grep -c '^regression' "$changes_tsv" || true)
+	improvements=$(grep -c '^improvement' "$changes_tsv" || true)
 	{
-		printf '### PromQL coverage: %s\n\n' "$dataset"
-		printf 'Revision `%s` against its merge base `%s`, promcheck %s' "${revision:0:12}" "${base:0:12}" "$version"
-		[[ -z ${BUILDKITE_BUILD_URL:-} ]] || printf ' ([build](%s))' "$BUILDKITE_BUILD_URL"
-		printf '.\n\n| | ok | fail | err | skip | total |\n|---|---|---|---|---|---|\n'
-		printf '| base | %s | %s | %s | %s | %s |\n' "$c_ok" "$c_fail" "$c_err" "$c_skip" "$c_total"
-		printf '| revision | %s | %s | %s | %s | %s |\n' "$t_ok" "$t_fail" "$t_err" "$t_skip" "$t_total"
-		printf '\n**%s**: %+d ok.\n' "$status" "$delta"
-		section "$changes_tsv" regression 'Regressions' "$changes_link"
-		section "$changes_tsv" improvement 'Improvements' "$changes_link"
+		printf '**PromQL coverage** · [promcheck %s](https://github.com/elastic/promcheck/tree/v%s) · ' "$version" "$version"
+		printf '[`%s`](%s/commit/%s) → [`%s`](%s/commit/%s) · ok %s → %s (%+d)\n' \
+			"${base:0:10}" "$repo_url" "$base" "${revision:0:10}" "$repo_url" "$revision" "$c_ok" "$t_ok" "$delta"
+		if ((regressions + improvements)); then
+			printf '\n<details><summary>%d regressed, %d improved</summary>\n\n' "$regressions" "$improvements"
+			table "$changes_tsv" "$changes_link"
+			printf '\n</details>\n'
+		fi
 	} > "$report_md"
 	if ((delta < 0)); then
 		annotate error "$report_md"

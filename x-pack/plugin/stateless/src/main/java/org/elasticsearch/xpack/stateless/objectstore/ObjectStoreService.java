@@ -1766,7 +1766,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                                 virtualBatchedCompoundCommit.getFrozenInputStreamForUpload(offset, length)
                             ),
                             false,
-                            // Ensure that one large upload doesn't starve other uploads
                             InstrumentedThrottledTaskRunner.asExecutor(bccMultipartUploadTaskRunner)
 
                         );

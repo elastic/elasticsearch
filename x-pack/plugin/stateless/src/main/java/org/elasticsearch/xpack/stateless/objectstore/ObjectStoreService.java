@@ -440,7 +440,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         this.slowTranslogUploadLogThresholdMillis = OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING.get(settings).getMillis();
         this.bccMultipartUploadTaskRunner = new InstrumentedThrottledTaskRunner<ActionListener<Releasable>>(
             "bcc_multipart_upload_runner",
-            Math.max(1, threadPool.info(StatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax()),
+            threadPool.info(StatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax(),
             threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL),
             meterRegistry,
             threadPool::relativeTimeInNanos

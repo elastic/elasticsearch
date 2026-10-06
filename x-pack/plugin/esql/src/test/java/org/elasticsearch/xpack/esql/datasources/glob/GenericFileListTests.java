@@ -98,11 +98,7 @@ public class GenericFileListTests extends ESTestCase {
         PartitionMetadata pm = new PartitionMetadata(Map.of("year", DataType.INTEGER), Map.of(path, Map.of("year", 2024)));
         GenericFileList a = (GenericFileList) GlobExpander.fileListOf(List.of(entry), "s3://bucket/year=*/*.parquet", pm);
         GenericFileList b = (GenericFileList) GlobExpander.fileListOf(List.of(entry), "s3://bucket/year=*/*.parquet", pm);
-        GenericFileList c = (GenericFileList) GlobExpander.fileListOf(
-            List.of(entry),
-            "s3://bucket/year=*/*.parquet",
-            (PartitionMetadata) null
-        );
+        GenericFileList c = (GenericFileList) GlobExpander.fileListOf(List.of(entry), "s3://bucket/year=*/*.parquet", null);
 
         assertEquals(a, b);
         assertNotEquals(a, c);
@@ -111,7 +107,7 @@ public class GenericFileListTests extends ESTestCase {
     public void testFileListOfDetectsHivePartitions() {
         StorageEntry entry = new StorageEntry(StoragePath.of("s3://bucket/year=2024/file.parquet"), 100, Instant.EPOCH);
         for (PartitionConfig config : List.of(PartitionConfig.DEFAULT, new PartitionConfig(PartitionConfig.Strategy.HIVE, null))) {
-            FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://bucket/year=2024/file.parquet", config);
+            FileList fileList = GlobExpander.detectedFileListOf(List.of(entry), "s3://bucket/year=2024/file.parquet", config);
             assertTrue(fileList.isResolved());
             assertFalse(fileList.isEmpty());
             assertEquals(1, fileList.fileCount());
@@ -123,7 +119,7 @@ public class GenericFileListTests extends ESTestCase {
 
     public void testFileListOfDetectsNoneLeavesMetadataNull() {
         StorageEntry entry = new StorageEntry(StoragePath.of("s3://bucket/year=2024/file.parquet"), 100, Instant.EPOCH);
-        FileList fileList = GlobExpander.fileListOf(
+        FileList fileList = GlobExpander.detectedFileListOf(
             List.of(entry),
             "s3://bucket/year=2024/file.parquet",
             new PartitionConfig(PartitionConfig.Strategy.NONE, null)
@@ -136,7 +132,11 @@ public class GenericFileListTests extends ESTestCase {
 
     public void testFileListOfDetectsReservedRenameOnListingWarnings() {
         StorageEntry entry = new StorageEntry(StoragePath.of("s3://bucket/_index=alpha/file.parquet"), 100, Instant.EPOCH);
-        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://bucket/_index=alpha/file.parquet", PartitionConfig.DEFAULT);
+        FileList fileList = GlobExpander.detectedFileListOf(
+            List.of(entry),
+            "s3://bucket/_index=alpha/file.parquet",
+            PartitionConfig.DEFAULT
+        );
         assertTrue(fileList.isResolved());
         assertEquals(1, fileList.fileCount());
         assertEquals(

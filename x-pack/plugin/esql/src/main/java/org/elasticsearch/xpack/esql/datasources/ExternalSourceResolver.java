@@ -1199,7 +1199,11 @@ public class ExternalSourceResolver {
             }
             extMetadata = withSourceType(extMetadata, datasetFormat);
 
-            FileList singletonList = GlobExpander.fileListOf(List.of(storageEntry), path, PartitionConfig.fromConfig(fileConfig));
+            // Connector/catalog sources skip the file-format stamp (datasetFormat == null); AUTO
+            // must not hive-graft path keys onto a schema the catalog owns.
+            FileList singletonList = datasetFormat != null
+                ? GlobExpander.detectedFileListOf(List.of(storageEntry), path, PartitionConfig.fromConfig(fileConfig))
+                : GlobExpander.fileListOf(List.of(storageEntry), path);
             pendingListingWarnings.addAll(singletonList.listingWarnings());
 
             // Capture the raw file schema: schemaMap describes the physical schema each reader actually
@@ -1210,7 +1214,7 @@ public class ExternalSourceResolver {
             SourceStatistics fileStats = SourceStatisticsSerializer.fromSource(extMetadata);
             List<Attribute> dataOnlySchema = physicalSchema;
             PartitionMetadata partitionMetadata = singletonList.partitionMetadata();
-            if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
+            if (physicalSchema != null && partitionMetadata != null && partitionMetadata.isEmpty() == false) {
                 // Shadow same-named physical columns: when a physical column collides with a partition key,
                 // the partition (path-derived) value wins (Spark/DuckDB semantics). Mapping width must agree
                 // with the data-only coordinator schema; enriching and keeping an identity map would disagree
@@ -4214,7 +4218,7 @@ public class ExternalSourceResolver {
         // resolution reads no file body, so length + mtime are the only per-query object metadata it needs.
         FileMetadata meta = fileMetadataOf(storagePath, provider, storageIdentity);
         StorageEntry storageEntry = new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()));
-        FileList singletonList = GlobExpander.fileListOf(List.of(storageEntry), path, PartitionConfig.fromConfig(config));
+        FileList singletonList = GlobExpander.detectedFileListOf(List.of(storageEntry), path, PartitionConfig.fromConfig(config));
         pendingListingWarnings.addAll(singletonList.listingWarnings());
         // Declared mapping is the whole schema, in LOGICAL names; a `path` rename is applied at the reader, so the
         // operator (and file schema) work purely in logical names.

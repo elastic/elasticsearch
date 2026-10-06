@@ -76,9 +76,10 @@ public final class GlobExpander {
      * detection the listing rail applies to a hint-collapsed concrete path. Detector notices ride
      * {@link FileList#listingWarnings()}. {@link PartitionConfig.Strategy#NONE} and an empty detect
      * leave metadata null. The list stays resolved; an empty {@code entries} is still not the
-     * {@link FileList#UNRESOLVED} sentinel.
+     * {@link FileList#UNRESOLVED} sentinel. {@code partitionConfig} is required.
      */
-    public static FileList fileListOf(List<StorageEntry> entries, String pattern, PartitionConfig partitionConfig) {
+    public static FileList detectedFileListOf(List<StorageEntry> entries, String pattern, PartitionConfig partitionConfig) {
+        Check.notNull(partitionConfig, "partitionConfig cannot be null");
         List<String> notices = new ArrayList<>();
         PartitionMetadata metadata = detectPartitions(entries, partitionConfig, notices::add);
         return new GenericFileList(entries, pattern, metadata, notices);

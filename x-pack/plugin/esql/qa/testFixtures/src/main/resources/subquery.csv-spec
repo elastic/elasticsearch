@@ -1995,3 +1995,57 @@ FROM (FROM employees), (FROM employees)
 c:long
 2
 ;
+
+subqueryInFromImplicitDateNanosCastMax
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| STATS m = MAX(@timestamp)
+;
+
+m:date_nanos
+2023-10-23T13:55:01.543123456Z
+;
+
+subqueryInFromImplicitDateNanosCastMaxKeep
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| STATS m = MAX(@timestamp)
+| KEEP m
+;
+
+m:date_nanos
+2023-10-23T13:55:01.543123456Z
+;
+
+subqueryInFromImplicitDateNanosCastBucket
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| STATS c = COUNT(*) BY m = BUCKET(@timestamp, 1h)
+| SORT m
+;
+
+c:long | m:date_nanos
+4      | 2023-10-23T12:00:00.000Z
+10     | 2023-10-23T13:00:00.000Z
+;
+
+subqueryInFromImplicitDateNanosCastBucketKeep
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| STATS c = COUNT(*) BY m = BUCKET(@timestamp, 1h)
+| KEEP c, m
+| SORT m
+;
+
+c:long | m:date_nanos
+4      | 2023-10-23T12:00:00.000Z
+10     | 2023-10-23T13:00:00.000Z
+;

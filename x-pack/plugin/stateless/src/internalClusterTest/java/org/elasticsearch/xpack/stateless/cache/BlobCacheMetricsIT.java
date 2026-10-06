@@ -580,9 +580,17 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
             ClusterSettings clusterSettings,
-            WarmingRatioProvider warmingRatioProvider
+            WarmingRatioProvider warmingRatioProvider,
+            SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
-            return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings, warmingRatioProvider) {
+            return new SharedBlobCacheWarmingService(
+                cacheService,
+                threadPool,
+                telemetryProvider,
+                clusterSettings,
+                warmingRatioProvider,
+                searchRecoveryTimeoutCalculationService
+            ) {
                 @Override
                 protected void warmCache(
                     Type type,

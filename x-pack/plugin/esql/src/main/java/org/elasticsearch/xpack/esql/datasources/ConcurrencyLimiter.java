@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.logging.LogManager;
@@ -18,11 +19,19 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException
 import org.elasticsearch.xpack.esql.datasources.spi.QueryAdmission;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BooleanSupplier;
 
 /**
  * Limits the number of concurrent in-flight cloud storage API requests per node.
@@ -43,6 +52,9 @@ class ConcurrencyLimiter implements AdmissionGate {
     private final long acquireTimeoutMs;
     private final AdmissionTracker tracker;
     private final AtomicLong lastWarnLogTime = new AtomicLong(0);
+    private final ReentrantLock asyncLock = new ReentrantLock();
+    private final ArrayDeque<AsyncWaiter> asyncWaiters = new ArrayDeque<>();
+    private final ArrayList<Runnable> pendingCompletions = new ArrayList<>();
 
     private static final long WARN_LOG_INTERVAL_MS = 30_000;
     private static final long WARN_WAIT_THRESHOLD_MS = 5_000;
@@ -201,9 +213,90 @@ class ConcurrencyLimiter implements AdmissionGate {
     }
 
     void release() {
-        if (semaphore != null) {
-            semaphore.release();
+        if (semaphore == null) {
+            return;
         }
+        List<Runnable> completions;
+        asyncLock.lock();
+        try {
+            failCancelledLocked();
+            AsyncWaiter head = asyncWaiters.peekFirst();
+            if (head != null) {
+                asyncWaiters.removeFirst();
+                head.completeGrant();
+            } else {
+                semaphore.release();
+            }
+            completions = takePendingCompletions();
+        } finally {
+            asyncLock.unlock();
+        }
+        runCompletions(completions);
+    }
+
+    /**
+     * Async permit ticket. Completes on grant; fails on cancel. The grant is forked onto
+     * {@code executor}. Fair FIFO among ticket waiters; does not barge queued tickets.
+     */
+    SubscribableListener<Void> acquireAsync(BooleanSupplier cancelSignal, Executor executor) {
+        SubscribableListener<Void> listener = new SubscribableListener<>();
+        if (semaphore == null) {
+            listener.onResponse(null);
+            return listener;
+        }
+        if (executor == null) {
+            throw new IllegalArgumentException("executor is required");
+        }
+        BooleanSupplier cancel = cancelSignal == null ? () -> false : cancelSignal;
+        if (cancel.getAsBoolean()) {
+            listener.onFailure(new TimeoutException("Cancelled while waiting for a concurrency permit"));
+            return listener;
+        }
+        List<Runnable> completions = List.of();
+        Exception failNow = null;
+        asyncLock.lock();
+        try {
+            if (cancel.getAsBoolean()) {
+                failNow = new TimeoutException("Cancelled while waiting for a concurrency permit");
+            } else if (asyncWaiters.isEmpty() && semaphore.tryAcquire()) {
+                AsyncWaiter waiter = new AsyncWaiter(listener, executor, cancel);
+                waiter.completeGrant();
+                completions = takePendingCompletions();
+            } else {
+                AsyncWaiter waiter = new AsyncWaiter(listener, executor, cancel);
+                asyncWaiters.addLast(waiter);
+                completions = takePendingCompletions();
+            }
+        } finally {
+            asyncLock.unlock();
+        }
+        if (failNow != null) {
+            listener.onFailure(failNow);
+            return listener;
+        }
+        runCompletions(completions);
+        return listener;
+    }
+
+    int asyncWaiterCount() {
+        asyncLock.lock();
+        try {
+            return asyncWaiters.size();
+        } finally {
+            asyncLock.unlock();
+        }
+    }
+
+    void wakeAsyncWaiters() {
+        List<Runnable> completions;
+        asyncLock.lock();
+        try {
+            failCancelledLocked();
+            completions = takePendingCompletions();
+        } finally {
+            asyncLock.unlock();
+        }
+        runCompletions(completions);
     }
 
     boolean isEnabled() {
@@ -270,5 +363,76 @@ class ConcurrencyLimiter implements AdmissionGate {
             maxPermits(),
             key
         );
+    }
+
+    private void failCancelledLocked() {
+        Iterator<AsyncWaiter> it = asyncWaiters.iterator();
+        while (it.hasNext()) {
+            AsyncWaiter waiter = it.next();
+            if (waiter.cancel.getAsBoolean()) {
+                it.remove();
+                waiter.fail(new TimeoutException("Cancelled while waiting for a concurrency permit"));
+            }
+        }
+    }
+
+    private List<Runnable> takePendingCompletions() {
+        if (pendingCompletions.isEmpty()) {
+            return List.of();
+        }
+        List<Runnable> batch = new ArrayList<>(pendingCompletions);
+        pendingCompletions.clear();
+        return batch;
+    }
+
+    private static void runCompletions(List<Runnable> completions) {
+        for (Runnable completion : completions) {
+            completion.run();
+        }
+    }
+
+    private final class AsyncWaiter {
+        private final SubscribableListener<Void> listener;
+        private final Executor executor;
+        private final BooleanSupplier cancel;
+        private final AtomicBoolean completed = new AtomicBoolean();
+
+        private AsyncWaiter(SubscribableListener<Void> listener, Executor executor, BooleanSupplier cancel) {
+            this.listener = listener;
+            this.executor = executor;
+            this.cancel = cancel;
+        }
+
+        private void completeGrant() {
+            pendingCompletions.add(() -> fork(() -> {
+                if (completed.compareAndSet(false, true) == false) {
+                    return;
+                }
+                if (cancel.getAsBoolean()) {
+                    release();
+                    listener.onFailure(new TimeoutException("Cancelled while waiting for a concurrency permit"));
+                    return;
+                }
+                listener.onResponse(null);
+            }));
+        }
+
+        private void fail(Exception e) {
+            pendingCompletions.add(() -> fork(() -> {
+                if (completed.compareAndSet(false, true)) {
+                    listener.onFailure(e);
+                }
+            }));
+        }
+
+        private void fork(Runnable task) {
+            try {
+                executor.execute(task);
+            } catch (Exception e) {
+                if (completed.compareAndSet(false, true)) {
+                    listener.onFailure(e);
+                }
+            }
+        }
     }
 }

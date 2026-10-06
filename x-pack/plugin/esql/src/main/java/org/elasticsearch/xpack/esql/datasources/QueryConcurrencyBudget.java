@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
@@ -21,11 +22,14 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BooleanSupplier;
 
 /**
  * Per-query concurrency budget that limits the number of concurrent in-flight storage API requests
@@ -64,6 +68,7 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
 
     private final Set<RowGroupIo> registry = new LinkedHashSet<>();
     private final Set<Waiter> waiters = new LinkedHashSet<>();
+    private final ArrayList<Runnable> pendingCompletions = new ArrayList<>();
     private long nextStartSeq;
     private RowGroupIo favoured;
     private RowGroupIo pinnedLease;
@@ -205,6 +210,77 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
     }
 
     /**
+     * Async permit ticket. Completes on grant; fails on close, lease finish, or cancel.
+     * The grant is forked onto {@code executor}. No per-gate timeout: a wait ends on grant,
+     * cancel, or query close (W1).
+     */
+    SubscribableListener<Void> acquireAsync(RowGroupIo lease, boolean countGets, BooleanSupplier cancelSignal, Executor executor) {
+        SubscribableListener<Void> listener = new SubscribableListener<>();
+        if (maxPermits <= 0) {
+            listener.onResponse(null);
+            return listener;
+        }
+        BooleanSupplier cancel = cancelSignal == null ? () -> false : cancelSignal;
+        if (executor == null) {
+            throw new IllegalArgumentException("executor is required");
+        }
+        if (closed) {
+            listener.onFailure(new TimeoutException("Budget is closed"));
+            return listener;
+        }
+        if (cancel.getAsBoolean() || (lease != null && (lease.isCancelled() || lease.isFinished()))) {
+            listener.onFailure(new TimeoutException("Row group lease was finished while waiting for permit"));
+            return listener;
+        }
+        List<Runnable> completions = List.of();
+        Exception failNow = null;
+        lock.lock();
+        try {
+            if (closed) {
+                failNow = new TimeoutException("Budget was closed while waiting for permit");
+            } else if (lease != null && lease.isFinished()) {
+                failNow = new TimeoutException("Row group lease was finished while waiting for permit");
+            } else if (cancel.getAsBoolean() || (lease != null && lease.isCancelled())) {
+                failNow = new TimeoutException("Row group lease was finished while waiting for permit");
+            } else if (waiters.isEmpty() && inFlight < maxPermits) {
+                takePermit(lease, countGets);
+                Waiter waiter = new Waiter(lease, countGets, listener, executor, cancel);
+                waiter.completeGrant();
+                completions = takePendingCompletions();
+            } else {
+                Waiter waiter = new Waiter(lease, countGets, listener, executor, cancel);
+                waiters.add(waiter);
+                if (lease != null) {
+                    lease.setWake(this::wakeAsyncWaiters);
+                }
+                grantIfSpare();
+                completions = takePendingCompletions();
+            }
+        } finally {
+            lock.unlock();
+        }
+        if (failNow != null) {
+            listener.onFailure(failNow);
+            return listener;
+        }
+        runCompletions(completions);
+        return listener;
+    }
+
+    void wakeAsyncWaiters() {
+        List<Runnable> completions;
+        lock.lock();
+        try {
+            failCancelledWaitersLocked();
+            grantIfSpare();
+            completions = takePendingCompletions();
+        } finally {
+            lock.unlock();
+        }
+        runCompletions(completions);
+    }
+
+    /**
      * Releases a permit, waking the waiter chosen by {@link #choose} when any are queued. Must be
      * paired with a preceding successful {@link #acquire()}.
      */
@@ -216,6 +292,7 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
         if (maxPermits <= 0) {
             return;
         }
+        List<Runnable> completions;
         lock.lock();
         try {
             assert inFlight > 0 : "release() called without a matching acquire(), inFlight=" + inFlight;
@@ -225,10 +302,13 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
             if (countGets && lease != null) {
                 lease.onGetComplete();
             }
+            failCancelledWaitersLocked();
             grantIfSpare();
+            completions = takePendingCompletions();
         } finally {
             lock.unlock();
         }
+        runCompletions(completions);
     }
 
     /**
@@ -239,12 +319,15 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
         int old = maxPermits;
         maxPermits = newMax;
         if (newMax > old) {
+            List<Runnable> completions;
             lock.lock();
             try {
                 grantIfSpare();
+                completions = takePendingCompletions();
             } finally {
                 lock.unlock();
             }
+            runCompletions(completions);
         }
     }
 
@@ -280,16 +363,26 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
             return;
         }
         List<RowGroupIo> toCancel;
+        List<Runnable> completions;
         lock.lock();
         try {
             closed = true;
             toCancel = new ArrayList<>(registry);
-            for (Waiter waiter : waiters) {
-                waiter.condition.signal();
+            Iterator<Waiter> it = waiters.iterator();
+            while (it.hasNext()) {
+                Waiter waiter = it.next();
+                if (waiter.async != null) {
+                    it.remove();
+                    waiter.fail(new TimeoutException("Budget was closed while waiting for permit"));
+                } else {
+                    waiter.condition.signal();
+                }
             }
+            completions = takePendingCompletions();
         } finally {
             lock.unlock();
         }
+        runCompletions(completions);
         for (RowGroupIo io : toCancel) {
             io.cancel();
         }
@@ -356,6 +449,7 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
             io.markFinished();
             return;
         }
+        List<Runnable> completions;
         lock.lock();
         try {
             if (favoured == io) {
@@ -371,12 +465,18 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
                 Waiter waiter = it.next();
                 if (waiter.lease == io) {
                     it.remove();
-                    waiter.condition.signal();
+                    if (waiter.async != null) {
+                        waiter.fail(new TimeoutException("Row group lease was finished while waiting for permit"));
+                    } else {
+                        waiter.condition.signal();
+                    }
                 }
             }
+            completions = takePendingCompletions();
         } finally {
             lock.unlock();
         }
+        runCompletions(completions);
     }
 
     private static String budgetWaiterLabel(RowGroupIo lease) {
@@ -399,16 +499,50 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
         waiters.remove(waiter);
         takePermit(waiter.lease, waiter.countGets);
         waiter.granted = true;
-        waiter.condition.signal();
+        if (waiter.async != null) {
+            waiter.completeGrant();
+        } else {
+            waiter.condition.signal();
+        }
     }
 
     private void grantIfSpare() {
+        failCancelledWaitersLocked();
         while (closed == false && waiters.isEmpty() == false && inFlight < maxPermits) {
             Waiter chosen = choose(waiters);
             if (chosen == null) {
                 return;
             }
             grant(chosen);
+        }
+    }
+
+    private void failCancelledWaitersLocked() {
+        Iterator<Waiter> it = waiters.iterator();
+        while (it.hasNext()) {
+            Waiter waiter = it.next();
+            if (waiter.async == null) {
+                continue;
+            }
+            if (waiter.cancel.getAsBoolean() || (waiter.lease != null && waiter.lease.isCancelled())) {
+                it.remove();
+                waiter.fail(new TimeoutException("Row group lease was finished while waiting for permit"));
+            }
+        }
+    }
+
+    private List<Runnable> takePendingCompletions() {
+        if (pendingCompletions.isEmpty()) {
+            return List.of();
+        }
+        List<Runnable> batch = new ArrayList<>(pendingCompletions);
+        pendingCompletions.clear();
+        return batch;
+    }
+
+    private static void runCompletions(List<Runnable> completions) {
+        for (Runnable completion : completions) {
+            completion.run();
         }
     }
 
@@ -639,14 +773,57 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
         long enqueueNanos = System.nanoTime();
         final Condition condition = lock.newCondition();
         boolean granted;
+        final SubscribableListener<Void> async;
+        final Executor executor;
+        final BooleanSupplier cancel;
+        private final AtomicBoolean completed = new AtomicBoolean();
 
         Waiter(RowGroupIo lease, boolean countGets) {
+            this(lease, countGets, null, null, () -> false);
+        }
+
+        Waiter(RowGroupIo lease, boolean countGets, SubscribableListener<Void> async, Executor executor, BooleanSupplier cancel) {
             this.lease = lease;
             this.countGets = countGets;
+            this.async = async;
+            this.executor = executor;
+            this.cancel = cancel == null ? () -> false : cancel;
         }
 
         int outstanding() {
             return lease.outstanding();
+        }
+
+        void completeGrant() {
+            pendingCompletions.add(() -> fork(() -> {
+                if (completed.compareAndSet(false, true) == false) {
+                    return;
+                }
+                if (cancel.getAsBoolean() || (lease != null && lease.isCancelled())) {
+                    release(lease, countGets);
+                    async.onFailure(new TimeoutException("Row group lease was finished while waiting for permit"));
+                    return;
+                }
+                async.onResponse(null);
+            }));
+        }
+
+        void fail(Exception e) {
+            pendingCompletions.add(() -> fork(() -> {
+                if (completed.compareAndSet(false, true)) {
+                    async.onFailure(e);
+                }
+            }));
+        }
+
+        private void fork(Runnable task) {
+            try {
+                executor.execute(task);
+            } catch (Exception e) {
+                if (completed.compareAndSet(false, true)) {
+                    async.onFailure(e);
+                }
+            }
         }
     }
 }

@@ -41,6 +41,7 @@ import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
+import org.elasticsearch.columnar.ColumnarStringAnyOfQuery;
 import org.elasticsearch.columnar.ColumnarStringRangeQuery;
 import org.elasticsearch.columnar.ColumnarStringTermQuery;
 import org.elasticsearch.columnar.ScanBudget;
@@ -64,6 +65,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.NavigableSet;
 
 /** The storage shapes a keyword column can take, and how each one answers a grouping pass. */
 public enum StringFormat {
@@ -395,6 +397,13 @@ public enum StringFormat {
         long queryPrefix(BytesRef prefix) throws IOException;
 
         /**
+         * Documents holding any of {@code terms}. On ColumNAR this uses {@code ColumnarStringAnyOfQuery}: a
+         * sorted column bisects each term to its own run of ranks, a dictionary column bisects the dictionary
+         * once per term, and a plain column compares bytes.
+         */
+        long queryTerms(NavigableSet<BytesRef> terms) throws IOException;
+
+        /**
          * Documents whose value falls in {@code [lower, upper]}, inclusive. On ColumNAR this uses
          * {@code ColumnarStringRangeQuery}: sorted columns bisect, dictionary columns bisect to ordinals,
          * and plain columns compare bytes.
@@ -460,6 +469,11 @@ public enum StringFormat {
                 directoryReader.leaves().get(0),
                 ColumnarStringTermQuery.prefix(FIELD, prefix, ScanBudget.UNLIMITED)
             );
+        }
+
+        @Override
+        public long queryTerms(NavigableSet<BytesRef> terms) throws IOException {
+            return bulkCount(searcher, directoryReader.leaves().get(0), new ColumnarStringAnyOfQuery(FIELD, terms, ScanBudget.UNLIMITED));
         }
 
         @Override
@@ -748,6 +762,21 @@ public enum StringFormat {
                 terms.add(BytesRef.deepCopyOf(term));
             }
             return terms.isEmpty() ? 0 : bulkCount(searcher, reader.leaves().get(0), SortedDocValuesField.newSlowSetQuery(FIELD, terms));
+        }
+
+        @Override
+        public long queryTerms(NavigableSet<BytesRef> terms) throws IOException {
+            if (format == ES819_BINARY) {
+                final BinaryDocValues values = leaf.getBinaryDocValues(FIELD);
+                long found = 0;
+                for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                    if (terms.contains(values.binaryValue())) {
+                        found++;
+                    }
+                }
+                return found;
+            }
+            return bulkCount(searcher, reader.leaves().get(0), SortedDocValuesField.newSlowSetQuery(FIELD, terms));
         }
 
         @Override

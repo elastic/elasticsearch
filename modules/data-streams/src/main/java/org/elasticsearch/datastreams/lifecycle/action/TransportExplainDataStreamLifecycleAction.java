@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
@@ -177,7 +176,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
                 + "] which has disabled data stream lifecycle.";
         }
         assert dlmOnly == false : "In DLM only mode, the only way an index is unmanaged is if the configuration is missing or is disabled.";
-        String ilmPolicy = Strings.hasText(indexMetadata.getLifecyclePolicyName()) ? indexMetadata.getLifecyclePolicyName() : null;
+        String ilmPolicy = indexMetadata.getLifecyclePolicyName();
         if (DataStream.lifecycleManagedBy(
             ilmPolicy,
             lifecycle,

@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.telemetry.metric.LongAsyncGauge;
+import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -38,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -339,12 +341,16 @@ public class MlConfigMetricsTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     private static Supplier<LongWithAttributes> captureLongGauge(MeterRegistry meterRegistry, String metricName) {
-        AtomicReference<Supplier<LongWithAttributes>> observer = new AtomicReference<>();
-        when(meterRegistry.registerLongAsyncGauge(eq(metricName), anyString(), anyString(), any(Supplier.class))).thenAnswer(invocation -> {
+        AtomicReference<Consumer<LongAsyncMeasurement>> observer = new AtomicReference<>();
+        when(meterRegistry.registerLongAsyncGauge(eq(metricName), anyString(), anyString(), any(Consumer.class))).thenAnswer(invocation -> {
             observer.set(invocation.getArgument(3));
             return mock(LongAsyncGauge.class);
         });
-        return () -> observer.get().get();
+        return () -> {
+            AtomicReference<LongWithAttributes> result = new AtomicReference<>();
+            observer.get().accept((value, attributes) -> result.set(new LongWithAttributes(value, attributes)));
+            return result.get();
+        };
     }
 
     @SuppressWarnings("unchecked")

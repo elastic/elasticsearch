@@ -1103,6 +1103,12 @@ public final class StreamingParallelParsingCoordinator {
                     // (clamp-to-object fill) still marks last=true. Without this, the next loop's
                     // empty read sets reachedEof after a last=false dispatch and stripe harvest
                     // stays PARTIAL_CHUNK, so warm COUNT(*) re-scans.
+                    //
+                    // Peek is on the decompressed segmentator stream, not a new range GET. Codecs
+                    // already buffer (gzip raw inflater 64 KiB). Uncompressed fill already pulled
+                    // chunkSize; the extra read() is EOF or a byte already on the HTTP buffer.
+                    // Do not wrap in BufferedInputStream / PushbackInputStream: abortStream requires
+                    // the exact opener instance (S3 Abortable, gzip DecompressedStream).
                     if (isEof == false) {
                         int peek = stream.read();
                         if (peek < 0) {

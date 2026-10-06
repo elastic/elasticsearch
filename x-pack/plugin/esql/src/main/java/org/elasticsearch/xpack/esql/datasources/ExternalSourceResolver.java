@@ -2627,7 +2627,7 @@ public class ExternalSourceResolver {
 
     /** What a gather is for. Who consumes the results decides whether every file must be read. */
     enum GatherPurpose {
-        /** Folds a cross-file aggregate and warms the schema cache. Nothing else reads the results. */
+        /** Folds a cross-file aggregate and warms the schema cache. No consumer needs every file's result. */
         STATS_AGGREGATE,
         /** The schema is the union of every file's, so union_by_name and strict need all of them. */
         SCHEMA_RECONCILIATION;
@@ -2651,7 +2651,7 @@ public class ExternalSourceResolver {
         return purpose.requiresEveryFile() == false
             && fold != null
             && fold.canStillProduceAnAggregate() == false
-            && (admission == null || admission.willRetainEntries() == false);
+            && (admission == null || admission.stillAdmitting() == false);
     }
 
     /**
@@ -2731,9 +2731,7 @@ public class ExternalSourceResolver {
                     }
                 }
                 if (fold != null) {
-                    synchronized (fold) {
-                        fold.accept(i, meta);
-                    }
+                    fold.accept(i, meta);
                 }
                 // slim does not touch fold state, so it stays outside the lock. Fold and slim the
                 // original metadata so its private schema list stays reachable for the planning
@@ -2927,8 +2925,8 @@ public class ExternalSourceResolver {
             this.fileCount = fileCount;
         }
 
-        /** Whether entries this fan-out reads will be kept. True until one is sized against the budget and refused. */
-        boolean willRetainEntries() {
+        /** Whether this fan-out is still admitting. True while undecided - it sizes on the first entry offered. */
+        boolean stillAdmitting() {
             synchronized (this) {
                 return refuse == false;
             }

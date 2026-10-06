@@ -1732,7 +1732,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
     /**
      * No row counts (the text shape) kills the fold on the first file, and a non-cacheable provider leaves
      * nothing to warm, so the gather drains. {@link #testFirstFileWinsEagerlyReadsFootersWhenStatsRequired}
-     * is the footer control at 4 reads on the same listing.
+     * is the footer control at 4 reads on the same listing. The direct executor makes this serial, so it pins
+     * the one-extra-read case; production dispatches up to DEFAULT_METADATA_READ_CONCURRENCY before the
+     * first result lands.
      */
     public void testStatsGatherStopsOnceTheFoldIsDeadAndNothingWillBeCached() throws Exception {
         AtomicInteger metadataReads = new AtomicInteger();

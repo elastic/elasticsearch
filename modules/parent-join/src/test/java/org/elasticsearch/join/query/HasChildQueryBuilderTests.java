@@ -14,9 +14,9 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
@@ -54,7 +54,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
@@ -343,9 +342,10 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         assertThat(booleanQuery.clauses().size(), equalTo(2));
         // check the inner ids query, we have to call rewrite to get to check the type it's executed against
         assertThat(booleanQuery.clauses().get(0).occur(), equalTo(BooleanClause.Occur.MUST));
-        assertThat(booleanQuery.clauses().get(0).query(), instanceOf(TermInSetQuery.class));
-        TermInSetQuery termsQuery = (TermInSetQuery) booleanQuery.clauses().get(0).query();
-        assertEquals(new TermInSetQuery(IdFieldMapper.NAME, List.of(Uid.encodeId(id))), termsQuery);
+        assertThat(
+            booleanQuery.clauses().get(0).query(),
+            equalTo(new ConstantScoreQuery(new TermQuery(new Term(IdFieldMapper.NAME, Uid.encodeId(id)))))
+        );
         // check the type filter
         assertThat(booleanQuery.clauses().get(1).occur(), equalTo(BooleanClause.Occur.FILTER));
         assertEquals(new TermQuery(new Term("join_field", type)), booleanQuery.clauses().get(1).query());

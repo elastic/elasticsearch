@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 151715
+summary: Avoid `TermInSetQuery` when querying a single `_id`
+type: bug

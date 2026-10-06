@@ -9,9 +9,11 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
@@ -46,8 +48,11 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
 
     @Override
     protected void doAssertLuceneQuery(IdsQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
-        if (queryBuilder.ids().size() == 0) {
+        if (queryBuilder.ids().isEmpty()) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
+        } else if (queryBuilder.ids().size() == 1) {
+            assertThat(query, instanceOf(ConstantScoreQuery.class));
+            assertThat(((ConstantScoreQuery) query).getQuery(), instanceOf(TermQuery.class));
         } else {
             assertThat(query, instanceOf(TermInSetQuery.class));
         }

@@ -410,9 +410,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             threadPool.executor(StatelessPlugin.TRANSLOG_THREAD_POOL)
         );
         this.uploadTaskRunner = new PrioritizedThrottledTaskRunner<>(
-            getClass().getSimpleName() + "#upload-task-runner",
+            "upload_task_runner",
             threadPool.info(StatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax(),
-            threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL)
+            threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL),
+            meterRegistry,
+            threadPool::relativeTimeInNanos
         );
         this.projectResolver = projectResolver;
         if (projectResolver.supportsMultipleProjects()) {

@@ -20,14 +20,16 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.snapshots.SnapshotEncryptedData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
 
 /**
  * Emits a Warning response header and log message when a snapshot is requested and the cluster
- * contains data encrypted under the project encryption key (PEK). That data is excluded from
- * snapshots until full snapshot/restore support for PEK-encrypted data is available, and must
- * be reconfigured after a restore.
+ * contains data encrypted under the project encryption key (PEK), and the snapshot encryption
+ * feature flag is disabled. When the feature flag is enabled, callers can supply
+ * {@code encrypted_data.password} to include PEK-encrypted data in the snapshot, so no warning
+ * is needed.
  */
 class SnapshotEncryptedDataWarningFilter implements MappedActionFilter {
 
@@ -63,7 +65,7 @@ class SnapshotEncryptedDataWarningFilter implements MappedActionFilter {
         ActionListener<Response> listener,
         ActionFilterChain<Request, Response> chain
     ) {
-        if (((CreateSnapshotRequest) request).includeGlobalState()) {
+        if (SnapshotEncryptedData.FEATURE_FLAG.isEnabled() == false && ((CreateSnapshotRequest) request).includeGlobalState()) {
             warnIfEncryptedDataPresent();
         }
         chain.proceed(task, action, request, listener);

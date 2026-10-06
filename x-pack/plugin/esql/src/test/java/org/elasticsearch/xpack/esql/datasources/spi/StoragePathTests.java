@@ -315,4 +315,27 @@ public class StoragePathTests extends ESTestCase {
         var e = expectThrows(IllegalArgumentException.class, () -> StoragePath.of("https://[::1]:notaport/path"));
         assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("Invalid port in location"));
     }
+
+    // -- static objectName(String) helper --
+
+    public void testStaticObjectNameReturnsLastSegment() {
+        assertEquals("events.parquet", StoragePath.objectName("s3://my-bucket/prefix/events.parquet"));
+        assertEquals("data.csv", StoragePath.objectName("https://host/a/b/data.csv"));
+    }
+
+    public void testStaticObjectNameFailsClosedOnTrailingSlash() {
+        // A trailing-slash path has no object name — must return "" not the full URI.
+        assertEquals("", StoragePath.objectName("s3://my-bucket/prefix/"));
+        assertEquals("", StoragePath.objectName("s3://my-bucket/"));
+    }
+
+    public void testStaticObjectNameFailsClosedOnParseFailure() {
+        // A malformed URI must return "" not the full string.
+        assertEquals("", StoragePath.objectName("arn:aws:s3:::my-bucket/key"));
+        assertEquals("", StoragePath.objectName("not-a-uri"));
+    }
+
+    public void testStaticObjectNameNullReturnsEmpty() {
+        assertEquals("", StoragePath.objectName(null));
+    }
 }

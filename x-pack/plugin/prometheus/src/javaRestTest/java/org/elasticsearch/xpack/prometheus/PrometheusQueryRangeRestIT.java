@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.prometheus;
 
 import org.apache.http.message.BasicNameValuePair;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -85,6 +86,20 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
             path.evaluate("data.result.0.values"),
             equalTo(List.of(List.of(1767225600.0, "3.14"), List.of(1767225660.0, "3.14"), List.of(1767225720.0, "3.14")))
         );
+    }
+
+    /** Prometheus rejects a string literal in a range query: "invalid expression type "string" for range query". */
+    public void testQueryRangeStringLiteralIsRejected() throws Exception {
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query_range",
+            new BasicNameValuePair("query", "\"a string\""),
+            new BasicNameValuePair("start", "2026-01-01T00:00:00Z"),
+            new BasicNameValuePair("end", "2026-01-01T00:02:00Z"),
+            new BasicNameValuePair("step", "60s")
+        );
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("for range query, must be Scalar or instant Vector"));
     }
 
     public void testQueryRangeWithIngestedData() throws Exception {
@@ -446,6 +461,24 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertBinopRangeGroups("sum by (host, __name__) (tx) / on (host) sum by (host, __name__) (rx)", "host", txRxRatios());
     }
 
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantEmptyLabelValueIsAbsent}. */
+    public void testRangeEmptyLabelValueIsAbsent() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        List<PromqlResponseSeries> counted = PromqlResponseSeries.ofRange(
+            executeBinopRangeQuery("count by (dst) (label_replace(tx, \"dst\", \"\", \"host\", \".*\"))")
+        );
+        assertThat(counted, hasSize(1));
+        assertThat(counted.getFirst().labels(), equalTo(Map.of()));
+        assertThat(counted.getFirst().value(), closeTo(3.0, 1e-10));
+        Map<String, Double> byHost = new HashMap<>();
+        for (PromqlResponseSeries series : PromqlResponseSeries.ofRange(
+            executeBinopRangeQuery("sum by (host) (label_replace(tx, \"host\", \"\", \"host\", \"a\"))")
+        )) {
+            assertNull("duplicate output group", byHost.put(series.labels().getOrDefault("host", "<absent>"), series.value()));
+        }
+        assertThat(byHost, equalTo(Map.of("<absent>", 10.0, "b", 30.0, "c", 12.0)));
+    }
+
     private ObjectPath executeBinopRangeQuery(String expression) throws IOException {
         Request request = prometheusReadRequest(
             "/_prometheus/api/v1/query_range",
@@ -494,4 +527,23 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertThat(error.getMessage(), containsString("duplicate"));
     }
 
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantWithoutOverAClosedBinaryOperator}. */
+    public void testRangeWithoutOverAClosedBinaryOperator() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeGroups(
+            "sum without (host) (sum by (host, cluster) (tx) / sum by (host, cluster) (rx))",
+            "cluster",
+            Map.of("prod", 15.0, "qa", 3.0)
+        );
+        assertBinopRangeValues("sum without (host, cluster) (sum by (host, cluster) (tx) / sum by (host, cluster) (rx))", 18);
+    }
+
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantFractionalKIsTruncated}. */
+    public void testRangeFractionalKIsTruncated() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeValues("topk(1.5, tx)", 30);
+        assertBinopRangeValues("bottomk(1.5, tx)", 10);
+        assertBinopRangeValues("topk(2.9, tx)", 30, 12);
+        assertBinopRangeValues("topk(0.5, tx)");
+    }
 }

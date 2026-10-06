@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.ml.action.datafeed.DatafeedEsqlGates;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.job.JobManager;
 
-import java.util.Optional;
 import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.core.Strings.format;
@@ -131,15 +130,16 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
         // same ES|QL gates up front, before the job is created.
         DatafeedConfig.Builder embeddedDatafeed = request.getJobBuilder().getDatafeedConfig();
         if (embeddedDatafeed != null) {
-            Optional<Exception> rejection = DatafeedEsqlGates.createRejection(
-                embeddedDatafeedId(request.getJobBuilder(), embeddedDatafeed),
-                embeddedDatafeed.minRequiredTransportVersion(),
-                embeddedDatafeed.getEsqlQuery() != null,
-                state,
-                esqlDatafeedsEnabled.getAsBoolean()
-            );
-            if (rejection.isPresent()) {
-                listener.onFailure(rejection.get());
+            try {
+                DatafeedEsqlGates.validateDatafeedCreate(
+                    embeddedDatafeedId(request.getJobBuilder(), embeddedDatafeed),
+                    embeddedDatafeed.minRequiredTransportVersion(),
+                    embeddedDatafeed.getEsqlQuery() != null,
+                    state,
+                    esqlDatafeedsEnabled.getAsBoolean()
+                );
+            } catch (ElasticsearchStatusException e) {
+                listener.onFailure(e);
                 return;
             }
         }
@@ -148,8 +148,11 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
                 listener.onResponse(jobCreated);
                 return;
             }
+            // The credential carried from the coordinating node is owned (and released) by the job request, which outlives this put.
+            PutDatafeedAction.Request datafeedRequest = new PutDatafeedAction.Request(jobCreated.getResponse().getDatafeedConfig().get());
+            datafeedRequest.setCloudCredential(request.getCloudCredential());
             datafeedManager.putDatafeed(
-                new PutDatafeedAction.Request(jobCreated.getResponse().getDatafeedConfig().get()),
+                datafeedRequest,
                 // Use newer state from cluster service as the job creation may have created shared indexes
                 clusterService.state(),
                 securityContext,
@@ -199,27 +202,32 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
 
     @Override
     protected void doExecute(Task task, PutJobAction.Request request, ActionListener<PutJobAction.Response> listener) {
+        final ActionListener<PutJobAction.Response> releasingListener = ActionListener.releaseAfter(listener, request);
         // Reject on the coordinating node, before sending an ES|QL datafeed to a master that predates it
         DatafeedConfig.Builder embeddedDatafeed = request.getJobBuilder().getDatafeedConfig();
         if (embeddedDatafeed != null) {
-            Optional<String> unsupportedReason = DatafeedEsqlGates.unsupportedReason(
-                embeddedDatafeed.minRequiredTransportVersion(),
-                clusterService.state()
-            );
-            if (unsupportedReason.isPresent()) {
-                listener.onFailure(
-                    DatafeedEsqlGates.unsupportedCreateException(
-                        embeddedDatafeedId(request.getJobBuilder(), embeddedDatafeed),
-                        unsupportedReason.get()
-                    )
+            try {
+                DatafeedEsqlGates.validateDatafeedCreate(
+                    embeddedDatafeedId(request.getJobBuilder(), embeddedDatafeed),
+                    embeddedDatafeed.minRequiredTransportVersion(),
+                    embeddedDatafeed.getEsqlQuery() != null,
+                    clusterService.state(),
+                    esqlDatafeedsEnabled.getAsBoolean()
                 );
+            } catch (ElasticsearchStatusException e) {
+                releasingListener.onFailure(e);
                 return;
             }
         }
         if (MachineLearningField.ML_API_FEATURE.check(licenseState)) {
-            super.doExecute(task, request, listener);
+            if (request.getJobBuilder().getDatafeedConfig() != null) {
+                // Transient headers do not serialize coordinator -> master, so the embedded datafeed's caller credential
+                // has to travel on the request, exactly as for the standalone put datafeed action.
+                datafeedManager.carryCallerCredential(threadPool, securityContext, request::setCloudCredential);
+            }
+            super.doExecute(task, request, releasingListener);
         } else {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
+            releasingListener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
         }
     }
 }

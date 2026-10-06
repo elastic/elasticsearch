@@ -159,7 +159,8 @@ public class Verifier {
 
         // collect plan checkers
         QueryPragmas pragmas = context.configuration() == null ? QueryPragmas.EMPTY : context.configuration().pragmas();
-        var planCheckers = planCheckers(plan, context.analysisRegistry(), pragmas, context.flags());
+        Consumer<String> warnings = context.deferredHeaderWarnings()::add;
+        var planCheckers = planCheckers(plan, context.analysisRegistry(), warnings, pragmas, context.flags());
         planCheckers.addAll(extraCheckers);
 
         // Concrete verifications
@@ -172,7 +173,7 @@ public class Verifier {
             planCheckers.forEach(c -> c.accept(p, failures));
             p.forEachExpression(e -> {
                 if (e instanceof PostAnalysisVerificationAware va) {
-                    va.postAnalysisVerification(context.analysisRegistry(), failures);
+                    va.postAnalysisVerification(context.analysisRegistry(), warnings, failures);
                 }
             });
 
@@ -350,6 +351,7 @@ public class Verifier {
     private static List<BiConsumer<LogicalPlan, Failures>> planCheckers(
         LogicalPlan plan,
         AnalysisRegistry analysisRegistry,
+        Consumer<String> warnings,
         QueryPragmas pragmas,
         EsqlFlags flags
     ) {
@@ -366,7 +368,7 @@ public class Verifier {
             if (p instanceof PostAnalysisVerificationAware va) {
                 planCheckers.add((lp, failures) -> {
                     if (lp.getClass().equals(va.getClass())) {
-                        va.postAnalysisVerification(analysisRegistry, failures);
+                        va.postAnalysisVerification(analysisRegistry, warnings, failures);
                     }
                 });
             }

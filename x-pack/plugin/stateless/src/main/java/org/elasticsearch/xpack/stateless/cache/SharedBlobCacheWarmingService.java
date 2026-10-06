@@ -464,7 +464,8 @@ public class SharedBlobCacheWarmingService {
         ThreadPool threadPool,
         TelemetryProvider telemetryProvider,
         ClusterSettings clusterSettings,
-        WarmingRatioProvider warmingRatioProvider
+        WarmingRatioProvider warmingRatioProvider,
+        SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
     ) {
         this.cacheService = cacheService;
         this.threadPool = threadPool;
@@ -587,11 +588,7 @@ public class SharedBlobCacheWarmingService {
             value -> this.prewarmIndexShardForIdLookupsEnabled = value
         );
         clusterSettings.initializeAndWatch(ID_LOOKUP_PREWARM_RATIO_SETTING, value -> this.idLookupPrewarmRatio = value);
-        this.searchRecoveryTimeoutCalculationService = new SearchRecoveryTimeoutCalculationService(
-            cacheService,
-            threadPool,
-            clusterSettings
-        );
+        this.searchRecoveryTimeoutCalculationService = searchRecoveryTimeoutCalculationService;
         clusterSettings.initializeAndWatch(
             WARM_BYTE_RANGE_PER_FILE_CONCURRENCY_SETTING,
             value -> this.warmByteRangePerFileConcurrency = value

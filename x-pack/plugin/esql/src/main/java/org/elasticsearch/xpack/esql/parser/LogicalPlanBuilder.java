@@ -1512,7 +1512,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         boolean derivedFields = fields.isEmpty() || fields.getFirst() instanceof UnresolvedStar;
         List<Attribute> generatedFields = derivedFields ? List.of() : Highlight.generatedAttributesFor(source, prefix, fields);
         return p -> applyHighlightOptions(
-            new Highlight(source, p, prefix, query, false, derivedFields, fields, null, generatedFields),
+            new Highlight(source, p, prefix, query, false, derivedFields, fields, null, generatedFields, null, Map.of()),
             ctx.commandNamedParameters()
         );
     }

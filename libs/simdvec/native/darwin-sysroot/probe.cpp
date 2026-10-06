@@ -12,7 +12,7 @@
  * The Darwin sysroot will include all of libc, libm, libpthread and libmalloc, but we
  * want to avoid bringing in all the xnu kernel headers too; therefore, it will be
  * the union of the system headers that the native libraries built with it actually
- * include (simdvec and simdjson today).
+ * include (simdvec, simdjson and blas today).
  *
  * assemble.sh compiles this program twice, both times with -fsyntax-only. First against the
  * full xnu staging tree, using the compiler's dependency output to compute the exact set of
@@ -37,6 +37,12 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <machine/endian.h>
+
+/* C headers used by libopenblas */
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <sys/sysctl.h>
+#include <sys/time.h>
 
 /* Target/builtin headers, supplied by the clang resource directory rather than the sysroot */
 #include <arm_neon.h>

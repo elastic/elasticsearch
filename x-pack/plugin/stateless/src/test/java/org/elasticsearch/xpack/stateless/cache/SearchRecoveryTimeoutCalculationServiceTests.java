@@ -624,6 +624,66 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         }
     }
 
+    /// A re-evaluation of an equal-share plan only hands out saved time, even when the data-volume heuristic would win: with 4 shards on
+    /// the source each was budgeted 2500ms of the 10s grace; 2000ms later the fresh share is 4000ms when two shards finished early (1500ms
+    /// saved) and 2000ms when none did (nothing saved), while the data-volume heuristic would give the whole remaining 8000ms.
+    public void testReevaluationOfEqualSharePlanUsesSavedTimeEvenIfDataVolumeWins() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            final Settings settings = Settings.builder()
+                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
+                .build();
+            // cacheSize=1000, default cacheRatio=0.5 -> warmingCacheBytes = 500, so totalBytesToWarm=500 -> dataVolume = remaining
+            final var service = newCalculationService(threadPool, settings, 1000L);
+            final long totalBytesToWarm = 500L;
+
+            final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
+            final long startedAtMillis = threadPool.absoluteTimeInMillis();
+            final var index = new Index("idx", randomUUID());
+            final String sourceNodeId = "source-node";
+            final String targetNodeId = "target-node";
+
+            final var previous = new SearchRecoveryTimeout(
+                TimeValue.timeValueMillis(2500),
+                TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE,
+                2500.0
+            );
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
+
+            final int shardsLeft = randomFrom(2, 4);
+            final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
+                shardsLeft,
+                1,
+                index,
+                sourceNodeId,
+                targetNodeId,
+                startedAtMillis
+            );
+            final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
+                .shardRoutingTable(new ShardId(index, 0))
+                .shardsWithState(RELOCATING)
+                .getFirst()
+                .getTargetRelocatingShard();
+
+            final var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), totalBytesToWarm, previous);
+            assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE_SAVED_TIME));
+            assertThat(plan.extendable(), is(true));
+            assertThat(plan.timeout().millis(), equalTo(shardsLeft == 2 ? 1500L : 0L));
+            assertThat(plan.perShardShareMs(), equalTo(8000.0 / shardsLeft));
+            assertThat(plan.shouldExtendAfter(previous), is(true));
+
+            // the first calculation of the shutdown phase still lets the data-volume heuristic win
+            final var firstPlan = service.searchRecoveryTimeout(state, mockIndexShard(self), totalBytesToWarm);
+            assertThat(firstPlan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME));
+        }
+    }
+
     public void testEqualShareTimeoutWinsWhenDataVolumeIsSmall() {
         try (
             var threadPool = new FakeTimeThreadPool(

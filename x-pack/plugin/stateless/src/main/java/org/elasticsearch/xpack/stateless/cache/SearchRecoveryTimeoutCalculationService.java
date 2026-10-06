@@ -231,8 +231,9 @@ public class SearchRecoveryTimeoutCalculationService {
     ///
     /// with `deadline = start + min(metadata grace, cap)`.
     ///
-    /// Only equal-share plans are [extendable][SearchRecoveryTimeout#extendable]. A re-evaluation of an equal-share plan (`previous`)
-    /// only extends the wait by the time saved since then, see [#searchRecoveryTimeout(ClusterState, IndexShard, long, SearchRecoveryTimeout)].
+    /// The heuristics above decide the first plan of the shutdown phase. Only equal-share plans are
+    /// [extendable][SearchRecoveryTimeout#extendable]. A re-evaluation of an equal-share plan (`previous`) always yields an equal-share plan
+    /// that only extends the wait by the time saved since then, regardless of which heuristic would win, see [#searchRecoveryTimeout(ClusterState, IndexShard, long, SearchRecoveryTimeout)].
     /// A data-volume plan is accepted as an extension only as the first plan after the source started shutting down, and is never
     /// extended itself, see [SearchRecoveryTimeout#shouldExtendAfter].
     private SearchRecoveryTimeout computeRelocationSourceShutdownWarmingTimeout(
@@ -273,6 +274,19 @@ public class SearchRecoveryTimeoutCalculationService {
             ongoingRelocations = 1;
         }
 
+        if (previous != null && previous.perShardShareMs() > 0) {
+            // Re-evaluation of an equal-share plan: every shard still on the source was already budgeted previous.perShardShareMs() when
+            // the previous plan was computed, so only the part of the fresh share above that is time saved by shards that finished early.
+            // When none did, the fresh share is not larger and there is nothing to extend by. The data-volume heuristic is deliberately
+            // not consulted: it only decides the first plan of the shutdown phase, afterwards only saved time is handed out.
+            final double savedPerShardMs = Math.max(0.0, equalShareMs - previous.perShardShareMs());
+            return new SearchRecoveryTimeout(
+                TimeValue.timeValueMillis(Math.round(Math.min(remaining, savedPerShardMs * ongoingRelocations))),
+                TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE_SAVED_TIME,
+                equalShareMs
+            );
+        }
+
         // The decision below is per-shard whereas the two heuristics above assume all shards opt with the same heuristic
         // this is an inherent problem of the fact that, during relocation, we don't know apriori all the shards that are going
         // to be relocated between two given nodes, so we can't know which of the two heuristics is more suitable overall.
@@ -282,17 +296,6 @@ public class SearchRecoveryTimeoutCalculationService {
             return new SearchRecoveryTimeout(
                 TimeValue.timeValueMillis(Math.round(Math.min(remaining, dataVolumeMs * ongoingRelocations))),
                 TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME
-            );
-        }
-        if (previous != null && previous.perShardShareMs() > 0) {
-            // Re-evaluation: every shard still on the source was already budgeted previous.perShardShareMs() when the previous plan was
-            // computed, so only the part of the fresh share above that is time saved by shards that finished early. When none did, the
-            // fresh share is not larger and there is nothing to extend by.
-            final double savedPerShardMs = Math.max(0.0, equalShareMs - previous.perShardShareMs());
-            return new SearchRecoveryTimeout(
-                TimeValue.timeValueMillis(Math.round(Math.min(remaining, savedPerShardMs * ongoingRelocations))),
-                TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE_SAVED_TIME,
-                equalShareMs
             );
         }
         return new SearchRecoveryTimeout(

@@ -97,7 +97,8 @@ public record SearchRecoveryTimeout(TimeValue timeout, TimeoutContext timeoutCon
         assert previous.extendable();
         return switch (timeoutContext) {
             // A full data-volume share is only handed out as the first plan once the source started shutting down. Within the shutdown
-            // phase only the time saved by shards that finished earlier than planned is handed out.
+            // phase only the time saved by shards that finished earlier than planned is handed out; the calculation service never
+            // produces a data-volume plan then, so this is a safeguard.
             case RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME -> previous.timeoutContext.sourceShuttingDown() == false;
             case RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT ->
                 previous.timeoutContext != TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT;

@@ -127,8 +127,41 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
             }
 
             @Override
+            public void addRuns(int positionOffset, IntVector groupIds) {
+                addRawInputRuns(groupIds);
+            }
+
+            @Override
             public void close() {}
         };
+    }
+
+    /**
+     * This method is called for count all, with group ids that arrive in runs. Counts a run once instead of
+     * each of its positions; a group that appears in several runs is counted by each of them.
+     */
+    private void addRawInputRuns(IntVector groups) {
+        final int positions = groups.getPositionCount();
+        if (positions == 0) {
+            return;
+        }
+        if (groups.isConstant()) {
+            accumulateCount(groups.getInt(0), positions);
+            return;
+        }
+        int runGroupId = groups.getInt(0);
+        int runLength = 1;
+        for (int groupPosition = 1; groupPosition < positions; groupPosition++) {
+            final int groupId = groups.getInt(groupPosition);
+            if (groupId == runGroupId) {
+                runLength++;
+            } else {
+                accumulateCount(runGroupId, runLength);
+                runGroupId = groupId;
+                runLength = 1;
+            }
+        }
+        accumulateCount(runGroupId, runLength);
     }
 
     private void addRawInput(int positionOffset, IntVector groups, Block values) {

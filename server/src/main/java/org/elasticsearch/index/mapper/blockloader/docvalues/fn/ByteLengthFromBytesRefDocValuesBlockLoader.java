@@ -10,14 +10,18 @@
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.BinaryAndCounts;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.BreakerPageBudget;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
 
@@ -67,7 +71,13 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
             );
             case PLAIN -> {
                 TrackingBinaryDocValues binary = TrackingBinaryDocValues.get(breaker, context, fieldName);
-                yield binary == null ? ConstantNull.COLUMN_READER : new SingleValued(binary);
+                if (binary == null) {
+                    yield ConstantNull.COLUMN_READER;
+                }
+                // A ColumNAR column keeps byte lengths apart from the values, so it can answer without reading them.
+                yield binary.docValues() instanceof StringColumnSource columnar
+                    ? new SingleValuedColumnar(binary, columnar)
+                    : new SingleValued(binary);
             }
         };
     }
@@ -138,6 +148,84 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
         @Override
         public String toString() {
             return "ByteLengthFromBytesRef.SingleValued";
+        }
+    }
+
+    /**
+     * {@link SingleValued} over a ColumNAR column. The column keeps each value's byte length apart from the value's bytes,
+     * so a page is resolved at once and answered from those lengths: no value is read, and none of the compressed chunks
+     * that hold the values is decompressed.
+     */
+    private static final class SingleValuedColumnar extends BlockDocValuesReader {
+        private final TrackingBinaryDocValues docValues;
+        private final StringColumnSource columnar;
+        private final int[] lengthScratch = new int[1];
+        private int[] wanted = new int[0];
+        private int[] counts = new int[0];
+        private int[] lengths = new int[0];
+        /**
+         * Charged before the column grows the page storage it resolves this reader's documents in, and released with
+         * this reader, since that storage lives as long as the reader does.
+         */
+        private final BreakerPageBudget budget;
+
+        SingleValuedColumnar(TrackingBinaryDocValues docValues, StringColumnSource columnar) {
+            super(null);
+            this.docValues = docValues;
+            this.columnar = columnar;
+            this.budget = new BreakerPageBudget(docValues.breaker());
+        }
+
+        @Override
+        public int docId() {
+            return docValues.docValues().docID();
+        }
+
+        @Override
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+            int count = docs.count() - offset;
+            if (count == 1) {
+                return readOne(factory, docs.get(offset));
+            }
+            if (wanted.length < count) {
+                int size = ArrayUtil.oversize(count, Integer.BYTES);
+                wanted = new int[size];
+                counts = new int[size];
+                lengths = new int[size];
+            }
+            for (int i = 0; i < count; i++) {
+                wanted[i] = docs.get(offset + i);
+            }
+            columnar.reader().readByteLengths(wanted, 0, count, counts, lengths, budget);
+            try (BlockLoader.IntBuilder builder = factory.ints(count)) {
+                for (int i = 0; i < count; i++) {
+                    // A single-valued column holds at most one value per document, so a count is zero or one.
+                    assert counts[i] <= 1 : "a single-valued column held [" + counts[i] + "] values in one document";
+                    if (counts[i] == 1) {
+                        builder.appendInt(lengths[i]);
+                    } else {
+                        builder.appendNull();
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        private BlockLoader.Block readOne(BlockFactory factory, int doc) throws IOException {
+            if (docValues.docValues().advanceExact(doc) && columnar.nonNullLength(lengthScratch) == 1) {
+                return factory.constantInt(lengthScratch[0], 1);
+            }
+            return factory.constantNulls(1);
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(budget, docValues);
+        }
+
+        @Override
+        public String toString() {
+            return "ByteLengthFromBytesRef.SingleValuedColumnar";
         }
     }
 

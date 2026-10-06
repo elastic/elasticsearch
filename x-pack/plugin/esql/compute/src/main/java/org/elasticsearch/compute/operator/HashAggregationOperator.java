@@ -547,6 +547,20 @@ public class HashAggregationOperator implements Operator {
                     end();
                 }
 
+                /**
+                 * The sort-aware hash calls this instead of {@link #add(int, IntVector)} when its group ids come in runs. Every
+                 * aggregator gets the same ids either way; the ones that can combine a run at a time do, the rest fall back to add.
+                 */
+                @Override
+                public void addRuns(int positionOffset, IntVector groupIds) {
+                    startAggEndHash();
+                    assert assertGroupAssignments(page, positionOffset, groupIds);
+                    for (GroupingAggregatorFunction.AddInput p : prepared) {
+                        p.addRuns(positionOffset, groupIds);
+                    }
+                    end();
+                }
+
                 private void startAggEndHash() {
                     aggStart = System.nanoTime();
                     hashNanos += aggStart - hashStart;

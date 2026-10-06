@@ -75,9 +75,14 @@ final class CompositeTopNBlockHash extends BlockHash {
 
         boolean success = false;
         try {
-            // Strip the topNDef annotations before passing to inner: PackedValuesBlockHash doesn't use them.
+            // Strip the topNDef annotations before passing to inner: PackedValuesBlockHash doesn't use them. The primarySorted
+            // flag is carried over unchanged, though only the single-key hashes ever act on it.
             List<BlockHash.GroupSpec> strippedGroups = groups.stream()
-                .map(g -> g.topNDef() == null ? g : new BlockHash.GroupSpec(g.channel(), g.elementType(), g.categorizeDef(), null))
+                .map(
+                    g -> g.topNDef() == null
+                        ? g
+                        : new BlockHash.GroupSpec(g.channel(), g.elementType(), g.categorizeDef(), null, g.primarySorted())
+                )
                 .toList();
             this.inner = new PackedValuesBlockHash(strippedGroups, blockFactory, emitBatchSize);
             if (primaryType == ElementType.LONG) {

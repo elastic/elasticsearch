@@ -217,8 +217,8 @@ public class CompositeTopNBlockHashTests extends BlockHashTestCase {
 
         BlockHash.TopNDef topNDef = new BlockHash.TopNDef(List.of(new BlockHash.SortKey(0, true, false)), limit);
         List<BlockHash.GroupSpec> topNGroupSpecs = List.of(
-            new BlockHash.GroupSpec(0, ElementType.LONG, null, topNDef),
-            new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+            new BlockHash.GroupSpec(0, ElementType.LONG, null, topNDef, false),
+            new BlockHash.GroupSpec(1, ElementType.LONG, null, null, false)
         );
         List<BlockHash.GroupSpec> plainGroupSpecs = List.of(
             new BlockHash.GroupSpec(0, ElementType.LONG),
@@ -270,8 +270,8 @@ public class CompositeTopNBlockHashTests extends BlockHashTestCase {
         assert numKeys == 2 : "only 2-key hashes supported in this test";
         BlockHash.TopNDef topNDef = new BlockHash.TopNDef(List.of(new BlockHash.SortKey(primaryGroupingIndex, asc, nullsFirst)), limit);
         List<BlockHash.GroupSpec> groups = List.of(
-            new BlockHash.GroupSpec(0, ElementType.LONG, null, topNDef),
-            new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+            new BlockHash.GroupSpec(0, ElementType.LONG, null, topNDef, false),
+            new BlockHash.GroupSpec(1, ElementType.LONG, null, null, false)
         );
         return new CompositeTopNBlockHash(groups, topNDef, blockFactory, PackedValuesBlockHash.DEFAULT_BATCH_SIZE);
     }
@@ -344,8 +344,8 @@ public class CompositeTopNBlockHashTests extends BlockHashTestCase {
     private BlockHash buildCompositeTopNHashBytesRefPrimary(boolean asc, boolean nullsFirst, int limit) {
         BlockHash.TopNDef topNDef = new BlockHash.TopNDef(List.of(new BlockHash.SortKey(0, asc, nullsFirst)), limit);
         List<BlockHash.GroupSpec> groups = List.of(
-            new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, topNDef),
-            new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+            new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, topNDef, false),
+            new BlockHash.GroupSpec(1, ElementType.LONG, null, null, false)
         );
         return new CompositeTopNBlockHash(groups, topNDef, blockFactory, PackedValuesBlockHash.DEFAULT_BATCH_SIZE);
     }

@@ -106,6 +106,20 @@ public interface GroupingAggregatorFunction extends Releasable {
          *                 or multivalued
          */
         void add(int positionOffset, IntVector groupIds);
+
+        /**
+         * Like {@link #add(int, IntVector)}, for group ids that arrive in runs: adjacent positions mostly share a
+         * group id, as they do when the grouping key is the field the index is sorted on. An implementation may
+         * then combine a whole run before touching the group's state once.
+         * <p>
+         *     This is a hint about the shape of the ids and never about their order: a group may appear in many
+         *     runs, in any order, and the result must equal what {@link #add(int, IntVector)} produces. The default
+         *     just delegates to it.
+         * </p>
+         */
+        default void addRuns(int positionOffset, IntVector groupIds) {
+            add(positionOffset, groupIds);
+        }
     }
 
     /**

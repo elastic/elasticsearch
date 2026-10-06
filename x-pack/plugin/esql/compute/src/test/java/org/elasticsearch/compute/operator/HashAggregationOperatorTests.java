@@ -147,7 +147,8 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
                         groupChannel,
                         ElementType.LONG,
                         null,
-                        new BlockHash.TopNDef(List.of(new BlockHash.SortKey(0, ascOrder, false)), 3)
+                        new BlockHash.TopNDef(List.of(new BlockHash.SortKey(0, ascOrder, false)), 3),
+                        false
                     )
                 )
             )
@@ -220,7 +221,8 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
                         groupChannel,
                         ElementType.LONG,
                         null,
-                        new BlockHash.TopNDef(List.of(new BlockHash.SortKey(0, ascOrder, true)), 3)
+                        new BlockHash.TopNDef(List.of(new BlockHash.SortKey(0, ascOrder, true)), 3),
+                        false
                     )
                 )
             )
@@ -302,7 +304,8 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
                         groupChannel,
                         ElementType.LONG,
                         null,
-                        new BlockHash.TopNDef(List.of(new BlockHash.SortKey(0, ascOrder, false)), 3)
+                        new BlockHash.TopNDef(List.of(new BlockHash.SortKey(0, ascOrder, false)), 3),
+                        false
                     )
                 )
             )

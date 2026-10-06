@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -91,6 +92,18 @@ public abstract class AbstractPhysicalOperationProviders {
 
     public AnalysisRegistry analysisRegistry() {
         return analysisRegistry;
+    }
+
+    /**
+     * Returns {@code true} when {@code fieldAttribute} is the sole grouping key of {@code aggregateExec} and is
+     * known to arrive already ordered by this field within each page (it is the primary {@code index.sort.field}
+     * of every shard contributing to this fragment, the aggregation reads raw rows directly from Lucene, and no
+     * competing {@code ORDER BY} was pushed down as a different Lucene sort). Letting the grouping hash reuse the
+     * previous row's group id for repeated adjacent values is only safe under these conditions. The base
+     * implementation returns {@code false}; only a shard-aware provider can determine this.
+     */
+    protected boolean isGroupKeyPrimarySortField(FieldAttribute fieldAttribute, AggregateExec aggregateExec) {
+        return false;
     }
 
     public final PhysicalOperation groupingPhysicalOperation(
@@ -180,7 +193,14 @@ public abstract class AbstractPhysicalOperationProviders {
                 }
                 layout.append(groupAttributeLayout);
                 Layout.ChannelAndType groupInput = source.layout.get(sourceGroupAttribute.id());
-                groupSpecs.add(new GroupSpec(groupInput == null ? null : groupInput.channel(), sourceGroupAttribute, group, pushedTopN));
+                // The sort-aware hash only handles a lone key that is a bare field: an expression over the field, or one key of
+                // several, no longer arrives next to its equal values even when the field itself is the index sort.
+                boolean primarySorted = aggregateExec.groupings().size() == 1
+                    && group instanceof FieldAttribute fieldAttribute
+                    && isGroupKeyPrimarySortField(fieldAttribute, aggregateExec);
+                groupSpecs.add(
+                    new GroupSpec(groupInput == null ? null : groupInput.channel(), sourceGroupAttribute, group, pushedTopN, primarySorted)
+                );
             }
 
             if (aggregatorMode.isOutputPartial()) {
@@ -448,8 +468,16 @@ public abstract class AbstractPhysicalOperationProviders {
      * @param channel The source channel of this group
      * @param attribute The attribute, source of this group
      * @param expression The expression being used to group
+     * @param primarySorted Whether this group's single key is the shard's primary index sort field,
+     *                      letting the hash reuse the previous row's group id for repeated adjacent values
      */
-    private record GroupSpec(Integer channel, Attribute attribute, Expression expression, @Nullable BlockHash.TopNDef topNDef) {
+    private record GroupSpec(
+        Integer channel,
+        Attribute attribute,
+        Expression expression,
+        @Nullable BlockHash.TopNDef topNDef,
+        boolean primarySorted
+    ) {
         BlockHash.GroupSpec toHashGroupSpec() {
             if (channel == null) {
                 throw new EsqlIllegalArgumentException("planned to use ordinals but tried to use the hash instead");
@@ -458,7 +486,8 @@ public abstract class AbstractPhysicalOperationProviders {
                 channel,
                 elementType(),
                 Alias.unwrap(expression) instanceof Categorize categorize ? categorize.categorizeDef() : null,
-                topNDef
+                topNDef,
+                primarySorted
             );
         }
 

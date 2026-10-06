@@ -56,14 +56,27 @@ final class LongBlockHash extends PartitionedBlockHash {
      */
     private boolean seenNull;
 
+    /**
+     * When {@code true}, the input to {@link #add(LongVector)} is known to arrive from Lucene already
+     * ordered by this field (it is the shard's primary {@code index.sort.field}), so adjacent rows within
+     * a page sharing the same value are guaranteed to belong to the same group. This lets us skip the
+     * hash computation/probe for repeated values, reusing the previous row's group id instead.
+     */
+    private final boolean primarySorted;
+
     private static final int PREFETCH_BATCH = 128;
     private final PrefetchBarrier prefetchBarrier = new PrefetchBarrier();
     private final int[] batchHashes = new int[PREFETCH_BATCH];
 
-    LongBlockHash(int channel, BlockFactory blockFactory) {
+    LongBlockHash(int channel, BlockFactory blockFactory, boolean primarySorted) {
         super(blockFactory);
         this.channel = channel;
         this.hash = HashImplFactory.newLongHash(blockFactory);
+        this.primarySorted = primarySorted;
+    }
+
+    LongBlockHash(int channel, BlockFactory blockFactory) {
+        this(channel, blockFactory, false);
     }
 
     @Override
@@ -86,7 +99,11 @@ final class LongBlockHash extends PartitionedBlockHash {
             return;
         }
         try (IntVector groupIds = add(vector)) {
-            addInput.add(0, groupIds);
+            if (primarySorted) {
+                addInput.addRuns(0, groupIds);
+            } else {
+                addInput.add(0, groupIds);
+            }
         }
     }
 
@@ -94,6 +111,9 @@ final class LongBlockHash extends PartitionedBlockHash {
      *  Adds the vector values to the hash, and returns a new vector with the group IDs for those positions.
      */
     IntVector add(LongVector vector) {
+        if (primarySorted) {
+            return addSorted(vector);
+        }
         if (hash instanceof LongSwissHash swiss && swiss.shouldPrefetch()) {
             return addWithPrefetch(vector, swiss);
         }
@@ -102,6 +122,31 @@ final class LongBlockHash extends PartitionedBlockHash {
             for (int i = 0; i < positions; i++) {
                 long v = vector.getLong(i);
                 builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(hash.add(v))));
+            }
+            return builder.build();
+        }
+    }
+
+    /**
+     * Fast path for {@link #add(LongVector)} used when {@link #primarySorted} is {@code true}. Rows
+     * sharing the same value as the immediately preceding row in this page reuse that row's group id
+     * instead of hashing and probing the hash table again.
+     */
+    private IntVector addSorted(LongVector vector) {
+        int positions = vector.getPositionCount();
+        try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
+            if (positions > 0) {
+                long prevValue = vector.getLong(0);
+                int prevGroupId = Math.toIntExact(hashOrdToGroupNullReserved(hash.add(prevValue)));
+                builder.appendInt(prevGroupId);
+                for (int i = 1; i < positions; i++) {
+                    long v = vector.getLong(i);
+                    if (v != prevValue) {
+                        prevGroupId = Math.toIntExact(hashOrdToGroupNullReserved(hash.add(v)));
+                        prevValue = v;
+                    }
+                    builder.appendInt(prevGroupId);
+                }
             }
             return builder.build();
         }

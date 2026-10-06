@@ -16,6 +16,7 @@ import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexWriter;
@@ -26,7 +27,10 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
+import org.elasticsearch.columnar.string.DictionaryStringColumnReader;
+import org.elasticsearch.columnar.string.PlainStringColumnReader;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
+import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -50,6 +54,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -322,6 +327,130 @@ public class ColumnarKeywordFunctionTests extends ESTestCase {
                 assertEquals("position " + i + " (document " + wanted[i] + ")", expected, block.get(i));
             }
         });
+    }
+
+    /**
+     * BYTE_LENGTH over a plain single-valued column, as a URL column is: values that mostly differ, so no dictionary
+     * pays, with documents lacking the field, empty values, and runs of one value, which the column stores as repeats.
+     */
+    public void testSingleValuedByteLengthOfPlainColumn() throws IOException {
+        final String[] values = new String[between(400, 1200)];
+        for (int d = 0; d < values.length; d++) {
+            values[d] = switch (random().nextInt(6)) {
+                case 0 -> null;
+                case 1 -> "";
+                case 2 -> d > 0 && values[d - 1] != null ? values[d - 1] : "run";
+                default -> randomRealisticUnicodeOfLengthBetween(1, 60);
+            };
+        }
+        assertSingleValuedByteLengths(values, PlainStringColumnReader.class);
+    }
+
+    /**
+     * BYTE_LENGTH over a single-valued column that names its repeated values by ordinal: most values are terms, whose
+     * lengths the dictionary holds, and a few escape it and are measured where they are stored. Nulls take no ordinal
+     * of a term.
+     */
+    public void testSingleValuedByteLengthOfDictionaryColumn() throws IOException {
+        final String[] terms = { "a", "bb", "ccc", "", "éè", "term-with-a-longer-value" };
+        final String[] values = new String[between(2000, 4000)];
+        for (int d = 0; d < values.length; d++) {
+            final int roll = random().nextInt(100);
+            values[d] = roll < 5 ? null : roll < 7 ? randomAlphaOfLengthBetween(1, 30) : terms[random().nextInt(terms.length)];
+        }
+        assertSingleValuedByteLengths(values, DictionaryStringColumnReader.class);
+    }
+
+    /** BYTE_LENGTH over a column whose values all have one length, which stores no lengths and answers from that one. */
+    public void testSingleValuedByteLengthOfOneLengthColumn() throws IOException {
+        final String[] values = new String[between(200, 800)];
+        for (int d = 0; d < values.length; d++) {
+            values[d] = randomAlphaOfLength(3);
+        }
+        assertSingleValuedByteLengths(values, PlainStringColumnReader.class);
+    }
+
+    /**
+     * Reads the BYTE_LENGTH of a {@code multi_value: false} column through the columnar reader in pages of several sizes,
+     * and in a page naming documents more than once, against the lengths of the values written. A null is a document
+     * without the field.
+     */
+    private void assertSingleValuedByteLengths(String[] values, Class<? extends StringColumnReader> layout) throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec()))) {
+                for (String value : values) {
+                    final Document doc = new Document();
+                    if (value != null) {
+                        doc.add(new SingleValuedColumnarBinaryDocValuesField(FIELD, new BytesRef(value)));
+                    }
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                final LeafReaderContext leaf = reader.leaves().get(0);
+                final BinaryDocValues binary = leaf.reader().getBinaryDocValues(FIELD);
+                assertThat("the field is a column", binary, instanceOf(StringColumnSource.class));
+                assertThat("the layout the test is about", ((StringColumnSource) binary).reader(), instanceOf(layout));
+
+                final var loader = new ByteLengthFromBytesRefDocValuesBlockLoader(new MockWarnings(), FIELD, BinaryDocValuesFormat.PLAIN);
+                try (var columnReader = loader.reader(NOOP, leaf)) {
+                    assertThat(columnReader, hasToString("ByteLengthFromBytesRef.SingleValuedColumnar"));
+                }
+                for (int page : new int[] { 1, 2, 7, 128, values.length }) {
+                    for (int from = 0; from < values.length; from += page) {
+                        final int count = Math.min(page, values.length - from);
+                        try (var columnReader = loader.reader(NOOP, leaf)) {
+                            final TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), docs(from, count), 0, false);
+                            assertEquals("positions at " + from + " in pages of " + page, count, block.size());
+                            for (int i = 0; i < count; i++) {
+                                assertEquals(
+                                    "page of " + page + " document " + (from + i),
+                                    byteLengthOrNull(values[from + i]),
+                                    block.get(i)
+                                );
+                            }
+                        }
+                    }
+                }
+
+                final List<Integer> repeated = new ArrayList<>();
+                for (int d = 0; d < values.length; d++) {
+                    repeated.add(d);
+                    if (random().nextBoolean()) {
+                        repeated.add(d);
+                    }
+                }
+                final int[] wanted = repeated.stream().mapToInt(Integer::intValue).toArray();
+                final BlockLoader.Docs asked = new BlockLoader.Docs() {
+                    @Override
+                    public int count() {
+                        return wanted.length;
+                    }
+
+                    @Override
+                    public int get(int i) {
+                        return wanted[i];
+                    }
+
+                    @Override
+                    public boolean mayContainDuplicates() {
+                        return true;
+                    }
+                };
+                try (var columnReader = loader.reader(NOOP, leaf)) {
+                    final TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), asked, 0, false);
+                    assertEquals("positions", wanted.length, block.size());
+                    for (int i = 0; i < wanted.length; i++) {
+                        assertEquals("position " + i + " (document " + wanted[i] + ")", byteLengthOrNull(values[wanted[i]]), block.get(i));
+                    }
+                }
+            }
+        }
+    }
+
+    private static Integer byteLengthOrNull(String value) {
+        return value == null ? null : new BytesRef(value).length;
     }
 
     /** Indexes {@code docs} as one columnar segment and hands the BYTE_LENGTH loader and the leaf to {@code check}. */

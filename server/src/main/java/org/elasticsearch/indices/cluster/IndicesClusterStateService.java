@@ -963,7 +963,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         if (Boolean.TRUE.equals(success)) {
                             logger.debug("{} created shard with primary term [{}]", shardId, primaryTerm);
                             // Shard was created with the localRecoveryRetries; drop context.
-                            retryingShards.remove(shardId);
+                            retryingShards.remove(shardId, retryContext);
                         } else {
                             // Gave up while creating shard (e.g. Lock-wait gave up due to UUID mismatch).
                             // Keep retry marker so a fresher CS/retry create still sees localRecoveryRetries.

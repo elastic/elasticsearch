@@ -79,8 +79,9 @@ class TopHitsAggregator extends MetricsAggregator {
     // this must be mutable so it can be closed/replaced on each call to getLeafCollector
     private LongObjectPagedHashMap<LeafCollector> leafCollectors;
     private final boolean isNested;
-    private SearchExecutionContext forkedSearchExecutionContext;
-    private InnerHitsContext forkedInnerHitsContext;
+    private final SearchExecutionContext forkedSearchExecutionContext;
+    private final InnerHitsContext forkedInnerHitsContext;
+    // only ever written under Assertions.ENABLED, from runFetchPhase
     private Thread fetchThread;
 
     TopHitsAggregator(
@@ -96,6 +97,23 @@ class TopHitsAggregator extends MetricsAggregator {
         this.topDocsCollectors = new LongObjectPagedHashMap<>(1, bigArrays);
         this.fetchProfiles = context.profiling() ? new ArrayList<>() : null;
         this.isNested = isNestedAggregationContext(parent);
+        // Fork the search execution context, because the fetch phase does not support concurrent execution yet. One fork per
+        // aggregator is enough: each slice gets its own aggregator and its buckets are fetched sequentially. Forking per bucket
+        // instead pinned a SearchExecutionContext, and the stored fields its lookup provider had loaded, for every bucket until
+        // the query context closed.
+        this.forkedSearchExecutionContext = new SearchExecutionContext(subSearchContext.getSearchExecutionContext());
+        // When top_hits aggregation is inside a nested aggregation, do not inherit inner_hits from parent query.
+        // Query-level inner_hits operate at parent document scope, while nested aggregation top_hits operate
+        // at nested document scope within buckets. Inheriting inner_hits causes conflicting fetch contexts
+        // and fails when extracting nested documents by offset.
+        if (isNested) {
+            this.forkedInnerHitsContext = new InnerHitsContext();
+        } else {
+            // InnerHitSubContext is not thread-safe, so we fork it as well to support concurrent execution
+            this.forkedInnerHitsContext = new InnerHitsContext(
+                getForkedInnerHits(subSearchContext.innerHits().getInnerHits(), forkedSearchExecutionContext)
+            );
+        }
     }
 
     @Override
@@ -238,59 +256,29 @@ class TopHitsAggregator extends MetricsAggregator {
     }
 
     private FetchSearchResult runFetchPhase(int[] docIdsToLoad, IntConsumer memoryChecker) {
-        forkFetchContextsIfNeeded();
-        final SearchExecutionContext searchExecutionContext = this.forkedSearchExecutionContext;
-        final InnerHitsContext innerHitsContext = this.forkedInnerHitsContext;
+        if (Assertions.ENABLED) {
+            // All buckets share the forked contexts, so they must all be fetched on one thread.
+            if (fetchThread == null) {
+                fetchThread = Thread.currentThread();
+            }
+            assert fetchThread == Thread.currentThread()
+                : "forked fetch context shared across threads [" + fetchThread + "] and [" + Thread.currentThread() + "]";
+        }
         // Stays per bucket: it owns the FetchSearchResult the bucket's hits are published through.
         SubSearchContext fetchSubSearchContext = new SubSearchContext(subSearchContext) {
             @Override
             public SearchExecutionContext getSearchExecutionContext() {
-                return searchExecutionContext;
+                return forkedSearchExecutionContext;
             }
 
             @Override
             public InnerHitsContext innerHits() {
-                return innerHitsContext;
+                return forkedInnerHitsContext;
             }
         };
 
         fetchSubSearchContext.fetchPhase().execute(fetchSubSearchContext, docIdsToLoad, null, memoryChecker);
         return fetchSubSearchContext.fetchResult();
-    }
-
-    /**
-     * Forks the fetch contexts once per aggregator instead of once per bucket. Buckets are fetched
-     * sequentially, and forking per bucket pinned a {@link SearchExecutionContext}, and the stored
-     * fields its lookup provider had loaded, for every bucket until the query context closed.
-     */
-    private void forkFetchContextsIfNeeded() {
-        if (forkedSearchExecutionContext != null) {
-            // Sharing the forked contexts is only safe while buckets are fetched sequentially on one thread, which
-            // post collection requires anyway because Lucene does not allow reading doc values from another thread.
-            assert fetchThread == Thread.currentThread()
-                : "forked fetch context shared across threads [" + fetchThread + "] and [" + Thread.currentThread() + "]";
-            return;
-        }
-        // Fork the search execution context for each slice, because the fetch phase does not support concurrent execution yet.
-        SearchExecutionContext searchExecutionContext = new SearchExecutionContext(subSearchContext.getSearchExecutionContext());
-        InnerHitsContext innerHitsContext;
-        // When top_hits aggregation is inside a nested aggregation, do not inherit inner_hits from parent query.
-        // Query-level inner_hits operate at parent document scope, while nested aggregation top_hits operate
-        // at nested document scope within buckets. Inheriting inner_hits causes conflicting fetch contexts
-        // and fails when extracting nested documents by offset.
-        if (isNested) {
-            innerHitsContext = new InnerHitsContext();
-        } else {
-            // InnerHitSubContext is not thread-safe, so we fork it as well to support concurrent execution
-            innerHitsContext = new InnerHitsContext(
-                getForkedInnerHits(subSearchContext.innerHits().getInnerHits(), searchExecutionContext)
-            );
-        }
-        if (Assertions.ENABLED) {
-            fetchThread = Thread.currentThread();
-        }
-        forkedInnerHitsContext = innerHitsContext;
-        forkedSearchExecutionContext = searchExecutionContext;
     }
 
     /**

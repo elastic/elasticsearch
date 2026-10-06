@@ -283,8 +283,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             final long endSeqNo = startSeqNo + operationCount - 1;
             minSeqNo = SequenceNumbers.min(minSeqNo, startSeqNo);
             maxSeqNo = SequenceNumbers.max(maxSeqNo, endSeqNo);
-            for (long seqNo = startSeqNo; seqNo <= endSeqNo; seqNo++) {
-                nonFsyncedSequenceNumbers.add(seqNo);
+            // iterate by count: an inclusive bound would wrap when endSeqNo is Long.MAX_VALUE and never terminate
+            for (int k = 0; k < operationCount; k++) {
+                nonFsyncedSequenceNumbers.add(startSeqNo + k);
             }
 
             operationCounter += operationCount;

@@ -784,7 +784,9 @@ public final class IndexOperationBatch {
 
             // assert that the same row is not marked as both noop and preflight error.
             assert noOps == null || assertDisjoint(noOps.rows(), preflightRows);
-            assert docCount - (preflightRows == null ? 0 : preflightRows.length) > 0 : "a batch must contain at least one replayable row";
+            if (docCount - (preflightRows == null ? 0 : preflightRows.length) <= 0) {
+                throw new IllegalArgumentException("a batch must contain at least one replayable row");
+            }
 
             // assert that startSeqNo + docCount doesn't wrap
             assert startSeqNo >= 0 : "startSeqNo [" + startSeqNo + "] must be non-negative";

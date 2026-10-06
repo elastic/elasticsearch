@@ -102,6 +102,32 @@ public class NodeTranslogBufferTests extends ESTestCase {
         assertThat(syncMarker.location(), equalTo(new Translog.Location(0, operation.length(), 0)));
     }
 
+    public void testWriteToBufferWithMaxSeqNo() throws IOException {
+        // Long.MAX_VALUE is a legal seqNo. The buffer expands the record's seqNo range into its per-seqNo
+        // list; an inclusive loop bound would wrap past Long.MAX_VALUE and never terminate.
+        ShardSyncState shardSyncState = mock(ShardSyncState.class);
+        ShardId shardId = new ShardId("test1", "_na_", 0);
+        when(shardSyncState.getShardId()).thenReturn(shardId);
+        when(shardSyncState.createDirectory(1, 1)).thenReturn(new TranslogMetadata.Directory(0, new int[0]));
+
+        NodeTranslogBuffer translogBuffer = new NodeTranslogBuffer(BigArrays.NON_RECYCLING_INSTANCE, 1000);
+        Translog.Serialized operation = serialized(new byte[40]);
+        assertTrue(
+            translogBuffer.writeToBuffer(
+                shardSyncState,
+                operation,
+                Long.MAX_VALUE,
+                Long.MAX_VALUE,
+                new Translog.Location(0, 0, operation.length())
+            )
+        );
+
+        TranslogReplicator.CompoundTranslog translog = translogBuffer.complete(1, Set.of(shardSyncState));
+        assertThat(translog.metadata().totalOps().get(shardId), equalTo(1L));
+        ShardSyncState.SyncMarker syncMarker = translog.metadata().syncedLocations().get(shardId);
+        assertThat(syncMarker.syncedSeqNos(), equalTo(LongArrayList.from(Long.MAX_VALUE)));
+    }
+
     public void testBatchCountsTowardsFlushSizeThreshold() throws IOException {
         NodeTranslogBuffer translogBuffer = new NodeTranslogBuffer(BigArrays.NON_RECYCLING_INSTANCE, 50);
         Translog.Serialized operation = serialized(new byte[60]);

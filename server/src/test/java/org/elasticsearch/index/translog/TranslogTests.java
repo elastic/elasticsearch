@@ -1328,6 +1328,23 @@ public class TranslogTests extends ESTestCase {
         translog.close();
     }
 
+    public void testAddOperationWithMaxSeqNo() throws IOException {
+        // Long.MAX_VALUE is a legal seqNo: generateSeqNo has no upper bound, and randomNonNegativeLong() in
+        // testTranslogWriter can produce it. The writer walks the record's seqNo range to track the
+        // non-fsynced seqNos; an inclusive loop bound would wrap past Long.MAX_VALUE and never terminate.
+        final Set<Long> persistedSeqNos = new HashSet<>();
+        persistedSeqNoConsumer.set(longsRefConsumer(persistedSeqNos::add));
+        final Translog.NoOp noOp = new Translog.NoOp(Long.MAX_VALUE, primaryTerm.get(), "max seqNo");
+        translog.add(noOp);
+        translog.sync();
+        assertThat(persistedSeqNos, contains(Long.MAX_VALUE));
+        assertThat(translog.getMaxSeqNo(), equalTo(Long.MAX_VALUE));
+        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+            assertThat(snapshot.next(), equalTo(noOp));
+            assertNull(snapshot.next());
+        }
+    }
+
     public void testTranslogWriter() throws IOException {
         final TranslogWriter writer = translog.createWriter(translog.currentFileGeneration() + 1);
         final Set<Long> persistedSeqNos = new HashSet<>();

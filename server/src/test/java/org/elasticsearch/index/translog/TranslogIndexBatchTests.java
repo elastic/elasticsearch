@@ -865,8 +865,34 @@ public class TranslogIndexBatchTests extends ESTestCase {
     public void testConstructorRejectsAllSkippedRows() throws IOException {
         final BytesReference batchData = encodeBatchData(List.of(new BytesArray("{\"k\":\"v0\"}"), new BytesArray("{\"k\":\"v1\"}")));
         final RecordBuilder builder = new RecordBuilder(2);
-        final AssertionError ex = expectThrows(AssertionError.class, () -> builder.build(primaryTerm.get(), batchData));
+        final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> builder.build(primaryTerm.get(), batchData));
         assertTrue("unexpected exception message: " + ex.getMessage(), ex.getMessage().contains("at least one replayable row"));
+    }
+
+    public void testReadFromRejectsRecordWithoutReplayableRows() throws IOException {
+        // The constructor refuses an all-preflight record, so the only way one reaches readFrom is
+        // corrupt or crafted bytes. The reader must reject it rather than hand back a record that
+        // replays nothing and reports an inverted seqNo range to the writer and its listeners.
+        final BytesReference batchData = encodeBatchData(List.of(new BytesArray("{\"k\":\"v0\"}"), new BytesArray("{\"k\":\"v1\"}")));
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeVInt(IndexOperationBatch.TranslogRecord.EXPERIMENTAL_PRE_RELEASE);
+            out.writeLong(primaryTerm.get());
+            out.writeVInt(2); // docCount
+            out.writeVLong(0L); // startSeqNo
+            out.writeBoolean(false); // no no-op rows
+            out.writeBoolean(true); // preflight rows: every row
+            out.writeVInt(2);
+            out.writeVInt(0);
+            out.writeVInt(1);
+            // no per-row metadata follows: no row is indexed
+            out.writeBoolean(false); // no routings
+            out.writeVInt(batchData.length());
+            batchData.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                final IOException ex = expectThrows(IOException.class, () -> IndexOperationBatch.TranslogRecord.readFrom(in));
+                assertTrue("unexpected exception message: " + ex.getMessage(), ex.getMessage().contains("at least one replayable row"));
+            }
+        }
     }
 
     public void testWireFormatRoundTripWithNullRoutingsAndNoOps() throws IOException {

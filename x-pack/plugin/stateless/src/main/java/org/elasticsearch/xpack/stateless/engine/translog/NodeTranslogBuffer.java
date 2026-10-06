@@ -237,13 +237,15 @@ public class NodeTranslogBuffer implements Releasable {
             throws IOException {
             operation.writeToTranslogBuffer(buffer);
             // the record's range is contiguous, so expanding it loses nothing; the per-seqNo list
-            // is retained because the post-upload persisted-seqNo notification consumes it
-            for (long seqNo = recordMinSeqNo; seqNo <= recordMaxSeqNo; seqNo++) {
-                this.seqNos.add(seqNo);
+            // is retained because the post-upload persisted-seqNo notification consumes it. Iterate by
+            // count: an inclusive bound would wrap when recordMaxSeqNo is Long.MAX_VALUE and never terminate.
+            final long recordOps = recordMaxSeqNo - recordMinSeqNo + 1;
+            for (long k = 0; k < recordOps; k++) {
+                this.seqNos.add(recordMinSeqNo + k);
             }
             this.minSeqNo = SequenceNumbers.min(this.minSeqNo, recordMinSeqNo);
             this.maxSeqNo = SequenceNumbers.max(this.maxSeqNo, recordMaxSeqNo);
-            totalOps += recordMaxSeqNo - recordMinSeqNo + 1;
+            totalOps += recordOps;
             this.location = location;
         }
 

@@ -85,6 +85,12 @@ echo "== Libm =="
 install -m 644 "$LIBM_SRC/Source/ARM/math.h" "$INC/math.h"
 install -m 644 "$LIBM_SRC/Source/ARM/fenv.h" "$INC/fenv.h"
 install -m 644 "$LIBM_SRC/Source/complex.h" "$INC/complex.h"
+# complex.h predates arm64 and hits "#error Unknown Architecture" there, as only 32-bit arm is
+# listed. arm64 takes the arm branch: the SDK's complex.h declares the long double functions
+# without symbol aliasing, which is what that branch does.
+sed -i 's/^#elif defined(__arm__)$/#elif defined(__arm__) || defined(__arm64__)/' "$INC/complex.h"
+grep -q 'defined(__arm64__)' "$INC/complex.h" \
+    || { echo "FAILED: could not add arm64 to complex.h"; exit 1; }
 
 echo "== libpthread =="
 mkdir -p "$INC/pthread" "$INC/sys/_pthread"
@@ -231,6 +237,32 @@ for header in _types.h _limits.h _param.h signal.h; do
     } > "$STAGE/arm/$header.derived"
     mv "$STAGE/arm/$header.derived" "$STAGE/arm/$header"
 done
+
+echo "== resolving platform and kernel conditionals, as xnu's header install does =="
+# xnu's headers are not usable as checked in: settings such as __DARWIN_ONLY_UNIX_CONFORMANCE
+# in sys/cdefs.h sit under #ifdef XNU_PLATFORM_MacOSX, which xnu's own install resolves with
+# unifdef. Left undefined, the arm64 symbol variants fall back to the legacy i386 ones
+# (mmap$UNIX2003, ...), which macOS arm64 does not export, so a library calling them links
+# but fails to load. These are the SINCFRAME_UNIFDEF flags that makedefs/MakeInc.def applies
+# to the public SDK headers for PLATFORM=MacOSX; unifdef exits 2 on a parse failure.
+XNU_UNIFDEF_FLAGS=(
+    -DXNU_PLATFORM_MacOSX
+    -UXNU_PLATFORM_DriverKit -UXNU_PLATFORM_ExclaveKit -UXNU_PLATFORM_ExclaveCore
+    -UXNU_PLATFORM_iPhoneSimulator -UXNU_PLATFORM_iPhoneNanoSimulator -UXNU_PLATFORM_tvSimulator
+    -UXNU_PLATFORM_AppleTVSimulator -UXNU_PLATFORM_WatchSimulator
+    -UXNU_PLATFORM_iPhoneOS -UXNU_PLATFORM_iPhoneOSNano -UXNU_PLATFORM_tvOS
+    -UXNU_PLATFORM_AppleTVOS -UXNU_PLATFORM_WatchOS -UXNU_PLATFORM_BridgeOS
+    -UMACH_KERNEL_PRIVATE -UBSD_KERNEL_PRIVATE -UIOKIT_KERNEL_PRIVATE -ULIBKERN_KERNEL_PRIVATE
+    -ULIBSA_KERNEL_PRIVATE -UPEXPERT_KERNEL_PRIVATE -UXNU_KERNEL_PRIVATE
+    -UKERNEL_PRIVATE -UKERNEL -UPRIVATE -UDRIVERKIT -UEXCLAVEKIT -UEXCLAVECORE
+    -D_OPEN_SOURCE_ -D__OPEN_SOURCE__
+    -USCHED_TEST_HARNESS
+)
+while IFS= read -r -d '' header; do
+    status=0
+    unifdef "${XNU_UNIFDEF_FLAGS[@]}" -o "$header" "$header" || status=$?
+    [ "$status" -ne 2 ] || { echo "FAILED: unifdef could not parse $header"; exit 1; }
+done < <(find "$STAGE" -type f -name '*.h' -print0)
 
 echo "== computing the xnu transitive closure =="
 RESOURCE_INC=$($CLANGXX -print-resource-dir)/include

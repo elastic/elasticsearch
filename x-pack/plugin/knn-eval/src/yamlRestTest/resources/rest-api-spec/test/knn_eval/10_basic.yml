@@ -747,6 +747,132 @@ teardown:
             - visit_percentage: 100
 
 ---
+"Results across several shards match what was indexed":
+  # Vector i is base + i * step, so all 24 sit on a line and the L2 distance between i and j is |i - j| * step whichever shard holds them.
+  # The queries lie at 3.2 and 17.7 on that line, so the four nearest documents are unambiguous: 3, 4, 2, 5 and 18, 17, 19, 16.
+  - do:
+      indices.create:
+        index: knn_eval_sharded
+        body:
+          settings:
+            index:
+              number_of_shards: 3
+              number_of_replicas: 0
+          mappings:
+            properties:
+              emb:
+                type: dense_vector
+                dims: 4
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: bbq_disk
+
+  - do:
+      bulk:
+        index: knn_eval_sharded
+        refresh: true
+        body:
+          - '{"index": {"_id": "0"}}'
+          - '{"emb": [0.1, 0.2, 0.3, 0.4]}'
+          - '{"index": {"_id": "1"}}'
+          - '{"emb": [0.15, 0.25, 0.35, 0.45]}'
+          - '{"index": {"_id": "2"}}'
+          - '{"emb": [0.2, 0.3, 0.4, 0.5]}'
+          - '{"index": {"_id": "3"}}'
+          - '{"emb": [0.25, 0.35, 0.45, 0.55]}'
+          - '{"index": {"_id": "4"}}'
+          - '{"emb": [0.3, 0.4, 0.5, 0.6]}'
+          - '{"index": {"_id": "5"}}'
+          - '{"emb": [0.35, 0.45, 0.55, 0.65]}'
+          - '{"index": {"_id": "6"}}'
+          - '{"emb": [0.4, 0.5, 0.6, 0.7]}'
+          - '{"index": {"_id": "7"}}'
+          - '{"emb": [0.45, 0.55, 0.65, 0.75]}'
+          - '{"index": {"_id": "8"}}'
+          - '{"emb": [0.5, 0.6, 0.7, 0.8]}'
+          - '{"index": {"_id": "9"}}'
+          - '{"emb": [0.55, 0.65, 0.75, 0.85]}'
+          - '{"index": {"_id": "10"}}'
+          - '{"emb": [0.6, 0.7, 0.8, 0.9]}'
+          - '{"index": {"_id": "11"}}'
+          - '{"emb": [0.65, 0.75, 0.85, 0.95]}'
+          - '{"index": {"_id": "12"}}'
+          - '{"emb": [0.7, 0.8, 0.9, 1.0]}'
+          - '{"index": {"_id": "13"}}'
+          - '{"emb": [0.75, 0.85, 0.95, 1.05]}'
+          - '{"index": {"_id": "14"}}'
+          - '{"emb": [0.8, 0.9, 1.0, 1.1]}'
+          - '{"index": {"_id": "15"}}'
+          - '{"emb": [0.85, 0.95, 1.05, 1.15]}'
+          - '{"index": {"_id": "16"}}'
+          - '{"emb": [0.9, 1.0, 1.1, 1.2]}'
+          - '{"index": {"_id": "17"}}'
+          - '{"emb": [0.95, 1.05, 1.15, 1.25]}'
+          - '{"index": {"_id": "18"}}'
+          - '{"emb": [1.0, 1.1, 1.2, 1.3]}'
+          - '{"index": {"_id": "19"}}'
+          - '{"emb": [1.05, 1.15, 1.25, 1.35]}'
+          - '{"index": {"_id": "20"}}'
+          - '{"emb": [1.1, 1.2, 1.3, 1.4]}'
+          - '{"index": {"_id": "21"}}'
+          - '{"emb": [1.15, 1.25, 1.35, 1.45]}'
+          - '{"index": {"_id": "22"}}'
+          - '{"emb": [1.2, 1.3, 1.4, 1.5]}'
+          - '{"index": {"_id": "23"}}'
+          - '{"emb": [1.25, 1.35, 1.45, 1.55]}'
+
+  - do:
+      knn_eval:
+        index: knn_eval_sharded
+        body:
+          field: emb
+          k: 4
+          query_source:
+            from: vectors
+            vectors:
+              - id: q1
+                query_vector: [0.26, 0.36, 0.46, 0.56]
+              - id: q2
+                query_vector: [0.985, 1.085, 1.185, 1.285]
+          baseline:
+            exact: true
+          knn_settings:
+            - visit_percentage: 100
+              rescore_vector:
+                oversample: 10
+
+  # the exact baseline compares every one of the 24 documents, on every shard, for each of the 2 queries
+  - match: { baseline_vector_ops: 48 }
+  - match: { baseline_vector_ops_kind: full_precision_scan }
+  - length: { failures: 0 }
+  - match: { results.0.included_queries: 2 }
+  - match: { results.0.excluded_queries: 0 }
+  # a search that visits everything and merges the shards' hits finds the same four documents as the exact one
+  - match: { results.0.recall: 1.0 }
+  - gte: { results.0.vector_ops: 48 }
+
+  # every document has a vector, so asking for at least that many samples uses all 24 as queries
+  - do:
+      knn_eval:
+        index: knn_eval_sharded
+        body:
+          field: emb
+          k: 4
+          query_source:
+            from: docs
+            size: 30
+          baseline:
+            exact: true
+          knn_settings:
+            - visit_percentage: 100
+              rescore_vector:
+                oversample: 10
+
+  - match: { baseline_vector_ops: 576 }
+  - length: { failures: 0 }
+
+---
 "k must be positive":
   - do:
       catch: bad_request

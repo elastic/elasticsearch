@@ -152,7 +152,7 @@ public class IbmWatsonxService extends SenderService<IbmWatsonxModel> implements
         if (model instanceof IbmWatsonxEmbeddingsModel embeddingsModel) {
             var serviceSettings = embeddingsModel.getServiceSettings();
             var similarityFromModel = serviceSettings.similarity();
-            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
+            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.COSINE : similarityFromModel;
 
             var updatedServiceSettings = new IbmWatsonxEmbeddingsServiceSettings(
                 serviceSettings.modelId(),

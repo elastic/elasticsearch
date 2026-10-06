@@ -1,0 +1,7 @@
+area: Inference
+issues:
+ - 146306
+pr: 160454
+summary: "[Inference API] Default new float dense-embedding inference endpoints to\
+  \ cosine"
+type: bug

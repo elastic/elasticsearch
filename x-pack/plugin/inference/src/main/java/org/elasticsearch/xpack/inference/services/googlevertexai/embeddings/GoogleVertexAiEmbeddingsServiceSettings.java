@@ -92,6 +92,11 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
                         InferenceUtils.missingSettingErrorMsg(ServiceFields.DIMENSIONS_SET_BY_USER, SERVICE_SETTINGS.toString())
                     );
                 }
+                if (similarityMeasure == null) {
+                    // Legacy endpoints stored before this field was made nullable defaulted to dot_product in the constructor.
+                    // Retain that value so existing endpoints are not retroactively changed.
+                    similarityMeasure = SimilarityMeasure.DOT_PRODUCT;
+                }
             }
         }
 
@@ -181,7 +186,7 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
         this.maxInputTokens = maxInputTokens;
         this.dimensions = dimensions;
         this.maxBatchSize = maxBatchSize;
-        this.similarity = Objects.requireNonNullElse(similarity, SimilarityMeasure.DOT_PRODUCT);
+        this.similarity = similarity;
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 

@@ -212,10 +212,27 @@ public class CustomService extends SenderService<CustomModel> implements Reranki
         }
     }
 
+    /**
+     * Return the default similarity measure for the embedding type.
+     * Float embeddings (and null, which defaults to float) use cosine similarity since we cannot guarantee
+     * third-party providers return unit-length vectors. Non-float types (BYTE, BIT, BINARY) keep dot_product.
+     *
+     * @param embeddingType the custom service embedding type, or null if not specified
+     * @return The default similarity.
+     */
+    static SimilarityMeasure defaultSimilarity(CustomServiceEmbeddingType embeddingType) {
+        if (embeddingType == null || embeddingType == CustomServiceEmbeddingType.FLOAT) {
+            return SimilarityMeasure.COSINE;
+        }
+        return SimilarityMeasure.DOT_PRODUCT;
+    }
+
     private static CustomServiceSettings getCustomServiceSettings(CustomModel customModel, int embeddingSize) {
         var serviceSettings = customModel.getServiceSettings();
         var similarityFromModel = serviceSettings.similarity();
-        var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
+        var similarityToUse = similarityFromModel == null
+            ? defaultSimilarity(serviceSettings.getResponseJsonParser().getEmbeddingType())
+            : similarityFromModel;
 
         return new CustomServiceSettings(
             new CustomServiceSettings.TextEmbeddingSettings(similarityToUse, embeddingSize, serviceSettings.getMaxInputTokens()),

@@ -216,7 +216,7 @@ public class AzureOpenAiService extends SenderService<AzureOpenAiModel> {
         if (model instanceof AzureOpenAiEmbeddingsModel embeddingsModel) {
             var serviceSettings = embeddingsModel.getServiceSettings();
             var similarityFromModel = serviceSettings.similarity();
-            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
+            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.COSINE : similarityFromModel;
 
             var updatedServiceSettings = new AzureOpenAiEmbeddingsServiceSettings(
                 serviceSettings.resourceName(),

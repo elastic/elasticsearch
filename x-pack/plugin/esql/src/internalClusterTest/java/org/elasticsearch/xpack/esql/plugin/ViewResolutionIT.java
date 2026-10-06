@@ -202,17 +202,17 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
         return createView(name, query, null, false);
     }
 
-    private Releasable createView(String name, String query, String description, boolean system) {
+    private Releasable createView(String name, String query, String description, boolean internal) {
         assertAcked(
             client().execute(
                 PutViewAction.INSTANCE,
-                new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(name, query, description, system))
+                new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(name, query, description, internal))
             )
         );
         return () -> assertAcked(
             client().execute(
                 DeleteViewAction.INSTANCE,
-                new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { name }, system)
+                new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { name }, internal)
             )
         );
     }

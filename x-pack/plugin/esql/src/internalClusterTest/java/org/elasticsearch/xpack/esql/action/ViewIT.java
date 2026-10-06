@@ -148,7 +148,7 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testInternalViewCannotBeUpdatedOrDeleted() {
-        String viewName = "system-view";
+        String viewName = "internal-view";
         assertAcked(createView(viewName, "FROM some-index", null, true));
 
         expectThrows(
@@ -157,7 +157,7 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
             () -> createView(viewName, "FROM something-else")
         );
 
-        // but can update definition of system view with another system view
+        // but can update definition of internal view with another internal view
         assertAcked(createView(viewName, "FROM some-other-index", null, true));
 
         expectThrows(

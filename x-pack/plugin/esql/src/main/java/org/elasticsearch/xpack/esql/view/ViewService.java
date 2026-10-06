@@ -201,9 +201,8 @@ public class ViewService {
         final ViewMetadata views = getMetadata(metadata);
         final View existing = views.getView(view.name());
         if (view.isInternal() == false && existing != null && existing.isInternal()) {
-            // it is impossible to supply a system view from the rest api.
-            // this block prevents users updating definition or downgrading system views to a regular ones
-            // system views can still be updated internally
+            // it is impossible to supply a internal view from the rest api.
+            // this block prevents users updating definition or downgrading internal views to a regular ones
             throw new IllegalArgumentException("cannot modify internal view [" + view.name() + "]");
         }
         if (existing == null && views.views().size() >= this.maxViewsCount) {

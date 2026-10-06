@@ -30,7 +30,7 @@ import java.util.Objects;
  */
 public final class View implements Writeable, ToXContentObject, IndexAbstraction {
     private static final TransportVersion VIEW_DESCRIPTION_VERSION = TransportVersion.fromName("esql_view_description");
-    public static final TransportVersion VIEW_SYSTEM_INTERNAL = TransportVersion.fromName("esql_view_internal");
+    public static final TransportVersion VIEW_INTERNAL_VERSION = TransportVersion.fromName("esql_view_internal");
 
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField QUERY = new ParseField("query");
@@ -52,7 +52,7 @@ public final class View implements Writeable, ToXContentObject, IndexAbstraction
     }
 
     // Parser that excludes the name field (eg. when the name is provided externally, in the URL path)
-    // isSystem is intentionally omitted — users cannot set it via the REST API.
+    // internal is intentionally omitted — users cannot set it via the REST API.
     public static ConstructingObjectParser<View, Void> parser(String name) {
         ConstructingObjectParser<View, Void> parser = new ConstructingObjectParser<>(
             "view",
@@ -93,7 +93,7 @@ public final class View implements Writeable, ToXContentObject, IndexAbstraction
         this.name = in.readString();
         this.query = in.readString();
         this.description = in.getTransportVersion().supports(VIEW_DESCRIPTION_VERSION) ? in.readOptionalString() : null;
-        this.internal = in.getTransportVersion().supports(VIEW_SYSTEM_INTERNAL) && in.readBoolean();
+        this.internal = in.getTransportVersion().supports(VIEW_INTERNAL_VERSION) && in.readBoolean();
     }
 
     public static View fromXContent(XContentParser parser) throws IOException {
@@ -107,7 +107,7 @@ public final class View implements Writeable, ToXContentObject, IndexAbstraction
         if (out.getTransportVersion().supports(VIEW_DESCRIPTION_VERSION)) {
             out.writeOptionalString(description);
         }
-        if (out.getTransportVersion().supports(VIEW_SYSTEM_INTERNAL)) {
+        if (out.getTransportVersion().supports(VIEW_INTERNAL_VERSION)) {
             out.writeBoolean(internal);
         }
     }

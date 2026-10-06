@@ -34,6 +34,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.prometheus.PrometheusPlugin;
 import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusRemoteWriteTransportAction.RemoteWriteRequest;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusRemoteWriteTransportAction.RemoteWriteResponse;
@@ -130,6 +131,7 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
     }
 
     public void testSuccessWithExemplarOnly() throws Exception {
+        assumeExemplarIngestionEnabled();
         long now = System.currentTimeMillis();
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
             .addTimeseries(
@@ -165,7 +167,24 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
         assertThat(source.evaluate("value"), equalTo(21.0));
     }
 
+    public void testExemplarIngestionFollowsFeatureFlag() {
+        long timestamp = System.currentTimeMillis();
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(
+                createTimeSeries("test_metric", 42.0, timestamp).toBuilder()
+                    .addExemplars(createExemplar("trace_id", "abc123", 21.0, timestamp))
+                    .build()
+            )
+            .build();
+
+        BulkRequest bulk = executeAndCaptureBulkRequest(writeRequest, "generic", "default");
+
+        int expectedActions = PrometheusPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled() ? 2 : 1;
+        assertThat(bulk.numberOfActions(), equalTo(expectedActions));
+    }
+
     public void testDuplicateExemplarTimestampsAreDropped() throws Exception {
+        assumeExemplarIngestionEnabled();
         long timestamp = System.currentTimeMillis();
         RemoteWrite.TimeSeries timeSeries = RemoteWrite.TimeSeries.newBuilder()
             .addLabels(RemoteWrite.Label.newBuilder().setName("__name__").setValue("test_metric").build())
@@ -186,6 +205,7 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
     }
 
     public void testSameExemplarTimestampForDifferentSeriesIsRetained() {
+        assumeExemplarIngestionEnabled();
         long timestamp = System.currentTimeMillis();
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
             .addTimeseries(createExemplarTimeSeries("first_metric", timestamp))
@@ -198,6 +218,7 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
     }
 
     public void testMissingExemplarTimestampsUseRequestTimestamp() throws Exception {
+        assumeExemplarIngestionEnabled();
         long requestTimestamp = randomLongBetween(1, Long.MAX_VALUE);
         when(threadPool.absoluteTimeInMillis()).thenReturn(requestTimestamp);
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
@@ -216,6 +237,7 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
     }
 
     public void testExemplarFailureIsReportedSeparatelyFromSamples() {
+        assumeExemplarIngestionEnabled();
         long timestamp = System.currentTimeMillis();
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
             .addTimeseries(
@@ -302,6 +324,7 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
     }
 
     public void testTimeseriesWithoutNameLabelReportsSamplesAndExemplars() {
+        assumeExemplarIngestionEnabled();
         long timestamp = System.currentTimeMillis();
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
             .addTimeseries(
@@ -640,6 +663,10 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
     private void assertRegisteredIndexingPressureReleased(String message) {
         assertNotNull("indexing pressure release state should be registered", indexingPressureReleased);
         assertTrue(message, indexingPressureReleased.get());
+    }
+
+    private static void assumeExemplarIngestionEnabled() {
+        assumeTrue("requires metric exemplar ingestion", PrometheusPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
     }
 
     private static RemoteWrite.TimeSeries createTimeSeries(String metricName, double value, long timestamp) {

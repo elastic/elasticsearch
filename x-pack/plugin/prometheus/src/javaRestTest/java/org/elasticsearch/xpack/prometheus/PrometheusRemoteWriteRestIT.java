@@ -198,6 +198,7 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
     }
 
     public void testRemoteWriteIndexesExemplar() throws Exception {
+        assumeTrue("requires metric exemplar ingestion", PrometheusPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
         long timestamp = System.currentTimeMillis();
         String metricName = "metric_with_exemplar";
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
@@ -232,6 +233,7 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
     }
 
     public void testRemoteWriteDeduplicatesExemplarsWithMissingTimestamps() throws Exception {
+        assumeTrue("requires metric exemplar ingestion", PrometheusPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
         String metricName = "metric_with_duplicate_exemplars";
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
             .addTimeseries(

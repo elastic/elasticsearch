@@ -46,6 +46,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.prometheus.PrometheusPlugin;
 import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
 import org.elasticsearch.xpack.prometheus.proto.RemoteWrite.Exemplar;
 import org.elasticsearch.xpack.prometheus.proto.RemoteWrite.Label;
@@ -112,7 +113,8 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
             request.releaseBody();
 
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
-            long requestTimestamp = threadPool.absoluteTimeInMillis();
+            boolean exemplarIngestionEnabled = PrometheusPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled();
+            long requestTimestamp = exemplarIngestionEnabled ? threadPool.absoluteTimeInMillis() : 0;
 
             int totalSamples = 0;
             int totalExemplars = 0;
@@ -125,7 +127,7 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
             for (TimeSeries timeSeries : writeRequest.getTimeseriesList()) {
                 exemplarTimestamps.clear();
                 int seriesSamples = timeSeries.getSamplesCount();
-                int seriesExemplars = timeSeries.getExemplarsCount();
+                int seriesExemplars = exemplarIngestionEnabled ? timeSeries.getExemplarsCount() : 0;
                 totalSamples += seriesSamples;
                 totalExemplars += seriesExemplars;
 
@@ -163,17 +165,19 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
                     }
                     sampleRequests.add(indexRequest);
                 }
-                for (Exemplar exemplar : timeSeries.getExemplarsList()) {
-                    long exemplarTimestamp = exemplar.getTimestamp() == 0 ? requestTimestamp : exemplar.getTimestamp();
-                    if (exemplarTimestamps.add(exemplarTimestamp) < 0) {
-                        duplicateExemplars++;
-                        continue;
+                if (exemplarIngestionEnabled) {
+                    for (Exemplar exemplar : timeSeries.getExemplarsList()) {
+                        long exemplarTimestamp = exemplar.getTimestamp() == 0 ? requestTimestamp : exemplar.getTimestamp();
+                        if (exemplarTimestamps.add(exemplarTimestamp) < 0) {
+                            duplicateExemplars++;
+                            continue;
+                        }
+                        IndexRequest indexRequest = buildExemplarIndexRequest(timeSeries, exemplar, dataset, namespace, exemplarTimestamp);
+                        if (expandedContentTracker.add(indexRequest.ramBytesUsed(), listener)) {
+                            return;
+                        }
+                        exemplarRequests.add(indexRequest);
                     }
-                    IndexRequest indexRequest = buildExemplarIndexRequest(timeSeries, exemplar, dataset, namespace, exemplarTimestamp);
-                    if (expandedContentTracker.add(indexRequest.ramBytesUsed(), listener)) {
-                        return;
-                    }
-                    exemplarRequests.add(indexRequest);
                 }
             }
 

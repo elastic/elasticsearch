@@ -4474,6 +4474,107 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(0, mapped.getSuppressed().length);
     }
 
+    private static final String IAM_DENIAL = "User: arn:aws:sts::123456789012:assumed-role/reader/session is not authorized to "
+        + "perform: s3:GetObject on resource: \"arn:aws:s3:::bucket/key\" with an explicit deny in an identity-based policy";
+
+    /** Stands in for construction inside a class the esql test classpath does not have (a storage SDK, a format library). */
+    private static <T extends Throwable> T builtBy(String className, T t) {
+        t.setStackTrace(new StackTraceElement[] { new StackTraceElement(className, "build", null, 1) });
+        return t;
+    }
+
+    private static <T extends Throwable> T builtBySdk(T t) {
+        return builtBy("software.amazon.awssdk.services.s3.model.S3Exception$BuilderImpl", t);
+    }
+
+    /**
+     * A storage client's message relays what the remote said (an IAM denial names the principal and the resource) and
+     * names no URI or host, so every resolution arm keys on where it was built: the IAE arm, the I/O arm, and an IAE
+     * whose message was copied from {@link ExternalFailures#rootDetail} as {@code FileSourceFactory} does.
+     */
+    public void testAStorageClientMessageIsWithheldAtResolution() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+
+        RuntimeException iae = resolver.mapResolveFailure(
+            "s3://b/x.csv",
+            new ExecutionException(builtBySdk(new IllegalArgumentException(IAM_DENIAL)))
+        );
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(iae));
+        assertEquals("Failed to resolve external source [x.csv] (IllegalArgumentException)", iae.getMessage());
+
+        RuntimeException io = resolver.mapResolveFailure("s3://b/x.csv", new ExecutionException(builtBySdk(new IOException(IAM_DENIAL))));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(io));
+        assertThat(io.getMessage(), not(containsString("arn:aws")));
+        assertNull(io.getCause());
+
+        IOException sdkIo = builtBySdk(new IOException(IAM_DENIAL));
+        RuntimeException copied = resolver.mapResolveFailure(
+            "s3://b/x.csv",
+            new ExecutionException(new IllegalArgumentException(ExternalFailures.rootDetail(sdkIo), sdkIo))
+        );
+        assertThat(copied.getMessage(), not(containsString("arn:aws")));
+        assertNull(copied.getCause());
+    }
+
+    /**
+     * A format library's message describes the file, not who read it, and is what the user needs to fix it: the IAE
+     * arm, the I/O arm and a {@code FileSourceFactory}-style copy all keep it.
+     */
+    public void testAFormatLibraryMessageIsKeptAtResolution() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        String magic = "file is not a Parquet file. Expected magic number at tail, but found [1, 2, 3, 4]";
+
+        RuntimeException iae = resolver.mapResolveFailure(
+            "s3://b/x.parquet",
+            new ExecutionException(builtBy("org.apache.parquet.hadoop.ParquetFileReader", new IllegalArgumentException(magic)))
+        );
+        assertEquals(magic, iae.getMessage());
+
+        IOException footer = builtBy("org.apache.parquet.hadoop.ParquetFileReader", new IOException(magic));
+        RuntimeException io = resolver.mapResolveFailure("s3://b/x.parquet", new ExecutionException(footer));
+        assertThat(io.getMessage(), containsString(magic));
+
+        RuntimeException copied = resolver.mapResolveFailure(
+            "s3://b/x.parquet",
+            new ExecutionException(new IllegalArgumentException(ExternalFailures.rootDetail(footer), footer))
+        );
+        assertEquals(magic, copied.getMessage());
+    }
+
+    /**
+     * The admin's WARN names what the storage client said, since the response does not, but at most once per interval
+     * across the node: anyone who can query a failing dataset can repeat the failure.
+     */
+    public void testAWithheldResolveCauseReachesWarnAtMostOncePerInterval() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        String path = "s3://secret-bucket/private/x.csv";
+        IOException failure = new IOException("Access denied", builtBySdk(new RuntimeException(IAM_DENIAL)));
+        AtomicInteger warns = new AtomicInteger();
+        AtomicInteger withReason = new AtomicInteger();
+
+        MockLog.assertThatLogger(() -> {
+            for (int i = 0; i < 10; i++) {
+                resolver.mapResolveFailure(path, new ExecutionException(failure));
+            }
+        }, ExternalSourceResolver.class, new MockLog.LoggingExpectation() {
+            @Override
+            public void match(LogEvent event) {
+                if (event.getLevel().equals(Level.WARN)) {
+                    warns.incrementAndGet();
+                    if (event.getMessage().getFormattedMessage().contains("arn:aws")) {
+                        withReason.incrementAndGet();
+                    }
+                }
+            }
+
+            @Override
+            public void assertMatched() {
+                assertEquals("every failure still names its location at WARN", 10, warns.get());
+                assertThat("the remote's sentence reaches WARN at most once", withReason.get(), lessThan(2));
+            }
+        });
+    }
+
     /**
      * The user's message omits the location, so the admin's WARN names it, on one line: the stack trace is at DEBUG.
      */
@@ -4748,6 +4849,37 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(mapped));
         assertSame(original, mapped);
+    }
+
+    /**
+     * A rejection or breaker that carries a storage-client cause keeps its 429, and drops the cause: the REST layer
+     * would otherwise render the remote's refusal under {@code caused_by}.
+     */
+    public void testARejectionOrBreakerWithAStorageCauseIsDetached() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        String iam = "User: arn:aws:sts::123456789012:assumed-role/reader/session is not authorized";
+
+        EsRejectedExecutionException rejected = new EsRejectedExecutionException("Interrupted while acquiring permit", true);
+        rejected.initCause(builtBySdk(new RuntimeException(iam)));
+        RuntimeException mappedRejected = resolver.mapResolveFailure("s3://b/x.parquet", new ExecutionException(rejected));
+        assertThat(mappedRejected, instanceOf(EsRejectedExecutionException.class));
+        assertNull(mappedRejected.getCause());
+        assertTrue(((EsRejectedExecutionException) mappedRejected).isExecutorShutdown());
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(mappedRejected));
+
+        CircuitBreakingException breaking = new CircuitBreakingException("over limit", 100, 50, CircuitBreaker.Durability.TRANSIENT);
+        breaking.initCause(builtBySdk(new RuntimeException(iam)));
+        RuntimeException mappedBreaking = resolver.mapResolveFailure("s3://b/x.parquet", new ExecutionException(breaking));
+        assertThat(mappedBreaking, instanceOf(CircuitBreakingException.class));
+        assertNull(mappedBreaking.getCause());
+        assertEquals(100, ((CircuitBreakingException) mappedBreaking).getBytesWanted());
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(mappedBreaking));
+
+        TaskCancelledException cancelled = new TaskCancelledException("cancelled");
+        cancelled.initCause(builtBySdk(new RuntimeException(iam)));
+        RuntimeException mappedCancelled = resolver.mapResolveFailure("s3://b/x.parquet", cancelled);
+        assertThat(mappedCancelled, instanceOf(TaskCancelledException.class));
+        assertNull(mappedCancelled.getCause());
     }
 
     /**

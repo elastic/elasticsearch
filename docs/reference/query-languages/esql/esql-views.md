@@ -193,7 +193,7 @@ We could, for example, see how many airports are defined only in `airports` vers
 :::{include} _snippets/commands/examples/views.csv-spec/airports_mp_filtered_combined.md
 :::
 
-### Views with METADATA
+### Views with METADATA [views-with-metadata]
 
 The [`METADATA` directive](/reference/query-languages/esql/esql-metadata-fields.md) is supported both inside and outside a view, and
 follows the same rules as observed for [`METADATA` in subqueries](/reference/query-languages/esql/esql-from-subquery.md#subqueries-with-metadata).
@@ -201,6 +201,11 @@ Inside the view it generates columns, just like other fields, and these can be u
 
 Outside the view, a `METADATA` field produces `null` values unless the view body itself already declares that field.
 When the view body declares a `METADATA` field, the outer query can also request it and will receive the actual values unchanged.
+
+{applies_to}`stack: ga 9.6` `_class` and `_name` are the exception. The outer query answers them for each view. `_class` is `view`. `_name` is the view name. You do not need the directive inside the view. If the view body also declares `_class` or `_name`, the outer values replace them.
+
+:::{include} _snippets/generated/x-pack-esql/commands/examples/views.csv-spec/views_class_and_name.md
+:::
 
 ## How views execute
 

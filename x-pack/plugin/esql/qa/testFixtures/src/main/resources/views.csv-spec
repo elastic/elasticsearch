@@ -365,17 +365,19 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: metadata_class_and_name
 
-// A view has no relation left to ask by execution, so its rows answer NULL for both columns --
-// the same disposition _index already has above. The index row answers for itself.
+// tag::views_class_and_name[]
 FROM airports_mp_filtered, airports METADATA _class, _name
 | WHERE abbrev == "LUH"
 | KEEP abbrev, _class, _name
 | SORT _name
+// end::views_class_and_name[]
 ;
 
+// tag::views_class_and_name-result[]
 abbrev:keyword | _class:keyword | _name:keyword
 LUH            | index          | airports
 LUH            | view           | airports_mp_filtered
+// end::views_class_and_name-result[]
 ;
 
 airportsLookupJoinViewAirportsStats

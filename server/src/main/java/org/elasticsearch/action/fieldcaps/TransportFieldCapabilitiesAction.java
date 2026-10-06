@@ -822,7 +822,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     false,
                     false,
                     null,
-                    false,
+                    null,
                     diff,
                     null,
                     null,

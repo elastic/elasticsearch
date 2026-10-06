@@ -27,7 +27,7 @@ public class IndexFieldCapabilitiesBuilder {
     private boolean isInference;
     private boolean isDimension;
     private @Nullable TimeSeriesParams.MetricType metricType;
-    private boolean isPassthrough;
+    private @Nullable Boolean isPassthrough;
     private Map<String, String> meta;
     private @Nullable String indexAnalyzer;
     private int indexAnalyzerPositionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
@@ -73,7 +73,8 @@ public class IndexFieldCapabilitiesBuilder {
         return this;
     }
 
-    public IndexFieldCapabilitiesBuilder isPassthrough(boolean isPassthrough) {
+    /** Passthrough status; {@code null} (the default) when the field type cannot be a passthrough source. */
+    public IndexFieldCapabilitiesBuilder isPassthrough(@Nullable Boolean isPassthrough) {
         this.isPassthrough = isPassthrough;
         return this;
     }

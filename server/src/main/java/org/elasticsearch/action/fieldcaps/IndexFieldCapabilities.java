@@ -28,7 +28,9 @@ import java.util.Map;
  * @param isSearchable   Whether this field is indexed for search.
  * @param isAggregatable Whether this field can be aggregated on.
  * @param isInference    Whether this field is an inference field.
- * @param isPassthrough  Whether this field is a passthrough object.
+ * @param isPassthrough  Whether this field is a passthrough source (a passthrough object or a passthrough-enabled
+ *                       flattened field). {@code null} when the field's type cannot be a passthrough source at all,
+ *                       such as leaf fields, so that the flag is not reported for it.
  * @param meta           Metadata about the field.
  * @param indexAnalyzer  index analyzer name for a text field, set only when any node can rebuild it by name;
  *                       {@code null} otherwise, as for analyzers a mapper hard-codes or fields from older nodes
@@ -47,7 +49,7 @@ public record IndexFieldCapabilities(
     boolean isInference,
     boolean isDimension,
     TimeSeriesParams.MetricType metricType,
-    boolean isPassthrough,
+    @Nullable Boolean isPassthrough,
     Map<String, String> meta,
     @Nullable String indexAnalyzer,
     int indexAnalyzerPositionIncrementGap,
@@ -77,7 +79,9 @@ public record IndexFieldCapabilities(
         String indexAnalyzer = hasAnalyzer ? in.readOptionalString() : null;
         int indexAnalyzerPositionIncrementGap = indexAnalyzer != null ? in.readVInt() : TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
         boolean indexLocalAnalyzer = hasAnalyzer && indexAnalyzer == null && in.readBoolean();
-        boolean isPassthrough = in.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_PASSTHROUGH) && in.readBoolean();
+        Boolean isPassthrough = in.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_PASSTHROUGH)
+            ? in.readOptionalBoolean()
+            : null;
         return new IndexFieldCapabilities(
             name,
             type,
@@ -117,7 +121,7 @@ public record IndexFieldCapabilities(
             }
         }
         if (out.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_PASSTHROUGH)) {
-            out.writeBoolean(isPassthrough);
+            out.writeOptionalBoolean(isPassthrough);
         }
     }
 

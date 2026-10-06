@@ -136,7 +136,8 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
                 randomBoolean(),
                 randomBoolean(),
                 metricType,
-                randomBoolean(),
+                // null for field types that cannot be passthrough sources
+                randomBoolean() ? null : randomBoolean(),
                 meta,
                 indexAnalyzer,
                 randomIntBetween(0, 1000),

@@ -343,8 +343,9 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
     }
 
     public void testPassthroughObjectIsFlagged() throws IOException {
-        // Passthrough objects keep the "object" type but are additionally flagged as passthrough,
-        // while plain and nested objects are not.
+        // Passthrough sources keep their regular type ("object" / "flattened") but are additionally flagged as passthrough.
+        // Plain objects and flattened fields, which could have been passthrough, are explicitly flagged as not passthrough,
+        // while everything else (nested objects, leaf fields) carries no passthrough status at all.
         MapperService mapperService = createMapperService("""
             { "_doc" : {
               "properties" : {
@@ -376,7 +377,15 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
                   "properties" : {
                     "field" : { "type" : "keyword" }
                   }
-                }
+                },
+                "labels" : {
+                  "type" : "flattened",
+                  "passthrough" : { "priority" : 30 },
+                  "properties" : {
+                    "service.name" : { "type" : "keyword" }
+                  }
+                },
+                "plain_flattened" : { "type" : "flattened" }
               }
             } }
             """);
@@ -395,36 +404,53 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         IndexFieldCapabilities attributes = response.get("attributes");
         assertNotNull(attributes);
         assertEquals("object", attributes.type());
-        assertTrue(attributes.isPassthrough());
+        assertEquals(Boolean.TRUE, attributes.isPassthrough());
 
         IndexFieldCapabilities resourceAttributes = response.get("resource.attributes");
         assertNotNull(resourceAttributes);
         assertEquals("object", resourceAttributes.type());
-        assertTrue(resourceAttributes.isPassthrough());
+        assertEquals(Boolean.TRUE, resourceAttributes.isPassthrough());
 
         // the parent of a passthrough object is a plain object
         IndexFieldCapabilities resource = response.get("resource");
         assertNotNull(resource);
         assertEquals("object", resource.type());
-        assertFalse(resource.isPassthrough());
+        assertEquals(Boolean.FALSE, resource.isPassthrough());
 
         IndexFieldCapabilities plain = response.get("plain");
         assertNotNull(plain);
         assertEquals("object", plain.type());
-        assertFalse(plain.isPassthrough());
+        assertEquals(Boolean.FALSE, plain.isPassthrough());
 
+        // nested objects cannot be passthrough, so they carry no status
         IndexFieldCapabilities nested = response.get("nested");
         assertNotNull(nested);
         assertEquals("nested", nested.type());
-        assertFalse(nested.isPassthrough());
+        assertNull(nested.isPassthrough());
 
-        // leaf fields, including passthrough sub-fields, are never flagged as passthrough
+        // flattened fields are passthrough sources when configured as such
+        IndexFieldCapabilities labels = response.get("labels");
+        assertNotNull(labels);
+        assertEquals("flattened", labels.type());
+        assertEquals(Boolean.TRUE, labels.isPassthrough());
+
+        IndexFieldCapabilities plainFlattened = response.get("plain_flattened");
+        assertNotNull(plainFlattened);
+        assertEquals("flattened", plainFlattened.type());
+        assertEquals(Boolean.FALSE, plainFlattened.isPassthrough());
+
+        // leaf fields, including passthrough sub-fields and their root-level aliases, carry no passthrough status
         assertNotNull(response.get("attributes.host.name"));
-        assertFalse(response.get("attributes.host.name").isPassthrough());
+        assertNull(response.get("attributes.host.name").isPassthrough());
         assertNotNull(response.get("host.name"));
-        assertFalse(response.get("host.name").isPassthrough());
+        assertNull(response.get("host.name").isPassthrough());
+        assertNotNull(response.get("labels.service.name"));
+        assertNull(response.get("labels.service.name").isPassthrough());
+        assertNotNull(response.get("service.name"));
+        assertNull(response.get("service.name").isPassthrough());
         // intermediate segments of dotted sub-field names must not be synthesized as objects
         assertNull(response.get("attributes.host"));
+        assertNull(response.get("labels.service"));
     }
 
     public void testIndexLocalAnalyzerNameIsDropped() throws IOException {

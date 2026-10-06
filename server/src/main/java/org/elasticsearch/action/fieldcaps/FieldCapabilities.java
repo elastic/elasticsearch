@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.xcontent.ParseField;
@@ -71,7 +72,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     private final Boolean isInference;
     private final boolean isDimension;
     private final TimeSeriesParams.MetricType metricType;
-    private final boolean isPassthrough;
+    private final Boolean isPassthrough;
 
     private final String[] indices;
     private final String[] nonSearchableIndices;
@@ -93,7 +94,9 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      * @param isInference Whether this field is an inference field.
      * @param isDimension Whether this field can be used as dimension
      * @param metricType If this field is a metric field, returns the metric's type or null for non-metrics fields
-     * @param isPassthrough Whether this field is a passthrough object in all indices
+     * @param isPassthrough Whether this field is a passthrough source (passthrough object or flattened field) in all
+     *                      indices, or {@code null} if the field's type cannot be a passthrough source or the cluster
+     *                      contains nodes that do not report passthrough information
      * @param indices The list of indices where this field name is defined as {@code type}.
      *                When {@code includeIndices} is set to {@code false}, this list is only
      *                present if there is a mapping conflict (e.g. the same field has different
@@ -122,7 +125,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         Boolean isInference,
         boolean isDimension,
         TimeSeriesParams.MetricType metricType,
-        boolean isPassthrough,
+        Boolean isPassthrough,
         String[] indices,
         String[] nonSearchableIndices,
         String[] nonAggregatableIndices,
@@ -192,7 +195,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             isInference,
             false,
             null,
-            false,
+            null,
             indices,
             nonSearchableIndices,
             nonAggregatableIndices,
@@ -215,7 +218,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      * @param isInference Whether this field is an inference field.
      * @param isDimension Whether this field can be used as dimension
      * @param metricType If this field is a metric field, returns the metric's type or null for non-metrics fields
-     * @param isPassthrough Whether this field is a passthrough object in all indices
+     * @param isPassthrough Whether this field is a passthrough source in all indices, or null if not applicable or unknown
      * @param indices The list of indices where this field name is defined as {@code type},
      *                or null if all indices have the same {@code type} for the field.
      * @param nonSearchableIndices The list of indices where this field is not searchable,
@@ -259,7 +262,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             isInference,
             isDimension == null ? false : isDimension,
             metricType != null ? TimeSeriesParams.MetricType.fromString(metricType) : null,
-            isPassthrough == null ? false : isPassthrough,
+            isPassthrough,
             indices != null ? indices.toArray(new String[0]) : null,
             nonSearchableIndices != null ? nonSearchableIndices.toArray(new String[0]) : null,
             nonAggregatableIndices != null ? nonAggregatableIndices.toArray(new String[0]) : null,
@@ -293,10 +296,10 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             this.nonInferenceIndices = null;
         }
         if (in.getTransportVersion().supports(FIELD_CAPS_PASSTHROUGH)) {
-            this.isPassthrough = in.readBoolean();
+            this.isPassthrough = in.readOptionalBoolean();
             this.nonPassthroughIndices = in.readOptionalStringArray();
         } else {
-            this.isPassthrough = false;
+            this.isPassthrough = null;
             this.nonPassthroughIndices = null;
         }
     }
@@ -321,7 +324,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             out.writeOptionalStringArray(nonInferenceIndices);
         }
         if (out.getTransportVersion().supports(FIELD_CAPS_PASSTHROUGH)) {
-            out.writeBoolean(isPassthrough);
+            out.writeOptionalBoolean(isPassthrough);
             out.writeOptionalStringArray(nonPassthroughIndices);
         }
     }
@@ -342,8 +345,8 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         if (metricType != null) {
             builder.field(TIME_SERIES_METRIC_FIELD.getPreferredName(), metricType);
         }
-        if (isPassthrough) {
-            builder.field(PASSTHROUGH_FIELD.getPreferredName(), true);
+        if (isPassthrough != null) {
+            builder.field(PASSTHROUGH_FIELD.getPreferredName(), isPassthrough);
         }
         if (indices != null) {
             builder.array(INDICES_FIELD.getPreferredName(), indices);
@@ -432,9 +435,11 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     }
 
     /**
-     * Whether this field is a passthrough object in all indices.
+     * Whether this field is a passthrough source (passthrough object or flattened field) in all indices. Null if the
+     * field's type cannot be a passthrough source, or if the minimum transport version is too old to reliably report
+     * passthrough status.
      */
-    public boolean isPassthrough() {
+    public Boolean isPassthrough() {
         return isPassthrough;
     }
 
@@ -517,7 +522,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             && Objects.equals(isInference, that.isInference)
             && isDimension == that.isDimension
             && Objects.equals(metricType, that.metricType)
-            && isPassthrough == that.isPassthrough
+            && Objects.equals(isPassthrough, that.isPassthrough)
             && Objects.equals(name, that.name)
             && Objects.equals(type, that.type)
             && Arrays.equals(indices, that.indices)
@@ -568,6 +573,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         private int inferenceIndices = 0;
         private int dimensionIndices = 0;
         private int passthroughIndices = 0;
+        private boolean hasPassthroughStatus = false;
         private TimeSeriesParams.MetricType metricType;
         private boolean hasConflictMetricType;
         private final List<IndexCaps> indicesList;
@@ -613,7 +619,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             boolean isInference,
             boolean isDimension,
             TimeSeriesParams.MetricType metricType,
-            boolean isPassthrough,
+            @Nullable Boolean isPassthrough,
             Map<String, String> meta
         ) {
             assert assertIndicesSorted(indices);
@@ -630,8 +636,11 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             if (isDimension) {
                 dimensionIndices += indices.length;
             }
-            if (isPassthrough) {
-                passthroughIndices += indices.length;
+            if (isPassthrough != null) {
+                hasPassthroughStatus = true;
+                if (isPassthrough) {
+                    passthroughIndices += indices.length;
+                }
             }
             this.isMetadataField |= isMetadataField;
             // If we have discrepancy in metric types or in some indices this field is not marked as a metric field - we will
@@ -727,19 +736,21 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
                 metricConflictsIndices = null;
             }
 
-            // Iff the min transport version supports passthrough reporting, compute the passthrough flag and the list of
-            // non-passthrough indices, following the same approach as for dimensions. Otherwise, suppress both: nodes on
-            // older versions never report passthrough objects, which would otherwise show up as spurious non-passthrough
-            // indices in a mixed-version cluster.
-            final boolean isPassthrough;
+            // The passthrough flag is only reported if at least one index reported a passthrough status for this field,
+            // i.e. if the field's type can be a passthrough source at all (see FieldCapabilitiesFetcher#passthroughStatus).
+            // Iff additionally the min transport version supports passthrough reporting, compute the flag and the list of
+            // non-passthrough indices, following the same approach as for inference fields. Otherwise, leave the flag null
+            // so that it is omitted from the response: nodes on older versions never report passthrough sources, which
+            // would otherwise show up as spurious non-passthrough indices in a mixed-version cluster.
+            final Boolean isPassthrough;
             final String[] nonPassthroughIndices;
-            if (minTransportVersion != null && minTransportVersion.supports(FIELD_CAPS_PASSTHROUGH)) {
+            if (hasPassthroughStatus && minTransportVersion != null && minTransportVersion.supports(FIELD_CAPS_PASSTHROUGH)) {
                 isPassthrough = passthroughIndices == totalIndices;
                 nonPassthroughIndices = (isPassthrough || passthroughIndices == 0)
                     ? null
-                    : filterIndices(totalIndices - passthroughIndices, ic -> ic.isPassthrough == false);
+                    : filterIndices(totalIndices - passthroughIndices, ic -> Boolean.TRUE.equals(ic.isPassthrough) == false);
             } else {
-                isPassthrough = false;
+                isPassthrough = null;
                 nonPassthroughIndices = null;
             }
 
@@ -776,6 +787,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         boolean isInference,
         boolean isDimension,
         TimeSeriesParams.MetricType metricType,
-        boolean isPassthrough
+        @Nullable Boolean isPassthrough
     ) {}
 }

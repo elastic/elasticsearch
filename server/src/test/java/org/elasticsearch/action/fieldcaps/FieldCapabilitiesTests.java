@@ -55,9 +55,9 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
 
     public void testBuilder() {
         FieldCapabilities.Builder builder = new FieldCapabilities.Builder("field", "type");
-        builder.add(new String[] { "index1" }, false, true, false, false, false, null, false, Collections.emptyMap());
-        builder.add(new String[] { "index2" }, false, true, false, false, false, null, false, Collections.emptyMap());
-        builder.add(new String[] { "index3" }, false, true, false, false, false, null, false, Collections.emptyMap());
+        builder.add(new String[] { "index1" }, false, true, false, false, false, null, null, Collections.emptyMap());
+        builder.add(new String[] { "index2" }, false, true, false, false, false, null, null, Collections.emptyMap());
+        builder.add(new String[] { "index3" }, false, true, false, false, false, null, null, Collections.emptyMap());
 
         {
             FieldCapabilities cap1 = builder.build(false);
@@ -66,7 +66,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
             assertThat(cap1.isInference(), equalTo(false));
             assertThat(cap1.isDimension(), equalTo(false));
             assertNull(cap1.getMetricType());
-            assertFalse(cap1.isPassthrough());
+            assertNull(cap1.isPassthrough());
             assertNull(cap1.nonPassthroughIndices());
             assertNull(cap1.indices());
             assertNull(cap1.nonSearchableIndices());
@@ -91,7 +91,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         }
 
         builder = new FieldCapabilities.Builder("field", "type");
-        builder.add(new String[] { "index1" }, false, false, true, true, true, null, false, Collections.emptyMap());
+        builder.add(new String[] { "index1" }, false, false, true, true, true, null, null, Collections.emptyMap());
         builder.add(
             new String[] { "index2" },
             false,
@@ -100,10 +100,10 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
             false,
             false,
             TimeSeriesParams.MetricType.COUNTER,
-            false,
+            null,
             Collections.emptyMap()
         );
-        builder.add(new String[] { "index3" }, false, false, false, false, false, null, false, Collections.emptyMap());
+        builder.add(new String[] { "index3" }, false, false, false, false, false, null, null, Collections.emptyMap());
         {
             FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(false));
@@ -134,7 +134,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         }
 
         builder = new FieldCapabilities.Builder("field", "type");
-        builder.add(new String[] { "index1" }, false, true, true, true, true, TimeSeriesParams.MetricType.COUNTER, false, Map.of());
+        builder.add(new String[] { "index1" }, false, true, true, true, true, TimeSeriesParams.MetricType.COUNTER, null, Map.of());
         builder.add(
             new String[] { "index2" },
             false,
@@ -187,7 +187,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         }
 
         builder = new FieldCapabilities.Builder("field", "type");
-        builder.add(new String[] { "index1" }, false, true, true, true, true, TimeSeriesParams.MetricType.COUNTER, false, Map.of());
+        builder.add(new String[] { "index1" }, false, true, true, true, true, TimeSeriesParams.MetricType.COUNTER, null, Map.of());
         builder.add(
             new String[] { "index2" },
             false,
@@ -276,7 +276,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
                     nonDimensionIndices.addAll(Arrays.asList(groupIndices));
                 }
 
-                builder.add(groupIndices, false, searchable, aggregatable, isInference, isDimension, null, false, Map.of());
+                builder.add(groupIndices, false, searchable, aggregatable, isInference, isDimension, null, null, Map.of());
                 i += bulkSize;
             }
 
@@ -353,7 +353,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
                 randomBoolean(),
                 randomBoolean(),
                 metric,
-                false,
+                null,
                 Map.of()
             );
         }
@@ -380,7 +380,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
                 randomBoolean(),
                 randomBoolean(),
                 metricTypes.get(index),
-                false,
+                null,
                 Map.of()
             );
         }
@@ -409,7 +409,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
                 randomBoolean(),
                 randomBoolean(),
                 randomFrom(TimeSeriesParams.MetricType.values()),
-                false,
+                null,
                 Map.of()
             );
         }
@@ -423,7 +423,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
                 randomBoolean(),
                 randomBoolean(),
                 randomFrom(TimeSeriesParams.MetricType.values()),
-                false,
+                null,
                 Map.of()
             );
         });
@@ -438,8 +438,8 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         builder.setMinTransportVersion(
             randomBoolean() ? TransportVersionUtils.randomVersionNotSupporting(FieldCapabilities.FIELD_CAPS_INFERENCE_FIELD) : null
         );
-        builder.add(new String[] { "index1" }, false, true, false, true, false, null, false, Collections.emptyMap());
-        builder.add(new String[] { "index2" }, false, true, false, false, false, null, false, Collections.emptyMap());
+        builder.add(new String[] { "index1" }, false, true, false, true, false, null, null, Collections.emptyMap());
+        builder.add(new String[] { "index2" }, false, true, false, false, false, null, null, Collections.emptyMap());
 
         FieldCapabilities cap = builder.build(randomBoolean());
         assertNull(cap.isInference());
@@ -465,7 +465,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
             assertThat(json, not(containsString("non_passthrough_indices")));
         }
 
-        // A plain object in all indices reports nothing about passthrough
+        // A plain object in all indices is explicitly reported as not passthrough, with no non-passthrough indices
         builder = new FieldCapabilities.Builder("attributes", "object");
         builder.add(new String[] { "index1" }, false, false, false, false, false, null, false, Collections.emptyMap());
         builder.add(new String[] { "index2" }, false, false, false, false, false, null, false, Collections.emptyMap());
@@ -473,7 +473,10 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
             FieldCapabilities cap = builder.build(randomBoolean());
             assertFalse(cap.isPassthrough());
             assertNull(cap.nonPassthroughIndices());
-            assertThat(cap.toString(), not(containsString("passthrough")));
+
+            String json = cap.toString();
+            assertThat(json, containsString("\"passthrough\":false"));
+            assertThat(json, not(containsString("non_passthrough_indices")));
         }
 
         // A passthrough object in some indices and a plain object in others lists the non-passthrough indices
@@ -488,14 +491,26 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
             assertThat(cap.nonPassthroughIndices(), equalTo(new String[] { "index2", "index4" }));
 
             String json = cap.toString();
-            assertThat(json, not(containsString("\"passthrough\":true")));
+            assertThat(json, containsString("\"passthrough\":false"));
             assertThat(json, containsString("\"non_passthrough_indices\":[\"index2\",\"index4\"]"));
+        }
+
+        // A field type that cannot be a passthrough source (reported as null by every index) does not carry the flag at all
+        builder = new FieldCapabilities.Builder("attributes.host.name", "keyword");
+        builder.add(new String[] { "index1" }, false, true, true, false, false, null, null, Collections.emptyMap());
+        builder.add(new String[] { "index2" }, false, true, true, false, false, null, null, Collections.emptyMap());
+        {
+            FieldCapabilities cap = builder.build(randomBoolean());
+            assertNull(cap.isPassthrough());
+            assertNull(cap.nonPassthroughIndices());
+            assertThat(cap.toString(), not(containsString("passthrough")));
         }
     }
 
     public void testBuilderWithPrePassthroughTransportVersionOmitsPassthrough() {
         // Nodes on older versions never report passthrough objects. When the cluster's min transport version is too old,
         // both the flag and the non-passthrough indices must be suppressed so that we do not report spurious conflicts.
+        // The flag is null rather than false, so that the response omits it and clients can tell "unknown" from "not passthrough".
         FieldCapabilities.Builder builder = new FieldCapabilities.Builder("attributes", "object");
         builder.setMinTransportVersion(
             randomBoolean() ? TransportVersionUtils.randomVersionNotSupporting(FieldCapabilities.FIELD_CAPS_PASSTHROUGH) : null
@@ -504,7 +519,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         builder.add(new String[] { "index2" }, false, false, false, false, false, null, randomBoolean(), Collections.emptyMap());
 
         FieldCapabilities cap = builder.build(randomBoolean());
-        assertFalse(cap.isPassthrough());
+        assertNull(cap.isPassthrough());
         assertNull(cap.nonPassthroughIndices());
         assertThat(cap.toString(), not(containsString("passthrough")));
     }
@@ -579,7 +594,8 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
             randomBoolean(),
             randomBoolean(),
             randomFrom(TimeSeriesParams.MetricType.values()),
-            randomBoolean(),
+            // null when the passthrough status is unknown, e.g. in a mixed-version cluster
+            randomBoolean() ? null : randomBoolean(),
             indices,
             nonSearchableIndices,
             nonAggregatableIndices,
@@ -601,7 +617,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         boolean isInference = instance.isInference();
         boolean isDimension = instance.isDimension();
         TimeSeriesParams.MetricType metricType = instance.getMetricType();
-        boolean isPassthrough = instance.isPassthrough();
+        Boolean isPassthrough = instance.isPassthrough();
         String[] indices = instance.indices();
         String[] nonSearchableIndices = instance.nonSearchableIndices();
         String[] nonAggregatableIndices = instance.nonAggregatableIndices();
@@ -740,7 +756,8 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
                 metricConflictsIndices = newMetricConflictsIndices;
                 break;
             case 15:
-                isPassthrough = isPassthrough == false;
+                // cycles null -> true -> false -> true, always producing a different value
+                isPassthrough = Boolean.TRUE.equals(isPassthrough) ? Boolean.FALSE : Boolean.TRUE;
                 break;
             case 16:
                 String[] newNonPassthroughIndices;

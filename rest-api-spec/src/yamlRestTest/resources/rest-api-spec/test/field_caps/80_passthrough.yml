@@ -2,7 +2,7 @@
 setup:
   - requires:
       cluster_features: "field_caps.passthrough"
-      reason: "field_caps flags passthrough objects"
+      reason: "field_caps flags passthrough objects and flattened fields"
 
   - do:
       indices.create:
@@ -71,12 +71,41 @@ setup:
                       host.name:
                         type: keyword
 
+  # An index with different mappings, which should not interfere with passthrough resoultion
+  - do:
+      indices.create:
+        index: unrelated_index4
+        body:
+          mappings:
+            properties:
+              unrelated_object:
+                properties:
+                  host.name:
+                    type: keyword
+
+  # flattened fields with and without passthrough
+  - do:
+      indices.create:
+        index: flattened_index5
+        body:
+          mappings:
+            properties:
+              labels:
+                type: flattened
+                passthrough:
+                  priority: 30
+                properties:
+                  service.name:
+                    type: keyword
+              plain_labels:
+                type: flattened
+
 ---
 "Passthrough objects are flagged":
   - do:
       field_caps:
         include_empty_fields: true
-        index: passthrough_index1
+        index: passthrough_index1,unrelated_index4
         fields: [ "attributes.*", "resource.*", "plain.*" ]
 
   - match: { fields.attributes.object.type: object }
@@ -87,15 +116,15 @@ setup:
   - match: { fields.resource\.attributes.object.passthrough: true }
   - is_false: fields.resource\.attributes.object.non_passthrough_indices
 
-  # plain objects, including the parent of a passthrough object, are not flagged
+  # plain objects, including the parent of a passthrough object, are explicitly reported as not passthrough
   - match: { fields.resource.object.type: object }
-  - is_false: fields.resource.object.passthrough
+  - match: { fields.resource.object.passthrough: false }
   - is_false: fields.resource.object.non_passthrough_indices
 
   - match: { fields.plain.object.type: object }
-  - is_false: fields.plain.object.passthrough
+  - match: { fields.plain.object.passthrough: false }
 
-  # sub-fields of passthrough objects are regular fields
+  # sub-fields of passthrough objects are regular leaf fields, which carry no passthrough status at all
   - match: { fields.attributes\.host\.name.keyword.type: keyword }
   - is_false: fields.attributes\.host\.name.keyword.passthrough
 
@@ -104,7 +133,7 @@ setup:
   - do:
       field_caps:
         include_empty_fields: true
-        index: passthrough_index1,passthrough_index2
+        index: passthrough_index1,passthrough_index2,unrelated_index4
         fields: [ "attributes.*", "resource.*" ]
 
   - match: { fields.attributes.object.passthrough: true }
@@ -118,12 +147,34 @@ setup:
   - do:
       field_caps:
         include_empty_fields: true
-        index: passthrough_index1,passthrough_index2,passthrough_index3
+        index: passthrough_index1,passthrough_index2,passthrough_index3,unrelated_index4
         fields: [ "attributes.*", "resource.*" ]
 
   - match: { fields.attributes.object.passthrough: true }
   - is_false: fields.attributes.object.non_passthrough_indices
 
   - match: { fields.resource\.attributes.object.type: object }
-  - is_false: fields.resource\.attributes.object.passthrough
+  - match: { fields.resource\.attributes.object.passthrough: false }
   - match: { fields.resource\.attributes.object.non_passthrough_indices: [ "passthrough_index3" ] }
+
+---
+"Passthrough flattened fields are flagged":
+  - do:
+      field_caps:
+        include_empty_fields: true
+        index: flattened_index5
+        fields: [ "labels*", "plain_labels", "service.name" ]
+
+  - match: { fields.labels.flattened.type: flattened }
+  - match: { fields.labels.flattened.passthrough: true }
+  - is_false: fields.labels.flattened.non_passthrough_indices
+
+  # a flattened field without passthrough could have been one, so it is explicitly reported as not passthrough
+  - match: { fields.plain_labels.flattened.type: flattened }
+  - match: { fields.plain_labels.flattened.passthrough: false }
+
+  # typed sub-fields and their root-level aliases are regular leaf fields
+  - match: { fields.labels\.service\.name.keyword.type: keyword }
+  - is_false: fields.labels\.service\.name.keyword.passthrough
+  - match: { fields.service\.name.keyword.type: keyword }
+  - is_false: fields.service\.name.keyword.passthrough

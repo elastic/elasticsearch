@@ -234,7 +234,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         );
         final boolean hasPassthrough = indexResponses.stream()
             .flatMap(r -> r.get().values().stream())
-            .anyMatch(IndexFieldCapabilities::isPassthrough);
+            .anyMatch(fc -> fc.isPassthrough() != null);
         assumeTrue(
             "passthrough flag requires transport version " + FieldCapabilities.FIELD_CAPS_PASSTHROUGH,
             hasPassthrough == false || version.supports(FieldCapabilities.FIELD_CAPS_PASSTHROUGH)

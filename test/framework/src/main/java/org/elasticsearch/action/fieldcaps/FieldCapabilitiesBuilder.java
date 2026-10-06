@@ -28,7 +28,7 @@ public class FieldCapabilitiesBuilder {
     private boolean isInference;
     private boolean isDimension;
     private @Nullable TimeSeriesParams.MetricType metricType;
-    private boolean isPassthrough;
+    private @Nullable Boolean isPassthrough;
 
     private @Nullable String[] indices;
     private @Nullable String[] nonSearchableIndices;
@@ -80,7 +80,8 @@ public class FieldCapabilitiesBuilder {
         return this;
     }
 
-    public FieldCapabilitiesBuilder isPassthrough(boolean isPassthrough) {
+    /** Passthrough status; {@code null} (the default) when the field type cannot be a passthrough source or it is unknown. */
+    public FieldCapabilitiesBuilder isPassthrough(@Nullable Boolean isPassthrough) {
         this.isPassthrough = isPassthrough;
         return this;
     }

@@ -61,6 +61,7 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.XPackPlugin.ASYNC_RESULTS_INDEX;
 import static org.elasticsearch.xpack.core.async.AsyncTaskMaintenanceService.ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING;
 import static org.hamcrest.Matchers.equalTo;
@@ -120,6 +121,24 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
     @After
     public void releaseQueryLatch() {
         BlockingQueryBuilder.releaseQueryLatch();
+    }
+
+    /**
+     * Deletes the async-search index before wipe() runs, closing a race where wipe() reroutes and
+     * reallocates this index's shard just as InternalTestCluster#assertAfterTest checks shard locks.
+     * The index may be an alias (see AsyncSearchIndexAliasIT), which delete-index rejects, so it's
+     * resolved to a concrete name first.
+     */
+    @Override
+    protected void beforeIndexDeletion() throws Exception {
+        if (indexExists(ASYNC_RESULTS_INDEX)) {
+            String[] concreteIndices = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
+                .setIndices(ASYNC_RESULTS_INDEX)
+                .get()
+                .getIndices();
+            assertAcked(indicesAdmin().prepareDelete(concreteIndices));
+        }
+        super.beforeIndexDeletion();
     }
 
     @Override

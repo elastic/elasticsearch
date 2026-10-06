@@ -349,4 +349,93 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
         assertEquals(original.isMaxMode(), restored.isMaxMode());
         assertEquals(original.isArrayOrder(), restored.isArrayOrder());
     }
+
+    public void testEqualsIsReflexive() {
+        final MultiValuedBinaryDocValuesSortField sf = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
+        assertEquals(sf, sf);
+        assertEquals(sf.hashCode(), sf.hashCode());
+    }
+
+    public void testEqualsIsSymmetric() {
+        final MultiValuedBinaryDocValuesSortField a = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
+        final MultiValuedBinaryDocValuesSortField b = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
+        assertEquals(a, b);
+        assertEquals(b, a);
+        assertEquals(a.hashCode(), b.hashCode());
+    }
+
+    public void testEqualsDistinguishesMaxMode() {
+        final MultiValuedBinaryDocValuesSortField min = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
+        final MultiValuedBinaryDocValuesSortField max = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, true);
+        assertNotEquals(min, max);
+        assertNotEquals(max, min);
+    }
+
+    public void testEqualsDistinguishesArrayOrder() {
+        final MultiValuedBinaryDocValuesSortField separateCount = new MultiValuedBinaryDocValuesSortField(
+            "kw",
+            false,
+            SortField.STRING_LAST,
+            false,
+            false
+        );
+        final MultiValuedBinaryDocValuesSortField arrayOrder = new MultiValuedBinaryDocValuesSortField(
+            "kw",
+            false,
+            SortField.STRING_LAST,
+            false,
+            true
+        );
+        assertNotEquals(separateCount, arrayOrder);
+        assertNotEquals(arrayOrder, separateCount);
+    }
+
+    public void testEqualsDistinguishesFieldName() {
+        final MultiValuedBinaryDocValuesSortField a = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
+        final MultiValuedBinaryDocValuesSortField b = new MultiValuedBinaryDocValuesSortField("other", false, SortField.STRING_LAST, false);
+        assertNotEquals(a, b);
+    }
+
+    public void testEqualsDistinguishesReverse() {
+        final MultiValuedBinaryDocValuesSortField asc = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
+        final MultiValuedBinaryDocValuesSortField desc = new MultiValuedBinaryDocValuesSortField("kw", true, SortField.STRING_FIRST, false);
+        assertNotEquals(asc, desc);
+    }
+
+    public void testEqualsDistinguishesMissingValue() {
+        final MultiValuedBinaryDocValuesSortField last = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
+        final MultiValuedBinaryDocValuesSortField first = new MultiValuedBinaryDocValuesSortField(
+            "kw",
+            false,
+            SortField.STRING_FIRST,
+            false
+        );
+        assertNotEquals(last, first);
+    }
+
+    public void testFuzzyEqualsHashCode() {
+        for (int i = 0; i < 20; i++) {
+            final String field = randomAlphaOfLengthBetween(1, 20);
+            final boolean reverse = randomBoolean();
+            final Object missing = randomFrom(SortField.STRING_FIRST, SortField.STRING_LAST);
+            final boolean maxMode = randomBoolean();
+            final boolean arrayOrder = randomBoolean();
+            final MultiValuedBinaryDocValuesSortField a = new MultiValuedBinaryDocValuesSortField(
+                field,
+                reverse,
+                missing,
+                maxMode,
+                arrayOrder
+            );
+            final MultiValuedBinaryDocValuesSortField b = new MultiValuedBinaryDocValuesSortField(
+                field,
+                reverse,
+                missing,
+                maxMode,
+                arrayOrder
+            );
+            assertEquals("iteration " + i, a, b);
+            assertEquals("hashCode iteration " + i, a.hashCode(), b.hashCode());
+        }
+    }
 }

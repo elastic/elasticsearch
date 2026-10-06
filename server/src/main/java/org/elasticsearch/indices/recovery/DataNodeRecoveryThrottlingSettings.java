@@ -25,7 +25,7 @@ import java.util.List;
 /// on stateful clusters they cannot be configured, and the data node falls back to unbounded behavior. The master
 /// then controls recovery throttling (see [org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider],
 /// [org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider] and
-/// `StatelessThrottlingConcurrentRecoveriesAllocationDecider`)
+/// `StatelessThrottlingConcurrentRecoveriesAllocationDecider`).
 ///
 /// TODO: register [#settings()] in `BUILT_IN_CLUSTER_SETTINGS` once DNRT is ready for stateful (elasticsearch-team#2805).
 ///
@@ -49,8 +49,11 @@ import java.util.List;
 /// the data node can concurrently be the source, again as `min(fixed, ceil(heapGb * perHeapGb))`. Requests that exceed it are
 /// queued in FIFO order and started as slots free up. The two settings are not applied by the same services:
 ///
-/// - On stateful nodes, only the fixed limit applies, to peer recoveries, and is applied by [PeerRecoverySourceService].
-/// - On stateless indexing nodes, both settings apply to primary relocations, via `StatelessPrimaryRelocationSourceService`.
+/// - [#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING] (source side, stateful and stateless): bounds peer
+///   recoveries on stateful nodes via [PeerRecoverySourceService], and primary relocations on stateless indexing nodes via
+///   `StatelessPrimaryRelocationSourceService`.
+/// - [#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING] (source side, stateless only): bounds primary
+///   relocations on stateless indexing nodes only, and is not applied to stateful peer recoveries.
 ///
 public final class DataNodeRecoveryThrottlingSettings {
 
@@ -128,7 +131,6 @@ public final class DataNodeRecoveryThrottlingSettings {
     /// Applies to: source side, stateful and stateless. Currently only registered by the stateless plugin, elsewhere disabled.
     public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING = Setting.intSetting(
         "indices.recovery.max_concurrent_outgoing_recoveries",
-        // Throttling handled by master allocation for now.
         Integer.MAX_VALUE,
         1,
         Setting.Property.NodeScope,

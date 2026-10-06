@@ -55,11 +55,7 @@ public final class ScanningBinaryDocValuesAutomatonQuery extends AbstractBinaryD
     }
 
     /** Creates a query matching a wildcard pattern, rewriting {@code *literal*} patterns to a faster contains query. */
-    public static Query forWildcard(String fieldName, String pattern, boolean caseInsensitive, BinaryDocValuesFormat binaryFormat) {
-        return forWildcard(fieldName, pattern, caseInsensitive, binaryFormat, null);
-    }
-
-    static Query forWildcard(
+    public static Query forWildcard(
         String fieldName,
         String pattern,
         boolean caseInsensitive,

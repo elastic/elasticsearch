@@ -31,6 +31,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -60,6 +61,8 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class ScanningBinaryDocValuesAutomatonQueryTests extends ESTestCase {
 
+    private static final CircuitBreaker NOOP_BREAKER = new NoopCircuitBreaker("test");
+
     public void testArrayOrderInlineNull() throws Exception {
         String fieldName = "field";
         try (Directory dir = newDirectory()) {
@@ -74,18 +77,42 @@ public class ScanningBinaryDocValuesAutomatonQueryTests extends ESTestCase {
                     // Automaton wildcard "be*" matches "beta" and "best"; the all-null doc preceding "best" must not be matched.
                     assertEquals(
                         2,
-                        searcher.count(ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, "be*", false, ARRAY_ORDER_INLINE_NULL))
+                        searcher.count(
+                            ScanningBinaryDocValuesAutomatonQuery.forWildcard(
+                                fieldName,
+                                "be*",
+                                false,
+                                ARRAY_ORDER_INLINE_NULL,
+                                NOOP_BREAKER
+                            )
+                        )
                     );
                     // "*et*" short-circuits to a contains query: with a multi-valued doc present in the segment the contains fast path is
                     // gated off and the per-value decode fallback runs, so only "beta" (which contains "et") matches — not "best".
                     assertEquals(
                         1,
-                        searcher.count(ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, "*et*", false, ARRAY_ORDER_INLINE_NULL))
+                        searcher.count(
+                            ScanningBinaryDocValuesAutomatonQuery.forWildcard(
+                                fieldName,
+                                "*et*",
+                                false,
+                                ARRAY_ORDER_INLINE_NULL,
+                                NOOP_BREAKER
+                            )
+                        )
                     );
                     // "*ph*" contains-matches "alpha" only.
                     assertEquals(
                         1,
-                        searcher.count(ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, "*ph*", false, ARRAY_ORDER_INLINE_NULL))
+                        searcher.count(
+                            ScanningBinaryDocValuesAutomatonQuery.forWildcard(
+                                fieldName,
+                                "*ph*",
+                                false,
+                                ARRAY_ORDER_INLINE_NULL,
+                                NOOP_BREAKER
+                            )
+                        )
                     );
                 }
             }
@@ -128,7 +155,13 @@ public class ScanningBinaryDocValuesAutomatonQueryTests extends ESTestCase {
                     IndexSearcher searcher = newSearcher(reader);
                     for (var entry : expectedCounts.entrySet()) {
                         long count = searcher.count(
-                            ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, entry.getKey() + "*", false, SEPARATE_COUNT)
+                            ScanningBinaryDocValuesAutomatonQuery.forWildcard(
+                                fieldName,
+                                entry.getKey() + "*",
+                                false,
+                                SEPARATE_COUNT,
+                                NOOP_BREAKER
+                            )
                         );
                         assertEquals(entry.getValue().longValue(), count);
                     }
@@ -177,7 +210,7 @@ public class ScanningBinaryDocValuesAutomatonQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, "a*", false, SEPARATE_COUNT);
+                    Query query = ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, "a*", false, SEPARATE_COUNT, NOOP_BREAKER);
                     assertEquals(0, searcher.count(query));
                 }
             }
@@ -202,7 +235,7 @@ public class ScanningBinaryDocValuesAutomatonQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, "a*", false, SEPARATE_COUNT);
+                    Query query = ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, "a*", false, SEPARATE_COUNT, NOOP_BREAKER);
                     assertEquals(1, searcher.count(query));
                 }
             }
@@ -250,7 +283,8 @@ public class ScanningBinaryDocValuesAutomatonQueryTests extends ESTestCase {
                         "contender_field",
                         randomWildcard,
                         false,
-                        SEPARATE_COUNT
+                        SEPARATE_COUNT,
+                        NOOP_BREAKER
                     );
                     TopDocs contenderResults = searcher.search(contenderQuery, 32);
 
@@ -294,7 +328,13 @@ public class ScanningBinaryDocValuesAutomatonQueryTests extends ESTestCase {
 
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, "*search*", false, SEPARATE_COUNT);
+                    Query query = ScanningBinaryDocValuesAutomatonQuery.forWildcard(
+                        fieldName,
+                        "*search*",
+                        false,
+                        SEPARATE_COUNT,
+                        NOOP_BREAKER
+                    );
                     assertThat(query, instanceOf(BinaryDocValuesContainsTermQuery.class));
                     assertEquals(3, searcher.count(query));
                 }
@@ -313,7 +353,13 @@ public class ScanningBinaryDocValuesAutomatonQueryTests extends ESTestCase {
 
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, "*ell*", false, SEPARATE_COUNT);
+                    Query query = ScanningBinaryDocValuesAutomatonQuery.forWildcard(
+                        fieldName,
+                        "*ell*",
+                        false,
+                        SEPARATE_COUNT,
+                        NOOP_BREAKER
+                    );
                     assertThat(query, instanceOf(BinaryDocValuesContainsTermQuery.class));
                     assertEquals(2, searcher.count(query));
                 }
@@ -329,7 +375,13 @@ public class ScanningBinaryDocValuesAutomatonQueryTests extends ESTestCase {
 
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, "*search*", true, SEPARATE_COUNT);
+                    Query query = ScanningBinaryDocValuesAutomatonQuery.forWildcard(
+                        fieldName,
+                        "*search*",
+                        true,
+                        SEPARATE_COUNT,
+                        NOOP_BREAKER
+                    );
                     assertThat(query, instanceOf(ScanningBinaryDocValuesAutomatonQuery.class));
                     assertEquals(1, searcher.count(query));
                 }
@@ -346,14 +398,32 @@ public class ScanningBinaryDocValuesAutomatonQueryTests extends ESTestCase {
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
 
-                    Query prefixQuery = ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, "foo*", false, SEPARATE_COUNT);
+                    Query prefixQuery = ScanningBinaryDocValuesAutomatonQuery.forWildcard(
+                        fieldName,
+                        "foo*",
+                        false,
+                        SEPARATE_COUNT,
+                        NOOP_BREAKER
+                    );
                     assertThat(prefixQuery, instanceOf(ScanningBinaryDocValuesAutomatonQuery.class));
                     assertThat(prefixQuery, sameInstance(prefixQuery.rewrite(searcher)));
 
-                    Query multiWildcard = ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, "*foo*bar*", false, SEPARATE_COUNT);
+                    Query multiWildcard = ScanningBinaryDocValuesAutomatonQuery.forWildcard(
+                        fieldName,
+                        "*foo*bar*",
+                        false,
+                        SEPARATE_COUNT,
+                        NOOP_BREAKER
+                    );
                     assertThat(multiWildcard, instanceOf(ScanningBinaryDocValuesAutomatonQuery.class));
 
-                    Query singleCharWildcard = ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, "*fo?*", false, SEPARATE_COUNT);
+                    Query singleCharWildcard = ScanningBinaryDocValuesAutomatonQuery.forWildcard(
+                        fieldName,
+                        "*fo?*",
+                        false,
+                        SEPARATE_COUNT,
+                        NOOP_BREAKER
+                    );
                     assertThat(singleCharWildcard, instanceOf(ScanningBinaryDocValuesAutomatonQuery.class));
                 }
             }
@@ -362,7 +432,7 @@ public class ScanningBinaryDocValuesAutomatonQueryTests extends ESTestCase {
 
     public void testToString() {
         // wildcard factory — description contains the pattern and caseInsensitive flag
-        Query q1 = ScanningBinaryDocValuesAutomatonQuery.forWildcard("my_field", "foo*", false, SEPARATE_COUNT);
+        Query q1 = ScanningBinaryDocValuesAutomatonQuery.forWildcard("my_field", "foo*", false, SEPARATE_COUNT, NOOP_BREAKER);
         String str1 = q1.toString("other_field");
         assertThat(str1, containsString("my_field")); // stored fieldName, not the Lucene context param
         assertThat(str1, containsString("foo*"));
@@ -461,13 +531,13 @@ public class ScanningBinaryDocValuesAutomatonQueryTests extends ESTestCase {
         assertNotEquals(q1, q5);
 
         // forWildcard with the same inputs produces equal instances.
-        Query fw1 = ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", "foo*", false, SEPARATE_COUNT);
-        Query fw2 = ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", "foo*", false, SEPARATE_COUNT);
+        Query fw1 = ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", "foo*", false, SEPARATE_COUNT, NOOP_BREAKER);
+        Query fw2 = ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", "foo*", false, SEPARATE_COUNT, NOOP_BREAKER);
         assertEquals(fw1, fw2);
         assertEquals(fw1.hashCode(), fw2.hashCode());
 
         // forWildcard differs with different caseInsensitive (different automaton).
-        Query fw3 = ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", "foo*", true, SEPARATE_COUNT);
+        Query fw3 = ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", "foo*", true, SEPARATE_COUNT, NOOP_BREAKER);
         assertNotEquals(fw1, fw3);
 
         // Instances of different types are never equal (sameClassAs check).

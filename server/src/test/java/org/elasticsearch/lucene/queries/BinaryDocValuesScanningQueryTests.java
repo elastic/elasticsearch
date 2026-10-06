@@ -23,6 +23,8 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.test.ESTestCase;
@@ -42,6 +44,7 @@ import static org.elasticsearch.index.mapper.BinaryDocValuesFormat.SEPARATE_COUN
 public class BinaryDocValuesScanningQueryTests extends ESTestCase {
 
     private static final String FIELD = "field";
+    private static final CircuitBreaker NOOP_BREAKER = new NoopCircuitBreaker("test");
 
     private final boolean writeCounts;
 
@@ -68,7 +71,7 @@ public class BinaryDocValuesScanningQueryTests extends ESTestCase {
     }
 
     public void testWildcardQuery() throws IOException {
-        assertMatchCount(ScanningBinaryDocValuesAutomatonQuery.forWildcard(FIELD, "resea*", false, SEPARATE_COUNT), 1);
+        assertMatchCount(ScanningBinaryDocValuesAutomatonQuery.forWildcard(FIELD, "resea*", false, SEPARATE_COUNT, NOOP_BREAKER), 1);
     }
 
     public void testRegexpQuery() throws IOException {

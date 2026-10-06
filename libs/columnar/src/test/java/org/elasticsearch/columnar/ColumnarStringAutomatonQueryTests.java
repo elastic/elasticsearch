@@ -36,12 +36,11 @@ import java.util.function.IntFunction;
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarBinaryFieldType;
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
 import static org.elasticsearch.columnar.ColumnarTestUtils.stringPayload;
-import static org.hamcrest.Matchers.instanceOf;
 
 /**
- * A wildcard pattern answered by the column, over the shapes that answer it differently. Every pattern is
- * checked against what Lucene says the pattern means, so a pattern the query narrowed to a term, a prefix or
- * a run of bytes has to find exactly what running the automaton would have found.
+ * A wildcard automaton answered by the column, over the shapes that answer it differently. Every pattern is
+ * checked against what Lucene says the pattern means. Narrowing a pattern to a cheaper query is the caller's
+ * business and is tested where it is done.
  */
 public class ColumnarStringAutomatonQueryTests extends ESTestCase {
 
@@ -96,63 +95,15 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
     }
 
     /**
-     * A pattern that names one of the shapes a column answers directly is built as that query, so the column
-     * bisects or searches for bytes rather than running an automaton over every distinct value.
-     */
-    public void testForWildcardNarrowsToTheCheapestQuery() {
-        assertEquals(
-            ColumnarStringTermQuery.term(FIELD, new BytesRef("alpha"), ScanBudget.UNLIMITED),
-            ColumnarStringAutomatonQuery.forWildcard(FIELD, "alpha", ScanBudget.UNLIMITED)
-        );
-        assertEquals(
-            ColumnarStringTermQuery.prefix(FIELD, new BytesRef("al"), ScanBudget.UNLIMITED),
-            ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*", ScanBudget.UNLIMITED)
-        );
-        // Every value, which is a prefix of no bytes rather than an automaton.
-        assertEquals(
-            ColumnarStringTermQuery.prefix(FIELD, new BytesRef(""), ScanBudget.UNLIMITED),
-            ColumnarStringAutomatonQuery.forWildcard(FIELD, "*", ScanBudget.UNLIMITED)
-        );
-        assertEquals(
-            ColumnarStringTermQuery.contains(FIELD, new BytesRef("lph"), ScanBudget.UNLIMITED),
-            ColumnarStringAutomatonQuery.forWildcard(FIELD, "*lph*", ScanBudget.UNLIMITED)
-        );
-    }
-
-    /** A pattern that names none of those shapes stays an automaton. */
-    public void testForWildcardKeepsTheAutomatonWhereItHasTo() {
-        // The empty pattern too: Lucene reads it as naming no value, not as naming the value of no bytes.
-        for (String pattern : new String[] { "*pha", "al*a", "alph?", "**", "a*b*c", "al\\*pha", "*a?c*", "" }) {
-            assertThat(
-                "pattern [" + pattern + "]",
-                ColumnarStringAutomatonQuery.forWildcard(FIELD, pattern, ScanBudget.UNLIMITED),
-                instanceOf(ColumnarStringAutomatonQuery.class)
-            );
-        }
-    }
-
-    /**
      * An automaton has no equality to cache on, so the query keys on what produced it. Two queries built from
      * the same pattern have to be the same query, and two built from different patterns have to differ, or a
      * cached filter would be handed to the wrong one.
      */
     public void testCacheIdentityFollowsThePattern() {
-        assertEquals(
-            ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a", ScanBudget.UNLIMITED),
-            ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a", ScanBudget.UNLIMITED)
-        );
-        assertEquals(
-            ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a", ScanBudget.UNLIMITED).hashCode(),
-            ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a", ScanBudget.UNLIMITED).hashCode()
-        );
-        assertNotEquals(
-            ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a", ScanBudget.UNLIMITED),
-            ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*b", ScanBudget.UNLIMITED)
-        );
-        assertNotEquals(
-            ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a", ScanBudget.UNLIMITED),
-            ColumnarStringAutomatonQuery.forWildcard("other", "al*a", ScanBudget.UNLIMITED)
-        );
+        assertEquals(automatonFor("al*a"), automatonFor("al*a"));
+        assertEquals(automatonFor("al*a").hashCode(), automatonFor("al*a").hashCode());
+        assertNotEquals(automatonFor("al*a"), automatonFor("al*b"));
+        assertNotEquals(automatonFor("al*a"), automatonFor("other", "al*a"));
     }
 
     /**
@@ -177,12 +128,6 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 final IndexSearcher searcher = new IndexSearcher(ColumnarTestUtils.hideTheColumn(reader));
                 for (String pattern : PATTERNS) {
-                    assertEquals(
-                        "pattern [" + pattern + "] through an overlay",
-                        accepted(values, pattern),
-                        found(searcher, ColumnarStringAutomatonQuery.forWildcard(FIELD, pattern, ScanBudget.UNLIMITED))
-                    );
-                    // The narrowed shapes go through the overlay too, since forWildcard picks them first.
                     assertEquals(
                         "pattern [" + pattern + "] as an automaton through an overlay",
                         accepted(values, pattern),
@@ -220,11 +165,6 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
                 final IndexSearcher searcher = new IndexSearcher(ColumnarTestUtils.hideTheColumn(reader));
                 for (String pattern : PATTERNS) {
                     assertEquals(
-                        "pattern [" + pattern + "] through an overlay",
-                        accepted(values, pattern),
-                        found(searcher, ColumnarStringAutomatonQuery.forWildcard(FIELD, pattern, ScanBudget.UNLIMITED))
-                    );
-                    assertEquals(
                         "pattern [" + pattern + "] as an automaton through an overlay",
                         accepted(values, pattern),
                         found(searcher, automatonFor(pattern))
@@ -254,12 +194,6 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
                 final IndexSearcher searcher = new IndexSearcher(reader);
                 for (String pattern : PATTERNS) {
                     assertEquals(
-                        "pattern [" + pattern + "]",
-                        accepted(values, pattern),
-                        found(searcher, ColumnarStringAutomatonQuery.forWildcard(FIELD, pattern, ScanBudget.UNLIMITED))
-                    );
-                    // The automaton is what the narrowed queries have to agree with, so it is asked too.
-                    assertEquals(
                         "pattern [" + pattern + "] as an automaton",
                         accepted(values, pattern),
                         found(searcher, automatonFor(pattern))
@@ -269,12 +203,15 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
         }
     }
 
-    /** The query the pattern would be without any narrowing, which is what the narrowing has to match. */
     private static Query automatonFor(String pattern) {
+        return automatonFor(FIELD, pattern);
+    }
+
+    private static Query automatonFor(String field, String pattern) {
         return new ColumnarStringAutomatonQuery(
-            FIELD,
+            field,
             Operations.determinize(
-                WildcardQuery.toAutomaton(new Term(FIELD, pattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT),
+                WildcardQuery.toAutomaton(new Term(field, pattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT),
                 Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
             ),
             "pattern=" + pattern,

@@ -127,9 +127,16 @@ final class ColumnarBinaryDocValuesQueries implements BinaryDocValuesQueries {
     @Override
     public Query wildcard(String field, String pattern, boolean caseInsensitive, @Nullable CircuitBreaker breaker) {
         if (caseInsensitive == false) {
-            // Mirror the optimizations in ColumnarStringAutomatonQuery.forWildcard: route a literal, prefix or
-            // *contains* pattern to the column query that answers it without building an automaton at all. Only
-            // the general case needs the automaton — and the breaker.
+            // Better than any automaton is not needing one. A pattern that names a whole value, a start of one, or a
+            // run of bytes inside one is a shape ColumnarStringTermQuery answers, two of which bisect a column in term
+            // order rather than looking at its values at all. Deciding that here means what goes into the cache key is
+            // the cheap query rather than a pattern that has to be recognised again on every rewrite. Only the general
+            // case needs the automaton - and the breaker.
+            //
+            // The empty pattern is left to the automaton: Lucene reads it as naming no value at all rather than the
+            // value of no bytes, and narrowing is only worth having while it answers exactly what the automaton would.
+            // An escape is likewise left to the automaton rather than unescaped, so that what the two agree on is what
+            // Lucene's own parser says a pattern means.
             if (pattern.isEmpty() == false && isPlainPattern(pattern)) {
                 return ColumnarStringTermQuery.term(field, new BytesRef(pattern), BUDGET);
             }

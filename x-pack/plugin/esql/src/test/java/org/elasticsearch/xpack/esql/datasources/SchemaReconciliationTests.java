@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
@@ -18,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -331,12 +331,12 @@ public class SchemaReconciliationTests extends ESTestCase {
             meta(List.of(attr("c", DataType.INTEGER), attr("d", DataType.INTEGER)))
         );
 
-        CircuitBreakingException e = expectThrows(
-            CircuitBreakingException.class,
+        ExternalClientException e = expectThrows(
+            ExternalClientException.class,
             () -> SchemaReconciliation.reconcileUnionByName(metadata, WarningSinks.FAILING, new SchemaInterner(null, 0), 3)
         );
         assertThat(e.getMessage(), containsString("more than [3] columns"));
-        assertThat(e.status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         // At the cap the merge still succeeds.
         assertThat(
             SchemaReconciliation.reconcileUnionByName(metadata, WarningSinks.FAILING, new SchemaInterner(null, 0), 4)

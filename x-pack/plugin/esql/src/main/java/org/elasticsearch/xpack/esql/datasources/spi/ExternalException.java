@@ -70,6 +70,11 @@ public abstract class ExternalException extends QlException {
         },
         /** The object's data is corrupt, truncated, or uses an unsupported format variant. */
         MALFORMED_DATA("Malformed data in [{}]", "Malformed external data"),
+        /**
+         * A file's schema, a declared schema, or a merged one has more columns than {@code schema_max_fields} allows. The
+         * detail names the limit to raise. Deterministic, unlike a breaker trip: the same request fails the same way.
+         */
+        SCHEMA_TOO_WIDE("Schema of [{}] has too many columns", "Schema has too many columns"),
         /** Object metadata (size, last-modified, ETag) could not be retrieved. */
         METADATA_UNAVAILABLE("Failed to get metadata for [{}]", "Failed to get external data metadata"),
         /** A listing call failed — the prefix could not be enumerated. */

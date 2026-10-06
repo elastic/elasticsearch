@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThresholdAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
@@ -994,11 +995,18 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 // storage only once on the first parse.
                 //
                 // Note: this variant of readFooter doesn't close the stream.
-                try (
-                    SeekableInputStream stream = adapter.newStream();
-                    Releasable parseCharge = chargeFooterParse(declaredFooterLength(adapter, stream), adapter.getLength())
-                ) {
-                    return ParquetFileReader.readFooter(adapter, readOptionsBuilder().build(), stream);
+                try (SeekableInputStream stream = adapter.newStream()) {
+                    // The async path's read cap, before anything is charged or parsed, so an oversized footer is
+                    // the same 400 on both. A missing or corrupt trailer is left to readFooter, whose message names
+                    // the file and what it found there.
+                    int footerLength = declaredFooterLength(adapter, stream);
+                    long footerRegion = (long) footerLength + PARQUET_TRAILER_BYTES;
+                    if (footerLength > 0 && footerRegion <= adapter.getLength() && footerRegion > maxFooterReadBytes) {
+                        throw new InvalidFooterException(footerOverReadCap(footerLength));
+                    }
+                    try (Releasable parseCharge = chargeFooterParse(footerLength, adapter.getLength())) {
+                        return ParquetFileReader.readFooter(adapter, readOptionsBuilder().build(), stream);
+                    }
                 }
             });
             if (counters != null) {
@@ -1012,7 +1020,22 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             // parquet-specific wrapping that the prior in-line readFooter path used. The returned
             // throwable is never an Error (already rethrown) so the Exception cast is safe.
             // Callers see the same exception shapes regardless of who won the load race.
-            throw newInvalidParquetFileException((Exception) ParsedFooterCache.rethrowStructural(e));
+            Throwable cause = ParsedFooterCache.rethrowStructural(e);
+            if (cause instanceof InvalidFooterException invalid) {
+                // Already worded as an invalid file; wrapping it again would repeat the prefix.
+                throw invalid.invalid;
+            }
+            throw newInvalidParquetFileException((Exception) cause);
+        }
+    }
+
+    /** Carries a {@link #declaredFooterError} out of the footer cache loader unwrapped. */
+    private static final class InvalidFooterException extends RuntimeException {
+        private final IllegalArgumentException invalid;
+
+        InvalidFooterException(IllegalArgumentException invalid) {
+            super(invalid);
+            this.invalid = invalid;
         }
     }
 
@@ -1328,9 +1351,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             return invalidParquet("footer length " + footerLength + " exceeds file length " + length);
         }
         if (footerRegion > maxFooterReadBytes) {
-            return invalidParquet("footer length " + footerLength + " exceeds maximum " + maxFooterReadBytes);
+            return footerOverReadCap(footerLength);
         }
         return null;
+    }
+
+    private IllegalArgumentException footerOverReadCap(int footerLength) {
+        return invalidParquet("footer length " + footerLength + " exceeds maximum " + maxFooterReadBytes);
     }
 
     private void readExactFooterAndParse(
@@ -3504,7 +3531,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         // Stop at the cap rather than finish the list: a schema is flattened to one attribute per leaf, so a narrow
         // footer of deeply nested groups can still describe far more columns than it has fields.
         if (out.size() >= schemaMaxFields) {
-            throw new CircuitBreakingException(schemaWidthMessage(schemaMaxFields), CircuitBreaker.Durability.PERMANENT);
+            throw ExternalClientException.schemaTooWide(schemaWidthMessage(schemaMaxFields));
         }
         budget.add(dottedPath);
         if (depth > MAX_STRUCT_FLATTENING_DEPTH) {

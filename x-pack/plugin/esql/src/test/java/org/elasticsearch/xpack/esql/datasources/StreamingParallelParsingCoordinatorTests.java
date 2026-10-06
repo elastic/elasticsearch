@@ -2098,11 +2098,16 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
-    /** A schema too wide to keep under the breaker fails the read as a 429 and leaves nothing charged. */
+    /**
+     * A schema too wide to keep under the breaker fails the read as a 429 and leaves nothing charged. The limit is
+     * below what capturing chunk 0's header names alone charges, so the trip happens in the capture, and the 429 the
+     * read fails with must be that one. Binding the schema charges more than the capture, so a swallowed capture trip
+     * would still fail the read with a 429, but for the bind's charge rather than the header names'.
+     */
     public void testPlannerBoundReadTripsOnTheSchemaChunkZeroKeeps() throws Exception {
         int columns = 2_000;
         byte[] bytes = "a\nb\nc\n".repeat(20).getBytes(StandardCharsets.UTF_8);
-        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(WideHeaderLineFormatReader.retainedBytes(columns) / 2));
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(WideHeaderLineFormatReader.headerNameBytes(columns) / 2));
         ExecutorService executor = Executors.newFixedThreadPool(4);
         try {
             CloseableIterator<Page> it = parallelReadBoundWithBreaker(
@@ -2112,7 +2117,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 executor
             );
             try (it) {
-                expectThrows(CircuitBreakingException.class, () -> collectLines(it));
+                CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> collectLines(it));
+                assertEquals(WideHeaderLineFormatReader.headerNameBytes(columns), e.getBytesWanted());
             }
             assertEquals(0L, breaker.getUsed());
         } finally {
@@ -3338,6 +3344,15 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         private static String name(int column) {
             return "column_" + column;
+        }
+
+        /** What the coordinator charges for keeping the header names it captures from chunk 0. */
+        static long headerNameBytes(int columns) {
+            long bytes = 0;
+            for (int c = 0; c < columns; c++) {
+                bytes += HeapEstimates.stringBytes(name(c));
+            }
+            return bytes;
         }
 
         /** What the coordinator charges for keeping the header names and the bound schema. */

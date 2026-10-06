@@ -20,7 +20,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
@@ -2945,13 +2944,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
     /**
      * Refuses a schema wider than {@code maxFields} columns. A small file can name far more columns than it has
      * bytes, and the resolved schema is built on the coordinating node during planning, so the width is bounded
-     * while the header is split, before any per-column allocation. A {@link CircuitBreakingException}, not a client
-     * error: the file is not malformed, and it must reach the caller as a 429 that {@code error_mode} cannot suppress.
+     * while the header is split, before any per-column allocation. A 400, since retrying cannot help, but an
+     * {@link ExternalClientException} rather than an {@link IllegalArgumentException}: the file is not malformed, and
+     * {@code error_mode}, which treats an {@code IllegalArgumentException} as a bad row, must not suppress it.
      * {@code columns} counts the columns seen so far, so this trips at the first column over the cap.
      */
     static void checkColumnCap(int columns, int maxFields) {
         if (columns > maxFields) {
-            throw new CircuitBreakingException(columnCapMessage(maxFields), CircuitBreaker.Durability.PERMANENT);
+            throw ExternalClientException.schemaTooWide(columnCapMessage(maxFields));
         }
     }
 

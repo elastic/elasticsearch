@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -15,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -475,7 +474,7 @@ public final class SchemaReconciliation {
      * also bounds the merge scratch below, which has one entry per merged column.
      *
      * @param maxFields the most columns the merged schema may have
-     * @throws CircuitBreakingException when the merged schema exceeds {@code maxFields}
+     * @throws ExternalClientException (400) when the merged schema exceeds {@code maxFields}
      */
     public static Result reconcileUnionByName(
         Map<StoragePath, SourceMetadata> fileMetadata,
@@ -512,12 +511,11 @@ public final class SchemaReconciliation {
                     boolean attrNullable = attr.nullable() == Nullability.TRUE || attr.nullable() == Nullability.UNKNOWN;
                     unified.put(name, new MergeEntry(attr.dataType(), attrNullable, filePath));
                     if (unified.size() > maxFields) {
-                        throw new CircuitBreakingException(
+                        throw ExternalClientException.schemaTooWide(
                             "the union of the files' columns has more than ["
                                 + maxFields
                                 + "] columns; raise [esql.external.schema_max_fields] or the dataset's [schema_max_fields] "
-                                + "to merge a wider schema",
-                            CircuitBreaker.Durability.PERMANENT
+                                + "to merge a wider schema"
                         );
                     }
                 } else {

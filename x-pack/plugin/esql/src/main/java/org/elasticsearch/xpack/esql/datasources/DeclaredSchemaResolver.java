@@ -9,12 +9,11 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -63,18 +62,17 @@ public final class DeclaredSchemaResolver {
      * the same cap as an inferred one, so a runaway declaration cannot build an unbounded schema on the coordinating
      * node; the user raises the cap if a wide declaration is intended. A dataset with no {@code mappings} block passes.
      *
-     * @throws CircuitBreakingException when the declaration has more than {@code maxFields} columns
+     * @throws ExternalClientException (400) when the declaration has more than {@code maxFields} columns
      */
     public static void checkDeclaredWidth(DatasetMapping mapping, int maxFields) {
         DatasetMapping.Mappings mappings = mapping == null ? null : mapping.mappings();
         if (mappings != null && mappings.properties() != null && mappings.properties().size() > maxFields) {
-            throw new CircuitBreakingException(
+            throw ExternalClientException.schemaTooWide(
                 "the dataset declares ["
                     + mappings.properties().size()
                     + "] columns, more than the ["
                     + maxFields
-                    + "] allowed; raise [esql.external.schema_max_fields] or the dataset's [schema_max_fields]",
-                CircuitBreaker.Durability.PERMANENT
+                    + "] allowed; raise [esql.external.schema_max_fields] or the dataset's [schema_max_fields]"
             );
         }
     }

@@ -276,14 +276,14 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals("inferred schema names only columns from the widest sampled row, not from later wider rows", 2, schema.size());
     }
 
-    public void testSchemaWiderThanCapIsRefusedWithCircuitBreakingException() {
+    public void testSchemaWiderThanCapIsRefusedWithExternalClientException() {
         int cap = 5;
         for (String csv : new String[] { header(cap + 1) + "\n", header(cap + 1) + "\n" + "1,".repeat(cap) + "1\n" }) {
             CsvFormatReader reader = new CsvFormatReader(blockFactory).withSchemaMaxFields(cap);
-            CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> reader.schema(createStorageObject(csv)));
+            ExternalClientException e = expectThrows(ExternalClientException.class, () -> reader.schema(createStorageObject(csv)));
             assertThat(e.getMessage(), containsString("more than [" + cap + "] columns"));
             assertThat(e.getMessage(), containsString("schema_max_fields"));
-            assertEquals(RestStatus.TOO_MANY_REQUESTS, e.status());
+            assertEquals(RestStatus.BAD_REQUEST, e.status());
         }
     }
 
@@ -300,7 +300,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withSchemaMaxFields(cap)
             .withConfigTrackingConsumedKeys(Map.of("header_row", false))
             .value();
-        expectThrows(CircuitBreakingException.class, () -> reader.schema(createStorageObject("1,2,3,4\n5,6,7,8\n")));
+        expectThrows(ExternalClientException.class, () -> reader.schema(createStorageObject("1,2,3,4\n5,6,7,8\n")));
     }
 
     /**
@@ -370,7 +370,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         CsvFormatReader lowered = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfigTrackingConsumedKeys(
             Map.of("schema_max_fields", 2)
         ).value();
-        expectThrows(CircuitBreakingException.class, () -> lowered.schema(createStorageObject(header(3) + "\n1,2,3\n")));
+        expectThrows(ExternalClientException.class, () -> lowered.schema(createStorageObject(header(3) + "\n1,2,3\n")));
     }
 
     /** A declared schema is not capped by the file's width, but the names split from a wide header are charged. */
@@ -426,10 +426,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      */
     public void testColumnCapMessageAtTheCeiling() {
         int ceiling = ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS;
-        CircuitBreakingException e = expectThrows(
-            CircuitBreakingException.class,
-            () -> CsvFormatReader.checkColumnCap(ceiling + 1, ceiling)
-        );
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> CsvFormatReader.checkColumnCap(ceiling + 1, ceiling));
         assertThat(e.getMessage(), containsString("dynamic: false"));
         assertThat(CsvFormatReader.columnCapMessage(ceiling - 1), not(containsString("dynamic: false")));
         assertThat(CsvFormatReader.columnCapMessage(ceiling - 1), containsString("raise [esql.external.schema_max_fields]"));

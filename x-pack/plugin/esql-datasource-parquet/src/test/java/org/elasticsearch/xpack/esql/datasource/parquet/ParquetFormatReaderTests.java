@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -1707,6 +1708,36 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * The sync footer load applies the same sanity cap as the async one, before the parse allowance is charged, so a
+     * declared footer above {@code maxFooterReadBytes} is the same 400 on both rails rather than a charge and a parse.
+     */
+    public void testSyncRejectsFooterLargerThanSanityGetCapBeforeCharging() {
+        int cap = 1024;
+        AtomicReference<String> charged = new AtomicReference<>();
+        var breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(100)) {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                if (ParquetFormatReader.FOOTER_PARSE_BREAKER_LABEL.equals(label)) {
+                    charged.set(label);
+                }
+                super.addEstimateBytesAndMaybeBreak(bytes, label);
+            }
+        };
+        ParquetFormatReader reader = new ParquetFormatReader(new BlockFactory(breaker, blockFactory.bigArrays()), cap);
+        reader.clearFooterCachesForTests();
+        int footerLength = cap + 1 - 8;
+        byte[] data = syntheticParquetTail(cap + 1 + 16, footerLength);
+
+        Exception e = expectThrows(Exception.class, () -> reader.metadata(createStorageObject(data)));
+        Throwable cause = ExceptionsHelper.unwrapCause(e);
+        assertThat(cause, instanceOf(IllegalArgumentException.class));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(cause));
+        assertEquals("Could not read the Parquet file: footer length " + footerLength + " exceeds maximum " + cap, cause.getMessage());
+        assertNull("the parse allowance must not be charged for a footer over the cap", charged.get());
+        assertEquals(0, breaker.getUsed());
+    }
+
+    /**
      * The {@code with*} copy constructors must thread the SAME cache instances into every derived
      * reader. The registry hands out one root reader per format per node, and pushdown/overlay
      * paths derive copies from it, so a copy that dropped the shared caches would silently
@@ -2268,18 +2299,18 @@ public class ParquetFormatReaderTests extends ESTestCase {
         });
     }
 
-    public void testSchemaWiderThanCapIsRefusedWithCircuitBreakingException() throws Exception {
+    public void testSchemaWiderThanCapIsRefusedWithExternalClientException() throws Exception {
         int cap = 5;
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withSchemaMaxFields(cap);
         assertEquals(cap, reader.metadata(createStorageObject(wideOptionalLongFile(cap))).schema().size());
 
-        CircuitBreakingException e = expectThrows(
-            CircuitBreakingException.class,
+        ExternalClientException e = expectThrows(
+            ExternalClientException.class,
             () -> reader.metadata(createStorageObject(wideOptionalLongFile(cap + 1)))
         );
         assertThat(e.getMessage(), containsString("more than [" + cap + "] columns"));
         assertThat(e.getMessage(), containsString("schema_max_fields"));
-        assertEquals(RestStatus.TOO_MANY_REQUESTS, e.status());
+        assertEquals(RestStatus.BAD_REQUEST, e.status());
     }
 
     /** The cap counts leaves after flattening, so a few nested groups cannot slip past a cap on the footer's root fields. */
@@ -2293,7 +2324,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         byte[] data = createParquetFile(schema, factory -> List.of(factory.newGroup()));
         assertEquals(6, new ParquetFormatReader(blockFactory).withSchemaMaxFields(6).metadata(createStorageObject(data)).schema().size());
         expectThrows(
-            CircuitBreakingException.class,
+            ExternalClientException.class,
             () -> new ParquetFormatReader(blockFactory).withSchemaMaxFields(5).metadata(createStorageObject(data))
         );
     }
@@ -2373,7 +2404,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     public void testDatasetSchemaMaxFieldsOverridesNodeCap() throws Exception {
         byte[] data = wideOptionalLongFile(4);
         ParquetFormatReader nodeCapped = new ParquetFormatReader(blockFactory).withSchemaMaxFields(2);
-        expectThrows(CircuitBreakingException.class, () -> nodeCapped.metadata(createStorageObject(data)));
+        expectThrows(ExternalClientException.class, () -> nodeCapped.metadata(createStorageObject(data)));
         FormatReader raised = nodeCapped.withConfigTrackingConsumedKeys(Map.of("schema_max_fields", 4)).value();
         assertEquals(4, raised.metadata(createStorageObject(data)).schema().size());
     }

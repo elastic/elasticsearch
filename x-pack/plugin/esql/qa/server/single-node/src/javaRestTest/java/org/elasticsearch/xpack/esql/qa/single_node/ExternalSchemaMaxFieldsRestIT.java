@@ -52,8 +52,9 @@ import static org.hamcrest.Matchers.not;
  * Resolution runs on the coordinating node during planning, so an over-wide file used to be able to take the node down
  * before the query ran; here it must come back as an error response and leave the node serving.
  *
- * <p>The text formats use a file one column over the default cap. Parquet fixtures need a writer this module does not
- * have, so it reuses {@code employees.parquet} (more than one column) with a dataset cap of {@code 1}.
+ * <p>Every format has a file one column over the default cap. The text formats are written here; {@code wide.parquet} is
+ * {@code wide_schema.parquet}, which the build converts from {@code wide_schema.csv}. Parquet globs reuse
+ * {@code employees.parquet} (more than one column) with a dataset cap of {@code 1}.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
@@ -114,7 +115,7 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
 
     /** A file one column over the default cap is refused, and the node stays up to serve the next request. */
     public void testWideFileOverDefaultCapIsRefused() throws IOException {
-        for (String file : List.of("wide.csv", "wide.tsv", "wide.ndjson")) {
+        for (String file : List.of("wide.csv", "wide.tsv", "wide.ndjson", "wide.parquet")) {
             String dataset = datasetName("wide_default", file);
             putDataset(dataset, file, Map.of());
             assertRefused(dataset);
@@ -124,7 +125,7 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
 
     /** A dataset's {@code schema_max_fields} raises the cap for that dataset. */
     public void testDatasetCapRaisesTheLimit() throws IOException {
-        for (String file : List.of("wide.csv", "wide.tsv", "wide.ndjson")) {
+        for (String file : List.of("wide.csv", "wide.tsv", "wide.ndjson", "wide.parquet")) {
             String dataset = datasetName("wide_raised", file);
             putDataset(dataset, file, Map.of("schema_max_fields", 2 * WIDE_COLUMNS));
             Response response = query(dataset);
@@ -132,7 +133,7 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
         }
     }
 
-    /** A dataset's {@code schema_max_fields} also lowers the cap, which is how Parquet is exercised without a wide fixture. */
+    /** A dataset's {@code schema_max_fields} also lowers the cap. */
     public void testDatasetCapLowersTheLimit() throws IOException {
         for (String file : List.of("narrow.csv", "narrow.tsv", "narrow.ndjson", "employees.parquet")) {
             String dataset = datasetName("narrow_lowered", file);
@@ -175,9 +176,8 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
 
     /**
      * {@code first_file_wins} infers only the anchor, so a wide later file is only met when a query reads it. The text
-     * formats refuse it then (a 429) and NDJSON refuses it when the query needs its statistics, but an NDJSON
-     * {@code KEEP} that skips the statistics path reads the wide file with no cap. That last case is a known gap, kept
-     * under its own test so the gap is visible and the test fails when it is closed.
+     * formats refuse it then and NDJSON refuses it when the query needs its statistics, but an NDJSON {@code KEEP} that
+     * skips the statistics path still reads the wide file with no cap, so that query is not asserted here.
      */
     public void testMultiFileFirstFileWinsWithWideLaterFile() throws IOException {
         for (String ext : List.of("csv", "tsv", "ndjson")) {
@@ -186,23 +186,12 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
             // LIMIT 1 is answered by the narrow anchor alone, so the wide file is never opened.
             assertThat(ext, values(esql("FROM " + dataset + " | LIMIT 1")), hasSize(1));
             if (ext.equals("ndjson") == false) {
-                // NDJSON does not check a wide later file's width at read time; see the known-gap test below.
+                // NDJSON does not check a wide later file's width at read time yet, so a KEEP that skips stats reads it.
                 assertQueryRefused("FROM " + dataset + " | STATS c = COUNT(*)");
                 assertQueryRefused("FROM " + dataset + " | KEEP a, b | LIMIT 100");
             }
             assertNodeStillServes();
         }
-    }
-
-    /**
-     * Known gap: under {@code first_file_wins} an NDJSON {@code KEEP} reads a wide later file without checking its
-     * width, so the query returns the narrow file's two rows plus the wide file's one. Making it uniform with the text
-     * formats needs a read-time width probe. When that lands, this test should assert a 429 instead.
-     */
-    public void testNdjsonFirstFileWinsKeepReadsWideLaterFileKnownGap() throws IOException {
-        String dataset = datasetName("multi_later_ffw_keep", "ndjson");
-        putGlobDataset(dataset, "wide_last_ndjson", "ndjson", "first_file_wins", Map.of());
-        assertThat(values(esql("FROM " + dataset + " | KEEP a, b | LIMIT 100")), hasSize(3));
     }
 
     /**
@@ -304,7 +293,8 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
     /**
      * A declared Parquet dataset is not held to the width of its files, the same as the text formats: one declared
      * column over a file wider than a cap of one reads, both for a single file and for a glob whose files are all wider
-     * than the cap, so the outcome does not depend on which file the planner reads.
+     * than the cap, so the outcome does not depend on which file the planner reads. A file one column over the default
+     * cap reads the same way.
      */
     public void testDeclaredParquetIsNotHeldToTheFileWidth() throws IOException {
         Map<String, Object> mappings = Map.of("dynamic", "false", "properties", Map.of("emp_no", Map.of("type", "integer")));
@@ -324,6 +314,18 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
         );
         datasets.add(glob);
         assertThat(values(query(glob)), not(empty()));
+
+        // A file one column over the default cap, read through two declared columns.
+        Map<String, Object> wideMappings = Map.of(
+            "dynamic",
+            "false",
+            "properties",
+            Map.of("c5", Map.of("type", "long"), "c1000", Map.of("type", "long"))
+        );
+        String wide = datasetName("declared_parquet_wide", "wide.parquet");
+        DatasetRegistry.putDataset(client(), wide, DATA_SOURCE, uri("wide.parquet"), Map.of(), wideMappings);
+        datasets.add(wide);
+        assertThat(values(esql("FROM " + wide + " | KEEP c5, c1000 | LIMIT 10")), equalTo(List.of(List.of(1, 1))));
     }
 
     private void assertRefused(String dataset) throws IOException {
@@ -335,10 +337,10 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
         int status = e.getResponse().getStatusLine().getStatusCode();
         String body = EntityUtils.toString(e.getResponse().getEntity());
         logger.info("[{}] refused with status [{}]: {}", query, status, body);
-        // A circuit-breaking refusal (429), never a dropped connection, a 400 blaming the data, or a 500: the node must
-        // answer. The message names the setting to change.
-        assertThat(body, status, equalTo(429));
-        assertThat(body, containsString("circuit_breaking_exception"));
+        // A configured limit, so a 400 the client should not retry: never a 429, a dropped connection or a 500. The node
+        // must answer, and the message names the setting to change.
+        assertThat(body, status, equalTo(400));
+        assertThat(body, containsString("Schema has too many columns"));
         assertThat(body, containsString("schema_max_fields"));
     }
 
@@ -384,14 +386,8 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
             Files.writeString(dir.resolve("narrow.csv"), "a,b\n1,foo\n2,bar\n");
             Files.writeString(dir.resolve("narrow.tsv"), "a\tb\n1\tfoo\n2\tbar\n");
             Files.writeString(dir.resolve("narrow.ndjson"), "{\"a\":1,\"b\":\"foo\"}\n{\"a\":2,\"b\":\"bar\"}\n");
-            try (
-                InputStream is = ExternalSchemaMaxFieldsRestIT.class.getResourceAsStream("/iceberg-fixtures/standalone/employees.parquet")
-            ) {
-                if (is == null) {
-                    throw new IOException("Test resource not found on classpath: employees.parquet");
-                }
-                Files.copy(is, dir.resolve("employees.parquet"));
-            }
+            copyParquetFixture("employees.parquet", dir.resolve("employees.parquet"));
+            copyParquetFixture("wide_schema.parquet", dir.resolve("wide.parquet"));
             for (String ext : List.of("csv", "tsv", "ndjson")) {
                 Path wideFirst = Files.createDirectory(dir.resolve("wide_first_" + ext));
                 Path wideLast = Files.createDirectory(dir.resolve("wide_last_" + ext));
@@ -415,6 +411,16 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
             return dir;
         } catch (IOException e) {
             throw new RuntimeException("Failed to create schema cap fixture directory", e);
+        }
+    }
+
+    /** Copies a Parquet file the build generated from a CSV fixture. */
+    private static void copyParquetFixture(String name, Path target) throws IOException {
+        try (InputStream is = ExternalSchemaMaxFieldsRestIT.class.getResourceAsStream("/iceberg-fixtures/standalone/" + name)) {
+            if (is == null) {
+                throw new IOException("Test resource not found on classpath: " + name);
+            }
+            Files.copy(is, target);
         }
     }
 }

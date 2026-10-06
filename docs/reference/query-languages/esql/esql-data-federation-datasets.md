@@ -434,7 +434,7 @@ A file that starts with two prose lines then `state,ip,user_agent` is read with 
 | `trim_spaces` | `false` | Whether to remove surrounding ASCII whitespace from string field values. |
 | `multi_value_syntax` | `none` | Whether bracketed multi-values are recognized. Valid values: `"none"`, `"brackets"`. |
 | `max_field_size` | `10485760` (10 MB) | The maximum size of a single field. `0` is unlimited. |
-| `schema_max_fields` {applies_to}`stack: experimental 9.6+` | `1000` | The maximum number of columns a file's schema can have. If the header (or the widest row, when `header_row` is `false`) names more columns, the query fails with a circuit-breaking error (HTTP 429) before the schema is built. A declared schema is held to the limit by its number of declared columns, not by the width of the file. Range 1–100,000. The default comes from the `esql.external.schema_max_fields` node setting. |
+| `schema_max_fields` {applies_to}`stack: experimental 9.6+` | `1000` | The maximum number of columns a file's schema can have. If the header (or the widest row, when `header_row` is `false`) names more columns, the query fails with an HTTP 400 error before the schema is built. With `dynamic: false`, a declared schema is held to the limit by its number of declared columns, not by the width of the file. With `dynamic: true`, the file's inferred schema is held to the limit as well. Range 1–100,000. The default comes from the `esql.external.schema_max_fields` node setting. |
 
 ### NDJSON settings
 
@@ -450,7 +450,7 @@ A file that starts with two prose lines then `state,ip,user_agent` is read with 
 |---|---|---|
 | `segment_size` | `4mb` | The unit a file is divided into for parallel reading. Minimum 64 KiB. |
 | `datetime_format` | `strict_date_optional_time` | The pattern used to infer and parse date and time values. |
-| `schema_max_fields` {applies_to}`stack: experimental 9.6+` | `1000` | The maximum number of fields schema inference can create, counting objects as well as leaf fields. Each segment of a dotted key counts as a field. If a file's inferred schema exceeds this limit, the query fails with a circuit-breaking error (HTTP 429). A declared schema is held to the limit by its number of declared columns, not by the width of the file. Range 1–100,000. The default comes from the `esql.external.schema_max_fields` node setting. |
+| `schema_max_fields` {applies_to}`stack: experimental 9.6+` | `1000` | The maximum number of fields schema inference can create, counting objects as well as leaf fields. Each segment of a dotted key counts as a field. If a file's inferred schema exceeds this limit, the query fails with an HTTP 400 error. With `dynamic: false`, a declared schema is held to the limit by its number of declared columns, not by the width of the file. With `dynamic: true`, the file's inferred schema is held to the limit as well. Range 1–100,000. The default comes from the `esql.external.schema_max_fields` node setting. |
 
 ### Parquet
 
@@ -458,7 +458,7 @@ Parquet is self-describing, so it has a single dataset setting:
 
 | Setting | Default | Description |
 |---|---|---|
-| `schema_max_fields` {applies_to}`stack: experimental 9.6+` | `1000` | The maximum number of columns a file's schema can have, counting each nested field as a column once groups are flattened. If the file has more columns, the query fails with a circuit-breaking error (HTTP 429). A declared schema is held to the limit by its number of declared columns, not by the width of the file. Range 1–100,000. The default comes from the `esql.external.schema_max_fields` node setting. |
+| `schema_max_fields` {applies_to}`stack: experimental 9.6+` | `1000` | The maximum number of columns a file's schema can have, counting each nested field as a column once groups are flattened. If the file has more columns, the query fails with an HTTP 400 error. With `dynamic: false`, a declared schema is held to the limit by its number of declared columns, not by the width of the file, although a file wider than 100,000 columns can still be refused because the planner reads its footer at that limit to check the declared types. With `dynamic: true`, the file's schema is held to the limit as well. Range 1–100,000. The default comes from the `esql.external.schema_max_fields` node setting. |
 
 ## How schemas are inferred
 

@@ -94,6 +94,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.fetch.FetchPhaseServices;
+import org.elasticsearch.xpack.esql.fetch.lifetime.FetchContextLease;
 import org.elasticsearch.xpack.esql.fetch.lifetime.FetchContextService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -105,6 +106,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
+import org.elasticsearch.xpack.esql.plan.physical.DocRefEncodeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
@@ -1499,6 +1501,10 @@ public class ComputeService {
         final boolean retainSearchContexts = dataNodePlan.anyMatch(
             plan -> plan instanceof RemoteFetchBoundaryExec boundary && boundary.requiresRetainedSearchContexts()
         );
+        // document references name the contexts the data nodes keep open for the fetch phase, freed when the query ends
+        final FetchContextLease fetchContextLease = dataNodePlan.anyMatch(DocRefEncodeExec.class::isInstance)
+            ? fetchPhaseServices.contextService().leaseFor(rootTask)
+            : null;
         /*
          * Grab the output attributes here, so we can pass them to
          * the listener without holding on to a reference to the
@@ -1591,6 +1597,7 @@ public class ComputeService {
                             exchangeSource,
                             retainSearchContexts,
                             remoteFetchRetainedSessionReleaser,
+                            fetchContextLease,
                             cancelQueryOnFailure,
                             ActionListener.wrap(r -> {
                                 localClusterWasInterrupted.set(execInfo.isStopped());

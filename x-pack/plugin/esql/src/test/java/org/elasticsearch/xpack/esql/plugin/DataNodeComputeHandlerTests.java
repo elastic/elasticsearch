@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plan.physical.DocRefEncodeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchBoundaryExec;
@@ -96,6 +97,37 @@ public class DataNodeComputeHandlerTests extends ESTestCase {
     }
 
     /**
+     * Rows that leave a data node as document references name a context the fetch phase finds again. A request without
+     * fetch contexts would name contexts that close with the request.
+     */
+    public void testDocumentReferencesNeedFetchContexts() {
+        Attribute doc = new MetadataAttribute(Source.EMPTY, MetadataAttribute.DOC, DataType.DOC_DATA_TYPE, false);
+        ReferenceAttribute docRef = new ReferenceAttribute(
+            Source.EMPTY,
+            null,
+            "$$doc_ref",
+            DataType.DOC_REF,
+            Nullability.FALSE,
+            null,
+            true
+        );
+        DocRefEncodeExec encode = new DocRefEncodeExec(
+            Source.EMPTY,
+            new ExchangeSourceExec(Source.EMPTY, List.of(doc), false),
+            doc,
+            docRef
+        );
+        ExchangeSinkExec plan = new ExchangeSinkExec(Source.EMPTY, encode.output(), false, encode);
+
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> DataNodeComputeHandler.validateFetchContexts(plan, request(plan, false, null))
+        );
+        assertThat(e.getMessage(), equalTo("document references need fetch contexts, but the request asked for none"));
+        DataNodeComputeHandler.validateFetchContexts(plan, request(plan, false, TimeValue.timeValueMinutes(1)));
+    }
+
+    /**
      * The remote fetch prototype and the fetch phase each keep contexts open their own way, so a request asks for one.
      */
     public void testRetainedAndFetchContextsExcludeEachOther() {
@@ -107,11 +139,11 @@ public class DataNodeComputeHandlerTests extends ESTestCase {
             new ExchangeSourceExec(Source.EMPTY, List.of(doc), false)
         );
 
-        DataNodeComputeHandler.validateFetchContexts(request(plan, false, TimeValue.timeValueMinutes(1)));
-        DataNodeComputeHandler.validateFetchContexts(request(plan, true, null));
+        DataNodeComputeHandler.validateFetchContexts(plan, request(plan, false, TimeValue.timeValueMinutes(1)));
+        DataNodeComputeHandler.validateFetchContexts(plan, request(plan, true, null));
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> DataNodeComputeHandler.validateFetchContexts(request(plan, true, TimeValue.timeValueMinutes(1)))
+            () -> DataNodeComputeHandler.validateFetchContexts(plan, request(plan, true, TimeValue.timeValueMinutes(1)))
         );
         assertThat(e.getMessage(), equalTo("a request can't retain search contexts and open fetch contexts at once"));
     }

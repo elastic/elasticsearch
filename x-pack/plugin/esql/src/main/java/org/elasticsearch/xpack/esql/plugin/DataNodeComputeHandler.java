@@ -60,8 +60,10 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.fetch.lifetime.DocRefOriginResolver;
+import org.elasticsearch.xpack.esql.fetch.lifetime.FetchContextLease;
 import org.elasticsearch.xpack.esql.fetch.lifetime.NodeFetchContexts;
 import org.elasticsearch.xpack.esql.fetch.lifetime.OpenContextInfo;
+import org.elasticsearch.xpack.esql.plan.physical.DocRefEncodeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchBoundaryExec;
@@ -142,6 +144,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         boolean retainSearchContexts,
         // Non-null iff retainSearchContexts: every request that asks a data node to retain contexts must have a releaser tracking it.
         @Nullable RemoteFetchService.RetainedSessionReleaser remoteFetchRetainedSessionReleaser,
+        // Non-null when the plan makes document references: the data nodes keep fetch contexts open, and the lease frees them.
+        @Nullable FetchContextLease fetchContextLease,
         Runnable runOnTaskFailure,
         ActionListener<ComputeResponse> outListener
     ) {
@@ -258,7 +262,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 queryPragmas.nodeLevelReduction() && sameNodeAsCoordinator == false,
                                 queryPragmas.nodeLevelReduction() && enableReduceNodeLateMaterialization,
                                 retainSearchContexts,
-                                sameNodeAsCoordinator && queryPragmas.singleNodeOptimizations() && Strings.isEmpty(clusterAlias)
+                                sameNodeAsCoordinator && queryPragmas.singleNodeOptimizations() && Strings.isEmpty(clusterAlias),
+                                List.of(),
+                                fetchContextLease == null ? null : fetchContextLease.keepAlive()
                             );
                             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
                             transportService.sendChildRequest(
@@ -268,6 +274,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 groupTask,
                                 TransportRequestOptions.EMPTY,
                                 new ActionListenerResponseHandler<>(computeListener.acquireCompute().map(r -> {
+                                    if (fetchContextLease != null) {
+                                        fetchContextLease.add(connection.getNode(), originalIndices, r.openContexts());
+                                    }
                                     nodeResponseRef.set(r);
                                     return r.completionInfo();
                                 }), in -> new DataNodeComputeResponse(in, threadContext), searchExecutor)
@@ -1007,7 +1016,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         if (request.plan() instanceof ExchangeSinkExec plan) {
             try {
                 validateRemoteFetchRequest(plan, request.retainSearchContexts(), channel.getVersion(), computeService.createFlags());
-                validateFetchContexts(request);
+                validateFetchContexts(plan, request);
                 if (plan.anyMatch(RemoteFetchBoundaryExec.class::isInstance)) {
                     reductionPlan = ComputeService.reductionPlan(
                         computeService.plannerSettings().get(),
@@ -1153,9 +1162,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     }
 
     /**
-     * The remote fetch prototype and the fetch phase each keep contexts open their own way, and one request uses one.
+     * Rows that leave the node as document references must name contexts that the fetch phase finds again. The remote
+     * fetch prototype and the fetch phase each keep contexts open their own way, and one request uses one.
      */
-    static void validateFetchContexts(DataNodeRequest request) {
+    static void validateFetchContexts(PhysicalPlan plan, DataNodeRequest request) {
+        if (request.fetchContextKeepAlive() == null && plan.anyMatch(DocRefEncodeExec.class::isInstance)) {
+            throw new IllegalStateException("document references need fetch contexts, but the request asked for none");
+        }
         if (request.fetchContextKeepAlive() != null && request.retainSearchContexts()) {
             throw new IllegalStateException("a request can't retain search contexts and open fetch contexts at once");
         }

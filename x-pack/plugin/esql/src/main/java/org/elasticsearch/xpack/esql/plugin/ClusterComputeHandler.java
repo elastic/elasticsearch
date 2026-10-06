@@ -339,6 +339,8 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     exchangeSource,
                     false,
                     null,
+                    // a remote cluster never makes document references, its rows return to the coordinator as values
+                    null,
                     cancelQueryOnFailure,
                     computeListener.acquireCompute().map(r -> {
                         finalResponse.set(r);

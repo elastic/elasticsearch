@@ -2069,21 +2069,21 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 streamAfterBom = pb;
             }
         }
-        // The read that owns a headered file's start reads its columns the way fileHeaderColumns reads them for later
-        // splits, so every split binds the same names and bounds rows by the same width. It does so on a stream of its
-        // own, aborted as soon as the header is found: nothing is buffered however many comment or skipped lines come
-        // first. A headerless file's names are positions and need no header read.
+        // The read that owns a headered file's start uses the columns it was handed, as every later split does. Handed
+        // none, it reads them the way fileHeaderColumns reads them for later splits, so every split binds the same names and
+        // bounds rows by the same width. It does so on a stream of its own, aborted as soon as the header is found: nothing
+        // is buffered however many comment or skipped lines come first. A headerless file's names are positions and need
+        // no header read.
         List<String> leadingColumns = null;
         if (context.firstSplit() && context.readSchema() != null && options.headerRow()) {
-            try {
-                leadingColumns = fileHeaderColumns(object);
-            } catch (Exception e) {
+            leadingColumns = context.fileHeaderColumns();
+            if (leadingColumns == null) {
                 try {
-                    stream.close();
-                } catch (IOException suppressed) {
-                    e.addSuppressed(suppressed);
+                    leadingColumns = fileHeaderColumns(object);
+                } catch (Exception e) {
+                    abortRead(object, rawStream, e);
+                    throw e;
                 }
-                throw e;
             }
         }
         InputStream capped = (useRecordReaderPath || useDirectBlock)
@@ -2148,17 +2148,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
             try {
                 skipLeadingContentRows(recordReader, options.skipRows(), options.commentPrefix());
             } catch (Exception e) {
-                try {
-                    reader.close();
-                } catch (IOException suppressed) {
-                    e.addSuppressed(suppressed);
-                }
+                abortRead(object, rawStream, e);
                 throw e;
             }
         }
         if (readSchema != null) {
-            // Runs before ownership of the stream chain transfers to the returned iterator, so a failure must close the
-            // reader here or the file handle leaks (caught by LeakFS in CI).
+            // Runs before ownership of the stream chain transfers to the returned iterator, so a failure must release the
+            // stream here or the file handle leaks (caught by LeakFS in CI). It is aborted rather than closed: a failure
+            // such as a duplicate header name says nothing about the rest of the file, which a close may drain.
             try {
                 if (options.headerRow()) {
                     if (context.firstSplit() == false && context.recordAligned() == false) {
@@ -2181,12 +2178,33 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
                 // An inferred headerless schema binds positionally: no binding, rows bounded by the schema's width.
             } catch (Exception e) {
-                try {
-                    reader.close();
-                } catch (IOException suppressed) {
-                    e.addSuppressed(suppressed);
-                }
+                abortRead(object, rawStream, e);
                 throw e;
+            }
+            if (options.headerRow() && context.firstSplit() == false && context.fileHeaderColumns() != null) {
+                if (context.fileHeaderColumns().isEmpty()) {
+                    // The file has no header record anywhere, so it has no rows to bind and this split holds only the
+                    // comment, blank or skipped lines that precede one. Reading them positionally would emit them as rows.
+                    try {
+                        object.abortStream(rawStream);
+                    } catch (IOException e) {
+                        logger.debug("failed to abort the stream of a split of a file without columns", e);
+                    }
+                    return new CloseableIterator<>() {
+                        @Override
+                        public boolean hasNext() {
+                            return false;
+                        }
+
+                        @Override
+                        public Page next() {
+                            throw new NoSuchElementException();
+                        }
+
+                        @Override
+                        public void close() {}
+                    };
+                }
             }
             warnAbsentColumns(headerBinding, readSchema, context.informationalWarningSink());
             effectiveSchema = readSchema;
@@ -2402,12 +2420,28 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
+     * Releases a read's stream after it failed before the returned iterator took ownership of it. Aborts rather than
+     * closes: a provider that drains on close would transfer the rest of a multi-GB file to reuse the connection, for a
+     * failure that is already decided.
+     */
+    private static void abortRead(StorageObject object, InputStream rawStream, Exception cause) {
+        try {
+            object.abortStream(rawStream);
+        } catch (IOException suppressed) {
+            cause.addSuppressed(suppressed);
+        }
+    }
+
+    /**
      * Binds a pinned schema to one split of a HEADERED file: the file's columns are read by the read that owns the
      * file's start, else passed down. Each column binds by header name, and the header's width bounds every row. A
      * later split handed no columns fails loudly rather than bind by position, which would shift every column.
+     * <p>
+     * An empty list on a later split never reaches this method: {@link #read} returns no rows for it, since a file with no
+     * header record has no rows to bind.
      *
      * @param fileColumns the header's names; empty for a file with no header line, {@code null} when none were supplied
-     * @return the binding, or {@code null} for a file without columns — nothing to bind, and nothing to read
+     * @return the binding, or {@code null} for the first split of a file without columns — nothing to bind, and nothing to read
      */
     private HeaderBinding bindHeaderedColumns(@Nullable List<String> fileColumns, FormatReadContext context, StorageObject object) {
         if (fileColumns != null && fileColumns.isEmpty()) {
@@ -2451,8 +2485,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     /**
      * Opens a file's leading records, past a byte-order mark and {@code skip_rows}, the one way {@link #readSchema} and
-     * {@link #fileHeaderColumns} (which the first split uses too) read them, so they agree on where the header ends: the
-     * header record ends where the dialect's quoting says, never escape-aware.
+     * {@link #fileHeaderColumns} read them, so schema inference and the header columns handed to every split agree on
+     * where the header ends: the header record ends where the dialect's quoting says, never escape-aware, and a record
+     * is capped at {@link SegmentableFormatReader#DEFAULT_MAX_RECORD_BYTES}.
+     * <p>
+     * The data path of a read is not the same reader: for a quoting and escaping dialect it is escape-aware, and it caps
+     * records at the query's {@code maxRecordBytes}. The two differ only for a header holding an escaped quote followed by
+     * a line break, or one longer than a lowered cap. That is deliberate: the names must be those inference resolved the
+     * schema from, whatever the data path makes of the same bytes.
      */
     private CsvLogicalRecordReader openLeadingRecords(InputStream stream) throws IOException {
         BufferedReader reader = new BufferedReader(new InputStreamReader(stream, options.encoding()), READER_BUFFER_SIZE);

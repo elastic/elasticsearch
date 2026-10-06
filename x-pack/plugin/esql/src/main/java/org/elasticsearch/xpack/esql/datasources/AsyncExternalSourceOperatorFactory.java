@@ -1701,7 +1701,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         StoragePath lastSchemaPath;
         @Nullable
         List<Attribute> lastBoundSchema;
-        // The header columns last read for a split past its file's first byte, and that file: saves the re-read when
+        // The header columns last read for a split of a file with several, and that file: saves the re-read when
         // this operator opens consecutive splits of one file. A null value is a real answer; the path says it was read.
         @Nullable
         StoragePath lastHeaderPath;
@@ -2209,11 +2209,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // Owning the file's trailing bytes means the last segment may close its last stripe to EOF.
                 // Same fact as the reader's lastSplit below — one derivation, so the two cannot disagree.
                 boolean splitIsFileFinal = FileSplitProvider.isLastInFile(fileSplit);
-                // A split past the file's first byte cannot see the header, so it is handed the file's columns. Only a
-                // reader of header lines has any to hand over.
-                List<String> headerColumns = firstSplit || perFileReadSchema == null || fileReader.readsHeaderLine() == false
-                    ? null
-                    : headerColumnsFor(fileSplit, fileReader, state);
+                // Every split of a file is handed its header columns, read once per file and kept for the next split. The
+                // exception is a split that is both the file's first and last: it has no later split to share them with, and
+                // the dispatch modes that stream it (compressed files, bracket multi-value CSV) read the header from the
+                // stream they are already reading, so a read here would be a whole extra open per file. Only a reader of
+                // header lines has columns to hand over, and an empty schema (which the read context drops) has no use
+                // for them.
+                boolean soleSplitOfItsFile = firstSplit && splitIsFileFinal;
+                List<String> headerColumns = soleSplitOfItsFile
+                    || perFileReadSchema == null
+                    || perFileReadSchema.isEmpty()
+                    || fileReader.readsHeaderLine() == false ? null : headerColumnsFor(fileSplit, fileReader, state);
                 pages = openWithParallelism(
                     fileReader,
                     obj,
@@ -2956,8 +2962,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     /**
-     * As the overload without it, plus the file's header columns for a split past the file's first byte; {@code null}
-     * for a split that reads its own header.
+     * As the overload without it, plus the file's header columns, read once per file by the caller; {@code null} for a
+     * split that reads its own header (the file's only split).
      */
     CloseableIterator<Page> openWithParallelism(
         FormatReader reader,

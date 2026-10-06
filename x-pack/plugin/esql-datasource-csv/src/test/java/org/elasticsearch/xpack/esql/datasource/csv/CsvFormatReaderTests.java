@@ -73,6 +73,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsString;
@@ -7940,6 +7941,90 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals(List.of(1L, 2L), ids);
         assertEquals("one stream for the columns, one for the rows", 2, object.opened);
         assertEquals("only the header stream is aborted", 1, object.aborted);
+    }
+
+    /**
+     * A first split handed the file's columns binds by them and opens no stream to find them: whoever reads the header
+     * once for the file (the caller) is the only one to pay for it.
+     */
+    public void testFirstSplitHandedItsHeaderColumnsOpensOnlyTheRowStream() throws Exception {
+        TrackingStorageObject object = new TrackingStorageObject("id,name\n1,alice\n2,bob\n");
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG)
+        );
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        long rows = 0;
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .firstSplit(true)
+                    .recordAligned(true)
+                    .batchSize(10)
+                    .readSchema(readSchema)
+                    .fileHeaderColumns(List.of("id", "name"))
+                    .build()
+            )
+        ) {
+            while (it.hasNext()) {
+                Page page = it.next();
+                rows += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        }
+        assertEquals(2, rows);
+        assertEquals("only the row stream is opened", 1, object.opened);
+        assertEquals(0, object.aborted);
+    }
+
+    /**
+     * A read that fails while binding, here on a duplicate header name, releases its stream by aborting it: the failure
+     * says nothing about the rest of the file, which closing the stream may drain from the object store.
+     */
+    public void testBindingFailureAbortsTheStreamInsteadOfDrainingIt() throws Exception {
+        TrackingStorageObject object = new TrackingStorageObject("id,id\n1,2\n" + "3,4\n".repeat(10_000));
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG));
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        );
+
+        assertThat(e.getMessage(), containsString("duplicate column name"));
+        assertEquals("one stream for the header, one for the rows", 2, object.opened);
+        assertEquals("both are aborted, none closed", 2, object.aborted);
+    }
+
+    /**
+     * A later split of a file the header read found no columns in reads no rows, and releases its stream by aborting it
+     * rather than draining it.
+     */
+    public void testSplitOfAFileWithoutColumnsAbortsItsStream() throws Exception {
+        TrackingStorageObject object = new TrackingStorageObject("# one\n# two\n");
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "emp_no", DataType.LONG));
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true, "comment", "#"));
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .firstSplit(false)
+                    .recordAligned(true)
+                    .batchSize(10)
+                    .readSchema(readSchema)
+                    .fileHeaderColumns(List.of())
+                    .build()
+            )
+        ) {
+            assertFalse(it.hasNext());
+            expectThrows(NoSuchElementException.class, it::next);
+        }
+        assertEquals(1, object.opened);
+        assertEquals(1, object.aborted);
     }
 
     /** A {@link StorageObject} over a string that counts how often it was opened and aborted. */

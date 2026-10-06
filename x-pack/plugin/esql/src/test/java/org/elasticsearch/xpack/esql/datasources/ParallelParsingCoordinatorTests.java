@@ -2325,6 +2325,140 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * A header read from the leader segment is only an answer if the reader stopped before the segment did. A reader that
+     * ran off the segment's end may have been cut mid-record, so the coordinator reads the whole file for the header and
+     * hands every segment that one.
+     */
+    public void testALeaderHeaderThatRanToTheEndOfTheSegmentIsReadAgainFromTheWholeFile() throws Exception {
+        byte[] content = lines(200);
+        InMemoryStorageObject obj = new InMemoryStorageObject(content);
+        HeaderReadingLineReader reader = new HeaderReadingLineReader(blockFactory(), true);
+
+        readAllWithHeader(reader, obj);
+
+        assertEquals("the leader range, then the whole file", 2, reader.headerReadsOf.size());
+        assertThat(reader.headerReadsOf.get(0), Matchers.instanceOf(HeaderPrefixProbe.class));
+        assertSame("the fallback reads the file itself, not a range of it", obj, reader.headerReadsOf.get(1));
+        assertThat(reader.contexts.size(), Matchers.greaterThan(1));
+        for (FormatReadContext ctx : reader.contexts) {
+            assertEquals(List.of("bytes=" + content.length), ctx.fileHeaderColumns());
+        }
+    }
+
+    /** A header found before the end of the leader segment is the answer: the whole file is not read for it. */
+    public void testALeaderHeaderFoundBeforeTheEndOfTheSegmentIsNotReadAgain() throws Exception {
+        byte[] content = lines(200);
+        HeaderReadingLineReader reader = new HeaderReadingLineReader(blockFactory(), false);
+
+        readAllWithHeader(reader, new InMemoryStorageObject(content));
+
+        assertEquals("the leader range only", 1, reader.headerReadsOf.size());
+        assertThat(reader.headerReadsOf.get(0), Matchers.instanceOf(HeaderPrefixProbe.class));
+        assertThat(reader.contexts.size(), Matchers.greaterThan(1));
+        for (FormatReadContext ctx : reader.contexts) {
+            assertEquals(List.of("line-0000"), ctx.fileHeaderColumns());
+        }
+    }
+
+    /** Columns the caller already read are handed to every segment, the leader's included, and read no further. */
+    public void testHandedHeaderColumnsReachEverySegmentAndAreNotReadAgain() throws Exception {
+        HeaderReadingLineReader reader = new HeaderReadingLineReader(blockFactory(), false);
+
+        readAllWithHeader(reader, new InMemoryStorageObject(lines(200)), List.of("handed"));
+
+        assertEquals(List.of(), reader.headerReadsOf);
+        assertThat(reader.contexts.size(), Matchers.greaterThan(1));
+        for (FormatReadContext ctx : reader.contexts) {
+            assertEquals(List.of("handed"), ctx.fileHeaderColumns());
+        }
+    }
+
+    private static byte[] lines(int count) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < count; i++) {
+            sb.append("line-").append(String.format(java.util.Locale.ROOT, "%04d", i)).append("\n");
+        }
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static void readAllWithHeader(HeaderReadingLineReader reader, StorageObject obj) throws Exception {
+        readAllWithHeader(reader, obj, null);
+    }
+
+    private static void readAllWithHeader(HeaderReadingLineReader reader, StorageObject obj, List<String> handedColumns) throws Exception {
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try (
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
+                reader,
+                obj,
+                List.of("line"),
+                50,
+                4,
+                exec,
+                null,
+                true,
+                true,
+                SCHEMA,
+                0L,
+                ParallelParsingCoordinator.DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
+                null,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                true,
+                ExternalSourceMetrics.NOOP,
+                null,
+                ExternalReadCounters.NOOP,
+                null,
+                null,
+                handedColumns
+            )
+        ) {
+            while (iter.hasNext()) {
+                iter.next().releaseBlocks();
+            }
+        } finally {
+            exec.shutdown();
+        }
+    }
+
+    /**
+     * A line reader that also reads a header line: it records each object it was asked for the file's columns, and names
+     * them after what it read. With {@code readToEnd} it drains the stream, as a reader does that is cut off by the end
+     * of a range; otherwise it stops after the first line. The columns it returns tell the tests which read produced them.
+     */
+    private static class HeaderReadingLineReader extends ContextCapturingLineReader {
+        final List<StorageObject> headerReadsOf = Collections.synchronizedList(new ArrayList<>());
+        private final boolean readToEnd;
+
+        HeaderReadingLineReader(BlockFactory blockFactory, boolean readToEnd) {
+            super(blockFactory);
+            this.readToEnd = readToEnd;
+        }
+
+        @Override
+        public boolean readsHeaderLine() {
+            return true;
+        }
+
+        @Override
+        public List<String> fileHeaderColumns(StorageObject file) throws IOException {
+            headerReadsOf.add(file);
+            InputStream stream = file.newStream();
+            try {
+                if (readToEnd) {
+                    return List.of("bytes=" + stream.readAllBytes().length);
+                }
+                byte[] first = new byte[9];
+                assertEquals(first.length, stream.readNBytes(first, 0, first.length));
+                return List.of(new String(first, StandardCharsets.UTF_8));
+            } finally {
+                file.abortStream(stream);
+            }
+        }
+    }
+
     private static final BlockFactory TEST_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
         .breaker(new NoopCircuitBreaker("test"))
         .build();

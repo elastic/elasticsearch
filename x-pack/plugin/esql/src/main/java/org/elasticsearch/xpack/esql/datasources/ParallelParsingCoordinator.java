@@ -499,8 +499,9 @@ public final class ParallelParsingCoordinator {
     }
 
     /**
-     * As the {@code stop} overload, plus the file's header columns for a storage object that does not start at the
-     * file's first byte. Pass {@code null} for one that does: its segments 1..N are handed the header read once here.
+     * As the {@code stop} overload, plus the file's header columns, read once per file by the caller. Pass {@code null}
+     * to have them read here, from the leader segment, and handed to every segment of a storage object that starts at the
+     * file's first byte; one that does not has no header to read, so it must be handed them.
      */
     public static CloseableIterator<Page> parallelRead(
         SegmentableFormatReader reader,
@@ -563,7 +564,7 @@ public final class ParallelParsingCoordinator {
             // file's end. Reconciling those defaults is worth doing on its own, not as a side effect.
             .recordAligned(splitStartsAtRecordBoundary)
             .readSchema(readSchema)
-            .fileHeaderColumns(splitIncludesFileLeader ? null : fileHeaderColumns)
+            .fileHeaderColumns(fileHeaderColumns)
             .splitStartByte(baseFileOffset)
             .maxRecordBytes(maxRecordBytes)
             // Single-segment fallback reads this whole storage object in one shot, so its trailing stripe is
@@ -583,8 +584,8 @@ public final class ParallelParsingCoordinator {
         if (segments.size() <= 1) {
             return parallelReader.read(storageObject, baseCtx);
         }
-        // Segments 1..N cannot see the header line. With no pinned schema they bind against the schema inferred from
-        // that same header and need nothing.
+        // Segments 1..N cannot see the header line, and segment 0 would read it on a stream of its own. With no pinned
+        // schema they bind against the schema inferred from that same header and need nothing.
         List<String> segmentHeaderColumns = fileHeaderColumns;
         // An empty pin infers from the file (the read context normalises it to none), so it needs nothing either.
         if (splitIncludesFileLeader
@@ -593,11 +594,12 @@ public final class ParallelParsingCoordinator {
             && segmentHeaderColumns == null
             && parallelReader.readsHeaderLine()) {
             // The header sits at the front of the leader segment, so a ranged read of that segment finds it without an
-            // unranged GET from byte 0. Finding none there is not an answer (a header run longer than the segment), so
-            // only then is the whole file read.
+            // unranged GET from byte 0. Finding none there is not an answer (a header run longer than the segment), nor
+            // is a header the segment's end cut short, so only then is the whole file read.
             long[] leader = segments.get(0);
-            segmentHeaderColumns = parallelReader.fileHeaderColumns(new RangeStorageObject(storageObject, leader[0], leader[1]));
-            if (segmentHeaderColumns != null && segmentHeaderColumns.isEmpty()) {
+            HeaderPrefixProbe leaderRange = new HeaderPrefixProbe(storageObject, leader[0], leader[1]);
+            segmentHeaderColumns = parallelReader.fileHeaderColumns(leaderRange);
+            if (segmentHeaderColumns != null && (segmentHeaderColumns.isEmpty() || leaderRange.reachedEnd())) {
                 segmentHeaderColumns = parallelReader.fileHeaderColumns(storageObject);
             }
         }
@@ -802,7 +804,7 @@ public final class ParallelParsingCoordinator {
         private final boolean splitIncludesFileLeader;
         @Nullable
         private final List<Attribute> readSchema;
-        /** The file's header columns for every segment that does not own the file's first line. */
+        /** The file's header columns, handed to every segment so none reads them from its own bytes. */
         @Nullable
         private final List<String> fileHeaderColumns;
         private final long baseFileOffset;
@@ -1070,7 +1072,7 @@ public final class ParallelParsingCoordinator {
                 .lastSplit(lastSplit)
                 .recordAligned(true)
                 .readSchema(readSchema)
-                .fileHeaderColumns(splitIncludesFileLeader && segmentIndex == 0 ? null : fileHeaderColumns)
+                .fileHeaderColumns(fileHeaderColumns)
                 .splitStartByte(segmentFileOffset)
                 .maxRecordBytes(maxRecordBytes)
                 .stats(segmentFileOffset, statsStripeSize, statsFileFinal)

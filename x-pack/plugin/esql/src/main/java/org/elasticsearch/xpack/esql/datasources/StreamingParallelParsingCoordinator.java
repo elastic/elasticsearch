@@ -1224,7 +1224,12 @@ public final class StreamingParallelParsingCoordinator {
                 return;
             }
             try {
-                fileHeaderColumns = reader.fileHeaderColumns(chunkStorageObject(0, buffer, 0, length));
+                List<String> columns = reader.fileHeaderColumns(chunkStorageObject(0, buffer, 0, length));
+                // An empty list means chunk 0 holds no header line (a skip_rows or comment run longer than the chunk), which
+                // says nothing about the file: it stays unset so later chunks fail loudly, as the javadoc above promises.
+                if (columns != null && columns.isEmpty() == false) {
+                    fileHeaderColumns = columns;
+                }
             } catch (IOException | RuntimeException e) {
                 // Every later chunk will now fail with "no header columns", which says nothing about why they
                 // are missing. Log the real cause at WARN so the two can be connected — this is the only place

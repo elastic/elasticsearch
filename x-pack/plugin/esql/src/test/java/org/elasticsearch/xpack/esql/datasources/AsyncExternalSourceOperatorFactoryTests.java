@@ -79,7 +79,6 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -2280,8 +2279,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     /**
-     * Every split past the file's first byte is handed the file's header columns, read once per file: a second
-     * consecutive split of the same file takes them from the producer's cache instead of reading the header again.
+     * Every split, the first included, is handed the file's header columns, read once per file: the next consecutive
+     * split of the same file takes them from the producer's cache instead of reading the header again.
      */
     public void testConsecutiveSplitsOfOneFileReadItsHeaderColumnsOnce() throws Exception {
         StoragePath path = StoragePath.of("s3://bucket/data.csv");
@@ -2299,7 +2298,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 0,
                 1000,
                 "csv",
-                Map.of(FileSplitProvider.FIRST_SPLIT_KEY, "true"),
+                Map.of(FileSplitProvider.FIRST_SPLIT_KEY, "true", FileSplitProvider.RANGE_SPLIT_KEY, "true"),
                 Map.of(),
                 null,
                 readSchema
@@ -2344,8 +2343,70 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             }
         }
 
-        assertEquals(Arrays.asList(null, List.of("value"), List.of("value")), formatReader.capturedHeaderColumns);
-        assertEquals("the second split past the first byte must reuse the header columns", 1, formatReader.headerReads);
+        assertEquals(List.of(List.of("value"), List.of("value"), List.of("value")), formatReader.capturedHeaderColumns);
+        assertEquals("the later splits must reuse the header columns the first one was handed", 1, formatReader.headerReads);
+
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
+    }
+
+    /**
+     * The only split of a file (both its first and last) has no later split to share the columns with, and the
+     * dispatch modes that stream it read the header from the stream they already have, so none is read ahead of it.
+     */
+    public void testTheOnlySplitOfAFileIsNotHandedHeaderColumnsItsReaderReadsItsOwn() throws Exception {
+        StoragePath path = StoragePath.of("s3://bucket/data.csv");
+        List<Attribute> readSchema = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+        List<ExternalSplit> splits = List.of(
+            FileSplit.withReadSchema(
+                "test",
+                path,
+                0,
+                1000,
+                "csv",
+                Map.of(FileSplitProvider.FIRST_SPLIT_KEY, "true", FileSplitProvider.LAST_SPLIT_KEY, "true"),
+                Map.of(),
+                null,
+                readSchema
+            )
+        );
+        HeaderCountingFormatReader formatReader = new HeaderCountingFormatReader(List.of("value"));
+
+        DriverContext driverContext = mock(DriverContext.class);
+        BlockFactory blockFactory = mock(BlockFactory.class);
+        when(driverContext.blockFactory()).thenReturn(blockFactory);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            new StubMultiFileStorageProvider(),
+            formatReader,
+            path,
+            readSchema,
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).sliceQueue(new ExternalSliceQueue(new ArrayList<>(splits))).build();
+
+        SourceOperator operator = factory.get(driverContext);
+        List<Page> pages = new ArrayList<>();
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+
+        assertEquals(Collections.singletonList((List<String>) null), formatReader.capturedHeaderColumns);
+        assertEquals("a file with one split has nobody to share the header with: it reads its own", 0, formatReader.headerReads);
 
         for (Page p : pages) {
             p.releaseBlocks();

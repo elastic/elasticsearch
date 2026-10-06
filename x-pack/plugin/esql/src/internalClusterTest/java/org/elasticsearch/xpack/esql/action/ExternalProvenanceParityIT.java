@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -401,6 +402,7 @@ public class ExternalProvenanceParityIT extends AbstractExternalDataSourceIT {
      * columns from the file's decompressed first line.
      */
     public void testDeclaredHeaderedBzip2CsvLargerThanOneSplitReadsEveryRow() throws Exception {
+        assumeTrue("bzip2 is available on snapshot builds only", Build.current().isSnapshot());
         Path dir = createTempDir();
         // Each row carries a random 96-character base64 pad so the file resists compression: the split target is
         // measured in compressed bytes.

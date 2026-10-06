@@ -374,8 +374,8 @@ public interface FormatReader extends Closeable {
      * The names a headered text file gives its columns, in file order, read from its leading bytes. An empty list for a
      * file with no header line (empty, or only blank and comment lines): it has no columns, which is an answer, and
      * distinct from {@code null}, which is reserved for a reader that does not read a header line ({@link
-     * #readsHeaderLine} is false: headerless text, NDJSON, columnar formats). Passed to a split past the file's first
-     * byte through {@link FormatReadContext#fileHeaderColumns}.
+     * #readsHeaderLine} is false: headerless text, NDJSON, columnar formats). Passed to the splits of a file through
+     * {@link FormatReadContext#fileHeaderColumns}, so that none reads it from its own bytes.
      * <p>
      * Must abort its stream ({@link StorageObject#abortStream}) rather than close it: a provider that drains the
      * remaining bytes on close would transfer the whole object.

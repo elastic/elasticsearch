@@ -91,9 +91,10 @@ import java.util.function.Consumer;
  *                         sink; merely running on the driver thread is insufficient because ES|QL transports
  *                         compute warnings through {@code DriverCompletionInfo.warnings}.
  * @param fileHeaderColumns the file's own column names, in file order ({@link FormatReader#fileHeaderColumns}).
- *                         Set only for a read of a text file that does not own its first line, bound against a
- *                         pinned schema: it names the columns and bounds how wide a row may be. Binding a headered
- *                         read by position instead would shift every column silently.
+ *                         Set for a read of a headered text file bound against a pinned schema: it names the
+ *                         columns and bounds how wide a row may be. A read that does not own the file's first line
+ *                         needs it; one that does reads its own header when handed none. Binding a headered read by
+ *                         position instead would shift every column silently.
  *                         An empty list states that the file has no columns (nothing to read); {@code null} states
  *                         that none were supplied, which a text read that needs them rejects.
  * @param sharedErrorBudget per-read error budget shared between the columnar reader and
@@ -356,9 +357,10 @@ public record FormatReadContext(
         /**
          * The file's own column names, in file order, read from its leading bytes.
          * <p>
-         * Only set for a read that does NOT own the file's start but still needs to know what its columns
-         * are called — any read of a header-bearing file that does not own its first line. The component that
-         * cut the file up reads the header ({@link FormatReader#fileHeaderColumns}) and states it here.
+         * Needed by a read of a header-bearing file that does not own the file's start but must know what its
+         * columns are called. The component that cut the file up reads the header
+         * ({@link FormatReader#fileHeaderColumns}) once and states it here for every split; a read that owns the
+         * file's first line and is handed none reads its own.
          */
         public Builder fileHeaderColumns(@Nullable List<String> fileHeaderColumns) {
             this.fileHeaderColumns = fileHeaderColumns;

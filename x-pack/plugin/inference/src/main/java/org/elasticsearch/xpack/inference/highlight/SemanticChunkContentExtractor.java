@@ -7,20 +7,22 @@
 
 package org.elasticsearch.xpack.inference.highlight;
 
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.FieldHighlightContext;
-import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils;
 import org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
+import org.elasticsearch.xpack.inference.mapper.OriginalValuesSemanticFieldValueFetcher;
 import org.elasticsearch.xpack.inference.mapper.SemanticFieldContent;
 import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper.SemanticFieldType;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 class SemanticChunkContentExtractor implements ChunkContentExtractor {
     private final FieldHighlightContext context;
@@ -67,14 +69,17 @@ class SemanticChunkContentExtractor implements ChunkContentExtractor {
             throw new IllegalStateException("Field [" + sourceField + "] is not mapped");
         }
 
-        // The doc values store holds only the field's own values (copy_to into inference fields is skipped at parse time)
-        if (sourceFieldType instanceof SemanticFieldType semanticFieldType
-            && semanticFieldType.readsOriginalValuesFromDocValues(searchContext)) {
-            List<Object> rawFieldValues = HighlightUtils.loadFieldValues(sourceFieldType, searchContext, hitContext);
-            return new SemanticFieldContent(rawFieldValues);
+        // Chunk offsets only cover the values directly assigned to the source field, so exclude copy_to values
+        ValueFetcher fetcher;
+        if (sourceFieldType instanceof SemanticFieldType semanticFieldType) {
+            fetcher = semanticFieldType.valueFetcher(searchContext, false);
+        } else {
+            fetcher = new OriginalValuesSemanticFieldValueFetcher(
+                Set.of(sourceField),
+                searchContext.getIndexSettings().getIgnoredSourceFormat()
+            );
         }
-
-        // Read only the field's own path: its source paths would include copy_to sources, which chunk offsets don't cover
-        return new SemanticFieldContent(hitContext.source().extractValue(sourceField, null));
+        fetcher.setNextReader(hitContext.readerContext());
+        return new SemanticFieldContent(fetcher.fetchValues(hitContext.source(), hitContext.docId(), new ArrayList<>()));
     }
 }

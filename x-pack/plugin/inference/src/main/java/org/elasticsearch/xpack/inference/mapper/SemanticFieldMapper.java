@@ -1140,14 +1140,10 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             return valueFetcher(context, true);
         }
 
-        /**
-         * Returns a fetcher for the field's original values. When {@code includeCopyToValues} is {@code false}, values copied into
-         * this field through {@code copy_to} are excluded.
-         */
         public ValueFetcher valueFetcher(SearchExecutionContext context, boolean includeCopyToValues) {
             // When _source is rebuilt from doc values, read the original value straight from the binary store so retrieval does not have
             // to rebuild _source. The binary store never holds copy_to values, so includeCopyToValues doesn't apply.
-            if (readsOriginalValuesFromDocValues(context)) {
+            if (storesOriginalValuesInDocValues && (context.isSourceSynthetic() || context.getMappingLookup().isSourceColumnarStored())) {
                 return new OriginalValuesDocValuesFetcher(SemanticTextField.getOriginalValuesFieldName(name()), inputDecoder());
             }
 
@@ -1160,11 +1156,6 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 sourcePaths = Set.of(name());
             }
             return new OriginalValuesSemanticFieldValueFetcher(sourcePaths, context.getIndexSettings().getIgnoredSourceFormat());
-        }
-
-        /** Whether original values are read from the internal binary doc values store instead of {@code _source}. */
-        public boolean readsOriginalValuesFromDocValues(SearchExecutionContext context) {
-            return storesOriginalValuesInDocValues && (context.isSourceSynthetic() || context.getMappingLookup().isSourceColumnarStored());
         }
 
         /** Decodes a value stored in the binary doc-values store into its {@code _source} form; {@code semantic} uses the encoder. */

@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -36,11 +37,42 @@ sealed interface KnnEvalQuerySource extends Writeable, ToXContentObject permits 
     ParseField SEED_FIELD = new ParseField("seed");
     ParseField VECTORS_FIELD = new ParseField("vectors");
 
-    String FROM_DOCS = "docs";
-    String FROM_VECTORS = "vectors";
+    /**
+     * The kinds of query source. Serialized by ordinal, so new kinds must be appended and existing ones never reordered.
+     */
+    enum Kind {
+        DOCS("docs"),
+        VECTORS("vectors");
 
-    /** The {@code from} discriminator this source was parsed from, echoed in responses so results record how their queries were chosen. */
-    String from();
+        private final String from;
+
+        Kind(String from) {
+            this.from = from;
+        }
+
+        /** The {@code from} value that selects this kind in a request. */
+        String from() {
+            return from;
+        }
+
+        static Kind fromString(String from) {
+            for (Kind kind : values()) {
+                if (kind.from.equals(from)) {
+                    return kind;
+                }
+            }
+            throw new IllegalArgumentException(
+                "unknown [from] value [" + from + "]; expected one of " + Arrays.stream(values()).map(Kind::from).toList()
+            );
+        }
+    }
+
+    Kind kind();
+
+    /** The {@code from} value this source was parsed from, echoed in responses so results record how their queries were chosen. */
+    default String from() {
+        return kind().from();
+    }
 
     static KnnEvalQuerySource fromXContent(XContentParser parser) throws IOException {
         String from = null;
@@ -77,29 +109,26 @@ sealed interface KnnEvalQuerySource extends Writeable, ToXContentObject permits 
         if (from == null) {
             throw new IllegalArgumentException("[from] is required in [query_source]");
         }
-        return switch (from) {
-            case FROM_DOCS -> {
+        return switch (Kind.fromString(from)) {
+            case DOCS -> {
                 if (size == null) {
                     throw new IllegalArgumentException("[size] is required when [from] is [docs]");
                 }
                 yield new DocsSource(new KnnEvalSample(size, seed));
             }
-            case FROM_VECTORS -> {
+            case VECTORS -> {
                 if (vectors == null) {
                     throw new IllegalArgumentException("[vectors] is required when [from] is [vectors]");
                 }
                 yield new VectorsSource(vectors);
             }
-            default -> throw new IllegalArgumentException("unknown [from] value [" + from + "]; expected one of [docs, vectors]");
         };
     }
 
     static KnnEvalQuerySource read(StreamInput in) throws IOException {
-        byte discriminator = in.readByte();
-        return switch (discriminator) {
-            case 0 -> new DocsSource(new KnnEvalSample(in));
-            case 1 -> new VectorsSource(in.readCollectionAsList(KnnEvalQuery::new));
-            default -> throw new IOException("unknown KnnEvalQuerySource discriminator: " + discriminator);
+        return switch (in.readEnum(Kind.class)) {
+            case DOCS -> new DocsSource(new KnnEvalSample(in));
+            case VECTORS -> new VectorsSource(in.readCollectionAsList(KnnEvalQuery::new));
         };
     }
 
@@ -110,13 +139,13 @@ sealed interface KnnEvalQuerySource extends Writeable, ToXContentObject permits 
         }
 
         @Override
-        public String from() {
-            return FROM_DOCS;
+        public Kind kind() {
+            return Kind.DOCS;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeByte((byte) 0);
+            out.writeEnum(kind());
             sample.writeTo(out);
         }
 
@@ -140,13 +169,13 @@ sealed interface KnnEvalQuerySource extends Writeable, ToXContentObject permits 
         }
 
         @Override
-        public String from() {
-            return FROM_VECTORS;
+        public Kind kind() {
+            return Kind.VECTORS;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeByte((byte) 1);
+            out.writeEnum(kind());
             out.writeCollection(vectors);
         }
 

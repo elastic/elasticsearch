@@ -76,7 +76,7 @@ public class KnnEvalResponseTests extends AbstractWireSerializingTestCase<KnnEva
     }
 
     private static String randomQueryFrom() {
-        return randomFrom(KnnEvalQuerySource.FROM_DOCS, KnnEvalQuerySource.FROM_VECTORS);
+        return randomFrom(KnnEvalQuerySource.Kind.values()).from();
     }
 
     private static String randomVectorOpsKind() {
@@ -145,7 +145,7 @@ public class KnnEvalResponseTests extends AbstractWireSerializingTestCase<KnnEva
 
     private static KnnEvalResponse response() {
         return new KnnEvalResponse(
-            KnnEvalQuerySource.FROM_DOCS,
+            KnnEvalQuerySource.Kind.DOCS.from(),
             KnnEvalResponse.ReportedSettings.of(new KnnEvalSettings(100.0f, null, null, false)),
             5,
             600,

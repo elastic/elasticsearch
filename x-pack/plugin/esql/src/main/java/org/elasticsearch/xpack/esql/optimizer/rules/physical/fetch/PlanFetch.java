@@ -49,7 +49,9 @@ import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.elasticsearch.transport.RemoteClusterAware.isRemoteIndexName;
@@ -100,7 +102,10 @@ import static org.elasticsearch.transport.RemoteClusterAware.isRemoteIndexName;
 public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPlan, PhysicalOptimizerContext> {
     private static final Logger logger = LogManager.getLogger(PlanFetch.class);
 
-    /** Name of the document reference column. Nothing matches on it, the column is recognized by its type. */
+    /**
+     * Name of the document reference column. Nothing matches on it, the column is recognized by its type. A plan that
+     * already has a column with this name, a field of the index for example, gets a numbered variant.
+     */
     public static final String DOC_REF_NAME = Attribute.rawTemporaryName("doc_ref");
 
     private final FetchPhaseOutcomes outcomes;
@@ -319,7 +324,7 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
         ReferenceAttribute docRef = new ReferenceAttribute(
             Source.EMPTY,
             null,
-            DOC_REF_NAME,
+            docRefName(plan),
             DataType.DOC_REF,
             Nullability.FALSE,
             null,
@@ -365,6 +370,20 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
             rewritten = new ProjectExec(plan.source(), rewritten, plan.output());
         }
         return rewritten;
+    }
+
+    /**
+     * The document reference sits next to the other columns of the plan, and a plan must not have two columns with the
+     * same name.
+     */
+    private static String docRefName(PhysicalPlan plan) {
+        Set<String> taken = new HashSet<>();
+        plan.forEachDown(node -> node.output().forEach(attribute -> taken.add(attribute.name())));
+        String name = DOC_REF_NAME;
+        for (int suffix = 1; taken.contains(name); suffix++) {
+            name = Attribute.rawTemporaryName("doc_ref", Integer.toString(suffix));
+        }
+        return name;
     }
 
     private static List<String> localIndices(EsRelation relation) {

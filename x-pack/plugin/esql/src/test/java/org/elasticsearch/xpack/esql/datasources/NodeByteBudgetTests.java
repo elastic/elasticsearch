@@ -235,6 +235,62 @@ public class NodeByteBudgetTests extends ESTestCase {
         assertTrue("peakUsed=" + budget.peakUsed() + " cap=" + cap + " maxUnit=" + maxUnit.get(), budget.peakUsed() <= cap + maxUnit.get());
     }
 
+    public void testOverlappingHoldsPeakCapPlusOneUnit() throws Exception {
+        NodeByteBudgetService budget = new NodeByteBudgetService(10);
+        NodeByteBudget.Hold under = budget.tryAdmit(8);
+        assertNotNull(under);
+        CountDownLatch granted = new CountDownLatch(1);
+        AtomicReference<NodeByteBudget.Hold> overshoot = new AtomicReference<>();
+        budget.admitAsync(8, new RowGroupIo(), () -> false, Runnable::run).addListener(ActionListener.wrap(hold -> {
+            overshoot.set(hold);
+            granted.countDown();
+        }, e -> granted.countDown()));
+        assertTrue(granted.await(5, TimeUnit.SECONDS));
+        assertNotNull(overshoot.get());
+        assertTrue(overshoot.get().isOvershoot());
+        assertEquals(16, budget.used());
+        assertEquals(16, budget.peakUsed());
+        under.close();
+        overshoot.get().close();
+        budget.clearOwner(overshoot.get().lease());
+        assertEquals(0, budget.used());
+    }
+
+    /**
+     * Closing the overshoot hold without {@link NodeByteBudget#clearOwner} keeps the slot, so a
+     * second over-cap unit queues instead of stacking to 2×unit.
+     */
+    public void testOvershootSerializesSecondUnit() throws Exception {
+        NodeByteBudgetService budget = new NodeByteBudgetService(10);
+        NodeByteBudget.Hold first = occupyOvershoot(budget, 15);
+        assertEquals(15, budget.used());
+        CountDownLatch granted = new CountDownLatch(1);
+        AtomicReference<NodeByteBudget.Hold> second = new AtomicReference<>();
+        AtomicReference<Exception> error = new AtomicReference<>();
+        budget.admitAsync(15, new RowGroupIo(), () -> false, Runnable::run).addListener(ActionListener.wrap(hold -> {
+            second.set(hold);
+            granted.countDown();
+        }, e -> {
+            error.set(e);
+            granted.countDown();
+        }));
+        assertBusy(() -> assertEquals(1, budget.waiterCount()));
+        assertEquals(15, budget.used());
+        first.close();
+        assertEquals(0, budget.used());
+        assertEquals(1, budget.waiterCount());
+        budget.clearOwner(first.lease());
+        assertTrue(granted.await(5, TimeUnit.SECONDS));
+        assertNull(error.get());
+        assertNotNull(second.get());
+        assertEquals(15, budget.used());
+        assertEquals(15, budget.peakUsed());
+        second.get().close();
+        budget.clearOwner(second.get().lease());
+        assertEquals(0, budget.used());
+        assertEquals(0, budget.waiterCount());
+    }
+
     public void testCancelledGrantDoesNotLeak() throws Exception {
         NodeByteBudgetService budget = new NodeByteBudgetService(10);
         NodeByteBudget.Hold blocking = occupyOvershoot(budget, 15);

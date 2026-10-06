@@ -1263,8 +1263,9 @@ public class CoalescedRangeReaderTests extends ESTestCase {
     }
 
     /**
-     * T3: one unit ticket for three GETs. Cap fits two ranges; the third does not create a
-     * partial holder. Charge-on-expiry is gone; {@code forcedAdmits} stays 0.
+     * T3 sync: one unit ticket for three GETs. Cap fits two ranges; the third does not create a
+     * partial holder. Charge-on-expiry is gone; {@code forcedAdmits} stays 0. This path parks on
+     * {@code actionGet}; {@link #testAsyncPerGetUnitTicketNoPartialHolders} is the async proof.
      */
     public void testPerGetUnitTicketNoPartialHolders() throws Exception {
         byte[] data = sequentialBytes(64);
@@ -1343,6 +1344,10 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         assertEquals(0, watermark.forcedAdmits());
     }
 
+    /**
+     * T3 async: same three-range unit as {@link #testPerGetUnitTicketNoPartialHolders}, without
+     * parking the caller. This is the async-ticket proof, not the sync {@code actionGet} path.
+     */
     public void testAsyncPerGetUnitTicketNoPartialHolders() throws Exception {
         byte[] data = sequentialBytes(64);
         ParquetIoWatermark watermark = new ParquetIoWatermark(20);

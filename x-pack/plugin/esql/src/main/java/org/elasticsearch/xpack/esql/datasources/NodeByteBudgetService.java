@@ -496,7 +496,7 @@ public final class NodeByteBudgetService implements NodeByteBudget {
     }
 
     public static EsRejectedExecutionException cancelled() {
-        return new EsRejectedExecutionException("Cancelled while waiting for parquet I/O bytes");
+        return NodeByteBudget.cancelled();
     }
 
     private final class TicketWaiter {
@@ -613,6 +613,8 @@ public final class NodeByteBudgetService implements NodeByteBudget {
             if (closed.compareAndSet(false, true) == false) {
                 return;
             }
+            // Charge only. Overshoot owner stays until clearOwner(lease): force-added
+            // buffers can still sit in used, and a second over-cap unit must queue.
             drop(Long.MAX_VALUE);
         }
     }

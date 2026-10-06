@@ -17,7 +17,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.esql.datasources.NodeByteBudgetService;
 import org.elasticsearch.xpack.esql.datasources.StorageRetryCancellation;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
@@ -463,8 +462,10 @@ final class CoalescedRangeReader {
 
     /**
      * One ticket covering every coalesced GET in this call. Look-ahead {@link NodeByteBudget#tryAdmit}
-     * is attempted first; otherwise the caller parks on {@link NodeByteBudget#admitAsync} with no
-     * charge-on-expiry.
+     * is attempted first; otherwise the caller parks on {@link NodeByteBudget#admitAsync} with
+     * {@link PlainActionFuture#actionGet()} and no charge-on-expiry. Sync CRR still joins that
+     * future until leftover {@code fetchSync} is ticketed; {@link #admitUnitThenIssueGets} is the
+     * non-blocking path.
      */
     private static NodeByteBudget.Hold admitUnitSync(ParquetIoWatermark ioWatermark, long unitBytes, RowGroupIo lease) {
         NodeByteBudget budget = ioWatermark.nodeByteBudget();
@@ -523,17 +524,7 @@ final class CoalescedRangeReader {
         ioWatermark.nodeByteBudget().admitAsync(unitBytes, lease, cancel, executor).addListener(ActionListener.wrap(hold -> {
             if (cancel.getAsBoolean()) {
                 hold.close();
-                failUnissuedGets(
-                    gets,
-                    remaining,
-                    firstFailure,
-                    buffers,
-                    results,
-                    listener,
-                    unitHold,
-                    scope,
-                    NodeByteBudgetService.cancelled()
-                );
+                failUnissuedGets(gets, remaining, firstFailure, buffers, results, listener, unitHold, scope, NodeByteBudget.cancelled());
                 return;
             }
             try {

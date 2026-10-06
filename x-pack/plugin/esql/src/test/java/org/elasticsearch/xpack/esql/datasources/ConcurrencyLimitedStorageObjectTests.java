@@ -31,13 +31,16 @@ import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -354,5 +357,30 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
             closeThread.join();
             assertEquals("abort+close must not over-grant the limiter", start, limiter.availablePermits());
         }
+    }
+
+    public void testCancelAfterGrantFailsListenerWithoutDelegate() throws Exception {
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false));
+        StorageObject delegate = mock(StorageObject.class);
+        when(delegate.path()).thenReturn(StoragePath.of("s3://bucket/key"));
+        ConcurrencyLimitedStorageObject obj = new ConcurrencyLimitedStorageObject(delegate, limiter);
+        AtomicReference<Runnable> deferred = new AtomicReference<>();
+        CountDownLatch failed = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        Releasable cancel = obj.startReadBytesAsync(0, 4, FACTORY, r -> {
+            if (deferred.compareAndSet(null, r) == false) {
+                r.run();
+            }
+        }, ActionListener.wrap(buf -> fail("cancelled grant must not succeed"), e -> {
+            error.set(e);
+            failed.countDown();
+        }));
+        assertNotNull(deferred.get());
+        cancel.close();
+        deferred.get().run();
+        assertTrue(failed.await(5, TimeUnit.SECONDS));
+        assertThat(error.get(), instanceOf(TimeoutException.class));
+        assertEquals(1, limiter.availablePermits());
+        verify(delegate, never()).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any());
     }
 }

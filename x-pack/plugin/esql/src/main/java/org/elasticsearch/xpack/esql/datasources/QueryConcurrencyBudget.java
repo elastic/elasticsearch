@@ -795,7 +795,7 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
         }
 
         void completeGrant() {
-            pendingCompletions.add(() -> fork(() -> {
+            pendingCompletions.add(() -> forkGrant(() -> {
                 if (completed.compareAndSet(false, true) == false) {
                     return;
                 }
@@ -814,6 +814,17 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
                     async.onFailure(e);
                 }
             }));
+        }
+
+        private void forkGrant(Runnable task) {
+            try {
+                executor.execute(task);
+            } catch (Exception e) {
+                if (completed.compareAndSet(false, true)) {
+                    release(lease, countGets);
+                    async.onFailure(e);
+                }
+            }
         }
 
         private void fork(Runnable task) {

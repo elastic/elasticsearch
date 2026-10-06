@@ -217,6 +217,7 @@ class QueryBudgetedStorageObject implements StorageObject, ResumeBypassingStorag
             public void onResponse(Void unused) {
                 if (cancelled.get()) {
                     releasePermitOnce(lease, countGets, permitReleased);
+                    listener.onFailure(new TimeoutException("Cancelled while waiting for query concurrency budget permit"));
                     return;
                 }
                 try {

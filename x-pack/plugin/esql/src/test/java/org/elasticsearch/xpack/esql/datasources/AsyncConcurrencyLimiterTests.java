@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -34,6 +35,21 @@ public class AsyncConcurrencyLimiterTests extends ESTestCase {
         assertEquals(1, limiter.availablePermits());
         limiter.release();
         assertEquals(2, limiter.availablePermits());
+    }
+
+    public void testForkRejectAfterGrantReleasesPermit() throws Exception {
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false));
+        EsRejectedExecutionException rejected = new EsRejectedExecutionException("rejected");
+        CountDownLatch failed = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        limiter.acquireAsync(() -> false, r -> { throw rejected; }).addListener(ActionListener.wrap(unused -> fail("rejected"), e -> {
+            error.set(e);
+            failed.countDown();
+        }));
+        assertTrue(failed.await(5, TimeUnit.SECONDS));
+        assertSame(rejected, error.get());
+        assertEquals(1, limiter.availablePermits());
+        assertEquals(0, limiter.asyncWaiterCount());
     }
 
     public void testReleaseTransfersPermitToFifoWaiter() throws Exception {

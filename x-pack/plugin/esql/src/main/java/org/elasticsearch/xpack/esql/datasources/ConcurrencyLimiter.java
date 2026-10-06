@@ -129,6 +129,11 @@ class ConcurrencyLimiter implements AdmissionGate {
         }
     }
 
+    /**
+     * {@link #release()} prefers queued tickets, so leftover sync {@code readBytes}
+     * is not FIFO with {@link #acquireAsync}. Spare permits sitting on the semaphore
+     * are drained to tickets first so sync cannot barge those.
+     */
     void acquire() throws TimeoutException, InterruptedException {
         if (semaphore == null) {
             return;
@@ -141,6 +146,7 @@ class ConcurrencyLimiter implements AdmissionGate {
         AdmissionTracker.Wait wait = tracker.waitStarted(name(), Thread.currentThread().getName());
         boolean acquired;
         try {
+            drainSparesToTickets();
             acquired = semaphore.tryAcquire(acquireTimeoutMs, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             wait.finished();
@@ -265,6 +271,7 @@ class ConcurrencyLimiter implements AdmissionGate {
             } else {
                 AsyncWaiter waiter = new AsyncWaiter(listener, executor, cancel);
                 asyncWaiters.addLast(waiter);
+                grantSparesLocked();
                 completions = takePendingCompletions();
             }
         } finally {
@@ -376,6 +383,30 @@ class ConcurrencyLimiter implements AdmissionGate {
         }
     }
 
+    /**
+     * Gives leftover semaphore permits to the FIFO ticket queue. Called after enqueue
+     * (waiters skip {@code tryAcquire} when the queue is already non-empty) and before
+     * leftover sync {@link #acquire} waits on the semaphore.
+     */
+    private void grantSparesLocked() {
+        failCancelledLocked();
+        while (asyncWaiters.isEmpty() == false && semaphore.tryAcquire()) {
+            asyncWaiters.removeFirst().completeGrant();
+        }
+    }
+
+    private void drainSparesToTickets() {
+        List<Runnable> completions;
+        asyncLock.lock();
+        try {
+            grantSparesLocked();
+            completions = takePendingCompletions();
+        } finally {
+            asyncLock.unlock();
+        }
+        runCompletions(completions);
+    }
+
     private List<Runnable> takePendingCompletions() {
         if (pendingCompletions.isEmpty()) {
             return List.of();
@@ -404,7 +435,7 @@ class ConcurrencyLimiter implements AdmissionGate {
         }
 
         private void completeGrant() {
-            pendingCompletions.add(() -> fork(() -> {
+            pendingCompletions.add(() -> forkGrant(() -> {
                 if (completed.compareAndSet(false, true) == false) {
                     return;
                 }
@@ -423,6 +454,17 @@ class ConcurrencyLimiter implements AdmissionGate {
                     listener.onFailure(e);
                 }
             }));
+        }
+
+        private void forkGrant(Runnable task) {
+            try {
+                executor.execute(task);
+            } catch (Exception e) {
+                if (completed.compareAndSet(false, true)) {
+                    release();
+                    listener.onFailure(e);
+                }
+            }
         }
 
         private void fork(Runnable task) {

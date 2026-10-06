@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 
@@ -20,9 +21,14 @@ import java.util.function.BooleanSupplier;
  * only to a runnable lease; a unit larger than the cap goes through that slot only. Peak occupancy
  * is the cap plus one unit, not one unit per query.
  * <p>
- * {@link Hold#close()} is idempotent. A grant that lands on a cancelled waiter is released
- * immediately. Grant callbacks run on the executor supplied to {@link #admitAsync}, not inline on
- * the releasing thread.
+ * {@link Hold#close()} is idempotent and drops leftover byte charge only. It does
+ * not clear the overshoot owner: buffers force-added beside the hold still occupy
+ * {@link #used()}, and a second over-cap unit must wait until {@link #clearOwner}.
+ * A grant that lands on a cancelled waiter is released immediately. Grant callbacks
+ * run on the executor supplied to {@link #admitAsync}, not inline on the releasing
+ * thread. Charge helpers ({@link #add}, {@link #release}, {@link #clearOwner}) stay
+ * on this type because look-ahead and UNGATED alloc share the same cap; CRR tickets
+ * use {@link #tryAdmit}, {@link #admitAsync}, {@link Hold}, and {@link #wakeWaiters}.
  */
 public interface NodeByteBudget {
 
@@ -52,7 +58,8 @@ public interface NodeByteBudget {
 
     /**
      * Drops {@code lease} as the node-wide overshoot owner if it currently holds that slot.
-     * Does not release bytes. Signals waiters.
+     * Does not release bytes. Signals waiters. Call this when the lease is done; {@link Hold#close()}
+     * does not, because sliding-window buffers may still sit in {@link #used()}.
      */
     void clearOwner(RowGroupIo lease);
 
@@ -74,13 +81,23 @@ public interface NodeByteBudget {
 
     /**
      * Fails waiters whose cancel signal is set and grants the next runnable waiter. Installed as
-     * {@link RowGroupIo#setWake} so lease cancel is prompt.
+     * {@link RowGroupIo#setWake} so lease cancel is prompt. Cancel runs every installed wake;
+     * tickets keep their own cancel handles as well.
      */
     void wakeWaiters();
 
     /**
+     * Failure for a cancelled byte-ticket waiter. Shared so callers do not import the service
+     * implementation.
+     */
+    static EsRejectedExecutionException cancelled() {
+        return new EsRejectedExecutionException("Cancelled while waiting for parquet I/O bytes");
+    }
+
+    /**
      * Reservation of {@link #tryAdmit} / {@link #admitAsync} bytes. {@link #drop(long)} swaps
      * leftover estimate for a real alloc; {@link #close()} clears any remainder. Idempotent.
+     * {@link #close()} does not {@link NodeByteBudget#clearOwner}.
      */
     interface Hold extends Releasable {
 
@@ -99,6 +116,10 @@ public interface NodeByteBudget {
          */
         void drop(long bytes);
 
+        /**
+         * Releases leftover estimate. Does not {@link NodeByteBudget#clearOwner}: overshoot
+         * occupancy can outlive this hold while force-added buffers remain.
+         */
         @Override
         void close();
     }

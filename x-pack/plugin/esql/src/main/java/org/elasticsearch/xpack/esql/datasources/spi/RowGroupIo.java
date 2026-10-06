@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Identity of one row group's remaining object-store GETs. The query budget grants permits to
@@ -25,7 +25,7 @@ public final class RowGroupIo {
     private final AtomicInteger outstanding = new AtomicInteger();
     private final AtomicInteger unissued = new AtomicInteger();
     private final AtomicInteger inFlightGets = new AtomicInteger();
-    private final AtomicReference<Runnable> wake = new AtomicReference<>();
+    private final ConcurrentLinkedQueue<Runnable> wakes = new ConcurrentLinkedQueue<>();
     private volatile boolean cancelled;
     private volatile boolean finished;
     private volatile boolean pinned;
@@ -133,20 +133,24 @@ public final class RowGroupIo {
     }
 
     /**
-     * Wake runnable invoked by {@link #cancel()}. The watermark wait installs this; the caller of
-     * {@code cancel()} must not hold the budget lock, because the wake takes the watermark lock.
-     * If this lease is already cancelled, {@code wake} runs immediately.
+     * Registers a wake invoked by {@link #cancel()}. Byte tickets and the query-budget ticket
+     * each install one; cancel runs every registered wake so overlapping waits are not lost to
+     * last-writer-wins. The caller of {@code cancel()} must not hold the budget lock, because
+     * a wake takes that lock. If this lease is already cancelled, {@code wake} runs immediately.
      */
     public void setWake(Runnable wake) {
-        this.wake.set(wake);
+        if (wake == null) {
+            return;
+        }
+        wakes.add(wake);
         if (cancelled) {
             runAndClearWake();
         }
     }
 
     /**
-     * Marks this lease cancelled and runs the wake runnable, if any. Must not be called while
-     * holding the budget lock. A second cancel is a no-op for the wake.
+     * Marks this lease cancelled and runs every registered wake. Must not be called while
+     * holding the budget lock. A second cancel is a no-op once the queue is drained.
      */
     public void cancel() {
         cancelled = true;
@@ -154,9 +158,21 @@ public final class RowGroupIo {
     }
 
     private void runAndClearWake() {
-        Runnable w = wake.getAndSet(null);
-        if (w != null) {
-            w.run();
+        RuntimeException first = null;
+        Runnable w;
+        while ((w = wakes.poll()) != null) {
+            try {
+                w.run();
+            } catch (RuntimeException e) {
+                if (first == null) {
+                    first = e;
+                } else {
+                    first.addSuppressed(e);
+                }
+            }
+        }
+        if (first != null) {
+            throw first;
         }
     }
 

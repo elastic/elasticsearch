@@ -46,30 +46,57 @@ outcomes() {
 	' "$1"
 }
 
-# Cases that pass in one run and not the other: "<regression|improvement>\t<case>\t<control>\t<test>\t<expression>".
+# Cases that pass in one run and not the other, by case id: "<case>\t<before>\t<after>\t<expression>".
 changes() {
 	awk -F'\t' '
 		NR == FNR { before[$1] = $2; next }
-		($1 in before) && ((before[$1] == "OK") != ($2 == "OK")) {
-			printf "%s\t%s\t%s\t%s\t%s\n", ($2 == "OK" ? "improvement" : "regression"), $1, before[$1], $2, $3
-		}
-	' <(outcomes "$1") <(outcomes "$2")
+		($1 in before) && ((before[$1] == "OK") != ($2 == "OK")) { printf "%s\t%s\t%s\t%s\n", $1, before[$1], $2, $3 }
+	' <(outcomes "$1") <(outcomes "$2") | sort -t "$(printf '\t')" -k1,1n
 }
 
-# Changed cases as a markdown table, regressions first, at most $max_rows rows; $2 links the full list.
-table() {
-	local file=$1 link=$2
-	printf '| case | change | query |\n|---|---|---|\n'
-	sort -t "$(printf '\t')" -k1,1r -k2,2n "$file" | awk -F'\t' -v max="$max_rows" -v link="$link" '
-		++n <= max {
-			e = $5
-			if (length(e) > 160) e = substr(e, 1, 157) "..."
-			gsub(/`/, "'"'"'", e)
-			gsub(/\|/, "\\|", e)
-			printf "| %s | %s → %s | `%s` |\n", $2, $3, $4, e
+# The PR report, in GitHub markdown: result first, the changed queries collapsed, the comparison last. Regressions
+# and fixes are told apart by the transition, so a new promcheck state only needs a label. Same input, same output.
+# usage: report <changes> <base> <revision> <promcheck version> <build url, may be empty> <link to the full changes>
+report() {
+	awk -F'\t' -v base="$2" -v revision="$3" -v version="$4" -v build="$5" -v full="$6" -v max="$max_rows" '
+		function passing(s) { return s == "OK" }
+		function label(s) { return s == "OK" ? "PASS" : s == "ERR" ? "ERROR" : s }
+		# n + 0: a section with no rows never set its counter, which awk would print as "".
+		function count(n, one, many) { return (n + 0) " " (n == 1 ? one : many) }
+		# Inline code: pipes escaped for the table, a backtick in the query widens the fence.
+		function code(s,   fence) {
+			gsub(/\|/, "\\|", s)
+			return index(s, "`") ? "`` " s " ``" : "`" s "`"
 		}
-		END { if (n > max) printf "\n_%d more in %s._\n", n - max, link }
-	'
+		function section(title, rows, n,   i, f) {
+			if (!n) return
+			printf "### %s\n\n| Case | Result | Query |\n|---:|:---:|---|\n", title
+			for (i = 1; i <= n && i <= max; i++) {
+				split(rows[i], f, "\t")
+				printf "| %s | `%s → %s` | %s |\n", f[1], label(f[2]), label(f[3]), code(f[4])
+			}
+			if (n > max) printf "\n_%d more in %s._\n", n - max, full
+			printf "\n"
+		}
+		passing($2) { regressions[++nr] = $0; next }
+		{ fixes[++nf] = $0 }
+		END {
+			printf "<!-- promcheck-pr-report -->\n## Promcheck\n\n**%s**\n\n", nr ? "❌ Regression detected" : "✅ No regressions"
+			if (nr + nf == 0) {
+				printf "No query compatibility changes detected.\n\n"
+			} else {
+				printf "%s · %s · %s\n\n", count(nr, "regression", "regressions"), count(nf, "fix", "fixes"),
+					count(nr + nf, "changed case", "changed cases")
+				printf "<details>\n<summary><strong>Show changed queries</strong></summary>\n\n"
+				section("Regressions", regressions, nr)
+				section("Fixed", fixes, nf)
+				printf "</details>\n\n"
+			}
+			printf "**Compared** `%s` → `%s`  \n", substr(base, 1, 10), substr(revision, 1, 10)
+			if (build != "") printf "[Buildkite run](%s) · ", build
+			printf "[promcheck v%s](https://github.com/elastic/promcheck/releases/tag/v%s)\n", version, version
+		}
+	' "$1"
 }
 
 # Shows the report on the build, the way the other CI reports do, and offers it to the build bot's PR comment.
@@ -106,8 +133,7 @@ main() {
 	local src dst n=0 rc base
 	local c_ok c_fail c_err c_skip c_total
 	local t_ok t_fail t_err t_skip t_total
-	local delta status revision regressions improvements
-	local repo_url=https://github.com/elastic/elasticsearch
+	local delta status revision build_url
 	local changes_tsv=$output/@$dataset-changes.tsv
 	local report_md=$output/@$dataset-report.md
 	# Artifacts keep their absolute path without the leading slash.
@@ -216,19 +242,12 @@ main() {
 
 	revision=$(git rev-parse HEAD)
 	changes "$control_log" "$test_log" > "$changes_tsv"
-	regressions=$(grep -c '^regression' "$changes_tsv" || true)
-	improvements=$(grep -c '^improvement' "$changes_tsv" || true)
-	{
-		printf '**Prometheus compliance** · [promcheck %s](https://github.com/elastic/promcheck/tree/v%s) · ' "$version" "$version"
-		printf '[`%s`](%s/commit/%s) → [`%s`](%s/commit/%s) · ok %s → %s (%+d)\n' \
-			"${base:0:10}" "$repo_url" "$base" "${revision:0:10}" "$repo_url" "$revision" "$c_ok" "$t_ok" "$delta"
-		if ((regressions + improvements)); then
-			printf '\n<details><summary>%d regressed, %d improved</summary>\n\n' "$regressions" "$improvements"
-			table "$changes_tsv" "$changes_link"
-			printf '\n</details>\n'
-		fi
-	} > "$report_md"
-	if ((delta < 0)); then
+	# The exact job this comparison ran in.
+	build_url=${BUILDKITE_BUILD_URL:-}
+	[[ -z $build_url || -z ${BUILDKITE_JOB_ID:-} ]] || build_url+="#$BUILDKITE_JOB_ID"
+	report "$changes_tsv" "$base" "$revision" "$version" "$build_url" "$changes_link" > "$report_md"
+	# A case that passed in the control and changed is a regression.
+	if awk -F'\t' '$2 == "OK" { found = 1 } END { exit !found }' "$changes_tsv"; then
 		annotate error "$report_md"
 	else
 		annotate success "$report_md"

@@ -117,7 +117,7 @@ exit "$(cat "${dir}/$run.rc" 2>/dev/null || echo 0)"
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
   /** Runs the script with the given control and test logs, returning what CI would see. */
-  function run(control: Case[], tested: Case[], opts: { controlRc?: number } = {}) {
+  function run(control: Case[], tested: Case[], opts: { controlRc?: number; env?: Record<string, string> } = {}) {
     writeFileSync(join(dir, "control.log"), promcheckLog(control));
     writeFileSync(join(dir, "test.log"), promcheckLog(tested));
     if (opts.controlRc !== undefined) writeFileSync(join(dir, "control.rc"), String(opts.controlRc));
@@ -134,6 +134,9 @@ exit "$(cat "${dir}/$run.rc" 2>/dev/null || echo 0)"
           PROMCHECK_VER: VERSION,
           PROMCHECK_TEST_INSTANCE_TIMEOUT: "900",
           BUILDKITE_PULL_REQUEST_BASE_BRANCH: "main",
+          BUILDKITE_BUILD_URL: "",
+          BUILDKITE_JOB_ID: "",
+          ...opts.env,
         },
         stdio: "pipe",
       });
@@ -157,27 +160,41 @@ exit "$(cat "${dir}/$run.rc" 2>/dev/null || echo 0)"
     ["002", "FAIL", "rate(http_requests_total[5m])"],
   ];
 
-  test("unchanged coverage passes with a one-line success report and no table", () => {
+  test("no change reports no regressions in one sentence, without a details block", () => {
     const r = run(STABLE, STABLE);
     expect(r.status).toBe(0);
-    expect(r.report).toContain("ok 1 → 1 (+0)");
+    expect(r.report.startsWith("<!-- promcheck-pr-report -->\n## Promcheck\n\n**✅ No regressions**\n\nNo query compatibility changes detected.\n")).toBe(true);
     expect(r.report).not.toContain("<details>");
     expect(r.agent).toContain("== annotate --context ctx-validate-prometheus-compliance --style success");
   });
 
-  test("a regression fails the job, annotates an error and lists the case", () => {
+  test("a regression fails the job and lists only the regressions", () => {
     const r = run(STABLE, [
       ["001", "FAIL", "up"],
       ["002", "FAIL", "rate(http_requests_total[5m])"],
     ]);
     expect(r.status).toBe(1);
-    expect(r.report).toContain("ok 1 → 0 (-1)");
-    expect(r.report).toContain("<summary>1 regressed, 0 improved</summary>");
-    expect(r.report).toContain("| 001 | OK → FAIL | `up` |");
+    expect(r.report).toContain("**❌ Regression detected**\n\n1 regression · 0 fixes · 1 changed case\n");
+    expect(r.report).toContain("<summary><strong>Show changed queries</strong></summary>");
+    expect(r.report).toContain("### Regressions\n\n| Case | Result | Query |\n|---:|:---:|---|\n| 001 | `PASS → FAIL` | `up` |\n");
+    expect(r.report).not.toContain("### Fixed");
     expect(r.agent).toContain("--style error");
   });
 
-  test("an improvement passes and is listed after the regressions", () => {
+  test("fixes alone report no regressions and list only the fixes", () => {
+    const r = run(STABLE, [
+      ["001", "OK", "up"],
+      ["002", "OK", "rate(http_requests_total[5m])"],
+    ]);
+    expect(r.status).toBe(0);
+    expect(r.report).toContain("**✅ No regressions**\n\n0 regressions · 1 fix · 1 changed case\n");
+    expect(r.report).toContain("| 002 | `FAIL → PASS` | `rate(http_requests_total[5m])` |");
+    expect(r.report).not.toContain("### Regressions");
+    expect(r.agent).toContain("--style success");
+  });
+
+  /** The report flags any regression; the job itself still passes or fails on the OK count. */
+  test("a regression next to a fix is reported even when the OK count holds", () => {
     const r = run(
       [
         ["001", "OK", "up"],
@@ -191,17 +208,55 @@ exit "$(cat "${dir}/$run.rc" 2>/dev/null || echo 0)"
       ]
     );
     expect(r.status).toBe(0);
-    expect(r.report).toContain("<summary>1 regressed, 1 improved</summary>");
-    expect(r.report.indexOf("| 003 | OK → ERR |")).toBeLessThan(r.report.indexOf("| 002 | FAIL → OK |"));
-    expect(r.agent).toContain("--style success");
+    expect(r.report).toContain("**❌ Regression detected**\n\n1 regression · 1 fix · 2 changed cases\n");
+    expect(r.report).toContain("| 003 | `PASS → ERROR` | `sum(x)` |");
+    expect(r.report.indexOf("### Regressions")).toBeLessThan(r.report.indexOf("### Fixed"));
+    expect(r.agent).toContain("--style error");
   });
 
-  test("the summary links promcheck's source at its version and both commits", () => {
+  test("rows are sorted by case id within each section", () => {
+    const r = run(
+      [
+        ["010", "OK", "a"],
+        ["002", "OK", "b"],
+        ["007", "FAIL", "c"],
+        ["003", "FAIL", "d"],
+      ],
+      [
+        ["010", "FAIL", "a"],
+        ["002", "FAIL", "b"],
+        ["007", "OK", "c"],
+        ["003", "OK", "d"],
+      ]
+    );
+    const rows = r.report.match(/^\| \d{3} \|/gm);
+    expect(rows).toEqual(["| 002 |", "| 010 |", "| 003 |", "| 007 |"]);
+  });
+
+  test("the comparison links the exact Buildkite job and promcheck release, with short commits", () => {
     const head = git(repo, "rev-parse", "HEAD");
+    const r = run(STABLE, STABLE, {
+      env: { BUILDKITE_BUILD_URL: "https://buildkite.com/elastic/elasticsearch-pull-request/builds/42", BUILDKITE_JOB_ID: "job-7" },
+    });
+    expect(r.report).toContain(`**Compared** \`${r.controlHead.slice(0, 10)}\` → \`${head.slice(0, 10)}\`  \n`);
+    expect(r.report).toContain(
+      `[Buildkite run](https://buildkite.com/elastic/elasticsearch-pull-request/builds/42#job-7) · ` +
+        `[promcheck v${VERSION}](https://github.com/elastic/promcheck/releases/tag/v${VERSION})\n`
+    );
+  });
+
+  test("without a build there is no Buildkite link", () => {
     const r = run(STABLE, STABLE);
-    expect(r.report).toContain(`[promcheck ${VERSION}](https://github.com/elastic/promcheck/tree/v${VERSION})`);
-    expect(r.report).toContain(`(https://github.com/elastic/elasticsearch/commit/${head})`);
-    expect(r.report).toContain(`(https://github.com/elastic/elasticsearch/commit/${r.controlHead})`);
+    expect(r.report).not.toContain("Buildkite run");
+    expect(r.report.trimEnd().endsWith(`[promcheck v${VERSION}](https://github.com/elastic/promcheck/releases/tag/v${VERSION})`)).toBe(true);
+  });
+
+  test("the same runs give the same report", () => {
+    const tested: Case[] = [
+      ["001", "FAIL", "up"],
+      ["002", "OK", "rate(http_requests_total[5m])"],
+    ];
+    expect(run(STABLE, tested).report).toBe(run(STABLE, tested).report);
   });
 
   /** A fix landing on the target after the PR branched off must not count as this PR's change. */
@@ -229,20 +284,19 @@ exit "$(cat "${dir}/$run.rc" 2>/dev/null || echo 0)"
     expect(comment.trim()).toBe(r.report.trim());
   });
 
-  test("a pipe in a query is escaped and a long query is cut short", () => {
-    const long = `sum(rate(${"x".repeat(200)}[5m]))`;
+  test("a pipe in a query is escaped and a backtick widens the code span", () => {
     const r = run(
       [
         ["001", "OK", 'up{job=~"a|b"}'],
-        ["002", "OK", long],
+        ["002", "OK", 'label_replace(up, "x", "`y`", "", "")'],
       ],
       [
         ["001", "FAIL", 'up{job=~"a|b"}'],
-        ["002", "FAIL", long],
+        ["002", "FAIL", 'label_replace(up, "x", "`y`", "", "")'],
       ]
     );
-    expect(r.report).toContain('`up{job=~"a\\|b"}`');
-    expect(r.report).toContain(`\`${long.slice(0, 157)}...\``);
+    expect(r.report).toContain('| 001 | `PASS → FAIL` | `up{job=~"a\\|b"}` |');
+    expect(r.report).toContain('| 002 | `PASS → FAIL` | `` label_replace(up, "x", "`y`", "", "") `` |');
   });
 
   test("more changes than the table holds link the full list as an artifact", () => {

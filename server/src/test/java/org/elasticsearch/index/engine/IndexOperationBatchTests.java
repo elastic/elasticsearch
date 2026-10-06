@@ -629,10 +629,10 @@ public class IndexOperationBatchTests extends ESTestCase {
             assertThat(record.seqNo(2), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
             assertThat(record.uids()[2], nullValue());
 
-            // sparse status arrays: row 1 is the no-op (with its reason parallel), row 2 the
+            // sparse status arrays: row 1 is the no-op (paired with its reason), row 2 the
             // preflight failure; indexed row 0 is listed nowhere
-            assertArrayEquals(new int[] { 1 }, record.noOpRows());
-            assertArrayEquals(new String[] { "post-lucene failure" }, record.noOpReasons());
+            assertArrayEquals(new int[] { 1 }, record.noOps().rows());
+            assertArrayEquals(new String[] { "post-lucene failure" }, record.noOps().reasons());
             assertArrayEquals(new int[] { 2 }, record.preflightRows());
         }
     }
@@ -669,7 +669,7 @@ public class IndexOperationBatchTests extends ESTestCase {
 
     public void testToTranslogRecordNullArraysWhenUnused() throws IOException {
         // A batch where no row has a routing value and no row is a no-op stores its routings and
-        // noOpReasons in canonical form: the whole arrays stay null instead of holding all nulls.
+        // no-op entries in canonical form: both stay null instead of holding all nulls.
         final int n = randomIntBetween(1, 5);
         try (EscfBatch escf = escfBatch(n)) {
             final IndexOperationBatch batch = IndexOperationBatch.initFromBulk(
@@ -690,7 +690,7 @@ public class IndexOperationBatchTests extends ESTestCase {
             final IndexOperationBatch.TranslogRecord record = batch.toTranslogRecord(statuses, null);
 
             assertThat(record.routings(), nullValue());
-            assertThat(record.noOpReasons(), nullValue());
+            assertThat(record.noOps(), nullValue());
             for (int i = 0; i < n; i++) {
                 assertThat("routing at i=" + i, record.routing(i), nullValue());
                 assertThat("seqNo at i=" + i, record.seqNo(i), equalTo((long) i));

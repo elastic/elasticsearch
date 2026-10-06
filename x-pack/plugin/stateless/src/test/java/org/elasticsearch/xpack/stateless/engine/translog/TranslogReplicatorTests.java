@@ -376,7 +376,6 @@ public class TranslogReplicatorTests extends ESTestCase {
             null,
             null,
             null,
-            null,
             batchData
         );
     }

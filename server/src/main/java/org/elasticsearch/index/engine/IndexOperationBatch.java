@@ -680,7 +680,7 @@ public final class IndexOperationBatch {
                     assert preflightRows != null;
                     preflightRows[preflightIdx++] = i;
                 }
-                default -> throw new AssertionError("unknown row status [" + rowStatuses[i] + "]");
+                default -> throw new IllegalArgumentException("unknown row status [" + rowStatuses[i] + "] for row [" + i + "]");
             }
         }
         return new TranslogRecord(
@@ -692,8 +692,7 @@ public final class IndexOperationBatch {
             types,
             rowUids,
             rowRoutings,
-            noOpRows,
-            reasons,
+            noOpCount == 0 ? null : new TranslogRecord.NoOpEntries(noOpRows, reasons),
             preflightRows,
             sourceBatch.data()
         );
@@ -704,10 +703,10 @@ public final class IndexOperationBatch {
      * Fields of this record are written to the translog metadata in the header
      *
      * <p>Row statuses are stored sparsely: every row is {@link #ROW_INDEXED} unless its index
-     * appears in {@code noOpRows} ({@link #ROW_NO_OP}) or {@code preflightRows}
-     * ({@link #ROW_PREFLIGHT_ERROR}). Both arrays are strictly increasing row indexes in
-     * {@code [0, docCount)}, disjoint, and null when empty — an all-indexed batch carries no
-     * per-row status data at all.
+     * appears in {@code noOps} ({@link #ROW_NO_OP}) or {@code preflightRows}
+     * ({@link #ROW_PREFLIGHT_ERROR}). Both hold strictly increasing row indexes in
+     * {@code [0, docCount)}, are disjoint, and are null when empty — an all-indexed batch carries
+     * no per-row status data at all.
      */
     public record TranslogRecord(
         long primaryTerm,
@@ -718,8 +717,7 @@ public final class IndexOperationBatch {
         XContentType[] contentTypes,
         BytesRef[] uids,
         @Nullable String[] routings,
-        @Nullable int[] noOpRows,
-        @Nullable String[] noOpReasons,
+        @Nullable NoOpEntries noOps,
         @Nullable int[] preflightRows,
         BytesReference batchData
     ) implements Translog.Record, Writeable {
@@ -738,6 +736,32 @@ public final class IndexOperationBatch {
         /** The row hit a preflight failure. */
         public static final byte ROW_PREFLIGHT_ERROR = 2;
 
+        /**
+         * The {@link #ROW_NO_OP} rows of a record and the reason each one replays with:
+         * {@code reasons[k]} belongs to {@code rows[k]}. Easier for asserting.
+         */
+        public record NoOpEntries(int[] rows, String[] reasons) {
+            public NoOpEntries {
+                assert rows != null && reasons != null : "no-op rows and reasons must both be present";
+                assert rows.length > 0 : "a record without no-op rows must carry null instead of empty no-op entries";
+                assert rows.length == reasons.length
+                    : "no-op rows [" + rows.length + "] and reasons [" + reasons.length + "] must be of the same size";
+
+                // Use of stream here is likely less performant, but okay since it is behind an assert.
+                assert Arrays.stream(reasons).allMatch(Objects::nonNull) : "every NO_OP row must have a reason";
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                return o instanceof NoOpEntries other && Arrays.equals(rows, other.rows) && Arrays.equals(reasons, other.reasons);
+            }
+
+            @Override
+            public int hashCode() {
+                return 31 * Arrays.hashCode(rows) + Arrays.hashCode(reasons);
+            }
+        }
+
         public TranslogRecord {
             Objects.requireNonNull(batchData, "batchData");
             if (docCount <= 0) {
@@ -754,24 +778,26 @@ public final class IndexOperationBatch {
                 assert nonNullValueInNonNullArray(routings) : "a non-null array must contain at least one non-null value";
             }
 
-            // assert the row indexes are ordered; the scans and assertDisjoint below both rely on it.
-            assert assertSortedRows(noOpRows, preflightRows);
+            // assert the row indexes are ascending and within [0, docCount);
+            assert noOps == null || assertAscendingInRange(noOps.rows(), docCount);
+            assert assertAscendingInRange(preflightRows, docCount);
 
             // assert that the same row is not marked as both noop and preflight error.
-            assertDisjoint(noOpRows, preflightRows);
-            assert ((noOpRows == null) == (noOpReasons == null)) : "One of noOpRows or noOpReasons was inconsistently null";
-            assert noOpRows == null || noOpRows.length == noOpReasons.length : "noOpRows and noOpReasons arrays must be of the same size";
+            assert noOps == null || assertDisjoint(noOps.rows(), preflightRows);
             assert docCount - (preflightRows == null ? 0 : preflightRows.length) > 0 : "a batch must contain at least one replayable row";
+
+            // assert that startSeqNo + docCount doesn't wrap
             assert startSeqNo >= 0 : "startSeqNo [" + startSeqNo + "] must be non-negative";
+            assert startSeqNo <= Long.MAX_VALUE - docCount : "startSeqNo [" + startSeqNo + "] + docCount [" + docCount + "] overflows";
         }
 
         /**
          * The status of row {@code i}: {@link #ROW_INDEXED} unless the row is listed in
-         * {@link #noOpRows} or {@link #preflightRows}.
+         * {@link #noOps} or {@link #preflightRows}.
          */
         public byte rowStatus(int i) {
-            Objects.checkIndex(i, docCount);
-            if (indexOfRow(noOpRows, i) >= 0) {
+            assert 0 <= i && i < docCount : "row [" + i + "] out of range for [" + docCount + "] rows";
+            if (noOps != null && indexOfRow(noOps.rows(), i) >= 0) {
                 return ROW_NO_OP;
             }
             if (indexOfRow(preflightRows, i) >= 0) {
@@ -786,11 +812,21 @@ public final class IndexOperationBatch {
          * seqNo and return {@link SequenceNumbers#UNASSIGNED_SEQ_NO}.
          */
         public long seqNo(int i) {
-            Objects.checkIndex(i, docCount);
-            if (indexOfRow(preflightRows, i) >= 0) {
-                return SequenceNumbers.UNASSIGNED_SEQ_NO;
+            assert 0 <= i && i < docCount : "row [" + i + "] out of range for [" + docCount + "] rows";
+            long seqNo = startSeqNo + i;
+            if (preflightRows != null) {
+                // a single ordered scan: each preflight row before i shifts the seqNo down by one
+                for (int row : preflightRows) {
+                    if (row > i) {
+                        break;
+                    }
+                    if (row == i) {
+                        return SequenceNumbers.UNASSIGNED_SEQ_NO;
+                    }
+                    seqNo--;
+                }
             }
-            return startSeqNo + i - rowsBefore(preflightRows, i);
+            return seqNo;
         }
 
         /** The seqNo of the last replayable row: {@code startSeqNo + operationCount() - 1}. */
@@ -811,19 +847,9 @@ public final class IndexOperationBatch {
             return docCount - (preflightRows == null ? 0 : preflightRows.length);
         }
 
-        /** The no-op reason of row {@code i}, which must be a {@link #ROW_NO_OP} row. */
-        public String noOpReason(int i) {
-            final int k = indexOfRow(noOpRows, i);
-            if (k < 0) {
-                throw new IllegalArgumentException("row [" + i + "] is not a NO_OP row");
-            }
-            assert noOpReasons != null : "noOpReasons is expected to be non-null";
-            return noOpReasons[k];
-        }
-
         /**
-         * The position of {@code row} in {@code sortedRows}, or -1 if absent. The rows are ordered, so the
-         * scan stops at the first entry past {@code row}.
+         * The position of row {@code i} in {@code rows}, or -1 if absent. The rows are ordered, so the
+         * scan stops at the first entry past {@code i}.
          */
         private static int indexOfRow(@Nullable int[] rows, int i) {
             if (rows == null) {
@@ -837,30 +863,23 @@ public final class IndexOperationBatch {
             return -1;
         }
 
-        /** The number of entries in {@code sortedRows} that are strictly less than {@code row}. */
-        private static int rowsBefore(@Nullable int[] rows, int i) {
+        /** Asserts that {@code rows} is null or holds strictly increasing row indexes within {@code [0, docCount)}. */
+        private static boolean assertAscendingInRange(@Nullable int[] rows, int docCount) {
             if (rows == null) {
-                return 0;
+                return true;
             }
-            int count = 0;
-            while (count < rows.length && rows[count] < i) {
-                count++;
-            }
-            return count;
-        }
-
-        private static boolean assertSortedRows(@Nullable int[]... rowArrays) {
-            for (int[] rows : rowArrays) {
-                for (int k = 1; rows != null && k < rows.length; k++) {
-                    assert rows[k - 1] < rows[k] : "row indexes must be strictly increasing, got " + Arrays.toString(rows);
-                }
+            int previous = -1;
+            for (int row : rows) {
+                assert row > previous && row < docCount
+                    : "row indexes must be strictly increasing within [0, " + docCount + "), got " + Arrays.toString(rows);
+                previous = row;
             }
             return true;
         }
 
-        private static void assertDisjoint(@Nullable int[] noOpRows, @Nullable int[] preflightRows) {
-            if (noOpRows == null || preflightRows == null) {
-                return;
+        private static boolean assertDisjoint(int[] noOpRows, @Nullable int[] preflightRows) {
+            if (preflightRows == null) {
+                return true;
             }
             int n = 0;
             int p = 0;
@@ -872,6 +891,7 @@ public final class IndexOperationBatch {
                     p++;
                 }
             }
+            return true;
         }
 
         private static void checkLength(String name, int length, int expected) {
@@ -906,14 +926,15 @@ public final class IndexOperationBatch {
             }
             final long startSeqNo = in.readVLong();
             final int[] noOpRows = readOptionalRowIndexes(in, "noOpRows", docCount);
-            final String[] reasons;
+            final NoOpEntries noOps;
             if (noOpRows == null) {
-                reasons = null;
+                noOps = null;
             } else {
-                reasons = new String[noOpRows.length];
+                final String[] reasons = new String[noOpRows.length];
                 for (int k = 0; k < reasons.length; k++) {
                     reasons[k] = in.readString();
                 }
+                noOps = new NoOpEntries(noOpRows, reasons);
             }
             final int[] preflightRows = readOptionalRowIndexes(in, "preflightRows", docCount);
             final long[] versions = new long[docCount];
@@ -946,8 +967,7 @@ public final class IndexOperationBatch {
                     types,
                     uids,
                     routings,
-                    noOpRows,
-                    reasons,
+                    noOps,
                     preflightRows,
                     batchData
                 );
@@ -958,7 +978,7 @@ public final class IndexOperationBatch {
 
         /**
          * Reads an optional strictly-increasing row-index array as written by
-         * {@link #writeOptionalRowIndexes}; the strict monotonicity check also rejects duplicates.
+         * {@link #writeOptionalRowIndexes}.
          */
         @Nullable
         private static int[] readOptionalRowIndexes(StreamInput in, String name, int docCount) throws IOException {
@@ -1012,9 +1032,10 @@ public final class IndexOperationBatch {
             out.writeVLong(startSeqNo);
             // sparse row statuses: rows are indexed unless listed below, so an all-indexed batch
             // pays two absence bytes instead of a status byte per row
+            final int[] noOpRows = noOps == null ? null : noOps.rows();
             writeOptionalRowIndexes(out, noOpRows);
-            if (noOpRows != null) {
-                for (String reason : noOpReasons) {
+            if (noOps != null) {
+                for (String reason : noOps.reasons()) {
                     out.writeString(reason);
                 }
             }
@@ -1062,16 +1083,27 @@ public final class IndexOperationBatch {
                 checkRowCount(sourceBatch);
                 final SourceRowXContentParser.SchemaNode schemaTree = SourceRowXContentParser.buildSchemaTree(sourceBatch.schema());
                 final List<Translog.Operation> out = new ArrayList<>(operationCount());
+                // Walk the sparse row arrays in step with the rows instead of looking each row up, and
+                // hand out the seqNos here: replayable rows consume them contiguously from startSeqNo
+                // in row order, so the whole pass is linear in docCount.
+                final int[] noOpRows = noOps == null ? null : noOps.rows();
+                long seqNo = startSeqNo;
+                int noOpIdx = 0;
+                int preflightIdx = 0;
                 for (int i = 0; i < docCount; i++) {
-                    switch (rowStatus(i)) {
-                        case ROW_INDEXED -> out.add(toIndex(sourceBatch, schemaTree, i, seqNo(i)));
-                        case ROW_NO_OP -> out.add(new Translog.NoOp(seqNo(i), primaryTerm, noOpReason(i)));
-                        case ROW_PREFLIGHT_ERROR -> {
-                            // never consumed a seqNo; nothing to replay
-                        }
-                        default -> throw new AssertionError("unknown row status [" + rowStatus(i) + "]");
+                    if (noOpRows != null && noOpIdx < noOpRows.length && noOpRows[noOpIdx] == i) {
+                        out.add(new Translog.NoOp(seqNo++, primaryTerm, noOps.reasons()[noOpIdx]));
+                        noOpIdx++;
+                    } else if (preflightRows != null && preflightIdx < preflightRows.length && preflightRows[preflightIdx] == i) {
+                        // never consumed a seqNo; nothing to replay
+                        preflightIdx++;
+                    } else {
+                        out.add(toIndex(sourceBatch, schemaTree, i, seqNo++));
                     }
                 }
+                assert out.size() == operationCount() : "exploded " + out.size() + " ops for " + operationCount() + " replayable rows";
+                assert noOpIdx == (noOpRows == null ? 0 : noOpRows.length) : "unvisited no-op rows";
+                assert preflightIdx == (preflightRows == null ? 0 : preflightRows.length) : "unvisited preflight rows";
                 return out;
             }
         }
@@ -1125,14 +1157,13 @@ public final class IndexOperationBatch {
                 return primaryTerm == other.primaryTerm
                     && docCount == other.docCount
                     && startSeqNo == other.startSeqNo
-                    && Arrays.equals(noOpRows, other.noOpRows)
+                    && Objects.equals(noOps, other.noOps)
                     && Arrays.equals(preflightRows, other.preflightRows)
                     && Arrays.equals(versions, other.versions)
                     && Arrays.equals(autoGeneratedIdTimestamps, other.autoGeneratedIdTimestamps)
                     && Arrays.equals(contentTypes, other.contentTypes)
                     && Arrays.equals(uids, other.uids)
                     && Arrays.equals(routings, other.routings)
-                    && Arrays.equals(noOpReasons, other.noOpReasons)
                     && batchData.equals(other.batchData);
             }
             return false;
@@ -1143,14 +1174,13 @@ public final class IndexOperationBatch {
             int result = Long.hashCode(primaryTerm);
             result = 31 * result + docCount;
             result = 31 * result + Long.hashCode(startSeqNo);
-            result = 31 * result + Arrays.hashCode(noOpRows);
+            result = 31 * result + Objects.hashCode(noOps);
             result = 31 * result + Arrays.hashCode(preflightRows);
             result = 31 * result + Arrays.hashCode(versions);
             result = 31 * result + Arrays.hashCode(autoGeneratedIdTimestamps);
             result = 31 * result + Arrays.hashCode(contentTypes);
             result = 31 * result + Arrays.hashCode(uids);
             result = 31 * result + Arrays.hashCode(routings);
-            result = 31 * result + Arrays.hashCode(noOpReasons);
             result = 31 * result + batchData.hashCode();
             return result;
         }

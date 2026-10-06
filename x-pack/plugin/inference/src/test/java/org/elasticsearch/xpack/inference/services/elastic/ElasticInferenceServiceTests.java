@@ -801,8 +801,8 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             String responseJson = Strings.format("""
                 {
                     "results": [
-                        {"index": 1, "relevance_score": 0.95, "document": {"text": "%s"}},
-                        {"index": 0, "relevance_score": 0.85, "document": {"text": "%s"}}
+                        {"index": 1, "relevance_score": 0.95, "text": "%s"},
+                        {"index": 0, "relevance_score": 0.85, "text": "%s"}
                     ]
                 }
                 """, docTwo, docOne);

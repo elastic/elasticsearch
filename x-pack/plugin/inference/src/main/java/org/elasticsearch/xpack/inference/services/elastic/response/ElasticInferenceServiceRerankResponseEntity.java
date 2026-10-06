@@ -40,36 +40,25 @@ public class ElasticInferenceServiceRerankResponseEntity {
             PARSER.declareObjectArray(constructorArg(), RerankResultEntry.PARSER::apply, new ParseField("results"));
         }
 
-        record RerankResultEntry(Integer index, Float relevanceScore, @Nullable Document document) {
+        /**
+         * {@code text} holds the reranked document and is only returned by the upstream provider if {@code return_documents} was set to
+         * {@code true}.
+         */
+        record RerankResultEntry(Integer index, Float relevanceScore, @Nullable String text) {
 
             public static final ConstructingObjectParser<RerankResultEntry, Void> PARSER = new ConstructingObjectParser<>(
                 RerankResultEntry.class.getSimpleName(),
-                args -> new RerankResultEntry((Integer) args[0], (Float) args[1], (Document) args[2])
+                args -> new RerankResultEntry((Integer) args[0], (Float) args[1], (String) args[2])
             );
 
             static {
                 PARSER.declareInt(constructorArg(), new ParseField("index"));
                 PARSER.declareFloat(constructorArg(), new ParseField("relevance_score"));
-                PARSER.declareObject(optionalConstructorArg(), Document.PARSER::apply, new ParseField("document"));
+                PARSER.declareString(optionalConstructorArg(), new ParseField("text"));
             }
 
             public RankedDocsResults.RankedDoc toRankedDoc() {
-                return new RankedDocsResults.RankedDoc(index, relevanceScore, document == null ? null : document.text());
-            }
-        }
-
-        /**
-         * The reranked document, only returned by the upstream provider if {@code return_documents} was set to {@code true}.
-         */
-        record Document(String text) {
-
-            public static final ConstructingObjectParser<Document, Void> PARSER = new ConstructingObjectParser<>(
-                Document.class.getSimpleName(),
-                args -> new Document((String) args[0])
-            );
-
-            static {
-                PARSER.declareString(constructorArg(), new ParseField("text"));
+                return new RankedDocsResults.RankedDoc(index, relevanceScore, text);
             }
         }
     }

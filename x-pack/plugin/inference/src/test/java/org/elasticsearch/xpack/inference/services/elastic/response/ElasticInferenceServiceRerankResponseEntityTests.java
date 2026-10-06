@@ -154,16 +154,12 @@ public class ElasticInferenceServiceRerankResponseEntityTests extends ESTestCase
                     {
                         "index": 1,
                         "relevance_score": 0.94,
-                        "document": {
-                            "text": "document 1"
-                        }
+                        "text": "document 1"
                     },
                     {
                         "index": 0,
                         "relevance_score": 0.78,
-                        "document": {
-                            "text": "document 0"
-                        }
+                        "text": "document 0"
                     }
                 ]
             }
@@ -186,9 +182,7 @@ public class ElasticInferenceServiceRerankResponseEntityTests extends ESTestCase
                     {
                         "index": 0,
                         "relevance_score": 0.94,
-                        "document": {
-                            "text": "document 0"
-                        }
+                        "text": "document 0"
                     },
                     {
                         "index": 1,
@@ -208,14 +202,16 @@ public class ElasticInferenceServiceRerankResponseEntityTests extends ESTestCase
         );
     }
 
-    public void testFromResponse_FailsWhenDocumentIsMissingText() {
+    public void testFromResponse_FailsWhenTextIsNotAString() {
         String responseJson = """
             {
                 "results": [
                     {
                         "index": 0,
                         "relevance_score": 0.94,
-                        "document": {}
+                        "text": {
+                            "text": "document 0"
+                        }
                     }
                 ]
             }

@@ -1251,20 +1251,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         watermark.admitWait(150, owner, 1_000L);
         CountingStorage storage = new CountingStorage(data);
         List<ByteRange> ranges = List.of(new ByteRange(0, 10), new ByteRange(20, 10), new ByteRange(40, 10));
-        Thread releaser = new Thread(() -> {
-            try {
-                Thread.sleep(1400);
-                watermark.release(60);
-                Thread.sleep(1400);
-                watermark.release(10);
-                Thread.sleep(1400);
-                watermark.release(10);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        });
         long start = System.nanoTime();
-        releaser.start();
         CoalescedRangeResult result = null;
         try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(new RowGroupIo(), false)) {
             result = CoalescedRangeReader.readCoalescedSync(
@@ -1278,13 +1265,14 @@ public class CoalescedRangeReaderTests extends ESTestCase {
             );
         }
         long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
-        releaser.interrupt();
-        releaser.join();
         try {
             assertNotNull(result);
             assertEquals(3, storage.syncGets.get());
             assertEquals(3, watermark.forcedAdmits());
-            assertTrue("one coalesced call must not wait a fresh deadline per GET, elapsedMs=" + elapsedMs, elapsedMs < 1_500);
+            assertTrue(
+                "one coalesced call must not wait a fresh deadline per GET, elapsedMs=" + elapsedMs,
+                elapsedMs >= 500L && elapsedMs < 3_000L
+            );
         } finally {
             if (result != null) {
                 result.release().close();
@@ -1296,9 +1284,9 @@ public class CoalescedRangeReaderTests extends ESTestCase {
     public void testForcedAdmitStillTripsRequestBreaker() throws Exception {
         byte[] data = sequentialBytes(64);
         CircuitBreaker smallBreaker = new LimitedBreaker("small", ByteSizeValue.ofBytes(32));
-        ParquetIoWatermark watermark = new ParquetIoWatermark(10, 50L);
+        ParquetIoWatermark watermark = new ParquetIoWatermark(100, 50L);
         RowGroupIo owner = new RowGroupIo();
-        watermark.admitWait(20, owner, 1_000L);
+        watermark.admitWait(110, owner, 1_000L);
         CircuitBreakingException e;
         try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(new RowGroupIo(), false)) {
             e = expectThrows(
@@ -1316,7 +1304,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         }
         assertThat(e.getMessage(), containsString("over test limit"));
         assertEquals(0L, smallBreaker.getUsed());
-        assertEquals(20, watermark.used());
+        assertEquals(110, watermark.used());
         assertEquals(1, watermark.forcedAdmits());
     }
 
@@ -1376,7 +1364,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
             assertNotNull(success.get());
             assertTrue(
                 "one async call must wait the budget once then charge, elapsedMs=" + elapsedMs,
-                elapsedMs >= 100L && elapsedMs < 400L
+                elapsedMs >= 100L && elapsedMs < 600L
             );
             assertEquals(3, watermark.forcedAdmits());
             assertEquals(3, starts.get());

@@ -177,7 +177,7 @@ public class ParquetIoWatermarkTests extends ESTestCase {
     }
 
     public void testConcurrentAdmitWaitTakesOneOvershootRestCharged() throws Exception {
-        ParquetIoWatermark watermark = new ParquetIoWatermark(10);
+        ParquetIoWatermark watermark = new ParquetIoWatermark(200);
         AtomicInteger admitted = new AtomicInteger();
         AtomicInteger rejected = new AtomicInteger();
         CyclicBarrier start = new CyclicBarrier(9);
@@ -202,9 +202,10 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         }
         assertEquals("overshoot is node-wide; the rest charge after the wait budget", 8, admitted.get());
         assertEquals(0, rejected.get());
-        assertEquals(7, watermark.forcedAdmits());
+        assertEquals(3, watermark.forcedAdmits());
         assertEquals(400, watermark.used());
         assertNotNull(watermark.overshootOwner());
+        assertEquals(400, watermark.forceAdmitLimit());
     }
 
     public void testNonFavouredWaitsUntilRelease() throws Exception {
@@ -312,15 +313,15 @@ public class ParquetIoWatermarkTests extends ESTestCase {
     }
 
     public void testAdmitWaitChargesAfterTimeoutInsteadOfRejecting() {
-        ParquetIoWatermark watermark = new ParquetIoWatermark(10);
+        ParquetIoWatermark watermark = new ParquetIoWatermark(100);
         RowGroupIo owner = new RowGroupIo();
-        watermark.admitWait(20, owner, 1_000L);
+        watermark.admitWait(150, owner, 1_000L);
         RowGroupIo waiter = new RowGroupIo();
         long start = System.nanoTime();
         ParquetIoWatermark.AdmitHold hold = watermark.admitWait(1, waiter, 50L);
         long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
         assertNotNull(hold);
-        assertEquals(21, watermark.used());
+        assertEquals(151, watermark.used());
         assertTrue("forced admit must honour the 50ms clock, took " + elapsedMs + "ms", elapsedMs >= 25L && elapsedMs < 200L);
         assertTrue("waitNanos must accrue, was " + watermark.waitNanos(), watermark.waitNanos() >= TimeUnit.MILLISECONDS.toNanos(25));
         assertSame(owner, watermark.overshootOwner());
@@ -378,9 +379,9 @@ public class ParquetIoWatermarkTests extends ESTestCase {
     }
 
     /**
-     * Production-path variant of {@link #testWaitersOnSharedPoolAreNotRejectedBehindStarvedOwner}:
-     * waiters force-charge after the watermark admit budget, so the owner's release queued on the
-     * same pool can run.
+     * Waiters force-charge after the watermark admit budget, so the owner's release queued on the
+     * same pool can run. Worker failures are captured on this thread; the pool would otherwise
+     * swallow an AssertionError.
      */
     public void testWaitersOnSharedPoolBoundedByAdmitBudget() throws Exception {
         ParquetIoWatermark watermark = new ParquetIoWatermark(100, 200L);
@@ -394,6 +395,7 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         CountDownLatch bothForced = new CountDownLatch(poolSize);
         CountDownLatch allDone = new CountDownLatch(poolSize + 1);
         AtomicLong releaseStartedAtMs = new AtomicLong(-1);
+        AtomicReference<Throwable> workerError = new AtomicReference<>();
         long t0 = System.nanoTime();
         try {
             for (int i = 0; i < poolSize; i++) {
@@ -413,7 +415,11 @@ public class ParquetIoWatermarkTests extends ESTestCase {
                         bothForced.countDown();
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
-                        throw new AssertionError(e);
+                        workerError.compareAndSet(null, e);
+                        bothForced.countDown();
+                    } catch (Throwable t) {
+                        workerError.compareAndSet(null, t);
+                        bothForced.countDown();
                     } finally {
                         allDone.countDown();
                     }
@@ -431,6 +437,9 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         } finally {
             pool.shutdown();
             assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
+        }
+        if (workerError.get() != null) {
+            throw new AssertionError(workerError.get());
         }
         assertEquals(0, rejected.get());
         assertEquals(2, watermark.forcedAdmits());
@@ -456,6 +465,25 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         assertSame(third, watermark.overshootOwner());
     }
 
+    public void testForcedAdmitRefusesPastTwiceLimit() {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(10);
+        RowGroupIo owner = new RowGroupIo();
+        watermark.admitWait(20, owner, 1_000L);
+        assertEquals(20, watermark.forceAdmitLimit());
+        RowGroupIo waiter = new RowGroupIo();
+        EsRejectedExecutionException e = expectThrows(EsRejectedExecutionException.class, () -> watermark.admitWait(1, waiter, 50L));
+        assertThat(e.getMessage(), containsString("twice the node cap"));
+        assertEquals(20, watermark.used());
+        assertEquals(0, watermark.forcedAdmits());
+        assertSame(owner, watermark.overshootOwner());
+    }
+
+    /**
+     * {@link RowGroupIo#cancel()} must wake the parked waiter immediately. Ambient
+     * {@link org.elasticsearch.xpack.esql.datasources.StorageRetryCancellation} does not; that
+     * path waits for the admit budget then fails with the same {@link EsRejectedExecutionException}
+     * rather than {@code TaskCancelledException}, matching lease cancel.
+     */
     public void testLeaseCancelStillWakesWaiterPromptly() throws Exception {
         ParquetIoWatermark watermark = new ParquetIoWatermark(10);
         RowGroupIo owner = new RowGroupIo();
@@ -523,6 +551,11 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         assertEquals(100, watermark.used());
     }
 
+    /**
+     * Ambient cancel is checked on expiry, not polled, so the waiter stays parked until the
+     * admit budget elapses. Failure is still {@link EsRejectedExecutionException} so callers
+     * do not special-case {@code TaskCancelledException}.
+     */
     public void testAdmitWaitObservesAmbientCancellation() throws Exception {
         ParquetIoWatermark watermark = new ParquetIoWatermark(10);
         RowGroupIo owner = new RowGroupIo();
@@ -574,70 +607,6 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         assertNull(watermark.overshootOwner());
         assertEquals(0, watermark.used());
         assertEquals(0, watermark.forcedAdmits());
-    }
-
-    /**
-     * Release is queued behind waiters, as with {@code esql_worker} drains and consumers. Waiters
-     * parked on the same pool must not be rejected while the owner's bytes sit behind them.
-     */
-    public void testWaitersOnSharedPoolAreNotRejectedBehindStarvedOwner() throws Exception {
-        final long timeoutMs = 2_000L;
-        final int poolSize = 2;
-        ParquetIoWatermark watermark = new ParquetIoWatermark(100);
-        RowGroupIo owner = new RowGroupIo();
-        watermark.admitWait(150, owner, timeoutMs);
-        assertSame(owner, watermark.overshootOwner());
-        ExecutorService pool = Executors.newFixedThreadPool(poolSize);
-        AtomicInteger rejected = new AtomicInteger();
-        AtomicInteger admitted = new AtomicInteger();
-        AtomicLong waiterBlockedMs = new AtomicLong();
-        CountDownLatch waitersIn = new CountDownLatch(poolSize);
-        CountDownLatch allDone = new CountDownLatch(poolSize + 1);
-        AtomicLong releaseStartedAtMs = new AtomicLong(-1);
-        long t0 = System.nanoTime();
-        try {
-            for (int i = 0; i < poolSize; i++) {
-                pool.execute(() -> {
-                    waitersIn.countDown();
-                    long s = System.nanoTime();
-                    try {
-                        watermark.admitWait(10, new RowGroupIo(), timeoutMs).drop();
-                        admitted.incrementAndGet();
-                    } catch (EsRejectedExecutionException e) {
-                        rejected.incrementAndGet();
-                    } finally {
-                        waiterBlockedMs.accumulateAndGet(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - s), Math::max);
-                        allDone.countDown();
-                    }
-                });
-            }
-            assertTrue(waitersIn.await(5, TimeUnit.SECONDS));
-            pool.execute(() -> {
-                releaseStartedAtMs.set(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - t0));
-                watermark.release(150);
-                owner.finish();
-                watermark.clearOwner(owner);
-                allDone.countDown();
-            });
-            assertTrue(allDone.await(30, TimeUnit.SECONDS));
-        } finally {
-            pool.shutdown();
-            assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
-        }
-        String observed = "rejected="
-            + rejected.get()
-            + " admitted="
-            + admitted.get()
-            + " maxWaiterBlockedMs="
-            + waiterBlockedMs.get()
-            + " ownerReleaseStartedAfterMs="
-            + releaseStartedAtMs.get()
-            + " timeoutMs="
-            + timeoutMs
-            + " poolSize="
-            + poolSize;
-        assertEquals("no waiter may be rejected while the owner's release is queued behind it: " + observed, 0, rejected.get());
-        assertEquals("both waiters must admit: " + observed, 2, admitted.get());
     }
 
     private static RowGroupIo lease(boolean pin) {

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
@@ -33,10 +34,11 @@ import java.util.concurrent.locks.ReentrantLock;
  * so a scan cannot stall; that overshoot is node-wide, not per iterator, and belongs to one
  * owner lease until {@link #clearOwner}. Look-ahead {@link #tryAdmit} still refuses rather than
  * fail the query. {@link #admitWaitUntil} in a coalesced PER_GET batch waits up to
- * {@link #DEFAULT_ADMIT_WAIT_MS} then charges the bytes so the REQUEST breaker can refuse.
- * {@link #admitWait} still uses the caller-supplied clock. Lease cancellation still fails that
- * GET with {@link EsRejectedExecutionException}. The REQUEST circuit breaker remains the hard
- * stop for allocation.
+ * {@link #DEFAULT_ADMIT_WAIT_MS} then charges so the REQUEST breaker can refuse, unless the
+ * charge would pass {@link #FORCE_ADMIT_LIMIT_MULTIPLIER} times the cap. The owner overshoot
+ * may still exceed that ceiling. {@link #admitWait} is the caller-supplied clock wrapper.
+ * Lease cancellation still fails that GET with {@link EsRejectedExecutionException}. The
+ * REQUEST circuit breaker remains the hard stop for allocation.
  */
 final class ParquetIoWatermark {
 
@@ -51,7 +53,14 @@ final class ParquetIoWatermark {
      */
     static final long DEFAULT_ADMIT_WAIT_MS = 1_000L;
 
-    private static final long DEBUG_LOG_INTERVAL_MS = 30_000L;
+    /**
+     * Forced admits after the wait budget may charge up to this many times {@link #limit}.
+     * The in-flight overshoot owner may already sit above this; waiters then fail instead of
+     * stacking more bytes.
+     */
+    static final int FORCE_ADMIT_LIMIT_MULTIPLIER = 2;
+
+    private static final long WARN_LOG_INTERVAL_MS = 30_000L;
 
     /**
      * How a coalesced GET batch charges this watermark. {@link #UNGATED} is a null hold's
@@ -70,7 +79,7 @@ final class ParquetIoWatermark {
     private final AtomicLong used = new AtomicLong();
     private final AtomicLong forcedAdmits = new AtomicLong();
     private final AtomicLong waitNanos = new AtomicLong();
-    private final AtomicLong lastDebugLogTime = new AtomicLong();
+    private final AtomicLong lastWarnLogTime = new AtomicLong();
     private final ReentrantLock lock = new ReentrantLock();
     private final Condition notFull = lock.newCondition();
     private RowGroupIo overshootOwner;
@@ -97,7 +106,7 @@ final class ParquetIoWatermark {
 
     /**
      * Attempts to reserve {@code bytes} of retained I/O. Refuses once {@code used + bytes} would
-     * exceed the cap; the one overshoot is {@link #admitWait}. Returns {@code false} without
+     * exceed the cap; the one overshoot is {@link #admitWaitUntil}. Returns {@code false} without
      * throwing; never a query failure.
      */
     boolean tryReserve(long bytes) {
@@ -135,22 +144,25 @@ final class ParquetIoWatermark {
     }
 
     /**
-     * Blocks until {@code bytes} can be charged for {@code lease}, or {@code timeoutMs} elapses.
-     * On expiry the bytes are charged without taking the overshoot owner; the REQUEST breaker
-     * remains the hard stop. Lease cancellation still fails with {@link EsRejectedExecutionException}.
-     * Byte wait and permit wait are separate full clocks; this deadline covers only this wait.
-     * <p>
-     * Lock order: this watermark lock, then the budget lock inside
-     * {@link RowGroupIo#tryPinOvershoot()}. Never the reverse. {@link #clearOwner} runs after
-     * the budget {@code finish()} has released its lock.
+     * Caller-supplied timeout wrapper around {@link #admitWaitUntil}. Tests use this; production
+     * coalesced PER_GET shares a deadline via {@link #admitWaitUntil}.
      */
     AdmitHold admitWait(long bytes, RowGroupIo lease, long timeoutMs) {
         return admitWaitUntil(bytes, lease, System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs));
     }
 
     /**
-     * {@link #admitWait} with a shared deadline so a coalesced batch of GETs waits once, then
-     * charges.
+     * Blocks until {@code bytes} can be charged for {@code lease}, or {@code deadlineNanos} elapses.
+     * On expiry the bytes are charged without taking the overshoot owner, unless that charge would
+     * pass {@link #FORCE_ADMIT_LIMIT_MULTIPLIER} times {@link #limit}; then the GET fails with
+     * {@link EsRejectedExecutionException}. Same-owner overshoot may still exceed that ceiling.
+     * The REQUEST breaker remains the hard stop for allocation. Lease cancellation fails promptly
+     * via {@link RowGroupIo#setWake}; ambient {@link StorageRetryCancellation} is sampled outside
+     * this lock and fails only once the deadline has elapsed.
+     * <p>
+     * Lock order: this watermark lock, then the budget lock inside
+     * {@link RowGroupIo#tryPinOvershoot()}. Never the reverse. {@link #clearOwner} runs after
+     * the budget {@code finish()} has released its lock.
      */
     AdmitHold admitWaitUntil(long bytes, RowGroupIo lease, long deadlineNanos) {
         if (lease == null) {
@@ -165,6 +177,7 @@ final class ParquetIoWatermark {
         boolean enteredWait = false;
         boolean forced = false;
         long waitStartedNanos = 0L;
+        boolean ambientCancelled = StorageRetryCancellation.isCancelled();
         AdmitHold hold;
         lock.lock();
         try {
@@ -191,7 +204,7 @@ final class ParquetIoWatermark {
                     // Expired wait plus ambient cancel must not pin the node-wide overshoot slot.
                     // Under-cap and same-owner admits above still proceed; admitWaitMs==0 can still
                     // take a vacant owner when not cancelled.
-                    if (deadlineNanos - System.nanoTime() <= 0L && StorageRetryCancellation.isCancelled()) {
+                    if (deadlineNanos - System.nanoTime() <= 0L && ambientCancelled) {
                         throw cancelled();
                     }
                     if (tryBecomeOwner(lease, next)) {
@@ -203,14 +216,13 @@ final class ParquetIoWatermark {
                 if (lease.isCancelled()) {
                     throw cancelled();
                 }
-                if (enteredWait == false) {
-                    enteredWait = true;
-                    waitStartedNanos = System.nanoTime();
-                }
                 long remainingNanos = deadlineNanos - System.nanoTime();
                 if (remainingNanos <= 0L) {
-                    if (StorageRetryCancellation.isCancelled()) {
+                    if (ambientCancelled) {
                         throw cancelled();
+                    }
+                    if (next > forceAdmitLimit()) {
+                        throw overForceLimit(bytes, next);
                     }
                     used.set(next);
                     forcedAdmits.incrementAndGet();
@@ -218,11 +230,21 @@ final class ParquetIoWatermark {
                     hold = new AdmitHold(this, bytes);
                     break;
                 }
+                if (enteredWait == false) {
+                    enteredWait = true;
+                    waitStartedNanos = System.nanoTime();
+                }
                 try {
                     notFull.awaitNanos(remainingNanos);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     throw new EsRejectedExecutionException("Interrupted while waiting for parquet I/O bytes: " + e);
+                }
+                lock.unlock();
+                try {
+                    ambientCancelled = StorageRetryCancellation.isCancelled();
+                } finally {
+                    lock.lock();
                 }
             }
         } finally {
@@ -235,6 +257,27 @@ final class ParquetIoWatermark {
             maybeLogForcedAdmit(bytes);
         }
         return hold;
+    }
+
+    long forceAdmitLimit() {
+        if (limit > Long.MAX_VALUE / FORCE_ADMIT_LIMIT_MULTIPLIER) {
+            return Long.MAX_VALUE;
+        }
+        return limit * (long) FORCE_ADMIT_LIMIT_MULTIPLIER;
+    }
+
+    private EsRejectedExecutionException overForceLimit(long bytes, long next) {
+        return new EsRejectedExecutionException(
+            "parquet I/O byte wait expired; charging ["
+                + bytes
+                + "] bytes would exceed twice the node cap ["
+                + limit
+                + "] (used ["
+                + used.get()
+                + "], next ["
+                + next
+                + "])"
+        );
     }
 
     /**
@@ -299,13 +342,13 @@ final class ParquetIoWatermark {
     }
 
     private void maybeLogForcedAdmit(long bytes) {
-        long last = lastDebugLogTime.get();
+        long last = lastWarnLogTime.get();
         long now = System.currentTimeMillis();
-        if (now - last > DEBUG_LOG_INTERVAL_MS && lastDebugLogTime.compareAndSet(last, now)) {
-            logger.debug(
-                "parquet I/O byte wait expired; charged [{}] bytes over cap [{}] (forced admits so far [{}], total wait [{}]ms)",
-                bytes,
-                limit,
+        if (now - last > WARN_LOG_INTERVAL_MS && lastWarnLogTime.compareAndSet(last, now)) {
+            logger.warn(
+                "parquet I/O byte wait expired; charged [{}] over cap [{}] (forced admits so far [{}], total wait [{}]ms)",
+                ByteSizeValue.ofBytes(bytes),
+                ByteSizeValue.ofBytes(limit),
                 forcedAdmits.get(),
                 TimeUnit.NANOSECONDS.toMillis(waitNanos.get())
             );

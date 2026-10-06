@@ -4926,7 +4926,10 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
     }
 
-    /** Books analyzer pinned to a version that supports DENSE_VECTOR (rejected below {@link DenseVector#ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION}). */
+    /**
+     * Books analyzer pinned to a version that supports DENSE_VECTOR (rejected below
+     * {@link DenseVector#ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION}).
+     */
     private TestAnalyzer denseVectorBooks() {
         return books().minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION));
     }

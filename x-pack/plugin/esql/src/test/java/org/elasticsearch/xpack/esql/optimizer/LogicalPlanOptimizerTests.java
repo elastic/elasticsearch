@@ -298,6 +298,23 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         );
     }
 
+    public void testScoreIndependentPredicateAfterRuntimeSearchPushesToSource() {
+        LogicalPlan plan = plan("""
+            from test metadata _score
+            | eval t = to_text(concat(first_name, last_name))
+            | where match(t, "cat")
+            | where _score > 1.5 and emp_no == 10001
+            | keep _score
+            """);
+        assertScoreFilteredBelowRuntimeSearch(plan, false);
+        List<Filter> empNoFilters = plan.collect(
+            Filter.class,
+            f -> f.condition().anyMatch(e -> e instanceof FieldAttribute fa && fa.name().equals("emp_no"))
+        );
+        assertThat(plan.toString(), empNoFilters, hasSize(1));
+        assertThat(plan.toString(), empNoFilters.get(0).child(), instanceOf(EsRelation.class));
+    }
+
     /**
      * Asserts that {@code plan} has one filter holding a runtime search, that its condition doesn't read {@code _score},
      * and that the filter on {@code _score} sits below it or above it.

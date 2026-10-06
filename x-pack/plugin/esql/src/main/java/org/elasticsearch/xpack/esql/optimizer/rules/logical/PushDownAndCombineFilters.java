@@ -57,7 +57,9 @@ import java.util.function.Predicate;
  * A runtime search that adds to {@code _score} only does so after the filter holding it has run (see
  * {@link FullTextFunction#containsRuntimeScorer}). So a {@code _score} predicate above such a filter (see
  * {@link SplitScorePredicatesFromRuntimeSearch}) is not combined into it, where it would see the score from before
- * the search. One below it can be: the combined filter still evaluates it before the search scores.
+ * the search, though the predicates ANDed with it that don't read {@code _score} are, so they keep pushing down. A
+ * {@code _score} predicate below such a filter can be combined into it: the combined filter still evaluates it before
+ * the search scores.
  */
 public final class PushDownAndCombineFilters extends OptimizerRules.ParameterizedOptimizerRule<Filter, LogicalOptimizerContext> {
 
@@ -76,8 +78,24 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
         // last `STATS ... BY field` can assume that `field` is single-valued (to be checked more thoroughly).
         // https://github.com/elastic/elasticsearch/issues/115311
         if (child instanceof Filter f) {
-            // Combining would evaluate a _score predicate before the runtime scorer it follows has scored.
-            if ((FullTextFunction.containsRuntimeScorer(f.condition()) && referencesScore(condition)) == false) {
+            if (FullTextFunction.containsRuntimeScorer(f.condition()) && referencesScore(condition)) {
+                // _score predicates stay above the runtime scorer to see its score; the rest can run alongside it and
+                // continue pushing down, unless they hold a runtime scorer themselves, which the _score predicates
+                // must not see either.
+                List<Expression> above = new ArrayList<>();
+                List<Expression> below = new ArrayList<>();
+                for (Expression conjunct : Predicates.splitAnd(condition)) {
+                    if (referencesScore(conjunct) || FullTextFunction.containsRuntimeScorer(conjunct)) {
+                        above.add(conjunct);
+                    } else {
+                        below.add(conjunct);
+                    }
+                }
+                if (below.isEmpty() == false) {
+                    Expression combined = Predicates.combineAnd(CollectionUtils.combine(List.of(f.condition()), below));
+                    plan = filter.with(f.with(combined), Predicates.combineAnd(above));
+                }
+            } else {
                 // combine nodes into a single Filter with updated ANDed condition
                 plan = f.with(Predicates.combineAnd(List.of(f.condition(), condition)));
             }

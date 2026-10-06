@@ -403,6 +403,43 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         assertEquals(filter, new PushDownAndCombineFilters().apply(filter, optimizerContext));
     }
 
+    // ... | eval content = <text> | where match(content, "fox") | where _score > 1.5 and b < 2
+    // => ... | where b < 2 | eval content = <text> | where match(content, "fox") | where _score > 1.5
+    public void testScoreIndependentPredicateCombinesIntoRuntimeScorerBelow() {
+        MetadataAttribute score = scoreAttribute();
+        FieldAttribute b = getFieldAttribute("b");
+        EsRelation relation = relation(List.of(b, score));
+        Eval eval = runtimeTextEval(relation);
+        Match match = runtimeMatch(eval);
+        GreaterThan scoreCondition = greaterThanOf(score, new Literal(EMPTY, 1.5, DataType.DOUBLE));
+        LessThan conditionB = lessThanOf(b, TWO);
+        Filter filter = new Filter(EMPTY, new Filter(EMPTY, eval, match), new And(EMPTY, scoreCondition, conditionB));
+
+        // b < 2 combines into the match's filter, and from there pushes down past the eval.
+        LogicalPlan expected = new Filter(
+            EMPTY,
+            new Filter(EMPTY, new Eval(EMPTY, new Filter(EMPTY, relation, conditionB), eval.fields()), match),
+            scoreCondition
+        );
+        assertEquals(expected, new PushDownAndCombineFilters().apply(filter, optimizerContext));
+    }
+
+    // ... | where match(content, "fox") | where _score > 1.5 and match(content, "dog") => unchanged
+    public void testRuntimeScorerDoesNotCombineIntoRuntimeScorerBelowScorePredicate() {
+        MetadataAttribute score = scoreAttribute();
+        Eval eval = runtimeTextEval(relation(List.of(score)));
+        Match secondMatch = new Match(EMPTY, eval.fields().get(0).toAttribute(), Literal.keyword(EMPTY, "dog"), null);
+        Filter scored = new Filter(EMPTY, eval, runtimeMatch(eval));
+        Filter filter = new Filter(
+            EMPTY,
+            scored,
+            new And(EMPTY, greaterThanOf(score, new Literal(EMPTY, 1.5, DataType.DOUBLE)), secondMatch)
+        );
+
+        // Moving the second match below would make the _score predicate see its score too.
+        assertEquals(filter, new PushDownAndCombineFilters().apply(filter, optimizerContext));
+    }
+
     // ... | eval content = <text> | where _score > 1.5 | where match(content, "fox")
     // => ... | where _score > 1.5 | eval content = <text> | where match(content, "fox")
     public void testScorePredicateBeforeRuntimeScorerStaysBelowIt() {

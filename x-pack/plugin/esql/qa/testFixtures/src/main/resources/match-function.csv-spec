@@ -3074,6 +3074,26 @@ book_no:keyword | _score:double
 7350            | 2.0
 ;
 
+matchOnRuntimeTextThenScoreAndKeywordFilter
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: runtime_score_fix
+
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien Rings")
+| WHERE _score > 1.5 AND book_no > "5000"
+| SORT book_no
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+5335            | 2.0
+7140            | 2.0
+7350            | 2.0
+;
+
 matchOnRuntimeTextAfterScoreAliasFilter
 required_capability: match_function
 required_capability: metadata_score

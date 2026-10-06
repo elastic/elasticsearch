@@ -36,7 +36,6 @@ public record SchemaCacheEntry(
     String location,
     Map<String, Object> safeMetadata,
     Map<String, Object> connectorConfig,
-    long cachedAtMillis,
     List<String> warnings
 ) {
     public SchemaCacheEntry {
@@ -65,7 +64,6 @@ public record SchemaCacheEntry(
             location,
             metadata,
             connectorConfig,
-            cachedAtMillis,
             warnings
         );
     }
@@ -110,7 +108,6 @@ public record SchemaCacheEntry(
             location,
             metadata,
             connectorConfig,
-            System.currentTimeMillis(),
             warnings
         );
     }

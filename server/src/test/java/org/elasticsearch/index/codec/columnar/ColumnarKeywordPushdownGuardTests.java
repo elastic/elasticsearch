@@ -295,13 +295,19 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
             shapes.put("wildcard, case insensitive", queries.wildcard(FIELD, "TERM-?", true));
             shapes.put("automaton", queries.automaton(FIELD, Automata.makeString("term-2"), "term-2"));
             shapes.put("regexp", queries.regexp(FIELD, "term-[0-3]", RegExp.ALL, 0, 10_000, null));
-            for (boolean repeating : new boolean[] { true, false }) {
-                final String[] values = values(repeating);
+            shapes.put("range, open above", queries.range(FIELD, new BytesRef("term-4"), null, true, false));
+            shapes.put("terms, one absent", queries.terms(FIELD, List.of(new BytesRef("term-1"), new BytesRef("absent"))));
+            final Map<String, String[]> fixtures = new LinkedHashMap<>();
+            fixtures.put("repeating", values(true));
+            fixtures.put("mixed", values(false));
+            fixtures.put("term ordered", orderedValues());
+            for (Map.Entry<String, String[]> fixture : fixtures.entrySet()) {
+                final String[] values = fixture.getValue();
                 withSegment(values, framing, leaf -> {
                     final IndexSearcher column = new IndexSearcher(leaf.reader());
                     final IndexSearcher guarded = new IndexSearcher(guarded(leaf, false).reader());
                     for (Map.Entry<String, Query> shape : shapes.entrySet()) {
-                        final String label = framing + " " + shape.getKey();
+                        final String label = framing + " " + fixture.getKey() + " " + shape.getKey();
                         final int expected = column.count(shape.getValue());
                         assertTrue(label + " matches some documents and not all of them", expected > 0 && expected < values.length);
                         assertEquals(label, expected, guarded.count(shape.getValue()));
@@ -469,6 +475,14 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
             } else {
                 values[d] = "unique-value-" + d + "-" + randomAlphaOfLength(d % 9);
             }
+        }
+        return values;
+    }
+
+    private static String[] orderedValues() {
+        final String[] values = new String[between(200, 1500)];
+        for (int d = 0; d < values.length; d++) {
+            values[d] = d % 6 == 3 ? null : "term-" + (int) ((long) d * 7 / values.length);
         }
         return values;
     }

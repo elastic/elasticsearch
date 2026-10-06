@@ -1655,8 +1655,27 @@ public class ExternalSourceCacheService implements Closeable {
                     SchemaCacheEntry existing = match.getValue();
                     Map<String, Object> applicable = applicableStats(existing, mergedStats);
                     if (applicable == null) {
-                        // Harvested under a different resolved read configuration, with no licence to cross: enriching would serve one
-                        // read's measurement as another's. Safe-miss — the foreign read re-scans.
+                        // Harvested under a different resolved read configuration, with no licence to cross. Enriching THIS entry
+                        // would serve one read's measurement as another's, so it still must not happen. But the harvest itself is
+                        // not worthless — it is an accurate measurement of the read that produced it, and dropping it is why a file
+                        // read at another file's schema never warms, under any error mode.
+                        //
+                        // File it under the address of that read instead. A statistics record keyed by the contribution's own read
+                        // configuration cannot be served to a different read, so the guard above is preserved rather than widened;
+                        // nothing that matches today takes a second write, so the common path costs no extra entry.
+                        // Read directly, as applicableStats does above, and with its rule: an empty string is not a
+                        // stamp, so absence and "" stay indistinguishable to every comparator.
+                        Object stamp = mergedStats.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY);
+                        String contributionReadConfig = stamp instanceof String str && str.isEmpty() == false ? str : null;
+                        if (contributionReadConfig != null) {
+                            SchemaCacheKey statsKey = key.withReadConfig(contributionReadConfig);
+                            Map<String, Object> statsOnly = new HashMap<>(existing.safeMetadata());
+                            // Stored as harvested. The coercion below targets the ENTRY's resolved types, which belong to a
+                            // different read than this harvest, so applying it here would re-introduce the mix this address exists
+                            // to keep apart.
+                            statsOnly.putAll(mergedStats);
+                            putSchemaIfWithinCeiling(statsKey, existing.withSafeMetadata(statsOnly));
+                        }
                         continue;
                     }
                     Map<String, Object> enriched = new HashMap<>(existing.safeMetadata());

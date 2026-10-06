@@ -88,6 +88,27 @@ public final class TrackedQuery {
         return -Math.expm1(logSurvival);
     }
 
+    /**
+     * What the counters said at one moment, read together so that they are consistent with each other.
+     *
+     * @param multiplicity          captured arrivals
+     * @param weightedMultiplicity  estimated arrivals
+     * @param inclusionProbability  chance of being in the sample, see {@link #inclusionProbability()}
+     * @param seenProbability       chance of having been captured at all, see {@link #seenProbability()}
+     * @param captureRate           capture rate of the latest arrival
+     */
+    public record Weights(
+        long multiplicity,
+        double weightedMultiplicity,
+        double inclusionProbability,
+        double seenProbability,
+        double captureRate
+    ) {}
+
+    public synchronized Weights weights() {
+        return new Weights(multiplicity, weightedMultiplicity, inclusionProbability(), seenProbability(), 1.0 / lastArrivalWeight);
+    }
+
     public synchronized boolean isSampled() {
         return sampled;
     }

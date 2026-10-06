@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.List;
 
 /**
@@ -59,6 +60,14 @@ public record QueryFingerprint(long high, long low) {
 
         MurmurHash3.Hash128 hash = MurmurHash3.hash128(buffer.array(), 0, size, SEED, new MurmurHash3.Hash128());
         return new QueryFingerprint(hash.h2, hash.h1);
+    }
+
+    /**
+     * The fingerprint as 32 hex digits, which is how it identifies the query outside of the process.
+     */
+    public String hex() {
+        HexFormat hex = HexFormat.of();
+        return hex.toHexDigits(high) + hex.toHexDigits(low);
     }
 
     private static byte[] canonical(QueryBuilder filter) {

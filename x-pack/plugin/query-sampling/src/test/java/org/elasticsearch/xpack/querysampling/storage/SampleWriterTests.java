@@ -12,8 +12,10 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
@@ -32,6 +34,7 @@ public class SampleWriterTests extends ESTestCase {
     private final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
     private final List<BulkRequest> requests = new ArrayList<>();
     private final List<ActionListener<BulkResponse>> listeners = new ArrayList<>();
+    private final List<QueryFingerprint> writtenQueries = new ArrayList<>();
 
     public void testAFullBatchIsWrittenAtOnce() {
         SampleWriter writer = writer(3, 10);
@@ -81,6 +84,27 @@ public class SampleWriterTests extends ESTestCase {
         assertThat(writer.written(), equalTo(2L));
     }
 
+    public void testTheRefresherIsToldAboutWhatWasWritten() {
+        SampleWriter writer = writer(2, 10);
+        writer.onSampled(sampled(1));
+        writer.onSampled(sampled(2));
+        taskQueue.runAllRunnableTasks();
+
+        BulkItemResponse ok = BulkItemResponse.success(
+            0,
+            DocWriteRequest.OpType.INDEX,
+            new IndexResponse(new ShardId(QuerySamplingIndex.NAME, "_na_", 0), "id", 0, 1, 1, true)
+        );
+        BulkItemResponse rejected = BulkItemResponse.failure(
+            1,
+            DocWriteRequest.OpType.INDEX,
+            new BulkItemResponse.Failure(QuerySamplingIndex.NAME, "id", new IllegalArgumentException("rejected"))
+        );
+        listeners.get(0).onResponse(new BulkResponse(new BulkItemResponse[] { ok, rejected }, 1));
+
+        assertThat("only what was written", writtenQueries, equalTo(List.of(fp(1))));
+    }
+
     public void testQueriesBeyondWhatCanWaitAreDropped() {
         SampleWriter writer = writer(1, 2);
         writer.onSampled(sampled(1));
@@ -125,6 +149,7 @@ public class SampleWriterTests extends ESTestCase {
             taskQueue.getThreadPool(),
             taskQueue.getThreadPool().generic(),
             () -> 42L,
+            (fingerprint, tracked, weights) -> {},
             1,
             10,
             INTERVAL
@@ -140,7 +165,19 @@ public class SampleWriterTests extends ESTestCase {
         return new SampleWriter("sampler", (request, listener) -> {
             requests.add(request);
             listeners.add(listener);
-        }, taskQueue.getThreadPool(), taskQueue.getThreadPool().generic(), () -> 42L, maxBatch, maxPending, INTERVAL);
+        },
+            taskQueue.getThreadPool(),
+            taskQueue.getThreadPool().generic(),
+            () -> 42L,
+            (fp, tracked, weights) -> writtenQueries.add(fp),
+            maxBatch,
+            maxPending,
+            INTERVAL
+        );
+    }
+
+    private static QueryFingerprint fp(long id) {
+        return new QueryFingerprint(id, id);
     }
 
     private static SampledQuery sampled(long id) {

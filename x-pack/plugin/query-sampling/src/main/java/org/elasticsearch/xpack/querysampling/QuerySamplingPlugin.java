@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
 import org.elasticsearch.xpack.querysampling.storage.QuerySamplingIndex;
 import org.elasticsearch.xpack.querysampling.storage.SampleWriter;
 import org.elasticsearch.xpack.querysampling.storage.Tier1Buffer;
+import org.elasticsearch.xpack.querysampling.storage.WeightsRefresher;
 
 import java.util.Collection;
 import java.util.List;
@@ -98,12 +99,24 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
         Tier1Buffer buffer = new Tier1Buffer(TIER1_CAPACITY);
         // a new id for every run of the sampler: its weights only make sense against the counts it keeps
         OriginSettingClient client = new OriginSettingClient(services.client(), QUERY_SAMPLING_ORIGIN);
-        SampleWriter writer = new SampleWriter(
-            UUIDs.randomBase64UUID(),
+        String samplerId = UUIDs.randomBase64UUID();
+        WeightsRefresher refresher = new WeightsRefresher(
+            samplerId,
             client::bulk,
             services.threadPool(),
             services.threadPool().generic(),
             services.threadPool()::absoluteTimeInMillis,
+            tracker::isTracking,
+            WRITE_BATCH_SIZE,
+            QuerySamplingSettings.WEIGHTS_REFRESH_INTERVAL.get(services.clusterService().getSettings())
+        );
+        SampleWriter writer = new SampleWriter(
+            samplerId,
+            client::bulk,
+            services.threadPool(),
+            services.threadPool().generic(),
+            services.threadPool()::absoluteTimeInMillis,
+            refresher::written,
             WRITE_BATCH_SIZE,
             MAX_PENDING_WRITES,
             WRITE_INTERVAL

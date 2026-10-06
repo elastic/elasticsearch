@@ -37,6 +37,7 @@ public class QuerySamplingGroundTruthIT extends ESRestTestCase {
         .module("x-pack-query-sampling")
         .feature(FeatureFlag.QUERY_SAMPLING)
         .setting("xpack.security.enabled", "false")
+        .setting("xpack.query_sampling.weights_refresh_interval", "1s")
         .build();
 
     @Override
@@ -83,6 +84,24 @@ public class QuerySamplingGroundTruthIT extends ESRestTestCase {
         });
     }
 
+    public void testWeightsOfStoredQueriesAreRefreshed() throws Exception {
+        setUpIndexAndSampling();
+        float x = randomFloat();
+        Request search = knnSearch(x);
+        assertBusy(() -> {
+            client().performRequest(search);
+            assertTrue("a document has the vector of the search", isSampled(x));
+        });
+
+        // the document was written when the query was picked, the arrivals that follow only reach it as an update
+        double before = storedMultiplicity(x);
+        int arrivals = 5;
+        for (int i = 0; i < arrivals; i++) {
+            client().performRequest(search);
+        }
+        assertBusy(() -> assertThat(storedMultiplicity(x), greaterThanOrEqualTo(before + arrivals)));
+    }
+
     private void setUpIndexAndSampling() throws IOException {
         createIndex("vectors", indexSettings(1, 0).build(), """
             "properties": { "vec": { "type": "dense_vector", "dims": 2, "index": true, "similarity": "l2_norm" } }
@@ -111,12 +130,20 @@ public class QuerySamplingGroundTruthIT extends ESRestTestCase {
      * Whether a document of the index of the sample holds a query vector that starts with {@code x}.
      */
     private static boolean isSampled(float x) throws IOException {
+        return storedMultiplicity(x) >= 0;
+    }
+
+    /**
+     * The estimated multiplicity stored with the sampled query whose vector starts with {@code x}, or -1 if it
+     * was not stored.
+     */
+    private static double storedMultiplicity(float x) throws IOException {
         Request refresh = new Request("POST", "/.query_sampling/_refresh");
         refresh.setOptions(systemIndexAccess());
         try {
             client().performRequest(refresh);
         } catch (ResponseException e) {
-            return false; // the index does not exist before the first write
+            return -1; // the index does not exist before the first write
         }
         Request search = new Request("GET", "/.query_sampling/_search");
         search.setOptions(systemIndexAccess());
@@ -125,10 +152,10 @@ public class QuerySamplingGroundTruthIT extends ESRestTestCase {
         for (int i = 0; i < hits.size(); i++) {
             double first = ((Number) result.evaluate("hits.hits." + i + "._source.query.query_vector.0")).doubleValue();
             if (Math.abs(first - x) < 1e-6) {
-                return true;
+                return ((Number) result.evaluate("hits.hits." + i + "._source.weighted_multiplicity")).doubleValue();
             }
         }
-        return false;
+        return -1;
     }
 
     /**

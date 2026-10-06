@@ -8,11 +8,12 @@
 package org.elasticsearch.xpack.querysampling;
 
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.List;
 
 /**
- * Cluster settings of the query sampling pipeline. All settings are dynamic so that sampling can be
+ * Settings of the query sampling pipeline. What decides how much is sampled is dynamic, so that sampling can be
  * switched on, tuned or switched off without a restart.
  */
 public final class QuerySamplingSettings {
@@ -40,9 +41,20 @@ public final class QuerySamplingSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * How often the weights stored with the sampled queries are brought up to date. It only matters for how
+     * stale they can be, and is read when the node starts.
+     */
+    public static final Setting<TimeValue> WEIGHTS_REFRESH_INTERVAL = Setting.timeSetting(
+        "xpack.query_sampling.weights_refresh_interval",
+        TimeValue.timeValueSeconds(30),
+        TimeValue.timeValueSeconds(1),
+        Setting.Property.NodeScope
+    );
+
     private QuerySamplingSettings() {}
 
     public static List<Setting<?>> getSettings() {
-        return List.of(ENABLED, CAPTURE_RATE);
+        return List.of(ENABLED, CAPTURE_RATE, WEIGHTS_REFRESH_INTERVAL);
     }
 }

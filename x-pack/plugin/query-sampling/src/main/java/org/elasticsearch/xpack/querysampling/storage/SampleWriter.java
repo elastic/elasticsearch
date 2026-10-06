@@ -18,6 +18,8 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
+import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 import org.elasticsearch.xpack.querysampling.sampling.SampleListener;
 
 import java.util.ArrayDeque;
@@ -47,6 +49,7 @@ public final class SampleWriter implements SampleListener {
     private final ThreadPool threadPool;
     private final Executor executor;
     private final LongSupplier clock;
+    private final WrittenListener onWritten;
     private final int maxBatch;
     private final int maxPending;
     private final TimeValue flushInterval;
@@ -64,6 +67,7 @@ public final class SampleWriter implements SampleListener {
      * @param bulk          how bulk requests are sent, which decides who they are sent as
      * @param executor      where batches are built and sent, so that the pipeline thread is not used for it
      * @param clock         milliseconds since the epoch
+     * @param onWritten     told about every query that was written, with the weights that were written
      */
     public SampleWriter(
         String samplerId,
@@ -71,6 +75,7 @@ public final class SampleWriter implements SampleListener {
         ThreadPool threadPool,
         Executor executor,
         LongSupplier clock,
+        WrittenListener onWritten,
         int maxBatch,
         int maxPending,
         TimeValue flushInterval
@@ -80,9 +85,15 @@ public final class SampleWriter implements SampleListener {
         this.threadPool = threadPool;
         this.executor = executor;
         this.clock = clock;
+        this.onWritten = onWritten;
         this.maxBatch = maxBatch;
         this.maxPending = maxPending;
         this.flushInterval = flushInterval;
+    }
+
+    @FunctionalInterface
+    public interface WrittenListener {
+        void written(QueryFingerprint fingerprint, TrackedQuery tracked, TrackedQuery.Weights weights);
     }
 
     @Override
@@ -140,13 +151,20 @@ public final class SampleWriter implements SampleListener {
 
     private void send(List<SampledQuery> batch) {
         BulkRequest request = new BulkRequest();
+        // the documents that made it into the request, in the order of the request
+        List<SampledQuery> sent = new ArrayList<>();
+        List<TrackedQuery.Weights> weights = new ArrayList<>();
         long now = clock.getAsLong();
         for (SampledQuery query : batch) {
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+                // read before the document is built, so that if they change in between it shows as a change later
+                TrackedQuery.Weights written = query.tracked().weights();
                 request.add(
                     new IndexRequest(QuerySamplingIndex.NAME).id(SampleRecord.documentId(samplerId, query.fingerprint()))
                         .source(SampleRecord.document(builder, samplerId, query, now))
                 );
+                sent.add(query);
+                weights.add(written);
             } catch (Exception e) {
                 failed.increment();
                 logger.debug("failed to build the document of a sampled query", e);
@@ -158,8 +176,14 @@ public final class SampleWriter implements SampleListener {
         }
         ActionListener<BulkResponse> listener = ActionListener.runAfter(ActionListener.wrap(response -> {
             long failures = 0;
-            for (BulkItemResponse item : response.getItems()) {
-                failures += item.isFailed() ? 1 : 0;
+            BulkItemResponse[] items = response.getItems();
+            for (int i = 0; i < items.length; i++) {
+                if (items[i].isFailed()) {
+                    failures++;
+                } else if (i < sent.size()) {
+                    SampledQuery query = sent.get(i);
+                    onWritten.written(query.fingerprint(), query.tracked(), weights.get(i));
+                }
             }
             failed.add(failures);
             written.add(request.numberOfActions() - failures);

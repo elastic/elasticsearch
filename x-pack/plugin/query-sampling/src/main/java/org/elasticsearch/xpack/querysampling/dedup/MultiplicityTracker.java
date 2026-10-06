@@ -101,6 +101,14 @@ public final class MultiplicityTracker {
         }
     }
 
+    /**
+     * Whether the tracker still holds exactly this query. Once it does not, the query's counters no longer
+     * change, as its next arrival starts a new count.
+     */
+    public boolean isTracking(QueryFingerprint fingerprint, TrackedQuery query) {
+        return current.get(fingerprint) == query || previous.get(fingerprint) == query;
+    }
+
     public int distinct() {
         return current.size() + previous.size();
     }

@@ -32,10 +32,13 @@ import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutDatafeedAction extends BaseRestHandler {
 
-    private final boolean mlCrossProjectSearchEnabled;
+    private final Set<String> supportedCapabilities;
 
     public RestPutDatafeedAction(boolean mlCrossProjectSearchEnabled) {
-        this.mlCrossProjectSearchEnabled = mlCrossProjectSearchEnabled;
+        this.supportedCapabilities = MlDatafeedRestCapabilities.supportedCapabilities(
+            mlCrossProjectSearchEnabled,
+            MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled()
+        );
     }
 
     @Override
@@ -63,10 +66,7 @@ public class RestPutDatafeedAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return MlDatafeedRestCapabilities.supportedCapabilities(
-            mlCrossProjectSearchEnabled,
-            MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled()
-        );
+        return supportedCapabilities;
     }
 
 }

@@ -107,6 +107,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     private static final int TWENTY_MINS_SECONDS = 20 * SECONDS_IN_MINUTE;
     private static final int HALF_DAY_SECONDS = 12 * 60 * SECONDS_IN_MINUTE;
     public static final int DEFAULT_AGGREGATION_CHUNKING_BUCKETS = 1000;
+    public static final TransportVersion ML_DATAFEED_ESQL_QUERY = TransportVersion.fromName("ml_datafeed_esql_query");
     private static final TimeValue MIN_DEFAULT_QUERY_DELAY = TimeValue.timeValueMinutes(1);
     private static final TimeValue MAX_DEFAULT_QUERY_DELAY = TimeValue.timeValueMinutes(2);
 
@@ -304,6 +305,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
     private final List<String> indices;
     private final QueryProvider queryProvider;
+    @Nullable
     private final String esqlQuery;
     @Nullable
     private final String sourceTimeField;
@@ -322,8 +324,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     private final String projectRouting;
     @Nullable
     private final PersistedCloudCredential cloudInternalCredential;
-
-    public static final TransportVersion ML_DATAFEED_ESQL_QUERY = TransportVersion.fromName("ml_datafeed_esql_query");
 
     private DatafeedConfig(
         String id,

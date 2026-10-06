@@ -261,7 +261,13 @@ public class TransportPutJobActionTests extends ESTestCase {
         JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
         ClusterService esqlClusterService = mock(ClusterService.class);
-        TransportPutJobAction action = createEsqlGatedAction(false, esqlJobManager, jobConfigProvider, datafeedConfigProvider, esqlClusterService);
+        TransportPutJobAction action = createEsqlGatedAction(
+            false,
+            esqlJobManager,
+            jobConfigProvider,
+            datafeedConfigProvider,
+            esqlClusterService
+        );
 
         AtomicReference<Exception> failure = new AtomicReference<>();
         PutJobAction.Request request = new PutJobAction.Request(jobWithEsqlDatafeed(esqlDatafeedBuilder()));
@@ -286,7 +292,13 @@ public class TransportPutJobActionTests extends ESTestCase {
         JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
         ClusterService esqlClusterService = mock(ClusterService.class);
-        TransportPutJobAction action = createEsqlGatedAction(true, esqlJobManager, jobConfigProvider, datafeedConfigProvider, esqlClusterService);
+        TransportPutJobAction action = createEsqlGatedAction(
+            true,
+            esqlJobManager,
+            jobConfigProvider,
+            datafeedConfigProvider,
+            esqlClusterService
+        );
 
         AtomicReference<Exception> failure = new AtomicReference<>();
         PutJobAction.Request request = new PutJobAction.Request(jobWithEsqlDatafeed(esqlDatafeedBuilder()));
@@ -316,7 +328,13 @@ public class TransportPutJobActionTests extends ESTestCase {
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
         ClusterService esqlClusterService = mock(ClusterService.class);
         when(esqlClusterService.state()).thenReturn(coordinatingStateWithOlderMaster());
-        TransportPutJobAction action = createEsqlGatedAction(true, esqlJobManager, jobConfigProvider, datafeedConfigProvider, esqlClusterService);
+        TransportPutJobAction action = createEsqlGatedAction(
+            true,
+            esqlJobManager,
+            jobConfigProvider,
+            datafeedConfigProvider,
+            esqlClusterService
+        );
 
         AtomicReference<Exception> failure = new AtomicReference<>();
         PutJobAction.Request request = new PutJobAction.Request(jobWithEsqlDatafeed(esqlDatafeedBuilder()));
@@ -333,7 +351,13 @@ public class TransportPutJobActionTests extends ESTestCase {
         JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
         ClusterService esqlClusterService = mock(ClusterService.class);
-        TransportPutJobAction action = createEsqlGatedAction(true, esqlJobManager, jobConfigProvider, datafeedConfigProvider, esqlClusterService);
+        TransportPutJobAction action = createEsqlGatedAction(
+            true,
+            esqlJobManager,
+            jobConfigProvider,
+            datafeedConfigProvider,
+            esqlClusterService
+        );
 
         PutJobAction.Request request = new PutJobAction.Request(jobWithEsqlDatafeed(esqlDatafeedBuilder()));
         action.masterOperation(
@@ -351,7 +375,13 @@ public class TransportPutJobActionTests extends ESTestCase {
         JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
         ClusterService esqlClusterService = mock(ClusterService.class);
-        TransportPutJobAction action = createEsqlGatedAction(false, esqlJobManager, jobConfigProvider, datafeedConfigProvider, esqlClusterService);
+        TransportPutJobAction action = createEsqlGatedAction(
+            false,
+            esqlJobManager,
+            jobConfigProvider,
+            datafeedConfigProvider,
+            esqlClusterService
+        );
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder().setIndices(List.of("index-1"));
 
         PutJobAction.Request request = new PutJobAction.Request(jobWithEsqlDatafeed(datafeed));
@@ -370,7 +400,13 @@ public class TransportPutJobActionTests extends ESTestCase {
         JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
         ClusterService esqlClusterService = mock(ClusterService.class);
-        TransportPutJobAction action = createEsqlGatedAction(false, esqlJobManager, jobConfigProvider, datafeedConfigProvider, esqlClusterService);
+        TransportPutJobAction action = createEsqlGatedAction(
+            false,
+            esqlJobManager,
+            jobConfigProvider,
+            datafeedConfigProvider,
+            esqlClusterService
+        );
 
         PutJobAction.Request request = new PutJobAction.Request(jobWithEsqlDatafeed(null));
         action.masterOperation(
@@ -426,7 +462,8 @@ public class TransportPutJobActionTests extends ESTestCase {
 
     private static Job.Builder jobWithEsqlDatafeed(DatafeedConfig.Builder datafeed) {
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(List.of(new Detector.Builder("count", null).build()));
-        Job.Builder job = new Job.Builder(ESQL_GATE_JOB_ID).setAnalysisConfig(analysisConfig).setDataDescription(new DataDescription.Builder());
+        Job.Builder job = new Job.Builder(ESQL_GATE_JOB_ID).setAnalysisConfig(analysisConfig)
+            .setDataDescription(new DataDescription.Builder());
         if (datafeed != null) {
             job.setDatafeed(datafeed);
         }

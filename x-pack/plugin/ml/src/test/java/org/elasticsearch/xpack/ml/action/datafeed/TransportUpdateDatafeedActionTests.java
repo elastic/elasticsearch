@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -53,53 +54,6 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class TransportUpdateDatafeedActionTests extends ESTestCase {
-
-    public void testMixedVersionClusterShouldRejectEsqlQueryUpdate() {
-        DatafeedUpdate update = new DatafeedUpdate.Builder("datafeed-1").setEsqlQuery("FROM logs").build();
-
-        assertTrue(
-            TransportUpdateDatafeedAction.checkClusterSupportsDatafeedUpdate(
-                update,
-                clusterStateWithMinTransportVersion(transportVersionBeforeEsqlDatafeeds())
-            ).isPresent()
-        );
-    }
-
-    public void testMixedVersionClusterShouldAllowClassicUpdate() {
-        DatafeedUpdate update = new DatafeedUpdate.Builder("datafeed-1").setQueryDelay(org.elasticsearch.core.TimeValue.timeValueMinutes(1))
-            .build();
-
-        assertTrue(
-            TransportUpdateDatafeedAction.checkClusterSupportsDatafeedUpdate(
-                update,
-                clusterStateWithMinTransportVersion(transportVersionBeforeEsqlDatafeeds())
-            ).isEmpty()
-        );
-    }
-
-    public void testMixedVersionClusterShouldRejectEsqlQueryUpdateBeforeCallingManager() {
-        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
-        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
-        Client client = mock(Client.class);
-        TransportUpdateDatafeedAction action = createAction(datafeedConfigProvider, jobConfigProvider, client);
-        DatafeedUpdate update = new DatafeedUpdate.Builder("datafeed-1").setEsqlQuery("FROM logs").build();
-        AtomicReference<Exception> failure = new AtomicReference<>();
-
-        try (UpdateDatafeedAction.Request request = new UpdateDatafeedAction.Request(update)) {
-            action.masterOperation(
-                null,
-                request,
-                clusterStateWithMinTransportVersion(transportVersionBeforeEsqlDatafeeds()),
-                ActionTestUtils.assertNoSuccessListener(failure::set)
-            );
-        }
-
-        assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
-        assertThat(((ElasticsearchStatusException) failure.get()).status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(failure.get().getMessage(), containsString("cluster upgrade is in progress"));
-        assertThat(failure.get().getMessage(), containsString("ES|QL datafeed updates"));
-        verifyNoInteractions(datafeedConfigProvider, jobConfigProvider, client);
-    }
 
     public void testCoordinatingNodeShouldRejectEsqlQueryUpdateBeforeSendingToOlderMaster() {
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
@@ -149,11 +103,13 @@ public class TransportUpdateDatafeedActionTests extends ESTestCase {
         );
         ProjectResolver projectResolver = mock(ProjectResolver.class);
         when(projectResolver.getProjectId()).thenReturn(ProjectId.DEFAULT);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(settings));
         return new TransportUpdateDatafeedAction(
             settings,
             transportService,
             clusterService,
-            mock(ThreadPool.class),
+            threadPool,
             mock(ActionFilters.class),
             new DatafeedManager(
                 datafeedConfigProvider,
@@ -180,7 +136,7 @@ public class TransportUpdateDatafeedActionTests extends ESTestCase {
     private static ClusterState coordinatingStateWithOlderMaster() {
         DiscoveryNode coordinatingNode = DiscoveryNodeUtils.create("coordinating-node");
         DiscoveryNode masterNode = DiscoveryNodeUtils.create("older-master-node");
-        TransportVersion olderMasterVersion = transportVersionBeforeEsqlDatafeeds();
+        TransportVersion olderMasterVersion = TransportVersionUtils.getPreviousVersion(DatafeedConfig.ML_DATAFEED_ESQL_QUERY);
         return ClusterState.builder(new ClusterName("update-datafeed-action-tests"))
             .nodes(
                 DiscoveryNodes.builder()
@@ -192,9 +148,5 @@ public class TransportUpdateDatafeedActionTests extends ESTestCase {
             .putCompatibilityVersions(coordinatingNode.getId(), TransportVersion.current(), SystemIndices.SERVER_SYSTEM_MAPPINGS_VERSIONS)
             .putCompatibilityVersions(masterNode.getId(), olderMasterVersion, SystemIndices.SERVER_SYSTEM_MAPPINGS_VERSIONS)
             .build();
-    }
-
-    private static TransportVersion transportVersionBeforeEsqlDatafeeds() {
-        return TransportVersionUtils.getPreviousVersion(DatafeedConfig.ML_DATAFEED_ESQL_QUERY);
     }
 }

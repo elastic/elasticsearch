@@ -348,7 +348,7 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
         );
 
         assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(exception.getMessage(), containsString("Recreate datafeed [esql-datafeed] to change its query shape"));
+        assertThat(exception.getMessage(), containsString("Recreate ES|QL datafeed [esql-datafeed] to change esql_query"));
     }
 
     public void testApplyEsqlQueryUpdateToClassicDatafeedShouldReject() {
@@ -413,7 +413,6 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
             new DatafeedUpdate.Builder(datafeed.getId()).setQuery(QueryProvider.defaultQuery()).build(),
             new DatafeedUpdate.Builder(datafeed.getId()).setAggregations(AggProvider.fromParsedAggs(new AggregatorFactories.Builder()))
                 .build(),
-            new DatafeedUpdate.Builder(datafeed.getId()).setScriptFields(Collections.emptyList()).build(),
             new DatafeedUpdate.Builder(datafeed.getId()).setRuntimeMappings(Collections.emptyMap()).build(),
             new DatafeedUpdate.Builder(datafeed.getId()).setScrollSize(DatafeedConfig.DEFAULT_SCROLL_SIZE).build(),
             new DatafeedUpdate.Builder(datafeed.getId()).setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED).build()
@@ -764,7 +763,7 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
         }
     }
 
-    public void testEsqlQuerySerializationBeforeEsqlDatafeedTransportVersionShouldNotDesynchronize() throws IOException {
+    public void testEsqlQuerySerializationBeforeEsqlDatafeedTransportVersionShouldReject() throws IOException {
         TransportVersion previousVersion = TransportVersionUtils.getPreviousVersion(DatafeedConfig.ML_DATAFEED_ESQL_QUERY);
         DatafeedUpdate update = new DatafeedUpdate.Builder("test-datafeed").setEsqlQuery("FROM logs")
             .setQueryDelay(TimeValue.timeValueMinutes(5))
@@ -772,13 +771,7 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setTransportVersion(previousVersion);
-            update.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
-                in.setTransportVersion(previousVersion);
-                DatafeedUpdate deserialized = new DatafeedUpdate(in);
-                assertThat(deserialized.getEsqlQuery(), nullValue());
-                assertThat(deserialized.getQueryDelay(), equalTo(TimeValue.timeValueMinutes(5)));
-            }
+            expectThrows(IOException.class, () -> update.writeTo(output));
         }
     }
 

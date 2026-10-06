@@ -22,8 +22,10 @@ public final class MlDatafeedRestCapabilities {
     public static final String ML_CROSS_PROJECT_SEARCH = "ml_cross_project_search";
     public static final String ML_DATAFEED_ESQL_QUERY = "ml_datafeed_esql_query";
 
-    private static final Set<String> CAPABILITIES_ENABLED = Set.of(ML_CROSS_PROJECT_SEARCH);
-    private static final Set<String> CAPABILITIES_DISABLED = Set.of();
+    private static final Set<String> CAPABILITIES_NONE = Set.of();
+    private static final Set<String> CAPABILITIES_CPS_ONLY = Set.of(ML_CROSS_PROJECT_SEARCH);
+    private static final Set<String> CAPABILITIES_ESQL_ONLY = Set.of(ML_DATAFEED_ESQL_QUERY);
+    private static final Set<String> CAPABILITIES_CPS_AND_ESQL = Set.of(ML_CROSS_PROJECT_SEARCH, ML_DATAFEED_ESQL_QUERY);
 
     private MlDatafeedRestCapabilities() {}
 
@@ -32,14 +34,13 @@ public final class MlDatafeedRestCapabilities {
     }
 
     public static Set<String> supportedCapabilities(boolean mlCrossProjectSearchEnabled) {
-        return mlCrossProjectSearchEnabled ? CAPABILITIES_ENABLED : CAPABILITIES_DISABLED;
+        return supportedCapabilities(mlCrossProjectSearchEnabled, false);
     }
 
     public static Set<String> supportedCapabilities(boolean mlCrossProjectSearchEnabled, boolean esqlDatafeedsEnabled) {
-        if (mlCrossProjectSearchEnabled) return esqlDatafeedsEnabled
-            ? Set.of(ML_CROSS_PROJECT_SEARCH, ML_DATAFEED_ESQL_QUERY)
-            : CAPABILITIES_ENABLED;
-        return esqlDatafeedsEnabled ? Set.of(ML_DATAFEED_ESQL_QUERY) : CAPABILITIES_DISABLED;
+        if (mlCrossProjectSearchEnabled) {
+            return esqlDatafeedsEnabled ? CAPABILITIES_CPS_AND_ESQL : CAPABILITIES_CPS_ONLY;
+        }
+        return esqlDatafeedsEnabled ? CAPABILITIES_ESQL_ONLY : CAPABILITIES_NONE;
     }
-
 }

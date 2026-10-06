@@ -60,10 +60,7 @@ import static org.mockito.Mockito.when;
 public class TransportPutDatafeedActionTests extends ESTestCase {
 
     public void testEsqlDatafeedWhenFlagOnShouldPutDatafeed() {
-        // MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG is enabled automatically in snapshot/test builds and is fixed
-        // for the process lifetime, so the disabled-rejection path is no longer unit-testable here; it is exercised
-        // by the ES|QL datafeed message inventory (Messages.DATAFEED_ESQL_CREATE_DISABLED) and covered on release
-        // builds only (see docs/projects/esql-datafeeds/testing/manual-test-plan.md §1.11 for the flag-off manual check).
+        // Flag-off rejection is covered by DatafeedEsqlGatesTests and release-build manual checks (see manual-test-plan §1.11).
         assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
         JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
@@ -81,25 +78,6 @@ public class TransportPutDatafeedActionTests extends ESTestCase {
 
             verify(datafeedConfigProvider).findDatafeedIdsForJobIds(eq(List.of("job-1")), any());
         }
-    }
-
-    public void testCheckClusterSupportsDatafeedConfigEsqlDatafeedOnUpgradedClusterShouldBeSupported() {
-        DatafeedConfig datafeed = esqlDatafeed();
-        ClusterState clusterState = clusterStateWithMinTransportVersion(TransportVersion.current());
-        assertTrue(TransportPutDatafeedAction.checkClusterSupportsDatafeedConfig(datafeed, clusterState).isEmpty());
-    }
-
-    public void testCheckClusterSupportsDatafeedConfigEsqlDatafeedOnMixedVersionClusterShouldReturnReason() {
-        DatafeedConfig datafeed = esqlDatafeed();
-        ClusterState clusterState = clusterStateWithMinTransportVersion(preEsqlDatafeedTransportVersion());
-        assertTrue(TransportPutDatafeedAction.checkClusterSupportsDatafeedConfig(datafeed, clusterState).isPresent());
-    }
-
-    public void testCheckClusterSupportsDatafeedConfigNonEsqlDatafeedOnMixedVersionClusterShouldBeSupported() {
-        DatafeedConfig datafeed = new DatafeedConfig.Builder("datafeed-1", "job-1").setIndices(List.of("index-1")).build();
-        ClusterState clusterState = clusterStateWithMinTransportVersion(preEsqlDatafeedTransportVersion());
-
-        assertTrue(TransportPutDatafeedAction.checkClusterSupportsDatafeedConfig(datafeed, clusterState).isEmpty());
     }
 
     public void testMasterOperationEsqlDatafeedOnMixedVersionClusterShouldBeRejected() {

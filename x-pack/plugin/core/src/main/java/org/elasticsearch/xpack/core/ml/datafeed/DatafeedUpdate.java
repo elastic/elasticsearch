@@ -238,6 +238,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             out.writeOptionalString(esqlQuery);
             out.writeOptionalString(sourceTimeField);
             out.writeOptionalTimeValue(groupingInterval);
+        } else {
+            failIfEsqlDatafeedUpdateCannotBeSerialized();
         }
         out.writeOptionalWriteable(aggProvider);
 
@@ -273,6 +275,16 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             && out.getTransportVersion().supports(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_REMOVED) == false) {
             // keep the wire format aligned for not-yet-reverted peers that still read this field
             out.writeOptionalInt(null);
+        }
+    }
+
+    private void failIfEsqlDatafeedUpdateCannotBeSerialized() throws IOException {
+        if (esqlQuery != null || sourceTimeField != null || groupingInterval != null) {
+            throw new IOException(
+                "Cannot send ES|QL datafeed update ["
+                    + id
+                    + "] to a node that does not support ES|QL datafeeds; upgrade every node before updating it."
+            );
         }
     }
 
@@ -366,7 +378,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         return queryProvider == null ? null : queryProvider.getQuery();
     }
 
-    String getEsqlQuery() {
+    public String getEsqlQuery() {
         return esqlQuery;
     }
 
@@ -520,7 +532,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             || indices != null
             || queryProvider != null
             || aggProvider != null
-            || scriptFields != null
             || scrollSize != null
             || indicesOptions != null
             || runtimeMappings != null;

@@ -13,6 +13,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
@@ -25,6 +26,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
@@ -65,29 +67,18 @@ import static org.mockito.Mockito.when;
 public class TransportPreviewDatafeedActionTests extends ESTestCase {
 
     public void testEsqlDatafeedWhenFlagOnShouldAllowPreview() {
-        // MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG is enabled automatically in snapshot/test builds and fixed for
-        // the process lifetime, so the disabled-rejection path (Messages.DATAFEED_ESQL_PREVIEW_DISABLED) is no
-        // longer unit-testable here; see docs/projects/esql-datafeeds/testing/manual-test-plan.md §1.11 for the
-        // flag-off manual check on a release build.
         assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
         DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
-        // Does not throw: the feature flag is on and the cluster is fully upgraded.
         TransportPreviewDatafeedAction.validateEsqlDatafeedEnabled(datafeed, currentCompatibleClusterState());
     }
 
     public void testStoredEsqlDatafeedOnMixedVersionClusterShouldRejectPreview() {
-        // Manual chunking (rather than ChunkingConfig.newOff()) keeps the config valid: DatafeedConfig.Builder.build()
-        // now rejects ES|QL datafeeds with chunking disabled (DATAFEED_ESQL_CHUNKING_MUST_NOT_BE_DISABLED); the
-        // mixed-version rejection under test is orthogonal to that chunking-mode validation.
         DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").setChunkingConfig(
             ChunkingConfig.newManual(TimeValue.timeValueMinutes(10))
         ).build();
+        TransportVersion mixedVersion = TransportVersionUtils.getPreviousVersion(DatafeedConfig.ML_DATAFEED_ESQL_QUERY);
         ClusterState state = ClusterState.builder(new ClusterName("test"))
-            .putCompatibilityVersions(
-                "older-node",
-                TransportVersion.fromName("histogram_blocks_multivalue_support"),
-                SystemIndices.SERVER_SYSTEM_MAPPINGS_VERSIONS
-            )
+            .putCompatibilityVersions("older-node", mixedVersion, SystemIndices.SERVER_SYSTEM_MAPPINGS_VERSIONS)
             .build();
 
         ElasticsearchStatusException exception = expectThrows(
@@ -263,6 +254,16 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
 
         assertThat(request.includeResolvedTo(), is(false));
         assertThat(request.indices(), equalTo(new String[] { "my_index" }));
+    }
+
+    public void testBuildDateNanosFieldCapsRequest_GivenEsqlDatafeedWithoutIndicesOptionsShouldUseDefaults() {
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql_feed", "job_foo").build();
+        assertThat(datafeed.getIndicesOptions(), nullValue());
+
+        FieldCapabilitiesRequest request = TransportPreviewDatafeedAction.buildDateNanosFieldCapsRequest(datafeed, "time");
+
+        assertThat(request.indicesOptions(), equalTo(SearchRequest.DEFAULT_INDICES_OPTIONS));
+        assertThat(request.includeResolvedTo(), is(false));
     }
 
     public void testBuildPreviewDatafeed_GivenNoAggregations() {

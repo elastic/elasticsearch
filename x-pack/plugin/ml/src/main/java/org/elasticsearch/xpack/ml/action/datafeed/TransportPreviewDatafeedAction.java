@@ -12,9 +12,11 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -278,8 +280,12 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
 
     static FieldCapabilitiesRequest buildDateNanosFieldCapsRequest(DatafeedConfig datafeed, String timeField) {
         FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest();
-        fieldCapabilitiesRequest.indices(datafeed.getIndices().toArray(new String[0])).indicesOptions(datafeed.getIndicesOptions());
-        if (datafeed.getIndicesOptions().resolveCrossProjectIndexExpression()) {
+        fieldCapabilitiesRequest.indices(datafeed.getIndices().toArray(new String[0]));
+        IndicesOptions indicesOptions = datafeed.getIndicesOptions() != null
+            ? datafeed.getIndicesOptions()
+            : SearchRequest.DEFAULT_INDICES_OPTIONS;
+        fieldCapabilitiesRequest.indicesOptions(indicesOptions);
+        if (indicesOptions.resolveCrossProjectIndexExpression()) {
             // Cross-project field-caps resolution is validated on the coordinator whenever the request runs in
             // cross-project mode; that validation relies on the per-project resolution map, which is only collected
             // when includeResolvedTo is set. Omitting it leaves the map empty and trips a node-fatal assertion for

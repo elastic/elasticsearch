@@ -20,7 +20,7 @@ public final class Messages {
     public static final String DATAFEED_AGGREGATIONS_REQUIRES_JOB_WITH_SUMMARY_COUNT_FIELD =
         "A job configured with a datafeed with aggregations must set summary_count_field_name; use doc_count or suitable alternative";
     public static final String DATAFEED_ESQL_DELAYED_DATA_REQUIRES_SUMMARY_COUNT_FIELD =
-        "A job configured with a datafeed with an esql_query and delayed_data_check_config enabled must set "
+        "A job configured with an ES|QL datafeed and delayed_data_check_config enabled must set "
             + "summary_count_field_name; the field must be produced as a column by the esql_query";
     public static final String DATAFEED_CANNOT_DELETE_IN_CURRENT_STATE = "Cannot delete datafeed [{0}] while its status is {1}";
     public static final String DATAFEED_CANNOT_UPDATE_IN_CURRENT_STATE = "Cannot update datafeed [{0}] while its status is {1}";
@@ -56,10 +56,14 @@ public final class Messages {
     public static final String DATAFEED_ESQL_CREATE_DISABLED =
         "Cannot create ES|QL datafeed [{0}] because ES|QL datafeeds are not enabled on this node.";
     public static final String DATAFEED_ESQL_UPDATE_QUERY_SHAPE_IMMUTABLE =
-        "Recreate datafeed [{0}] to change its query shape. The update API only supports operational settings: "
-            + "query delay, frequency, maximum empty searches, chunking, and delayed data checks.";
+        "Recreate ES|QL datafeed [{0}] to change esql_query, source_time_field, grouping_interval, indices, query, "
+            + "aggregations, scroll_size, indices_options, or runtime_mappings. The update API only supports operational "
+            + "settings: query delay, frequency, maximum empty searches, chunking, and delayed data checks.";
     public static final String DATAFEED_ESQL_UPDATE_ADD_QUERY_NOT_ALLOWED =
         "You cannot add [esql_query] to non-ES|QL datafeed [{0}] using the update API.";
+    public static final String DATAFEED_ESQL_UPDATE_UPGRADE_IN_PROGRESS =
+        "Cannot update datafeed [{0}] while a cluster upgrade is in progress ({1}); "
+            + "wait for the cluster to finish upgrading and try again.";
     public static final String DATAFEED_ESQL_CHUNKING_MUST_NOT_BE_DISABLED =
         "ES|QL datafeeds require chunking to remain enabled; grouping-interval alignment and truncation detection "
             + "depend on it; do not set chunking_config.mode to off";

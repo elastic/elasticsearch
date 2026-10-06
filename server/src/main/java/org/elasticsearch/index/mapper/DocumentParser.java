@@ -643,9 +643,14 @@ public final class DocumentParser {
             } else {
                 parseArrayElements(context, mapper, lastFieldName, lastFieldName);
             }
-        } else {
-            parseArrayDynamic(context, lastFieldName);
-        }
+        } else if (context.parent().subobjects() == ObjectMapper.Subobjects.DISABLED
+            && context.parent().hasMappedFieldsWithPrefix(lastFieldName)) {
+                // With subobjects disabled there is no object mapper for the prefix, but the array elements may hold mapped dotted leaves.
+                // Parse each element so parseObject flattens it, instead of treating the array as unmapped.
+                parseArrayElements(context, null, lastFieldName, lastFieldName);
+            } else {
+                parseArrayDynamic(context, lastFieldName);
+            }
         // Reset previous immediate parent
         context.setImmediateXContentParent(prev);
     }
@@ -654,15 +659,6 @@ public final class DocumentParser {
         ObjectMapper.Dynamic dynamic = context.resolveDynamic(currentFieldName);
         ensureNotStrict(dynamic, context, currentFieldName);
         if (dynamic == ObjectMapper.Dynamic.FALSE) {
-            // With subobjects:false, intermediate objects are flattened, so an array of objects like
-            // "objarr": [{"k": "p"}, {"k": "q"}] must still be walked to reach mapped dotted fields
-            // like "objarr.k". The same check exists in parseObject; without it the array is silently
-            // skipped and nothing gets indexed.
-            ObjectMapper parent = context.parent();
-            if (parent.subobjects() == ObjectMapper.Subobjects.DISABLED && parent.hasMappedFieldsWithPrefix(currentFieldName)) {
-                parseArrayElements(context, null, currentFieldName, currentFieldName);
-                return;
-            }
             if (FallbackPostMapper.capture(
                 context,
                 context.path().pathAsText(currentFieldName),

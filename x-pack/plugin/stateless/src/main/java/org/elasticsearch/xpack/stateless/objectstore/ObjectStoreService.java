@@ -216,8 +216,17 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 if (multiPartThreshold != null) {
                     // Azure has both the part size and threshold settings so we update both of them.
                     // This has the same effect as other repositories.
-                    builder.put(AZURE_MULTIPART_THRESHOLD_SETTING_KEY, multiPartThreshold.getStringRep());
-                    builder.put(AZURE_MULTIPART_PART_SIZE_SETTING_KEY, multiPartThreshold.getStringRep());
+                    builder.put(AZURE_MULTIPART_THRESHOLD_SETTING_KEY, multiPartThreshold);
+                    // Azure part size has a maximum value of 100 MB which is substantially different
+                    // from other cloud providers.
+                    // We don't want to hard fail and prevent nodes from starting if it is set to > 100 MB.
+                    // Instead, we will clamp it to 100 MB.
+                    if (multiPartThreshold.getMb() > 100) {
+                        logger.warn("Clamping Azure multipart upload part size to 100 MB instead of requested " + multiPartThreshold);
+                        builder.put(AZURE_MULTIPART_PART_SIZE_SETTING_KEY, ByteSizeValue.ofMb(100));
+                    } else {
+                        builder.put(AZURE_MULTIPART_PART_SIZE_SETTING_KEY, multiPartThreshold);
+                    }
                 }
                 return builder.build();
             }

@@ -290,6 +290,12 @@ public class ObjectStoreServiceTests extends ESTestCase {
         assertNull(FS.createRepositorySettings("b", "c", null, null).get(ObjectStoreService.S3_MULTIPART_THRESHOLD_SETTING_KEY));
     }
 
+    public void testMultiPartThresholdClampedForAzure() {
+        var settings = AZURE.createRepositorySettings("b", "c", null, ByteSizeValue.ofMb(200));
+        assertEquals(ByteSizeValue.ofMb(200).getStringRep(), settings.get(ObjectStoreService.AZURE_MULTIPART_THRESHOLD_SETTING_KEY));
+        assertEquals(ByteSizeValue.ofMb(100).getStringRep(), settings.get(ObjectStoreService.AZURE_MULTIPART_PART_SIZE_SETTING_KEY));
+    }
+
     /**
      * When the object store service is closed while an upload is still in flight, enqueueing the upload must notify its listener
      * rather than throwing, so the caller can release the references it holds (e.g. commit refs) instead of leaking them.

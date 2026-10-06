@@ -306,6 +306,8 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         // array for holding the runlens.
         private ByteArray runLens;
         private long totalBuckets = 0;
+        /** Scratch for merging a bucket's registers, allocated on first use. */
+        private byte[] merged;
 
         HyperLogLog(BigArrays bigArrays, long initialBucketCount, int precision) {
             super(precision);
@@ -335,12 +337,14 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         void mergeRegisters(long bucketOrd, byte[] src, int srcOffset) {
             final long start = bucketOrd << p;
             final BytesRef dest = new BytesRef();
-            // When the bytes are not materialized, dest is the live storage and is updated in place; otherwise it is a copy to write back.
-            final boolean copied = runLens.get(start, m, dest);
-            maxInto(dest.bytes, dest.offset, src, srcOffset, m);
-            if (copied) {
-                runLens.set(start, dest.bytes, dest.offset, m);
+            // The slice may alias the live pages, including the zero page that BigArrays shares between pages that were never written,
+            // so it is only read here. Writing goes through set, which copies a shared page before changing it.
+            runLens.get(start, m, dest);
+            if (merged == null) {
+                merged = new byte[m];
             }
+            maxInto(merged, 0, dest.bytes, dest.offset, src, srcOffset, m);
+            runLens.set(start, merged, 0, m);
         }
 
         /** As {@link #mergeRegisters(long, byte[], int)} with the registers of a bucket of another HyperLogLog of the same precision. */
@@ -351,9 +355,9 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             mergeRegisters(bucketOrd, src.bytes, src.offset);
         }
 
-        private static void maxInto(byte[] dest, int destOffset, byte[] src, int srcOffset, int length) {
+        private static void maxInto(byte[] out, int outOffset, byte[] a, int aOffset, byte[] b, int bOffset, int length) {
             for (int i = 0; i < length; i++) {
-                dest[destOffset + i] = (byte) Math.max(dest[destOffset + i], src[srcOffset + i]);
+                out[outOffset + i] = (byte) Math.max(a[aOffset + i], b[bOffset + i]);
             }
         }
 

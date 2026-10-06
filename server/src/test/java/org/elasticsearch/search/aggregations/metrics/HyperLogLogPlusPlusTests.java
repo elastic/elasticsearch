@@ -360,4 +360,43 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
             }
         }
     }
+
+    /**
+     * Partitioned aggregations merge serialized states into a fresh structure with {@code combine} and then keep collecting into
+     * it, across many buckets. Check that works and matches a structure that collected everything directly.
+     */
+    public void testCollectAfterCombineAcrossManyBuckets() throws IOException {
+        final int precision = randomIntBetween(MIN_PRECISION, 12);
+        final int threshold = (int) ((1 << precision) / 4 * 0.75);
+        final int buckets = between(1, 300);
+        final BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+        try (
+            HyperLogLogPlusPlus source = new HyperLogLogPlusPlus(precision, bigArrays, 1);
+            HyperLogLogPlusPlus dest = new HyperLogLogPlusPlus(precision, bigArrays, 1);
+            HyperLogLogPlusPlus reference = new HyperLogLogPlusPlus(precision, bigArrays, 1)
+        ) {
+            for (int b = 0; b < buckets; b++) {
+                final int values = randomBoolean() ? between(0, 3) : between(0, 4 * threshold);
+                for (int i = 0; i < values; i++) {
+                    final long hash = BitMixer.mix64(randomLong());
+                    source.collect(b, hash);
+                    reference.collect(b, hash);
+                }
+            }
+            for (int b = 0; b < buckets; b++) {
+                final BytesStreamOutput out = new BytesStreamOutput();
+                source.writeTo(b, out);
+                dest.combine(b, out.bytes().toBytesRef());
+            }
+            for (int i = 0; i < buckets * 20; i++) {
+                final int b = between(0, buckets - 1);
+                final long hash = BitMixer.mix64(randomLong());
+                dest.collect(b, hash);
+                reference.collect(b, hash);
+            }
+            for (int b = 0; b < buckets; b++) {
+                assertThat("bucket " + b, dest.cardinality(b), equalTo(reference.cardinality(b)));
+            }
+        }
+    }
 }

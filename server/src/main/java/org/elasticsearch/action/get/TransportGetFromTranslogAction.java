@@ -170,7 +170,7 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
         /**
          * The segment generation that the search shard should wait for before handling the real-time GET request locally.
          * -1 if the result is not null (i.e., the result is served from the indexing shard), or there hasn't simply been
-         * any switches from unsafe to safe map in the LiveVersionMap (see {@link InternalEngine#getVersionFromMap}).
+         * any switches from unsafe to safe map in the LiveVersionMap (see {@link InternalEngine#getVersionForRead}).
          */
         public long segmentGeneration() {
             return segmentGeneration;

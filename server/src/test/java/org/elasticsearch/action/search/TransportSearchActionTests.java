@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -42,7 +43,9 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
@@ -2467,6 +2470,55 @@ public class TransportSearchActionTests extends ESTestCase {
             .toArray(String[]::new);
 
         assertThat(Arrays.asList(actual), containsInAnyOrder(expected));
+    }
+
+    /**
+     * The master lifts the refresh block once all search shards are active, but applies that state after the other nodes. Until then
+     * a node may still see the block on an index that is ready for search, and must not skip it.
+     */
+    public void testDoNotIgnoreReadyForSearchIndicesWithIndexRefreshBlock() {
+        final ProjectId projectId = randomProjectIdOrDefault();
+        final ClusterState ready = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(
+            projectId,
+            new String[] { "ready" },
+            randomIntBetween(1, 3),
+            randomIntBetween(0, 2)
+        );
+        final ClusterState notReady = ClusterStateCreationUtils.stateWithUnassignedPrimariesAndReplicas(
+            projectId,
+            new String[] { "not-ready" },
+            randomIntBetween(1, 3),
+            List.of()
+        );
+        final ClusterState clusterState = ClusterState.builder(ready)
+            .metadata(
+                Metadata.builder(ready.metadata())
+                    .put(
+                        ProjectMetadata.builder(ready.metadata().getProject(projectId))
+                            .put(notReady.metadata().getProject(projectId).index("not-ready"), false)
+                    )
+            )
+            .routingTable(
+                GlobalRoutingTable.builder(ready.globalRoutingTable())
+                    .put(
+                        projectId,
+                        RoutingTable.builder(ready.routingTable(projectId)).add(notReady.routingTable(projectId).index("not-ready"))
+                    )
+                    .build()
+            )
+            .blocks(
+                ClusterBlocks.builder()
+                    .addIndexBlock(projectId, "ready", IndexMetadata.INDEX_REFRESH_BLOCK)
+                    .addIndexBlock(projectId, "not-ready", IndexMetadata.INDEX_REFRESH_BLOCK)
+            )
+            .build();
+
+        String[] actual = TransportSearchAction.ignoreBlockedIndices(
+            clusterState.projectState(projectId),
+            new String[] { "ready", "not-ready" }
+        );
+
+        assertThat(Arrays.asList(actual), containsInAnyOrder("ready"));
     }
 
     public void testCcsClusterInfoUpdateInternalCancel_UpdatesStatus() {

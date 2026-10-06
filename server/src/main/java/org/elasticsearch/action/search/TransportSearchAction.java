@@ -49,6 +49,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.SearchShardRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -2688,15 +2689,23 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         // optimization: mostly we do not have any blocks so there's no point in the expensive per-index checking
         boolean hasIndexBlocks = projectState.blocks().indices(projectState.projectId()).isEmpty() == false;
         if (hasIndexBlocks) {
-            return Arrays.stream(concreteIndices)
-                .filter(
-                    index -> projectState.blocks()
-                        .hasIndexBlock(projectState.projectId(), index, IndexMetadata.INDEX_REFRESH_BLOCK) == false
-                )
-                .toArray(String[]::new);
+            return Arrays.stream(concreteIndices).filter(index -> isBlockedForSearch(projectState, index) == false).toArray(String[]::new);
         }
         return concreteIndices;
 
+    }
+
+    /**
+     * The master removes {@link IndexMetadata#INDEX_REFRESH_BLOCK} once the index is {@link IndexRoutingTable#readyForSearch()}, but it
+     * applies that cluster state after the other nodes do. A {@code refresh=true} write can therefore return before this node sees the
+     * block removed, so the block alone must not hide an index whose search shards are already active.
+     */
+    private static boolean isBlockedForSearch(ProjectState projectState, String index) {
+        if (projectState.blocks().hasIndexBlock(projectState.projectId(), index, IndexMetadata.INDEX_REFRESH_BLOCK) == false) {
+            return false;
+        }
+        IndexRoutingTable indexRoutingTable = projectState.routingTable().index(index);
+        return indexRoutingTable == null || indexRoutingTable.readyForSearch() == false;
     }
 
     private static class SearchTelemetryListener extends DelegatingActionListener<SearchResponse, SearchResponse> {

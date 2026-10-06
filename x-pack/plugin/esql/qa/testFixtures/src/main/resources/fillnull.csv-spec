@@ -303,6 +303,45 @@ a:boolean
 true
 ;
 
+fillNullWithStringBooleanIsCaseInsensitive
+required_capability: fillnull
+
+ROW a = null, b = null
+| EVAL a = a::boolean, b = b::boolean
+| FILLNULL "TRUE" ON a
+| FILLNULL "fAlSe" ON b
+;
+
+a:boolean | b:boolean
+true      | false
+;
+
+fillNullWithNonBooleanStringIntoBooleanWarns
+required_capability: fillnull
+
+ROW a = null
+| EVAL a = a::boolean
+| FILLNULL "banana" ON a
+;
+warning:Line 3:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [a]
+
+a:boolean
+null
+;
+
+fillNullAllFieldsWithNonBooleanStringFillsKeywordSkipsBoolean
+required_capability: fillnull
+
+ROW a = null, k = null
+| EVAL a = a::boolean, k = k::keyword
+| FILLNULL "yes" ON *
+;
+warning:Line 3:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [a]
+
+a:boolean | k:keyword
+null      | yes
+;
+
 fillNullWithStringIp
 required_capability: fillnull
 
@@ -1094,6 +1133,20 @@ FROM voyager
 
 row_no:integer | low_power_mode:boolean
 6              | true
+;
+
+fillNullFromVoyagerNonBooleanStringLeavesBooleanNull
+required_capability: fillnull
+
+FROM voyager
+| WHERE row_no == 6
+| FILLNULL "banana" ON low_power_mode
+| KEEP row_no, low_power_mode
+;
+warning:Line 3:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [low_power_mode]
+
+row_no:integer | low_power_mode:boolean
+6              | null
 ;
 
 fillNullFromVoyagerAllFieldsStringDateFillsDateSkipsInteger

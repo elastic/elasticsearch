@@ -232,6 +232,38 @@ public class FillNullTests extends ESTestCase {
         assertEquals("a string fill must be cast to the BOOLEAN column type", DataType.BOOLEAN, aliasFor(materialized, "b").dataType());
     }
 
+    public void testBooleanStringFillIsCaseInsensitive() {
+        Attribute b = getFieldAttribute("b", DataType.BOOLEAN);
+        for (String value : List.of("true", "TRUE", "True", "tRuE", "false", "FALSE", "False", "fAlSe")) {
+            FillNull fillNull = new FillNull(Source.EMPTY, childWith(List.of(b)), keyword(value), List.of(b));
+            FillNull materialized = materialize(fillNull, List.of(b), TEST_CFG);
+            Literal fill = fillLiteralFor(materialized, "b");
+            assertEquals("[" + value + "] must fill the BOOLEAN column", DataType.BOOLEAN, fill.dataType());
+            assertEquals("[" + value + "] must fill the matching boolean", Boolean.parseBoolean(value), fill.value());
+            assertTrue("[" + value + "] must not be reported", unfillableNames(materialized).isEmpty());
+        }
+    }
+
+    public void testNonBooleanStringFillIntoBooleanIsSkipped() {
+        Attribute b = getFieldAttribute("b", DataType.BOOLEAN);
+        for (String value : List.of("banana", "yes", "no", "1", "0", "on", "off", "t", "", " true", "false ")) {
+            FillNull fillNull = new FillNull(Source.EMPTY, childWith(List.of(b)), keyword(value), List.of(b));
+            FillNull materialized = materialize(fillNull, List.of(b), TEST_CFG);
+            assertTrue("[" + value + "] must not fill a BOOLEAN column", materialized.fields().isEmpty());
+            assertEquals("[" + value + "] must be reported", Set.of("b"), unfillableNames(materialized));
+        }
+    }
+
+    public void testAllFieldsNonBooleanStringFillsStringsSkipsBoolean() {
+        Attribute b = getFieldAttribute("b", DataType.BOOLEAN);
+        Attribute k = getFieldAttribute("k", DataType.KEYWORD);
+        List<Attribute> output = List.of(b, k);
+        FillNull fillNull = new FillNull(Source.EMPTY, childWith(output), keyword("banana"), List.of(), true);
+        FillNull materialized = materialize(fillNull, output, TEST_CFG);
+        assertEquals("only the KEYWORD column takes a non-boolean string", Set.of("k"), filledNames(materialized));
+        assertEquals("the BOOLEAN column is reported", Set.of("b"), unfillableNames(materialized));
+    }
+
     public void testStringFillIsImplicitlyCastToIp() {
         Attribute ip = getFieldAttribute("addr", DataType.IP);
         FillNull fillNull = new FillNull(Source.EMPTY, childWith(List.of(ip)), keyword("1.2.3.4"), List.of(ip));

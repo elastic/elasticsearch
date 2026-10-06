@@ -510,6 +510,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             fillValue = new Literal(source(valueCtx), null, DataType.NULL);
         } else {
             fillValue = expression(valueCtx);
+            // Only the NULL keyword is the explicit no-op: a null-bound ?param would otherwise be indistinguishable from it. A missing
+            // param is skipped because its "Unknown query parameter" error is already recorded.
+            if (valueCtx.parameter() != null && fillValue instanceof Literal lit && lit.value() == null && fillValue != MISSING_PARAMETER) {
+                throw new ParsingException(
+                    source(valueCtx),
+                    "Query parameter [{}] is null, cannot be used as a FILLNULL value; use FILLNULL NULL to leave nulls unchanged",
+                    valueCtx.getText()
+                );
+            }
         }
 
         final Holder<Boolean> hasSeenStar = new Holder<>(false);

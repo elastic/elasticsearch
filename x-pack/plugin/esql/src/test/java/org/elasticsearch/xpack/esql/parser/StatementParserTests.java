@@ -153,6 +153,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -3934,6 +3935,27 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(DataType.INTEGER, lit.dataType());
         assertEquals(1, fillNull.targetFields().size());
         assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+    }
+
+    public void testFillNullWithNullParameterFails() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        String error = "] is null, cannot be used as a FILLNULL value; use FILLNULL NULL to leave nulls unchanged";
+        List<QueryParam> nullNamed = List.of(paramAsConstant("fill", null));
+        List<QueryParam> nullUnnamed = List.of(paramAsConstant(null, null));
+        expectError("row a = 1 | fillnull ?fill ON a", nullNamed, "line 1:22: Query parameter [?fill" + error);
+        expectError("row a = 1 | fillnull ?1 ON a", nullUnnamed, "line 1:22: Query parameter [?1" + error);
+        expectError("row a = 1 | fillnull ? ON a", nullUnnamed, "line 1:22: Query parameter [?" + error);
+        expectError("from test | where x > 0 | fillnull ?fill ON a, b", nullNamed, "line 1:36: Query parameter [?fill" + error);
+    }
+
+    public void testFillNullWithUnknownParameterIsNotReportedAsNull() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        ParsingException e = expectThrows(
+            ParsingException.class,
+            () -> query("row a = 1 | fillnull ?fill ON a", new QueryParams(List.of(paramAsConstant("fil", 0))))
+        );
+        assertThat(e.getMessage(), containsString("line 1:22: Unknown query parameter [fill]"));
+        assertThat(e.getMessage(), not(containsString("is null")));
     }
 
     public void testFillNullExplicitDefaultKeyword() {

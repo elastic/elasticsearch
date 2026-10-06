@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -50,7 +51,7 @@ import java.util.Set;
  * <p>
  * <b>Filling never fails.</b> A column the value cannot be applied to is left exactly as it was - null or not - and
  * reported by {@code WarnUnfillableFillNull}. How the column was selected does not change the outcome or the message.
- * This covers an incompatible type, an out-of-range value, a string that will not parse into a date / ip / version, a
+ * This covers an incompatible type, an out-of-range value, a string that will not parse into a boolean / date / ip / version, a
  * {@code null}-typed column, a type with no default under {@code DEFAULT}, and a multi-valued value. {@code DEFAULT}
  * uses a type-appropriate default and is represented as a {@code null} fill value; an explicit {@code NULL} means "do
  * not fill" and is the one form that reports nothing.
@@ -400,6 +401,9 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, Telemet
                 && fillValue instanceof Literal lit
                 && EsqlDataTypeConverter.isStringImplicitlyCastableTo(type.noText())) {
                 DataType literalType = type.noText();
+                if (literalType == DataType.BOOLEAN && isBooleanString(lit.value()) == false) {
+                    return null;
+                }
                 Object converted;
                 try {
                     converted = EsqlDataTypeConverter.convert(lit.value(), literalType, configuration);
@@ -413,6 +417,11 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, Telemet
             return null;
         }
         return defaultForType(type);
+    }
+
+    private static boolean isBooleanString(Object value) {
+        String s = BytesRefs.toString(value);
+        return "true".equalsIgnoreCase(s) || "false".equalsIgnoreCase(s);
     }
 
     /** The names written in the target list. Empty for a bare {@code ON *}, which names nothing. */

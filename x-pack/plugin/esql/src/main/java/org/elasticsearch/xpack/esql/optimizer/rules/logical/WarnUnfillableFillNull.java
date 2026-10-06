@@ -22,7 +22,7 @@ import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
  * Reports, as a response-header warning, every targeted column that {@code FILLNULL} left unchanged.
  * <p>
  * {@code FILLNULL} never fails over a column it cannot fill - not for a type mismatch, a value out of range for the
- * column, a string that will not parse into a date / ip / version, a {@code null}-typed column, nor a type that has no
+ * column, a string that will not parse into a boolean / date / ip / version, a {@code null}-typed column, nor a type that has no
  * default under {@code DEFAULT}. The outcome no longer depends on how the column was selected: naming a column, matching
  * it with a pattern and sweeping it up with {@code *} all leave it unchanged and warn. The column keeps whatever it had,
  * null or not.

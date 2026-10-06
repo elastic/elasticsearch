@@ -37,6 +37,7 @@ import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.DataAccessHint;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FileDataHint;
 import org.apache.lucene.store.FileTypeHint;
 import org.apache.lucene.store.IOContext;
@@ -46,8 +47,11 @@ import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readSimilarityFunction;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readVectorEncoding;
@@ -57,16 +61,33 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ES93BFloat16FlatVectorsReader.class);
 
-    private final IntObjectHashMap<FieldEntry> fields = new IntObjectHashMap<>();
+    private final IntObjectHashMap<FieldEntry> fields;
     private final FlatVectorsScorer vectorScorer;
     private final IndexInput vectorData;
     private final FieldInfos fieldInfos;
     private final IOContext dataContext;
+    private final Directory directory;
+    private final String vectorDataFN;
+    // the reader merge instances come from, which holds the mapping they share
+    private final ES93BFloat16FlatVectorsReader original;
+    // on the original: the mapping merges read, and how many merge instances hold it
+    private IndexInput mergeVectorData;
+    private int mergeInstances;
+    // on a merge instance: whether it gave the mapping back, guarded by the original's lock
+    private boolean finished;
 
     public ES93BFloat16FlatVectorsReader(SegmentReadState state, FlatVectorsScorer scorer) throws IOException {
+        this.fields = new IntObjectHashMap<>();
         int versionMeta = readMetadata(state);
         this.fieldInfos = state.fieldInfos;
         this.vectorScorer = scorer;
+        this.directory = state.directory;
+        this.vectorDataFN = IndexFileNames.segmentFileName(
+            state.segmentInfo.name,
+            state.segmentSuffix,
+            ES93BFloat16FlatVectorsFormat.VECTOR_DATA_EXTENSION
+        );
+        this.original = this;
         // how these are read is up to whoever wraps this format
         dataContext = state.context.union(FileTypeHint.DATA, FileDataHint.KNN_VECTORS);
         try {
@@ -81,6 +102,18 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
             IOUtils.closeWhileHandlingException(this);
             throw t;
         }
+    }
+
+    /** Reads the same fields as {@code original}, through the mapping a merge opened for itself. */
+    private ES93BFloat16FlatVectorsReader(ES93BFloat16FlatVectorsReader original, IndexInput vectorData) {
+        this.fields = original.fields;
+        this.vectorScorer = original.vectorScorer;
+        this.vectorData = vectorData;
+        this.fieldInfos = original.fieldInfos;
+        this.dataContext = original.dataContext;
+        this.directory = original.directory;
+        this.vectorDataFN = original.vectorDataFN;
+        this.original = original;
     }
 
     private int readMetadata(SegmentReadState state) throws IOException {
@@ -170,11 +203,55 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
         CodecUtil.checksumEntireFile(vectorData);
     }
 
+    /**
+     * A merge reads the vectors front to back, while searches may read them at random. Advice belongs to a mapping, so merges
+     * read the file through a mapping of their own, shared by concurrent merges, each through a clone.
+     */
     @Override
     public FlatVectorsReader getMergeInstance() throws IOException {
-        // Update the read advice since vectors are guaranteed to be accessed sequentially for merge
-        vectorData.updateIOContext(dataContext.withHints(DataAccessHint.SEQUENTIAL));
-        return this;
+        if (mergeNeedsItsOwnMapping() == false) {
+            return this;
+        }
+        IndexInput data = original.mergeVectorData();
+        boolean success = false;
+        try {
+            FlatVectorsReader mergeInstance = new ES93BFloat16FlatVectorsReader(original, data.clone());
+            success = true;
+            return mergeInstance;
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(original.release());
+            }
+        }
+    }
+
+    /** Only when searches read the file at random; a reader a merge opened already reads it the way a merge does. */
+    private boolean mergeNeedsItsOwnMapping() {
+        return dataContext.context() != IOContext.Context.MERGE && dataContext.hints().contains(DataAccessHint.RANDOM);
+    }
+
+    /** The mapping merges read, opened by the first merge instance and released by {@link #finishMerge()}. */
+    private synchronized IndexInput mergeVectorData() throws IOException {
+        assert original == this;
+        if (mergeVectorData == null) {
+            try {
+                mergeVectorData = directory.openInput(vectorDataFN, mergeContext());
+            } catch (FileNotFoundException | NoSuchFileException e) {
+                // an open reader outlives its files, so fall back to the mapping it already holds
+                mergeVectorData = vectorData;
+            }
+        }
+        mergeInstances++;
+        return mergeVectorData;
+    }
+
+    /** The caller's context as a merge reading the file front to back: only the access changes. */
+    private IOContext mergeContext() {
+        IOContext.FileOpenHint[] hints = Stream.concat(
+            dataContext.hints().stream().filter(hint -> hint instanceof DataAccessHint == false),
+            Stream.of(DataAccessHint.SEQUENTIAL)
+        ).toArray(IOContext.FileOpenHint[]::new);
+        return IOContext.merge().withHints(hints);
     }
 
     @Override
@@ -252,16 +329,48 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
         throw new UnsupportedOperationException(field + " only supports float vectors");
     }
 
+    /** Gives back this merge instance's hold on the merge mapping, once. A no-op on the reader merge instances come from. */
     @Override
     public void finishMerge() throws IOException {
-        // This makes sure that the access pattern hint is reverted back since HNSW implementation
-        // needs it
-        vectorData.updateIOContext(dataContext);
+        if (original != this) {
+            IOUtils.close(original.releaseMergeVectorData(this));
+        }
+    }
+
+    /** Gives back the hold of {@code mergeInstance}, once; returns the mapping to close, if any. */
+    private synchronized IndexInput releaseMergeVectorData(ES93BFloat16FlatVectorsReader mergeInstance) {
+        assert original == this && mergeInstance.original == this;
+        if (mergeInstance.finished) {
+            return null;
+        }
+        mergeInstance.finished = true;
+        return release();
+    }
+
+    /** Gives back one hold on the mapping. Once none is left, returns it for the caller to close outside the lock. */
+    private synchronized IndexInput release() {
+        assert original == this && mergeInstances > 0;
+        if (--mergeInstances > 0) {
+            return null;
+        }
+        IndexInput toClose = mergeVectorData == vectorData ? null : mergeVectorData;
+        mergeVectorData = null;
+        return toClose;
     }
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(vectorData);
+        IOUtils.close(vectorData, takeMergeVectorData());
+    }
+
+    /** Takes the merge mapping under its lock, so a merge finishing later does not close it again. */
+    private synchronized IndexInput takeMergeVectorData() {
+        if (original != this || mergeVectorData == vectorData) {
+            return null;
+        }
+        IndexInput toClose = mergeVectorData;
+        mergeVectorData = null;
+        return toClose;
     }
 
     private record FieldEntry(

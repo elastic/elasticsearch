@@ -110,7 +110,7 @@ public class MergeReaderWrapper extends FlatVectorsReader {
             mergeReader = mergeReaderSupplier.get();
         }
         // delegate so the reader can prepare itself for merging, e.g. Lucene99FlatVectorsReader
-        // switches its data input to sequential read advice
+        // maps its data again with the advice of a merge
         return mergeReader.getMergeInstance();
     }
 

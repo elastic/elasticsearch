@@ -65,7 +65,7 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ES816BinaryQuantizedVectorsReader.class);
 
-    private final Map<String, FieldEntry> fields = new HashMap<>();
+    private final Map<String, FieldEntry> fields;
     private final IndexInput quantizedVectorData;
     private final FlatVectorsReader rawVectorsReader;
     private final ES816BinaryFlatVectorsScorer vectorScorer;
@@ -76,6 +76,7 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
         FlatVectorsReader rawVectorsReader,
         ES816BinaryFlatVectorsScorer vectorsScorer
     ) throws IOException {
+        this.fields = new HashMap<>();
         this.vectorScorer = vectorsScorer;
         this.rawVectorsReader = rawVectorsReader;
         int versionMeta = -1;
@@ -113,6 +114,24 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
             IOUtils.closeWhileHandlingException(this);
             throw t;
         }
+    }
+
+    private ES816BinaryQuantizedVectorsReader(ES816BinaryQuantizedVectorsReader clone, FlatVectorsReader rawVectorsReader) {
+        this.fields = clone.fields;
+        this.quantizedVectorData = clone.quantizedVectorData;
+        this.rawVectorsReader = rawVectorsReader;
+        this.vectorScorer = clone.vectorScorer;
+    }
+
+    /** Reads the raw vectors through the merge instance of the raw reader. */
+    @Override
+    public FlatVectorsReader getMergeInstance() throws IOException {
+        return new ES816BinaryQuantizedVectorsReader(this, rawVectorsReader.getMergeInstance());
+    }
+
+    @Override
+    public void finishMerge() throws IOException {
+        rawVectorsReader.finishMerge();
     }
 
     private void readFields(ChecksumIndexInput meta, FieldInfos infos) throws IOException {

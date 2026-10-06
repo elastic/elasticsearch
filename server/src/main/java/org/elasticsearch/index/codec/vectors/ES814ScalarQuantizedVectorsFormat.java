@@ -240,6 +240,17 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
             return delegate.getQuantizationState(fieldName);
         }
 
+        /** Reads the raw vectors through the merge instance of the raw reader. */
+        @Override
+        public FlatVectorsReader getMergeInstance() throws IOException {
+            return new ES814ScalarQuantizedVectorsReader(delegate, rawDelegate.getMergeInstance());
+        }
+
+        @Override
+        public void finishMerge() throws IOException {
+            rawDelegate.finishMerge();
+        }
+
         @Override
         public void close() throws IOException {
             delegate.close();

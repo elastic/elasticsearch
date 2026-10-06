@@ -106,6 +106,16 @@ public class ES813Int8FlatVectorFormat extends KnnVectorsFormat {
         }
 
         @Override
+        public KnnVectorsReader getMergeInstance() throws IOException {
+            return new ES813FlatVectorReader(reader.getMergeInstance());
+        }
+
+        @Override
+        public void finishMerge() throws IOException {
+            reader.finishMerge();
+        }
+
+        @Override
         public void close() throws IOException {
             reader.close();
         }

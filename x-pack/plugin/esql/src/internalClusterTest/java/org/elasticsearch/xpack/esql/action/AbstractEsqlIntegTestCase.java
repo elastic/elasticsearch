@@ -26,6 +26,7 @@ import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
@@ -148,9 +149,14 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
         // TestEncryptionServicePlugin binds an EncryptionService so the (always-registered) data-source
         // CRUD actions can be constructed — esql couples the datasources feature to the encryption
         // feature, so a bound service is required wherever esql runs.
+        // MockSearchService tracks every registered reader context, so the check after each test finds the ones a query leaked.
+        // Without it in the list the mock is only installed at random.
         return CollectionUtils.appendToCopy(
-            CollectionUtils.appendToCopy(super.nodePlugins(), TestEncryptionServicePlugin.class),
-            EsqlPluginWithEnterpriseOrTrialLicense.class
+            CollectionUtils.appendToCopy(
+                CollectionUtils.appendToCopy(super.nodePlugins(), TestEncryptionServicePlugin.class),
+                EsqlPluginWithEnterpriseOrTrialLicense.class
+            ),
+            MockSearchService.TestPlugin.class
         );
     }
 

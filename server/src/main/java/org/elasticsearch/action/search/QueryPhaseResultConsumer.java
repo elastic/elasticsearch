@@ -200,6 +200,11 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     void addBatchedPartialResult(TopDocsStats topDocsStats, MergeResult mergeResult) {
         synchronized (batchedResults) {
+            // close() raises the flag before releaseBuffer() drains this list under the same lock
+            if (isClosed()) {
+                releaseBatchedAggs(mergeResult.reducedAggs());
+                return;
+            }
             batchedResults.add(new Tuple<>(topDocsStats, mergeResult));
         }
     }
@@ -522,7 +527,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     }
 
     private void consume(QuerySearchResult result, Runnable next) {
-        if (hasFailure()) {
+        if (shouldDiscard()) {
             result.consumeAll();
             next.run();
         } else if (result.isNull() || result.isPartiallyReduced()) {
@@ -535,10 +540,12 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         } else {
             final long aggsSize = ramBytesUsedQueryResult(result);
             boolean executeNextImmediately = true;
-            boolean hasFailure = false;
+            boolean discarded = false;
             synchronized (this) {
-                if (hasFailure()) {
-                    hasFailure = true;
+                // Re-checked under the lock: doClose() is synchronized too and close() raises the closed flag before
+                // calling it, so this read tells a buffer doClose() already released from one it has yet to see.
+                if (shouldDiscard()) {
+                    discarded = true;
                 } else {
                     if (hasAggs) {
                         try {
@@ -546,10 +553,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                         } catch (Exception exc) {
                             releaseBuffer();
                             onMergeFailure(exc);
-                            hasFailure = true;
+                            discarded = true;
                         }
                     }
-                    if (hasFailure == false) {
+                    if (discarded == false) {
                         var b = buffer;
                         aggsCurrentBufferSize += aggsSize;
                         // add one if a partial merge is pending
@@ -568,13 +575,21 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                     }
                 }
             }
-            if (hasFailure) {
+            if (discarded) {
                 result.consumeAll();
             }
             if (executeNextImmediately) {
                 next.run();
             }
         }
+    }
+
+    /**
+     * Whether to discard results rather than buffer them, because a partial merge failed or because the search
+     * already closed this consumer.
+     */
+    private boolean shouldDiscard() {
+        return hasFailure() || isClosed();
     }
 
     private void releaseBuffer() {
@@ -588,9 +603,26 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         synchronized (this.batchedResults) {
             Tuple<TopDocsStats, MergeResult> batchedResult;
             while ((batchedResult = batchedResults.poll()) != null) {
-                Releasables.close(batchedResult.v2().reducedAggs());
+                releaseBatchedAggs(batchedResult.v2().reducedAggs());
             }
         }
+    }
+
+    /**
+     * Releases the aggregations of a wire-received {@link MergeResult} that will not be reduced. A serialized one frees
+     * its buffer on close, but a connection older than {@code batched_query_execution_delayable_writeable} sends the
+     * tree expanded and {@code readFrom} wraps it in a referencing {@link DelayableWriteable} whose close does nothing,
+     * so its pooled top_hits are dropped here. Not for a {@link #partialReduce} result: {@code topHitsToRelease} owns those.
+     */
+    private static void releaseBatchedAggs(@Nullable DelayableWriteable<InternalAggregations> reducedAggs) {
+        if (reducedAggs != null && reducedAggs.isSerialized() == false) {
+            List<SearchHits> topHits = new ArrayList<>();
+            InternalAggregations.addTopHitsToReleaseList(reducedAggs.expand(), topHits, false);
+            for (SearchHits hits : topHits) {
+                hits.decRef();
+            }
+        }
+        Releasables.close(reducedAggs);
     }
 
     private synchronized void onMergeFailure(Exception exc) {

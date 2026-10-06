@@ -627,7 +627,11 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         if (maxEmptySearches != null) {
             builder.field(MAX_EMPTY_SEARCHES.getPreferredName(), maxEmptySearches);
         }
-        if (maxConsecutiveExtractionFailures != null) {
+        // This field is intentionally not persisted to the .ml-config system index on this branch: it is not
+        // declared in the index's mapping descriptor, so writing it would be rejected by the system-index
+        // mapping enforcement. The value is still surfaced in API responses; datafeed execution falls back to
+        // the default when the field is absent from the stored config.
+        if (maxConsecutiveExtractionFailures != null && forInternalStorage == false) {
             builder.field(MAX_CONSECUTIVE_EXTRACTION_FAILURES.getPreferredName(), maxConsecutiveExtractionFailures);
         }
         if (runtimeMappings.isEmpty() == false) {

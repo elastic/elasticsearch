@@ -311,7 +311,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
         PutMappingRequest request = requestCaptor.getValue();
         assertThat(request.indices(), equalTo(new String[] { "index-name" }));
-        assertThat(request.source(), equalTo("""
+        assertThat(request.source().utf8ToString(), equalTo("""
             {"_doc":{"properties":{"some-field":{"type":"long"}}}}"""));
     }
 

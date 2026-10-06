@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -49,6 +50,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.FetchPhase;
@@ -62,6 +64,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.RequestHandlerRegistry;
@@ -80,6 +83,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -623,6 +627,147 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             boolean completed = latch.await(10, TimeUnit.SECONDS);
             resultsToRelease.forEach(QuerySearchResult::decRef);
             assertTrue("channel was not responded to within 10 seconds", completed);
+        } finally {
+            IOUtils.closeWhileHandlingException(searchService, clusterService, transport, threadPool);
+        }
+    }
+
+    /**
+     * Reproduces https://github.com/elastic/elasticsearch/issues/158991.
+     * When a coordinator running a newer transport version encodes a PIT and a data node running an older version
+     * processes the batched query phase, the decoding error must be caught and handled.
+     */
+    public void testBatchedQueryPhaseSucceedsWhenPITEncodedByNewerVersion() throws Exception {
+        TestThreadPool threadPool = new TestThreadPool(getTestName());
+        var innerTransport = MockTransportService.newMockTransport(Settings.EMPTY, TransportVersion.current(), threadPool);
+        String nodeId = UUIDs.randomBase64UUID();
+        MockTransportService transport = new MockTransportService(
+            Settings.EMPTY,
+            innerTransport,
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundAddress -> DiscoveryNodeUtils.builder(nodeId)
+                .address(boundAddress.publishAddress())
+                .version(VersionInformation.CURRENT)
+                .build(),
+            null,
+            Collections.emptySet(),
+            nodeId
+        );
+        ClusterService clusterService = new ClusterService(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            threadPool,
+            null
+        );
+        List<QuerySearchResult> resultsToRelease = Collections.synchronizedList(new ArrayList<>());
+        SearchService searchService = new SearchService(
+            clusterService,
+            null,
+            threadPool,
+            null,
+            null,
+            new FetchPhase(Collections.emptyList()),
+            newLimitedBreakerService(ByteSizeValue.ofMb(10)),
+            EmptySystemIndices.INSTANCE.getExecutorSelector(),
+            Tracer.NOOP,
+            OnlinePrewarmingService.NOOP
+        ) {
+            @Override
+            public void executeQueryPhase(ShardSearchRequest req, CancellableTask task, ActionListener<SearchPhaseResult> listener) {
+                QuerySearchResult result = new QuerySearchResult(
+                    new ShardSearchContextId(UUIDs.randomBase64UUID(), 1),
+                    new SearchShardTarget(transport.getLocalNode().getId(), req.shardId(), null),
+                    null
+                );
+                result.topDocs(
+                    new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
+                    new DocValueFormat[0]
+                );
+                result.from(0);
+                result.size(1);
+                resultsToRelease.add(result);
+                listener.onResponse(result);
+            }
+        };
+        // Encode a PIT using a transport version unknown to this node, simulating a newer coordinator.
+        // SearchContextId.decode throws IllegalArgumentException for unknown versions.
+        TransportVersion futureVersion = TransportVersionUtils.getNextVersion(TransportVersion.current(), true);
+        assertFalse("futureVersion must be unknown to this node", futureVersion.isKnown());
+        BytesReference encodedPit = SearchContextId.encode(
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            futureVersion,
+            ShardSearchFailure.EMPTY_ARRAY
+        );
+        expectThrows(IllegalArgumentException.class, () -> SearchContextId.decode(new NamedWriteableRegistry(List.of()), encodedPit));
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> channelFailure = new AtomicReference<>();
+        try {
+            transport.start();
+            SearchQueryThenFetchAsyncAction.registerNodeSearchAction(
+                new SearchTransportService(transport, null, null),
+                searchService,
+                new SearchPhaseController((t, r) -> InternalAggregationTestCase.emptyReduceContextBuilder()),
+                new NamedWriteableRegistry(List.of())
+            );
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.allowPartialSearchResults(false);
+            searchRequest.source(new SearchSourceBuilder().size(1).pointInTimeBuilder(new PointInTimeBuilder(encodedPit)));
+            // Two shards: with size=1 and no matching docs, both shards are outside the top results,
+            // which triggers maybeFreeContext -> isPartOfPIT for each
+            var nodeQueryRequest = new SearchQueryThenFetchAsyncAction.NodeQueryRequest(searchRequest, 2, 0L, null);
+            nodeQueryRequest.shards.add(
+                new SearchQueryThenFetchAsyncAction.ShardToQuery(
+                    1.0f,
+                    new String[] { "idx" },
+                    0,
+                    new ShardId("idx", "uuid", 0),
+                    null,
+                    SplitShardCountSummary.UNSET
+                )
+            );
+            nodeQueryRequest.shards.add(
+                new SearchQueryThenFetchAsyncAction.ShardToQuery(
+                    1.0f,
+                    new String[] { "idx" },
+                    1,
+                    new ShardId("idx", "uuid", 1),
+                    null,
+                    SplitShardCountSummary.UNSET
+                )
+            );
+            TransportChannel channel = new TransportChannel() {
+                @Override
+                public String getProfileName() {
+                    return "";
+                }
+
+                @Override
+                public TransportVersion getVersion() {
+                    return TransportVersion.current();
+                }
+
+                @Override
+                public void sendResponse(TransportResponse response) {
+                    latch.countDown();
+                }
+
+                @Override
+                public void sendResponse(Exception exception) {
+                    channelFailure.set(exception);
+                    latch.countDown();
+                }
+            };
+            @SuppressWarnings("unchecked")
+            RequestHandlerRegistry<SearchQueryThenFetchAsyncAction.NodeQueryRequest> handler = (RequestHandlerRegistry<
+                SearchQueryThenFetchAsyncAction.NodeQueryRequest>) transport.getRequestHandler(
+                    SearchQueryThenFetchAsyncAction.NODE_SEARCH_ACTION_NAME
+                );
+            handler.processMessageReceived(nodeQueryRequest, channel);
+            assertTrue("channel was not responded to within 10 seconds", latch.await(10, TimeUnit.SECONDS));
+            resultsToRelease.forEach(QuerySearchResult::decRef);
+            assertNull("expected success response but got: " + channelFailure.get(), channelFailure.get());
         } finally {
             IOUtils.closeWhileHandlingException(searchService, clusterService, transport, threadPool);
         }

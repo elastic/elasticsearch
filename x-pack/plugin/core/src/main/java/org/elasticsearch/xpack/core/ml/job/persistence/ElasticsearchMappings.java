@@ -26,7 +26,6 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -178,7 +177,7 @@ public class ElasticsearchMappings {
                 if (indicesThatRequireAnUpdate.length > 0) {
                     String mapping = mappingSupplier.get();
                     PutMappingRequest putMappingRequest = new PutMappingRequest(indicesThatRequireAnUpdate);
-                    putMappingRequest.source(mapping, XContentType.JSON);
+                    putMappingRequest.source(mapping);
                     putMappingRequest.origin(ML_ORIGIN);
                     putMappingRequest.masterNodeTimeout(masterNodeTimeout);
                     executeAsyncWithOrigin(

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.integration;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -45,6 +46,7 @@ import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -105,6 +107,7 @@ import static org.mockito.Mockito.mock;
 @ESTestCase.WithoutEntitlements // due to dependency issue ES-12435
 public class ModelRegistryIT extends ESSingleNodeTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+    private static final String FAILED_TO_STORE_DOCUMENT_MESSAGE = "Failed to store document id*";
 
     private ModelRegistry modelRegistry;
 
@@ -1146,6 +1149,37 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertThat(
             exception.getMessage(),
             Matchers.is(format("Inference endpoint [%s] already exists", model.getConfigurations().getInferenceEntityId()))
+        );
+    }
+
+    public void testStoreModel_DoesNotLogWarning_WhenFailureIsAVersionConflict() {
+        var model = TestModel.createRandomInstance();
+        assertStoreModel(modelRegistry, model);
+
+        MockLog.assertThatLogger(
+            () -> expectThrows(ResourceAlreadyExistsException.class, () -> assertStoreModel(modelRegistry, model)),
+            ModelRegistry.class,
+            new MockLog.UnseenEventExpectation(
+                "no warning for version conflict",
+                ModelRegistry.class.getName(),
+                Level.WARN,
+                FAILED_TO_STORE_DOCUMENT_MESSAGE
+            )
+        );
+    }
+
+    public void testStoreModel_LogsWarning_WhenFailureIsNotAVersionConflict() {
+        var model = buildModelWithUnknownField("test-store-model-logs-warning");
+
+        MockLog.assertThatLogger(
+            () -> expectThrows(ElasticsearchStatusException.class, () -> assertStoreModel(modelRegistry, model)),
+            ModelRegistry.class,
+            new MockLog.SeenEventExpectation(
+                "warning for non version conflict failure",
+                ModelRegistry.class.getName(),
+                Level.WARN,
+                FAILED_TO_STORE_DOCUMENT_MESSAGE
+            )
         );
     }
 

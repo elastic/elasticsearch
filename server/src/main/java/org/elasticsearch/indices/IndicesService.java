@@ -166,7 +166,6 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -1016,7 +1015,7 @@ public class IndicesService extends AbstractLifecycleComponent
                     AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
                         // concrete index - no name clash, it uses uuid
                         .setConcreteIndex(shardRouting.index())
-                        .source(mapping.source().string(), XContentType.JSON);
+                        .source(mapping.source().string());
                     client.execute(
                         TransportAutoPutMappingAction.TYPE,
                         putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),

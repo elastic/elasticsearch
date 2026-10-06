@@ -183,7 +183,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .endObject()
         );
 
-        indicesAdmin().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        indicesAdmin().preparePutMapping().setSource(mapping).get();
 
         prepareIndex("test").setId("1")
             .setSource(
@@ -268,7 +268,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .endObject()
         );
 
-        indicesAdmin().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        indicesAdmin().preparePutMapping().setSource(mapping).get();
 
         prepareIndex("test").setId("1")
             .setSource(
@@ -370,7 +370,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .endObject()
         );
 
-        indicesAdmin().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        indicesAdmin().preparePutMapping().setSource(mapping).get();
         String date = "2019-01-31T10:00:00.123456789Z";
         indexRandom(
             true,
@@ -600,7 +600,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .endObject()
         );
 
-        indicesAdmin().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        indicesAdmin().preparePutMapping().setSource(mapping).get();
 
         ZonedDateTime date = ZonedDateTime.of(2012, 3, 22, 0, 0, 0, 0, ZoneOffset.UTC);
         prepareIndex("test").setId("1")
@@ -823,7 +823,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .endObject()
         );
 
-        indicesAdmin().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        indicesAdmin().preparePutMapping().setSource(mapping).get();
 
         ZonedDateTime date = ZonedDateTime.of(2012, 3, 22, 0, 0, 0, 0, ZoneOffset.UTC);
         prepareIndex("test").setId("1")

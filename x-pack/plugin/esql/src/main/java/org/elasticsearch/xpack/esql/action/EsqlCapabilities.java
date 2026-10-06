@@ -2739,6 +2739,35 @@ public class EsqlCapabilities {
          */
         OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE,
 
+        /**
+         * {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested} on the
+         * field-caps request, so the coordinator never plans nested subfields. Shard extraction
+         * and {@code SearchContextStats} treat those fields as absent (constant nulls) instead of
+         * loading the nested mapper's native type, which used to crash
+         * {@code ValuesSourceReaderOperator.sanityCheckBlock} on cross-index type skew
+         * (e.g. nested {@code integer} vs object {@code long}).
+         * If ES|QL later supports nested fields, this capability and its tests will need updating.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/154011">#154011</a>.
+         * <p>
+         * Named {@code _9_4} so this node does not advertise main's {@code fix_nested_subfield_extraction}.
+         * Main's later-branch BWC suite requires that name, then runs an uncast {@code unmapped_fields=load}
+         * aggregation that 9.4's verifier rejects.
+         */
+        FIX_NESTED_SUBFIELD_EXTRACTION_9_4,
+
+        /**
+         * A GROK typed capture (eg. {@code %{NUMBER:n:int}}) that matches a value it cannot convert
+         * (eg. "1.5" as int) now treats the row as a failed match (null values plus a warning) instead
+         * of failing the whole query.
+         */
+        GROK_TYPED_CONVERSION_WARNINGS,
+
+        /**
+         * {@code SORT _score ASC} pushed down to Lucene sorts ascending. Before this fix the pushed-down sort was always
+         * descending, so with a {@code LIMIT} smaller than the number of matches Lucene kept the highest-scoring documents.
+         */
+        FIX_SCORE_SORT_ASC_PUSHDOWN,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

@@ -58,7 +58,6 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.entityToMap;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsqlSync;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -1294,7 +1293,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             {"Responses.process": 222,"process.parent.command_line":"run2.bat"}""");
 
         Map<String, Object> result = runEsql("FROM test* | SORT process.parent.command_line");
-        // If we're loading from _source we load the nested field.
+        // Nested pid is hidden from field caps; extraction must be null even for STORED/_source.
         assertResultMap(
             result,
             List.of(
@@ -1493,8 +1492,8 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     protected Matcher<Integer> pidMatcher() {
-        // TODO these should all always return null because the parent is nested
-        return preference == MappedFieldType.FieldExtractPreference.STORED ? equalTo(111) : nullValue(Integer.class);
+        // Nested even under STORED/_source. Mixed-cluster still allows 111 from older nodes.
+        return nullValue(Integer.class);
     }
 
     private void assumeTsIndexOriginalTypesFixed() throws IOException {

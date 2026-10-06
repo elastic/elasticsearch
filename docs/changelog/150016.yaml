@@ -1,0 +1,5 @@
+area: Infra/Core
+issues: []
+pr: 150016
+summary: Skip unrelated files when scanning config dir for log4j2.properties
+type: bug

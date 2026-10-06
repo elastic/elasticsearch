@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.search;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
@@ -130,6 +131,7 @@ import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -2326,6 +2328,79 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         future.actionGet();
         assertThat(searchService.getActiveContexts(), equalTo(1));
         assertTrue(searchService.freeReaderContext(future.actionGet()));
+    }
+
+    public void testFindReaderContextRejectsMismatchedShard() {
+        createIndex("index-a");
+        createIndex("index-b");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        ShardId shardA = new ShardId(resolveIndex("index-a"), 0);
+        ShardId shardB = new ShardId(resolveIndex("index-b"), 0);
+        ShardSearchContextId readerA = openReaderContext(searchService, shardA);
+        ShardSearchContextId readerB = openReaderContext(searchService, shardB);
+        try {
+            assertThat(searchService.getActiveContexts(), equalTo(2));
+
+            try (var mockLog = MockLog.capture(SearchService.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "rejected search context id that does not match the expected shard",
+                        SearchService.class.getCanonicalName(),
+                        Level.INFO,
+                        "Rejecting search context id "
+                            + readerB
+                            + " because it does not match expected shard "
+                            + shardA
+                            + "; reader context is on shard "
+                            + shardB
+                    )
+                );
+                IllegalArgumentException mismatch = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> searchService.createOrGetReaderContext(shardSearchRequest(shardA, readerB))
+                );
+                assertThat(mismatch.getMessage(), equalTo("search context id is not valid"));
+                mockLog.assertAllExpectationsMatched();
+            }
+            assertThat(searchService.getActiveContexts(), equalTo(2));
+
+            ReaderContext matched = searchService.createOrGetReaderContext(shardSearchRequest(shardA, readerA));
+            assertThat(matched.id(), equalTo(readerA));
+            assertThat(matched.indexShard().shardId(), equalTo(shardA));
+
+            ShardSearchContextId missing = new ShardSearchContextId(readerA.getSessionId(), Long.MAX_VALUE);
+            expectThrows(
+                SearchContextMissingException.class,
+                () -> searchService.createOrGetReaderContext(shardSearchRequest(shardA, missing))
+            );
+            assertThat(searchService.getActiveContexts(), equalTo(2));
+        } finally {
+            assertTrue(searchService.freeReaderContext(readerA));
+            assertTrue(searchService.freeReaderContext(readerB));
+        }
+    }
+
+    private static ShardSearchContextId openReaderContext(SearchService searchService, ShardId shardId) {
+        PlainActionFuture<ShardSearchContextId> future = new PlainActionFuture<>();
+        searchService.openReaderContext(shardId, TimeValue.timeValueMinutes(1), future);
+        return future.actionGet();
+    }
+
+    private static ShardSearchRequest shardSearchRequest(ShardId shardId, ShardSearchContextId readerId) {
+        return new ShardSearchRequest(
+            OriginalIndices.NONE,
+            new SearchRequest().allowPartialSearchResults(true),
+            shardId,
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            -1,
+            null,
+            readerId,
+            TimeValue.timeValueMinutes(1),
+            SplitShardCountSummary.IRRELEVANT
+        );
     }
 
     public void testCancelQueryPhaseEarly() throws Exception {

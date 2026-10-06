@@ -5383,22 +5383,68 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * A filter that rewrites the glob to a folder that does not exist must resolve to the full listing, not raise
-     * "Glob pattern matched no files". The rewrite spells the value literally ({@code year=2099}); the row filter
-     * still runs, so listing the whole dataset is correct and the query returns zero rows on its own. This is also
-     * what protects a zero-padded {@code month=06} folder from a {@code month == 6} predicate. Inferred
-     * {@code first_file_wins} now passes the same hints, so it must take the same fallback.
+     * A filter that rewrites the glob to a folder that does not exist must resolve to one inference-anchor
+     * file, not raise "Glob pattern matched no files". Three files at cap 2 must not throw. The leftover
+     * file is not the dataset, so stats are partial under both FFW and UBN.
      */
-    public void testZeroMatchPartitionFilterResolvesToFullListingNotError() throws Exception {
+    public void testZeroMatchPartitionFilterResolvesToOneInferenceAnchorNotError() throws Exception {
         String glob = "s3://bucket/data/year=*/*.parquet";
         List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
         Map<String, List<Attribute>> schemas = new HashMap<>();
         schemas.put("s3://bucket/data/year=2024/a.parquet", schema);
+        schemas.put("s3://bucket/data/year=2024/b.parquet", schema);
+        schemas.put("s3://bucket/data/year=2025/c.parquet", schema);
         Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
-        listingsByPrefix.put("s3://bucket/data/", List.of(entry("s3://bucket/data/year=2024/a.parquet", 100)));
+        listingsByPrefix.put(
+            "s3://bucket/data/",
+            List.of(
+                entry("s3://bucket/data/year=2024/a.parquet", 100),
+                entry("s3://bucket/data/year=2024/b.parquet", 100),
+                entry("s3://bucket/data/year=2025/c.parquet", 100)
+            )
+        );
         // The narrowed prefix s3://bucket/data/year=2099/ is deliberately absent: an object store lists it as empty.
-        CountingStorageProvider provider = new CountingStorageProvider(listingsByPrefix, schemas);
 
+        var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "year",
+            PartitionFilterHintExtractor.Operator.EQUALS,
+            List.of(2099)
+        );
+        Settings cap = Settings.builder().put(ExternalSourceSettings.MAX_DISCOVERED_FILES.getKey(), 2).build();
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            for (FormatReader.SchemaResolution strategy : List.of(
+                FormatReader.SchemaResolution.UNION_BY_NAME,
+                FormatReader.SchemaResolution.FIRST_FILE_WINS
+            )) {
+                ExternalSourceResolver resolver = createResolver(schemas, listingsByPrefix, cap, null, null, null, cacheService);
+                ExternalSourceResolution resolution = resolveWith(resolver, glob, Map.of(glob, List.of(hint)), strategy);
+                ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(glob);
+                assertEquals(1, resolved.fileList().fileCount());
+                assertTrue(resolved.fileList().isInferenceAnchor());
+                assertEquals(
+                    "[" + strategy + "] inference-anchor footer is not the dataset",
+                    Boolean.TRUE,
+                    resolved.metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_PARTIAL)
+                );
+            }
+        }
+    }
+
+    /** Hinted all-pruned listing must not serve an unhinted query; the loader runs again for the full glob. */
+    public void testAllPrunedThenUnfilteredListsEveryFile() throws Exception {
+        String glob = "s3://bucket/data/year=*/*.parquet";
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        schemas.put("s3://bucket/data/year=2024/a.parquet", schema);
+        schemas.put("s3://bucket/data/year=2025/b.parquet", schema);
+        schemas.put("s3://bucket/data/year=2026/c.parquet", schema);
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/data/year=2024/a.parquet", 100),
+            entry("s3://bucket/data/year=2025/b.parquet", 100),
+            entry("s3://bucket/data/year=2026/c.parquet", 100)
+        );
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of("s3://bucket/data/", files), schemas);
         var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
             "year",
             PartitionFilterHintExtractor.Operator.EQUALS,
@@ -5407,15 +5453,54 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
             ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
+            ExternalSourceResolution hinted = resolveWith(
+                resolver,
+                glob,
+                Map.of(glob, List.of(hint)),
+                FormatReader.SchemaResolution.UNION_BY_NAME
+            );
+            assertEquals(1, hinted.resolvedSource(glob).fileList().fileCount());
+            assertTrue(hinted.resolvedSource(glob).fileList().isInferenceAnchor());
+            int afterHinted = provider.listCallCount.get();
 
-            for (FormatReader.SchemaResolution strategy : MULTI_FILE_STRATEGIES) {
-                ExternalSourceResolution resolution = resolveWith(resolver, glob, Map.of(glob, List.of(hint)), strategy);
-                assertEquals(
-                    "[" + strategy + "] a rewrite to a missing folder must fall back to the full listing",
-                    1,
-                    resolution.resolvedSource(glob).fileList().fileCount()
-                );
-            }
+            ExternalSourceResolution unhinted = resolveWith(resolver, glob, Map.of(), FormatReader.SchemaResolution.UNION_BY_NAME);
+            assertEquals(3, unhinted.resolvedSource(glob).fileList().fileCount());
+            assertFalse(unhinted.resolvedSource(glob).fileList().isInferenceAnchor());
+            assertTrue("unhinted query must list again, not reuse the hinted one-file entry", provider.listCallCount.get() > afterHinted);
+        }
+    }
+
+    /**
+     * All-pruned UBN infers columns from the leftover file, not the union across the glob. Rows are empty
+     * either way; LIMIT 0 / columns() report the leftover schema.
+     */
+    public void testUnionByNameAllPrunedSchemaIsLeftoverFile() throws Exception {
+        String glob = "s3://bucket/data/year=*/*.parquet";
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        schemas.put("s3://bucket/data/year=2024/a.parquet", List.of(attr("x", DataType.INTEGER)));
+        schemas.put("s3://bucket/data/year=2025/b.parquet", List.of(attr("x", DataType.INTEGER), attr("y", DataType.KEYWORD)));
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        listingsByPrefix.put(
+            "s3://bucket/data/",
+            List.of(entry("s3://bucket/data/year=2024/a.parquet", 100), entry("s3://bucket/data/year=2025/b.parquet", 100))
+        );
+        var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "year",
+            PartitionFilterHintExtractor.Operator.EQUALS,
+            List.of(2099)
+        );
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = createResolver(schemas, listingsByPrefix, Settings.EMPTY, null, null, null, cacheService);
+            ExternalSourceResolution.ResolvedSource resolved = resolveWith(
+                resolver,
+                glob,
+                Map.of(glob, List.of(hint)),
+                FormatReader.SchemaResolution.UNION_BY_NAME
+            ).resolvedSource(glob);
+            assertTrue(resolved.fileList().isInferenceAnchor());
+            List<String> names = resolved.metadata().schema().stream().map(Attribute::name).toList();
+            assertFalse("leftover year=2024 file has no y; UBN must not union the pruned year", names.contains("y"));
+            assertTrue(names.contains("x"));
         }
     }
 

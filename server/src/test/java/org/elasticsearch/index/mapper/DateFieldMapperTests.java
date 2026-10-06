@@ -846,7 +846,7 @@ public class DateFieldMapperTests extends MapperTestCase {
 
         // Check that we allow the use of camel case date formats on 7.x indices
         @SuppressWarnings("unchecked")
-        FieldMapper.Parameter<String> formatParam = (FieldMapper.Parameter<String>) builder.getParameters()[6];
+        FieldMapper.Parameter<String> formatParam = formatParameter(builder);
         formatParam.parse("date_time_format", mock(MappingParserContext.class), "strictDateOptionalTime");
         builder.buildFormatter(); // shouldn't throw exception
 
@@ -862,7 +862,7 @@ public class DateFieldMapperTests extends MapperTestCase {
         );
 
         @SuppressWarnings("unchecked")
-        final FieldMapper.Parameter<String> newFormatParam = (FieldMapper.Parameter<String>) newFieldBuilder.getParameters()[6];
+        final FieldMapper.Parameter<String> newFormatParam = formatParameter(newFieldBuilder);
 
         // Check that we don't allow the use of camel case date formats on 8.x indices
         assertEquals(
@@ -1020,5 +1020,15 @@ public class DateFieldMapperTests extends MapperTestCase {
         String src = syntheticSource(mapper, b -> b.array("field", v2, v1, v3, v2));
         // epoch_millis values are emitted as quoted strings under strict columnar synthetic source.
         assertThat(src, containsString("\"field\":[\"" + v2 + "\",\"" + v1 + "\",\"" + v3 + "\",\"" + v2 + "\"]"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static FieldMapper.Parameter<String> formatParameter(DateFieldMapper.Builder builder) {
+        for (FieldMapper.Parameter<?> parameter : builder.getParameters()) {
+            if (parameter.name.equals("format")) {
+                return (FieldMapper.Parameter<String>) parameter;
+            }
+        }
+        throw new AssertionError("no [format] parameter");
     }
 }

@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -379,6 +380,23 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         }
     }
 
+    public void testNestedAndTopLevelFormsCannotBeCombined() {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        for (boolean nestedFirst : new boolean[] { true, false }) {
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, fieldMapping(b -> {
+                b.field("type", "keyword");
+                if (nestedFirst) {
+                    b.startObject("doc_values").field("multi_value", false).endObject();
+                    b.field("nullability", true);
+                } else {
+                    b.field("nullability", true);
+                    b.startObject("doc_values").field("multi_value", false).endObject();
+                }
+            })));
+            assertThat(e.getMessage(), containsString("top level"));
+        }
+    }
+
     public void testNullabilityFalseParsedFromMapForm() throws Exception {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         MapperService mapperService = createMapperService(
@@ -499,6 +517,43 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
             )
         );
         assertThat(e2.getMessage(), containsString("Cannot update parameter [nullability]"));
+    }
+
+    /**
+     * The per-mapper test harness ignores the columnar sub-parameters (they need a columnar index), so exercise sealing,
+     * no-op merges and serialization of the top-level form here for every mapper that registers them.
+     */
+    public void testTopLevelSubParametersMergeAndSerializeForEveryMapper() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        for (String type : List.of("keyword", "long", "date", "boolean", "ip")) {
+            for (Map.Entry<String, Object[]> param : Map.of(
+                "multi_value",
+                new Object[] { false, true },
+                "nullability",
+                new Object[] { false, true },
+                "on_failure",
+                new Object[] { "ignore", "fail" }
+            ).entrySet()) {
+                String name = param.getKey();
+                Object original = param.getValue()[0];
+                Object changed = param.getValue()[1];
+                MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", type).field(name, original)));
+                // serialized at top level, not nested in doc_values
+                String quote = original instanceof String ? "\"" : "";
+                assertThat(
+                    Strings.toString(mapperService.documentMapper().mapping()),
+                    containsString("\"" + name + "\":" + quote + original + quote)
+                );
+                // re-sending the same value is a no-op
+                merge(mapperService, fieldMapping(b -> b.field("type", type).field(name, original)));
+                // changing it is a conflict reported under the sub-parameter's own name
+                IllegalArgumentException e = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> merge(mapperService, fieldMapping(b -> b.field("type", type).field(name, changed)))
+                );
+                assertThat(type + "/" + name, e.getMessage(), containsString("Cannot update parameter [" + name + "]"));
+            }
+        }
     }
 
     public void testNullabilityFalseExemptedByNullValue() throws Exception {

@@ -333,6 +333,68 @@ public class PackedValuesBlockHashVariableWidthTests extends ESTestCase {
     }
 
     /**
+     * A page holding nulls whose encoded payload runs past {@code CHUNK_SOFT_CAP}, so the bulk path packs it in
+     * several chunks. A row's nulls are tracked by its index within the chunk while its values are read at its
+     * position in the page, so the two must stay aligned once a chunk starts at a non-zero offset.
+     */
+    public void testNullsAcrossChunkBoundaries() {
+        final int positions = 200;
+        final byte[] base = new byte[4096];
+        Arrays.fill(base, (byte) 'x');
+
+        CircuitBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(10));
+        BlockFactory factory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
+
+        List<BlockHash.GroupSpec> specs = List.of(
+            new BlockHash.GroupSpec(0, ElementType.BYTES_REF),
+            new BlockHash.GroupSpec(1, ElementType.LONG)
+        );
+
+        BytesRef scratch = new BytesRef();
+        scratch.bytes = base;
+        scratch.offset = 0;
+        try (
+            BytesRefBlock.Builder bb = factory.newBytesRefBlockBuilder(positions);
+            LongBlock.Builder lb = factory.newLongBlockBuilder(positions)
+        ) {
+            for (int i = 0; i < positions; i++) {
+                // Both columns hold no value at some positions, on cycles that do not divide the chunk size.
+                if (i % 7 == 0) {
+                    bb.appendNull();
+                } else {
+                    scratch.length = base.length - (i % 3);
+                    bb.appendBytesRef(scratch);
+                }
+                if (i % 5 == 0) {
+                    lb.appendNull();
+                } else {
+                    lb.appendLong(i % 11);
+                }
+            }
+            try (BytesRefBlock brb = bb.build(); LongBlock lgb = lb.build()) {
+                Page page = new Page(brb, lgb);
+                // emitBatchSize > positions, so chunking inside bulkAdd breaks on the soft cap rather than on the
+                // emit boundary.
+                int[] bulkOrds;
+                List<String> bulkKeys;
+                try (PackedValuesBlockHash bulk = new PackedValuesBlockHash(specs, factory, 256)) {
+                    bulkOrds = collectOrds(positions, ai -> bulk.add(page, ai));
+                    bulkKeys = renderKeys(bulk);
+                }
+                int[] slowOrds;
+                List<String> slowKeys;
+                try (PackedValuesBlockHash slow = new PackedValuesBlockHash(specs, factory, 256)) {
+                    slowOrds = collectOrds(positions, ai -> slow.add(page, ai, 1024));
+                    slowKeys = renderKeys(slow);
+                }
+                assertArrayEquals("multi-chunk bulk path with nulls must agree with the slow path", slowOrds, bulkOrds);
+                assertThat("multi-chunk keys must agree with the slow path", bulkKeys, equalTo(slowKeys));
+            }
+        }
+        assertThat("breaker must return to zero after both hashes close", breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
      * More key columns than a long has bits, with nulls in two columns exactly 64 apart. The bulk path tracks a
      * row's nulls in one long, so it declines a page this wide and the encoders pack it instead.
      */

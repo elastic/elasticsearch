@@ -62,6 +62,13 @@ public class HeapFootprintTests extends ESTestCase {
         assertThat(HeapFootprint.byteArrayBytes(length, region), greaterThan(length));
     }
 
+    public void testRegionSize() {
+        assertThat(HeapFootprint.regionSize(false, 4 * MB, () -> { throw new AssertionError("not G1"); }), equalTo(0L));
+        assertThat(HeapFootprint.regionSize(true, 4 * MB, () -> { throw new AssertionError("reported"); }), equalTo(4 * MB));
+        assertThat(HeapFootprint.regionSize(true, 0, () -> 8 * MB), equalTo(8 * MB));
+        assertThat(HeapFootprint.regionSize(true, -1, () -> 2 * MB), equalTo(2 * MB));
+    }
+
     public void testJvmRegionSizeOverload() {
         // whatever region size the test JVM runs with, the footprint is at least the aligned size
         assertThat(HeapFootprint.byteArrayBytes(10 * MB), greaterThan(10 * MB));

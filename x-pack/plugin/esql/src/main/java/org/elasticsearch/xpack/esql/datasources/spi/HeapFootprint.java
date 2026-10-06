@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.G1OverLimitStrategy;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+
+import java.util.function.LongSupplier;
 
 /**
  * Heap a large {@code byte[]} really occupies, for circuit-breaker charges on the external read path.
@@ -20,8 +23,9 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
  * occupies 12 MiB. The region size depends on the heap size and on operator settings, so it is read from the running
  * JVM rather than assumed.
  *
- * <p>Under collectors other than G1, or when the region size is unknown, only the header and alignment are added.
- * Large-object rules of other collectors (ZGC, Parallel) are not modelled.
+ * <p>Under collectors other than G1 only the header and alignment are added; large-object rules of other collectors
+ * (ZGC, Parallel) are not modelled. Under G1 with an unreported region size, the region size is estimated from the
+ * heap size as {@link G1OverLimitStrategy#fallbackRegionSize} does for the parent breaker.
  *
  * <p><b>This encodes G1 behaviour, not a JVM contract.</b> The region size and the array header come from the running
  * JVM, but the humongous rule itself (strictly more than half a region, rounded up to whole regions) is hard-coded.
@@ -35,7 +39,7 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
  */
 public final class HeapFootprint {
 
-    /** G1 region size of this JVM, or {@code 0} for "no region rounding" (not G1, or region size unknown). */
+    /** G1 region size of this JVM, or {@code 0} for "no region rounding" (not G1). */
     private static final long REGION_SIZE = regionSizeFromJvm();
 
     private HeapFootprint() {}
@@ -91,7 +95,17 @@ public final class HeapFootprint {
 
     private static long regionSizeFromJvm() {
         JvmInfo info = JvmInfo.jvmInfo();
-        long region = info.getG1RegionSize();
-        return "true".equals(info.useG1GC()) && region > 0 ? region : 0;
+        return regionSize("true".equals(info.useG1GC()), info.getG1RegionSize(), () -> G1OverLimitStrategy.fallbackRegionSize(info));
+    }
+
+    /**
+     * Region size to round to: {@code 0} when not running G1, the reported size when known, otherwise the same
+     * heap-derived fallback the real-memory parent breaker uses.
+     */
+    static long regionSize(boolean useG1, long reportedRegionSize, LongSupplier fallback) {
+        if (useG1 == false) {
+            return 0;
+        }
+        return reportedRegionSize > 0 ? reportedRegionSize : fallback.getAsLong();
     }
 }

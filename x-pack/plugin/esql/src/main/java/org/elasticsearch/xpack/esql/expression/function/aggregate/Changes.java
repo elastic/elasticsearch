@@ -41,13 +41,17 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * Implements the PromQL {@code changes()} range-vector function for per-series numeric values.
  */
 public class Changes extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Changes", Changes::new);
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "Changes",
+        Changes::readFrom
+    );
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .withinSeries(Changes::new)
         .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
         .description("Returns the number of times the value changed in each time series in a range vector.")
         .example("changes(process_start_time_seconds[1h])")
-        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .stack(PromqlFunctionDefinition.STACK_GA_9_6)
         .differenceFromPrometheus(PromqlFunctionDefinition.COUNT_NOTE)
         .name("changes");
 
@@ -77,22 +81,21 @@ public class Changes extends TimeSeriesAggregateFunction implements OptionalArgu
         ) Expression window,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
+        this(source, field, timestamp, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
     }
 
-    public Changes(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
-        super(source, field, filter, window, List.of(timestamp));
+    public Changes(Source source, Expression field, Expression timestamp, Expression filter, Expression window) {
+        super(source, List.of(field, timestamp), filter, window, List.of());
         this.timestamp = timestamp;
     }
 
-    public Changes(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            readWindow(in),
-            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
-        );
+    private static Changes readFrom(StreamInput in) throws IOException {
+        Source source = Source.readFrom((PlanStreamInput) in);
+        Expression field = in.readNamedWriteable(Expression.class);
+        Expression filter = in.readNamedWriteable(Expression.class);
+        Expression window = readWindow(in);
+        Expression timestamp = in.readNamedWriteableCollectionAsList(Expression.class).getFirst();
+        return new Changes(source, field, timestamp, filter, window);
     }
 
     @Override
@@ -102,7 +105,7 @@ public class Changes extends TimeSeriesAggregateFunction implements OptionalArgu
 
     @Override
     protected NodeInfo<Changes> info() {
-        return NodeInfo.create(this, Changes::new, field(), filter(), window(), timestamp);
+        return NodeInfo.create(this, Changes::new, field(), timestamp, filter(), window());
     }
 
     @Override
@@ -112,7 +115,7 @@ public class Changes extends TimeSeriesAggregateFunction implements OptionalArgu
 
     @Override
     public Changes withFilter(Expression filter) {
-        return new Changes(source(), field(), filter, window(), timestamp);
+        return new Changes(source(), field(), timestamp, filter, window());
     }
 
     @Override

@@ -2,7 +2,7 @@
 
 ## `changes` [promql-fn-changes]
 
-{applies_to}`stack: preview 9.4, ga 9.5`
+{applies_to}`stack: ga 9.6`
 
 :::{include} brief-summary/changes.md
 :::

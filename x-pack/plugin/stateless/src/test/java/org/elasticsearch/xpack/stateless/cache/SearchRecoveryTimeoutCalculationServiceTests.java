@@ -37,6 +37,7 @@ import org.elasticsearch.threadpool.FakeTimeThreadPool;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout.TimeoutContext;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -69,7 +70,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
     }
 
     /// @param cacheSize what the (otherwise unused) shared blob cache reports as its size; only the data volume heuristic reads it, and the
-    ///                  real cache service needs a live shared cache file to report one.
+    /// real cache service needs a live shared cache file to report one.
     private static SearchRecoveryTimeoutCalculationService newCalculationService(ThreadPool threadPool, Settings settings, long cacheSize) {
         final var clusterSettings = new ClusterSettings(
             settings,
@@ -387,7 +388,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 initialPlan.timeout(),
                 equalTo(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING.getDefault(Settings.EMPTY))
             );
-            assertThat(initialPlan.timeoutContext(), equalTo("relocation source not shutting down, no cluster shutdown"));
+            assertThat(initialPlan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN));
             assertThat(initialPlan.extendable(), is(true));
 
             // exclude the relocation source so we test the "another node shutting down" branch, not the source-removal branch
@@ -404,8 +405,11 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                     )
                 )
             );
-            assertThat(reevaluatedPlan.timeoutContext(), equalTo("relocation source not shutting down, cluster shutdown metadata present"));
-            assertThat(reevaluatedPlan.extendable(), is(false));
+            assertThat(
+                reevaluatedPlan.timeoutContext(),
+                equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT)
+            );
+            assertThat(reevaluatedPlan.extendable(), is(true));
         }
     }
 
@@ -586,10 +590,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             );
             assertThat(planUncapped.awaitWarming(), is(true));
             assertThat(planUncapped.timeout().millis(), equalTo(6400L)); // 6400 × 1 < 8000
-            assertThat(
-                planUncapped.timeoutContext(),
-                equalTo("relocation source shutting down (data volume proportional share of remaining time to capped grace deadline)")
-            );
+            assertThat(planUncapped.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME));
             assertThat("data volume based plans are never extended", planUncapped.extendable(), is(false));
 
             // A re-evaluation that lands on the data-volume heuristic must not extend the wait
@@ -599,8 +600,14 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 totalBytesToWarm(endTargetsToWarm),
                 true
             );
-            assertThat(reevaluatedPlan.awaitWarming(), is(false));
+            assertThat(reevaluatedPlan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME));
             assertThat(reevaluatedPlan.extendable(), is(false));
+            // the previous plan must itself be extendable, otherwise the loop would not have re-evaluated at all
+            final var previousEqualSharePlan = new SearchRecoveryTimeout(
+                planUncapped.timeout(),
+                TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE
+            );
+            assertThat(reevaluatedPlan.shouldExtendAfter(previousEqualSharePlan), is(false));
 
             // Scenario 2: 3 ongoing relocations — same per-shard value scaled by 3 exceeds remaining → capped
             final ShardRouting selfCapped = stateCapped.routingTable(DEFAULT_PROJECT_ID)
@@ -615,10 +622,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             );
             assertThat(planCapped.awaitWarming(), is(true));
             assertThat(planCapped.timeout().millis(), equalTo(8000L)); // min(8000, 6400 × 3 = 19200)
-            assertThat(
-                planCapped.timeoutContext(),
-                equalTo("relocation source shutting down (data volume proportional share of remaining time to capped grace deadline)")
-            );
+            assertThat(planCapped.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME));
         }
     }
 
@@ -689,10 +693,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             );
             assertThat(planUncapped.awaitWarming(), is(true));
             assertThat(planUncapped.timeout().millis(), equalTo(4000L)); // 4000 × 1 < 8000
-            assertThat(
-                planUncapped.timeoutContext(),
-                equalTo("relocation source shutting down (equal share of remaining time to capped grace deadline)")
-            );
+            assertThat(planUncapped.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
 
             // Scenario 2: 3 ongoing relocations — same per-shard value scaled by 3 exceeds remaining → capped
             final ShardRouting selfCapped = stateCapped.routingTable(DEFAULT_PROJECT_ID)
@@ -707,10 +708,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             );
             assertThat(planCapped.awaitWarming(), is(true));
             assertThat(planCapped.timeout().millis(), equalTo(8000L)); // min(8000, 4000 × 3 = 12000)
-            assertThat(
-                planCapped.timeoutContext(),
-                equalTo("relocation source shutting down (equal share of remaining time to capped grace deadline)")
-            );
+            assertThat(planCapped.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
         }
     }
 
@@ -770,12 +768,13 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
             final var initialPlan = service.searchRecoveryTimeout(state, mockIndexShard(self), totalBytesToWarm);
             assertThat(initialPlan.timeout().millis(), equalTo(2000L));
-            assertThat(
-                initialPlan.timeoutContext(),
-                equalTo("relocation source shutting down (equal share of remaining time to capped grace deadline)")
-            );
+            assertThat(initialPlan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
             assertThat(initialPlan.extendable(), is(true));
-            assertThat(initialPlan.totalBudget(), equalTo(gracePeriodCap));
+            assertThat(
+                "bounded by the grace deadline, no total budget",
+                service.totalBudget(initialPlan.timeoutContext()),
+                equalTo(TimeValue.ZERO)
+            );
 
             // the first slice expires: 4000ms into the 10s grace → remaining = 6000ms, equal share = 6000 / 4 = 1500ms
             threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 4000);
@@ -784,7 +783,6 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             assertThat("the wait is extended by a slice sized from the remaining time", reevaluatedPlan.timeout().millis(), equalTo(1500L));
             assertThat(reevaluatedPlan.timeoutContext(), equalTo(initialPlan.timeoutContext()));
             assertThat(reevaluatedPlan.extendable(), is(true));
-            assertThat(reevaluatedPlan.totalBudget(), equalTo(gracePeriodCap));
         }
     }
 
@@ -839,10 +837,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 .getTargetRelocatingShard();
             final SearchRecoveryTimeout firstPlan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L);
             assertThat("first calculation does not reserve budget for pending shards", firstPlan.timeout().millis(), equalTo(4000L));
-            assertThat(
-                firstPlan.timeoutContext(),
-                equalTo("relocation source shutting down (equal share of remaining time to capped grace deadline)")
-            );
+            assertThat(firstPlan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
 
             final SearchRecoveryTimeout plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L, true);
 
@@ -850,10 +845,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             assertThat(plan.timeout().millis(), equalTo(3000L));
             assertThat(
                 plan.timeoutContext(),
-                equalTo(
-                    "relocation source shutting down (equal share of remaining time to capped grace deadline)"
-                        + ", capped to reserve time for [4] pending shards"
-                )
+                equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE_CAPPED_FOR_PENDING_SHARDS)
             );
         }
     }

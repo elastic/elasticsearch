@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
+import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout.TimeoutContext;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
@@ -705,9 +706,11 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             // two shards each evaluated only once, and the shutdown below would then land before any slice had expired.
             assertBusy(() -> assertThat(evaluationsPerShard(warmingServiceOnTargetNode).values(), hasItem(greaterThan(1L))));
             for (var evaluation : warmingServiceOnTargetNode.searchRecoveryTimeoutEvaluations()) {
-                assertThat(evaluation.plan().timeoutContext(), equalTo("relocation source not shutting down, no cluster shutdown"));
+                assertThat(
+                    evaluation.plan().timeoutContext(),
+                    equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN)
+                );
                 assertThat(evaluation.plan().timeout(), equalTo(relocationTimeoutSlice));
-                assertThat(evaluation.plan().totalBudget(), equalTo(totalTimeoutCap));
                 // Each plan is computed for a shard that genuinely has data to pull from the object store.
                 assertThat(evaluation.totalBytesToWarm(), greaterThan(0L));
             }
@@ -729,7 +732,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         final var plansAfterShutdown = warmingServiceOnTargetNode.searchRecoveryTimeoutEvaluations()
             .stream()
-            .filter(evaluation -> evaluation.plan().timeoutContext().startsWith("relocation source shutting down"))
+            .filter(evaluation -> evaluation.plan().timeoutContext().description().startsWith("relocation source shutting down"))
             .toList();
         assertThat(
             "a re-evaluation must have picked up the shutdown registered after recovery had already started waiting",
@@ -1906,7 +1909,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     endTargetsToWarm,
                     false,
                     searchRecoveryWarmingListener(
-                        SearchRecoveryTimeout.fixed(TimeValue.timeValueMinutes(1), "test: awaiting warming"),
+                        new SearchRecoveryTimeout(TimeValue.timeValueMinutes(1), TimeoutContext.RESHARD_SPLIT_TARGET),
                         clusterStateSupplier,
                         indexShard,
                         directory,

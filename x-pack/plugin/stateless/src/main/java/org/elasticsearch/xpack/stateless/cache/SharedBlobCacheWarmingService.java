@@ -1096,7 +1096,7 @@ public class SharedBlobCacheWarmingService {
                 if (outcome == SearchRecoveryWaitOutcome.TIMEOUT) {
                     final long dataSetSizeInBytes = directory.estimateDataSetSizeInBytes();
                     final long bytesWarmed = directory.totalBytesWarmedFromObjectStore() - bytesWarmedAtStart;
-                    final String context = timeoutTask.latestTimeoutContext().isEmpty() ? "default" : timeoutTask.latestTimeoutContext();
+                    final String contextDescription = timeoutTask.latestTimeoutContextDescription();
                     // Note that bytesWarmed covers every object store warm on this directory, including the header/footer regions that
                     // are not part of the offline warming targets counted by bytesToWarm, so the two are not a ratio.
                     final TimeValue totalMs = TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - startedMillis);
@@ -1105,14 +1105,14 @@ public class SharedBlobCacheWarmingService {
                             "Search shard recovery cache warming timed out after [{}] ({}) for {}, "
                                 + "shard data set size [{}], bytes to warm [{}], bytes warmed [{}]",
                             totalMs,
-                            context,
+                            contextDescription,
                             indexShard.shardId(),
                             ByteSizeValue.ofBytes(dataSetSizeInBytes),
                             ByteSizeValue.ofBytes(bytesToWarm),
                             ByteSizeValue.ofBytes(bytesWarmed)
                         ).field(SEARCH_RECOVERY_LOG_FIELD_PREFIX + "shard", indexShard.shardId().toString())
                             .field(SEARCH_RECOVERY_LOG_FIELD_PREFIX + "warming_timeout_millis", totalMs.millis())
-                            .field(SEARCH_RECOVERY_LOG_FIELD_PREFIX + "warming_timeout_context", context)
+                            .field(SEARCH_RECOVERY_LOG_FIELD_PREFIX + "warming_timeout_context", contextDescription)
                             .field(SEARCH_RECOVERY_LOG_FIELD_PREFIX + "data_set_size_bytes", dataSetSizeInBytes)
                             .field(SEARCH_RECOVERY_LOG_FIELD_PREFIX + "bytes_to_warm", bytesToWarm)
                             .field(SEARCH_RECOVERY_LOG_FIELD_PREFIX + "bytes_warmed", bytesWarmed)
@@ -1145,8 +1145,10 @@ public class SharedBlobCacheWarmingService {
         private final LongSupplier bytesWarmedSoFar;
         private final long startedMillis;
         private final SubscribableListener<SearchRecoveryWaitOutcome> race;
+        // spans the whole wait, so it is fixed by the situation the wait started in
+        private final TimeValue totalBudget;
 
-        private volatile String latestTimeoutContext;
+        private volatile SearchRecoveryTimeout latestPlan;
         private volatile Scheduler.ScheduledCancellable scheduledTask;
 
         ReevaluatingTimeoutTask(
@@ -1165,7 +1167,8 @@ public class SharedBlobCacheWarmingService {
             this.bytesWarmedSoFar = bytesWarmedSoFar;
             this.startedMillis = startedMillis;
             this.race = race;
-            this.latestTimeoutContext = initialPlan.timeoutContext();
+            this.latestPlan = initialPlan;
+            this.totalBudget = searchRecoveryTimeoutCalculationService.totalBudget(initialPlan.timeoutContext());
         }
 
         void schedule() {
@@ -1179,21 +1182,24 @@ public class SharedBlobCacheWarmingService {
             if (race.isDone()) {
                 return;
             }
-            if (searchRecoveryTimeoutCalculationService.reevaluationEnabled() && initialPlan.extendable()) {
+            // Whether to extend is decided by the plan whose slice just expired; the total budget of the whole wait is applied on top of it
+            // in cappedToTotalBudget.
+            if (searchRecoveryTimeoutCalculationService.reevaluationEnabled() && latestPlan.extendable()) {
                 try {
                     // Approximate: bytesWarmedSoFar also counts bytes that are not part of bytesToWarm (e.g. header/footer reads), and
                     // regions that were already cached are never counted, so this can under- or overestimate the bytes still to warm.
                     final long bytesRemaining = Math.max(0L, bytesToWarm - bytesWarmedSoFar.getAsLong());
                     final var newPlan = searchRecoveryTimeout(clusterStateSupplier.get(), indexShard, bytesRemaining, true);
                     final var elapsed = TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - startedMillis);
-                    final var newTimeout = newPlan.timeoutCappedToTotalBudget(initialPlan, elapsed);
-                    if (newTimeout.compareTo(searchRecoveryTimeoutCalculationService.reevaluationAbortThreshold()) >= 0) {
-                        latestTimeoutContext = newPlan.timeoutContext();
+                    final var newTimeout = cappedToTotalBudget(newPlan.timeout(), elapsed);
+                    if (newPlan.shouldExtendAfter(latestPlan)
+                        && newTimeout.compareTo(searchRecoveryTimeoutCalculationService.reevaluationAbortThreshold()) >= 0) {
+                        latestPlan = newPlan;
                         scheduledTask = threadPool.schedule(this, newTimeout, threadPool.generic());
                         logger.info(
                             "Search shard recovery cache warming timeout extended by [{}] ({}) for [{}]. Total timeout: [{}]",
                             newTimeout,
-                            newPlan.timeoutContext(),
+                            newPlan.timeoutContext().description(),
                             indexShard.shardId(),
                             TimeValue.timeValueMillis(elapsed.millis() + newTimeout.millis())
                         );
@@ -1207,8 +1213,17 @@ public class SharedBlobCacheWarmingService {
             race.onResponse(SearchRecoveryWaitOutcome.TIMEOUT);
         }
 
-        String latestTimeoutContext() {
-            return latestTimeoutContext;
+        /// Caps `timeout` so that the total wait does not exceed the total budget; no cap when there is no budget.
+        private TimeValue cappedToTotalBudget(TimeValue timeout, TimeValue elapsed) {
+            if (totalBudget.millis() <= 0) {
+                return timeout;
+            }
+            final long budgetLeftMs = Math.max(0L, totalBudget.millis() - elapsed.millis());
+            return budgetLeftMs >= timeout.millis() ? timeout : TimeValue.timeValueMillis(budgetLeftMs);
+        }
+
+        private String latestTimeoutContextDescription() {
+            return latestPlan.timeoutContext().description();
         }
 
         void cancel() {

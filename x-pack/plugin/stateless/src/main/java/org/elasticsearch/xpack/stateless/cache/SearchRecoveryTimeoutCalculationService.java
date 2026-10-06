@@ -20,6 +20,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout.TimeoutContext;
 
 import java.util.Map;
 
@@ -135,6 +136,19 @@ public class SearchRecoveryTimeoutCalculationService {
         );
     }
 
+    /// Upper bound on the total time a wait that started with a plan of the given `timeoutContext` may last, summed over the initial timeout
+    /// and all re-evaluation extensions. Zero means no bound: the wait is either never extended, or, for a shutting-down relocation source,
+    /// already bounded by the grace deadline that every slice is computed against.
+    TimeValue totalBudget(TimeoutContext timeoutContext) {
+        return switch (timeoutContext) {
+            case NON_RELOCATION_ANOTHER_ACTIVE_COPY, RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN,
+                RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT -> searchRecoveryWarmingTotalTimeoutCap;
+            case SKIP, RESHARD_SPLIT_TARGET, RELOCATION_SOURCE_SHUTTING_DOWN_GRACE_ELAPSED, RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME,
+                RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE, RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE_CAPPED_FOR_PENDING_SHARDS ->
+                TimeValue.ZERO;
+        };
+    }
+
     boolean reevaluationEnabled() {
         return searchRecoveryWarmingTimeoutReevaluationEnabled;
     }
@@ -173,26 +187,21 @@ public class SearchRecoveryTimeoutCalculationService {
                 );
             }
             if (hasActiveShutdownForRemovalNodes(state)) {
-                return SearchRecoveryTimeout.fixed(
+                return new SearchRecoveryTimeout(
                     searchRecoveryWarmingRelocationWithShutdownTimeout,
-                    "relocation source not shutting down, cluster shutdown metadata present"
+                    TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT
                 );
             }
-            return SearchRecoveryTimeout.extendable(
+            return new SearchRecoveryTimeout(
                 searchRecoveryWarmingRelocationTimeout,
-                "relocation source not shutting down, no cluster shutdown",
-                searchRecoveryWarmingTotalTimeoutCap
+                TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN
             );
         }
         if (hasAnotherActiveSearchShardCopy(state, indexShard) && hasActiveShutdownForRemovalNodes(state) == false) {
-            return SearchRecoveryTimeout.extendable(
-                searchRecoveryWarmingNonRelocationTimeout,
-                "not a relocation, another active shard copy",
-                searchRecoveryWarmingTotalTimeoutCap
-            );
+            return new SearchRecoveryTimeout(searchRecoveryWarmingNonRelocationTimeout, TimeoutContext.NON_RELOCATION_ANOTHER_ACTIVE_COPY);
         }
         if (searchRecoveryWarmingReshardTargetTimeout.millis() > 0 && isReshardSplitTarget(state, indexShard.shardId())) {
-            return SearchRecoveryTimeout.fixed(searchRecoveryWarmingReshardTargetTimeout, "reshard split target");
+            return new SearchRecoveryTimeout(searchRecoveryWarmingReshardTargetTimeout, TimeoutContext.RESHARD_SPLIT_TARGET);
         }
         return SearchRecoveryTimeout.skip();
     }
@@ -256,8 +265,8 @@ public class SearchRecoveryTimeoutCalculationService {
     /// with `deadline = start + min(metadata grace, cap)`.
     ///
     /// Only equal-share plans are [extendable][SearchRecoveryTimeout#extendable]. When `reevaluation` is `true`
-    /// the equal-share timeout is additionally capped to reserve time for shards still pending on the source, and a data-volume result
-    /// yields a zero timeout so that the wait ends rather than being extended.
+    /// the equal-share timeout is additionally capped to reserve time for shards still pending on the source. A re-evaluation that
+    /// lands on a data-volume plan is not extended, see [SearchRecoveryTimeout#shouldExtendAfter].
     private SearchRecoveryTimeout computeRelocationSourceShutdownWarmingTimeout(
         ClusterState state,
         String sourceNodeId,
@@ -276,7 +285,7 @@ public class SearchRecoveryTimeoutCalculationService {
         final long deadline = shutdown.getStartedAtMillis() + effectiveGraceMillis;
         final long remaining = deadline - now;
         if (remaining <= 0) {
-            return SearchRecoveryTimeout.fixed(TimeValue.ZERO, "relocation source shutting down (grace period elapsed)");
+            return new SearchRecoveryTimeout(TimeValue.ZERO, TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_GRACE_ELAPSED);
         }
         int shardsOnSource = countShardsOnNode(state, sourceNodeId);
         if (shardsOnSource <= 0) {
@@ -302,31 +311,21 @@ public class SearchRecoveryTimeoutCalculationService {
         // Though the per-shard local decision here is OKish, because it's all relative to the remaining deadline and shards,
         // so the impact of currently choosing a different heuristic from previous (or future) relocating shards is partially mitigated
         if (dataVolumeMs > equalShareMs) {
-            // The data-volume estimate already accounts for everything this shard needs, so it is never extended: a re-evaluation
-            // that lands here yields a zero timeout, which makes the listener fire the timeout instead of rescheduling.
-            if (reevaluation) {
-                return SearchRecoveryTimeout.fixed(
-                    TimeValue.ZERO,
-                    "relocation source shutting down (data volume proportional, not extended)"
-                );
-            }
-            return SearchRecoveryTimeout.fixed(
+            // The data-volume estimate already accounts for everything this shard needs, so a re-evaluation landing here is not
+            // extended (see SearchRecoveryTimeout#shouldExtendAfter).
+            return new SearchRecoveryTimeout(
                 TimeValue.timeValueMillis(Math.round(Math.min(remaining, dataVolumeMs * ongoingRelocations))),
-                "relocation source shutting down (data volume proportional share of remaining time to capped grace deadline)"
+                TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME
             );
         }
         final double timeoutMs = Math.min(remaining, equalShareMs * ongoingRelocations);
-        final String context = "relocation source shutting down (equal share of remaining time to capped grace deadline)";
-        if (searchRecoveryWarmingTimeoutReevaluationEnabled == false) {
-            return SearchRecoveryTimeout.fixed(TimeValue.timeValueMillis(Math.round(timeoutMs)), context);
-        }
         if (reevaluation == false) {
             // We don't reserve a min budget on a first run, since in some cases we'd end up with no timeout for a given shard.
             // We want to give them at least one chance for offline warming.
-            return SearchRecoveryTimeout.extendable(
+            // No total budget is needed here: every slice is bounded by the time remaining until the capped grace deadline.
+            return new SearchRecoveryTimeout(
                 TimeValue.timeValueMillis(Math.round(timeoutMs)),
-                context,
-                searchRecoveryWarmingGracePeriodCap
+                TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE
             );
         }
         // Reserve a min budget for every shard on source that has not yet begun
@@ -336,14 +335,10 @@ public class SearchRecoveryTimeoutCalculationService {
         final int pendingWaves = (pendingShards + ongoingRelocations - 1) / ongoingRelocations;
         final long reservedForPendingMs = pendingWaves * searchRecoveryWarmingSourceShutdownMinBudgetPerPendingShard.millis();
         final double cappedTimeoutMs = Math.clamp(remaining - reservedForPendingMs, 0.0, timeoutMs);
-        final String finalContext = cappedTimeoutMs < timeoutMs
-            ? context + ", capped to reserve time for [" + pendingShards + "] pending shards"
-            : context;
-        return SearchRecoveryTimeout.extendable(
-            TimeValue.timeValueMillis(Math.round(cappedTimeoutMs)),
-            finalContext,
-            searchRecoveryWarmingGracePeriodCap
-        );
+        final var timeoutContext = cappedTimeoutMs < timeoutMs
+            ? TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE_CAPPED_FOR_PENDING_SHARDS
+            : TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE;
+        return new SearchRecoveryTimeout(TimeValue.timeValueMillis(Math.round(cappedTimeoutMs)), timeoutContext);
     }
 
     /// Counts ongoing relocations whose source is `sourceNodeId` and whose target is `targetNodeId` (i.e. shards relocating

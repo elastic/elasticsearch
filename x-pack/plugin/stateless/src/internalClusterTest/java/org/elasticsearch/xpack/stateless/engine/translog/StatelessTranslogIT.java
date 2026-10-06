@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.stateless.engine.translog;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.BulkShardRequest;
-import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -36,6 +36,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -620,7 +621,7 @@ public class StatelessTranslogIT extends AbstractStatelessPluginIntegTestCase {
                 induceFailures(settings, indexName, failureTypes);
             }
 
-            safeAwait(allReqLatch);
+            safeAwait(allReqLatch, TimeValue.timeValueSeconds(60));
 
             refresh(indexName);
 
@@ -720,8 +721,9 @@ public class StatelessTranslogIT extends AbstractStatelessPluginIntegTestCase {
             }
             case ISOLATED_INDEXING_NODE -> {
                 String isolatedNode = nonMasterIndexingNode();
+                String masterName = internalCluster().getMasterName();
                 final MockTransportService nodeATransportService = MockTransportService.getInstance(isolatedNode);
-                final MockTransportService masterTransportService = MockTransportService.getInstance(internalCluster().getMasterName());
+                final MockTransportService masterTransportService = MockTransportService.getInstance(masterName);
                 try {
                     PlainActionFuture<Void> removedNode = new PlainActionFuture<>();
 
@@ -743,7 +745,7 @@ public class StatelessTranslogIT extends AbstractStatelessPluginIntegTestCase {
                         .waitForNoInitializingShards(true)
                         .waitForNodes(Integer.toString(3));
 
-                    internalCluster().masterClient().admin().cluster().health(healthRequest).actionGet();
+                    client(masterName).admin().cluster().health(healthRequest).actionGet();
                 } finally {
                     masterTransportService.clearAllRules();
                 }
@@ -847,7 +849,7 @@ public class StatelessTranslogIT extends AbstractStatelessPluginIntegTestCase {
     }
 
     private static Settings batchIndexingNodeSettings() {
-        return Settings.builder().put(ShardBatchIndexer.BATCH_INDEXING.getKey(), true).build();
+        return Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true).build();
     }
 
     private String createBatchIndex() {
@@ -876,8 +878,8 @@ public class StatelessTranslogIT extends AbstractStatelessPluginIntegTestCase {
     }
 
     /**
-     * Scans every compound translog blob region belonging to the given shard and counts native {@link Translog.IndexBatch}
-     * records.
+     * Scans every compound translog blob region belonging to the given shard and counts native
+     * {@link IndexOperationBatch.TranslogRecord} records.
      */
     private long countBatchRecordsInObjectStore(String nodeName, ShardId shardId) throws IOException {
         BlobContainer container = getObjectStoreService(nodeName).getTranslogBlobContainer();
@@ -893,7 +895,7 @@ public class StatelessTranslogIT extends AbstractStatelessPluginIntegTestCase {
                 BytesReference region = streamInput.readBytesReference((int) metadata.size());
                 try (var checksumInput = new BufferedChecksumStreamInput(region.streamInput(), "batch record scan")) {
                     while (checksumInput.available() > 0) {
-                        if (Translog.readRecord(checksumInput) instanceof Translog.IndexBatch) {
+                        if (Translog.readRecord(checksumInput) instanceof IndexOperationBatch.TranslogRecord) {
                             batchRecords++;
                         }
                     }

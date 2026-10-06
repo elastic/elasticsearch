@@ -26,7 +26,8 @@ record ComputeContext(
     FoldContext foldCtx,
     Supplier<ExchangeSource> exchangeSourceSupplier,
     Supplier<ExchangeSink> exchangeSinkSupplier,
-    boolean retainSearchContexts
+    boolean retainSearchContexts,
+    boolean singleNodeOptimizations
 ) {
     IndexedByShardId<? extends SearchExecutionContext> searchExecutionContexts() {
         return searchContexts.map(s -> s.searchContext().getSearchExecutionContext());

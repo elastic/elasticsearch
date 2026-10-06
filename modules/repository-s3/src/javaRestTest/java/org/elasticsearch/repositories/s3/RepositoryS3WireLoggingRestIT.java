@@ -33,24 +33,26 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
+import static fixture.aws.DynamicIdentifierSupplier.testClassIdentifierSupplier;
 import static org.hamcrest.Matchers.hasSize;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class RepositoryS3WireLoggingRestIT extends AbstractRepositoryS3RestTestCase {
 
     private static final String PREFIX = getIdentifierPrefix("RepositoryS3WireLoggingRestIT");
-    private static final String BUCKET = PREFIX + "bucket";
-    private static final String BASE_PATH = PREFIX + "base_path";
     private static final String ACCESS_KEY = PREFIX + "access-key";
     private static final String SECRET_KEY = PREFIX + "secret-key";
     private static final String CLIENT = "wire_logging_client";
 
     private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
+    private static final Supplier<String> bucketSupplier = testClassIdentifierSupplier("bucket");
+    private static final Supplier<String> basePathSupplier = testClassIdentifierSupplier("base_path");
+
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(
         true,
         null,
-        BUCKET,
-        BASE_PATH,
+        bucketSupplier,
+        basePathSupplier,
         S3ConsistencyModel::randomConsistencyModel,
         fixedAccessKey(ACCESS_KEY, regionSupplier, "s3")
     );
@@ -77,12 +79,12 @@ public class RepositoryS3WireLoggingRestIT extends AbstractRepositoryS3RestTestC
 
     @Override
     protected String getBucketName() {
-        return BUCKET;
+        return bucketSupplier.get();
     }
 
     @Override
     protected String getBasePath() {
-        return BASE_PATH;
+        return basePathSupplier.get();
     }
 
     @Override

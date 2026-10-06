@@ -43,6 +43,7 @@ public final class PromqlFunctionDefinition {
     private final String name;
     private final FunctionType functionType;
     private final PromqlFunctionArity arity;
+    private final boolean variadic;
     private final FunctionBuilder esqlBuilder;
     private final String description;
     private final String extendedDescription;
@@ -64,6 +65,16 @@ public final class PromqlFunctionDefinition {
     @FunctionalInterface
     public interface ClassicHistogramHandler {
         HistogramFunctionCall build(Source source, LogicalPlan child, PromqlFunctionDefinition definition, List<Expression> extraParams);
+    }
+
+    /**
+     * Constructor reference for a unary function whose non-finite behavior is selectable, i.e. a constructor of the
+     * form {@code (source, field, allowNonFinite)}. Used by {@link Builder#unaryNonFiniteValueTransformation} to build
+     * the PromQL variant of math functions that must follow IEEE-754 semantics.
+     */
+    @FunctionalInterface
+    public interface NonFiniteUnaryBuilder {
+        Expression build(Source source, Expression field, boolean allowNonFinite);
     }
 
     /**
@@ -157,6 +168,7 @@ public final class PromqlFunctionDefinition {
         String name,
         FunctionType functionType,
         PromqlFunctionArity arity,
+        boolean variadic,
         FunctionBuilder esqlBuilder,
         String description,
         String extendedDescription,
@@ -178,7 +190,9 @@ public final class PromqlFunctionDefinition {
         if (classicHistogramHandler != null && functionType != FunctionType.HISTOGRAM) {
             throw new IllegalArgumentException("classicHistogramHandler may only be set for histogram functions");
         }
-        if (arity.max() != params.size()) {
+        // A variadic function repeats its trailing parameter, so its declared parameter list cannot enumerate the (unbounded)
+        // maximum argument count; the fixed-arity equality only applies to non-variadic functions.
+        if (variadic == false && arity.max() != params.size()) {
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,
@@ -195,6 +209,7 @@ public final class PromqlFunctionDefinition {
         this.name = name;
         this.functionType = functionType;
         this.arity = arity;
+        this.variadic = variadic;
         this.esqlBuilder = esqlBuilder;
         this.description = description;
         // Optional: extra description paragraph rendered only on the function's own page, not in the brief overview.
@@ -220,6 +235,16 @@ public final class PromqlFunctionDefinition {
 
     public PromqlFunctionArity arity() {
         return arity;
+    }
+
+    /**
+     * Whether the function repeats its trailing parameter an unbounded number of times (for example {@code label_join}'s
+     * source labels). A variadic function's declared {@link #params()} list carries a single representative entry for the
+     * repeating parameter rather than one entry per argument, so callers must not assume {@code params().size()} equals the
+     * actual argument count.
+     */
+    public boolean variadic() {
+        return variadic;
     }
 
     public FunctionBuilder esqlBuilder() {
@@ -338,18 +363,17 @@ public final class PromqlFunctionDefinition {
         "Accepts additional {{es}} field types (for example `keyword`, `ip`, and `date`) and returns counter inputs "
             + "unchanged rather than rejecting or converting them.";
     public static final String COUNT_NOTE = "Returns a `long` integer count rather than a floating-point value.";
-    public static final String LOG_DOMAIN_NOTE =
-        "For an input of zero or a negative number, {{es}} returns `null` and emits a warning, rather than the "
-            + "`-Inf` (for zero) or `NaN` (for negatives) that Prometheus returns.";
-    public static final String DOMAIN_PLUS_MINUS_ONE_NOTE =
-        "For inputs outside the range [-1, 1], {{es}} returns `null` and emits a warning, rather than the `NaN` that "
-            + "Prometheus returns.";
-    public static final String OVERFLOW_NOTE =
-        "On numeric overflow for large-magnitude inputs, {{es}} returns `null` and emits a warning, rather than the "
-            + "`±Inf` that Prometheus returns.";
-    public static final String QUANTILE_NOTE =
+    public static final String QUANTILE_APPROXIMATION_NOTE =
         "Computed using the {{es}} t-digest percentile aggregation, so results are approximate and may differ slightly "
             + "from Prometheus's exact linear interpolation, particularly for small sample sets.";
+    /**
+     * Extends {@link #QUANTILE_APPROXIMATION_NOTE} for the quantiles that rank non-finite samples rather than
+     * discarding them. Only accurate for a quantile backed by the non-finite-preserving aggregator.
+     */
+    public static final String QUANTILE_NOTE = QUANTILE_APPROXIMATION_NOTE
+        + " Non-finite values are ranked as `NaN` < `-Inf` < finite < `+Inf`, the same order Prometheus sorts by. A "
+        + "rank landing exactly on a sample returns that sample, whereas Prometheus still averages in the neighbouring "
+        + "sample weighted by zero, so it returns `NaN` wherever that neighbour is an infinity.";
 
     /**
      * Stack (versioned Elasticsearch) releases that PromQL function documentation can reference. Kept as a small closed
@@ -442,6 +466,7 @@ public final class PromqlFunctionDefinition {
         private final List<String> examples = new ArrayList<>();
         private FunctionType functionType;
         private PromqlFunctionArity arity;
+        private boolean variadic;
         private FunctionBuilder builder;
         private String description;
         private String extendedDescription;
@@ -503,6 +528,16 @@ public final class PromqlFunctionDefinition {
             this.builder = (source, target, ctx, extraParams) -> ctorRef.apply(source, target);
             this.params = List.of(INSTANT_VECTOR);
             return this;
+        }
+
+        /**
+         * Registers a unary math function whose PromQL variant must preserve non-finite results ({@code NaN}/{@code ±Inf})
+         * rather than reject them to {@code null}. The input is coerced to {@code double} so the function evaluates with
+         * IEEE-754 semantics regardless of the metric's stored type (e.g. {@code sqrt(-x)} yields {@code NaN} even for a
+         * {@code long}/{@code integer} metric), and the function is constructed with its non-finite-preserving flag set.
+         */
+        public PromqlFunctionDefinition.Builder unaryNonFiniteValueTransformation(NonFiniteUnaryBuilder ctorRef) {
+            return unaryValueTransformation((source, field) -> ctorRef.build(source, new ToDouble(source, field), true));
         }
 
         public PromqlFunctionDefinition.Builder binaryValueTransformation(
@@ -766,6 +801,36 @@ public final class PromqlFunctionDefinition {
         }
 
         /**
+         * Configures a label metadata-manipulation function ({@code label_replace}, {@code label_join}).
+         * <p>
+         * Unlike the other function families, these are not lowered through the generic {@link FunctionBuilder}: they resolve
+         * into a dedicated logical node and are translated directly (see {@code ResolvePromqlFunctions} and
+         * {@code TranslatePromqlToEsqlPlan}). This method therefore only records the metadata - arity, parameters, and whether
+         * the trailing source-label parameter repeats - and installs a builder that fails fast if the generic path is ever
+         * invoked for one of these functions.
+         *
+         * @param arity    accepted argument-count range ({@code label_replace} is fixed at 5; {@code label_join} is 3..N)
+         * @param variadic whether the trailing parameter repeats an unbounded number of times ({@code label_join} sources)
+         * @param params   parameter descriptors, with a single representative entry for the repeating parameter when variadic
+         */
+        public PromqlFunctionDefinition.Builder metadataManipulation(
+            PromqlFunctionArity arity,
+            boolean variadic,
+            List<PromqlParamInfo> params
+        ) {
+            this.functionType = FunctionType.METADATA_MANIPULATION;
+            this.arity = arity;
+            this.variadic = variadic;
+            this.params = params;
+            this.builder = (source, target, ctx, extraParams) -> {
+                throw new UnsupportedOperationException(
+                    "label metadata-manipulation functions are translated directly, not built via the generic function builder"
+                );
+            };
+            return this;
+        }
+
+        /**
          * Build the {@link PromqlFunctionDefinition} with the given primary name.
          */
         public PromqlFunctionDefinition name(String name) {
@@ -773,6 +838,7 @@ public final class PromqlFunctionDefinition {
                 name,
                 functionType,
                 arity,
+                variadic,
                 builder,
                 description,
                 extendedDescription,

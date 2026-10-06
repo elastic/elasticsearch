@@ -30,7 +30,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
+import org.elasticsearch.index.codec.bwc.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesFormatTests;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests.TestES87TSDBDocValuesFormat;
@@ -79,9 +79,37 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
         }
     };
 
+    private final Codec codecWithOptimizedMerge = new Elasticsearch93Lucene104Codec() {
+
+        final DocValuesFormat docValuesFormat = new ES95TSDBDocValuesFormat(
+            ESTestCase.randomIntBetween(2, 4096),
+            ESTestCase.randomIntBetween(1, 512),
+            true,
+            BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+            true,
+            random().nextBoolean() ? NUMERIC_LARGE_BLOCK_SHIFT : NUMERIC_BLOCK_SHIFT,
+            random().nextBoolean(),
+            ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
+            ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
+            NumericCodecFactory.DEFAULT,
+            ES95NumericFieldReader::defaultFallbackDecoder,
+            null
+        );
+
+        @Override
+        public DocValuesFormat getDocValuesFormatForField(String field) {
+            return docValuesFormat;
+        }
+    };
+
     @Override
     protected Codec getCodec() {
         return codec;
+    }
+
+    @Override
+    protected Codec getCodecWithOptimizedMerge() {
+        return codecWithOptimizedMerge;
     }
 
     public void testAddIndices() throws IOException {

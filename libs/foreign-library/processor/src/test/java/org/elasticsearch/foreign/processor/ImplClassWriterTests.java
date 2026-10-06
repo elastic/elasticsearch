@@ -1546,7 +1546,7 @@ public class ImplClassWriterTests extends ProcessorTestCase {
     }
 
     // -------------------------------------------------------------------------
-    // @VectorSegment / @MatrixSegment — valid usage generates the correct class shape.
+    // @VectorSegment / @MatrixSegment / @SlicedSegment — valid usage generates the correct class shape.
     // Note: these tests confirm compilation succeeds and the generated class/method shape is
     // correct, not that the emitted checks fire at runtime.
     // -------------------------------------------------------------------------
@@ -1734,6 +1734,33 @@ public class ImplClassWriterTests extends ProcessorTestCase {
         Class<?> implClass = result.loadClassNoInit("test.MyLib$Impl");
         assertNotNull("Generated MyLib$Impl class not found", implClass);
         assertAssertionsDisabledFieldPresent(implClass);
+    }
+
+    public void testSlicedSegmentGeneratesClass() throws Exception {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.SlicedSegment;
+            @LibrarySpecification(name = "testlib")
+            public interface MyLib {
+                @Function("process_range")
+                int processRange(
+                    @SlicedSegment(offsetParam = "offset", sizeParam = "size") MemorySegment buf,
+                    long offset,
+                    long size);
+            }
+            """;
+
+        CompilationResult result = compile("test.MyLib", source);
+
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+        Class<?> implClass = result.loadClassNoInit("test.MyLib$Impl");
+        assertNotNull("Generated MyLib$Impl class not found", implClass);
+
+        java.lang.reflect.Method method = implClass.getMethod("processRange", MemorySegment.class, long.class, long.class);
+        assertEquals("processRange must still return int", int.class, method.getReturnType());
     }
 
     /**

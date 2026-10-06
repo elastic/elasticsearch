@@ -11,6 +11,7 @@ package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 
 /**
  * Base class for binary doc values queries that match documents using a {@link ByteRunAutomaton}.
@@ -21,8 +22,8 @@ abstract class AbstractBinaryDocValuesAutomatonQuery extends AbstractBinaryDocVa
 
     final ByteRunAutomaton automaton;
 
-    AbstractBinaryDocValuesAutomatonQuery(String fieldName, ByteRunAutomaton automaton, boolean arrayOrderInlineNull) {
-        super(fieldName, value -> automaton.run(value.bytes, value.offset, value.length), arrayOrderInlineNull);
+    AbstractBinaryDocValuesAutomatonQuery(String fieldName, ByteRunAutomaton automaton, BinaryDocValuesFormat binaryFormat) {
+        super(fieldName, value -> automaton.run(value.bytes, value.offset, value.length), binaryFormat);
         this.automaton = automaton;
     }
 

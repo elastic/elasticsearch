@@ -289,6 +289,19 @@ public abstract class AbstractIbmWatsonxServiceSettingsTests<T extends IbmWatson
         assertThat(updatedServiceSettings, is(originalServiceSettings));
     }
 
+    public void testFromMap_RequestContext_IgnoresApiKey() {
+        var map = buildCommonServiceSettingsMap(TEST_MODEL_ID, TEST_PROJECT_ID, TEST_URI.toString(), TEST_API_VERSION, TEST_RATE_LIMIT);
+        map.put(DefaultSecretSettings.API_KEY, "my-api-key");
+
+        // The api_key field is declared as a no-op in the request parser; must not throw.
+        var serviceSettings = fromMap(map, ConfigurationParseContext.REQUEST);
+
+        assertThat(
+            serviceSettings,
+            is(createServiceSettings(TEST_URI, TEST_API_VERSION, TEST_MODEL_ID, TEST_PROJECT_ID, new RateLimitSettings(TEST_RATE_LIMIT)))
+        );
+    }
+
     public void testUpdateServiceSettings_GivenImmutableFields_ThrowsException() {
         var serviceSettings = createServiceSettings(
             INITIAL_TEST_URI,

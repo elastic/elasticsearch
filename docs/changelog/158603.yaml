@@ -1,0 +1,6 @@
+area: Mapping
+issues:
+ - 158597
+pr: 158603
+summary: Resolve high-cardinality keyword queries to `ScanningBinaryDocValuesAutomatonQuery`
+type: bug

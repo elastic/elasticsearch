@@ -10,6 +10,7 @@
 package org.elasticsearch.example.painlesswhitelist;
 
 import org.elasticsearch.painless.spi.PainlessExtension;
+import org.elasticsearch.painless.spi.PainlessTestScript;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistInstanceBinding;
 import org.elasticsearch.painless.spi.WhitelistLoader;
@@ -41,6 +42,11 @@ public class ExampleWhitelistExtension implements PainlessExtension {
         Whitelist instanceWhitelist = new Whitelist(ewi.getClass().getClassLoader(), Collections.emptyList(),
             Collections.emptyList(), Collections.emptyList(), Arrays.asList(addValue, getValue));
 
-        return Collections.singletonMap(FieldScript.CONTEXT, Arrays.asList(classWhitelist, instanceWhitelist));
+        Map<ScriptContext<?>, List<Whitelist>> whitelists = new HashMap<>();
+        whitelists.put(FieldScript.CONTEXT, Arrays.asList(classWhitelist, instanceWhitelist));
+        // Also register for painless_test context so scripts_painless_execute (which defaults to that context)
+        // can reference ExampleWhitelistedClass without needing an allocation limit configured.
+        whitelists.put(PainlessTestScript.CONTEXT, Collections.singletonList(classWhitelist));
+        return Collections.unmodifiableMap(whitelists);
     }
 }

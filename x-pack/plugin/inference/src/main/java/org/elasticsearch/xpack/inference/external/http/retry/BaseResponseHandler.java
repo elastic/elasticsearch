@@ -91,10 +91,10 @@ public abstract class BaseResponseHandler implements ResponseHandler {
 
     protected ElasticsearchException buildError(String message, OutboundRequest outboundRequest, HttpResult result) {
         var errorEntityMsg = errorParseFunction.apply(result);
-        return buildError(message, outboundRequest, result, errorEntityMsg);
+        return constructNonStreamingException(message, outboundRequest, result, errorEntityMsg);
     }
 
-    protected ElasticsearchException buildError(
+    public static ElasticsearchStatusException constructNonStreamingException(
         String message,
         OutboundRequest outboundRequest,
         HttpResult result,

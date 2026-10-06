@@ -2790,7 +2790,7 @@ by setting its generation number to `RepositoryData.CORRUPTED_REPO_GEN` to block
 [Task management API]:https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html
 [cat task management API]:https://www.elastic.co/guide/en/elasticsearch/reference/current/cat-tasks.html
 [TransportAction]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/support/TransportAction.java
-[NodeClient#executeLocally]:https://github.com/elastic/elasticsearch/blob/5e8fd548b959039b6b77ad53715415b429568bc0/server/src/main/java/org/elasticsearch/client/internal/node/NodeClient.java#L100
+[NodeClient#executeAndReturnTask]:https://github.com/elastic/elasticsearch/blob/5e8fd548b959039b6b77ad53715415b429568bc0/server/src/main/java/org/elasticsearch/client/internal/node/NodeClient.java#L100
 [TaskManager#registerAndExecute]:https://github.com/elastic/elasticsearch/blob/5e8fd548b959039b6b77ad53715415b429568bc0/server/src/main/java/org/elasticsearch/tasks/TaskManager.java#L174
 [RequestHandlerRegistry#processMessageReceived]:https://github.com/elastic/elasticsearch/blob/5e8fd548b959039b6b77ad53715415b429568bc0/server/src/main/java/org/elasticsearch/transport/RequestHandlerRegistry.java#L65
 
@@ -2823,7 +2823,7 @@ The purpose of tasks is to provide management and visibility of the cluster work
 
 Some examples of operations that are tracked using tasks include:
 - Execution of [TransportAction]s
-  - [NodeClient#executeLocally] invokes [TaskManager#registerAndExecute]
+  - [NodeClient#executeAndReturnTask] invokes [TaskManager#registerAndExecute]
   - [RequestHandlerRegistry#processMessageReceived] registers tasks for actions that are spawned to handle [TransportRequest]s
 - Publication of cluster state updates
 

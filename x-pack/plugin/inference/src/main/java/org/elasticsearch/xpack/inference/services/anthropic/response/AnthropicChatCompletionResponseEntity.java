@@ -15,7 +15,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
@@ -70,7 +70,7 @@ public class AnthropicChatCompletionResponseEntity {
      * </pre>
      */
 
-    public static ChatCompletionResults fromResponse(OutboundRequest outboundRequest, HttpResult response) throws IOException {
+    public static CompletionResults fromResponse(OutboundRequest outboundRequest, HttpResult response) throws IOException {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
             moveToFirstToken(jsonParser);
@@ -82,11 +82,11 @@ public class AnthropicChatCompletionResponseEntity {
 
             var completionResults = doParse(jsonParser);
 
-            return new ChatCompletionResults(completionResults);
+            return new CompletionResults(completionResults);
         }
     }
 
-    private static List<ChatCompletionResults.Result> doParse(XContentParser parser) throws IOException {
+    private static List<CompletionResults.Result> doParse(XContentParser parser) throws IOException {
         var parsedResults = parseList(parser, (listParser) -> {
             var parsedObject = TextObject.parse(parser);
             // Anthropic also supports a tool_use type, we want to ignore those objects
@@ -94,7 +94,7 @@ public class AnthropicChatCompletionResponseEntity {
                 return null;
             }
 
-            return new ChatCompletionResults.Result(parsedObject.text);
+            return new CompletionResults.Result(parsedObject.text);
         });
 
         parsedResults.removeIf(Objects::isNull);

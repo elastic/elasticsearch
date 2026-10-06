@@ -13,7 +13,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 
@@ -34,21 +34,21 @@ public class GoogleVertexAiStreamingProcessor extends DelegatingProcessor<Deque<
         if (results.isEmpty()) {
             upstream().request(1);
         } else {
-            downstream().onNext(new StreamingChatCompletionResults.Results(results));
+            downstream().onNext(new StreamingCompletionResults.Results(results));
         }
     }
 
-    public static Stream<StreamingChatCompletionResults.Result> parse(XContentParserConfiguration parserConfig, ServerSentEvent event) {
+    public static Stream<StreamingCompletionResults.Result> parse(XContentParserConfiguration parserConfig, ServerSentEvent event) {
         try {
             return parseObjects(parserConfig, event.data(), p -> {
                 var chunk = GoogleVertexAiUnifiedStreamingProcessor.GoogleVertexAiChatCompletionChunkParser.parse(p);
                 return chunk.choices()
                     .stream()
-                    .map(choice -> choice.delta())
+                    .map(choice -> choice.message())
                     .filter(Objects::nonNull)
-                    .map(delta -> delta.content())
+                    .map(message -> message.content())
                     .filter(content -> Strings.isNullOrEmpty(content) == false)
-                    .map(StreamingChatCompletionResults.Result::new);
+                    .map(StreamingCompletionResults.Result::new);
             });
         } catch (IOException e) {
             throw new ElasticsearchStatusException(

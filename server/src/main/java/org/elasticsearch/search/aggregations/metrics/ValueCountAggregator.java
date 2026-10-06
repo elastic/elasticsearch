@@ -12,7 +12,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -81,7 +81,7 @@ public final class ValueCountAggregator extends NumericMetricsAggregator.SingleV
             };
         }
         // The following is default collector. Including the keyword FieldType
-        final SortedBinaryDocValues values = valuesSource.bytesValues(aggCtx.getLeafReaderContext());
+        final SortableBinaryDocValues values = valuesSource.bytesValues(aggCtx.getLeafReaderContext());
         return new LeafBucketCollectorBase(sub, values) {
 
             @Override

@@ -38,6 +38,10 @@ import java.util.Objects;
  * {@code true}, and it runs after {@code DetermineUnmappedFieldsToKeep}, so the column would be gone
  * before the coordinator ever got to expand it. The {@code $$} name is what keeps the column
  * unreachable from a query — user field names cannot start with it.
+ *
+ * <p>The column carries only the pattern, which is the one thing a data node reads. Where the discovered fields end up in the
+ * output is decided on the coordinator by {@code UnmappedFieldsOrdering}, which replays the plan over them - so no ordering
+ * state rides along to the data nodes.
  */
 public final class UnmappedFieldsAttribute extends TypedAttribute {
     public static final String ATTRIBUTE_NAME = Attribute.rawTemporaryName("unmapped_fields");

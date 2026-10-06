@@ -205,6 +205,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     /**
+     * As {@link #checkBinaryDvDecodeBreaker(CircuitBreaker)}, resolving the breaker from {@code searcher}. Shaped to be
+     * passed as a method reference where a caller can only be handed a searcher - see {@code ScanBudget} in the columnar
+     * library, which has no notion of a circuit breaker of its own.
+     */
+    public static void checkBinaryDvDecodeBreaker(IndexSearcher searcher) {
+        checkBinaryDvDecodeBreaker(circuitBreakerOrNull(searcher));
+    }
+
+    /**
      * Add a {@link Runnable} that will be run on a regular basis while accessing documents in the
      * DirectoryReader but also while collecting them and check for query cancellation or timeout.
      */

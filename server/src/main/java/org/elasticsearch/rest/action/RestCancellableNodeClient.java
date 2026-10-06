@@ -79,7 +79,7 @@ public class RestCancellableNodeClient extends FilterClient {
     ) {
         CloseListener closeListener = httpChannels.computeIfAbsent(httpChannel, channel -> new CloseListener());
         TaskHolder taskHolder = new TaskHolder();
-        Task task = client.executeLocally(action, request, new ActionListener<>() {
+        Task task = client.executeAndReturnTask(action, request, new ActionListener<>() {
             @Override
             public void onResponse(Response response) {
                 try {

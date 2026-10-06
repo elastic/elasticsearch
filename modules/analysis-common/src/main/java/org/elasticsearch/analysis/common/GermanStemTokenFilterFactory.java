@@ -23,13 +23,23 @@ public class GermanStemTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final CharArraySet exclusions;
 
+    private final Object sharingKey;
+
     GermanStemTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
         this.exclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
+        this.sharingKey = new Key(new Analysis.StableCharArraySet(exclusions));
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
         return new GermanStemFilter(new SetKeywordMarkerFilter(tokenStream, exclusions));
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Analysis.StableCharArraySet exclusions) {}
 }

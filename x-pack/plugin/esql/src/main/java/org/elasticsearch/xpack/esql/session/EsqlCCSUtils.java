@@ -10,16 +10,10 @@ package org.elasticsearch.xpack.esql.session;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
-import org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException;
-import org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException;
-import org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
@@ -31,10 +25,8 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.Cluster;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -72,42 +64,6 @@ public class EsqlCCSUtils {
             }
         }
         return unavailableRemotes;
-    }
-
-    /**
-     * ActionListener that receives LogicalPlan or error from logical planning.
-     * Any Exception sent to onFailure stops processing, but not all are fatal (return a 4xx or 5xx), so
-     * the onFailure handler determines whether to return an empty successful result or a 4xx/5xx error.
-     */
-    abstract static class CssPartialErrorsActionListener implements ActionListener<Versioned<LogicalPlan>> {
-        private final Configuration configuration;
-        private final EsqlExecutionInfo executionInfo;
-        private final ActionListener<Versioned<Result>> listener;
-
-        CssPartialErrorsActionListener(
-            Configuration configuration,
-            EsqlExecutionInfo executionInfo,
-            ActionListener<Versioned<Result>> listener
-        ) {
-            this.configuration = configuration;
-            this.executionInfo = executionInfo;
-            this.listener = listener;
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            if (returnSuccessWithEmptyResult(executionInfo, e)) {
-                updateExecutionInfoToReturnEmptyResult(executionInfo, e);
-                listener.onResponse(
-                    new Versioned<>(
-                        new Result(Analyzer.NO_FIELDS, List.of(), Map.of(), configuration, DriverCompletionInfo.EMPTY, executionInfo),
-                        TransportVersion.current()
-                    )
-                );
-            } else {
-                listener.onFailure(e);
-            }
-        }
     }
 
     /**
@@ -212,38 +168,6 @@ public class EsqlCCSUtils {
             } else {
                 throw e;
             }
-        }
-    }
-
-    /**
-     * Check per-cluster failures for remote non-remotable-abstraction errors — views and datasets — thrown by remote
-     * clusters during field resolution. Neither is supported across clusters (views never; datasets not yet, in TP), so
-     * any such error must fail the entire query regardless of whether other clusters succeeded.
-     * <p>
-     * Both kinds are collected in a single pass and reported together via one {@link RemoteResourceNotSupportedException},
-     * so a query that matches a remote view on one cluster and a remote dataset on another surfaces both at once rather
-     * than whichever kind happened to be checked first.
-     */
-    static void checkForRemoteResourceErrors(Map<String, List<FieldCapabilitiesFailure>> failures) {
-        List<String> views = new ArrayList<>();
-        List<String> datasets = new ArrayList<>();
-        for (var entry : failures.entrySet()) {
-            for (FieldCapabilitiesFailure failure : entry.getValue()) {
-                Throwable cause = ExceptionsHelper.unwrapCause(failure.getException());
-                // A remote that hosts both kinds already combined them into RemoteResourceNotSupportedException; a remote
-                // with a single kind reports the per-kind exception. Collect from whichever shape arrived.
-                if (cause instanceof RemoteResourceNotSupportedException resourceEx) {
-                    views.addAll(resourceEx.views());
-                    datasets.addAll(resourceEx.datasets());
-                } else if (cause instanceof RemoteViewNotSupportedException viewEx) {
-                    views.addAll(viewEx.views());
-                } else if (cause instanceof RemoteDatasetNotSupportedException datasetEx) {
-                    datasets.addAll(datasetEx.datasets());
-                }
-            }
-        }
-        if (views.isEmpty() == false || datasets.isEmpty() == false) {
-            throw new RemoteResourceNotSupportedException(views, datasets);
         }
     }
 
@@ -377,6 +301,7 @@ public class EsqlCCSUtils {
     static void updateExecutionInfoAtEndOfPlanning(EsqlExecutionInfo execInfo) {
         // TODO: this logic assumes a single phase execution model, so it may need to altered once INLINE STATS is made CCS compatible
         execInfo.queryProfile().planning().stop();
+        execInfo.queryProfile().foldResolutionIo(execInfo.externalPlanning());
         if (execInfo.isCrossClusterSearch() || execInfo.includeExecutionMetadata() == EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS) {
             for (String clusterAlias : execInfo.clusterAliases()) {
                 EsqlExecutionInfo.Cluster cluster = execInfo.getCluster(clusterAlias);

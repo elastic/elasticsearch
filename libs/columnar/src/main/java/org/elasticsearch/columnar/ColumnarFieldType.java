@@ -9,11 +9,9 @@
 
 package org.elasticsearch.columnar;
 
-import org.apache.lucene.index.FieldInfo;
-
 /**
- * The logical type of a ColumNAR column, carried on the binary field via
- * {@link ColumNARDocValuesFormat#TYPE_ATTRIBUTE}. It selects the column implementation: numeric types
+ * The logical type of a ColumNAR column, resolved by an injected {@link ColumnarFieldTypeSelector} when a
+ * field is written and re-read from the column metadata at read time. It selects the column implementation: numeric types
  * ({@code LONG}/{@code DOUBLE}) share the adaptive long column, and {@code STRING} uses the string column. How
  * a column encodes its values within that choice — a numeric pipeline, or the layout a string column was
  * written with — is internal to the column and recorded in its own metadata.
@@ -47,20 +45,5 @@ public enum ColumnarFieldType {
             }
         }
         throw new IllegalArgumentException("unknown ColumNAR field type id [" + id + "]");
-    }
-
-    /**
-     * The type declared on {@code field} via {@link ColumNARDocValuesFormat#TYPE_ATTRIBUTE}. Throws
-     * when the attribute is absent (this format only handles fields it was told the type of) or names
-     * an unknown type.
-     */
-    public static ColumnarFieldType fromField(FieldInfo field) {
-        String value = field.getAttribute(ColumNARDocValuesFormat.TYPE_ATTRIBUTE);
-        if (value == null) {
-            throw new IllegalArgumentException(
-                "field [" + field.name + "] has no [" + ColumNARDocValuesFormat.TYPE_ATTRIBUTE + "] attribute"
-            );
-        }
-        return valueOf(value);
     }
 }

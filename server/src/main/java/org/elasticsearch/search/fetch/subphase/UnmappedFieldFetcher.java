@@ -74,7 +74,7 @@ public class UnmappedFieldFetcher {
     private static CharacterRunAutomaton nestedChildrenAutomaton(List<String> nestedChildren) {
         List<Automaton> automata = new ArrayList<>();
         for (String child : nestedChildren) {
-            automata.add(Operations.concatenate(Automata.makeString(child + "."), Automata.makeAnyString()));
+            automata.add(Operations.concatenate(List.of(Automata.makeString(child + "."), Automata.makeAnyString())));
         }
         return new CharacterRunAutomaton(Operations.determinize(Operations.union(automata), AUTOMATON_MAX_DETERMINIZED_STATES));
     }

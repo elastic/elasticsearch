@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxService;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceFields;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
 import org.elasticsearch.xpack.inference.services.llama.LlamaService;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
@@ -353,6 +354,32 @@ public class SecretRotationTestCases {
         return cases;
     }
 
+    private static List<TransportUpdateInferenceModelActionSecretRotationTests.TestCase> jinaAiCases() {
+        BiFunction<ThreadPool, HttpClientManager, SenderService<?>> factory = (tp, cm) -> new JinaAIService(
+            HttpRequestSenderTests.createSenderFactory(tp, cm),
+            createWithEmptySettings(tp),
+            mockClusterServiceEmpty()
+        );
+
+        var cases = new ArrayList<TransportUpdateInferenceModelActionSecretRotationTests.TestCase>();
+
+        for (var taskType : List.of(TaskType.TEXT_EMBEDDING, TaskType.EMBEDDING, TaskType.RERANK)) {
+            cases.add(
+                new TransportUpdateInferenceModelActionSecretRotationTests.TestCase(
+                    JinaAIService.NAME,
+                    taskType,
+                    factory,
+                    new HashMap<>(Map.of(ServiceFields.MODEL_ID, "jina-embeddings-v3")),
+                    new HashMap<>(),
+                    new HashMap<>(Map.of(DefaultSecretSettings.API_KEY, INITIAL_API_KEY)),
+                    new HashMap<>(Map.of(DefaultSecretSettings.API_KEY, ROTATED_API_KEY))
+                )
+            );
+        }
+
+        return cases;
+    }
+
     /**
      * Returns all parameterized test cases.  Cases are ordered: Wave 1 (services with
      * {@code usesParserForServiceSettings() == true}) first, so regressions in the fix itself show up at
@@ -366,6 +393,7 @@ public class SecretRotationTestCases {
         cases.addAll(ibmWatsonxCases());
         cases.addAll(ai21Cases());
         cases.addAll(llamaCases());
+        cases.addAll(jinaAiCases());
         return cases;
     }
 }

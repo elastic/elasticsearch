@@ -1,8 +1,9 @@
 steps:
   - label: update-transport-versions
     command: '.buildkite/scripts/update-transport-versions.sh'
-    # New transport versions are always added via the main branch
-    if: build.env('BUILDKITE_PULL_REQUEST_BASE_BRANCH') == 'main'
+    # New transport versions are added via the main branch, or the serverless patch branch, where
+    # they are generated as patch ids
+    if: build.env('BUILDKITE_PULL_REQUEST_BASE_BRANCH') == 'main' || build.env('BUILDKITE_PULL_REQUEST_BASE_BRANCH') == 'patch/serverless-fix'
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404

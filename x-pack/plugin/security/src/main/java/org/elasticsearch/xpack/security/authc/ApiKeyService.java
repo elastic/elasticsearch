@@ -30,6 +30,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -37,6 +38,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -51,6 +53,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -68,8 +71,12 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.filter.Filters;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -107,6 +114,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeRes
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
+import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.metric.SecurityCacheMetrics;
@@ -141,8 +149,10 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.SecureRandomUtils.getBase64SecureRandomString;
+import static org.elasticsearch.common.util.CollectionUtils.DeepCopyOption.LAX;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
@@ -401,6 +411,10 @@ public class ApiKeyService implements Closeable {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
         } else if (authentication.isCloudApiKey() && request.getType() == ApiKey.Type.CROSS_CLUSTER) {
             listener.onFailure(new IllegalArgumentException("cross-cluster API keys cannot be created with a cloud API key"));
+        } else if (authentication.getEffectiveSubject().hasCloudLimitedByRoles()) {
+            listener.onFailure(
+                new IllegalArgumentException("creating elasticsearch api keys using a cloud subject with limited-by roles is not supported")
+            );
         } else {
             final TransportVersion transportVersion = getMinTransportVersion();
             if (validateRoleDescriptorsForMixedCluster(listener, request.getRoleDescriptors(), transportVersion) == false) {
@@ -807,6 +821,11 @@ public class ApiKeyService implements Closeable {
         } else if (authentication.isApiKey()) {
             listener.onFailure(
                 new IllegalArgumentException("authentication via API key not supported: only the owner user can update an API key")
+            );
+            return;
+        } else if (authentication.getEffectiveSubject().hasCloudLimitedByRoles()) {
+            listener.onFailure(
+                new IllegalArgumentException("updating elasticsearch api keys using a cloud subject with limited-by roles is not supported")
             );
             return;
         }
@@ -1298,8 +1317,20 @@ public class ApiKeyService implements Closeable {
                 listener.onResponse(AuthenticationResult.unsuccessful("unable to find apikey with id " + credentials.getId(), null));
             }
         }, e -> {
-            if (ExceptionsHelper.unwrapCause(e) instanceof EsRejectedExecutionException) {
+            final Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (cause instanceof EsRejectedExecutionException) {
                 listener.onResponse(AuthenticationResult.terminate("server is too busy to respond", e));
+            } else if (TransportActions.isShardNotAvailableException(e) || cause instanceof ConnectTransportException) {
+                // Surface a 503 so clients retry
+                listener.onResponse(
+                    AuthenticationResult.terminate(
+                        "authentication backend temporarily unavailable",
+                        Exceptions.authenticationProcessError(
+                            "authentication backend for apikey with id " + credentials.getId() + " is temporarily unavailable",
+                            e
+                        )
+                    )
+                );
             } else {
                 listener.onResponse(
                     AuthenticationResult.unsuccessful("apikey authentication for id " + credentials.getId() + " encountered a failure", e)
@@ -1695,20 +1726,38 @@ public class ApiKeyService implements Closeable {
     }
 
     void computeHashForApiKey(SecureString apiKey, ActionListener<char[]> listener) {
-        threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(ActionRunnable.supply(listener, () -> hasher.hash(apiKey)));
+        if (isUsingFastHashAlgorithm(hasher)) {
+            ActionListener.completeWith(listener, () -> hasher.hash(apiKey));
+        } else {
+            threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(ActionRunnable.supply(listener, () -> hasher.hash(apiKey)));
+        }
     }
 
     // Protected instance method so this can be mocked
     protected void verifyKeyAgainstHash(String apiKeyHash, ApiKeyCredentials credentials, ActionListener<Boolean> listener) {
-        threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(ActionRunnable.supply(listener, () -> {
-            Hasher hasher = Hasher.resolveFromHash(apiKeyHash.toCharArray());
+        final Hasher hasher = Hasher.resolveFromHash(apiKeyHash.toCharArray());
+        final CheckedSupplier<Boolean, Exception> hashVerification = () -> {
             final char[] apiKeyHashChars = apiKeyHash.toCharArray();
             try {
                 return hasher.verify(credentials.getKey(), apiKeyHashChars);
             } finally {
                 Arrays.fill(apiKeyHashChars, (char) 0);
             }
-        }));
+        };
+        if (isUsingFastHashAlgorithm(hasher)) {
+            ActionListener.completeWith(listener, hashVerification);
+        } else {
+            threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(ActionRunnable.supply(listener, hashVerification));
+        }
+    }
+
+    /**
+     * Returns true if the hasher uses a computationally fast algorithm
+     * that can be directly executed without forking to the
+     * {@code security-crypto} thread pool.
+     */
+    static boolean isUsingFastHashAlgorithm(Hasher hasher) {
+        return hasher == Hasher.SSHA256;
     }
 
     private static Instant getApiKeyExpiration(Instant now, @Nullable TimeValue expiration) {
@@ -1782,6 +1831,123 @@ public class ApiKeyService implements Closeable {
                 listener.onResponse(Map.of("total", apiKeyInfos.size(), "ccs", ccsKeys, "ccr", ccrKeys, "ccs_ccr", ccsCcrKeys));
             }, listener::onFailure));
         }
+    }
+
+    /**
+     * Counts the REST API keys currently stored in the security index, for telemetry purposes.
+     * <p>
+     * Unlike {@link #crossClusterApiKeyUsageStats}, the counts come from a single aggregation over indexed fields and no key document is
+     * ever fetched. A cluster can hold orders of magnitude more REST API keys than cross-cluster ones, and usage is collected
+     * periodically rather than on demand, so reading every key would be prohibitively expensive.
+     * <p>
+     * The reported counts partition the REST API keys held in the index: {@code active} keys are neither invalidated nor expired, and a
+     * key that is both invalidated and expired is only counted as {@code invalidated}. Neither {@code invalidated} nor {@code expired}
+     * is a lifetime total, since {@link InactiveApiKeysRemover} deletes such keys once they fall outside
+     * {@link #DELETE_RETENTION_PERIOD}; they describe what the security index currently holds.
+     */
+    public void restApiKeyUsageStats(ActionListener<Map<String, Object>> listener) {
+        if (false == isEnabled()) {
+            listener.onResponse(Map.of());
+            return;
+        }
+        final IndexState projectSecurityIndex = securityIndex.forCurrentProject();
+        if (projectSecurityIndex.indexExists() == false) {
+            logger.debug("security index does not exist");
+            listener.onResponse(Map.of("active", 0L, "invalidated", 0L, "expired", 0L));
+        } else if (projectSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            listener.onFailure(projectSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+        } else {
+            final FiltersAggregationBuilder countsAgg = restApiKeyCountsAggregation(clock.instant().toEpochMilli());
+            final SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)
+                .setQuery(
+                    QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termQuery("doc_type", "api_key"))
+                        .filter(
+                            // API keys created before the `type` field was introduced carry no type at all and are REST keys
+                            QueryBuilders.boolQuery()
+                                .should(QueryBuilders.termQuery("type", ApiKey.Type.REST.value()))
+                                .should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("type")))
+                                .minimumShouldMatch(1)
+                        )
+                )
+                .setSize(0)
+                .setTrackTotalHits(false)
+                .addAggregation(countsAgg)
+                .request();
+            projectSecurityIndex.checkIndexVersionThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
+                    client,
+                    SECURITY_ORIGIN,
+                    TransportSearchAction.TYPE,
+                    request,
+                    ActionListener.wrap(searchResponse -> {
+                        final InternalAggregations aggregations = searchResponse.getAggregations();
+                        final Filters counts = aggregations == null ? null : aggregations.get(countsAgg.getName());
+                        if (counts == null) {
+                            // report no counts rather than zeros, which would claim the cluster holds no API keys
+                            logger.debug("no [{}] aggregation in the search response for REST API key usage", countsAgg.getName());
+                            listener.onResponse(Map.of());
+                            return;
+                        }
+                        final Filters.Bucket active = counts.getBucketByKey("active");
+                        final Filters.Bucket invalidated = counts.getBucketByKey("invalidated");
+                        final Filters.Bucket expired = counts.getBucketByKey("expired");
+                        if (active == null || invalidated == null || expired == null) {
+                            // partial counts would misrepresent the cluster just as zeros would, so report none
+                            logger.debug(
+                                () -> format(
+                                    "buckets %s missing from the [%s] aggregation in the search response for REST API key usage",
+                                    Stream.of("active", "invalidated", "expired")
+                                        .filter(key -> counts.getBucketByKey(key) == null)
+                                        .toList(),
+                                    countsAgg.getName()
+                                )
+                            );
+                            listener.onResponse(Map.of());
+                            return;
+                        }
+                        listener.onResponse(
+                            Map.of(
+                                "active",
+                                active.getDocCount(),
+                                "invalidated",
+                                invalidated.getDocCount(),
+                                "expired",
+                                expired.getDocCount()
+                            )
+                        );
+                    }, listener::onFailure)
+                )
+            );
+        }
+    }
+
+    /**
+     * Builds the aggregation backing {@link #restApiKeyUsageStats}. The filters are mutually exclusive, so each API key document
+     * contributes to exactly one bucket.
+     */
+    private static FiltersAggregationBuilder restApiKeyCountsAggregation(long nowMillis) {
+        final QueryBuilder notInvalidated = QueryBuilders.termQuery("api_key_invalidated", false);
+        return new FiltersAggregationBuilder(
+            "rest_api_key_counts",
+            new KeyedFilter(
+                "active",
+                QueryBuilders.boolQuery()
+                    .filter(notInvalidated)
+                    .filter(
+                        QueryBuilders.boolQuery()
+                            .should(QueryBuilders.rangeQuery("expiration_time").gt(nowMillis))
+                            .should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("expiration_time")))
+                            .minimumShouldMatch(1)
+                    )
+            ),
+            new KeyedFilter("invalidated", QueryBuilders.termQuery("api_key_invalidated", true)),
+            new KeyedFilter(
+                "expired",
+                QueryBuilders.boolQuery().filter(notInvalidated).filter(QueryBuilders.rangeQuery("expiration_time").lte(nowMillis))
+            )
+        );
     }
 
     @Override
@@ -2620,10 +2786,12 @@ public class ApiKeyService implements Closeable {
     }
 
     /**
-     * If the authentication has type of api_key, returns the metadata associated to the
-     * API key.
+     * If the authentication has type of api_key, returns the parsed metadata associated with the
+     * API key, or an empty map if no metadata is present. The result is lazily computed and cached
+     * on the authentication's subject.
      * @param authentication {@link Authentication}
-     * @return A map for the metadata or an empty map if no metadata is found.
+     * @return the parsed metadata map, or an empty map if no metadata is found
+     * @throws IllegalArgumentException if the authentication is not an API key authentication
      */
     public static Map<String, Object> getApiKeyMetadata(Authentication authentication) {
         if (false == authentication.isAuthenticatedAsApiKey()) {
@@ -2635,17 +2803,9 @@ public class ApiKeyService implements Closeable {
                     + "]"
             );
         }
-        final Object apiKeyMetadata = authentication.getEffectiveSubject().getMetadata().get(AuthenticationField.API_KEY_METADATA_KEY);
-        if (apiKeyMetadata != null) {
-            final Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(
-                (BytesReference) apiKeyMetadata,
-                false,
-                XContentType.JSON
-            );
-            return tuple.v2();
-        } else {
-            return Map.of();
-        }
+        // deep-copy because we previously exposed mutable maps via this method, so there may
+        // be existing ingest pipelines that mutate the returned structure.
+        return CollectionUtils.deepCopy(authentication.getApiKeyMetadata(), LAX);
     }
 
     final class CachedApiKeyHashResult {

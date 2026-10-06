@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ChunkingStrategy;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -31,6 +32,20 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
     public static final String NAME = "RecursiveChunkingSettings";
     private static final ChunkingStrategy STRATEGY = ChunkingStrategy.RECURSIVE;
     static final int MAX_CHUNK_SIZE_LOWER_LIMIT = 10;
+    static final int MAX_SEPARATOR_COUNT = 50;
+
+    public static final int DEFAULT_REGEX_READ_LIMIT_FACTOR = 10;
+    public static final Setting<Integer> REGEX_READ_LIMIT_FACTOR_SETTING = Setting.intSetting(
+        "xpack.inference.chunking.regex_read_limit_factor",
+        DEFAULT_REGEX_READ_LIMIT_FACTOR,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static List<Setting<?>> getSettingsDefinitions() {
+        return List.of(REGEX_READ_LIMIT_FACTOR_SETTING);
+    }
 
     private static final Set<String> VALID_KEYS = Set.of(
         ChunkingSettingsOptions.STRATEGY.toString(),
@@ -66,10 +81,26 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
             validationException.addValidationError("Recursive chunking settings can not have an empty list of separators");
         }
 
+        if (separators != null && separators.size() > MAX_SEPARATOR_COUNT) {
+            validationException.addValidationError(
+                ChunkingSettingsOptions.SEPARATORS + " list size [" + separators.size() + "] must not exceed [" + MAX_SEPARATOR_COUNT + "]"
+            );
+        }
+
         validationException.throwIfValidationErrorsExist();
     }
 
     public static RecursiveChunkingSettings fromMap(Map<String, Object> map) {
+        return fromMap(map, false);
+    }
+
+    /**
+     * @param enforceRequestLimits when {@code true}, policy limits such as {@link #MAX_SEPARATOR_COUNT} are enforced.
+     *                             Pass {@code true} for user-facing request paths (ES|QL CHUNK, text_similarity_reranker,
+     *                             PUT/UPDATE _inference) and {@code false} for persistence-read paths that may encounter
+     *                             settings created before the limit existed.
+     */
+    public static RecursiveChunkingSettings fromMap(Map<String, Object> map, boolean enforceRequestLimits) {
         ValidationException validationException = new ValidationException();
 
         var invalidSettings = map.keySet().stream().filter(key -> VALID_KEYS.contains(key) == false).toArray();
@@ -111,6 +142,12 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
             separators = separatorGroup.getSeparators();
         } else if (separators != null && separators.isEmpty()) {
             validationException.addValidationError("Recursive chunking settings can not have an empty list of separators");
+        }
+
+        if (enforceRequestLimits && separators != null && separators.size() > MAX_SEPARATOR_COUNT) {
+            validationException.addValidationError(
+                ChunkingSettingsOptions.SEPARATORS + " list size [" + separators.size() + "] must not exceed [" + MAX_SEPARATOR_COUNT + "]"
+            );
         }
 
         validationException.throwIfValidationErrorsExist();

@@ -11,7 +11,7 @@ package org.elasticsearch.inference;
 
 import org.elasticsearch.common.Strings;
 
-import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -19,7 +19,8 @@ import java.util.Locale;
  */
 public enum DataFormat {
     TEXT,
-    BASE64;
+    BASE64,
+    URL;
 
     @Override
     public String toString() {
@@ -30,9 +31,7 @@ public enum DataFormat {
         try {
             return valueOf(name.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException ex) {
-            throw new IllegalArgumentException(
-                Strings.format("Unrecognized format [%s], must be one of %s", name, Arrays.toString(DataFormat.values()))
-            );
+            throw new IllegalArgumentException(Strings.format("Unrecognized format [%s], must be one of %s", name, List.of(values())));
         }
     }
 }

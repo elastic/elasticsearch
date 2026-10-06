@@ -79,6 +79,11 @@ public class GcsConfiguration extends FileDataSourceConfiguration {
         }
     }
 
+    /** Names of credential (secret) settings accepted on a data source PUT, derived from the field definitions. */
+    public static Set<String> secretFieldNames() {
+        return secretFieldNamesFrom(FIELDS);
+    }
+
     public static GcsConfiguration fromMap(Map<String, Object> raw) {
         return raw == null || raw.isEmpty() ? null : new GcsConfiguration(raw);
     }

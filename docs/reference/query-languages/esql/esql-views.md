@@ -82,6 +82,62 @@ FROM index_pattern
 Where `index_pattern` is a comma-separated list of index or view names, including
 wildcards and date-math.
 
+### Wildcard patterns and views [esql-views-wildcards]
+By default, a wildcard pattern in `FROM` does not match views. `FROM my_view` reads the view by exact name, while `FROM my-view-*` resolves to indices, data streams, and aliases only — registered views are excluded.
+
+To include views in wildcard resolution, enable the `wildcards_match_views` setting:
+
+```esql
+SET wildcards_match_views = true;
+FROM my-view-*
+```
+
+You can also send it in the `_query` request body as `"settings": {"wildcards_match_views": true}`, or change the cluster-wide default by setting `esql.query.settings.wildcards_match_views` in `elasticsearch.yml` or via the cluster settings API. A value set in the query overrides the request body, which overrides the cluster default.
+
+## Privileges [esql-views-privileges]
+
+View operations use the standard {{es}} [index privileges](../../elasticsearch/security-privileges.md#privileges-list-indices), applied to the view name.
+
+| Operation | Privilege (on the view name) |
+|---|---|
+| Query (`FROM my_view`) | `read`, `all` |
+| Create or update (`PUT /_query/view/<name>`) | `create_view`, `manage_view`, `manage`, `all` |
+| Read definition (`GET /_query/view/<name>`) | `read_view_metadata`, `manage_view`, `manage`, `all` |
+| Delete (`DELETE /_query/view/<name>`) | `delete_view`, `manage_view`, `manage`, `all` |
+
+### Views are not a security boundary
+
+`read` on a view name permits querying the view but does **not** grant access to the data behind it. The caller must also have `read` on every index or alias the view definition resolves to, including through nested views.
+
+Access is enforced at query time. Creating a view requires no privilege over the indices it references.
+
+If some underlying indices are unauthorized, the query fails with a `403`. If none are accessible, it fails with a `400 Unknown index`. Wildcard patterns (`FROM view-*`) silently exclude unauthorized views.
+
+Nested views are resolved under the calling user's credentials. Access to an outer view does not grant access to any inner view it references.
+
+### Document- and field-level security
+
+`read` on a view name must not carry DLS or FLS. If it does, the query fails with a `403` and the `views_with_dls_or_fls` error field lists the affected names. This applies at every nesting level.
+
+DLS or FLS on the **underlying indices** is applied normally.
+
+### Example role
+
+```json
+{
+  "indices": [
+    {
+      "names": ["country_addresses"],
+      "privileges": ["read", "create_view", "read_view_metadata", "delete_view"]
+    },
+    {
+      "names": ["addresses"],
+      "privileges": ["read"]
+    }
+  ]
+}
+```
+
 ## Examples
 
 The following examples show how to use views within the `FROM` command.
@@ -102,6 +158,10 @@ The same country might appear in multiple views, producing multiple rows.
 We could combine these with a `STATS` command, using `SUM(count) BY country`.
 
 ### Use wildcards
+
+:::{note}
+This example requires `wildcards_match_views = true`. By default, wildcards do not match views. Refer to [wildcard patterns and views](#esql-views-wildcards).
+:::
 
 :::{include} _snippets/commands/examples/views.csv-spec/views_country_wildcard_sum.md
 :::
@@ -139,9 +199,8 @@ The [`METADATA` directive](/reference/query-languages/esql/esql-metadata-fields.
 follows the same rules as observed for [`METADATA` in subqueries](/reference/query-languages/esql/esql-from-subquery.md#subqueries-with-metadata).
 Inside the view it generates columns, just like other fields, and these can be used for filtering and as output columns.
 
-Outside the view it generates `null` values.
-Note that this is a known limitation of the current tech-preview, and is anticipated to be addressed in a future update,
-at which point `METADATA _index` will contain the name of the view.
+Outside the view, a `METADATA` field produces `null` values unless the view body itself already declares that field.
+When the view body declares a `METADATA` field, the outer query can also request it and will receive the actual values unchanged.
 
 ## How views execute
 
@@ -244,6 +303,6 @@ For a detailed comparison of views, subqueries, and `FORK`, refer to [Combine an
 
 ## Related pages
 
-* [ES|QL subqueries](/reference/query-languages/esql/esql-subquery.md): nest queries inside other queries, either in `FROM` or `WHERE`.
+* [ES|QL subqueries](/reference/query-languages/esql/esql-subquery.md): nest queries inside other queries, in `FROM` or with `IN` / `NOT IN`.
 * [`FROM` command](/reference/query-languages/esql/commands/from.md): full reference for index expressions, where view names are used.
 * [Query multiple indices](/reference/query-languages/esql/esql-multi-index.md): how index patterns, wildcards, and date math combine sources in a single `FROM`.

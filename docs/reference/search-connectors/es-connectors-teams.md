@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack: preview 9.6
+  serverless: preview
 navigation_title: "Teams"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-connectors-teams.html
@@ -9,19 +12,22 @@ mapped_pages:
 
 The Microsoft Teams connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
-View the [source code for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/microsoft_teams) (branch *main*, compatible with Elastic *9.0*).
+View the [source code for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/microsoft_teams) (branch *main*, compatible with Elastic *9.6*).
 
 ## **Self-managed connector reference** [es-connectors-teams-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-microsoft-teams-availability-and-prerequisites]
 
-This connector is available as a self-managed connector. To use this connector, satisfy all [self-managed connector prerequisites](/reference/search-connectors/self-managed-connectors.md).
+This connector is available as a self-managed connector.
+
+This self-managed connector is compatible with Elastic versions **9.6.0+**.
+
+To use this connector, satisfy all [self-managed connector prerequisites](/reference/search-connectors/self-managed-connectors.md).
 
 ::::{note}
 This connector is in **technical preview** and is subject to change. The design and code is less mature than official GA features and is being provided as-is with no warranties. Technical preview features are not subject to the support SLA of official GA features.
 
 ::::
-
 
 
 ### Create a Microsoft Teams connector [es-connectors-teams-client-create-connector-client]
@@ -32,7 +38,7 @@ This connector is in **technical preview** and is subject to change. The design 
 To create a new Microsoft Teams connector:
 
 1. In the Kibana UI, search for "connectors" using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects) and choose the "Elasticsearch" connectors.
-2. Follow the instructions to create a new  **Microsoft Teams** self-managed connector.
+2. Follow the instructions to create a new **Microsoft Teams** self-managed connector.
 
 
 #### Use the API [es-connectors-microsoft_teams-client-create-use-the-api]
@@ -107,69 +113,93 @@ For additional operations, see [*Connectors UI in {{kib}}*](/reference/search-co
 
 ### Connecting to Microsoft Teams [es-connectors-microsoft-teams-connecting-to-microsoft-teams]
 
-To connect to Microsoft Teams you need to [create an Azure Active Directory application and service principal](https://learn.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal) that can access resources. Follow these steps:
+The connector connects to Microsoft Teams using application credentials (client secret or certificate), the same approach as SharePoint Online and Outlook. You do not need to install a Teams app in every team or chat.
 
-1. Go to the [Azure portal](https://portal.azure.com) and sign in with your Azure account.
-2. Navigate to the **Azure Active Directory** service.
-3. Select **App registrations** from the left-hand menu.
-4. Click on the **New registration** button to register a new application.
-5. Provide a **name** for your app, and *optionally* select the supported account types (e.g., single tenant, multi-tenant).
-6. Click on the **Register** button to create the app registration.
-7. After the registration is complete, you will be redirected to the app’s overview page. Take note of the **Application (client) ID** value, as you’ll need it later.
-8. Scroll down to the **API permissions** section and click on the "Add a permission" button.
-9. In the "Request API permissions pane, select "Microsoft Graph" as the API.
-10. Select the following **permissions**:
+When [document level security (DLS)](/reference/search-connectors/document-level-security.md) is enabled, search results are restricted to users who belong to the relevant team, channel, or chat. The connector application itself can read content according to the permissions you grant below.
 
-    * `TeamMember.Read.All` (Delegated)
-    * `Team.ReadBasic.All` (Delegated)
-    * `TeamsTab.Read.All` (Delegated)
-    * `Group.Read.All` (Delegated)
-    * `ChannelMessage.Read.All` (Delegated)
-    * `Chat.Read` (Delegated) & `Chat.Read.All` (Application)
-    * `Chat.ReadBasic` (Delegated) & `Chat.ReadBasic.All` (Application)
-    * `Files.Read.All` (Delegated and Application)
-    * `Calendars.Read` (Delegated and Application)
+To connect to Microsoft Teams, [register an application in Microsoft Entra ID](https://learn.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal) and grant it the required Microsoft Graph application permissions. Follow these steps:
 
-11. Click on the **Add permissions** button to add the selected permissions to your app.
-12. Click on the **Grant admin consent** button to grant the required permissions to the app. This step requires administrative privileges. **If you are not an admin, you need to request the admin to grant consent via their Azure Portal**.
-13. Under the "Certificates & Secrets" tab, go to **Client Secrets**. Generate a new client secret and keep a note of the string under the `Value` column.
+1. In the [Microsoft Entra admin center](https://entra.microsoft.com), register a new application (confidential client).
+2. Record the **Directory (tenant) ID** and **Application (client) ID**.
+3. Create either:
+    * a **client secret** (Certificates & secrets → New client secret), or
+    * a **certificate** (upload a certificate and keep the matching private key).
+4. Under **API permissions**, add and grant **admin consent** for the following Microsoft Graph **application** permissions:
 
-After completion, use the following configuration parameters to configure the connector.
+    * `Team.ReadBasic.All` — read teams in your organization
+    * `TeamMember.Read.All` — read who belongs to each team
+    * `User.ReadBasic.All` — read user profiles
+    * `Channel.ReadBasic.All` — read channels
+    * `ChannelMember.Read.All` — read who can access each channel
+    * `ChannelMessage.Read.All` — read channel messages and replies
+    * `Chat.Read.All` — read chats, messages, and replies
+    * `Files.Read.All` — read file attachments (required when **Fetch attachment content** is enabled)
+
+5. Click **Grant admin consent** to approve the permissions. This step requires administrative privileges. If you are not an admin, request that an admin grant consent via the Entra admin center.
+
+::::{warning}
+The connector requires **application** permissions. It does not support delegated permissions (scopes) or username/password authentication.
+
+::::
+
+
+#### Protected APIs [es-connectors-microsoft-teams-protected-apis]
+
+`ChannelMessage.Read.All` and `Chat.Read.All` are [protected Teams APIs](https://learn.microsoft.com/en-us/graph/teams-protected-apis). Admin consent alone may not be enough — some tenants also need Microsoft to approve access for your application before message content can be read.
 
 
 ### Configuration [es-connectors-microsoft-teams-configuration]
 
-The following configuration fields are required:
-
-`client_id` (required)
-:   Unique identifier for your Azure Application, found on the app’s overview page. Example:
-
-    * `ab123453-12a2-100a-1123-93fd09d67394`
-
-
-`secret_value` (required)
-:   String value that the application uses to prove its identity when requesting a token, available under the `Certificates & Secrets` tab of your Azure application menu. Example:
-
-    * `eyav1~12aBadIg6SL-STDfg102eBfCGkbKBq_Ddyu`
-
+The following configuration fields are available:
 
 `tenant_id` (required)
-:   Unique identifier for your Azure Active Directory instance, found on the app’s overview page. Example:
+:   Unique identifier for your Microsoft Entra tenant. Example:
 
     * `123a1b23-12a3-45b6-7c8d-fc931cfb448d`
 
 
-`username` (required)
-:   Username for your Azure Application. Example:
+`client_id` (required)
+:   Unique identifier for your Entra application. Example:
 
-    * `dummy@3hmr2@onmicrosoft.com`
+    * `ab123453-12a2-100a-1123-93fd09d67394`
 
 
-`password` (required)
-:   Password for your Azure Application. Example:
+`auth_method` (required)
+:   Authentication method to use with Microsoft Graph. Options:
 
-    * `changeme`
+    * `secret` (default) — authenticate with a client secret.
+    * `certificate` — authenticate with a certificate and private key.
 
+
+`secret_value`
+:   (required if `auth_method` is `secret`) Client secret value from the **Certificates & secrets** tab of your Entra application. Example:
+
+    * `eyav1~12aBadIg6SL-STDfg102eBfCGkbKBq_Ddyu`
+
+
+`certificate`
+:   (required if `auth_method` is `certificate`) Content of the certificate file uploaded to your Entra application.
+
+
+`private_key`
+:   (required if `auth_method` is `certificate`) Content of the private key file that matches the uploaded certificate.
+
+
+`fetch_attachment_content`
+:   Toggle to index files from channel folders and message attachments, and extract their content. Requires the `Files.Read.All` application permission. Default value is `true`.
+
+
+`use_text_extraction_service`
+:   Toggle to enable the [self-managed local extraction service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) for file content. Requires that ingest pipeline settings disable text extraction. Default value is `false`.
+
+
+`use_document_level_security`
+:   Toggle to enable [document level security (DLS)](/reference/search-connectors/document-level-security.md). When enabled:
+
+    * Full syncs fetch access control lists for each document and store them in the `_allow_access_control` field.
+    * Access control syncs fetch users' access control lists and store them in a separate index.
+
+    Default value is `false`.
 
 
 #### Deployment using Docker [es-connectors-microsoft-teams-client-docker]
@@ -252,34 +282,64 @@ Refer to [Content extraction](/reference/search-connectors/es-connectors-content
 
 ### Documents and syncs [es-connectors-microsoft-teams-documents-and-syncs]
 
-The connector syncs the following objects and entities:
+The connector syncs the following content from Microsoft Teams:
 
-* **USER_CHATS_MESSAGE**
-* **USER_CHAT_TABS**
-* **USER_CHAT_ATTACHMENT**
-* **USER_CHAT_MEETING_RECORDING**
-* **USER_MEETING**
-* **TEAMS**
-* **TEAM_CHANNEL**
-* **CHANNEL_TAB**
-* **CHANNEL_MESSAGE**
-* **CHANNEL_MEETING**
-* **CHANNEL_ATTACHMENT**
-* **CALENDAR_EVENTS**
+* **Teams**
+* **Channels**
+* **Channel messages** (including thread replies)
+* **Chats** (one-on-one, group, and meeting chats), including messages and thread replies
+* **Users** from your Microsoft Entra directory
+* **Files** (when **Fetch attachment content** is enabled): files from channel folders and message attachments
+
+Private and shared channels are included. Each file is indexed once, even when it appears in a channel folder and as a message attachment.
 
 ::::{note}
-* Files bigger than 10 MB won’t be extracted.
-* Permissions are not synced. **All documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
+* Content from files bigger than 10 MB won’t be extracted by default. Use the [self-managed local extraction service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) to handle larger binary files.
+* Permissions are not synced by default. Enable [document-level security (DLS)](/reference/search-connectors/document-level-security.md) to sync permissions. Otherwise, **all documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
+* If the connector is missing required permissions, the sync fails rather than indexing an incomplete set of content.
 
 ::::
 
+
+#### Upgrading from earlier connector versions [es-connectors-microsoft-teams-upgrade]
+
+::::{important}
+Applies when upgrading to **9.6.0+** from a Microsoft Teams connector that used username/password or delegated Graph authentication.
+
+If you already have a legacy Microsoft Teams connector or index, **prefer deleting the old connector and index** and creating a new connector with a fresh index. That avoids leftover documents from the previous connector (calendars, tabs, meeting recordings, and other content types that are no longer synced).
+
+If you upgrade in place, the first successful full sync removes documents the new connector no longer produces, including:
+
+* calendars
+* channel and chat tabs
+* meeting recordings
+* legacy team member records (replaced by user profiles)
+
+After upgrading, reconfigure the connector for application-only authentication (client secret or certificate). Username and password fields are no longer supported.
+
+Calendars, meeting recordings, and tabs are no longer synced by this connector. Use the [Outlook connector](/reference/search-connectors/es-connectors-outlook.md) for calendars and the [SharePoint Online connector](/reference/search-connectors/es-connectors-sharepoint-online.md) for SharePoint-hosted meeting recordings.
+
+::::
 
 
 #### Sync types [es-connectors-microsoft-teams-sync-types]
 
 [Full syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-full) are supported by default for all connectors.
 
-This connector also supports [incremental syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
+This connector does not support [incremental syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
+
+
+### Document level security [es-connectors-microsoft-teams-document-level-security]
+
+Document level security (DLS) enables you to restrict access to documents based on a user's permissions. Refer to [configuration](#es-connectors-microsoft-teams-configuration) on this page for how to enable DLS for this connector.
+
+When DLS is enabled, users only see Teams, channels, chats, messages, and files they have access to in Microsoft Teams. User profile documents from your directory are not restricted by DLS.
+
+::::{tip}
+Refer to [DLS in Search Applications](/reference/search-connectors/es-dls-e2e-guide.md) to learn how to ingest data from a connector with DLS enabled, when building a search application. The example uses SharePoint Online as the data source, but the same steps apply to every connector.
+
+::::
+
 
 
 ### Sync rules [es-connectors-microsoft-teams-sync-rules]

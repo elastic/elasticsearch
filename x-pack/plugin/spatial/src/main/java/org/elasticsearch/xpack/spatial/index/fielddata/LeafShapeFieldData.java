@@ -11,7 +11,7 @@ import org.elasticsearch.common.geo.BoundingBox;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 
@@ -50,7 +50,7 @@ public abstract class LeafShapeFieldData<T extends ShapeValues<?>> implements Le
     public abstract T getShapeValues();
 
     @Override
-    public final SortedBinaryDocValues getBytesValues() {
+    public final SortableBinaryDocValues getBytesValues() {
         throw new UnsupportedOperationException("scripts and term aggs are not supported by geo_shape or shape doc values");
     }
 

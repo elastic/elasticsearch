@@ -38,8 +38,10 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -90,18 +92,6 @@ public class OptimizedParquetReaderTests extends ESTestCase {
         byte[] bytes = new byte[10];
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ParquetColumnDecoding.formatUuid(bytes));
         assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("10"));
-    }
-
-    public void testWithConfigOptimizedReaderTrue() {
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        ParquetFormatReader configured = (ParquetFormatReader) reader.withConfig(Map.of("optimized_reader", true));
-        assertSame(reader, configured);
-    }
-
-    public void testWithConfigOptimizedReaderFalse() {
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        ParquetFormatReader configured = (ParquetFormatReader) reader.withConfig(Map.of("optimized_reader", false));
-        assertNotSame(reader, configured);
     }
 
     public void testDoesNotSupportWholeFileCompression() {
@@ -664,17 +654,6 @@ public class OptimizedParquetReaderTests extends ESTestCase {
                 assertTrue("wide_pred [" + val + "] should be > padding_pred_94", val.compareTo(padding + "_pred_94") > 0);
             }
         }
-
-        // Contrast: with late-mat explicitly disabled via config, the optimized path does no
-        // row-level filtering (only row-group/page statistics, which cannot prune within a single
-        // row group), so all 100 rows come back. This is the existing kill-switch contract; the
-        // file-level byte-ratio heuristic is gone but the explicit config knob is unchanged.
-        ParquetFormatReader readerNoLateMat = ((ParquetFormatReader) new ParquetFormatReader(blockFactory, true).withConfig(
-            Map.of(ParquetFormatReader.CONFIG_LATE_MATERIALIZATION, false)
-        )).withPushedFilter(pushed);
-        List<Page> pagesNoLateMat = readAllPages(readerNoLateMat, storageObject);
-        int rowsNoLateMat = pagesNoLateMat.stream().mapToInt(Page::getPositionCount).sum();
-        assertThat("explicit no-late-mat returns all rows (no row-level filtering)", rowsNoLateMat, equalTo(totalRows));
     }
 
     public void testCorruptDataPageOptimizedReaderIsClient400() throws Exception {
@@ -981,6 +960,11 @@ public class OptimizedParquetReaderTests extends ESTestCase {
 
     private StorageObject createStorageObject(byte[] data) {
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);

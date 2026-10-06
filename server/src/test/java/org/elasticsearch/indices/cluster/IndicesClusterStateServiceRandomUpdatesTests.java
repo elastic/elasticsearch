@@ -56,7 +56,6 @@ import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -87,6 +86,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -440,10 +440,10 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         final long primaryTerm = localState.metadata().getProject().index(index).primaryTerm(shardId.id());
 
         // check that failing unrelated allocation does not remove shard
-        indicesCSSvc.handleRecoveryFailure(shardRouting.reinitializeReplicaShard(), false, primaryTerm, new Exception("dummy"));
+        indicesCSSvc.handleRecoveryFailure(shardRouting.reinitializeReplicaShard(), FAIL_SILENT, primaryTerm, new Exception("dummy"));
         assertNotNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
 
-        indicesCSSvc.handleRecoveryFailure(shardRouting, false, primaryTerm, new Exception("dummy"));
+        indicesCSSvc.handleRecoveryFailure(shardRouting, FAIL_SILENT, primaryTerm, new Exception("dummy"));
         assertNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
     }
 
@@ -693,8 +693,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             Collections.emptyMap(),
             threadPool,
             client,
-            List.of(),
-            SnapshotMetrics.NOOP
+            List.of()
         );
         final PeerRecoveryTargetService recoveryTargetService = new PeerRecoveryTargetService(
             client,

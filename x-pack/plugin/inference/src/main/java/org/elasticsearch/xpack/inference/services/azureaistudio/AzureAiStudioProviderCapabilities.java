@@ -22,8 +22,8 @@ public final class AzureAiStudioProviderCapabilities {
         AzureAiStudioProvider.COHERE
     );
 
-    // these providers have chat completion inference (all providers at the moment)
-    public static final List<AzureAiStudioProvider> chatCompletionProviders = List.of(AzureAiStudioProvider.values());
+    // these providers have completion inference (all providers at the moment)
+    public static final List<AzureAiStudioProvider> completionProviders = List.of(AzureAiStudioProvider.values());
 
     // these providers have rerank inference
     public static final List<AzureAiStudioProvider> rerankProviders = List.of(AzureAiStudioProvider.COHERE);
@@ -83,7 +83,7 @@ public final class AzureAiStudioProviderCapabilities {
     public static boolean providerAllowsTaskType(AzureAiStudioProvider provider, TaskType taskType) {
         switch (taskType) {
             case COMPLETION -> {
-                return chatCompletionProviders.contains(provider);
+                return completionProviders.contains(provider);
             }
             case TEXT_EMBEDDING -> {
                 return embeddingProviders.contains(provider);

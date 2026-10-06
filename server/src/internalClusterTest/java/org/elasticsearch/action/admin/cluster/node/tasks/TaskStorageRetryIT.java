@@ -73,7 +73,7 @@ public class TaskStorageRetryIT extends ESSingleNodeTestCase {
                         "failed to store task result, retrying in [*]"
                     )
                 );
-                task = nodeClient().executeLocally(TestTaskPlugin.TEST_TASK_ACTION, req, future);
+                task = nodeClient().executeAndReturnTask(TestTaskPlugin.TEST_TASK_ACTION, req, future);
                 mockLog.awaitAllExpectationsMatched();
             }
 

@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -53,6 +54,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.GlobalCheckpointListeners;
@@ -61,8 +63,10 @@ import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.threadpool.Scheduler;
@@ -70,6 +74,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
+import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
@@ -872,7 +877,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     ) {
         // The VBCC must remain open while we wait for the search tier to acknowledge the new-uploaded-commit notification: as long as it
         // is open, search nodes can still fetch chunks of the just-uploaded files directly from the indexing node. On the success path,
-        // afterCopies calls createAfterNotificationCleanup to register a once-guarded cleanup so the VBCC stays reachable until the
+        // afterCopies calls scheduleNotificationCleanup to register a once-guarded cleanup so the VBCC stays reachable until the
         // notification completes or the timeout fires. The blob reference is released in afterCopies (once upload+copies are done).
         // On the failure path the cleanup is a simple immediate close with no deferral.
         return new ActionListener<>() {
@@ -880,6 +885,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             public void onResponse(BccUploadResult uploadResult) {
                 maybeLogSlowBccUpload(virtualBcc, uploadResult);
                 final BatchedCompoundCommit uploadedBcc = uploadResult.batchedCompoundCommit();
+                logger.debug(
+                    "{} uploaded BCC [{}] (last cc generation [{}]), marking as uploaded",
+                    virtualBcc.getShardId(),
+                    virtualBcc.getPrimaryTermAndGeneration().generation(),
+                    uploadedBcc.lastCompoundCommit().generation()
+                );
                 try {
                     // Use the largest translog release file from all CCs to release translog files for cleaning.
                     // markBccUploaded fires the local-upload generation listeners, allowing the next upload to
@@ -925,6 +936,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     // Serialise copies via a per-shard single-slot runner so that
                     // fireUploadedGenerationListeners is always called in generation order.
                     // (ES-12456)
+                    logger.debug(
+                        "{} enqueueing copy of BCC [{}] (last cc generation [{}]) to split targets {}",
+                        virtualBcc.getShardId(),
+                        virtualBcc.getPrimaryTermAndGeneration().generation(),
+                        ccGeneration,
+                        splitTargets
+                    );
                     commitState.splitTargetCopyExecutor.execute(() -> {
                         try {
                             for (ShardId targetShardId : splitTargets) {
@@ -932,6 +950,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                                 while (commitState.isClosed() == false) {
                                     try {
                                         objectStoreService.copyCommit(virtualBcc, targetShardId);
+                                        logger.debug(
+                                            "{} copied BCC [{}] (last cc generation [{}]) to split target [{}]",
+                                            virtualBcc.getShardId(),
+                                            virtualBcc.getPrimaryTermAndGeneration().generation(),
+                                            ccGeneration,
+                                            targetShardId
+                                        );
                                         break;
                                     } catch (Exception e) {
                                         if (commitState.isClosed()) {
@@ -976,30 +1001,35 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 BatchedCompoundCommit uploadedBcc,
                 long ccGeneration
             ) {
-                commitState.fireUploadedGenerationListeners(ccGeneration);
+                final long gen = virtualBcc.getPrimaryTermAndGeneration().generation();
                 Releasable cleanup = null;
                 try {
+                    // Schedule the once-guarded notification cleanup before firing generation listeners. Listeners may trigger
+                    // closeShard(); registering the cleanup first ensures close() finds and drains the VBCC rather than leaking it.
                     final long notificationSentAt = threadPool.relativeTimeInMillis();
                     final long bccBlobLength = uploadedBcc.calculateBccBlobLength();
-                    cleanup = commitState.createAfterNotificationCleanup(
-                        virtualBcc,
+                    cleanup = commitState.scheduleNotificationCleanup(
+                        gen,
                         () -> bccNotificationTimeHistogram.record(
                             threadPool.relativeTimeInMillis() - notificationSentAt,
                             Map.of(BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY, BccUploadMetrics.bccSizeBucket(bccBlobLength))
                         )
                     );
+                    if (commitState.isClosed()) {
+                        return;
+                    }
+                    logger.debug(
+                        "{} firing fully-uploaded generation listeners for BCC [{}] up to cc generation [{}]",
+                        virtualBcc.getShardId(),
+                        gen,
+                        ccGeneration
+                    );
+                    commitState.fireUploadedGenerationListeners(ccGeneration);
                     commitState.sendNewUploadedCommitNotification(blobReference, uploadedBcc, cleanup);
                     cleanup = null;
                 } catch (Exception e) {
                     // TODO: we should assert false here once we fix ES-8336
-                    logger.warn(
-                        () -> format(
-                            "%s failed to send new uploaded BCC [%s] notification",
-                            virtualBcc.getShardId(),
-                            virtualBcc.getPrimaryTermAndGeneration().generation()
-                        ),
-                        e
-                    );
+                    logger.warn(() -> format("%s failed to send new uploaded BCC [%s] notification", virtualBcc.getShardId(), gen), e);
                 } finally {
                     Releasables.close(cleanup);
                     blobReference.decRef();
@@ -1038,7 +1068,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         );
                     }
                 } finally {
-                    // Upload failed: the VBCC never made it to recentlyUploadedVbccs/recentlyUploadedCleanups so close it directly.
+                    // Upload failed: the VBCC never made it to recentlyUploadedVbccs so close it directly.
                     cleanup();
                 }
             }
@@ -1267,10 +1297,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 continue;
             }
             blobFiles.add(
-                new BlobFile(
-                    StatelessCompoundCommit.blobNameFromGeneration(primaryTermAndGeneration.generation()),
-                    primaryTermAndGeneration
-                )
+                new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(primaryTermAndGeneration.generation()), primaryTermAndGeneration)
             );
         }
         // We also need to include all blobs pending deletion as they are deleted asynchronously.
@@ -1280,7 +1307,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
             blobFiles.add(
                 new BlobFile(
-                    StatelessCompoundCommit.blobNameFromGeneration(staleCompoundCommit.primaryTermAndGeneration().generation()),
+                    BatchedCompoundCommit.blobNameFromGeneration(staleCompoundCommit.primaryTermAndGeneration().generation()),
                     staleCompoundCommit.primaryTermAndGeneration()
                 )
             );
@@ -1373,20 +1400,18 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         // request from search nodes. A VBCC is removed from this list once it is uploaded.
         // 3. latestUploadedBcc - This field tracks highest generation BCC ever uploaded. It is updated with the VBCC that just gets
         // uploaded which is then removed from pendingUploadBccGenerations.
-        // 4. recentlyUploadedVbccs / recentlyUploadedCleanups - After a VBCC is uploaded and removed from pendingUploadBccGenerations, it
-        // is placed in recentlyUploadedVbccs (for chunk-fetch lookup) and a corresponding once-guarded cleanup Releasable is stored in
-        // recentlyUploadedCleanups. The VBCC stays reachable until the new-uploaded-commit notification is acknowledged by the search
-        // tier (or the configured timeout fires), at which point the cleanup fires, removing the entry and closing the VBCC. This ensures
-        // search nodes can still fetch VBCC chunks from the indexing node during the notification window. See
-        // createAfterNotificationCleanup
-        // and STATELESS_UPLOAD_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT.
+        // 4. recentlyUploadedVbccs - After a VBCC is uploaded and removed from pendingUploadBccGenerations, it is placed here for
+        // chunk-fetch lookup. The put and the isClosed() check are both inside the same synchronized block as closeAndGetListeners(),
+        // so close() either drains the VBCC from this map or handleUploadedBcc closes it directly; there is no gap. A once-guarded
+        // cleanup is scheduled in afterCopies; when it fires (response, timeout, or close()), it atomically removes and closes the VBCC.
+        // This ensures search nodes can still fetch VBCC chunks from the indexing node during the notification window. See
+        // scheduleNotificationCleanup and STATELESS_UPLOAD_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT.
         private volatile VirtualBatchedCompoundCommit currentVirtualBcc = null;
         private final Map<Long, PendingUploadVirtualBatchCompoundCommit> pendingUploadBccGenerations = new ConcurrentHashMap<>();
         // Tracks the time when the oldest pending upload commit was submitted for upload.
         // We use this to apply backpressure when there is too much upload work.
         private volatile Long oldestCommitUploadStartTime = null;
         private final Map<Long, VirtualBatchedCompoundCommit> recentlyUploadedVbccs = new ConcurrentHashMap<>();
-        private final Map<Long, Releasable> recentlyUploadedCleanups = new ConcurrentHashMap<>();
         private volatile BatchedCompoundCommit latestUploadedBcc = null;
         // NOTE When moving a VBCC through its lifecycle, we must update it first in the new state before remove it from the old state.
         // That is, we must first add it to the `pendingUploadBccGenerations` before un-assigning it from `currentVirtualBcc`,
@@ -1555,7 +1580,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             List<BlobReference> previousBCCBlobs = new ArrayList<>(otherBlobs.size());
             // create a compound commit blob instance for the recovery commit
             for (BlobFile nonRecoveredBlobFile : otherBlobs) {
-                if (StatelessCompoundCommit.startsWithBlobPrefix(nonRecoveredBlobFile.blobName())) {
+                if (BatchedCompoundCommit.startsWithBlobPrefix(nonRecoveredBlobFile.blobName())) {
                     PrimaryTermAndGeneration nonRecoveredTermGen = nonRecoveredBlobFile.termAndGeneration();
 
                     Map<String, BlobLocation> internalFiles = referencedBlobs.getOrDefault(nonRecoveredTermGen, Collections.emptyMap());
@@ -2256,12 +2281,21 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 latestUploadedBcc = uploadedBcc;
                 if (isUpload) {
                     // Remove the BCC from the pending list *after* upload consumers but *before* generation listeners are fired.
-                    // Move it into recentlyUploadedVbccs so chunk-fetch requests from search nodes can still be served during the
-                    // notification window. The corresponding cleanup in recentlyUploadedCleanups is registered immediately after by
-                    // createAfterNotificationCleanup (called in the same thread, in newUploadTaskListener.onResponse).
+                    // Move it into recentlyUploadedVbccs so chunk-fetch requests from search nodes can still be served during
+                    // the notification window. The isClosed() check and the put are both inside this synchronized block, which is
+                    // the same lock closeAndGetListeners() uses to set state=CLOSED. Therefore close() will either see the VBCC
+                    // in recentlyUploadedVbccs (and drain it) or this branch will see isClosed()=true (and close it directly);
+                    // there is no gap where the VBCC escapes both. The cleanup/timeout are scheduled later in afterCopies.
                     var removed = pendingUploadBccGenerations.remove(newBccGeneration);
                     assert removed != null : newBccGeneration + "not found";
-                    recentlyUploadedVbccs.put(newBccGeneration, removed.commit());
+                    var vbcc = removed.commit();
+                    if (isClosed()) {
+                        // Shard was closed while the upload was in-flight. close() already drained recentlyUploadedVbccs
+                        // (it was empty at that point). Close the VBCC directly rather than adding it after the drain.
+                        IOUtils.closeWhileHandlingException(vbcc);
+                        return;
+                    }
+                    recentlyUploadedVbccs.put(newBccGeneration, vbcc);
 
                     var nextPendingUploadVbcc = pendingUploadBccGenerations.get(newBccGeneration + 1);
                     if (nextPendingUploadVbcc != null) {
@@ -2504,7 +2538,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 clusterService.localNode().getId(),
                 clusterService,
                 ActionListener.wrap(searchNodesAndCommitsResult -> {
-                    afterNotification.close();
+                    // afterNotification.close() may trigger VBCC cleanup, which involves blocking I/O (blob cache reads via
+                    // Lucene commit deletion). Fork to generic to avoid blocking the transport thread.
+                    threadPool.generic().execute(afterNotification::close);
                     onNewUploadedCommitNotificationResponse(
                         // Open PITs might be transferred between search nodes during relocations, for that reason we are conservative,
                         // and we just consider responses from started or old nodes retaining commits, that way we won't delete any
@@ -2517,7 +2553,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     );
                 }, e -> {
                     // Treat failures the same as a successful response: the indexing node cannot meaningfully wait any longer.
-                    afterNotification.close();
+                    threadPool.generic().execute(afterNotification::close);
                     logNotificationException(
                         notificationCommitGeneration,
                         uploadedBcc.primaryTermAndGeneration().generation(),
@@ -2540,6 +2576,19 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     ),
                     e
                 );
+            } else if (isExpectedNotificationDeliveryFailure(cause)) {
+                logger.debug(
+                    () -> format(
+                        "%s failed to notify search shards after "
+                            + verb
+                            + " commit of gen [%s] (BCC [%s]) "
+                            + "because a search shard was not available (closed, relocating or removed)",
+                        shardId,
+                        generation,
+                        bccGeneration
+                    ),
+                    e
+                );
             } else {
                 logger.warn(
                     () -> format(
@@ -2551,6 +2600,30 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     e
                 );
             }
+        }
+
+        /**
+         * A new-commit notification only informs search shards that a fresher commit is available; failing to deliver it is expected
+         * and harmless whenever the target search shard was not in a state to receive it: its copy is closed / closing or relocating,
+         * the index was closed or removed, or the node/connection is going away. Note the notification already waits for the shard's
+         * engine to start, so a shard that is merely still recovering does not fail here. In all these cases there is no data impact -
+         * a fresh copy reads the latest commit during recovery and a live shard keeps receiving later notifications - and the indexing
+         * node cannot meaningfully wait any longer, so we log these races at DEBUG rather than WARN. Only genuinely unexpected failures
+         * remain at WARN.
+         */
+        private static boolean isExpectedNotificationDeliveryFailure(Throwable cause) {
+            // ShardNotFound / IndexNotFound / IllegalIndexShardState / NoShardAvailable / UnavailableShards / AlreadyClosed.
+            if (TransportActions.isShardNotAvailableException(cause)) {
+                return true;
+            }
+            if (cause instanceof IndexClosedException || cause instanceof NodeClosedException) {
+                return true;
+            }
+            // No live engine for the search shard: the copy has closed/is closing, or is momentarily between engines during a reset
+            // (the notification path already waits out an ongoing recovery). See
+            // TransportNewCommitNotificationAction#ENGINE_NOT_STARTED_MESSAGE.
+            return cause instanceof EngineException
+                && TransportNewCommitNotificationAction.ENGINE_NOT_STARTED_MESSAGE.equals(cause.getMessage());
         }
 
         /**
@@ -2640,31 +2713,27 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         /**
-         * Registers a once-guarded cleanup in {@link #recentlyUploadedCleanups}, schedules a timeout to fire it, and returns it. When
-         * first invoked (either by the caller or by the timeout), the cleanup removes {@code virtualBcc} from both
-         * {@link #recentlyUploadedVbccs} and {@link #recentlyUploadedCleanups} and closes the VBCC.
-         * Subsequent invocations are no-ops. {@link #close()} drains {@link #recentlyUploadedCleanups} and calls each cleanup, so it is
-         * always safe to call this cleanup more than once.
+         * Creates a once-guarded cleanup for the VBCC at {@code gen}, schedules the notification timeout, and returns the cleanup for
+         * the caller to pass to {@link #sendNewUploadedCommitNotification} as {@code afterNotification}. When first invoked (either by
+         * the caller or by the scheduled timeout), the cleanup atomically removes the VBCC from {@link #recentlyUploadedVbccs} and
+         * closes it. Subsequent invocations are no-ops. Because the removal is a single
+         * {@link java.util.concurrent.ConcurrentHashMap#remove} call, at most one thread ever closes the VBCC, even if the timeout,
+         * the notification response, and {@link #close()} race.
          * <p>
-         * When {@link #releaseFilesAfterNotificationTimeout} is zero the cleanup fires synchronously before this method returns, so the
-         * caller's subsequent {@link Releasable#close()} call becomes a no-op.
+         * If {@link #close()} has already drained {@link #recentlyUploadedVbccs} (shard closed while upload was in-flight), the VBCC
+         * is gone and the cleanup becomes a no-op; the caller should still check {@link #isClosed()} and skip the notification.
          * <p>
-         * {@link #handleUploadedBcc} adds the VBCC to {@link #recentlyUploadedVbccs} just before this method is called (in the same
-         * thread), ensuring there is no gap where the VBCC is findable in neither map.
+         * When {@link #releaseFilesAfterNotificationTimeout} is zero the cleanup fires synchronously before this method returns, so
+         * the caller's subsequent {@link Releasable#close()} call becomes a no-op.
          */
-        Releasable createAfterNotificationCleanup(VirtualBatchedCompoundCommit virtualBcc, Runnable onBeforeCleanup) {
-            final long gen = virtualBcc.getPrimaryTermAndGeneration().generation();
-            assert recentlyUploadedVbccs.get(gen) == virtualBcc;
+        Releasable scheduleNotificationCleanup(long gen, Runnable onBeforeCleanup) {
             final Releasable cleanup = Releasables.releaseOnce(() -> {
                 onBeforeCleanup.run();
-                VirtualBatchedCompoundCommit removedVBCC = recentlyUploadedVbccs.remove(gen);
-                assert removedVBCC != null;
-                assert removedVBCC == virtualBcc;
-                Releasable removedCleanup = recentlyUploadedCleanups.remove(gen);
-                assert removedCleanup != null;
-                IOUtils.closeWhileHandlingException(virtualBcc);
+                VirtualBatchedCompoundCommit vbcc = recentlyUploadedVbccs.remove(gen);
+                if (vbcc != null) {
+                    IOUtils.closeWhileHandlingException(vbcc);
+                }
             });
-            recentlyUploadedCleanups.put(gen, cleanup);
             if (releaseFilesAfterNotificationTimeout.equals(TimeValue.ZERO)) {
                 // Timeout disabled: fire immediately, do not wait for the search tier response.
                 Releasables.close(cleanup);
@@ -2785,10 +2854,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 // TODO: maybe upload before releasing in some cases as a future optimization?
                 IOUtils.closeWhileHandlingException(virtualBcc);
             }
-            Releasables.close(new ArrayList<>(recentlyUploadedCleanups.values()));
+            // Drain VBCCs that are still in the notification window. Each remove() is atomic, preventing the
+            // scheduled notification timeout (or a concurrent response handler) from double-closing a VBCC.
+            for (Long gen : new ArrayList<>(recentlyUploadedVbccs.keySet())) {
+                VirtualBatchedCompoundCommit vbcc = recentlyUploadedVbccs.remove(gen);
+                if (vbcc != null) {
+                    IOUtils.closeWhileHandlingException(vbcc);
+                }
+            }
             assert recentlyUploadedVbccs.isEmpty();
-            // production fallback for assertion failure, do nothing is expected
-            IOUtils.closeWhileHandlingException(recentlyUploadedVbccs.values());
 
             if (listenersToFail.isEmpty() == false) {
                 // Have to fork, because we are on applier thread and thus if a listener uses cluster state it will fail.

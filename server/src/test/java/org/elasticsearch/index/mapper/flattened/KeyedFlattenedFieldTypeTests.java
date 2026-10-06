@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -35,6 +34,7 @@ import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlatte
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullTermQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
+import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xcontent.XContentType;
@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE;
+import static org.elasticsearch.index.mapper.BinaryDocValuesFormat.SEPARATE_COUNT;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -144,7 +145,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
             false
         );
 
-        Query expected = new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0value"), false);
+        Query expected = new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0value"), SEPARATE_COUNT);
         assertEquals(expected, ft.termQuery("value", null));
     }
 
@@ -168,7 +169,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         Query query = ft.termQuery("value", null);
         // The array-order path uses KeyedArrayOrderInlineNullTermQuery, a distinct class from
         // ScanningBinaryDocValuesTermQuery, giving each path a distinct query-cache identity.
-        assertNotEquals(new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0value"), false), query);
+        assertNotEquals(new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0value"), SEPARATE_COUNT), query);
         assertTrue(query instanceof KeyedArrayOrderInlineNullTermQuery);
     }
 
@@ -189,7 +190,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
             false
         );
 
-        Query expected = SortedSetDocValuesField.newSlowExactQuery(ft.name(), new BytesRef("key\0value"));
+        Query expected = XSortedSetDocValuesRangeQuery.newSlowExactQuery(ft.name(), new BytesRef("key\0value"));
         assertEquals(expected, ft.termQuery("value", null));
     }
 
@@ -211,7 +212,10 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         );
 
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        builder.add(new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0value"), false), BooleanClause.Occur.SHOULD);
+        builder.add(
+            new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0value"), SEPARATE_COUNT),
+            BooleanClause.Occur.SHOULD
+        );
         Query expected = new ConstantScoreQuery(builder.build());
         assertEquals(expected, ft.termsQuery(List.of("value"), null));
     }
@@ -245,8 +249,14 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         // plain ScanningBinaryDocValuesTermQuery. The resulting query must not equal the non-array-order
         // equivalent so the two paths get separate query-cache entries.
         BooleanQuery.Builder nonArrayBuilder = new BooleanQuery.Builder();
-        nonArrayBuilder.add(new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0v1"), false), BooleanClause.Occur.SHOULD);
-        nonArrayBuilder.add(new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0v2"), false), BooleanClause.Occur.SHOULD);
+        nonArrayBuilder.add(
+            new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0v1"), SEPARATE_COUNT),
+            BooleanClause.Occur.SHOULD
+        );
+        nonArrayBuilder.add(
+            new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0v2"), SEPARATE_COUNT),
+            BooleanClause.Occur.SHOULD
+        );
         assertNotEquals(new ConstantScoreQuery(nonArrayBuilder.build()), result);
     }
 
@@ -268,7 +278,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         );
 
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        builder.add(SortedSetDocValuesField.newSlowExactQuery(ft.name(), new BytesRef("key\0value")), BooleanClause.Occur.SHOULD);
+        builder.add(XSortedSetDocValuesRangeQuery.newSlowExactQuery(ft.name(), new BytesRef("key\0value")), BooleanClause.Occur.SHOULD);
         Query expected = new ConstantScoreQuery(builder.build());
         assertEquals(expected, ft.termsQuery(List.of("value"), null));
     }

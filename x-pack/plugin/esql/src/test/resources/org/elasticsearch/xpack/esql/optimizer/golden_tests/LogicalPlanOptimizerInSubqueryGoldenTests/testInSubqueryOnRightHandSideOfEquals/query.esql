@@ -1,0 +1,2 @@
+FROM employees
+| WHERE true == (emp_no IN (FROM employees | KEEP emp_no))

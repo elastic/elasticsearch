@@ -5,8 +5,12 @@
         "@timestamp": {
           "type": "date"
         },
-        "type": {
+        "id": {
           "type": "keyword"
+        },
+        "type": {
+          "type": "keyword",
+          "normalizer": "lowercase"
         },
         "title": {
           "type": "text",
@@ -33,16 +37,69 @@
           }
         },
         "tags": {
-          "type": "keyword"
+          "type": "keyword",
+          "normalizer": "lowercase"
         },
         "attributes": {
           "type": "flattened"
+        },
+        "updated_at": {
+          "type": "date"
+        },
+        "expires_at": {
+          "type": "date"
         },
         "references": {
           "type": "object",
           "properties": {
             "uri": {
               "type": "keyword"
+            },
+            "relation": {
+              "type": "keyword"
+            },
+            "description": {
+              "type": "text"
+            }
+          }
+        },
+        "governance": {
+          "type": "object",
+          "properties": {
+            "provenance": {
+              "type": "object",
+              "properties": {
+                "created_by": {
+                  "type": "object",
+                  "properties": {
+                    "uri": {
+                      "type": "keyword"
+                    },
+                    "metadata": {
+                      "type": "flattened"
+                    }
+                  }
+                },
+                "updated_by": {
+                  "type": "object",
+                  "properties": {
+                    "uri": {
+                      "type": "keyword"
+                    },
+                    "metadata": {
+                      "type": "flattened"
+                    }
+                  }
+                }
+              }
+            },
+            "lifecycle": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "keyword"
+                }
+              }
             }
           }
         }

@@ -101,6 +101,7 @@ sum_a:long    | b:integer
 
 expandAfterSort1
 skip_flattened_rewrite: bare_attribute_command_on_flattened
+skip_columnar: MV_EXPAND ordering differs in columnar mode (source order rather than sorted doc-values order) causing sort-then-expand to produce different results
 request_stored: skip
 
 from employees | keep job_positions, emp_no | sort emp_no | mv_expand job_positions | limit 10 | sort job_positions;
@@ -120,6 +121,7 @@ null                      |10003
 
 expandAfterSort2
 skip_flattened_rewrite: bare_attribute_command_on_flattened
+skip_columnar: MV_EXPAND ordering differs in columnar mode (source order rather than sorted doc-values order) causing sort-then-expand to produce different results
 request_stored: skip
 
 from employees | sort emp_no | mv_expand job_positions | keep job_positions, emp_no | limit 5;
@@ -134,6 +136,7 @@ Head Human Resources   |10004
 
 expandWithMultiSort
 skip_flattened_rewrite: bare_attribute_command_on_flattened
+skip_columnar: MV_EXPAND ordering differs in columnar mode (source order rather than sorted doc-values order) causing sort-then-expand to produce different results
 request_stored: skip
 
 from employees | keep emp_no, job_positions | sort emp_no | mv_expand job_positions | limit 10 | where emp_no <= 10006 | sort job_positions nulls first;
@@ -203,6 +206,7 @@ emp_no:integer |  job_positions:keyword   |salary:integer
 
 doubleLimit_expandLimitLowerThanAvailable
 skip_flattened_rewrite: bare_attribute_command_on_flattened
+skip_columnar: MV_EXPAND ordering differs in columnar mode (source order rather than sorted doc-values order) causing sort-then-expand to produce different results
 request_stored: skip
 
 from employees | where emp_no == 10004 | limit 1 | keep emp_no, job_positions | mv_expand job_positions | limit 2;
@@ -214,6 +218,7 @@ emp_no:integer |  job_positions:keyword
 
 doubleLimit_expandLimitGreaterThanAvailable
 skip_flattened_rewrite: bare_attribute_command_on_flattened
+skip_columnar: MV_EXPAND ordering differs in columnar mode (source order rather than sorted doc-values order) causing sort-then-expand to produce different results
 request_stored: ignore_order
 
 from employees | where emp_no == 10004 | limit 1 | keep emp_no, job_positions | mv_expand job_positions | limit 5;
@@ -238,6 +243,7 @@ emp_no:integer |  job_positions:keyword
 
 tripleLimit_WithWhere_InBetween_MvExpand_And_Limit
 skip_flattened_rewrite: bare_attribute_command_on_flattened
+skip_columnar: MV_EXPAND ordering differs in columnar mode (source order rather than sorted doc-values order) causing sort-then-expand to produce different results
 request_stored: skip
 
 from employees | where emp_no == 10004 | limit 1 | keep emp_no, job_positions | mv_expand job_positions | where job_positions LIKE "*a*" | limit 2 | where job_positions LIKE "*a*" | limit 3;

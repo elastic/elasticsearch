@@ -55,6 +55,7 @@ public class DatafeedJobBuilder {
     // after MachineLearning.createComponents() runs. Eager capture would freeze a Noop value
     // here and silently strip the cloud token from the datafeed runner's field_caps probe.
     private final Supplier<CloudCredentialManager> cloudCredentialManagerSupplier;
+    private final DatafeedSearchTelemetry searchTelemetry;
 
     private volatile long delayedDataCheckFreq;
     private volatile int ccsStabilizationCycles;
@@ -69,7 +70,8 @@ public class DatafeedJobBuilder {
         JobResultsPersister jobResultsPersister,
         Settings settings,
         ClusterService clusterService,
-        Supplier<CloudCredentialManager> cloudCredentialManagerSupplier
+        Supplier<CloudCredentialManager> cloudCredentialManagerSupplier,
+        DatafeedSearchTelemetry searchTelemetry
     ) {
         this.client = client;
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
@@ -84,6 +86,7 @@ public class DatafeedJobBuilder {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
         this.cloudCredentialManagerSupplier = Objects.requireNonNull(cloudCredentialManagerSupplier);
+        this.searchTelemetry = Objects.requireNonNull(searchTelemetry);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DELAYED_DATA_CHECK_FREQ, this::setDelayedDataCheckFreq);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(CCS_STABILIZATION_CYCLES, v -> this.ccsStabilizationCycles = v);
         clusterService.getClusterSettings()
@@ -128,10 +131,7 @@ public class DatafeedJobBuilder {
 
         // if we had created a datafeed when the feature flag was enabled, but we disabled the feature flag
         // then verify that this datafeed does not use CPS features
-        var validationException = datafeedConfig.validateNoCrossProjectWhenCrossProjectIsDisabled(
-            crossProjectModeDecider,
-            (org.elasticsearch.action.ActionRequestValidationException) null
-        );
+        var validationException = datafeedConfig.validateNoCrossProjectWhenCrossProjectIsDisabled(crossProjectModeDecider, null);
 
         if (validationException != null) {
             listener.onFailure(validationException);
@@ -150,9 +150,10 @@ public class DatafeedJobBuilder {
         ActionListener<DataExtractorFactory> dataExtractorFactoryHandler = ActionListener.wrap(dataExtractorFactory -> {
             TimeValue frequency = getFrequencyOrDefault(datafeedConfig, job, xContentRegistry);
             TimeValue queryDelay = datafeedConfig.getQueryDelay();
+            // Delayed-data searches must use the same execution copy as the extractor.
             DelayedDataDetector delayedDataDetector = DelayedDataDetectorFactory.buildDetector(
                 job,
-                datafeedConfig,
+                effectiveDatafeedConfig,
                 parentTaskAssigningClient,
                 xContentRegistry
             );
@@ -163,7 +164,7 @@ public class DatafeedJobBuilder {
             );
             DatafeedJob datafeedJob = new DatafeedJob(
                 datafeedConfig.getId(),
-                datafeedConfig.getProjectRouting(),
+                effectiveDatafeedConfig.getProjectRouting(),
                 job.getId(),
                 cloudCredentialId,
                 buildDataDescription(job),
@@ -188,7 +189,7 @@ public class DatafeedJobBuilder {
         }, e -> {
             Exception enriched = DatafeedProjectRoutingDiagnostics.enrichIfNoMatchingProject(
                 datafeedConfig.getId(),
-                datafeedConfig.getProjectRouting(),
+                effectiveDatafeedConfig.getProjectRouting(),
                 e
             );
             auditor.error(job.getId(), enriched.getMessage());
@@ -203,6 +204,7 @@ public class DatafeedJobBuilder {
             job,
             xContentRegistry,
             timingStatsReporter,
+            searchTelemetry,
             dataExtractorFactoryHandler
         );
     }

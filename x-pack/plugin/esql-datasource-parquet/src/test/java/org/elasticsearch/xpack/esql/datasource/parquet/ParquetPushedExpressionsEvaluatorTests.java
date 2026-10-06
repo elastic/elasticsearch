@@ -18,11 +18,19 @@ import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -485,6 +493,130 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         Expression inner = new Equals(Source.EMPTY, attr("x", DataType.LONG), lit(30L, DataType.LONG), null);
         Expression not = new Not(Source.EMPTY, inner);
         assertSurvivors(new ParquetPushedExpressions(List.of(not)), blocks, 5, reusable, new int[] { 0, 1, 3, 4 });
+    }
+
+    public void testNotOverPartialAndDoesNotDropRows() {
+        // NOT(a == 1 AND tag == "x") with only `a` decoded. Positive AND over-admits by
+        // dropping the missing arm; bitwise-negating that superset under-admits and
+        // compaction would drop surviving rows. evaluateFilter must return null (all survive).
+        int[] values = { 1, 2, 3 };
+        Block block = blockFactory.newIntArrayVector(values, values.length).asBlock();
+        Map<String, Block> blocks = Map.of("a", block);
+
+        Expression eqA = new Equals(Source.EMPTY, attr("a", DataType.INTEGER), lit(1, DataType.INTEGER), null);
+        Expression eqTag = new Equals(Source.EMPTY, attr("tag", DataType.KEYWORD), lit(new BytesRef("x"), DataType.KEYWORD), null);
+        Expression not = new Not(Source.EMPTY, new And(Source.EMPTY, eqA, eqTag));
+
+        WordMask result = new ParquetPushedExpressions(List.of(not)).evaluateFilter(blocks, 3, new WordMask());
+        assertNull(result);
+    }
+
+    public void testNotOverCompleteAndStillPrunes() {
+        // Both arms evaluable: NOT(a == 1 AND b == 2) must still drop the row where both hold.
+        int[] aValues = { 1, 2, 3 };
+        int[] bValues = { 2, 2, 2 };
+        Block a = blockFactory.newIntArrayVector(aValues, aValues.length).asBlock();
+        Block b = blockFactory.newIntArrayVector(bValues, bValues.length).asBlock();
+        Map<String, Block> blocks = Map.of("a", a, "b", b);
+
+        Expression eqA = new Equals(Source.EMPTY, attr("a", DataType.INTEGER), lit(1, DataType.INTEGER), null);
+        Expression eqB = new Equals(Source.EMPTY, attr("b", DataType.INTEGER), lit(2, DataType.INTEGER), null);
+        Expression not = new Not(Source.EMPTY, new And(Source.EMPTY, eqA, eqB));
+        assertSurvivors(new ParquetPushedExpressions(List.of(not)), blocks, 3, new WordMask(), new int[] { 1, 2 });
+    }
+
+    public void testNotOverAndWithLikeStillPrunes() {
+        // NOT(a == 1 AND s LIKE "*x*") with both columns present still prunes the matching row.
+        int[] aValues = { 1, 2, 3 };
+        Block a = blockFactory.newIntArrayVector(aValues, aValues.length).asBlock();
+        try (var builder = blockFactory.newBytesRefBlockBuilder(3)) {
+            builder.appendBytesRef(new BytesRef("xx"));
+            builder.appendBytesRef(new BytesRef("yy"));
+            builder.appendBytesRef(new BytesRef("zz"));
+            Block s = builder.build();
+            Map<String, Block> blocks = Map.of("a", a, "s", s);
+
+            Expression eqA = new Equals(Source.EMPTY, attr("a", DataType.INTEGER), lit(1, DataType.INTEGER), null);
+            Expression like = new WildcardLike(Source.EMPTY, attr("s", DataType.KEYWORD), new WildcardPattern("*x*"));
+            Expression not = new Not(Source.EMPTY, new And(Source.EMPTY, eqA, like));
+            assertSurvivors(new ParquetPushedExpressions(List.of(not)), blocks, 3, new WordMask(), new int[] { 1, 2 });
+        }
+    }
+
+    public void testNotOverPartialOrKeepsNegatedEvaluableArm() {
+        // NOT(a == 1 OR tag == "x") with only `a`. Partial AND of Nots keeps Not(a==1).
+        int[] values = { 1, 2, 3 };
+        Block block = blockFactory.newIntArrayVector(values, values.length).asBlock();
+        Map<String, Block> blocks = Map.of("a", block);
+
+        Expression eqA = new Equals(Source.EMPTY, attr("a", DataType.INTEGER), lit(1, DataType.INTEGER), null);
+        Expression eqTag = new Equals(Source.EMPTY, attr("tag", DataType.KEYWORD), lit(new BytesRef("x"), DataType.KEYWORD), null);
+        Expression not = new Not(Source.EMPTY, new Or(Source.EMPTY, eqA, eqTag));
+        assertSurvivors(new ParquetPushedExpressions(List.of(not)), blocks, 3, new WordMask(), new int[] { 1, 2 });
+    }
+
+    public void testNotOverOrShortCircuitsWhenLeftNotIsEmpty() {
+        // a == 1 on every row → Not(a==1) is empty → Not(a OR b) is empty without evaluating b.
+        int[] aValues = { 1, 1, 1 };
+        int[] bValues = { 9, 2, 9 };
+        Block a = blockFactory.newIntArrayVector(aValues, aValues.length).asBlock();
+        Block b = blockFactory.newIntArrayVector(bValues, bValues.length).asBlock();
+        Map<String, Block> blocks = Map.of("a", a, "b", b);
+
+        Expression eqA = new Equals(Source.EMPTY, attr("a", DataType.INTEGER), lit(1, DataType.INTEGER), null);
+        Expression eqB = new Equals(Source.EMPTY, attr("b", DataType.INTEGER), lit(2, DataType.INTEGER), null);
+        Expression not = new Not(Source.EMPTY, new Or(Source.EMPTY, eqA, eqB));
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(not));
+        WordMask result = pushed.evaluateFilter(blocks, 3, new WordMask());
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+        // evaluateExpression(Not) + evaluateNot(Or) + evaluateNot(eqA) + evaluateExpression(eqA)
+        assertEquals(4, pushed.lastEvaluateExpressionCallsForTesting());
+    }
+
+    public void testNotNotOverPartialOrDoesNotDropRows() {
+        // NOT(NOT(a == 1 OR tag == "x")) ≡ a OR tag. Missing tag → all survive, not the
+        // under-admit from bitwise-negating the over-admitting Not(Or) mask.
+        int[] values = { 1, 2, 3 };
+        Block block = blockFactory.newIntArrayVector(values, values.length).asBlock();
+        Map<String, Block> blocks = Map.of("a", block);
+
+        Expression eqA = new Equals(Source.EMPTY, attr("a", DataType.INTEGER), lit(1, DataType.INTEGER), null);
+        Expression eqTag = new Equals(Source.EMPTY, attr("tag", DataType.KEYWORD), lit(new BytesRef("x"), DataType.KEYWORD), null);
+        Expression notNot = new Not(Source.EMPTY, new Not(Source.EMPTY, new Or(Source.EMPTY, eqA, eqTag)));
+        WordMask result = new ParquetPushedExpressions(List.of(notNot)).evaluateFilter(blocks, 3, new WordMask());
+        assertNull(result);
+    }
+
+    public void testNotOverAndWithUnevaluableKeywordRangeDoesNotDropRows() {
+        // evaluateRange is numeric-only; a keyword Range is unevaluable even with the column
+        // present. NOT(AND(range, eq)) must not bitwise-negate the partial AND.
+        int[] aValues = { 1, 2, 3 };
+        Block a = blockFactory.newIntArrayVector(aValues, aValues.length).asBlock();
+        try (var builder = blockFactory.newBytesRefBlockBuilder(3)) {
+            builder.appendBytesRef(new BytesRef("aa"));
+            builder.appendBytesRef(new BytesRef("bb"));
+            builder.appendBytesRef(new BytesRef("cc"));
+            Block s = builder.build();
+            Map<String, Block> blocks = Map.of("a", a, "s", s);
+
+            Expression range = new Range(
+                Source.EMPTY,
+                attr("s", DataType.KEYWORD),
+                lit(new BytesRef("a"), DataType.KEYWORD),
+                true,
+                lit(new BytesRef("z"), DataType.KEYWORD),
+                true,
+                ZoneOffset.UTC
+            );
+            Expression eqA = new Equals(Source.EMPTY, attr("a", DataType.INTEGER), lit(1, DataType.INTEGER), null);
+            Expression not = new Not(Source.EMPTY, new And(Source.EMPTY, range, eqA));
+            ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(not));
+            WordMask result = pushed.evaluateFilter(blocks, 3, new WordMask());
+            assertNull(result);
+            // evaluateExpression(Not) + evaluateNot(And) + evaluateNot(range) + evaluateExpression(range)
+            assertEquals(4, pushed.lastEvaluateExpressionCallsForTesting());
+        }
     }
 
     // ---- Test 6c: dictionary-match shape classifier and fast-path semantics ----
@@ -1603,13 +1735,139 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * When the predicate column is absent from the block map, a LIKE-family conjunct promoted to
+     * {@code Pushability.YES} (dropped from FilterExec) must produce an empty survivor mask, not
+     * the all-survive {@code null} sentinel. The column is null-filled above the reader under
+     * union_by_name, and no pattern matches null. See elastic/esql-planning#2052.
+     */
     public void testWildcardLikeWithMissingColumn() {
-        // Missing predicate column -> evaluateExpression returns null -> evaluateFilter treats
-        // the predicate as "unknown for all rows", which collapses to "all survive" (null return).
         Map<String, Block> blocks = new HashMap<>();
         WordMask reusable = new WordMask();
 
         Expression like = new WildcardLike(Source.EMPTY, attr("missing", DataType.KEYWORD), new WildcardPattern("*foo*"));
+        assertSurvivors(new ParquetPushedExpressions(List.of(like)), blocks, 3, reusable, new int[] {});
+    }
+
+    /** NOT (col LIKE p) on a missing column must also yield no survivors (null does not match, NOT null is null). */
+    public void testNotWildcardLikeWithMissingColumn() {
+        Map<String, Block> blocks = new HashMap<>();
+        WordMask reusable = new WordMask();
+
+        Expression like = new WildcardLike(Source.EMPTY, attr("missing", DataType.KEYWORD), new WildcardPattern("*foo*"));
+        Expression notLike = new Not(Source.EMPTY, like);
+        assertSurvivors(new ParquetPushedExpressions(List.of(notLike)), blocks, 3, reusable, new int[] {});
+    }
+
+    /** StartsWith on a missing column yields no survivors. */
+    public void testStartsWithMissingColumn() {
+        Map<String, Block> blocks = new HashMap<>();
+        WordMask reusable = new WordMask();
+
+        Expression expr = new StartsWith(Source.EMPTY, attr("missing", DataType.KEYWORD), lit(new BytesRef("foo"), DataType.KEYWORD));
+        assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, 3, reusable, new int[] {});
+    }
+
+    /** NOT StartsWith on a missing column yields no survivors. */
+    public void testNotStartsWithMissingColumn() {
+        Map<String, Block> blocks = new HashMap<>();
+        WordMask reusable = new WordMask();
+
+        Expression expr = new Not(
+            Source.EMPTY,
+            new StartsWith(Source.EMPTY, attr("missing", DataType.KEYWORD), lit(new BytesRef("foo"), DataType.KEYWORD))
+        );
+        assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, 3, reusable, new int[] {});
+    }
+
+    /** EndsWith on a missing column yields no survivors. */
+    public void testEndsWithMissingColumn() {
+        Map<String, Block> blocks = new HashMap<>();
+        WordMask reusable = new WordMask();
+
+        Expression expr = new EndsWith(Source.EMPTY, attr("missing", DataType.KEYWORD), lit(new BytesRef("bar"), DataType.KEYWORD));
+        assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, 3, reusable, new int[] {});
+    }
+
+    /** Contains on a missing column yields no survivors. */
+    public void testContainsMissingColumn() {
+        Map<String, Block> blocks = new HashMap<>();
+        WordMask reusable = new WordMask();
+
+        Expression expr = new Contains(Source.EMPTY, attr("missing", DataType.KEYWORD), lit(new BytesRef("baz"), DataType.KEYWORD));
+        assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, 3, reusable, new int[] {});
+    }
+
+    /**
+     * And(likeOnAbsentColumn, comparisonOnPresentColumn): the And short-circuits on the empty mask
+     * and yields no survivors regardless of the comparison's result.
+     */
+    public void testAndWithLikeOnMissingColumnAndPresentComparison() {
+        long[] values = { 10L, 20L, 30L };
+        Block presentBlock = blockFactory.newLongArrayVector(values, values.length).asBlock();
+        try (presentBlock) {
+            Map<String, Block> blocks = new HashMap<>();
+            blocks.put("score", presentBlock);
+            WordMask reusable = new WordMask();
+
+            // "missing" absent, "score" present with all rows > 5 (comparison passes all 3 rows).
+            Expression like = new WildcardLike(Source.EMPTY, attr("missing", DataType.KEYWORD), new WildcardPattern("*foo*"));
+            Expression comparison = new GreaterThan(Source.EMPTY, attr("score", DataType.LONG), lit(5L, DataType.LONG), null);
+            Expression and = new And(Source.EMPTY, like, comparison);
+            assertSurvivors(new ParquetPushedExpressions(List.of(and)), blocks, 3, reusable, new int[] {});
+        }
+    }
+
+    /**
+     * Or(likeOnAbsentColumn, comparisonOnPresentColumn): the absent-column LIKE returns an empty
+     * mask (not null), so the Or result is exactly the comparison's survivors — more precise than
+     * the old behavior where the null sentinel made the entire Or null ("all survive").
+     */
+    public void testOrWithLikeOnMissingColumnAndPresentComparison() {
+        long[] values = { 10L, 20L, 30L };
+        Block presentBlock = blockFactory.newLongArrayVector(values, values.length).asBlock();
+        try (presentBlock) {
+            Map<String, Block> blocks = new HashMap<>();
+            blocks.put("score", presentBlock);
+            WordMask reusable = new WordMask();
+
+            // "missing" absent, "score > 15" matches rows 1 and 2.
+            Expression like = new WildcardLike(Source.EMPTY, attr("missing", DataType.KEYWORD), new WildcardPattern("*foo*"));
+            Expression comparison = new GreaterThan(Source.EMPTY, attr("score", DataType.LONG), lit(15L, DataType.LONG), null);
+            Expression or = new Or(Source.EMPTY, like, comparison);
+            // Or(empty, {1,2}) = {1,2}
+            assertSurvivors(new ParquetPushedExpressions(List.of(or)), blocks, 3, reusable, new int[] { 1, 2 });
+        }
+    }
+
+    /**
+     * A LIKE whose field is not a NamedExpression still yields the conservative all-survive sentinel
+     * (null), because there is no column name to check for absence.
+     */
+    public void testLikeOnNonNamedExpressionFieldYieldsNull() {
+        Map<String, Block> blocks = new HashMap<>();
+        WordMask reusable = new WordMask();
+
+        // A Literal is not a NamedExpression — namedBlock returns null and missingColumnMask
+        // also returns null (the field-is-not-NamedExpression branch).
+        Expression field = lit(new BytesRef("constant"), DataType.KEYWORD);
+        Expression like = new WildcardLike(Source.EMPTY, field, new WildcardPattern("*foo*"));
+        WordMask result = new ParquetPushedExpressions(List.of(like)).evaluateFilter(blocks, 3, reusable);
+        assertNull(result);
+    }
+
+    /**
+     * A LIKE on a virtual column (e.g. _file.name) that has no block still yields the conservative
+     * all-survive sentinel. Virtual columns are materialized downstream with real values; returning
+     * an empty mask would drop every row of the file. See elastic/esql-planning#2052 and #149393.
+     */
+    public void testLikeOnVirtualColumnWithNoBlockYieldsNull() {
+        Map<String, Block> blocks = new HashMap<>();
+        WordMask reusable = new WordMask();
+
+        // ExternalMetadataAttribute implements VirtualAttribute -> isVirtualColumn returns true.
+        Expression field = new ExternalMetadataAttribute(Source.EMPTY, "_file.name", DataType.KEYWORD);
+        Expression like = new WildcardLike(Source.EMPTY, field, new WildcardPattern("*foo*"));
         WordMask result = new ParquetPushedExpressions(List.of(like)).evaluateFilter(blocks, 3, reusable);
         assertNull(result);
     }
@@ -2352,6 +2610,184 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
             }
         }
         return Arrays.copyOf(tmp, n);
+    }
+
+    // ---- multivalue comparison functions: exact row masks ----
+    // Each form is answered by its scalar sibling's arm, with the bounds read exactly. The fixture carries a null at
+    // position 1 because that is where the forms and their siblings part company: a null field is the empty set, so
+    // the form answers false and its NOT answers true, while the scalar sibling answers null and its NOT drops the
+    // row. Every NOT case below keeps position 1; the scalar contrast drops it.
+
+    /** {@code [10, null, 30, 40, 50]} as a single-valued LONG block under {@code x}. */
+    private Map<String, Block> tenNullThirtyFortyFifty() {
+        try (var builder = blockFactory.newLongBlockBuilder(5)) {
+            builder.appendLong(10L);
+            builder.appendNull();
+            builder.appendLong(30L);
+            builder.appendLong(40L);
+            builder.appendLong(50L);
+            return Map.of("x", builder.build());
+        }
+    }
+
+    private static Expression includeBound(boolean include) {
+        return new MapExpression(
+            Source.EMPTY,
+            List.of(Literal.keyword(Source.EMPTY, MvCompare.INCLUDE_BOUND), new Literal(Source.EMPTY, include, DataType.BOOLEAN))
+        );
+    }
+
+    private static Expression exclusiveBothBounds() {
+        return new MapExpression(
+            Source.EMPTY,
+            List.of(
+                Literal.keyword(Source.EMPTY, "include_lower"),
+                new Literal(Source.EMPTY, false, DataType.BOOLEAN),
+                Literal.keyword(Source.EMPTY, "include_upper"),
+                new Literal(Source.EMPTY, false, DataType.BOOLEAN)
+            )
+        );
+    }
+
+    public void testMvFormsWithAColumnOperandDeclineInsteadOfThrowing() {
+        // A user can write mv_greater(x, y); nested in an AND under OR it reaches the reader, whose arms read only
+        // literal operands and must decline anything else rather than throw.
+        Map<String, Block> blocks = tenNullThirtyFortyFifty();
+        Attribute x = attr("x", DataType.LONG);
+        Attribute y = attr("y", DataType.LONG);
+        for (Expression mv : List.of(
+            new MvContains(Source.EMPTY, x, y),
+            new MvIntersects(Source.EMPTY, x, y),
+            new MvInRange(Source.EMPTY, x, y, lit(35L, DataType.LONG)),
+            new MvGreater(Source.EMPTY, x, y),
+            new MvLess(Source.EMPTY, x, y)
+        )) {
+            assertNull(mv + " must decline", new ParquetPushedExpressions(List.of(mv)).evaluateFilter(blocks, 5, new WordMask()));
+            Expression nested = new Or(
+                Source.EMPTY,
+                new And(Source.EMPTY, new Equals(Source.EMPTY, x, lit(30L, DataType.LONG), null), mv),
+                new Equals(Source.EMPTY, x, lit(10L, DataType.LONG), null)
+            );
+            new ParquetPushedExpressions(List.of(nested)).evaluateFilter(blocks, 5, new WordMask());
+        }
+    }
+
+    public void testMvFormsDeclineOnADoubleBlock() {
+        // The scalar arms order doubles with Double.compare; the mv_ functions use primitive operators, which equate
+        // -0.0 with 0.0 and never rank NaN. mv_contains(d, 0.0) is true on the -0.0 row, which the mask would drop.
+        Block block;
+        try (var builder = blockFactory.newDoubleBlockBuilder(3)) {
+            builder.appendDouble(-0.0);
+            builder.appendDouble(Double.NaN);
+            builder.appendDouble(1.0);
+            block = builder.build();
+        }
+        Map<String, Block> blocks = Map.of("d", block);
+        Attribute d = attr("d", DataType.DOUBLE);
+        for (Expression mv : List.of(
+            new MvContains(Source.EMPTY, d, lit(0.0, DataType.DOUBLE)),
+            new MvIntersects(Source.EMPTY, d, new Literal(Source.EMPTY, List.of(0.0), DataType.DOUBLE)),
+            new MvInRange(Source.EMPTY, d, lit(0.0, DataType.DOUBLE), lit(5.0, DataType.DOUBLE)),
+            new MvGreater(Source.EMPTY, d, lit(5.0, DataType.DOUBLE)),
+            new MvLess(Source.EMPTY, d, lit(0.0, DataType.DOUBLE))
+        )) {
+            assertNull(
+                mv + " must decline over a double block",
+                new ParquetPushedExpressions(List.of(mv)).evaluateFilter(blocks, 3, new WordMask())
+            );
+            assertNull(
+                "NOT " + mv + " must decline over a double block",
+                new ParquetPushedExpressions(List.of(new Not(Source.EMPTY, mv))).evaluateFilter(blocks, 3, new WordMask())
+            );
+        }
+        block.close();
+    }
+
+    private void assertMask(Expression expr, int[] expected) {
+        assertSurvivors(new ParquetPushedExpressions(List.of(expr)), tenNullThirtyFortyFifty(), 5, new WordMask(), expected);
+    }
+
+    public void testMvContainsMaskAndItsNegationKeepsTheNullRow() {
+        Expression mv = new MvContains(Source.EMPTY, attr("x", DataType.LONG), lit(30L, DataType.LONG));
+        assertMask(mv, new int[] { 2 });
+        assertMask(new Not(Source.EMPTY, mv), new int[] { 0, 1, 3, 4 });
+        // The contrast that makes the NOT case above a test: the scalar sibling's NOT drops the null row.
+        assertMask(
+            new Not(Source.EMPTY, new Equals(Source.EMPTY, attr("x", DataType.LONG), lit(30L, DataType.LONG), null)),
+            new int[] { 0, 3, 4 }
+        );
+    }
+
+    public void testMvIntersectsMaskIgnoresANullInTheSet() {
+        Literal set = new Literal(Source.EMPTY, Arrays.asList(30L, 50L, null), DataType.LONG);
+        Expression mv = new MvIntersects(Source.EMPTY, attr("x", DataType.LONG), set);
+        assertMask(mv, new int[] { 2, 4 });
+        assertMask(new Not(Source.EMPTY, mv), new int[] { 0, 1, 3 });
+    }
+
+    public void testMvGreaterReadsIncludeBoundExactly() {
+        assertMask(new MvGreater(Source.EMPTY, attr("x", DataType.LONG), lit(30L, DataType.LONG)), new int[] { 3, 4 });
+        assertMask(
+            new MvGreater(Source.EMPTY, attr("x", DataType.LONG), lit(30L, DataType.LONG), includeBound(true)),
+            new int[] { 2, 3, 4 }
+        );
+        // Strict by default, so the row sitting on 30 is false and its NOT keeps it. An inclusive stand-in for the
+        // strict bound would set bit 2 and the negation would drop it.
+        assertMask(
+            new Not(Source.EMPTY, new MvGreater(Source.EMPTY, attr("x", DataType.LONG), lit(30L, DataType.LONG))),
+            new int[] { 0, 1, 2 }
+        );
+    }
+
+    public void testMvLessReadsIncludeBoundExactly() {
+        assertMask(new MvLess(Source.EMPTY, attr("x", DataType.LONG), lit(30L, DataType.LONG)), new int[] { 0 });
+        assertMask(new MvLess(Source.EMPTY, attr("x", DataType.LONG), lit(30L, DataType.LONG), includeBound(true)), new int[] { 0, 2 });
+        assertMask(
+            new Not(Source.EMPTY, new MvLess(Source.EMPTY, attr("x", DataType.LONG), lit(30L, DataType.LONG), includeBound(true))),
+            new int[] { 1, 3, 4 }
+        );
+    }
+
+    public void testMvInRangeReadsExclusiveBoundsExactly() {
+        Expression open = new MvInRange(
+            Source.EMPTY,
+            attr("x", DataType.LONG),
+            lit(10L, DataType.LONG),
+            lit(40L, DataType.LONG),
+            exclusiveBothBounds()
+        );
+        assertMask(open, new int[] { 2 });
+        // Both boundary rows are false under the open interval, so both survive the negation, as does the null.
+        assertMask(new Not(Source.EMPTY, open), new int[] { 0, 1, 3, 4 });
+    }
+
+    public void testMvFormsDeclineOnAMultivaluedBlock() {
+        // [10], [20, 30], [40]: the middle row holds a value that satisfies each form below. The scalar arms keep only
+        // single-valued positions, so answering here would lose it; every form must decline and let all rows through.
+        Block block;
+        try (var builder = blockFactory.newLongBlockBuilder(3)) {
+            builder.appendLong(10L);
+            builder.beginPositionEntry();
+            builder.appendLong(20L);
+            builder.appendLong(30L);
+            builder.endPositionEntry();
+            builder.appendLong(40L);
+            block = builder.build();
+        }
+        Map<String, Block> blocks = Map.of("x", block);
+        Attribute x = attr("x", DataType.LONG);
+        for (Expression mv : List.of(
+            new MvContains(Source.EMPTY, x, lit(30L, DataType.LONG)),
+            new MvIntersects(Source.EMPTY, x, new Literal(Source.EMPTY, List.of(30L), DataType.LONG)),
+            new MvInRange(Source.EMPTY, x, lit(25L, DataType.LONG), lit(35L, DataType.LONG)),
+            new MvGreater(Source.EMPTY, x, lit(25L, DataType.LONG)),
+            new MvLess(Source.EMPTY, x, lit(25L, DataType.LONG))
+        )) {
+            assertNull(
+                mv + " must decline over a multivalued block",
+                new ParquetPushedExpressions(List.of(mv)).evaluateFilter(blocks, 3, new WordMask())
+            );
+        }
     }
 
     private static void assertSurvivors(

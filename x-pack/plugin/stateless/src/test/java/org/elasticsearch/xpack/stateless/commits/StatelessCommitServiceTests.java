@@ -51,6 +51,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -94,6 +95,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -107,10 +109,10 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.blobNameFromGeneration;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_DURATION_TIME_SETTING;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
-import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.blobNameFromGeneration;
 import static org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration.ZERO;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -505,13 +507,14 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         BlobContainer sourceBlobContainer,
                         String sourceBlobName,
                         String blobName,
-                        long blobSize
+                        long blobSize,
+                        @Nullable Executor executor
                     ) throws IOException {
                         int attempt = copyAttempts.incrementAndGet();
                         if (attempt <= failuresBeforeSuccess) {
                             throw new IOException("simulated copy failure (attempt " + attempt + ")");
                         }
-                        super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+                        super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize, executor);
                     }
                 }
                 return new WrappedContainer(innerContainer);
@@ -565,11 +568,12 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         BlobContainer sourceBlobContainer,
                         String sourceBlobName,
                         String blobName,
-                        long blobSize
+                        long blobSize,
+                        @Nullable Executor executor
                     ) throws IOException {
                         copyRunning.countDown();
                         safeAwait(copyCanProceed);
-                        super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+                        super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize, executor);
                         copySucceeded.set(true);
                     }
                 }
@@ -767,7 +771,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             // Verify the blob names returned match the actually uploaded BCC blobs
             Set<String> uploadedBlobNames = trackedUploadedBlobFiles.stream().map(BlobFile::blobName).collect(Collectors.toSet());
             Set<String> capturedBccBlobs = actuallyUploadedBccBlobs.stream()
-                .filter(StatelessCompoundCommit::startsWithBlobPrefix)
+                .filter(BatchedCompoundCommit::startsWithBlobPrefix)
                 .collect(Collectors.toSet());
             assertThat(uploadedBlobNames, equalTo(capturedBccBlobs));
 
@@ -1783,7 +1787,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 Map.of(
                     "segments_2",
                     new BlobLocation(
-                        new BlobFile(StatelessCompoundCommit.blobNameFromGeneration(1), new PrimaryTermAndGeneration(2, 1)),
+                        new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(1), new PrimaryTermAndGeneration(2, 1)),
                         12,
                         12
                     )
@@ -1797,7 +1801,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             );
             int count = rarely() ? 50000 : 10000;
             var unreferencedFiles = IntStream.range(1, count)
-                .mapToObj(i -> new BlobFile(StatelessCompoundCommit.blobNameFromGeneration(i), new PrimaryTermAndGeneration(1, i)))
+                .mapToObj(i -> new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(i), new PrimaryTermAndGeneration(1, i)))
                 .collect(Collectors.toSet());
             testHarness.commitService.markRecoveredBcc(
                 testHarness.shardId,
@@ -2582,7 +2586,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 final List<BatchedCompoundCommit> allBatchedCompoundCommits = blobContainer.listBlobs(OperationPurpose.INDICES)
                     .values()
                     .stream()
-                    .filter(blobMetadata -> StatelessCompoundCommit.startsWithBlobPrefix(blobMetadata.name()))
+                    .filter(blobMetadata -> BatchedCompoundCommit.startsWithBlobPrefix(blobMetadata.name()))
                     .map(blobMetadata -> {
                         try {
                             return BatchedCompoundCommit.readFromStore(
@@ -2628,7 +2632,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 assertBusy(
                     () -> assertTrue(
                         testHarness.getShardContainer()
-                            .blobExists(OperationPurpose.INDICES, StatelessCompoundCommit.blobNameFromGeneration(commitRef.getGeneration()))
+                            .blobExists(OperationPurpose.INDICES, BatchedCompoundCommit.blobNameFromGeneration(commitRef.getGeneration()))
                     )
                 );
             }
@@ -3031,7 +3035,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         long blobSize,
                         boolean failIfAlreadyExists
                     ) throws IOException {
-                        assertTrue(blobName, StatelessCompoundCommit.startsWithBlobPrefix(blobName));
+                        assertTrue(blobName, BatchedCompoundCommit.startsWithBlobPrefix(blobName));
                         safeAwait(commitUploadStarted);
                         safeAwait(commitUploadBlocked);
                         super.writeBlobAtomic(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
@@ -3412,7 +3416,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         long blobSize,
                         boolean failIfAlreadyExists
                     ) throws IOException {
-                        assertTrue(blobName, StatelessCompoundCommit.startsWithBlobPrefix(blobName));
+                        assertTrue(blobName, BatchedCompoundCommit.startsWithBlobPrefix(blobName));
                         compoundCommitFileConsumer.accept(
                             blobName,
                             () -> super.writeBlobAtomic(purpose, blobName, inputStream, blobSize, failIfAlreadyExists)
@@ -3608,12 +3612,13 @@ public class StatelessCommitServiceTests extends ESTestCase {
                     BlobContainer sourceBlobContainer,
                     String sourceBlobName,
                     String blobName,
-                    long blobSize
+                    long blobSize,
+                    @Nullable Executor executor
                 ) throws IOException {
                     if (blobName.equals(copyBlockedNameRef.get())) {
                         safeAwait(copyBlocker);
                     }
-                    super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+                    super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize, executor);
                 }
             }
             return new WrappedContainer(innerContainer);

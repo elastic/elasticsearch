@@ -119,4 +119,63 @@ public class SchemaCacheKeyTests extends ESTestCase {
         assertEquals(new FileSetFingerprint(11, 22), dataset.fileSetFingerprint());
         assertNull(perFile.fileSetFingerprint());
     }
+
+    /**
+     * A statistics record is addressed by the read that produced it, so two reads of one file that resolved
+     * different schemas must not share an address — and must not collide with the schema record beside them.
+     * This is the discrimination the refusal in {@code applicableStats} exists to do today; once the address
+     * carries the read, there is nothing left to compare.
+     */
+    public void testStatisticsAddressDiscriminatesTheReadThatProducedIt() {
+        SchemaCacheKey schema = SchemaCacheKey.build(PATTERN, 11L, "ndjson", "", Map.of());
+
+        SchemaCacheKey readAsFileOwn = schema.withReadConfig("aaaa1111");
+        SchemaCacheKey readAsAnchor = schema.withReadConfig("bbbb2222");
+
+        // Two reads, two addresses. On main both harvests contend for the schema key and the second is refused.
+        assertNotEquals(readAsFileOwn, readAsAnchor);
+        // Neither collides with the schema record it sits beside.
+        assertNotEquals(schema, readAsFileOwn);
+        assertNotEquals(schema, readAsAnchor);
+
+        assertTrue(readAsFileOwn.isStatisticsRecord());
+        assertFalse(schema.isStatisticsRecord());
+        assertEquals("aaaa1111", readAsFileOwn.readConfig());
+        assertNull(schema.readConfig());
+    }
+
+    /**
+     * Everything but the read is carried across, so a statistics record can never drift from the schema record
+     * it belongs to — same file, same version, same format, same participants.
+     */
+    public void testStatisticsAddressCarriesEveryOtherComponent() {
+        SchemaCacheKey dataset = SchemaCacheKey.forDatasetAggregate(PATTERN, new FileSetFingerprint(11, 22), "ndjson", "id", Map.of());
+        SchemaCacheKey stats = dataset.withReadConfig("cccc3333");
+
+        // Pin that a key was actually derived first. Without these two the carrying assertions below hold
+        // trivially when withReadConfig returns its receiver, and the test passes whether or not it works.
+        assertNotSame(dataset, stats);
+        assertEquals("cccc3333", stats.readConfig());
+
+        assertEquals(dataset.canonicalPath(), stats.canonicalPath());
+        assertEquals(dataset.lastModifiedEpochMillis(), stats.lastModifiedEpochMillis());
+        assertEquals(dataset.formatType(), stats.formatType());
+        assertEquals(dataset.identity(), stats.identity());
+        assertEquals(dataset.fileSetFingerprint(), stats.fileSetFingerprint());
+        assertEquals(dataset.definitionVersion(), stats.definitionVersion());
+        // The record kind survives the derivation, so isDatasetAggregate() keeps answering for the aggregate's
+        // own statistics record rather than silently becoming a per-file one.
+        assertTrue(stats.isDatasetAggregate());
+    }
+
+    /**
+     * A rail that stamps no read configuration gets the address it has. An address asserting a read nobody
+     * recorded would claim more than the harvest does, which is the mistake this whole area is about.
+     */
+    public void testAnUnstampedReadKeepsTheAddressItHas() {
+        SchemaCacheKey schema = SchemaCacheKey.build(PATTERN, 11L, "ndjson", "", Map.of());
+        assertSame(schema, schema.withReadConfig(null));
+        assertSame(schema, schema.withReadConfig(""));
+        assertFalse(schema.withReadConfig(null).isStatisticsRecord());
+    }
 }

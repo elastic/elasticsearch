@@ -23,6 +23,16 @@ import java.util.Objects;
  * dataset-level aggregate key (see {@link #forDatasetAggregate}); it is {@code null} for every
  * per-file key. A named component rather than smuggling the fingerprint into the mtime/path slots —
  * record equality/hashCode pick it up automatically.
+ * <p>
+ * {@code readConfig} addresses a STATISTICS record by the read that produced it, and is {@code null} on
+ * every schema record. A statistic measures the rows one read produced, so two reads of one file that
+ * resolved different schemas measured different things and must not share an address; a schema record
+ * describes the file itself and is the same answer whoever asks, so it keeps the address it has. A named
+ * component rather than another {@code formatType} marker: the markers are a closed set of record KINDS
+ * that {@link #isDatasetAggregate} and the reconcile's contribution matching test with {@code endsWith},
+ * and a read-configuration fingerprint is an open value, so folding it in there would make one field mean
+ * two things and break those tests. Null on both existing factories, so every address they mint is
+ * byte-for-byte the one they minted before this component existed.
  */
 public record SchemaCacheKey(
     String canonicalPath,
@@ -30,7 +40,8 @@ public record SchemaCacheKey(
     String formatType,
     String identity,
     @Nullable FileSetFingerprint fileSetFingerprint,
-    String definitionVersion
+    String definitionVersion,
+    @Nullable String readConfig
 ) {
     /**
      * The version of the stored definitions this query reads under, as a named component rather than
@@ -56,7 +67,15 @@ public record SchemaCacheKey(
      *                 derive all three itself, from a list of setting names it did not own and two string literals.
      */
     public static SchemaCacheKey build(String canonicalPath, long mtime, String formatType, String identity, Map<String, Object> config) {
-        return new SchemaCacheKey(canonicalPath, mtime, formatType != null ? formatType : "", identity, null, definitionVersionOf(config));
+        return new SchemaCacheKey(
+            canonicalPath,
+            mtime,
+            formatType != null ? formatType : "",
+            identity,
+            null,
+            definitionVersionOf(config),
+            null
+        );
     }
 
     /**
@@ -119,7 +138,7 @@ public record SchemaCacheKey(
         // so a marker-suffixed key with a null fingerprint is never representable and the two agree.
         Objects.requireNonNull(fingerprint, "dataset aggregate key requires a non-null file-set fingerprint");
         String formatType = (sourceType == null ? "" : sourceType) + DATASET_AGGREGATE_MARKER;
-        return new SchemaCacheKey(pattern == null ? "" : pattern, 0L, formatType, identity, fingerprint, definitionVersionOf(config));
+        return new SchemaCacheKey(pattern == null ? "" : pattern, 0L, formatType, identity, fingerprint, definitionVersionOf(config), null);
     }
 
     /**
@@ -129,6 +148,36 @@ public record SchemaCacheKey(
      */
     public boolean isDatasetAggregate() {
         return formatType().endsWith(DATASET_AGGREGATE_MARKER);
+    }
+
+    /**
+     * This key's sibling that addresses the statistics harvested under {@code readConfig}, leaving every other
+     * component alone. Derived from the schema key rather than built from parts so the two cannot drift: a
+     * statistics record is always about the same path, version, format and participants as the schema record
+     * beside it, and only the read differs.
+     * <p>
+     * A {@code null} or empty {@code readConfig} returns {@code this}. The producing rail stamps no read
+     * configuration in that case — {@link ReadConfigFingerprint#UNKNOWN} territory — and an address asserting a
+     * read nobody recorded would claim more than the harvest does.
+     */
+    public SchemaCacheKey withReadConfig(@Nullable String readConfig) {
+        if (readConfig == null || readConfig.isEmpty()) {
+            return this;
+        }
+        return new SchemaCacheKey(
+            canonicalPath,
+            lastModifiedEpochMillis,
+            formatType,
+            identity,
+            fileSetFingerprint,
+            definitionVersion,
+            readConfig
+        );
+    }
+
+    /** True when this key addresses a statistics record rather than the schema record beside it. */
+    public boolean isStatisticsRecord() {
+        return readConfig != null;
     }
 
 }

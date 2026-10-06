@@ -9,9 +9,8 @@ output=/tmp/$job-output
 cache=$work/.cache
 artifact=promcheck.tar.gz
 control=
-# Marks the PR comment this script owns, so a later revision replaces it rather than adding another.
-marker='<!-- promql-coverage-report -->'
-# Changed cases listed per kind in the comment; the full logs are build artifacts.
+annotation_context=ctx-promql-coverage-report
+# Changed cases listed per kind in the report; the full list is the changes artifact.
 max_rows=50
 
 die() { printf '%s: %s\n' "$prog" "$*" >&2; exit 1; }
@@ -55,7 +54,7 @@ changes() {
 	' <(outcomes "$1") <(outcomes "$2")
 }
 
-# A collapsible markdown table of one kind of change, at most $max_rows rows.
+# A collapsible markdown table of one kind of change, at most $max_rows rows; $4 links the full list.
 section() {
 	local file=$1 kind=$2 title=$3 n
 	n=$(awk -F'\t' -v kind="$kind" '$1 == kind' "$file" | wc -l | tr -d ' ')
@@ -70,31 +69,20 @@ section() {
 			gsub(/\|/, "\\|", e)
 			printf "| %s | %s | %s | `%s` |\n", $2, $3, $4, e
 		}
-		END { if (n > max) printf "\n_%d more in the build artifacts._\n", n - max }
-	' "$file"
+		END { if (n > max) printf "\n_%d more in %s._\n", n - max, link }
+	' link="$4" "$file"
 	printf '\n</details>\n'
 }
 
-# Posts the report on the PR, replacing the comment of an earlier revision. Failing to post is logged, not fatal.
-post() {
-	local file=$1 pr=${BUILDKITE_PULL_REQUEST:-false} repo id
-	repo=${BUILDKITE_REPO:-https://github.com/elastic/elasticsearch.git}
-	repo=${repo#*github.com[:/]}
-	repo=${repo%.git}
-	if [[ ! $pr =~ ^[0-9]+$ ]]; then
-		log 'not a pull request: skipping the report comment'
-		return 0
-	fi
-	if ! command -v gh >/dev/null; then
-		log 'missing gh: skipping the report comment'
-		return 0
-	fi
-	id=$(gh api --paginate "repos/$repo/issues/$pr/comments" --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | tail -n 1) || id=
-	if [[ $id ]]; then
-		gh api -X PATCH "repos/$repo/issues/comments/$id" -F "body=@$file" >/dev/null
-	else
-		gh api -X POST "repos/$repo/issues/$pr/comments" -F "body=@$file" >/dev/null
-	fi || log "failed to post the report comment on $repo#$pr"
+# Shows the report on the build, the way the other CI reports do, and offers it to the build bot's PR comment.
+# The PR comment only appears in pipelines that enable build bot comments (ELASTIC_PR_COMMENTS_ENABLED).
+annotate() {
+	local style=$1 file=$2
+	command -v buildkite-agent >/dev/null || return 0
+	buildkite-agent annotate --context "$annotation_context" --style "$style" < "$file" \
+		|| log 'failed to annotate the build'
+	buildkite-agent meta-data set "pr_comment:promql-coverage-report:body" < "$file" \
+		|| log 'failed to set the PR comment meta-data'
 }
 
 cleanup() {
@@ -123,6 +111,8 @@ main() {
 	local delta status revision
 	local changes_tsv=$output/@$dataset-changes.tsv
 	local report_md=$output/@$dataset-report.md
+	# Artifacts keep their absolute path without the leading slash.
+	local changes_link="<a href=\"artifact://${changes_tsv#/}\">${changes_tsv##*/}</a>"
 
 	for cmd in curl find git jq tar tee uv; do
 		command -v "$cmd" >/dev/null || die "missing: $cmd"
@@ -228,17 +218,21 @@ main() {
 	revision=$(git rev-parse HEAD)
 	changes "$control_log" "$test_log" > "$changes_tsv"
 	{
-		printf '%s\n### PromQL coverage: %s\n\n' "$marker" "$dataset"
+		printf '### PromQL coverage: %s\n\n' "$dataset"
 		printf 'Revision `%s` against its merge base `%s`, promcheck %s' "${revision:0:12}" "${base:0:12}" "$version"
 		[[ -z ${BUILDKITE_BUILD_URL:-} ]] || printf ' ([build](%s))' "$BUILDKITE_BUILD_URL"
 		printf '.\n\n| | ok | fail | err | skip | total |\n|---|---|---|---|---|---|\n'
 		printf '| base | %s | %s | %s | %s | %s |\n' "$c_ok" "$c_fail" "$c_err" "$c_skip" "$c_total"
 		printf '| revision | %s | %s | %s | %s | %s |\n' "$t_ok" "$t_fail" "$t_err" "$t_skip" "$t_total"
 		printf '\n**%s**: %+d ok.\n' "$status" "$delta"
-		section "$changes_tsv" regression 'Regressions'
-		section "$changes_tsv" improvement 'Improvements'
+		section "$changes_tsv" regression 'Regressions' "$changes_link"
+		section "$changes_tsv" improvement 'Improvements' "$changes_link"
 	} > "$report_md"
-	post "$report_md"
+	if ((delta < 0)); then
+		annotate error "$report_md"
+	else
+		annotate success "$report_md"
+	fi
 
 	((delta >= 0))
 }

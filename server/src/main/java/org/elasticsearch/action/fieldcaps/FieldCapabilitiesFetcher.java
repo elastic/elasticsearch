@@ -259,6 +259,13 @@ class FieldCapabilitiesFetcher {
                     if (context.getFieldType(parentField) == null && isUnderSubobjectsFalseMapper(parentField, objectMappers) == false) {
                         // no field type and not under a subobjects:false context, it must be an object field
                         String type = context.nestedLookup().getNestedMappers().get(parentField) != null ? "nested" : "object";
+                        // A synthesized object may have no backing ObjectMapper, e.g. for a dotted leaf under a root-level
+                        // subobjects:false mapping. It is reported as a plain object nonetheless, so it must carry the
+                        // same passthrough status as one, or indices with and without subobjects would conflict.
+                        ObjectMapper parentMapper = objectMappers.get(parentField);
+                        Boolean isPassthrough = parentMapper == null && "object".equals(type)
+                            ? Boolean.FALSE
+                            : passthroughStatus(parentMapper);
                         IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                             parentField,
                             type,
@@ -268,7 +275,7 @@ class FieldCapabilitiesFetcher {
                             false,
                             false,
                             null,
-                            passthroughStatus(objectMappers.get(parentField)),
+                            isPassthrough,
                             Map.of(),
                             null,
                             TextFieldMapper.Defaults.POSITION_INCREMENT_GAP,

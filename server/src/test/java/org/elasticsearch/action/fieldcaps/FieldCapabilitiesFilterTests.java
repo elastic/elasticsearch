@@ -342,6 +342,33 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         );
     }
 
+    public void testSynthesizedObjectWithoutMapperIsNotPassthrough() throws IOException {
+        // With subobjects:false at the root, "host.name" is a leaf and "host" is synthesized as an object without a backing
+        // ObjectMapper. It must report the same passthrough status (false) as a real plain object, so that field caps of
+        // such an index (e.g. logsdb) do not conflict with those of an index that maps "host" as a regular object.
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.field("subobjects", false);
+            b.startObject("properties").startObject("host.name").field("type", "keyword").endObject().endObject();
+        }));
+        SearchExecutionContext sec = createSearchExecutionContext(mapperService);
+
+        Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
+            sec,
+            s -> true,
+            Strings.EMPTY_ARRAY,
+            Strings.EMPTY_ARRAY,
+            FieldPredicate.ACCEPT_ALL,
+            getMockIndexShard(),
+            true
+        );
+
+        IndexFieldCapabilities host = response.get("host");
+        assertNotNull(host);
+        assertEquals("object", host.type());
+        assertEquals(Boolean.FALSE, host.isPassthrough());
+        assertNull(response.get("host.name").isPassthrough());
+    }
+
     public void testPassthroughObjectIsFlagged() throws IOException {
         // Passthrough sources keep their regular type ("object" / "flattened") but are additionally flagged as passthrough.
         // Plain objects and flattened fields, which could have been passthrough, are explicitly flagged as not passthrough,

@@ -232,11 +232,10 @@ public final class DataSourceModule implements Closeable {
         LocalFileAccess effectiveLocalFileAccess = localFileAccess != null ? localFileAccess : LocalFileAccess.UNRESTRICTED;
         // Off-timer scheduler for the async read-retry backoff, so a retry does not park a GENERIC-pool thread on
         // Thread.sleep while it waits; DIRECT (run promptly on the executor) when no ThreadPool is supplied (tests).
-        // Hop the retry *start* onto esql_external_io (splitDiscoveryExecutor), never the caller executor: prefetch
-        // passes Runnable::run, and ThreadPool.ThreadedRunnable would then run ConcurrencyLimiter.tryAcquire on
-        // [scheduler]. Completion still uses the caller executor captured in the continuation.
-        Executor retryStartExecutor = splitDiscoveryExecutor != null ? splitDiscoveryExecutor : executor;
-        RetryScheduler retryScheduler = retryStartScheduler(threadPool, retryStartExecutor);
+        // Hop the retry *start* onto GENERIC, never the caller executor and never esql_external_io: prefetch
+        // passes Runnable::run (ThreadedRunnable would run tryAcquire on [scheduler]), and Parquet preload
+        // parks esql_external_io on actionGet() waiting for this retry.
+        RetryScheduler retryScheduler = retryStartScheduler(threadPool);
         this.storageProviderRegistry = new StorageProviderRegistry(
             settings,
             credentials,
@@ -438,19 +437,21 @@ public final class DataSourceModule implements Closeable {
     }
 
     /**
-     * Retry start hops onto {@code retryStartExecutor} ({@code esql_external_io} in production),
-     * ignoring the caller executor passed to {@link RetryScheduler#schedule}. Prefetch uses
-     * {@code Runnable::run}; scheduling onto that would run {@link ConcurrencyLimiter#tryAcquire} on
-     * {@code [scheduler]}. Completion still uses the caller executor.
+     * Retry start hops onto {@link ThreadPool#generic()}, ignoring the caller executor passed to
+     * {@link RetryScheduler#schedule}. Prefetch uses {@code Runnable::run}; scheduling onto that
+     * would run {@link ConcurrencyLimiter#tryAcquire} on {@code [scheduler]}. Preload parks
+     * {@code esql_external_io} on {@code actionGet()} with no timeout; hopping the retry onto that
+     * same pool deadlocks (the waiter cannot run the continuation that completes it). Completion
+     * still uses the caller executor.
      */
-    static RetryScheduler retryStartScheduler(@Nullable ThreadPool threadPool, Executor retryStartExecutor) {
+    static RetryScheduler retryStartScheduler(@Nullable ThreadPool threadPool) {
         if (threadPool == null) {
             return RetryScheduler.DIRECT;
         }
         return (command, delayMillis, ignoredCallerExecutor) -> threadPool.schedule(
             command,
             TimeValue.timeValueMillis(Math.max(0L, delayMillis)),
-            retryStartExecutor
+            threadPool.generic()
         );
     }
 

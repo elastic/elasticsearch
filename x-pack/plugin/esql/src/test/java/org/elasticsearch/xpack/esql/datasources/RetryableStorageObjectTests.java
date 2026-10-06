@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
@@ -253,10 +255,10 @@ public class RetryableStorageObjectTests extends ESTestCase {
     }
 
     /**
-     * T4 (C5): real {@link ThreadPool}, dedicated caller executor, full limiter. Prefetch
-     * used to hop the retry onto {@code [scheduler]} via {@code ThreadedRunnable}. The start hop must
-     * be {@code esql_external_io} (generic here); {@link ConcurrencyLimiter#acquire} / {@code tryAcquire}
-     * must never run on a scheduler thread. Completion stays on the caller executor.
+     * Prefetch used to hop the retry onto {@code [scheduler]} via {@code ThreadedRunnable}.
+     * The start hop is {@link ThreadPool#generic()}; {@link ConcurrencyLimiter#acquire} /
+     * {@code tryAcquire} must never run on a scheduler thread. Completion stays on the caller
+     * executor.
      */
     public void testRetryHopDoesNotAcquireOnSchedulerThread() throws Exception {
         ThreadPool threadPool = new TestThreadPool(getTestName());
@@ -342,8 +344,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
                 return new StorageObjectMetrics(0, 0, 0, 0);
             }
         };
-        Executor io = threadPool.generic();
-        RetryScheduler hopScheduler = DataSourceModule.retryStartScheduler(threadPool, io);
+        RetryScheduler hopScheduler = DataSourceModule.retryStartScheduler(threadPool);
         ConcurrencyLimitedStorageObject limited = new ConcurrencyLimitedStorageObject(flaky, limiter);
         RetryableStorageObject obj = new RetryableStorageObject(limited, new RetryPolicy(3, 5, 50), hopScheduler);
         CountDownLatch done = new CountDownLatch(1);
@@ -384,6 +385,150 @@ public class RetryableStorageObjectTests extends ESTestCase {
             completion.shutdownNow();
             ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }
+    }
+
+    /**
+     * Repro for hopping the retry onto the pool that is parked in {@code actionGet()} (Parquet
+     * {@code PreloadedRowGroupMetadata.preload} does this on {@code esql_external_io} with
+     * {@code Runnable::run}). One waiter thread, first GET fails, retry queued behind the waiter:
+     * the continuation never runs.
+     */
+    public void testRetryHopOntoActionGetWaiterPoolDeadlocks() throws Exception {
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        ExecutorService waiterPool = Executors.newSingleThreadExecutor(r -> new Thread(r, "waiter-io"));
+        AtomicInteger attempts = new AtomicInteger();
+        RetryScheduler hopOntoWaiter = (command, delayMillis, ignored) -> threadPool.schedule(
+            command,
+            TimeValue.timeValueMillis(Math.max(0L, delayMillis)),
+            waiterPool
+        );
+        RetryableStorageObject obj = new RetryableStorageObject(
+            failOnceAsync(attempts, StoragePath.of("s3://bucket/key")),
+            new RetryPolicy(3, 1, 50),
+            hopOntoWaiter
+        );
+        CountDownLatch done = new CountDownLatch(1);
+        try {
+            waiterPool.execute(() -> {
+                try {
+                    PlainActionFuture<DirectReadBuffer> future = new PlainActionFuture<>();
+                    obj.readBytesAsync(0, 4, len -> new DirectReadBuffer(ByteBuffer.allocate(len), () -> {}), Runnable::run, future);
+                    future.actionGet(10, TimeUnit.SECONDS);
+                } catch (Exception ignored) {
+                    // timeout is the deadlock; interrupt/shutdown is the test teardown
+                } finally {
+                    done.countDown();
+                }
+            });
+            assertFalse("retry queued on the actionGet waiter pool must not complete", done.await(1, TimeUnit.SECONDS));
+            assertEquals("retry must not have issued the second GET", 1, attempts.get());
+        } finally {
+            waiterPool.shutdownNow();
+            ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+            assertTrue(done.await(5, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * Production hop is {@link ThreadPool#generic()}, so a thread parked in {@code actionGet()} on
+     * the I/O pool can still be completed by the retry.
+     */
+    public void testRetryStartSchedulerDoesNotJoinActionGetWaiterPool() throws Exception {
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        ExecutorService waiterPool = Executors.newSingleThreadExecutor(r -> new Thread(r, "waiter-io"));
+        AtomicInteger attempts = new AtomicInteger();
+        RetryableStorageObject obj = new RetryableStorageObject(
+            failOnceAsync(attempts, StoragePath.of("s3://bucket/key")),
+            new RetryPolicy(3, 1, 50),
+            DataSourceModule.retryStartScheduler(threadPool)
+        );
+        CountDownLatch done = new CountDownLatch(1);
+        AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        try {
+            waiterPool.execute(() -> {
+                try {
+                    PlainActionFuture<DirectReadBuffer> future = new PlainActionFuture<>();
+                    obj.readBytesAsync(0, 4, len -> new DirectReadBuffer(ByteBuffer.allocate(len), () -> {}), Runnable::run, future);
+                    result.set(future.actionGet(10, TimeUnit.SECONDS));
+                } catch (Exception e) {
+                    failure.set(e);
+                } finally {
+                    done.countDown();
+                }
+            });
+            assertTrue("retry on generic must complete the actionGet waiter", done.await(10, TimeUnit.SECONDS));
+            assertNull(failure.get());
+            assertNotNull(result.get());
+            assertEquals(2, attempts.get());
+        } finally {
+            waiterPool.shutdownNow();
+            ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    private static StorageObject failOnceAsync(AtomicInteger attempts, StoragePath path) {
+        return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
+            public InputStream newStream() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long length() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Instant lastModified() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean exists() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public StoragePath path() {
+                return path;
+            }
+
+            @Override
+            public int readBytes(long position, ByteBuffer target) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void readBytesAsync(
+                long position,
+                long len,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
+                if (attempts.getAndIncrement() == 0) {
+                    listener.onFailure(new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "", "", false, 0L));
+                } else {
+                    listener.onResponse(new DirectReadBuffer(ByteBuffer.allocate(4), () -> {}));
+                }
+            }
+
+            @Override
+            public StorageObjectMetrics metrics() {
+                return new StorageObjectMetrics(0, 0, 0, 0);
+            }
+        };
     }
 
     /**

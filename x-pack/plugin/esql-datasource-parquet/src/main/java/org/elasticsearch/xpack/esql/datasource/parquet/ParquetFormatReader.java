@@ -1628,10 +1628,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * already charged to the breaker by the read; deserialising them builds {@code SchemaElement}, {@code ColumnChunk},
      * {@code ColumnMetaData} and {@code Statistics} objects per column (and per row group) that the read charge never
      * sees, which is how a footer of a few hundred MB exhausts a small heap with the breaker nowhere near its limit.
-     * A rounded-down allowance, not a measured size: the parsed footer weighs {@link #estimateFooterWeightBytes} once
-     * cached, which is far above this for a wide file.
+     * Sized for the peak, not for what is retained: while the thrift {@code FileMetaData} is converted to
+     * {@link ParquetMetadata}, the raw bytes, the thrift graph (about 4-5x the footer) and the converted metadata
+     * (about 3-4x, roughly what {@link #estimateFooterWeightBytes} prices once cached) are all live, about 9-11x the
+     * footer's size as measured for files of 200 to 2,000 columns.
      */
-    static final long FOOTER_PARSE_EXPANSION = 4;
+    static final long FOOTER_PARSE_EXPANSION = 10;
 
     static final String FOOTER_PARSE_BREAKER_LABEL = "parquet footer parse";
 

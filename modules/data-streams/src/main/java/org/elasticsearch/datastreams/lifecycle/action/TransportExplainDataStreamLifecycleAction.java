@@ -156,12 +156,12 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
     private String describeNotManagedByDlmReason(DataStream parentDataStream, IndexMetadata indexMetadata, boolean dlmOnly) {
         String indexName = indexMetadata.getIndex().getName();
         if (indexMetadata.getIndexMode() == IndexMode.LOOKUP) {
-            return "Index [" + indexName + "] is a lookup index which are not compatible with lifecycle management.";
+            return "Index [" + indexName + "] is a lookup index which is not compatible with lifecycle management.";
         }
         if (parentDataStream == null) {
             return "Index [" + indexName + "] does not belong to a data stream, so it cannot be managed by data stream lifecycle.";
         }
-        DataStreamLifecycle lifecycle = parentDataStream.getDataLifecycle();
+        DataStreamLifecycle lifecycle = parentDataStream.getDataLifecycleForIndex(indexMetadata.getIndex());
         if (lifecycle == null) {
             return "Index ["
                 + indexName

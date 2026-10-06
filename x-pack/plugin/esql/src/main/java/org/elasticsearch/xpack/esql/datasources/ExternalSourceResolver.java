@@ -1402,7 +1402,9 @@ public class ExternalSourceResolver {
                 // path (the resolve overload with a null pathsRequiringStats set), preserving the original
                 // eager-for-all behavior.
                 //
-                // For an eager (requiresStats) resolve the cost is acceptable because:
+                // For an eager (requiresStats) resolve the cost is acceptable because, and only while, one
+                // of the two things a read buys is still obtainable - see remainingReadsBuyNothing, which
+                // stops the gather when neither is:
                 // - the cacheable path consults the schema cache, so repeat resolves are free;
                 // - the non-cacheable path reads footers with an async fan-out bounded by an in-flight permit
                 // (metadataReadConcurrency), releasing the pool thread across each footer read;
@@ -2299,6 +2301,13 @@ public class ExternalSourceResolver {
         for (int i = 0; i < listing.fileCount(); i++) {
             pathToMtime.put(listing.path(i).toString(), listing.lastModifiedMillis(i));
         }
+        if (pathToReadConfig != null && pathToReadConfig.size() < listing.fileCount()) {
+            // The gather stopped early (see remainingReadsBuyNothing), so this map covers only the files it
+            // reached. The promise's per-path read-config gate is all-or-nothing across paths, and an
+            // unrecorded path falls back to the config-level check alone - registering on a partial map
+            // would narrow that gate without saying so. Skip it; a resolve that reads every file registers.
+            return null;
+        }
         Map<String, Object> referenceMetadata = referenceMeta.sourceMetadata();
         Object stamped = referenceMetadata != null ? referenceMetadata.get(ExternalStats.CONFIG_FINGERPRINT_KEY) : null;
         String fingerprint = stamped instanceof String s ? s : formatConfigIdentity(listing.path(0).objectName(), storageConfig(config));
@@ -2601,13 +2610,23 @@ public class ExternalSourceResolver {
         ActionListener<Map<StoragePath, SourceMetadata>> listener
     ) {
         int fileCount = fileList.fileCount();
-        gatherPerFile(fileList, storageIdentity, config, cacheable, fold, schemaInterner, privateLists, false, ActionListener.wrap(perFile -> {
-            Map<StoragePath, SourceMetadata> result = new LinkedHashMap<>();
-            for (int i = 0; i < fileCount; i++) {
-                result.put(fileList.path(i), perFile.get(i));
-            }
-            listener.onResponse(result);
-        }, listener::onFailure));
+        gatherPerFile(
+            fileList,
+            storageIdentity,
+            config,
+            cacheable,
+            fold,
+            schemaInterner,
+            privateLists,
+            false,
+            ActionListener.wrap(perFile -> {
+                Map<StoragePath, SourceMetadata> result = new LinkedHashMap<>();
+                for (int i = 0; i < fileCount; i++) {
+                    result.put(fileList.path(i), perFile.get(i));
+                }
+                listener.onResponse(result);
+            }, listener::onFailure)
+        );
     }
 
     /**
@@ -2644,7 +2663,7 @@ public class ExternalSourceResolver {
      * cancellation signal is checked before each dispatch (a cancelled wide glob stops issuing reads promptly and
      * surfaces {@link TaskCancelledException}), and the async reads run on {@link #metadataReadExecutor} so an
      * executor-backed synchronous read's backoff aborts on cancel. The first failure is propagated to {@code listener}
-     * and short-circuits the remaining files.
+     * and short-circuits the remaining files, as does {@link #remainingReadsBuyNothing}.
      * <p>
      * When a {@link #planningReservation} is set, the method opens a {@link ExternalPlanningReservation.Run} and charges
      * {@link #gatheredFileBytes} per resolved file to the circuit breaker, so concurrent gather fan-outs from different
@@ -2692,7 +2711,8 @@ public class ExternalSourceResolver {
             }
             if (remainingReadsBuyNothing(resultsFeedOnlyStatsAndCache, fold, admission)) {
                 // Cancellation is observed inside the per-file read, so a gather that stops issuing them
-                // must raise it here or complete with partial stats instead.
+                // must raise it here or complete with partial stats instead. Pinned by
+                // testMultiFileResolveCancellationStopsReadingFooters, which fails without this.
                 if (isCancelled()) {
                     failure.compareAndSet(null, new TaskCancelledException(RESOLUTION_CANCELLED_MESSAGE));
                 }
@@ -3408,7 +3428,7 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Reads metadata from all files in {@code listing} with an async, bounded fan-out (see {@link #gatherPerFile}),
+     * Reads metadata from the files in {@code listing} with an async, bounded fan-out (see {@link #gatherPerFile}),
      * folding each file's column statistics as it completes. Responds with the folded stats map, or {@code null} if
      * any file lacks statistics. A read failure is treated as "could not aggregate" and responds with {@code null}
      * so the caller marks stats partial — except cancellation, which is surfaced as a failure so the query aborts

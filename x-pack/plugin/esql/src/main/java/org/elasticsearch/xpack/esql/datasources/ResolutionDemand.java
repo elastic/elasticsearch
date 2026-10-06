@@ -33,8 +33,11 @@ public enum ResolutionDemand {
     ROWS,
 
     /**
-     * An ungrouped aggregate answerable from file metadata: resolution reads every footer up front and split
+     * An ungrouped aggregate answerable from file metadata: resolution reads footers up front and split
      * discovery is skipped. The footers it reads are ones a later phase would have read anyway.
+     * <p>
+     * Elected from the query's shape alone, so it is asked of formats that cannot answer it. The gather
+     * stops early in that case rather than reading every file; see {@code remainingReadsBuyNothing}.
      */
     EAGER_STATS;
 

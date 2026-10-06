@@ -191,7 +191,7 @@ public class AzureBlobContainerTests extends AbstractAzureServerTestCase {
     private void testConcurrentMultipartCopy(boolean singleThread) throws Exception {
         final AzureBlobContainer blobContainer = asInstanceOf(AzureBlobContainer.class, createBlobContainer(between(1, 3)));
         final AzureBlobStore blobStore = blobContainer.getBlobStore();
-        final long partSize = blobStore.getUploadBlockSize();
+        final long partSize = blobStore.maxCopySizeBeforeMultipart();
         final int nbParts = randomIntBetween(2, 5);
         final long blobSize = randomLongBetween((nbParts - 1) * partSize + 1, nbParts * partSize);
         assertThat(ConcurrentMultipartHelper.numberOfParts(blobSize, partSize), equalTo(nbParts));
@@ -227,7 +227,7 @@ public class AzureBlobContainerTests extends AbstractAzureServerTestCase {
 
     public void testConcurrentMultipartCopyMissingSource() {
         final AzureBlobContainer blobContainer = asInstanceOf(AzureBlobContainer.class, createBlobContainer(between(1, 3)));
-        final long blobSize = blobContainer.getBlobStore().getUploadBlockSize() + 1;
+        final long blobSize = blobContainer.getBlobStore().maxCopySizeBeforeMultipart() + 1;
         expectThrows(
             NoSuchFileException.class,
             () -> blobContainer.copyBlob(
@@ -244,8 +244,8 @@ public class AzureBlobContainerTests extends AbstractAzureServerTestCase {
     public void testSmallCopyWithExecutorUsesBeginCopy() throws IOException {
         final AzureBlobContainer blobContainer = asInstanceOf(AzureBlobContainer.class, createBlobContainer(between(1, 3)));
         final AzureBlobStore blobStore = blobContainer.getBlobStore();
-        // Below the upload block size, even with an executor we use async Copy Blob (not multipart)
-        final byte[] data = randomByteArrayOfLength(between(1, Math.toIntExact(blobStore.getUploadBlockSize())));
+        // Below the multipart copy threshold, even with an executor we use async Copy Blob
+        final byte[] data = randomByteArrayOfLength(between(1, Math.toIntExact(blobStore.maxCopySizeBeforeMultipart())));
         final String sourceBlobName = randomIdentifier();
         final String destBlobName = randomIdentifier();
         blobStore.writeBlob(OperationPurpose.CLUSTER_STATE, sourceBlobName, BytesReference.fromByteBuffer(ByteBuffer.wrap(data)), false);

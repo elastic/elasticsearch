@@ -138,7 +138,7 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
         AzureBlobStore blobStore = blobContainer.getBlobStore();
         OperationPurpose purpose = randomFrom(OperationPurpose.values());
 
-        final long partSize = blobStore.getUploadBlockSize();
+        final long partSize = blobStore.maxCopySizeBeforeMultipart();
         final int nbParts = randomIntBetween(2, 4);
         final long blobSize = (nbParts - 1) * partSize + 1;
         final byte[] data = randomByteArrayOfLength(Math.toIntExact(blobSize));

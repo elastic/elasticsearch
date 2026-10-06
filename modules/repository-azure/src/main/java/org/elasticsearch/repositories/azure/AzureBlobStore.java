@@ -157,6 +157,7 @@ public class AzureBlobStore implements BlobStore {
     private final int maxConcurrentBatchDeletes;
     private final int multipartUploadMaxConcurrency;
     private final TimeValue copyPollInterval;
+    private final ByteSizeValue maxCopySizeBeforeMultipart;
 
     private final RequestMetricsRecorder requestMetricsRecorder;
     private final AzureClientProvider.RequestMetricsHandler requestMetricsHandler;
@@ -187,6 +188,7 @@ public class AzureBlobStore implements BlobStore {
         this.maxConcurrentBatchDeletes = Repository.MAX_CONCURRENT_BATCH_DELETES_SETTING.get(metadata.settings());
         this.multipartUploadMaxConcurrency = service.getMultipartUploadMaxConcurrency();
         this.copyPollInterval = Repository.COPY_POLL_INTERVAL.get(metadata.settings());
+        this.maxCopySizeBeforeMultipart = Repository.MAX_COPY_SIZE_BEFORE_MULTIPART_SETTING.get(metadata.settings());
         this.dataAccessTier = initAccessTier(dataAccessTier);
         this.metadataAccessTier = initAccessTier(metadataAccessTier);
 
@@ -848,9 +850,9 @@ public class AzureBlobStore implements BlobStore {
                 final BlobServiceClient syncClient = client.getSyncClient();
                 final BlobClient blobSyncClient = syncClient.getBlobContainerClient(container).getBlobClient(blobName);
                 try {
-                    if (executor != null && blobSize > getUploadBlockSize()) {
+                    if (executor != null && blobSize > maxCopySizeBeforeMultipart()) {
                         final BlockBlobClient blockBlobClient = blobSyncClient.getBlockBlobClient();
-                        final long partSize = getUploadBlockSize();
+                        final long partSize = maxCopySizeBeforeMultipart();
                         final int nbParts = ConcurrentMultipartHelper.numberOfParts(blobSize, partSize);
                         final String[] blockIds = new String[nbParts];
                         for (int i = 0; i < nbParts; i++) {
@@ -1171,6 +1173,11 @@ public class AzureBlobStore implements BlobStore {
 
     long getUploadBlockSize() {
         return service.getUploadBlockSize();
+    }
+
+    // visible for testing
+    long maxCopySizeBeforeMultipart() {
+        return maxCopySizeBeforeMultipart.getBytes();
     }
 
     private AzureBlobServiceClient getAzureBlobServiceClientClient(OperationPurpose purpose) {

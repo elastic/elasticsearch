@@ -80,7 +80,9 @@ public class PkiRealm extends Realm implements CachingRealm, Releasable {
     // the lock is used in an odd manner; when iterating over the cache we cannot have modifiers other than deletes using
     // the iterator but when not iterating we can modify the cache without external locking. When making normal modifications to the cache
     // the read lock is obtained so that we can allow concurrent modifications; however when we need to iterate over the keys or values of
-    // the cache the write lock must obtained to prevent any modifications
+    // the cache the write lock must obtained to prevent any modifications. The write lock is also held while a truststore reload swaps
+    // the trust manager and flushes the cache, so that a cache put (which re-checks the trust manager under the read lock) cannot
+    // land after the flush.
     private final ReleasableLock readLock;
     private final ReleasableLock writeLock;
 
@@ -193,6 +195,9 @@ public class PkiRealm extends Realm implements CachingRealm, Releasable {
         X509AuthenticationToken token = (X509AuthenticationToken) authToken;
         try {
             final BytesKey fingerprint = computeTokenFingerprint(token);
+            // Pin the trust manager for this authentication so that the cache put below can tell whether the decision it is about
+            // to cache was made against trust material that is still current (see the reload in watchTruststoreForChanges).
+            final X509TrustManager tm = this.trustManager;
             User user = cache.get(fingerprint);
             if (user != null) {
                 logger.debug(() -> format("Using cached authentication for DN [%s], as principal [%s]", token.dn(), user.principal()));
@@ -203,7 +208,7 @@ public class PkiRealm extends Realm implements CachingRealm, Releasable {
                 }
             } else if (false == delegationEnabled && token.isDelegated()) {
                 listener.onResponse(AuthenticationResult.unsuccessful("Realm does not permit delegation for " + token.dn(), null));
-            } else if (false == isCertificateChainTrusted(token)) {
+            } else if (false == isCertificateChainTrusted(tm, token)) {
                 listener.onResponse(AuthenticationResult.unsuccessful("Certificate for " + token.dn() + " is not trusted", null));
             } else {
                 // parse the principal again after validating the cert chain, and do not rely on the token.principal one, because that could
@@ -223,7 +228,11 @@ public class PkiRealm extends Realm implements CachingRealm, Releasable {
                     final ActionListener<AuthenticationResult<User>> cachingListener = ActionListener.wrap(result -> {
                         if (result.isAuthenticated()) {
                             try (ReleasableLock ignored = readLock.acquire()) {
-                                cache.put(fingerprint, result.getValue());
+                                // A truststore reload may have swapped the trust manager and flushed the cache while the roles were
+                                // being resolved. Do not re-populate the cache with a decision made against the previous trust material.
+                                if (tm == trustManager) {
+                                    cache.put(fingerprint, result.getValue());
+                                }
                             }
                         }
                         listener.onResponse(result);
@@ -317,8 +326,7 @@ public class PkiRealm extends Realm implements CachingRealm, Releasable {
         return principal;
     }
 
-    private boolean isCertificateChainTrusted(X509AuthenticationToken token) {
-        final X509TrustManager tm = this.trustManager;
+    private boolean isCertificateChainTrusted(X509TrustManager tm, X509AuthenticationToken token) {
         if (tm == null) {
             // No extra trust managers specified
             // If the token is NOT delegated then it is authenticated, because the certificate chain has been validated by the TLS channel.
@@ -374,10 +382,13 @@ public class PkiRealm extends Realm implements CachingRealm, Releasable {
                 }
                 logger.debug("PKI realm [{}] reloading truststore after change to [{}]", config.name(), file);
                 try {
-                    // Assign only on success; expire after swap so new misses never hit the stale TM.
                     final X509TrustManager reloaded = buildTrustManager(trustConfig);
-                    PkiRealm.this.trustManager = reloaded;
-                    expireAll();
+                    // Assign only on success. Swap and flush under the write lock so that an authentication which validated against
+                    // the previous trust manager cannot re-populate the cache after the flush (see the cache put in authenticate).
+                    try (ReleasableLock ignored = writeLock.acquire()) {
+                        PkiRealm.this.trustManager = reloaded;
+                        cache.invalidateAll();
+                    }
                     logger.info("PKI realm [{}] reloaded truststore after change to [{}]", config.name(), file);
                 } catch (Exception e) {
                     logger.warn(

@@ -66,6 +66,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
 import javax.security.auth.x500.X500Principal;
@@ -304,13 +306,17 @@ public class PkiRealmTests extends ESTestCase {
     }
 
     private PkiRealm buildWatchedRealm(Settings settings) {
+        return buildWatchedRealm(settings, buildRoleMapper());
+    }
+
+    private PkiRealm buildWatchedRealm(Settings settings, UserRoleMapper roleMapper) {
         final RealmConfig config = new RealmConfig(
             new RealmConfig.RealmIdentifier(PkiRealmSettings.TYPE, REALM_NAME),
             settings,
             TestEnvironment.newEnvironment(settings),
             new ThreadContext(settings)
         );
-        final PkiRealm realm = new PkiRealm(config, buildRoleMapper(), watcherService);
+        final PkiRealm realm = new PkiRealm(config, roleMapper, watcherService);
         realm.initialize(List.of(realm), licenseState);
         return realm;
     }
@@ -553,6 +559,60 @@ public class PkiRealmTests extends ESTestCase {
         assertThat(authenticate(trustedToken, realm).isAuthenticated(), is(false));
         // restricted.trust.crt is now the trust anchor
         assertThat(authenticate(restrictedToken, realm).isAuthenticated(), is(true));
+    }
+
+    public void testReloadDuringRoleResolutionDoesNotCacheStaleTrustDecision() throws Exception {
+        final Path tempDir = createTempDir();
+        final Path caCertPath = tempDir.resolve("ca.crt");
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.crt"), caCertPath);
+
+        // Holds back the first role resolution so that a reload can be interleaved between the trust check and the cache put;
+        // subsequent resolutions complete immediately.
+        final AtomicReference<ActionListener<Set<String>>> pendingRoleResolution = new AtomicReference<>();
+        final AtomicBoolean deferNext = new AtomicBoolean(true);
+        final UserRoleMapper roleMapper = mock(UserRoleMapper.class);
+        Mockito.doAnswer(invocation -> {
+            final ActionListener<Set<String>> listener = invocation.getArgument(1);
+            if (deferNext.compareAndSet(true, false)) {
+                pendingRoleResolution.set(listener);
+            } else {
+                listener.onResponse(Collections.emptySet());
+            }
+            return null;
+        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), anyActionListener());
+
+        final PkiRealm realm = buildWatchedRealm(
+            Settings.builder()
+                .put(globalSettings)
+                .putList("xpack.security.authc.realms.pki.my_pki.certificate_authorities", caCertPath.toString())
+                .build(),
+            roleMapper
+        );
+
+        final X509Certificate trustedCert = readCert(
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/trusted.crt")
+        );
+        final X509AuthenticationToken trustedToken = new X509AuthenticationToken(new X509Certificate[] { trustedCert });
+
+        // the chain is validated against the original CA, then role resolution is held back
+        final PlainActionFuture<AuthenticationResult<User>> inFlight = new PlainActionFuture<>();
+        realm.authenticate(trustedToken, inFlight);
+        assertThat(pendingRoleResolution.get(), notNullValue());
+        assertThat(inFlight.isDone(), is(false));
+
+        // the CA that issued trusted.crt is replaced while role resolution is pending
+        replaceFileAndBumpMtime(
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/restricted.trust.crt"),
+            caCertPath
+        );
+        watcherService.notifyNow(ResourceWatcherService.Frequency.HIGH);
+
+        // the in-flight authentication completes; it was validated before the reload, so it still succeeds
+        pendingRoleResolution.get().onResponse(Collections.emptySet());
+        assertThat(inFlight.actionGet().isAuthenticated(), is(true));
+
+        // but its result must not have been cached, so the chain is re-validated against the new trust material
+        assertThat(authenticate(trustedToken, realm).isAuthenticated(), is(false));
     }
 
     public void testReloadKeepsPreviousContextOnFailureAndLogsWarning() throws Exception {

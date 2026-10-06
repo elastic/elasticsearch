@@ -36,6 +36,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.MockIndexEventListener;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -64,15 +65,72 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     private static final String RETRY_MESSAGE = "RETRY_CAUSE";
     private static final RuntimeException RETRY_CAUSE = new RuntimeException(RETRY_MESSAGE);
 
+    private final AtomicReference<FailureTarget> failureTarget = new AtomicReference<>();
+    private final AtomicInteger recoveryCounter = new AtomicInteger();
+    private final AtomicReference<CyclicBarrier> recoveryBarrier = new AtomicReference<>();
+
+    private final IndexEventListener recoveryListener = new IndexEventListener() {
+        @Override
+        public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+            maybePauseRecovery();
+            maybeThrow(BEFORE_INDEX_SHARD_RECOVERY);
+            listener.onResponse(null);
+        }
+
+        @Override
+        public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
+            maybeThrow(AFTER_INDEX_SHARD_RECOVERY);
+            listener.onResponse(null);
+        }
+
+        @Override
+        public void indexShardStateChanged(
+            IndexShard indexShard,
+            IndexShardState previousState,
+            IndexShardState currentState,
+            String reason
+        ) {
+            if (currentState == IndexShardState.RECOVERING) {
+                recoveryCounter.incrementAndGet();
+            }
+            if (currentState == IndexShardState.POST_RECOVERY) {
+                maybeThrow(STATE_CHANGED_POST_RECOVERY);
+            }
+        }
+
+        private void maybeThrow(FailureTarget target) {
+            if (failureTarget.compareAndSet(target, null)) {
+                throw RETRY_CAUSE;
+            }
+        }
+
+        private void maybePauseRecovery() {
+            final var barrier = recoveryBarrier.getAndSet(null);
+            if (barrier != null) {
+                safeAwait(barrier);
+                safeAwait(barrier);
+            }
+        }
+    };
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(MockIndexEventListener.TestPlugin.class);
         plugins.add(RetryRecoveryTestPlugin.class);
         return plugins;
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(IndicesClusterStateService.INDICES_RECOVERY_LOCAL_RETRY_SETTING.getKey(), true)
+            .build();
+    }
+
     @After
-    public void reset() {
+    public void resetDirectoryAce() {
         RetryRecoveryTestPlugin.reset();
     }
 
@@ -84,7 +142,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try {
             failTestIfReceiveShardFailure(transportService);
 
-            RetryRecoveryTestPlugin.armRandomFailure();
+            armRandomFailure();
 
             // Recover from empty store
             createIndex(indexName, indexSettings(1, 0).build());
@@ -110,8 +168,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try {
             failTestIfReceiveShardFailure(transportService);
 
-            RetryRecoveryTestPlugin.reset();
-            RetryRecoveryTestPlugin.armRandomFailure();
+            armRandomFailure();
 
             // Recover from existing store
             assertAcked(indicesAdmin().prepareOpen(indexName).execute());
@@ -140,8 +197,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try {
             failTestIfReceiveShardFailure(transportService);
 
-            RetryRecoveryTestPlugin.reset();
-            RetryRecoveryTestPlugin.armRandomFailure();
+            armRandomFailure();
 
             // Recover from local shard
             ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
@@ -177,8 +233,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try {
             failTestIfReceiveShardFailure(transportService);
 
-            RetryRecoveryTestPlugin.reset();
-            RetryRecoveryTestPlugin.armRandomFailure();
+            armRandomFailure();
 
             // Recover from snapshot
             clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(true).execute();
@@ -210,7 +265,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             safeAwait(recoveryBarrier);
             safeGet(closed);
 
-            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(1));
+            assertThat(recoveryCounter.get(), equalTo(1));
             assertThat(
                 clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).get().getStatus(),
                 equalTo(ClusterHealthStatus.YELLOW)
@@ -234,7 +289,6 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try {
             failTestIfReceiveShardFailure(transportService);
 
-            RetryRecoveryTestPlugin.reset();
             final var recoveryBarrier = armRecoveryPause();
 
             indicesAdmin().prepareOpen(indexName).execute();
@@ -247,7 +301,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             safeAwait(recoveryBarrier);
             safeGet(closed);
 
-            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(1));
+            assertThat(recoveryCounter.get(), equalTo(1));
             // EXISTING_STORE inactive primaries are RED (see ClusterShardHealth#getInactivePrimaryHealth)
             assertThat(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).get().getStatus(), equalTo(ClusterHealthStatus.RED));
         } finally {
@@ -272,7 +326,6 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try {
             failTestIfReceiveShardFailure(transportService);
 
-            RetryRecoveryTestPlugin.reset();
             final var recoveryBarrier = armRecoveryPause();
 
             // Recover from local shard
@@ -286,7 +339,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             safeAwait(recoveryBarrier);
             safeGet(closed);
 
-            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(1));
+            assertThat(recoveryCounter.get(), equalTo(1));
             assertThat(
                 clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, targetIndexName).get().getStatus(),
                 equalTo(ClusterHealthStatus.YELLOW)
@@ -319,7 +372,6 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try {
             failTestIfReceiveShardFailure(transportService);
 
-            RetryRecoveryTestPlugin.reset();
             final var recoveryBarrier = armRecoveryPause();
 
             // Recover from snapshot
@@ -333,7 +385,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             safeAwait(recoveryBarrier);
             safeGet(closed);
 
-            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(1));
+            assertThat(recoveryCounter.get(), equalTo(1));
             assertThat(
                 clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).get().getStatus(),
                 equalTo(ClusterHealthStatus.YELLOW)
@@ -380,7 +432,6 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try {
             failTestIfReceiveShardFailure(transportService);
 
-            RetryRecoveryTestPlugin.reset();
             RetryRecoveryTestPlugin.armDirectoryAce();
 
             // Recover from local shards; addIndices' temporary IndexWriter hits ACE once
@@ -421,7 +472,6 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try {
             failTestIfReceiveShardFailure(transportService);
 
-            RetryRecoveryTestPlugin.reset();
             RetryRecoveryTestPlugin.armDirectoryAce();
 
             // Force stale primary → bootstrapNewHistory temporary IndexWriter hits ACE once
@@ -442,7 +492,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try {
             failTestIfReceiveShardFailure(transportService);
 
-            RetryRecoveryTestPlugin.armRandomFailure();
+            armRandomFailure();
             final var recoveryBarrier = armRecoveryPause();
 
             prepareCreate(indexName, indexSettings(1, 0)).execute();
@@ -473,7 +523,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try {
             failTestIfReceiveShardFailure(transportService);
 
-            RetryRecoveryTestPlugin.armRandomFailure();
+            armRandomFailure();
             final var recoveryBarrier = armRecoveryPause();
 
             // Recover from existing store
@@ -508,7 +558,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try {
             failTestIfReceiveShardFailure(transportService);
 
-            RetryRecoveryTestPlugin.armRandomFailure();
+            armRandomFailure();
             final var recoveryBarrier = armRecoveryPause();
 
             // Recover from local shard async
@@ -548,8 +598,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try {
             failTestIfReceiveShardFailure(transportService);
 
-            RetryRecoveryTestPlugin.reset();
-            RetryRecoveryTestPlugin.armRandomFailure();
+            armRandomFailure();
             final var recoveryBarrier = armRecoveryPause();
 
             // Recover from snapshot async
@@ -576,7 +625,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try {
             failTestIfReceiveShardFailure(masterATransport);
 
-            RetryRecoveryTestPlugin.armRandomFailure();
+            armRandomFailure();
             final var recoveryBarrier = armRecoveryPause();
 
             // Create index async
@@ -619,7 +668,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try {
             failTestIfReceiveShardFailure(masterATransport);
 
-            RetryRecoveryTestPlugin.armRandomFailure();
+            armRandomFailure();
             final var recoveryBarrier = armRecoveryPause();
 
             // Recover from existing store async
@@ -665,7 +714,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try {
             failTestIfReceiveShardFailure(masterATransport);
 
-            RetryRecoveryTestPlugin.armRandomFailure();
+            armRandomFailure();
             final var recoveryBarrier = armRecoveryPause();
 
             // Recover from local shard async
@@ -717,7 +766,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try {
             failTestIfReceiveShardFailure(masterATransport);
 
-            RetryRecoveryTestPlugin.armRandomFailure();
+            armRandomFailure();
             final var recoveryBarrier = armRecoveryPause();
 
             // Recover from snapshot async
@@ -754,7 +803,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try {
             failTestIfReceiveShardFailure(masterTransport);
 
-            RetryRecoveryTestPlugin.failureTarget.set(BEFORE_INDEX_SHARD_RECOVERY);
+            failureTarget.set(BEFORE_INDEX_SHARD_RECOVERY);
             final var recoveryBarrier = armRecoveryPause();
 
             prepareCreate(indexName, indexSettings(1, 0)).execute();
@@ -797,7 +846,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 try {
                     assertThat(
                         "cluster-state apply should have recreated the shard from the retry context",
-                        RetryRecoveryTestPlugin.recoveryCounter.get(),
+                        recoveryCounter.get(),
                         equalTo(2)
                     );
                     IndexShard shard = internalCluster().getInstance(IndicesService.class, dataNode).getShardOrNull(shardId);
@@ -854,58 +903,38 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
     /// One-shot pause in [IndexEventListener#beforeIndexShardRecovery]. Recovery takes the barrier
     /// with {@code getAndSet(null)} so a later retry does not pause again.
-    private static CyclicBarrier armRecoveryPause() {
+    private CyclicBarrier armRecoveryPause() {
         final var barrier = new CyclicBarrier(2);
-        assertNull(RetryRecoveryTestPlugin.recoveryBarrier.getAndSet(barrier));
+        assertNull(recoveryBarrier.getAndSet(barrier));
+        installRecoveryListener();
         return barrier;
     }
 
-    /// This plugin does a few things:
-    /// - Count number of recovery attempts [recoveryCounter]
-    /// - Inject failures into recover path through [IndexEventListener] and [failureTarget] + [FailureTarget]
-    /// - One-shot pause in [IndexEventListener#beforeIndexShardRecovery] via [recoveryBarrier]
-    /// - Inject a one-shot [AlreadyClosedException] from the Lucene Directory during temporary IndexWriter use
-    /// - Set indices.recovery.local_retry=true
+    /// Arm the recovery listener with a random failure target.
+    /// This will cause the next recovery to fail with [RETRY_CAUSE] when it reaches that [FailureTarget].
+    private void armRandomFailure() {
+        failureTarget.set(randomFrom(FailureTarget.values()));
+        installRecoveryListener();
+    }
+
+    private void installRecoveryListener() {
+        for (var listener : internalCluster().getInstances(MockIndexEventListener.TestEventListener.class)) {
+            listener.setNewDelegate(recoveryListener);
+        }
+    }
+
+    /// Inject a one-shot [AlreadyClosedException] from the Lucene Directory during temporary IndexWriter use.
     public static class RetryRecoveryTestPlugin extends Plugin {
-        private static final AtomicReference<FailureTarget> failureTarget = new AtomicReference<>(null);
-        private static final AtomicInteger recoveryCounter = new AtomicInteger();
         private static final AtomicBoolean throwAceOnCreateOutput = new AtomicBoolean();
-        static final AtomicReference<CyclicBarrier> recoveryBarrier = new AtomicReference<>();
 
         public static void reset() {
-            failureTarget.set(null);
-            recoveryCounter.set(0);
             throwAceOnCreateOutput.set(false);
-            recoveryBarrier.set(null);
-        }
-
-        /// Arm index event listener with a random failure target
-        /// This will cause the next recovery to fail with a [RETRY_CAUSE]
-        /// exception when it reaches the [FailureTarget]
-        public static void armRandomFailure() {
-            failureTarget.set(randomFrom(FailureTarget.values()));
         }
 
         /// Arm the Directory wrapper so the next [IndexOutput] create throws [AlreadyClosedException].
         /// Used to fail temporary IndexWriters used in StoreRecovery once, then allow retry to succeed.
         public static void armDirectoryAce() {
             throwAceOnCreateOutput.set(true);
-        }
-
-        private static void maybePauseRecovery() {
-            final var barrier = recoveryBarrier.getAndSet(null);
-            if (barrier != null) {
-                safeAwait(barrier);
-                safeAwait(barrier);
-            }
-        }
-
-        @Override
-        public Settings additionalSettings() {
-            return Settings.builder()
-                .put(super.additionalSettings())
-                .put(IndicesClusterStateService.INDICES_RECOVERY_LOCAL_RETRY_SETTING.getKey(), true)
-                .build();
         }
 
         @Override
@@ -917,42 +946,6 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                         throw new AlreadyClosedException("test createEmpty ACE");
                     }
                     return super.createOutput(name, context);
-                }
-            });
-            indexModule.addIndexEventListener(new IndexEventListener() {
-
-                @Override
-                public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
-                    maybePauseRecovery();
-                    maybeThrow(BEFORE_INDEX_SHARD_RECOVERY);
-                    listener.onResponse(null);
-                }
-
-                @Override
-                public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
-                    maybeThrow(AFTER_INDEX_SHARD_RECOVERY);
-                    listener.onResponse(null);
-                }
-
-                @Override
-                public void indexShardStateChanged(
-                    IndexShard indexShard,
-                    IndexShardState previousState,
-                    IndexShardState currentState,
-                    String reason
-                ) {
-                    if (currentState == IndexShardState.RECOVERING) {
-                        recoveryCounter.incrementAndGet();
-                    }
-                    if (currentState == IndexShardState.POST_RECOVERY) {
-                        maybeThrow(STATE_CHANGED_POST_RECOVERY);
-                    }
-                }
-
-                private void maybeThrow(FailureTarget target) {
-                    if (failureTarget.compareAndSet(target, null)) {
-                        throw RETRY_CAUSE;
-                    }
                 }
             });
         }

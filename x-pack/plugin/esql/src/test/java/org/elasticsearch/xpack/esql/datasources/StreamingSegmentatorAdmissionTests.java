@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -134,6 +135,84 @@ public class StreamingSegmentatorAdmissionTests extends ESTestCase {
             assertTrue("unbounded must run all submissions at once", running.await(10, TimeUnit.SECONDS));
             assertEquals("unbounded must never queue", 0, admission.pending());
             release.countDown();
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    /**
+     * {@link StreamingSegmentatorAdmission.Handle#cancel()} drops a still-queued FIFO-head without
+     * occupying a slot; the next pending item is what {@code releaseAndPromote} dispatches. Callbacks
+     * (executor hand-off, reject) must not run while the admission monitor is held.
+     */
+    public void testCancelRemovesPendingFifoHeadAndPromotesNext() throws Exception {
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        StreamingSegmentatorAdmission admission = new StreamingSegmentatorAdmission(1);
+        Executor asserting = command -> {
+            assertFalse("executor.execute must run after the admission monitor is released", Thread.holdsLock(admission));
+            pool.execute(command);
+        };
+        try {
+            CountDownLatch holdFirst = new CountDownLatch(1);
+            CountDownLatch firstRunning = new CountDownLatch(1);
+            List<Integer> ran = new CopyOnWriteArrayList<>();
+            List<StreamingSegmentatorAdmission.Handle> handles = new ArrayList<>();
+            for (int i = 0; i < 3; i++) {
+                final int id = i;
+                handles.add(admission.submit(() -> {
+                    ran.add(id);
+                    if (id == 0) {
+                        firstRunning.countDown();
+                        try {
+                            holdFirst.await();
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                    }
+                }, asserting, e -> {
+                    assertFalse("onReject must run after the admission monitor is released", Thread.holdsLock(admission));
+                    fail("no submission should have been rejected: " + e);
+                }));
+            }
+            assertTrue(firstRunning.await(5, TimeUnit.SECONDS));
+            assertEquals(1, admission.running());
+            assertEquals(2, admission.pending());
+            assertFalse("already-dispatched cancel is a no-op", handles.get(0).cancel());
+            assertTrue("pending FIFO-head must be removable", handles.get(1).cancel());
+            assertEquals("cancelling the head leaves the successor pending", 1, admission.pending());
+            holdFirst.countDown();
+            assertBusy(() -> {
+                assertEquals(List.of(0, 2), ran);
+                assertEquals(0, admission.running());
+                assertEquals(0, admission.pending());
+            }, 5, TimeUnit.SECONDS);
+            assertFalse("already-cancelled handle stays cancelled", handles.get(1).cancel());
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    /** Cancel of a never-queued (immediately dispatched) submission is a no-op and does not free a running slot. */
+    public void testCancelOfDispatchedWorkIsNoOp() throws Exception {
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            StreamingSegmentatorAdmission admission = new StreamingSegmentatorAdmission(1);
+            CountDownLatch hold = new CountDownLatch(1);
+            CountDownLatch running = new CountDownLatch(1);
+            StreamingSegmentatorAdmission.Handle handle = admission.submit(() -> {
+                running.countDown();
+                try {
+                    hold.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }, pool, e -> fail("no submission should have been rejected: " + e));
+            assertTrue(running.await(5, TimeUnit.SECONDS));
+            assertEquals(1, admission.running());
+            assertFalse(handle.cancel());
+            assertEquals(1, admission.running());
+            hold.countDown();
+            assertBusy(() -> assertEquals(0, admission.running()), 5, TimeUnit.SECONDS);
         } finally {
             pool.shutdownNow();
         }

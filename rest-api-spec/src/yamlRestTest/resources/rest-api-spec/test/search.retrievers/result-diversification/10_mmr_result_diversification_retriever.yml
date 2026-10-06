@@ -843,3 +843,129 @@ teardown:
 
   - match: { status: 400 }
   - match: { error.type: action_request_validation_exception }
+
+---
+"Test MMR result diversification float vectors from source in all formats":
+  - requires:
+      cluster_features: [ "mapper.dense_vector.unified_value_formats" ]
+      reason: "dense_vector source values are decoded uniformly across formats"
+
+  - do:
+      indices.create:
+        index: test-result-diversification-float-formats-index
+        body:
+          settings:
+            number_of_shards: 1
+            index.mapping.exclude_source_vectors: false
+          mappings:
+            properties:
+              keywordfield:
+                type: keyword
+              textvector:
+                type: dense_vector
+                dims: 4
+                element_type: float
+                index_options:
+                  type: hnsw
+              id:
+                type: integer
+
+  - do:
+      headers:
+        Content-Type: application/json
+      bulk:
+        index: test-result-diversification-float-formats-index
+        refresh: true
+        body: |
+          {"index":{}}
+          {"id": 1, "keywordfield": "array", "textvector": [1.0, 0.0, 0.0, 0.0]}
+          {"index":{}}
+          {"id": 2, "keywordfield": "base64_f32", "textvector": "AAAAAD+AAAAAAAAAAAAAAA=="}
+          {"index":{}}
+          {"id": 3, "keywordfield": "base64_bf16", "textvector": "AAAAAD+AAAA="}
+
+  - do:
+      search:
+        index: test-result-diversification-float-formats-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              lambda: 0.3
+              size: 3
+              retriever:
+                standard:
+                  query:
+                    match_all: { }
+                  sort:
+                    id:
+                      order: asc
+
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._source.keywordfield: "array" }
+  - match: { hits.hits.1._source.keywordfield: "base64_f32" }
+  - match: { hits.hits.2._source.keywordfield: "base64_bf16" }
+
+---
+"Test MMR result diversification byte vectors from source in all formats":
+  - requires:
+      cluster_features: [ "mapper.dense_vector.unified_value_formats" ]
+      reason: "dense_vector source values are decoded uniformly across formats"
+
+  - do:
+      indices.create:
+        index: test-result-diversification-byte-formats-index
+        body:
+          settings:
+            number_of_shards: 1
+            index.mapping.exclude_source_vectors: false
+          mappings:
+            properties:
+              keywordfield:
+                type: keyword
+              textvector:
+                type: dense_vector
+                dims: 4
+                element_type: byte
+              id:
+                type: integer
+
+  - do:
+      headers:
+        Content-Type: application/json
+      bulk:
+        index: test-result-diversification-byte-formats-index
+        refresh: true
+        body: |
+          {"index":{}}
+          {"id": 1, "keywordfield": "array", "textvector": [127, 0, 0, 0]}
+          {"index":{}}
+          {"id": 2, "keywordfield": "hex", "textvector": "007f0000"}
+          {"index":{}}
+          {"id": 3, "keywordfield": "base64", "textvector": "AAB/AA=="}
+
+  - do:
+      search:
+        index: test-result-diversification-byte-formats-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              lambda: 0.3
+              size: 3
+              retriever:
+                standard:
+                  query:
+                    match_all: { }
+                  sort:
+                    id:
+                      order: asc
+
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._source.keywordfield: "array" }
+  - match: { hits.hits.1._source.keywordfield: "hex" }
+  - match: { hits.hits.2._source.keywordfield: "base64" }

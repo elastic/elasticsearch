@@ -1522,13 +1522,9 @@ public class MachineLearning extends Plugin
             client,
             inferenceAuditor,
             telemetryProvider.getMeterRegistry(),
-            new NodeLoadDetector(memoryTracker),
             nlpEnabled,
             settings
         );
-        // Feed observed-memory data from the 10-second adaptive-allocations stats response back into
-        // TrainedModelAssignmentClusterService so its 60-second loop can skip those deployments.
-        adaptiveAllocationsScalerService.setStatsResponseConsumer(trainedModelAllocationClusterService.get()::processObservedMemoryStats);
 
         MlInitializationService mlInitializationService = new MlInitializationService(
             settings,
@@ -1537,7 +1533,6 @@ public class MachineLearning extends Plugin
             anomalyDetectionAuditor,
             client,
             adaptiveAllocationsScalerService,
-            trainedModelAllocationClusterService.get(),
             mlAssignmentNotifier,
             indexNameExpressionResolver,
             anomalyDetectionEnabled,
@@ -1767,6 +1762,8 @@ public class MachineLearning extends Plugin
         // Included in this section as it's used by MlMemoryAction
         actionHandlers.add(new ActionHandler(TrainedModelCacheInfoAction.INSTANCE, TransportTrainedModelCacheInfoAction.class));
         actionHandlers.add(new ActionHandler(GetMlAutoscalingStats.INSTANCE, TransportGetMlAutoscalingStats.class));
+        // Required by vector query builders regardless of which ML features are enabled
+        actionHandlers.add(new ActionHandler(CoordinatedInferenceAction.INSTANCE, TransportCoordinatedInferenceAction.class));
         if (anomalyDetectionEnabled) {
             actionHandlers.add(new ActionHandler(GetJobsAction.INSTANCE, TransportGetJobsAction.class));
             actionHandlers.add(new ActionHandler(GetJobsStatsAction.INSTANCE, TransportGetJobsStatsAction.class));
@@ -1891,7 +1888,6 @@ public class MachineLearning extends Plugin
                         TransportUpdateTrainedModelAssignmentStateAction.class
                     )
                 );
-                actionHandlers.add(new ActionHandler(CoordinatedInferenceAction.INSTANCE, TransportCoordinatedInferenceAction.class));
             }
         }
         return actionHandlers;

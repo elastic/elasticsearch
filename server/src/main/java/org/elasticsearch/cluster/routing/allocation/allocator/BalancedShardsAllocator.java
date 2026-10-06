@@ -154,6 +154,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     private final WriteLoadForecaster writeLoadForecaster;
     private final BalancingWeightsFactory balancingWeightsFactory;
     private final FrequencyCappedAction logInvalidWeights;
+    private final BalancedShardsAllocatorMetrics balancedShardsAllocatorMetrics;
 
     public BalancedShardsAllocator() {
         this(Settings.EMPTY);
@@ -164,18 +165,25 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     public BalancedShardsAllocator(BalancerSettings balancerSettings, WriteLoadForecaster writeLoadForecaster) {
-        this(balancerSettings, writeLoadForecaster, new GlobalBalancingWeightsFactory(balancerSettings));
+        this(
+            balancerSettings,
+            writeLoadForecaster,
+            new GlobalBalancingWeightsFactory(balancerSettings),
+            BalancedShardsAllocatorMetrics.NOOP
+        );
     }
 
     @Inject
     public BalancedShardsAllocator(
         BalancerSettings balancerSettings,
         WriteLoadForecaster writeLoadForecaster,
-        BalancingWeightsFactory balancingWeightsFactory
+        BalancingWeightsFactory balancingWeightsFactory,
+        BalancedShardsAllocatorMetrics balancedShardsAllocatorMetrics
     ) {
         this.balancerSettings = balancerSettings;
         this.writeLoadForecaster = writeLoadForecaster;
         this.balancingWeightsFactory = balancingWeightsFactory;
+        this.balancedShardsAllocatorMetrics = balancedShardsAllocatorMetrics;
         this.logInvalidWeights = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
         balancerSettings.getClusterSettings().initializeAndWatch(INVALID_WEIGHTS_MINIMUM_LOG_INTERVAL, logInvalidWeights::setMinInterval);
     }
@@ -209,7 +217,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             allocation,
             balancingWeights,
             balancerSettings.completeEarlyOnShardAssignmentChange(),
-            logInvalidWeights
+            logInvalidWeights,
+            balancedShardsAllocatorMetrics
         );
 
         boolean shardAssigned = false, shardMoved = false, shardBalanced = false;
@@ -288,7 +297,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             allocation,
             balancingWeightsFactory.create(),
             balancerSettings.completeEarlyOnShardAssignmentChange(),
-            logInvalidWeights
+            logInvalidWeights,
+            balancedShardsAllocatorMetrics
         );
         return explainShardAllocation(balancer, shard, allocation);
     }
@@ -319,7 +329,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             allocation,
             balancingWeightsFactory.create(),
             balancerSettings.completeEarlyOnShardAssignmentChange(),
-            logInvalidWeights
+            logInvalidWeights,
+            balancedShardsAllocatorMetrics
         );
 
         return new Function<ShardRouting, ShardAllocationDecision>() {
@@ -375,13 +386,15 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final NodeSorters nodeSorters;
         private final boolean completeEarlyOnShardAssignmentChange;
         private final FrequencyCappedAction logInvalidWeights;
+        private final BalancedShardsAllocatorMetrics balancedShardsAllocatorMetrics;
 
         private Balancer(
             WriteLoadForecaster writeLoadForecaster,
             RoutingAllocation allocation,
             BalancingWeights balancingWeights,
             boolean completeEarlyOnShardAssignmentChange,
-            FrequencyCappedAction logInvalidWeights
+            FrequencyCappedAction logInvalidWeights,
+            BalancedShardsAllocatorMetrics balancedShardsAllocatorMetrics
         ) {
             this.writeLoadForecaster = writeLoadForecaster;
             this.allocation = allocation;
@@ -397,6 +410,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             this.balancingWeights = balancingWeights;
             this.completeEarlyOnShardAssignmentChange = completeEarlyOnShardAssignmentChange;
             this.logInvalidWeights = logInvalidWeights;
+            this.balancedShardsAllocatorMetrics = balancedShardsAllocatorMetrics;
         }
 
         private static long getShardDiskUsageInBytes(ShardRouting shardRouting, IndexMetadata indexMetadata, ClusterInfo clusterInfo) {
@@ -1085,6 +1099,51 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             }
         }
 
+        private Map<String, Object> cannotRemainMoveAttributes(MoveDecision decision, ShardRouting shardRouting) {
+            assert decision.getCanAllocateDecision() != null
+                : "We should only get here if we canRemain is NO/NOT_PREFERRED, which should come with a non-null canAllocate decision";
+            final var canAllocateDecisionType = decision.getCanAllocateDecision().type();
+            // We only attempt to populate the canAllocate decider if we're moving despite canAllocate being NOT_PREFERRED
+            // to keep cardinality to a minimum
+            final var canAllocateNotPreferredDecider = canAllocateDecisionType == Decision.Type.NOT_PREFERRED
+                ? decision.getCanAllocateDecision().label()  // This can still be null
+                : "omitted";
+            final String canRemainDecider = decision.getCanRemainDecision().label(); // This can still be null
+            // Only populate target node when canAllocate=NOT_PREFERRED
+            final String targetNode = canAllocateDecisionType == Type.NOT_PREFERRED && decision.getTargetNode() != null
+                ? nodeName(decision.getTargetNode())
+                : "omitted";
+            return Map.of(
+                "es_can_remain_decision",
+                decision.getCanRemainDecision().type().name(),
+                "es_can_remain_decider",
+                canRemainDecider == null ? "missing" : canRemainDecider,
+                "es_can_allocate_decision",
+                canAllocateDecisionType.name(),
+                "es_can_allocate_decider",
+                canAllocateNotPreferredDecider == null ? "missing" : canAllocateNotPreferredDecider,
+                "es_shard_primary",
+                shardRouting.primary(),
+                "es_source_node",
+                nodeName(shardRouting.currentNodeId()),
+                "es_target_node",
+                targetNode
+            );
+        }
+
+        private String nodeName(String nodeId) {
+            final var node = allocation.getClusterState().nodes().get(nodeId);
+            if (node == null) {
+                return nodeId;
+            }
+            return nodeName(node);
+        }
+
+        private static String nodeName(DiscoveryNode node) {
+            final var name = node.getName();
+            return name != null && name.isEmpty() == false ? name : node.getId();
+        }
+
         private void executeMove(ShardRouting shardRouting, ProjectIndex index, MoveDecision moveDecision, MoveType type) {
             final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
             final ModelNode targetNode = nodes.get(moveDecision.getTargetNode().getId());
@@ -1101,6 +1160,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             targetNode.addShard(projectIndex(shard), shard);
             if (logger.isTraceEnabled()) {
                 logger.trace("Moved shard [{}] to node [{}]", shardRouting, targetNode.getRoutingNode());
+            }
+            if (type == MoveType.CANNOT_REMAIN || type == MoveType.NOT_PREFERRED) {
+                balancedShardsAllocatorMetrics.incrementCannotRemainMoveCounter(cannotRemainMoveAttributes(moveDecision, shardRouting));
+            } else {
+                // If a new move type is added, we should assess whether it should have metrics recorded
+                assert type == MoveType.REBALANCE : "Unknown move type [" + type + "]";
             }
         }
 
@@ -1190,7 +1255,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         ) {
             assert remainDecision.type() == Decision.Type.NO || remainDecision.type() == Decision.Type.NOT_PREFERRED;
             final boolean explain = allocation.debugDecision();
-            Type bestDecision = Type.NO;
+            Decision bestDecision = Decision.NO;
             RoutingNode targetNode = null;
             final List<NodeAllocationResult> nodeResults = explain ? new ArrayList<>() : null;
             int weightRanking = 0;
@@ -1203,16 +1268,16 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     if (explain) {
                         nodeResults.add(new NodeAllocationResult(currentNode.getRoutingNode().node(), allocationDecision, ++weightRanking));
                     }
-                    if (allocationDecision.type().compareToBetweenNodes(bestDecision) > 0) {
-                        bestDecision = allocationDecision.type();
-                        if (bestDecision == Type.YES) {
+                    if (allocationDecision.type().compareToBetweenNodes(bestDecision.type()) > 0) {
+                        bestDecision = allocationDecision;
+                        if (bestDecision.type() == Type.YES) {
                             targetNode = target;
                             if (explain == false) {
                                 // we are not in explain mode and already have a YES decision on the best weighted node,
                                 // no need to continue iterating
                                 break;
                             }
-                        } else if (bestDecision == Type.NOT_PREFERRED) {
+                        } else if (bestDecision.type() == Type.NOT_PREFERRED) {
                             // We will accept a NOT_PREFERRED allocation if canRemain = NO, but if canRemain = NOT_PREFERRED
                             // we will wait for a YES/THROTTLE. Either way we update bestDecision so we can distinguish betweem
                             // a NO and a NOT_PREFERRED in allocate-explain
@@ -1221,7 +1286,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             } else {
                                 assert targetNode == null : "If the best we've seen is NOT_PREFERRED, we should not have a targetNode yet";
                             }
-                        } else if (bestDecision == Type.THROTTLE) {
+                        } else if (bestDecision.type() == Type.THROTTLE) {
                             assert allocation.isSimulating() == false;
                             // THROTTLE is better than NOT_PREFERRED, we just need to wait for a YES.
                             targetNode = null;
@@ -1244,9 +1309,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
             return MoveDecision.move(
                 remainDecision,
-                AllocationDecision.fromDecisionType(bestDecision),
+                AllocationDecision.fromDecisionType(bestDecision.type()),
                 targetNode != null ? targetNode.node() : null,
-                nodeResults
+                nodeResults,
+                targetNode != null ? bestDecision : null
             );
         }
 

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.stateless.engine;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.telemetry.metric.LongCounter;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 /**
@@ -26,18 +25,8 @@ public record StatelessReaderHeapMetrics(LongCounter refreshDeferredCounter) {
     );
 
     public static StatelessReaderHeapMetrics register(MeterRegistry registry, CircuitBreaker breaker) {
-        registry.registerLongAsyncGauge(
-            RESERVED_SIZE,
-            "Stateless reader-heap bytes currently reserved",
-            "bytes",
-            () -> new LongWithAttributes(breaker.getUsed())
-        );
-        registry.registerLongAsyncGauge(
-            BUDGET_SIZE,
-            "Configured stateless reader-heap limit",
-            "bytes",
-            () -> new LongWithAttributes(breaker.getLimit())
-        );
+        registry.registerLongAsyncGauge(RESERVED_SIZE, "Stateless reader-heap bytes currently reserved", "bytes", breaker::getUsed);
+        registry.registerLongAsyncGauge(BUDGET_SIZE, "Configured stateless reader-heap limit", "bytes", breaker::getLimit);
         LongCounter deferredCounter = registry.registerLongCounter(
             REFRESH_DEFERRED_TOTAL,
             "Refreshes deferred because the reader-heap limit would have been exceeded",

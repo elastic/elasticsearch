@@ -109,6 +109,7 @@ import org.elasticsearch.xpack.stateless.allocation.StatelessShardRoutingRoleStr
 import org.elasticsearch.xpack.stateless.cache.DefaultWarmingRatioProviderFactory;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
+import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
@@ -806,6 +807,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
         private TranslogReplicator translogReplicator;
         private HollowShardsService hollowShardsService;
         private ReshardIndexService reshardIndexService;
+        private SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService;
 
         public TestStatelessPlugin(Settings settings) {
             this.settings = settings;
@@ -846,12 +848,18 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 threadPool,
                 TestUtils.unmeteredFillCacheMemoryPressure(settings, threadPool)
             );
+            this.searchRecoveryTimeoutCalculationService = new SearchRecoveryTimeoutCalculationService(
+                cacheService,
+                threadPool,
+                clusterService.getClusterSettings()
+            );
             this.cacheWarmingService = new SharedBlobCacheWarmingService(
                 cacheService,
                 threadPool,
                 TelemetryProvider.NOOP,
                 clusterService.getClusterSettings(),
-                new DefaultWarmingRatioProviderFactory().create(clusterService.getClusterSettings())
+                new DefaultWarmingRatioProviderFactory().create(clusterService.getClusterSettings()),
+                searchRecoveryTimeoutCalculationService
             ) {
                 @Override
                 public void warmCacheBeforeUpload(VirtualBatchedCompoundCommit vbcc, ActionListener<Void> listener) {

@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -114,10 +115,10 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         assertThat(eue.getMessage(), containsString("shorter than expected"));
         assertThat(eue.getMessage(), containsString("received=" + payload.length));
         assertThat(eue.getMessage(), containsString("expected=" + expectedLength));
-        assertThat(eue.getMessage(), containsString(PATH.toString()));
+        assertThat(eue.getMessage(), containsString(PATH.objectName()));
     }
 
-    /** The length-mismatch messages are built by {@code KnownLengthBodyFill}, which is handed the redacted URL. */
+    /** The length-mismatch messages are built by {@code KnownLengthBodyFill}, which is handed the object name (not the full URL). */
     public void testShortBodyFailureRedactsUrl() {
         StoragePath secret = StoragePath.of(HttpUrlsTests.SECRET_URL);
         List<HttpResponse.BodySubscriber<DirectReadBuffer>> subscribers = List.of(
@@ -130,7 +131,11 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
             subscriber.onComplete();
             ExecutionException ex = expectThrows(ExecutionException.class, () -> subscriber.getBody().toCompletableFuture().get());
             assertThat(ex.getCause(), instanceOf(ExternalUnavailableException.class));
-            HttpUrlsTests.assertRedacted(ex.getCause().getMessage());
+            String message = ex.getCause().getMessage();
+            assertThat(message, containsString(secret.objectName()));
+            assertThat(message, not(containsString("user:pass")));
+            assertThat(message, not(containsString("X-Amz-Signature")));
+            assertThat(message, not(containsString("https://")));
         }
     }
 
@@ -147,7 +152,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         assertThat(eue.getMessage(), containsString("exceeded expected length"));
         assertThat(eue.getMessage(), containsString("cumulative=" + payload.length));
         assertThat(eue.getMessage(), containsString("expected=" + (payload.length - 1)));
-        assertThat(eue.getMessage(), containsString(PATH.toString()));
+        assertThat(eue.getMessage(), containsString(PATH.objectName()));
     }
 
     public void testFixedLengthLateOnNextAfterCompleteIsIgnored() throws Exception {
@@ -339,7 +344,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         ExternalUnavailableException eue = (ExternalUnavailableException) ex.getCause();
         assertFalse(eue.throttling());
         assertThat(eue.getMessage(), containsString("beyond content length"));
-        assertThat(eue.getMessage(), containsString(PATH.toString()));
+        assertThat(eue.getMessage(), containsString(PATH.objectName()));
     }
 
     public void testSkipThenFillShortBodyAfterSkipFails() {
@@ -361,7 +366,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         assertThat(eue.getMessage(), containsString("shorter than expected"));
         assertThat(eue.getMessage(), containsString("received=6"));
         assertThat(eue.getMessage(), containsString("expected=8"));
-        assertThat(eue.getMessage(), containsString(PATH.toString()));
+        assertThat(eue.getMessage(), containsString(PATH.objectName()));
     }
 
     public void testSkipThenFillAtEofWithNoBytesRemainingFails() {
@@ -381,7 +386,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         assertThat(eue.getMessage(), containsString("shorter than expected"));
         assertThat(eue.getMessage(), containsString("received=0"));
         assertThat(eue.getMessage(), containsString("expected=5"));
-        assertThat(eue.getMessage(), containsString(PATH.toString()));
+        assertThat(eue.getMessage(), containsString(PATH.objectName()));
     }
 
     public void testRangeReadHandler206AccumulatesDirectBuffer() throws Exception {

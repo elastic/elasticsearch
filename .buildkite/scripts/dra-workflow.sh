@@ -110,7 +110,7 @@ find "$WORKSPACE" -type d -path "*/build/distributions" -exec chmod a+w {} \;
 # GCS publication of all other artifacts is handled by the dra-prep plugin below.
 echo --- Publishing maven aggregation to S3
 DRA_WORKFLOW="$WORKFLOW" \
-  .buildkite/scripts/dra-maven-snapshots-publish.sh
+  .buildkite/scripts/dra-maven-publish.sh
 
 echo --- Consolidating distribution artifacts for DRA staging
 mkdir -p artifacts
@@ -120,7 +120,7 @@ mkdir -p artifacts
 # Keep this in sync with that file when artifact types or paths change.
 # The Maven Central compliant aggregation zip (elasticsearch-maven-aggregation) is included below
 # so it stays part of the DRA artifacts. The DRA-shaped maven/javadoc trees are published to S3
-# separately via dra-maven-snapshots-publish.sh.
+# separately via dra-maven-publish.sh.
 
 # Binary distributions
 cp distribution/archives/windows-zip/build/distributions/*.zip                artifacts/

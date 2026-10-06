@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
+import org.elasticsearch.xpack.esql.datasources.ExternalLimitSplits;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
@@ -71,7 +72,10 @@ public record SplitDiscoveryContext(
     // Reserves heap for the listing this query performs when the schema's listing was a prefix of the dataset.
     // Null when nothing is accounting for the query (tests, and providers reached outside a query). Live like
     // isCancelled rather than data: it draws on the query's own reservation and must not outlive it.
-    @Nullable PlanningMemory listingMemory
+    @Nullable PlanningMemory listingMemory,
+    // Drivers the planner will start for this query ({@code task_concurrency}). Discovery sizes LIMIT cuts
+    // from this so a single-driver LIMIT does not probe. Zero or negative means the search-pool default.
+    int taskConcurrency
 ) {
     public SplitDiscoveryContext(
         SourceMetadata metadata,
@@ -146,7 +150,8 @@ public record SplitDiscoveryContext(
             metadataColumnNames,
             retainedPartitionKeys,
             rowLimit,
-            listingMemory
+            listingMemory,
+            taskConcurrency
         );
     }
 
@@ -181,7 +186,46 @@ public record SplitDiscoveryContext(
             metadataColumnNames,
             retainedPartitionKeys,
             FormatReader.NO_LIMIT,
-            null
+            null,
+            0
+        );
+    }
+
+    /** Row demand without a query-pragma driver cap; discovery uses the search-pool default. */
+    public SplitDiscoveryContext(
+        SourceMetadata metadata,
+        FileList fileList,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+        Map<String, Object> config,
+        PartitionMetadata partitionInfo,
+        List<Expression> filterHints,
+        ExternalSchema querySchema,
+        @Nullable ExternalSchema unifiedSchema,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled,
+        DeclaredReadSpec declaredReadSpec,
+        Set<String> metadataColumnNames,
+        @Nullable Set<String> retainedPartitionKeys,
+        int rowLimit,
+        @Nullable PlanningMemory listingMemory
+    ) {
+        this(
+            metadata,
+            fileList,
+            schemaMap,
+            config,
+            partitionInfo,
+            filterHints,
+            querySchema,
+            unifiedSchema,
+            maxRecordBytes,
+            isCancelled,
+            declaredReadSpec,
+            metadataColumnNames,
+            retainedPartitionKeys,
+            rowLimit,
+            listingMemory,
+            0
         );
     }
 
@@ -277,5 +321,8 @@ public record SplitDiscoveryContext(
         // null stays null: unknown projection keeps hive, size, and modified. Location keys are dropped
         // when the survivor map is frozen. A provided set is authoritative aside from those three keys.
         retainedPartitionKeys = retainedPartitionKeys == null ? null : Set.copyOf(retainedPartitionKeys);
+        if (taskConcurrency <= 0) {
+            taskConcurrency = ExternalLimitSplits.DEFAULT_TASK_CONCURRENCY;
+        }
     }
 }

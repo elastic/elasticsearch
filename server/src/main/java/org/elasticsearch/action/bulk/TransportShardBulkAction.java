@@ -22,6 +22,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.index.IndexSource;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
@@ -52,6 +53,7 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.BytesSource;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.RowSource;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
@@ -244,24 +246,13 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                             )
                         );
                     } else {
-                        // Fall through to serial path for remaining items. Inline sources.
-                        try {
-                            BulkShardBatch.ensureInlineSources(request);
-                        } catch (IOException e) {
-                            delegate.onFailure(e);
-                            return;
-                        }
+                        // Fall through to the sequential path for the remaining items. Their sources stay batch rows and
+                        // are parsed in place by executeBulkItemRequest, see sourceToParse(IndexRequest, ...).
                         performSequentialOnPrimary(request, delegate, context, startBatchTime);
                     }
                 })
             );
         } else {
-            try {
-                BulkShardBatch.ensureInlineSources(request);
-            } catch (IOException e) {
-                listener.onFailure(e);
-                return;
-            }
             performSequentialOnPrimary(request, listener, context, startBatchTime);
         }
     }
@@ -548,14 +539,13 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             final IndexRequest request = context.getRequestToExecute();
 
             XContentMeteringParserDecorator meteringParserDecorator = documentParsingProvider.newMeteringParserDecorator(request);
-            final SourceToParse sourceToParse = new SourceToParse(
-                request.id(),
-                new BytesSource(request.source(), request.getContentType(), request.getIncludeSourceOnError()),
-                request.routing(),
+            final SourceToParse sourceToParse = sourceToParse(
+                request,
+                context.getBulkShardRequest().getBulkShardBatch(),
                 request.getDynamicTemplates(),
                 request.getDynamicTemplateParams(),
-                meteringParserDecorator,
-                request.tsid()
+                request.getIncludeSourceOnError(),
+                meteringParserDecorator
             );
             result = primary.applyIndexOperationOnPrimary(
                 version,
@@ -804,14 +794,13 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     replica
                 );
                 if (batchResult.processedItems() < request.items().length) {
-                    // Fall through to serial path for remaining items. Inline sources.
-                    BulkShardBatch.ensureInlineSources(request);
+                    // Fall through to the sequential path for the remaining items. Their sources stay batch rows and
+                    // are parsed in place by performOpOnReplica, see sourceToParse(IndexRequest, ...).
                     location = performOnReplica(request, replica, batchResult.processedItems(), batchResult.location());
                 } else {
                     location = batchResult.location();
                 }
             } else {
-                BulkShardBatch.ensureInlineSources(request);
                 location = performOnReplica(request, replica);
             }
             replica.getBulkOperationListener().afterBulk(request.totalSizeInBytes(), System.nanoTime() - startBulkTime);
@@ -871,7 +860,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     continue; // ignore replication as it's a noop
                 }
                 assert response.getResponse().getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO;
-                operationResult = performOpOnReplica(response.getResponse(), item.request(), replica);
+                operationResult = performOpOnReplica(response.getResponse(), item.request(), request.getBulkShardBatch(), replica);
             }
             assert operationResult != null : "operation result must never be null when primary response has no failure";
             location = syncOperationResultOrThrow(operationResult, location);
@@ -882,13 +871,14 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     private static Engine.Result performOpOnReplica(
         DocWriteResponse primaryResponse,
         DocWriteRequest<?> docWriteRequest,
+        @Nullable BulkShardBatch shardBatch,
         IndexShard replica
     ) throws Exception {
         final Engine.Result result;
         switch (docWriteRequest.opType()) {
             case CREATE, INDEX -> {
                 final IndexRequest indexRequest = (IndexRequest) docWriteRequest;
-                final SourceToParse sourceToParse = replicaSourceToParse(indexRequest);
+                final SourceToParse sourceToParse = replicaSourceToParse(indexRequest, shardBatch);
                 result = replica.applyIndexOperationOnReplica(
                     primaryResponse.getSeqNo(),
                     primaryResponse.getPrimaryTerm(),
@@ -930,15 +920,44 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return result;
     }
 
-    static SourceToParse replicaSourceToParse(IndexRequest indexRequest) {
+    static SourceToParse replicaSourceToParse(IndexRequest indexRequest, @Nullable BulkShardBatch shardBatch) {
+        return sourceToParse(indexRequest, shardBatch, Map.of(), Map.of(), true, XContentMeteringParserDecorator.NOOP);
+    }
+
+    /**
+     * Builds the {@link SourceToParse} for an index request on the sequential (per-document) path.
+     * Rows are parsed in place instead of being re-serialized to x-content first.
+     */
+    static SourceToParse sourceToParse(
+        IndexRequest request,
+        @Nullable BulkShardBatch shardBatch,
+        Map<String, String> dynamicTemplates,
+        Map<String, Map<String, String>> dynamicTemplateParams,
+        boolean includeSourceOnError,
+        XContentMeteringParserDecorator meteringParserDecorator
+    ) {
+        final IndexSource indexSource = request.indexSource();
+        if (indexSource.hasSourceRow()) {
+            assert shardBatch != null : "item refers to batch row [" + indexSource.rowIndex() + "] but the request has no batch";
+            return new SourceToParse(
+                request.id(),
+                new RowSource(shardBatch.schemaTree(), shardBatch.getBatch().row(indexSource.rowIndex()), request.getContentType()),
+                request.routing(),
+                dynamicTemplates,
+                dynamicTemplateParams,
+                meteringParserDecorator,
+                request.tsid()
+            );
+        }
+        // If the source is inline bytes rather than batch row, parse as before
         return new SourceToParse(
-            indexRequest.id(),
-            new BytesSource(indexRequest.source(), indexRequest.getContentType(), true),
-            indexRequest.routing(),
-            Map.of(),
-            Map.of(),
-            XContentMeteringParserDecorator.NOOP,
-            indexRequest.tsid()
+            request.id(),
+            new BytesSource(request.source(), request.getContentType(), includeSourceOnError),
+            request.routing(),
+            dynamicTemplates,
+            dynamicTemplateParams,
+            meteringParserDecorator,
+            request.tsid()
         );
     }
 }

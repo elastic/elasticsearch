@@ -16,8 +16,9 @@ import java.util.Objects;
  * Cache key for schema inference results. Includes mtime-in-key for invalidation.
  * <p>
  * {@code dataset} is which dataset, read through which data source, this record belongs to - see
- * {@link DatasetIdentity}. One instance per resolve, shared by reference across every key that resolve
- * mints, so equality starts with a reference check that succeeds for every key of the same dataset.
+ * {@link DatasetIdentity}. It replaces three strings this key used to carry; it is NOT yet shared one
+ * instance per resolve, because the resolver derives it per mint site - the participant fold resolves a
+ * reader per object name - so what this saves is the component count rather than instance sharing.
  * <p>
  * {@code fileSetFingerprint} carries the 128-bit fingerprint of the resolved file set for a
  * dataset-level aggregate key (see {@link #forDatasetAggregate}); it is {@code null} for every
@@ -29,7 +30,9 @@ import java.util.Objects;
  * {@code declaredStrict} separates a per-file record on the strict-declared warm rail from the inferred
  * record for the same file, which is a different answer about the same bytes. A named boolean rather
  * than the second marker suffix: the reconcile's contribution matching MUST still reach these records,
- * so the distinction has to be a component the key compares rather than a string another test parses.
+ * so the distinction has to be a component the key compares. Nothing ever parsed that suffix - only
+ * {@code isDatasetAggregate} parsed one, and it parsed the other marker - but concatenating it onto the
+ * format name made that field mean two things at once, which is what this removes.
  * <p>
  * {@code readConfig} addresses a STATISTICS record by the read that produced it, and is {@code null} on
  * every schema record. A statistic measures the rows one read produced, so two reads of one file that

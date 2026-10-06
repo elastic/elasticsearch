@@ -869,8 +869,9 @@ public class ExternalSourceResolver {
      * provider addressed by an account rather than an endpoint, puts two different reads on one entry.
      */
     /**
-     * Which dataset, read through which data source, a record minted here belongs to. One call per resolve, and the
-     * result is shared by reference across every key that resolve mints.
+     * Which dataset, read through which data source, a record minted here belongs to. Called per mint site, not
+     * once per resolve: the participant fold goes through {@link #formatConfigIdentity}, which resolves a reader
+     * for the object name, so hoisting this to one instance per resolve is a separate change.
      *
      * @param secretIdentity the digest of the declared-secret settings the provider consumed, from
      *                       {@code Configured#secretIdentity}. A second layer of defence and not the authorization

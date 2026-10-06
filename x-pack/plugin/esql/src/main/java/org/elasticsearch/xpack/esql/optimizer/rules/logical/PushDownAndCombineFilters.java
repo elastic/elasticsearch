@@ -15,8 +15,10 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
@@ -51,6 +53,13 @@ import java.util.function.Predicate;
  * the left hand side filters to the left child.
  *
  * Also combines adjacent filters using a logical {@code AND}.
+ * <p>
+ * A runtime search that adds to {@code _score} only does so after the filter holding it has run (see
+ * {@link FullTextFunction#containsRuntimeScorer}). So a {@code _score} predicate above such a filter (see
+ * {@link SplitScorePredicatesFromRuntimeSearch}) is not combined into it, where it would see the score from before
+ * the search, though the predicates ANDed with it that don't read {@code _score} are, so they keep pushing down. A
+ * {@code _score} predicate below such a filter can be combined into it: the combined filter still evaluates it before
+ * the search scores.
  */
 public final class PushDownAndCombineFilters extends OptimizerRules.ParameterizedOptimizerRule<Filter, LogicalOptimizerContext> {
 
@@ -69,8 +78,27 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
         // last `STATS ... BY field` can assume that `field` is single-valued (to be checked more thoroughly).
         // https://github.com/elastic/elasticsearch/issues/115311
         if (child instanceof Filter f) {
-            // combine nodes into a single Filter with updated ANDed condition
-            plan = f.with(Predicates.combineAnd(List.of(f.condition(), condition)));
+            if (FullTextFunction.containsRuntimeScorer(f.condition()) && referencesScore(condition)) {
+                // _score predicates stay above the runtime scorer to see its score; the rest can run alongside it and
+                // continue pushing down, unless they hold a runtime scorer themselves, which the _score predicates
+                // must not see either.
+                List<Expression> above = new ArrayList<>();
+                List<Expression> below = new ArrayList<>();
+                for (Expression conjunct : Predicates.splitAnd(condition)) {
+                    if (referencesScore(conjunct) || FullTextFunction.containsRuntimeScorer(conjunct)) {
+                        above.add(conjunct);
+                    } else {
+                        below.add(conjunct);
+                    }
+                }
+                if (below.isEmpty() == false) {
+                    Expression combined = Predicates.combineAnd(CollectionUtils.combine(List.of(f.condition()), below));
+                    plan = filter.with(f.with(combined), Predicates.combineAnd(above));
+                }
+            } else {
+                // combine nodes into a single Filter with updated ANDed condition
+                plan = f.with(Predicates.combineAnd(List.of(f.condition(), condition)));
+            }
         } else if (child instanceof Eval eval) {
             // Don't push if Filter (still) contains references to Eval's fields.
             // Account for simple aliases in the Eval, though - these shouldn't stop us.
@@ -123,6 +151,10 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
         }
         // cannot push past a Limit, this could change the tailing result set returned
         return plan;
+    }
+
+    private static boolean referencesScore(Expression expression) {
+        return expression.anyMatch(MetadataAttribute::isScoreAttribute);
     }
 
     private record ScopedFilter(List<Expression> commonFilters, List<Expression> leftFilters, List<Expression> rightFilters) {}

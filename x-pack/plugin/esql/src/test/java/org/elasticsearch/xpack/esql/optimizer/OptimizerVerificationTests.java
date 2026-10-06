@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -39,6 +40,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeHighlightImplicitQueryAndFieldsEnabled;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests.S3_PATH;
@@ -100,6 +102,88 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     public void testRuntimeFullTextRejectedAfterLimitWhenRenamePushesDownToField() {
         var err = error(defaultAnalyzer().query("from test | limit 5 | rename first_name as name | where match(name, \"Meditation\")"));
         assertThat(err, containsString("[MATCH] function cannot be used after LIMIT"));
+    }
+
+    public void testRuntimeScorerAndScoreOutsideAConjunctionRejected() {
+        String prefix = "from test metadata _score | eval t = to_text(concat(title, body)) | where ";
+        String rest =
+            " inside OR, NOT or a comparison, as it would see the score from before the search; filter on [_score] with a top-level AND "
+                + "or a separate WHERE instead";
+        String matchMessage = "[_score] can't be used with runtime search [MATCH]" + rest;
+        fullTextAnalyzer().error(prefix + "match(t, \"cat\") or _score > 1.5", containsString(matchMessage));
+        fullTextAnalyzer().error(prefix + "not (match(t, \"cat\") and _score > 1.5)", containsString(matchMessage));
+        fullTextAnalyzer().error(prefix + "(match(t, \"cat\") and _score > 1.5) or title == \"dog\"", containsString(matchMessage));
+        fullTextAnalyzer().error(prefix + "not (match(t, \"cat\") or _score > 1.5)", containsString(matchMessage));
+        fullTextAnalyzer().error(prefix + "not match(t, \"cat\") or _score > 1.5", containsString(matchMessage));
+        fullTextAnalyzer().error(
+            prefix + "match_phrase(t, \"cat\") or _score > 1.5",
+            containsString("[_score] can't be used with runtime search [MATCH_PHRASE]" + rest)
+        );
+        // Only optimization would turn this into a conjunction, after the _score predicate could be split out.
+        fullTextAnalyzer().error(
+            "from test metadata _score | eval t = to_text(concat(title, body)), f = false | where (match(t, \"cat\") and _score > 1.5) or f",
+            containsString(matchMessage)
+        );
+        // The filter can't be pushed past the LIMIT, so the search on the alias stays a runtime one.
+        fullTextAnalyzer().error(
+            "from test metadata _score | eval t = title | limit 10 | where match(t, \"cat\") or _score > 1.5",
+            containsString(matchMessage)
+        );
+        // Nor past an EVAL creating something else it references, or a filter holding a runtime search.
+        fullTextAnalyzer().error(
+            "from test metadata _score | eval t = title, k = length(body) | where match(t, \"cat\") or _score > k",
+            containsString(matchMessage)
+        );
+        fullTextAnalyzer().error(
+            "from test metadata _score | eval t = to_text(concat(title, body)), u = title | where match(t, \"cat\") "
+                + "| where match(u, \"dog\") or _score > 1.5",
+            containsString(matchMessage)
+        );
+
+        // A conjunction can be split so _score is compared after the search has scored.
+        optimize(fullTextAnalyzer().query(prefix + "match(t, \"cat\") and _score > 1.5"));
+        optimize(fullTextAnalyzer().query(prefix + "match(t, \"cat\") and (_score > 1.5 or title == \"dog\")"));
+        optimize(fullTextAnalyzer().query(prefix + "(match(t, \"cat\") and _score > 1.5) or (1 == 2)"));
+        optimize(fullTextAnalyzer().query(prefix + "(match(t, \"cat\") or true) and _score > 1.5"));
+    }
+
+    public void testScoreCopiedBeforeRuntimeScorerAndOredWithItAccepted() {
+        String prefix = "from test metadata _score | eval t = to_text(concat(title, body)) | ";
+        optimize(fullTextAnalyzer().query(prefix + "eval s = _score | where s < 0.5 or match(t, \"cat\") | keep s"));
+        optimize(fullTextAnalyzer().query(prefix + "rename _score as s | where s < 0.5 or match(t, \"cat\") | keep s"));
+    }
+
+    public void testScoreComparedWithSearchOnIndexedFieldAliasAccepted() {
+        String prefix = "from test metadata _score | ";
+        optimize(fullTextAnalyzer().query(prefix + "eval t = title | where (match(t, \"cat\") and _score > 1.5) == true"));
+        optimize(fullTextAnalyzer().query(prefix + "rename title as t | where (match(t, \"cat\") and _score > 1.5) == true"));
+        optimize(fullTextAnalyzer().query(prefix + "rename title as t | eval u = t | where (match(u, \"cat\") and _score > 1.5) == true"));
+        optimize(fullTextAnalyzer().query(prefix + "eval t = title | sort t | where (match(t, \"cat\") and _score > 1.5) == true"));
+        optimize(
+            fullTextAnalyzer().query(prefix + "eval t = title | where length(t) > 3 | where (match(t, \"cat\") and _score > 1.5) == true")
+        );
+        optimize(fullTextAnalyzer().query(prefix + "eval t = title | where (match_phrase(t, \"cat\") and _score > 1.5) == true"));
+    }
+
+    /**
+     * Like {@link #testRuntimeFullTextRejectedAfterLimitWhenRenamePushesDownToField}, but the other way round: an alias or
+     * RENAME of an indexed field looks like a runtime search when analyzed, and push-down turns it back into a search
+     * that scores at the source, where {@code _score} is final wherever it appears.
+     */
+    public void testScoreOredWithSearchOnIndexedFieldAccepted() {
+        optimize(fullTextAnalyzer().query("from test metadata _score | where match(title, \"cat\") or _score > 1.5"));
+        optimize(fullTextAnalyzer().query("from test metadata _score | eval t = title | where match(t, \"cat\") or _score > 1.5"));
+        optimize(fullTextAnalyzer().query("from test metadata _score | rename title as name | where match(name, \"cat\") or _score > 1.5"));
+    }
+
+    public void testScoreOredWithRuntimeSearchOnDatasetRejected() {
+        List<Attribute> schema = List.of(referenceAttribute("emp_no", DataType.LONG), referenceAttribute("first_name", DataType.KEYWORD));
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> datasetPlan("FROM ds METADATA _score | WHERE MATCH(first_name, \"foo\") OR _score > 1.5", "ds", S3_PATH, schema)
+        );
+        assertThat(e.getMessage(), containsString("[_score] can't be used with runtime search [MATCH] inside OR, NOT or a comparison"));
+        datasetPlan("FROM ds METADATA _score | WHERE MATCH(first_name, \"foo\") AND _score > 1.5", "ds", S3_PATH, schema);
     }
 
     /**

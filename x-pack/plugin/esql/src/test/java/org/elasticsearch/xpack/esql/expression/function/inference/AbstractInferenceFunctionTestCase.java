@@ -56,4 +56,16 @@ public abstract class AbstractInferenceFunctionTestCase extends AbstractFunction
     protected boolean canSerialize() {
         return false;
     }
+
+    /**
+     * Inference functions require their {@code input}/{@code inference_id} arguments to be foldable, so (unlike
+     * {@link AbstractScalarFunctionTestCase}, which checks this via per-row evaluation) there is nothing that
+     * otherwise confirms a declared {@link TestCaseSupplier} case actually produces a resolving expression once
+     * built. This guards against a case whose declared types look right but whose built expression does not
+     * actually resolve, e.g. because {@link #buildFunction} dropped an argument or an options map is malformed.
+     */
+    public final void testResolvesWithLiteralArguments() {
+        Expression expression = buildLiteralExpression(testCase);
+        assertTrue(expression.typeResolved().message(), expression.typeResolved().resolved());
+    }
 }

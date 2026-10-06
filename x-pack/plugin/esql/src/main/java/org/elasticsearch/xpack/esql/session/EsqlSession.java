@@ -50,6 +50,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -78,6 +79,8 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
+import org.elasticsearch.xpack.esql.core.tree.Node;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
@@ -555,7 +558,7 @@ public class EsqlSession {
             finalConfiguration,
             executionInfo,
             request.filter(),
-            new EsqlCCSUtils.CssPartialErrorsActionListener(finalConfiguration, executionInfo, listener) {
+            new ActionListener<Versioned<LogicalPlan>>() {
                 @Override
                 public void onResponse(Versioned<LogicalPlan> analyzedPlan) {
                     assert ThreadPool.assertCurrentThreadPool(
@@ -673,6 +676,29 @@ public class EsqlSession {
                             );
                         })
                         .addListener(listener);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (EsqlCCSUtils.returnSuccessWithEmptyResult(executionInfo, e)) {
+                        EsqlCCSUtils.updateExecutionInfoToReturnEmptyResult(executionInfo, e);
+                        listener.onResponse(
+                            new Versioned<>(
+                                new Result(
+                                    Analyzer.NO_FIELDS,
+                                    List.of(),
+                                    Map.of(),
+                                    configuration,
+                                    DriverCompletionInfo.EMPTY,
+                                    executionInfo,
+                                    null
+                                ),
+                                TransportVersion.current()
+                            )
+                        );
+                    } else {
+                        listener.onFailure(e);
+                    }
                 }
             }
         );
@@ -808,7 +834,12 @@ public class EsqlSession {
      * it silently drops rows from EXPLAIN output.
      */
     private void recordExplainSubPlan(LogicalPlan subPlan, PhysicalPlan physicalSubPlan) {
-        explainContext.subPlans.add(new ExplainSubPlan(subPlan.toString(), physicalSubPlan.toString()));
+        explainContext.subPlans.add(
+            new ExplainSubPlan(
+                subPlan.toString(Node.NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY),
+                physicalSubPlan.toString(Node.NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY)
+            )
+        );
     }
 
     /**
@@ -823,7 +854,7 @@ public class EsqlSession {
      * row from EXPLAIN output (caught by the assertion in {@link #createExplainListener}).
      */
     private void recordExplainCoordinatorPlan(PhysicalPlan physicalPlan) {
-        explainContext.coordinatorPhysicalPlanString = physicalPlan.toString();
+        explainContext.coordinatorPhysicalPlanString = physicalPlan.toString(Node.NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY);
     }
 
     /**
@@ -841,7 +872,7 @@ public class EsqlSession {
         // now. explainContext fields written during execution (coordinatorPhysicalPlanString,
         // subPlans) are read via this inside the callback, which fires only after all writes
         // complete (sequential callback chain).
-        String optimizedLogicalPlanString = optimizedPlan.toString();
+        String optimizedLogicalPlanString = optimizedPlan.toString(Node.NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY);
 
         return delegate.delegateFailureAndWrap((next, result) -> {
             List<List<Object>> values = new ArrayList<>();
@@ -2083,7 +2114,7 @@ public class EsqlSession {
         // Always non-null (empty when every relation is read for its rows). A path in this set is one whose rows
         // the query all discards, so its resolution owes a schema and nothing else and may stop listing as soon
         // as it has one. What "having one" means is the dataset's business, not the query's: see
-        // ExternalSourceResolver#listingBoundFor.
+        // ExternalSourceResolver#listingExtentsFor.
         Set<String> pathsReadingNoRows = SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan);
 
         externalSourceResolver.resolve(
@@ -2493,6 +2524,7 @@ public class EsqlSession {
                 preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
                 preAnalysis.useDenseVectorWhenNotSupported(),
                 preAnalysis.hasTimeSeriesAggregation(),
+                preAnalysis.needsAnalyzerGroups(),
                 trackUnmappedFieldIndices,
                 indicesExpressionGrouper,
                 listener.delegateFailureAndWrap((l, indexResolution) -> {
@@ -2508,6 +2540,7 @@ public class EsqlSession {
                             preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
                             preAnalysis.useDenseVectorWhenNotSupported(),
                             false,
+                            preAnalysis.needsAnalyzerGroups(),
                             trackUnmappedFieldIndices,
                             indicesExpressionGrouper,
                             retryListener
@@ -2544,6 +2577,7 @@ public class EsqlSession {
             preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
             preAnalysis.useDenseVectorWhenNotSupported(),
             preAnalysis.hasTimeSeriesAggregation(),
+            preAnalysis.needsAnalyzerGroups(),
             trackUnmappedFieldIndices,
             null,
             listener.delegateFailureAndWrap((l, indexResolution) -> {
@@ -2581,14 +2615,15 @@ public class EsqlSession {
             preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
             preAnalysis.useDenseVectorWhenNotSupported(),
             preAnalysis.hasTimeSeriesAggregation(),
+            preAnalysis.needsAnalyzerGroups(),
             trackUnmappedFieldIndices,
             routingInfoCapture,
-            listener.delegateFailureAndWrap((l, indexResolution) -> {
+            ActionListener.wrap(indexResolution -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
                 EsqlCCSUtils.validateCcsLicense(verifier.licenseState(), executionInfo);
                 planTelemetry.linkedProjectsCount(executionInfo.clusterInfo.size());
-                maybeRetryConcreteTimeSeriesResolution(indexPattern, indexMode, result, indexResolution, l, retryListener -> {
+                maybeRetryConcreteTimeSeriesResolution(indexPattern, indexMode, result, indexResolution, listener, retryListener -> {
                     executionInfo.queryProfile().incFieldCapsCalls();
                     indexResolver.resolveFlatIndicesVersioned(
                         false /* lenient */,
@@ -2601,11 +2636,21 @@ public class EsqlSession {
                         preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
                         preAnalysis.useDenseVectorWhenNotSupported(),
                         false,
+                        preAnalysis.needsAnalyzerGroups(),
                         trackUnmappedFieldIndices,
                         null,
                         retryListener
                     );
                 });
+            }, e -> {
+                if (e instanceof ConnectTransportException cte && cte.getMessage().startsWith("Unable to connect to")) {
+                    executionInfo.initCluster(
+                        cte.getMessage().substring(cte.getMessage().lastIndexOf("[") + 1, cte.getMessage().lastIndexOf(']')),
+                        EsqlExecutionInfo.ORIGIN_CLUSTER_NAME_REPRESENTATION,
+                        indexPattern.indexPattern()
+                    );
+                }
+                listener.onFailure(e);
             })
         );
     }

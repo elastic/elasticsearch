@@ -4177,6 +4177,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assumeKnnRuntimeEnabled();
         assumeDenseVectorCommandEnabled();
         TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
+            .minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
             .addIndex("books", "mapping-books.json")
             .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM)
             .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM);
@@ -4197,6 +4198,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assumeKnnRuntimeEnabled();
         assumeDenseVectorCommandEnabled();
         TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
+            .minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
             .addIndex("books", "mapping-books.json")
             .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM);
 
@@ -4248,6 +4250,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assumeKnnRuntimeEnabled();
         assumeDenseVectorCommandEnabled();
         TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
+            .minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
             .addIndex("books", "mapping-books.json")
             .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.DOT_PRODUCT)
             .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.DOT_PRODUCT);
@@ -4267,6 +4270,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assumeKnnRuntimeEnabled();
         assumeDenseVectorCommandEnabled();
         TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
+            .minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
             .addIndex("books", "mapping-books.json")
             .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM)
             .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.COSINE);
@@ -4310,6 +4314,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assumeKnnRuntimeEnabled();
         assumeDenseVectorCommandEnabled();
         TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
+            .minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
             .addIndex("books", "mapping-books.json")
             .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.DOT_PRODUCT)
             .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM);
@@ -4330,6 +4335,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assumeKnnRuntimeEnabled();
         assumeDenseVectorCommandEnabled();
         TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
+            .minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
             .addIndex("books", "mapping-books.json")
             .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM);
 
@@ -4381,6 +4387,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assumeKnnRuntimeEnabled();
         assumeDenseVectorCommandEnabled();
         TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
+            .minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
             .addIndex("books", "mapping-books.json")
             .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM)
             .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.COSINE);
@@ -4413,6 +4420,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assumeKnnRuntimeEnabled();
         assumeDenseVectorCommandEnabled();
         TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
+            .minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
             .addIndex("books", "mapping-books.json")
             .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM);
 
@@ -4429,6 +4437,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assumeKnnRuntimeEnabled();
         assumeDenseVectorCommandEnabled();
         TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
+            .minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
             .addIndex("books", "mapping-books.json")
             .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM)
             .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.COSINE);

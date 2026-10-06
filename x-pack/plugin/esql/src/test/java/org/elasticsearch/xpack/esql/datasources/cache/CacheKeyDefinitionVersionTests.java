@@ -121,12 +121,32 @@ public class CacheKeyDefinitionVersionTests extends ESTestCase {
     public void testSchemaKeysDifferAcrossDefinitionVersions() {
         Map<String, Object> settings = Map.of("auth", "anonymous");
         assertNotEquals(
-            SchemaCacheKey.build("s3://warehouse/data/a.parquet", 1000L, "parquet", "", config("v1", settings)),
-            SchemaCacheKey.build("s3://warehouse/data/a.parquet", 1000L, "parquet", "", config("v2", settings))
+            SchemaCacheKey.build(
+                "s3://warehouse/data/a.parquet",
+                1000L,
+                TestDatasetIdentities.identity("parquet", "", config("v1", settings)),
+                false
+            ),
+            SchemaCacheKey.build(
+                "s3://warehouse/data/a.parquet",
+                1000L,
+                TestDatasetIdentities.identity("parquet", "", config("v2", settings)),
+                false
+            )
         );
         assertEquals(
-            SchemaCacheKey.build("s3://warehouse/data/a.parquet", 1000L, "parquet", "", config("v1", settings)),
-            SchemaCacheKey.build("s3://warehouse/data/a.parquet", 1000L, "parquet", "", config("v1", settings))
+            SchemaCacheKey.build(
+                "s3://warehouse/data/a.parquet",
+                1000L,
+                TestDatasetIdentities.identity("parquet", "", config("v1", settings)),
+                false
+            ),
+            SchemaCacheKey.build(
+                "s3://warehouse/data/a.parquet",
+                1000L,
+                TestDatasetIdentities.identity("parquet", "", config("v1", settings)),
+                false
+            )
         );
     }
 
@@ -139,8 +159,8 @@ public class CacheKeyDefinitionVersionTests extends ESTestCase {
         Map<String, Object> noVersion = new HashMap<>();
         noVersion.put("format", "csv");
         assertEquals(
-            SchemaCacheKey.build("s3://warehouse/data/a.parquet", 1000L, "parquet", "", noVersion),
-            SchemaCacheKey.build("s3://warehouse/data/a.parquet", 1000L, "parquet", "", noVersion)
+            SchemaCacheKey.build("s3://warehouse/data/a.parquet", 1000L, TestDatasetIdentities.identity("parquet", "", noVersion), false),
+            SchemaCacheKey.build("s3://warehouse/data/a.parquet", 1000L, TestDatasetIdentities.identity("parquet", "", noVersion), false)
         );
     }
 
@@ -160,7 +180,7 @@ public class CacheKeyDefinitionVersionTests extends ESTestCase {
 
         Map<String, Object> inline = new HashMap<>();
         inline.put("format", "csv");
-        assertEquals("an inline query carries no definition version", "", SchemaCacheKey.definitionVersionOf(inline));
+        assertEquals("an inline query carries no definition version", "", DatasetIdentity.definitionVersionOf(inline));
 
         assertNotEquals(
             "two inline identities over one prefix must not address one listing",
@@ -196,8 +216,8 @@ public class CacheKeyDefinitionVersionTests extends ESTestCase {
         Map<String, Object> auditor = new HashMap<>();
         auditor.put("format", "csv");
         assertEquals(
-            SchemaCacheKey.build("s3://warehouse/data/a.parquet", 1000L, "parquet", "", reader),
-            SchemaCacheKey.build("s3://warehouse/data/a.parquet", 1000L, "parquet", "", auditor)
+            SchemaCacheKey.build("s3://warehouse/data/a.parquet", 1000L, TestDatasetIdentities.identity("parquet", "", reader), false),
+            SchemaCacheKey.build("s3://warehouse/data/a.parquet", 1000L, TestDatasetIdentities.identity("parquet", "", auditor), false)
         );
     }
 

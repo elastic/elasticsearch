@@ -209,7 +209,12 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             for (int i = 0; i < entries; i++) {
                 String min = "a" + i + "-" + "x".repeat(valueChars);
                 String max = "b" + i + "-" + "y".repeat(valueChars);
-                SchemaCacheKey key = SchemaCacheKey.build("s3://bucket/f" + i + ".csv", 1000L, ".csv", "", Map.of());
+                SchemaCacheKey key = SchemaCacheKey.build(
+                    "s3://bucket/f" + i + ".csv",
+                    1000L,
+                    TestDatasetIdentities.identity(".csv", "", Map.of()),
+                    false
+                );
                 Map<String, Object> meta = new LinkedHashMap<>();
                 meta.put(ExternalStats.MTIME_MILLIS_KEY, 1000L);
                 meta.put("_stats.row_count", 10L);
@@ -248,7 +253,12 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
     public void testOversizePutInvalidatesExistingSchemaEntry() throws Exception {
         Settings settings = Settings.builder().put("esql.external.cache.size", "2mb").build();
         try (ExternalSourceCacheService cache = new ExternalSourceCacheService(settings)) {
-            SchemaCacheKey key = SchemaCacheKey.build("s3://bucket/grow.csv", 1000L, ".csv", "", Map.of());
+            SchemaCacheKey key = SchemaCacheKey.build(
+                "s3://bucket/grow.csv",
+                1000L,
+                TestDatasetIdentities.identity(".csv", "", Map.of()),
+                false
+            );
             cache.putSchema(key, entryWithMin("s3://bucket/grow.csv", "a"));
             assertThat(cache.getSchemaIfPresent(key), notNullValue());
             cache.putSchema(key, entryWithMin("s3://bucket/grow.csv", "x".repeat(1_000_000)));
@@ -272,9 +282,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             SchemaCacheKey key = SchemaCacheKey.forDatasetAggregate(
                 "file:///tmp/warm-fold/*.ndjson",
                 new FileSetFingerprint(11, 22),
-                "ndjson",
-                "",
-                Map.of("format", "ndjson")
+                TestDatasetIdentities.identity("ndjson", "", Map.of("format", "ndjson"))
             );
             cache.putDatasetAggregate(key, 828_090L, "ndjson", "file:///tmp/warm-fold/*.ndjson");
             assertThat(
@@ -308,7 +316,12 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             for (int i = 0; i < entries; i++) {
                 String min = "a" + i + "-" + "x".repeat(valueChars);
                 String max = "b" + i + "-" + "y".repeat(valueChars);
-                SchemaCacheKey key = SchemaCacheKey.build("s3://bucket/mid" + i + ".csv", 1000L, ".csv", "", Map.of());
+                SchemaCacheKey key = SchemaCacheKey.build(
+                    "s3://bucket/mid" + i + ".csv",
+                    1000L,
+                    TestDatasetIdentities.identity(".csv", "", Map.of()),
+                    false
+                );
                 Map<String, Object> meta = new LinkedHashMap<>();
                 meta.put(ExternalStats.MTIME_MILLIS_KEY, 1000L);
                 meta.put("_stats.row_count", 10L);
@@ -386,7 +399,12 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
 
     /** Zero-padded so every path is the same length, because the weigher charges for the path. */
     private static SchemaCacheKey equalWeightKey(int i) {
-        return SchemaCacheKey.build(String.format(Locale.ROOT, "s3://bucket/eq%06d.csv", i), 1000L, ".csv", "", Map.of());
+        return SchemaCacheKey.build(
+            String.format(Locale.ROOT, "s3://bucket/eq%06d.csv", i),
+            1000L,
+            TestDatasetIdentities.identity(".csv", "", Map.of()),
+            false
+        );
     }
 
     /** Identical in weight for every {@code i}: constant-length path, column name, and extrema. */
@@ -422,7 +440,12 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             assertThat("an empty store holds nothing", cache.usageStats().get("schema_cache.weight_bytes"), equalTo(0L));
 
             for (int i = 0; i < 4; i++) {
-                SchemaCacheKey key = SchemaCacheKey.build("s3://bucket/f" + i + ".csv", 1000L + i, "csv", "identity", Map.of());
+                SchemaCacheKey key = SchemaCacheKey.build(
+                    "s3://bucket/f" + i + ".csv",
+                    1000L + i,
+                    TestDatasetIdentities.identity("csv", "identity", Map.of()),
+                    false
+                );
                 cache.putSchema(key, entryWithMin("s3://bucket/f" + i + ".csv", "v".repeat(1000 * (i + 1))));
             }
 

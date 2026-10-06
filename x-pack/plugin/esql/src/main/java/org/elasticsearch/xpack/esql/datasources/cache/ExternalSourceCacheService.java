@@ -918,9 +918,9 @@ public class ExternalSourceCacheService implements Closeable {
             }
         }
         if (matches.size() > 1) {
-            Set<String> identities = new HashSet<>();
+            Set<DatasetIdentity> identities = new HashSet<>();
             for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> match : matches) {
-                identities.add(match.getKey().identity());
+                identities.add(match.getKey().dataset());
             }
             if (identities.size() > 1) {
                 logger.debug(
@@ -981,7 +981,7 @@ public class ExternalSourceCacheService implements Closeable {
 
     /**
      * True when the entry is for {@code path}, observed at the contribution's mtime, under the same format
-     * config. Dataset-aggregate entries ({@link SchemaCacheKey#DATASET_AGGREGATE_MARKER}) are excluded
+     * config. Dataset-aggregate entries ({@link SchemaCacheKey#isDatasetAggregate()}) are excluded
      * explicitly: their canonicalPath is a multi-file glob pattern and their mtime is 0, so a per-file
      * contribution can never match one structurally, but a per-file enrichment landing on a dataset entry
      * would corrupt its row-count-only contract — enforce it rather than rely on the structural accident.

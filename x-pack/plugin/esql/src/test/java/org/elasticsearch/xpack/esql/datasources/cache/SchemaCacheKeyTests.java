@@ -28,49 +28,128 @@ public class SchemaCacheKeyTests extends ESTestCase {
         SchemaCacheKey a = SchemaCacheKey.forDatasetAggregate(
             PATTERN,
             new FileSetFingerprint(11, 22),
-            "ndjson",
-            "",
-            Map.of("format", "ndjson")
+            TestDatasetIdentities.identity("ndjson", "", Map.of("format", "ndjson"))
         );
         SchemaCacheKey b = SchemaCacheKey.forDatasetAggregate(
             PATTERN,
             new FileSetFingerprint(11, 22),
-            "ndjson",
-            "",
-            Map.of("format", "ndjson")
+            TestDatasetIdentities.identity("ndjson", "", Map.of("format", "ndjson"))
         );
         assertEquals(a, b);
     }
 
     public void testDatasetAggregateKeyChangesWithEitherFingerprintLane() {
-        SchemaCacheKey base = SchemaCacheKey.forDatasetAggregate(PATTERN, new FileSetFingerprint(11, 22), "ndjson", "", Map.of());
-        assertNotEquals(base, SchemaCacheKey.forDatasetAggregate(PATTERN, new FileSetFingerprint(12, 22), "ndjson", "", Map.of()));
-        assertNotEquals(base, SchemaCacheKey.forDatasetAggregate(PATTERN, new FileSetFingerprint(11, 23), "ndjson", "", Map.of()));
+        SchemaCacheKey base = SchemaCacheKey.forDatasetAggregate(
+            PATTERN,
+            new FileSetFingerprint(11, 22),
+            TestDatasetIdentities.identity("ndjson", "", Map.of())
+        );
+        assertNotEquals(
+            base,
+            SchemaCacheKey.forDatasetAggregate(
+                PATTERN,
+                new FileSetFingerprint(12, 22),
+                TestDatasetIdentities.identity("ndjson", "", Map.of())
+            )
+        );
+        assertNotEquals(
+            base,
+            SchemaCacheKey.forDatasetAggregate(
+                PATTERN,
+                new FileSetFingerprint(11, 23),
+                TestDatasetIdentities.identity("ndjson", "", Map.of())
+            )
+        );
     }
 
-    public void testDatasetAggregateKeyIgnoresCredentials() {
-        // A storage identity names only non-secret fields: credentials are not row-interpretation-affecting, so two users
-        // over the same files share the aggregate (the schema cache is shared by design).
+    /**
+     * Two data sources differing only in their credentials must not share an address. This reverses what this
+     * suite previously pinned - that they DO share one, on the reasoning that credentials are not
+     * row-interpretation-affecting and so two users over the same files may share the aggregate. That reasoning
+     * is sound about interpretation and answers a different question than the one that matters: a row count and a
+     * column extremum are facts about the data, not interpretations of it, and the listing and footer-byte stores
+     * already separate principals for exactly that reason.
+     * <p>
+     * It is a second layer of defence and not the authorization control. It cannot see a principal who may list
+     * but not read within ONE data source, it cannot see a revoked credential, which digests to the value it had
+     * while it was valid, and it cannot see a federated token, which arrives at read time and belongs to no
+     * definition. An authorization check on the resolve path is the control.
+     * <p>
+     * It also costs sharing that is legitimately correct, since S3 authorizes per object and two data sources
+     * over the same files hold facts equally true for both. That trade is deliberate.
+     */
+    public void testDatasetAggregateKeySeparatesPrincipals() {
         SchemaCacheKey a = SchemaCacheKey.forDatasetAggregate(
             PATTERN,
             new FileSetFingerprint(11, 22),
-            "ndjson",
-            "",
-            Map.of("access_key", "userA")
+            TestDatasetIdentities.identity("ndjson", "", "digest-of-userA-secret", Map.of())
         );
         SchemaCacheKey b = SchemaCacheKey.forDatasetAggregate(
             PATTERN,
             new FileSetFingerprint(11, 22),
-            "ndjson",
-            "",
-            Map.of("access_key", "userB")
+            TestDatasetIdentities.identity("ndjson", "", "digest-of-userB-secret", Map.of())
         );
-        assertEquals(a, b);
+        assertNotEquals("two data sources differing only in their credentials must not share an aggregate", a, b);
+        assertEquals(
+            "and two resolves under the same credentials must still share it",
+            a,
+            SchemaCacheKey.forDatasetAggregate(
+                PATTERN,
+                new FileSetFingerprint(11, 22),
+                TestDatasetIdentities.identity("ndjson", "", "digest-of-userA-secret", Map.of())
+            )
+        );
+    }
+
+    /** The same separation on the per-file rail, which is where the schema and the per-column extrema live. */
+    public void testPerFileKeySeparatesPrincipals() {
+        SchemaCacheKey a = SchemaCacheKey.build(
+            "s3://bucket/data/a.ndjson",
+            1000L,
+            TestDatasetIdentities.identity("ndjson", "", "digest-of-userA-secret", Map.of()),
+            false
+        );
+        SchemaCacheKey b = SchemaCacheKey.build(
+            "s3://bucket/data/a.ndjson",
+            1000L,
+            TestDatasetIdentities.identity("ndjson", "", "digest-of-userB-secret", Map.of()),
+            false
+        );
+        assertNotEquals("one file read under two credential sets must not share one schema address", a, b);
+    }
+
+    /**
+     * An auth mode with no stored secret yields an empty digest. That must behave as a value and not as a
+     * wildcard, or every such data source would collapse onto one address with every other.
+     */
+    public void testAnAbsentSecretIsStillAnIdentity() {
+        SchemaCacheKey none = SchemaCacheKey.build(
+            "s3://b/f.ndjson",
+            1L,
+            TestDatasetIdentities.identity("ndjson", "", "", Map.of()),
+            false
+        );
+        SchemaCacheKey some = SchemaCacheKey.build(
+            "s3://b/f.ndjson",
+            1L,
+            TestDatasetIdentities.identity("ndjson", "", "digest", Map.of()),
+            false
+        );
+        assertNotEquals(none, some);
+        assertEquals(none, SchemaCacheKey.build("s3://b/f.ndjson", 1L, TestDatasetIdentities.identity("ndjson", "", "", Map.of()), false));
     }
 
     public void testDatasetAggregateKeyChangesWithSourceType() {
-        SchemaCacheKey ndjson = SchemaCacheKey.forDatasetAggregate(PATTERN, new FileSetFingerprint(11, 22), "ndjson", "", Map.of());
-        SchemaCacheKey csv = SchemaCacheKey.forDatasetAggregate(PATTERN, new FileSetFingerprint(11, 22), "csv", "", Map.of());
+        SchemaCacheKey ndjson = SchemaCacheKey.forDatasetAggregate(
+            PATTERN,
+            new FileSetFingerprint(11, 22),
+            TestDatasetIdentities.identity("ndjson", "", Map.of())
+        );
+        SchemaCacheKey csv = SchemaCacheKey.forDatasetAggregate(
+            PATTERN,
+            new FileSetFingerprint(11, 22),
+            TestDatasetIdentities.identity("csv", "", Map.of())
+        );
         assertNotEquals(ndjson, csv);
     }
 
@@ -80,16 +159,12 @@ public class SchemaCacheKeyTests extends ESTestCase {
         SchemaCacheKey usEast = SchemaCacheKey.forDatasetAggregate(
             PATTERN,
             new FileSetFingerprint(11, 22),
-            "ndjson",
-            Configured.identityOf(Map.of("region", "us-east-1"), Set.of("region")),
-            Map.of()
+            TestDatasetIdentities.identity("ndjson", Configured.identityOf(Map.of("region", "us-east-1"), Set.of("region")), Map.of())
         );
         SchemaCacheKey euWest = SchemaCacheKey.forDatasetAggregate(
             PATTERN,
             new FileSetFingerprint(11, 22),
-            "ndjson",
-            Configured.identityOf(Map.of("region", "eu-west-1"), Set.of("region")),
-            Map.of()
+            TestDatasetIdentities.identity("ndjson", Configured.identityOf(Map.of("region", "eu-west-1"), Set.of("region")), Map.of())
         );
         assertNotEquals(usEast, euWest);
     }
@@ -99,8 +174,18 @@ public class SchemaCacheKeyTests extends ESTestCase {
         // must not share a per-file schema cache entry.
         String usEastIdentity = Configured.identityOf(Map.of("region", "us-east-1"), Set.of("region"));
         String euWestIdentity = Configured.identityOf(Map.of("region", "eu-west-1"), Set.of("region"));
-        SchemaCacheKey usEast = SchemaCacheKey.build("s3://bucket/file.parquet", 1000L, "parquet", usEastIdentity, Map.of());
-        SchemaCacheKey euWest = SchemaCacheKey.build("s3://bucket/file.parquet", 1000L, "parquet", euWestIdentity, Map.of());
+        SchemaCacheKey usEast = SchemaCacheKey.build(
+            "s3://bucket/file.parquet",
+            1000L,
+            TestDatasetIdentities.identity("parquet", usEastIdentity, Map.of()),
+            false
+        );
+        SchemaCacheKey euWest = SchemaCacheKey.build(
+            "s3://bucket/file.parquet",
+            1000L,
+            TestDatasetIdentities.identity("parquet", euWestIdentity, Map.of()),
+            false
+        );
         assertNotEquals(usEast, euWest);
     }
 
@@ -110,8 +195,12 @@ public class SchemaCacheKeyTests extends ESTestCase {
         // null (so a pathological '#dataset-agg'-bearing object name at most loses warm enrichment, never
         // collides). canonicalPath stays the plain glob pattern (diagnostics-friendly, no smuggled
         // separators).
-        SchemaCacheKey dataset = SchemaCacheKey.forDatasetAggregate(PATTERN, new FileSetFingerprint(11, 22), "ndjson", "", Map.of());
-        SchemaCacheKey perFile = SchemaCacheKey.build(PATTERN, 11L, "ndjson", "", Map.of());
+        SchemaCacheKey dataset = SchemaCacheKey.forDatasetAggregate(
+            PATTERN,
+            new FileSetFingerprint(11, 22),
+            TestDatasetIdentities.identity("ndjson", "", Map.of())
+        );
+        SchemaCacheKey perFile = SchemaCacheKey.build(PATTERN, 11L, TestDatasetIdentities.identity("ndjson", "", Map.of()), false);
         assertNotEquals(dataset, perFile);
         assertTrue(dataset.isDatasetAggregate());
         assertFalse(perFile.isDatasetAggregate());
@@ -127,7 +216,7 @@ public class SchemaCacheKeyTests extends ESTestCase {
      * carries the read, there is nothing left to compare.
      */
     public void testStatisticsAddressDiscriminatesTheReadThatProducedIt() {
-        SchemaCacheKey schema = SchemaCacheKey.build(PATTERN, 11L, "ndjson", "", Map.of());
+        SchemaCacheKey schema = SchemaCacheKey.build(PATTERN, 11L, TestDatasetIdentities.identity("ndjson", "", Map.of()), false);
 
         SchemaCacheKey readAsFileOwn = schema.withReadConfig("aaaa1111");
         SchemaCacheKey readAsAnchor = schema.withReadConfig("bbbb2222");
@@ -149,7 +238,11 @@ public class SchemaCacheKeyTests extends ESTestCase {
      * it belongs to — same file, same version, same format, same participants.
      */
     public void testStatisticsAddressCarriesEveryOtherComponent() {
-        SchemaCacheKey dataset = SchemaCacheKey.forDatasetAggregate(PATTERN, new FileSetFingerprint(11, 22), "ndjson", "id", Map.of());
+        SchemaCacheKey dataset = SchemaCacheKey.forDatasetAggregate(
+            PATTERN,
+            new FileSetFingerprint(11, 22),
+            TestDatasetIdentities.identity("ndjson", "id", Map.of())
+        );
         SchemaCacheKey stats = dataset.withReadConfig("cccc3333");
 
         // Pin that a key was actually derived first. Without these two the carrying assertions below hold
@@ -159,10 +252,9 @@ public class SchemaCacheKeyTests extends ESTestCase {
 
         assertEquals(dataset.canonicalPath(), stats.canonicalPath());
         assertEquals(dataset.lastModifiedEpochMillis(), stats.lastModifiedEpochMillis());
-        assertEquals(dataset.formatType(), stats.formatType());
-        assertEquals(dataset.identity(), stats.identity());
+        assertEquals(dataset.dataset(), stats.dataset());
         assertEquals(dataset.fileSetFingerprint(), stats.fileSetFingerprint());
-        assertEquals(dataset.definitionVersion(), stats.definitionVersion());
+        assertEquals(dataset.declaredStrict(), stats.declaredStrict());
         // The record kind survives the derivation, so isDatasetAggregate() keeps answering for the aggregate's
         // own statistics record rather than silently becoming a per-file one.
         assertTrue(stats.isDatasetAggregate());
@@ -173,7 +265,7 @@ public class SchemaCacheKeyTests extends ESTestCase {
      * recorded would claim more than the harvest does, which is the mistake this whole area is about.
      */
     public void testAnUnstampedReadKeepsTheAddressItHas() {
-        SchemaCacheKey schema = SchemaCacheKey.build(PATTERN, 11L, "ndjson", "", Map.of());
+        SchemaCacheKey schema = SchemaCacheKey.build(PATTERN, 11L, TestDatasetIdentities.identity("ndjson", "", Map.of()), false);
         assertSame(schema, schema.withReadConfig(null));
         assertSame(schema, schema.withReadConfig(""));
         assertFalse(schema.withReadConfig(null).isStatisticsRecord());

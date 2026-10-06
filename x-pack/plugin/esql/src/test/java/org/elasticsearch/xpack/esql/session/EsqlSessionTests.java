@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
+import org.elasticsearch.xpack.esql.datasources.cache.TestDatasetIdentities;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -189,7 +190,7 @@ public class EsqlSessionTests extends ESTestCase {
         );
 
         try (ExternalSourceCacheService cache = new ExternalSourceCacheService(Settings.EMPTY)) {
-            SchemaCacheKey key = SchemaCacheKey.build(drift, 0L, "parquet", "", config);
+            SchemaCacheKey key = SchemaCacheKey.build(drift, 0L, TestDatasetIdentities.identity("parquet", "", config), false);
             Map<String, Object> nativeStats = Map.of(
                 SourceStatisticsSerializer.columnValueCountKey("x"),
                 2L,
@@ -264,7 +265,7 @@ public class EsqlSessionTests extends ESTestCase {
         assertEquals(2L, strippedContribution.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
 
         try (ExternalSourceCacheService cache = new ExternalSourceCacheService(Settings.EMPTY)) {
-            SchemaCacheKey key = SchemaCacheKey.build(path, 0L, "parquet", "", config);
+            SchemaCacheKey key = SchemaCacheKey.build(path, 0L, TestDatasetIdentities.identity("parquet", "", config), false);
             Map<String, Object> nativeStats = Map.of(
                 SourceStatisticsSerializer.columnValueCountKey("val"),
                 2L,

@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ListingCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
+import org.elasticsearch.xpack.esql.datasources.cache.TestDatasetIdentities;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
@@ -2649,20 +2650,21 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
         assertNull(
             "an implicit-nulls (footer) format must not carry a row-count-only dataset aggregate",
-            resolver.datasetAggregateKey(parquetListing, "", Map.of())
+            resolver.datasetAggregateKey(parquetListing, "", "", Map.of())
         );
 
         FileList textListing = GlobExpander.fileListOf(
             List.of(entry("s3://bucket/data/a.ndjson", 100), entry("s3://bucket/data/b.ndjson", 200)),
             "s3://bucket/data/*.ndjson"
         );
-        SchemaCacheKey textKey = resolver.datasetAggregateKey(textListing, "", Map.of());
+        SchemaCacheKey textKey = resolver.datasetAggregateKey(textListing, "", "", Map.of());
         assertNotNull("a text-format listing must qualify (positive control)", textKey);
         assertEquals(
-            "formatType is the registry name, not a last-dot suffix",
-            "ndjson" + SchemaCacheKey.DATASET_AGGREGATE_MARKER,
-            textKey.formatType()
+            "the format is resolved to the registry name, not a last-dot suffix",
+            "ndjson",
+            resolver.detectFormatType(textListing.path(0), Map.of())
         );
+        assertTrue("a listing key addresses the dataset aggregate", textKey.isDatasetAggregate());
     }
 
     /**
@@ -2679,7 +2681,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
         assertNull(
             "an unregistered extension must refuse the aggregate, not throw",
-            resolver.datasetAggregateKey(unknownListing, "", Map.of())
+            resolver.datasetAggregateKey(unknownListing, "", "", Map.of())
         );
     }
 
@@ -2696,7 +2698,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
         assertNull(
             "format=parquet must gate .ndjson-named files as parquet (config wins over extension)",
-            resolver.datasetAggregateKey(ndjsonNamed, "", Map.of("format", "parquet"))
+            resolver.datasetAggregateKey(ndjsonNamed, "", "", Map.of("format", "parquet"))
         );
     }
 
@@ -2714,11 +2716,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals("s3://bucket/data/a.csv", csvThenGz.path(0).toString());
         assertEquals("s3://bucket/data/b.csv.gz", gzThenCsv.path(0).toString());
         assertEquals(csvThenGz.fileSetFingerprint(), gzThenCsv.fileSetFingerprint());
-        SchemaCacheKey keyA = resolver.datasetAggregateKey(csvThenGz, "", Map.of());
-        SchemaCacheKey keyB = resolver.datasetAggregateKey(gzThenCsv, "", Map.of());
+        SchemaCacheKey keyA = resolver.datasetAggregateKey(csvThenGz, "", "", Map.of());
+        SchemaCacheKey keyB = resolver.datasetAggregateKey(gzThenCsv, "", "", Map.of());
         assertNotNull("csv+csv.gz must qualify for a dataset aggregate key", keyA);
         assertEquals(keyA, keyB);
-        assertEquals("csv" + SchemaCacheKey.DATASET_AGGREGATE_MARKER, keyA.formatType());
+        assertEquals("csv", resolver.detectFormatType(csvThenGz.path(0), Map.of()));
+        assertTrue("a listing key addresses the dataset aggregate", keyA.isDatasetAggregate());
     }
 
     /**
@@ -2738,12 +2741,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals("parquet", resolver.detectFormatType(parqThenParquet.path(0), Map.of()));
         assertEquals(parquetThenParq.fileSetFingerprint(), parqThenParquet.fileSetFingerprint());
         assertEquals(
-            resolver.datasetAggregateKey(parquetThenParq, "", Map.of()),
-            resolver.datasetAggregateKey(parqThenParquet, "", Map.of())
+            resolver.datasetAggregateKey(parquetThenParq, "", "", Map.of()),
+            resolver.datasetAggregateKey(parqThenParquet, "", "", Map.of())
         );
         assertNull(
             "parquet (including .parq) still refuses the row-count-only aggregate",
-            resolver.datasetAggregateKey(parquetThenParq, "", Map.of())
+            resolver.datasetAggregateKey(parquetThenParq, "", "", Map.of())
         );
     }
 
@@ -2763,20 +2766,17 @@ public class ExternalSourceResolverTests extends ESTestCase {
         SchemaCacheKey parqKey = SchemaCacheKey.build(
             "s3://b/file.parq",
             1L,
-            resolver.detectFormatType(StoragePath.of("s3://b/file.parq"), Map.of()),
-            "",
-            Map.of()
+            TestDatasetIdentities.identity(resolver.detectFormatType(StoragePath.of("s3://b/file.parq"), Map.of()), "", Map.of()),
+            false
         );
         SchemaCacheKey parquetKey = SchemaCacheKey.build(
             "s3://b/file.parquet",
             1L,
-            resolver.detectFormatType(StoragePath.of("s3://b/file.parquet"), Map.of()),
-            "",
-            Map.of()
+            TestDatasetIdentities.identity(resolver.detectFormatType(StoragePath.of("s3://b/file.parquet"), Map.of()), "", Map.of()),
+            false
         );
+        // Both resolve to the same registry format, asserted directly above; the keys differ because the paths do.
         assertNotEquals(parqKey, parquetKey);
-        assertEquals("parquet", parqKey.formatType());
-        assertEquals("parquet", parquetKey.formatType());
     }
 
     /**
@@ -2793,7 +2793,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             String path = "s3://bucket/data/a.ndjson";
             FileList duplicated = GlobExpander.fileListOf(List.of(entry(path, 100), entry(path, 100)), path + "," + path);
-            SchemaCacheKey duplicatedKey = resolver.datasetAggregateKey(duplicated, "", Map.of());
+            SchemaCacheKey duplicatedKey = resolver.datasetAggregateKey(duplicated, "", "", Map.of());
             assertNotNull("the key factory itself does not police duplicates", duplicatedKey);
             Map<String, Object> served = resolver.applyDatasetAggregate(
                 null,
@@ -2810,7 +2810,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 List.of(entry("s3://bucket/data/a.ndjson", 100), entry("s3://bucket/data/b.ndjson", 200)),
                 "s3://bucket/data/*.ndjson"
             );
-            SchemaCacheKey distinctKey = resolver.datasetAggregateKey(distinct, "", Map.of());
+            SchemaCacheKey distinctKey = resolver.datasetAggregateKey(distinct, "", "", Map.of());
             resolver.applyDatasetAggregate(
                 null,
                 new ExternalSourceResolver.DatasetAggregatePrefetch(distinctKey, null),
@@ -2839,7 +2839,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 List.of(entry("s3://bucket/data/a.ndjson", 100), entry("s3://bucket/data/b.ndjson", 200)),
                 "s3://bucket/data/*.ndjson"
             );
-            SchemaCacheKey key = resolver.datasetAggregateKey(distinct, "", Map.of());
+            SchemaCacheKey key = resolver.datasetAggregateKey(distinct, "", "", Map.of());
 
             // First warm resolve, prefetch missed (null): the successful merge writes through.
             resolver.applyDatasetAggregate(
@@ -2887,7 +2887,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 List.of(entry("s3://bucket/data/a.ndjson", 100), entry("s3://bucket/data/b.ndjson", 200)),
                 "s3://bucket/data/*.ndjson"
             );
-            SchemaCacheKey key = resolver.datasetAggregateKey(distinct, "", Map.of());
+            SchemaCacheKey key = resolver.datasetAggregateKey(distinct, "", "", Map.of());
 
             // Needed (per-file merge null) AND present (prefetch hit) -> one hit, no miss.
             resolver.applyDatasetAggregate(
@@ -2958,7 +2958,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 // the dataset reader. Lookup keys must use that same map.
                 Map<String, Object> effectiveConfig = new HashMap<>(config);
                 effectiveConfig.put(FormatNameResolver.CONFIG_FORMAT, "ndjson");
-                SchemaCacheKey key = resolver.datasetAggregateKey(GlobExpander.fileListOf(listing, glob), "", effectiveConfig);
+                SchemaCacheKey key = resolver.datasetAggregateKey(GlobExpander.fileListOf(listing, glob), "", "", effectiveConfig);
                 assertNotNull("[" + strategy + "] the resolve must have minted a dataset key", key);
                 // Derived the one way production derives it, by asking the reader. Computing it a second way here
                 // would let the two drift and the test would pass while the warm path was dead.
@@ -5200,7 +5200,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
             schemas.put(path, schema);
         }
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
-            SchemaCacheKey sentinelKey = SchemaCacheKey.build("s3://other/keep.parquet", 0L, "parquet", "", config);
+            SchemaCacheKey sentinelKey = SchemaCacheKey.build(
+                "s3://other/keep.parquet",
+                0L,
+                TestDatasetIdentities.identity("parquet", "", config),
+                false
+            );
             SchemaCacheEntry sentinel = SchemaCacheEntry.from(new SimpleSourceMetadata(schema, "parquet", "s3://other/keep.parquet"));
             cacheService.putSchema(sentinelKey, sentinel);
             ExternalSourceResolver resolver = createResolver(
@@ -5221,7 +5226,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             );
             for (int i = 0; i < files; i++) {
                 String path = String.format(Locale.ROOT, "s3://bucket/data/part-%02d.parquet", i);
-                SchemaCacheKey key = SchemaCacheKey.build(path, 0L, "parquet", "", config);
+                SchemaCacheKey key = SchemaCacheKey.build(path, 0L, TestDatasetIdentities.identity("parquet", "", config), false);
                 assertNull("oversized fan-out must not retain " + path, cacheService.getSchemaIfPresent(key));
             }
             assertEquals(1, cacheService.usageStats().get("schema_cache.count"));
@@ -9255,8 +9260,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertNotEquals("two endpoints must not report one identity", identityA, identityB);
         assertNotEquals(
             "distinct storage identities must address distinct schema entries",
-            SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", identityA, configA),
-            SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", identityB, configB)
+            SchemaCacheKey.build("s3://bucket/file.csv", mtime, TestDatasetIdentities.identity("csv", identityA, configA), false),
+            SchemaCacheKey.build("s3://bucket/file.csv", mtime, TestDatasetIdentities.identity("csv", identityB, configB), false)
         );
 
         Map<String, Object> versionedA = new HashMap<>(configA);
@@ -9265,8 +9270,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
         versionedB.put(DefinitionVersion.CONFIG_KEY, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
         assertNotEquals(
             "two definitions differing in their endpoint must separate even with no provider report",
-            SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", "", versionedA),
-            SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", "", versionedB)
+            SchemaCacheKey.build("s3://bucket/file.csv", mtime, TestDatasetIdentities.identity("csv", "", versionedA), false),
+            SchemaCacheKey.build("s3://bucket/file.csv", mtime, TestDatasetIdentities.identity("csv", "", versionedB), false)
         );
     }
 
@@ -9280,24 +9285,32 @@ public class ExternalSourceResolverTests extends ESTestCase {
         long mtime = 1000L;
 
         // Raw config: credentials in _datasource are still ignored (schema is user-independent).
-        SchemaCacheKey rawA = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", "", configA);
-        SchemaCacheKey rawB = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", "", configB);
+        SchemaCacheKey rawA = SchemaCacheKey.build(
+            "s3://bucket/file.csv",
+            mtime,
+            TestDatasetIdentities.identity("csv", "", configA),
+            false
+        );
+        SchemaCacheKey rawB = SchemaCacheKey.build(
+            "s3://bucket/file.csv",
+            mtime,
+            TestDatasetIdentities.identity("csv", "", configB),
+            false
+        );
         assertEquals("schema keys differing only in _datasource credentials must be equal — cache is shared across users", rawA, rawB);
 
         // Same invariant holds after storageConfig flattening.
         SchemaCacheKey flatA = SchemaCacheKey.build(
             "s3://bucket/file.csv",
             mtime,
-            "csv",
-            "",
-            ExternalSourceResolver.storageConfig(configA)
+            TestDatasetIdentities.identity("csv", "", ExternalSourceResolver.storageConfig(configA)),
+            false
         );
         SchemaCacheKey flatB = SchemaCacheKey.build(
             "s3://bucket/file.csv",
             mtime,
-            "csv",
-            "",
-            ExternalSourceResolver.storageConfig(configB)
+            TestDatasetIdentities.identity("csv", "", ExternalSourceResolver.storageConfig(configB)),
+            false
         );
         assertEquals("flattened config: credential-independent schema cache invariant must still hold", flatA, flatB);
     }
@@ -9340,11 +9353,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
         SchemaCacheKey keyA = resolver.datasetAggregateKey(
             listing,
             Configured.identityOf(Map.of("endpoint", "http://endpoint-a.example.com"), Set.of("endpoint")),
+            "",
             configA
         );
         SchemaCacheKey keyB = resolver.datasetAggregateKey(
             listing,
             Configured.identityOf(Map.of("endpoint", "http://endpoint-b.example.com"), Set.of("endpoint")),
+            "",
             configB
         );
         assertNotNull("ndjson listing must qualify for a dataset aggregate key", keyA);

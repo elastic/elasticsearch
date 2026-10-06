@@ -65,7 +65,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     public void testSchemaHitMiss() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             AtomicInteger loaderCalls = new AtomicInteger();
-            SchemaCacheKey key = SchemaCacheKey.build("s3://bucket/data/file.parquet", 1000L, ".parquet", "", Map.of());
+            SchemaCacheKey key = SchemaCacheKey.build(
+                "s3://bucket/data/file.parquet",
+                1000L,
+                TestDatasetIdentities.identity(".parquet", "", Map.of()),
+                false
+            );
 
             SchemaCacheEntry entry1 = service.getOrComputeSchema(key, k -> {
                 loaderCalls.incrementAndGet();
@@ -87,14 +92,24 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             AtomicInteger loaderCalls = new AtomicInteger();
 
-            SchemaCacheKey key1 = SchemaCacheKey.build("s3://bucket/data/file.parquet", 1000L, ".parquet", "", Map.of());
+            SchemaCacheKey key1 = SchemaCacheKey.build(
+                "s3://bucket/data/file.parquet",
+                1000L,
+                TestDatasetIdentities.identity(".parquet", "", Map.of()),
+                false
+            );
             service.getOrComputeSchema(key1, k -> {
                 loaderCalls.incrementAndGet();
                 return testSchemaEntry();
             });
             assertEquals(1, loaderCalls.get());
 
-            SchemaCacheKey key2 = SchemaCacheKey.build("s3://bucket/data/file.parquet", 2000L, ".parquet", "", Map.of());
+            SchemaCacheKey key2 = SchemaCacheKey.build(
+                "s3://bucket/data/file.parquet",
+                2000L,
+                TestDatasetIdentities.identity(".parquet", "", Map.of()),
+                false
+            );
             service.getOrComputeSchema(key2, k -> {
                 loaderCalls.incrementAndGet();
                 return testSchemaEntry();
@@ -437,7 +452,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             service.setEnabled(false);
             AtomicInteger loaderCalls = new AtomicInteger();
-            SchemaCacheKey key = SchemaCacheKey.build("s3://bucket/file.parquet", 1000L, ".parquet", "", Map.of());
+            SchemaCacheKey key = SchemaCacheKey.build(
+                "s3://bucket/file.parquet",
+                1000L,
+                TestDatasetIdentities.identity(".parquet", "", Map.of()),
+                false
+            );
 
             service.getOrComputeSchema(key, k -> {
                 loaderCalls.incrementAndGet();
@@ -453,7 +473,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
     public void testClearAllEmptiesBothCaches() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
-            SchemaCacheKey sKey = SchemaCacheKey.build("s3://bucket/file.parquet", 1000L, ".parquet", "", Map.of());
+            SchemaCacheKey sKey = SchemaCacheKey.build(
+                "s3://bucket/file.parquet",
+                1000L,
+                TestDatasetIdentities.identity(".parquet", "", Map.of()),
+                false
+            );
             service.getOrComputeSchema(sKey, k -> testSchemaEntry());
 
             ListingCacheKey lKey = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "");
@@ -473,7 +498,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
     public void testToggleOffClearsEntries() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
-            SchemaCacheKey key = SchemaCacheKey.build("s3://bucket/file.parquet", 1000L, ".parquet", "", Map.of());
+            SchemaCacheKey key = SchemaCacheKey.build(
+                "s3://bucket/file.parquet",
+                1000L,
+                TestDatasetIdentities.identity(".parquet", "", Map.of()),
+                false
+            );
             service.getOrComputeSchema(key, k -> testSchemaEntry());
             assertEquals(1, service.usageStats().get("schema_cache.count"));
 
@@ -487,7 +517,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
     public void testLoaderExceptionPropagated() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
-            SchemaCacheKey key = SchemaCacheKey.build("s3://bucket/file.parquet", 1000L, ".parquet", "", Map.of());
+            SchemaCacheKey key = SchemaCacheKey.build(
+                "s3://bucket/file.parquet",
+                1000L,
+                TestDatasetIdentities.identity(".parquet", "", Map.of()),
+                false
+            );
 
             expectThrows(Exception.class, () -> service.getOrComputeSchema(key, k -> { throw new RuntimeException("test error"); }));
 
@@ -503,7 +538,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     public void testComputeIfAbsentCoalescing() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             AtomicInteger loaderCalls = new AtomicInteger();
-            SchemaCacheKey key = SchemaCacheKey.build("s3://bucket/file.parquet", 1000L, ".parquet", "", Map.of());
+            SchemaCacheKey key = SchemaCacheKey.build(
+                "s3://bucket/file.parquet",
+                1000L,
+                TestDatasetIdentities.identity(".parquet", "", Map.of()),
+                false
+            );
 
             int threadCount = 10;
             CountDownLatch startLatch = new CountDownLatch(1);
@@ -541,7 +581,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     public void testFailedSchemaLoadCoalescesAndIsNotRetained() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             AtomicInteger loaderCalls = new AtomicInteger();
-            SchemaCacheKey key = SchemaCacheKey.build("s3://bucket/fail.parquet", 1000L, ".parquet", "", Map.of());
+            SchemaCacheKey key = SchemaCacheKey.build(
+                "s3://bucket/fail.parquet",
+                1000L,
+                TestDatasetIdentities.identity(".parquet", "", Map.of()),
+                false
+            );
             RuntimeException boom = new RuntimeException("schema load failed");
 
             int threadCount = 8;
@@ -590,7 +635,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             assertEquals(0, stats.get("schema_cache.count"));
             assertEquals(0, stats.get("listing_cache.count"));
 
-            SchemaCacheKey key = SchemaCacheKey.build("s3://bucket/file.parquet", 1000L, ".parquet", "", Map.of());
+            SchemaCacheKey key = SchemaCacheKey.build(
+                "s3://bucket/file.parquet",
+                1000L,
+                TestDatasetIdentities.identity(".parquet", "", Map.of()),
+                false
+            );
             service.getOrComputeSchema(key, k -> testSchemaEntry());
             service.getOrComputeSchema(key, k -> testSchemaEntry());
 
@@ -773,16 +823,14 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             SchemaCacheKey keyHeader = SchemaCacheKey.build(
                 path,
                 mtime,
-                ".csv",
-                Configured.identityOf(Map.of("header_row", true), Set.of("header_row")),
-                Map.of()
+                TestDatasetIdentities.identity(".csv", Configured.identityOf(Map.of("header_row", true), Set.of("header_row")), Map.of()),
+                false
             );
             SchemaCacheKey keyNoHeader = SchemaCacheKey.build(
                 path,
                 mtime,
-                ".csv",
-                Configured.identityOf(Map.of("header_row", false), Set.of("header_row")),
-                Map.of()
+                TestDatasetIdentities.identity(".csv", Configured.identityOf(Map.of("header_row", false), Set.of("header_row")), Map.of()),
+                false
             );
             assertNotEquals("two reader configurations must address two records", keyHeader, keyNoHeader);
 
@@ -818,7 +866,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/a.ndjson";
             long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", "", Map.of("format", "ndjson"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".ndjson", "", Map.of("format", "ndjson")),
+                false
+            );
             List<Attribute> schema = List.of(
                 new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.FALSE, null, false)
             );
@@ -864,8 +917,18 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             );
             // Same path, mtime, format config and read config; the stores differ, which is the only thing a
             // contribution cannot report.
-            SchemaCacheKey storeA = SchemaCacheKey.build(path, mtime, ".ndjson", "endpoint=a", Map.of("format", "ndjson"));
-            SchemaCacheKey storeB = SchemaCacheKey.build(path, mtime, ".ndjson", "endpoint=b", Map.of("format", "ndjson"));
+            SchemaCacheKey storeA = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".ndjson", "endpoint=a", Map.of("format", "ndjson")),
+                false
+            );
+            SchemaCacheKey storeB = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".ndjson", "endpoint=b", Map.of("format", "ndjson")),
+                false
+            );
             assertNotEquals("the two stores must address different entries, or this test proves nothing", storeA, storeB);
             for (SchemaCacheKey key : List.of(storeA, storeB)) {
                 service.getOrComputeSchema(
@@ -903,8 +966,18 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             String pathA = "file:///data/a.ndjson";
             String pathB = "file:///data/b.ndjson";
             long mtime = 1000L;
-            seedSchemaCache(service, SchemaCacheKey.build(pathA, mtime, ".ndjson", "", Map.of("format", "ndjson")), pathA, "fp");
-            seedSchemaCache(service, SchemaCacheKey.build(pathB, mtime, ".ndjson", "", Map.of("format", "ndjson")), pathB, "fp");
+            seedSchemaCache(
+                service,
+                SchemaCacheKey.build(pathA, mtime, TestDatasetIdentities.identity(".ndjson", "", Map.of("format", "ndjson")), false),
+                pathA,
+                "fp"
+            );
+            seedSchemaCache(
+                service,
+                SchemaCacheKey.build(pathB, mtime, TestDatasetIdentities.identity(".ndjson", "", Map.of("format", "ndjson")), false),
+                pathB,
+                "fp"
+            );
             SchemaCacheKey key = datasetKey();
             service.registerPendingDatasetAggregate(
                 key,
@@ -946,7 +1019,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "s3://bucket/data/file.csv";
             long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
             List<Attribute> schema = List.of(
                 new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.FALSE, null, false)
             );
@@ -1027,7 +1105,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "s3://bucket/data/file.csv";
             long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
             List<Attribute> schema = List.of(
                 new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.FALSE, null, false)
             );
@@ -1079,7 +1162,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "s3://bucket/data/file.csv";
             long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
             List<Attribute> schema = List.of(
                 new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.FALSE, null, false)
             );
@@ -1130,7 +1218,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv.bz2";
             long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".bz2", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".bz2", "", Map.of("format", "csv")),
+                false
+            );
             List<Attribute> schema = List.of(
                 new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.FALSE, null, false)
             );
@@ -1166,7 +1259,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv.bz2";
             long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".bz2", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".bz2", "", Map.of("format", "csv")),
+                false
+            );
             List<Attribute> schema = List.of(
                 new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.FALSE, null, false)
             );
@@ -1214,7 +1312,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
             seedSchemaCache(service, key, path, "fp");
 
             Map<String, Object> wholeFile = wholeFileStats(mtime, "fp", 100L);
@@ -1240,7 +1343,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
             seedSchemaCache(service, key, path, "fp");
 
             service.reconcileSourceStatsFromContributions(
@@ -1265,7 +1373,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
             seedSchemaCache(service, key, path, "fp");
 
             service.reconcileSourceStatsFromContributions(
@@ -1295,7 +1408,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
             seedSchemaCache(service, key, path, "fp");
 
             // Scan A: stripe 0 in one page [0,100).
@@ -1322,7 +1440,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
             seedSchemaCache(service, key, path, "fp");
 
             Map<String, Object> chunkA = stripeFragment(mtime, "fp", 55L, 1024L, 0, 0, 70, true, false, false);
@@ -1346,7 +1469,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
             seedSchemaCache(service, key, path, "fp");
 
             Map<String, Object> head = stripeFragment(mtime, "fp", 40L, 1024L, 0, 0, 40, true, false, false);
@@ -1366,7 +1494,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
             seedSchemaCache(service, key, path, "fp");
 
             Map<String, Object> suffix = stripeFragment(mtime, "fp", 60L, 1024L, 0, 40, 100, false, true, true); // no atStripeStart
@@ -1383,7 +1516,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
             seedSchemaCache(service, key, path, "fp");
 
             Map<String, Object> s0 = stripeFragment(mtime, "fp", 60L, 100L, 0, 0, 100, true, true, false);
@@ -1415,7 +1553,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/events.ndjson";
             long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", "", Map.of("format", "ndjson"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".ndjson", "", Map.of("format", "ndjson")),
+                false
+            );
             seedSchemaCacheTyped(service, key, path, "fp", "uid", DataType.DOUBLE);
 
             Map<String, Object> s0 = stripeFragment(mtime, "fp", 60L, 100L, 0, 0, 100, true, true, false);
@@ -1447,7 +1590,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/events.ndjson";
             long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", "", Map.of("format", "ndjson"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".ndjson", "", Map.of("format", "ndjson")),
+                false
+            );
             seedSchemaCacheTyped(service, key, path, "fp", "uid", DataType.LONG);
 
             Map<String, Object> wholeFile = wholeFileStats(mtime, "fp", 100L);
@@ -1475,7 +1623,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/events.ndjson";
             long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", "", Map.of("format", "ndjson"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".ndjson", "", Map.of("format", "ndjson")),
+                false
+            );
             seedSchemaCacheTyped(service, key, path, "fp", "uid", DataType.LONG);
 
             // A good LONG min/max commits first.
@@ -1613,7 +1766,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/events.ndjson";
             long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", "", Map.of("format", "ndjson"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".ndjson", "", Map.of("format", "ndjson")),
+                false
+            );
             seedSchemaCacheTyped(service, key, path, "fp", "tags", DataType.KEYWORD);
 
             Map<String, Object> s0 = stripeFragment(mtime, "fp", 60L, 100L, 0, 0, 100, true, true, false);
@@ -1639,7 +1797,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/events.ndjson";
             long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", "", Map.of("format", "ndjson"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".ndjson", "", Map.of("format", "ndjson")),
+                false
+            );
             List<Attribute> schema = List.of(
                 new ReferenceAttribute(Source.EMPTY, null, "a", DataType.LONG, Nullability.TRUE, null, false),
                 new ReferenceAttribute(Source.EMPTY, null, "b", DataType.LONG, Nullability.TRUE, null, false)
@@ -1681,7 +1844,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/events.ndjson";
             long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", "", Map.of("format", "ndjson"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".ndjson", "", Map.of("format", "ndjson")),
+                false
+            );
             seedSchemaCacheTyped(service, key, path, "fp", "v", DataType.LONG);
 
             // stripe 0: 60 rows with col v; stripe 1: EMPTY (0 rows, no col); stripe 2 (EOF): 40 rows with col v.
@@ -1709,7 +1877,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
             seedSchemaCache(service, key, path, "fp");
 
             service.reconcileSourceStatsFromContributions(
@@ -1739,7 +1912,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
             seedSchemaCache(service, key, path, "fp");
 
             // 200-byte file. Grid A=100: stripes {0:[0,100), 1:[100,200)}. Grid B=50: stripes 0..3.
@@ -1801,7 +1979,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/big.ndjson";
             long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", "", Map.of("format", "ndjson"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".ndjson", "", Map.of("format", "ndjson")),
+                false
+            );
             seedSchemaCache(service, key, path, "fp");
 
             int stripes = 500;
@@ -1840,7 +2023,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
             seedSchemaCache(service, key, path, "fp");
 
             long grid = 100L;
@@ -1877,7 +2065,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             long grid = 100L;
             int stripes = 16;
             long rowsPerStripe = 10L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
             seedSchemaCache(service, key, path, "fp");
 
             CountDownLatch start = new CountDownLatch(1);
@@ -1933,7 +2126,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             long mtime = 1000L;
             long rows = 500L;
             int threads = 12;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
             seedSchemaCache(service, key, path, "fp");
 
             CountDownLatch start = new CountDownLatch(1);
@@ -1981,7 +2179,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             int stripes = 16;
             long rowsPerStripe = 10L;
             long expected = stripes * rowsPerStripe;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
             seedSchemaCache(service, key, path, "fp");
 
             CountDownLatch start = new CountDownLatch(1);
@@ -2043,7 +2246,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         // A complete stripe whose mtime disagrees with the cached entry's key must not enrich it.
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
-            SchemaCacheKey key = SchemaCacheKey.build(path, 1000L, ".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                1000L,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
             seedSchemaCache(service, key, path, "fp");
 
             service.reconcileSourceStatsFromContributions(
@@ -2065,7 +2273,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
             seedSchemaCache(service, key, path, "fp");
 
             Map<String, Object> striped = stripeFragment(mtime, "fp", 40L, 1024L, 0, 0, 40, true, true, true);
@@ -2089,7 +2302,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
             seedSchemaCache(service, key, path, "fp");
 
             Map<String, Object> partialA = coveredChunk(mtime, "fp", 40L, 0, 40, false);
@@ -2113,7 +2331,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
             seedSchemaCache(service, key, path, "fp");
 
             Map<String, Object> wholeFile = wholeFileStats(mtime, "fp", 100L);
@@ -2139,7 +2362,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
             seedSchemaCache(service, key, path, "fp");
 
             Map<String, Object> first = wholeFileStats(mtime, "fp", 100L);
@@ -2155,7 +2383,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
             seedSchemaCache(service, key, path, "fp1");
 
             Map<String, Object> first = wholeFileStats(mtime, "fp1", 100L);
@@ -2174,7 +2407,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
             seedSchemaCache(service, key, path, "fp");
 
             Map<String, Object> first = wholeFileStats(mtime, "fp", 100L);
@@ -2222,9 +2460,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         return SchemaCacheKey.forDatasetAggregate(
             "s3://bucket/data/*.csv",
             new FileSetFingerprint(111, 222),
-            "csv",
-            "",
-            Map.of("format", "csv")
+            TestDatasetIdentities.identity("csv", "", Map.of("format", "csv"))
         );
     }
 
@@ -2275,9 +2511,8 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 SchemaCacheKey k = SchemaCacheKey.build(
                     "s3://bucket/data/file" + i + ".csv",
                     1000L + i,
-                    ".csv",
-                    "",
-                    Map.of("format", "csv")
+                    TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                    false
                 );
                 service.getOrComputeSchema(k, kk -> testSchemaEntry());
             }
@@ -2308,7 +2543,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             .put("esql.external.cache.listing.ttl", "30s")
             .build();
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
-            SchemaCacheKey key = SchemaCacheKey.build("s3://bucket/f.parquet", 1000L, ".parquet", "", Map.of());
+            SchemaCacheKey key = SchemaCacheKey.build(
+                "s3://bucket/f.parquet",
+                1000L,
+                TestDatasetIdentities.identity(".parquet", "", Map.of()),
+                false
+            );
             service.getOrComputeSchema(key, k -> testSchemaEntry());
             assertEquals(1, service.usageStats().get("schema_cache.count"));
         }
@@ -2384,9 +2624,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 SchemaCacheKey key = SchemaCacheKey.forDatasetAggregate(
                     "s3://bucket/g" + g + "/*.csv",
                     new FileSetFingerprint(g, g),
-                    "csv",
-                    "",
-                    Map.of("format", "csv")
+                    TestDatasetIdentities.identity("csv", "", Map.of("format", "csv"))
                 );
                 service.registerPendingDatasetAggregate(key, paths, pathsPerGlob, "fp", Map.of(), "csv", "s3://bucket/g" + g + "/*.csv");
             }
@@ -2406,7 +2644,11 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         // reconcile would enrich the entry and overwrite the whole-set 100 with the contribution's 42.
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String glob = "s3://bucket/data/*.csv";
-            SchemaCacheKey key = SchemaCacheKey.forDatasetAggregate(glob, new FileSetFingerprint(1, 2), "csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.forDatasetAggregate(
+                glob,
+                new FileSetFingerprint(1, 2),
+                TestDatasetIdentities.identity("csv", "", Map.of("format", "csv"))
+            );
             service.putDatasetAggregate(key, 100L, "csv", glob);
 
             Map<String, Object> strayContribution = new LinkedHashMap<>();
@@ -2461,8 +2703,18 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             String pathA = "file:///data/a.ndjson";
             String pathB = "file:///data/b.ndjson";
             long mtime = 1000L;
-            seedSchemaCache(service, SchemaCacheKey.build(pathA, mtime, ".ndjson", "", Map.of("format", "ndjson")), pathA, "fp");
-            seedSchemaCache(service, SchemaCacheKey.build(pathB, mtime, ".ndjson", "", Map.of("format", "ndjson")), pathB, "fp");
+            seedSchemaCache(
+                service,
+                SchemaCacheKey.build(pathA, mtime, TestDatasetIdentities.identity(".ndjson", "", Map.of("format", "ndjson")), false),
+                pathA,
+                "fp"
+            );
+            seedSchemaCache(
+                service,
+                SchemaCacheKey.build(pathB, mtime, TestDatasetIdentities.identity(".ndjson", "", Map.of("format", "ndjson")), false),
+                pathB,
+                "fp"
+            );
             SchemaCacheKey key = datasetKey();
             service.registerPendingDatasetAggregate(
                 key,
@@ -2631,10 +2883,18 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             String pathA = "s3://bucket/data/a.csv";
             String pathB = "s3://bucket/data/b.csv";
             Map<String, Long> paths = Map.of(pathA, 1000L, pathB, 2000L);
-            SchemaCacheKey oldest = SchemaCacheKey.forDatasetAggregate("g0", new FileSetFingerprint(0, 0), "csv", "", Map.of());
+            SchemaCacheKey oldest = SchemaCacheKey.forDatasetAggregate(
+                "g0",
+                new FileSetFingerprint(0, 0),
+                TestDatasetIdentities.identity("csv", "", Map.of())
+            );
             service.registerPendingDatasetAggregate(oldest, paths, 2, "fp", Map.of(), "csv", "g0");
             for (int i = 1; i <= 64; i++) {
-                SchemaCacheKey k = SchemaCacheKey.forDatasetAggregate("g" + i, new FileSetFingerprint(i, i), "csv", "", Map.of());
+                SchemaCacheKey k = SchemaCacheKey.forDatasetAggregate(
+                    "g" + i,
+                    new FileSetFingerprint(i, i),
+                    TestDatasetIdentities.identity("csv", "", Map.of())
+                );
                 service.registerPendingDatasetAggregate(k, paths, 2, "fp", Map.of(), "csv", "g" + i);
             }
 
@@ -2643,7 +2903,11 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             );
 
             assertNull("evicted oldest promise must not materialize", service.getDatasetAggregate(oldest));
-            SchemaCacheKey newest = SchemaCacheKey.forDatasetAggregate("g64", new FileSetFingerprint(64, 64), "csv", "", Map.of());
+            SchemaCacheKey newest = SchemaCacheKey.forDatasetAggregate(
+                "g64",
+                new FileSetFingerprint(64, 64),
+                TestDatasetIdentities.identity("csv", "", Map.of())
+            );
             Map<String, Object> served = service.getDatasetAggregate(newest);
             assertNotNull("surviving promise must materialize", served);
             assertEquals(300L, served.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
@@ -2718,7 +2982,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     public void testMtimeMismatchInsideFoldBails() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
-            SchemaCacheKey key = SchemaCacheKey.build(path, 1000L, ".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                1000L,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
             seedSchemaCache(service, key, path, "fp");
             Map<String, Object> first = stripeFragment(1000L, "fp", 100L, 1024L, 0, 0, 100, true, true, false);
             Map<String, Object> second = stripeFragment(2000L, "fp", 50L, 1024L, 1, 1024, 1100, true, true, true);
@@ -2730,7 +2999,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     public void testFingerprintMismatchInsideFoldBails() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
-            SchemaCacheKey key = SchemaCacheKey.build(path, 1000L, ".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                1000L,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
             seedSchemaCache(service, key, path, "fp");
             Map<String, Object> first = stripeFragment(1000L, "fp", 100L, 1024L, 0, 0, 100, true, true, false);
             Map<String, Object> second = stripeFragment(1000L, "other", 50L, 1024L, 1, 1024, 1100, true, true, true);
@@ -2747,7 +3021,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     public void testReadConfigMismatchInsideFoldBails() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
-            SchemaCacheKey key = SchemaCacheKey.build(path, 1000L, ".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                1000L,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
             seedSchemaCacheWithReadConfig(service, key, path, "fp", "rcA");
             Map<String, Object> first = stripeFragment(1000L, "fp", 100L, 1024L, 0, 0, 100, true, true, false);
             first.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "rcA");
@@ -2762,7 +3041,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     public void testMixedStripeGridsBail() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
-            SchemaCacheKey key = SchemaCacheKey.build(path, 1000L, ".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                1000L,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
             seedSchemaCache(service, key, path, "fp");
             Map<String, Object> first = stripeFragment(1000L, "fp", 100L, 1024L, 0, 0, 100, true, true, true);
             Map<String, Object> second = stripeFragment(1000L, "fp", 200L, 2048L, 0, 0, 200, true, true, true);
@@ -2778,7 +3062,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     public void testNonAdvancingFragmentBails() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
-            SchemaCacheKey key = SchemaCacheKey.build(path, 1000L, ".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                1000L,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
             seedSchemaCache(service, key, path, "fp");
             Map<String, Object> stalled = stripeFragment(1000L, "fp", 7L, 1024L, 0, 0, 0, true, false, false);
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(stalled)));
@@ -2794,7 +3083,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     public void testDeltaWithoutMtimeIsNotCommitted() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
-            SchemaCacheKey key = SchemaCacheKey.build(path, -1L, ".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                -1L,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
             seedSchemaCache(service, key, path, "fp");
             Map<String, Object> fragment = stripeFragment(1000L, "fp", 100L, 1024L, 0, 0, 100, true, true, true);
             fragment.remove(ExternalStats.MTIME_MILLIS_KEY);
@@ -2814,7 +3108,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     public void testStatsLessFragmentInChainSafeMisses() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
-            SchemaCacheKey key = SchemaCacheKey.build(path, 1000L, ".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                1000L,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
             seedSchemaCache(service, key, path, "fp");
             Map<String, Object> head = stripeFragment(1000L, "fp", 40L, 1024L, 0, 0, 40, true, false, false);
             Map<String, Object> tail = stripeFragment(1000L, "fp", 0L, 1024L, 0, 40, 100, false, true, true);

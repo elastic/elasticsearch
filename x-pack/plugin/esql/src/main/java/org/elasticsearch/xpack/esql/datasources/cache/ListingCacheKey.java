@@ -78,7 +78,7 @@ public record ListingCacheKey(
             secretIdentity,
             discriminatorHash[0],
             discriminatorHash[1],
-            SchemaCacheKey.definitionVersionOf(config)
+            DatasetIdentity.definitionVersionOf(config)
         );
     }
 

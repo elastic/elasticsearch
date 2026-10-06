@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.esql.datasources.cache;
 
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.datasources.DefinitionVersion;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 /**
  * Which dataset, read through which data source, a cached fact belongs to - the part of every address in
@@ -100,6 +102,23 @@ public final class DatasetIdentity {
         MurmurHash3.Hash128 source = fold(dataSourceVersion, secretIdentity);
         MurmurHash3.Hash128 participants = fold(storageIdentity, formatIdentity, coordinatorIdentity);
         return new DatasetIdentity(dataset.h1, dataset.h2, source.h1, source.h2, participants.h1, participants.h2);
+    }
+
+    /**
+     * The version of the stored definitions a query reads under, as a named component rather than a format
+     * setting: it is not an option a reader parses, so it has no place among the settings a participant reports
+     * as its own identity.
+     * <p>
+     * Absent for a query that reaches the cache without a registered dataset behind it, where there is no
+     * definition to version. Such entries share one version value and are discriminated by the participants
+     * instead.
+     */
+    public static String definitionVersionOf(@Nullable Map<String, Object> config) {
+        if (config == null) {
+            return "";
+        }
+        Object version = config.get(DefinitionVersion.CONFIG_KEY);
+        return version instanceof String s ? s : "";
     }
 
     /**

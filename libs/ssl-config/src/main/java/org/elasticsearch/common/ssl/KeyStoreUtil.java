@@ -150,11 +150,16 @@ public final class KeyStoreUtil {
      */
     public static X509ExtendedKeyManager createKeyManager(KeyStore keyStore, char[] password, String algorithm)
         throws GeneralSecurityException {
+        // The JDK caches X500Principals lazily without safe publication. Concurrent TLS handshakes on aarch64 can then observe a
+        // partially constructed principal. Populate the caches before the key manager is shared with handshake threads.
+        // See https://github.com/elastic/elasticsearch/issues/160280
+        populateX500PrincipalCaches(keyStore);
         KeyManagerFactory kmf = KeyManagerFactory.getInstance(algorithm);
         kmf.init(keyStore, password);
         KeyManager[] keyManagers = kmf.getKeyManagers();
         for (KeyManager keyManager : keyManagers) {
             if (keyManager instanceof X509ExtendedKeyManager x509ExtendedKeyManager) {
+                populateX500PrincipalCaches(x509ExtendedKeyManager, keyStore);
                 return x509ExtendedKeyManager;
             }
         }
@@ -168,11 +173,14 @@ public final class KeyStoreUtil {
      */
     public static X509ExtendedTrustManager createTrustManager(@Nullable KeyStore trustStore, String algorithm)
         throws NoSuchAlgorithmException, KeyStoreException {
+        // See createKeyManager: populate principal caches before handshake threads share this trust material.
+        populateX500PrincipalCaches(trustStore);
         TrustManagerFactory tmf = TrustManagerFactory.getInstance(algorithm);
         tmf.init(trustStore);
         TrustManager[] trustManagers = tmf.getTrustManagers();
         for (TrustManager trustManager : trustManagers) {
             if (trustManager instanceof X509ExtendedTrustManager x509ExtendedTrustManager) {
+                populateX500PrincipalCaches(x509ExtendedTrustManager.getAcceptedIssuers());
                 return x509ExtendedTrustManager;
             }
         }
@@ -194,6 +202,45 @@ public final class KeyStoreUtil {
     public static X509ExtendedTrustManager createTrustManager(Collection<Certificate> certificates) throws GeneralSecurityException {
         KeyStore store = buildTrustStore(certificates);
         return createTrustManager(store, TrustManagerFactory.getDefaultAlgorithm());
+    }
+
+    /**
+     * Force the JDK to cache each certificate's subject and issuer principals on this thread.
+     * The key manager keeps the keystore's certificate objects, so this has to happen before those objects are handed to other threads.
+     */
+    private static void populateX500PrincipalCaches(@Nullable KeyStore keyStore) throws KeyStoreException {
+        if (keyStore == null) {
+            return;
+        }
+        for (String alias : Collections.list(keyStore.aliases())) {
+            populateX500PrincipalCache(keyStore.getCertificate(alias));
+            populateX500PrincipalCaches(keyStore.getCertificateChain(alias));
+        }
+    }
+
+    /**
+     * The key manager may hold different certificate instances than the keystore, so warm those too.
+     */
+    private static void populateX500PrincipalCaches(X509ExtendedKeyManager keyManager, KeyStore keyStore) throws KeyStoreException {
+        for (String alias : Collections.list(keyStore.aliases())) {
+            populateX500PrincipalCaches(keyManager.getCertificateChain(alias));
+        }
+    }
+
+    private static void populateX500PrincipalCaches(@Nullable Certificate[] certificates) {
+        if (certificates == null) {
+            return;
+        }
+        for (Certificate certificate : certificates) {
+            populateX500PrincipalCache(certificate);
+        }
+    }
+
+    private static void populateX500PrincipalCache(@Nullable Certificate certificate) {
+        if (certificate instanceof X509Certificate x509Certificate) {
+            x509Certificate.getSubjectX500Principal();
+            x509Certificate.getIssuerX500Principal();
+        }
     }
 
     public static Stream<KeyStoreEntry> stream(

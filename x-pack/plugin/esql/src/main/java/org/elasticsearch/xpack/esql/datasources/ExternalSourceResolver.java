@@ -2705,6 +2705,12 @@ public class ExternalSourceResolver {
             }
             if (remainingReadsBuyNothing(resultsFeedOnlyStatsAndCache, fold, admission)) {
                 // Nothing left to buy: drain without issuing reads. See the method's contract.
+                // Cancellation outranks the economic stop. The signal is observed inside the per-file read,
+                // so a gather that stops issuing reads would otherwise complete with partial stats instead of
+                // surfacing the cancellation a still-reading gather would have raised.
+                if (isCancelled()) {
+                    failure.compareAndSet(null, new TaskCancelledException(RESOLUTION_CANCELLED_MESSAGE));
+                }
                 releasable.close();
                 return;
             }

@@ -1754,6 +1754,54 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * The same dead fold, but the entries WILL be kept: the gather reads every file anyway. Warming the
+     * per-file schema rail is the fan-out's other purpose and it is worth the reads on its own, so a
+     * format that cannot fold is not thereby a format that must not fan out.
+     * <p>
+     * This is the control that makes {@link #testStatsGatherStopsOnceTheFoldIsDeadAndNothingWillBeCached}
+     * mean something. Both resolve the identical row-count-less listing; only the cache budget differs.
+     * A rule keyed on the format would read 2 here and be wrong.
+     */
+    public void testStatsGatherStillFansOutWhenTheCacheWillKeepTheEntries() throws Exception {
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            AtomicInteger metadataReads = new AtomicInteger();
+            StubStorageProvider provider = new StubStorageProvider(Map.of(PREFIX, threeFileListing()), threeFileSchemas());
+            ThreeFileStats withoutRowCounts = new ThreeFileStats(threeFileSchemas(), Map.of());
+            ExternalSourceResolver resolver = buildStatsResolver(provider, withoutRowCounts, metadataReads, cacheService);
+
+            ExternalSourceResolution resolution = resolveFfw(resolver, Set.of(GLOB));
+            assertNotNull(resolution.resolvedSource(GLOB));
+            // Anchor read (1) plus the two non-anchor files; the anchor itself is served from the schema
+            // cache inside the stats loop, as testFirstFileWinsEagerCacheableColdLoadsAllFiles pins. The
+            // number that matters is that it is not 2: the gather did not stop.
+            assertEquals("an admitted fan-out keeps reading: the entries it writes are the point", 3, metadataReads.get());
+        }
+    }
+
+    /**
+     * Cacheable, but the listing cannot fit the schema budget, so the resolver's schema fan-out admission refuses
+     * every entry after sizing the first. With the fold already dead there is nothing left to buy and the
+     * gather drains - the partitioned-tree case, where the file count is exactly what overruns the budget.
+     */
+    public void testStatsGatherStopsWhenTheSchemaBudgetRefusesTheFanOut() throws Exception {
+        Settings tinyCache = Settings.builder()
+            .put("esql.external.cache.size", "1kb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
+            .build();
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(tinyCache)) {
+            AtomicInteger metadataReads = new AtomicInteger();
+            StubStorageProvider provider = new StubStorageProvider(Map.of(PREFIX, threeFileListing()), threeFileSchemas());
+            ThreeFileStats withoutRowCounts = new ThreeFileStats(threeFileSchemas(), Map.of());
+            ExternalSourceResolver resolver = buildStatsResolver(provider, withoutRowCounts, metadataReads, cacheService);
+
+            ExternalSourceResolution resolution = resolveFfw(resolver, Set.of(GLOB));
+            assertNotNull(resolution.resolvedSource(GLOB));
+            assertEquals("a refused fan-out stops at the sizing read", 2, metadataReads.get());
+        }
+    }
+
+    /**
      * Legacy {@code null} overload: a {@code null} {@code pathsRequiringStats} keeps the original
      * eager-for-every-path behavior, so all footers are read regardless of query shape.
      */

@@ -128,6 +128,24 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     }
 
     /**
+     * A copy of {@code _score} taken before a runtime search holds the score from before it, so ORing it with the search
+     * is well defined. But once optimization substitutes {@code _score} for the copy, as it does when a projection
+     * follows, the check can no longer tell it from a {@code _score} written after the search, so it is rejected too.
+     */
+    public void testScoreCopiedBeforeRuntimeScorerAndOredWithItRejected() {
+        String prefix = "from test metadata _score | eval t = to_text(concat(title, body)) | ";
+        String message = "[_score] can't be used with runtime search [MATCH] inside OR or NOT";
+        assertThat(
+            error(fullTextAnalyzer().query(prefix + "eval s = _score | where s < 0.5 or match(t, \"cat\") | keep s")),
+            containsString(message)
+        );
+        assertThat(
+            error(fullTextAnalyzer().query(prefix + "rename _score as s | where s < 0.5 or match(t, \"cat\") | keep s")),
+            containsString(message)
+        );
+    }
+
+    /**
      * Like {@link #testRuntimeFullTextRejectedAfterLimitWhenRenamePushesDownToField}, but the other way round: an alias or
      * RENAME of an indexed field looks like a runtime search when analyzed, and push-down turns it back into a search
      * that scores at the source, where {@code _score} is final wherever it appears.

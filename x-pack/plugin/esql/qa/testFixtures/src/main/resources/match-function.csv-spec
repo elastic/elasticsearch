@@ -2795,7 +2795,7 @@ required_capability: metadata_score
 required_capability: fn_match_runtime_score
 required_capability: runtime_score_fix
 
-// the two WHEREs combine into one filter; _score must still see the runtime score, not the 0.0 baseline
+// the _score filter sees the runtime score, not the 0.0 baseline
 FROM books METADATA _score
 | EVAL content = to_text(concat(title, " ", description))
 | WHERE match(content, "Tolkien Rings")
@@ -3072,6 +3072,238 @@ book_no:keyword | _score:double
 5335            | 2.0
 7140            | 2.0
 7350            | 2.0
+;
+
+matchOnRuntimeTextAfterScoreAliasFilter
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: runtime_score_fix
+
+// s holds the score from before the match, 0.0, so the filter on it keeps every match
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description)), s = _score
+| WHERE s < 0.5
+| WHERE match(content, "Tolkien Rings")
+| STATS c = COUNT(*), min_score = MIN(_score), max_score = MAX(_score)
+;
+
+c:long | min_score:double | max_score:double
+16     | 1.0              | 2.0
+;
+
+matchOnRuntimeTextAndScoreAliasFilterInOneWhere
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: runtime_score_fix
+
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description)), s = _score
+| WHERE s < 0.5 AND match(content, "Tolkien Rings")
+| STATS c = COUNT(*), min_score = MIN(_score), max_score = MAX(_score)
+;
+
+c:long | min_score:double | max_score:double
+16     | 1.0              | 2.0
+;
+
+matchOnRuntimeTextAfterRenamedScoreFilter
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: runtime_score_fix
+
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| RENAME _score AS s
+| WHERE s < 0.5
+| WHERE match(content, "Tolkien Rings")
+| STATS c = COUNT(*), min_score = MIN(s), max_score = MAX(s)
+;
+
+c:long | min_score:double | max_score:double
+16     | 1.0              | 2.0
+;
+
+matchOnRuntimeTextAndRenamedScoreFilterInOneWhere
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: runtime_score_fix
+
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| RENAME _score AS s
+| WHERE s < 0.5 AND match(content, "Tolkien Rings")
+| STATS c = COUNT(*), min_score = MIN(s), max_score = MAX(s)
+;
+
+c:long | min_score:double | max_score:double
+16     | 1.0              | 2.0
+;
+
+matchOnRuntimeTextThenEarlierScoreAliasFilter
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: runtime_score_fix
+
+// s holds the score from before the match, 0.0, so nothing passes
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description)), s = _score
+| WHERE match(content, "Tolkien Rings")
+| WHERE s > 1.5
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+;
+
+matchOnRuntimeTextThenEarlierScoreAliasOrFilter
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: runtime_score_fix
+
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description)), s = _score
+| WHERE match(content, "Tolkien Rings")
+| WHERE s > 1.5 OR book_no == "2130"
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+2130            | 1.0
+;
+
+matchOnRuntimeTextAfterScoreAliasAndLookupJoin
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: join_lookup_v12
+required_capability: runtime_score_fix
+
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description)), s = _score, language_code = 1
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE s < 0.5 AND match(content, "Tolkien Rings")
+| STATS c = COUNT(*), min_score = MIN(_score), max_score = MAX(_score)
+;
+
+c:long | min_score:double | max_score:double
+16     | 1.0              | 2.0
+;
+
+matchOnRuntimeTextAfterScoreAliasInSubquery
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: subquery_in_from_command
+required_capability: runtime_score_fix
+
+FROM (FROM books METADATA _score | EVAL content = to_text(concat(title, " ", description)), s = _score)
+| WHERE s < 0.5 AND match(content, "Tolkien Rings")
+| STATS c = COUNT(*), min_score = MIN(_score), max_score = MAX(_score)
+;
+
+c:long | min_score:double | max_score:double
+16     | 1.0              | 2.0
+;
+
+matchTwiceOnRuntimeTextWithScoreFilterBetween
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: runtime_score_fix
+
+// the filter sees the first match's score, and the second match adds 1.0 to it
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien Rings")
+| WHERE _score > 1.5
+| WHERE match(content, "Hobbit")
+| STATS c = COUNT(*), min_score = MIN(_score), max_score = MAX(_score)
+;
+
+c:long | min_score:double | max_score:double
+5      | 3.0              | 3.0
+;
+
+matchTwiceOnRuntimeTextWithScoreAliasFilterBetween
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: runtime_score_fix
+
+// t holds the first match's score, so the filter on it keeps the same rows as filtering _score between the matches
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien Rings")
+| EVAL t = _score
+| WHERE match(content, "Hobbit")
+| WHERE t > 1.5
+| STATS c = COUNT(*), min_score = MIN(_score), max_score = MAX(_score)
+;
+
+c:long | min_score:double | max_score:double
+5      | 3.0              | 3.0
+;
+
+matchOnRuntimeTextThenLookupJoinThenScoreFilter
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: join_lookup_v12
+required_capability: runtime_score_fix
+
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien Rings")
+| EVAL language_code = 1
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE _score > 1.5
+| STATS c = COUNT(*), min_score = MIN(_score), max_score = MAX(_score)
+;
+
+c:long | min_score:double | max_score:double
+6      | 2.0              | 2.0
+;
+
+matchOnRuntimeTextInSubqueryThenScoreFilter
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: subquery_in_from_command
+required_capability: runtime_score_fix
+
+FROM (FROM books METADATA _score
+  | EVAL content = to_text(concat(title, " ", description))
+  | WHERE match(content, "Tolkien Rings"))
+| WHERE _score > 1.5
+| STATS c = COUNT(*), min_score = MIN(_score), max_score = MAX(_score)
+;
+
+c:long | min_score:double | max_score:double
+6      | 2.0              | 2.0
+;
+
+matchOnRuntimeTextInForkThenScoreFilter
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: fork_v9
+required_capability: runtime_score_fix
+
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| FORK (WHERE match(content, "Tolkien Rings")) (WHERE match(content, "Hobbit"))
+| WHERE _score > 1.5
+| STATS c = COUNT(*), min_score = MIN(_score), max_score = MAX(_score)
+;
+
+c:long | min_score:double | max_score:double
+6      | 2.0              | 2.0
 ;
 
 matchAfterInlineStats

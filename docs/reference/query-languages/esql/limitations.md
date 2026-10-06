@@ -312,9 +312,10 @@ to the score.
 Queries that filter on `_score` (`| WHERE _score ...`) only see scores from searches on expressions
 that appear earlier in the query, or in the same `WHERE` combined with `AND`. A `_score` filter
 before the search sees the score from before it, which is 0.0 if no earlier search has contributed
-to it. Combining `_score` with a search on an expression using `OR` or `NOT` fails with an error,
-because the `_score` side would see the score from before the search. For example, the following
-query is rejected:
+to it. So does a filter on a copy of `_score` made before the search, such as `EVAL s = _score`
+or `RENAME _score AS s`. Combining `_score` with a search on an expression using `OR` or `NOT`
+fails with an error, because the `_score` side would see the score from before the search. For
+example, the following query is rejected:
 
 ```esql
 FROM books METADATA _score

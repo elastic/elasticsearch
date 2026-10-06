@@ -286,3 +286,107 @@ book_no:keyword | s:double
 7140            | 2.0
 7350            | 2.0
 ;
+
+matchOnExternalRuntimeTextAndScoreAliasFilterInOneWhere
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: dataset_in_from_command
+required_capability: external_source_standard_metadata_columns
+required_capability: external_source_score_fix
+required_capability: runtime_score_fix
+dataset: books_ds: "{{books}}"
+
+// s holds the score from before the match, 0.0, so the filter on it keeps every match
+FROM books_ds METADATA _score
+| EVAL content = to_text(concat(title, " ", description)), s = _score
+| WHERE s < 0.5 AND match(content, "Tolkien Rings")
+| STATS c = COUNT(*), min_score = MIN(_score), max_score = MAX(_score)
+;
+
+c:long | min_score:double | max_score:double
+16     | 1.0              | 2.0
+;
+
+matchOnExternalRuntimeTextAfterRenamedScoreFilter
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: dataset_in_from_command
+required_capability: external_source_standard_metadata_columns
+required_capability: external_source_score_fix
+required_capability: runtime_score_fix
+dataset: books_ds: "{{books}}"
+
+FROM books_ds METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| RENAME _score AS s
+| WHERE s < 0.5
+| WHERE match(content, "Tolkien Rings")
+| STATS c = COUNT(*), min_score = MIN(s), max_score = MAX(s)
+;
+
+c:long | min_score:double | max_score:double
+16     | 1.0              | 2.0
+;
+
+matchOnExternalRuntimeTextThenEarlierScoreAliasFilter
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: dataset_in_from_command
+required_capability: external_source_standard_metadata_columns
+required_capability: external_source_score_fix
+required_capability: runtime_score_fix
+dataset: books_ds: "{{books}}"
+
+// s holds the score from before the match, 0.0, so nothing passes
+FROM books_ds METADATA _score
+| EVAL content = to_text(concat(title, " ", description)), s = _score
+| WHERE match(content, "Tolkien Rings")
+| WHERE s > 1.5
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+;
+
+matchOnExternalFieldAndScoreAliasFilterInOneWhere
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: dataset_in_from_command
+required_capability: external_source_standard_metadata_columns
+required_capability: external_source_score_fix
+required_capability: runtime_score_fix
+dataset: books_ds: "{{books}}"
+
+FROM books_ds METADATA _score
+| EVAL s = _score
+| WHERE s < 0.5 AND match(book_no, "2714")
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+2714            | 1.0
+;
+
+matchOnExternalFieldThenEarlierScoreAliasFilter
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: dataset_in_from_command
+required_capability: external_source_standard_metadata_columns
+required_capability: external_source_score_fix
+required_capability: runtime_score_fix
+dataset: books_ds: "{{books}}"
+
+FROM books_ds METADATA _score
+| EVAL s = _score
+| WHERE match(book_no, "2714")
+| WHERE s > 0.5
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+;

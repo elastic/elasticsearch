@@ -1353,7 +1353,7 @@ required_capability: metadata_score
 required_capability: fn_match_phrase_runtime_score
 required_capability: runtime_score_fix
 
-// the two WHEREs combine into one filter; _score must still see the runtime score, not the 0.0 baseline
+// the _score filter sees the runtime score, not the 0.0 baseline
 FROM books METADATA _score
 | EVAL content = to_text(concat(title, " ", description))
 | WHERE match_phrase(content, "Lord of the Rings", {"boost": 2.5})
@@ -1371,6 +1371,40 @@ book_no:keyword | _score:double
 7140            | 2.5
 7350            | 2.5
 8875            | 2.5
+;
+
+matchPhraseOnRuntimeTextAndScoreAliasFilterInOneWhere
+required_capability: match_phrase_function
+required_capability: metadata_score
+required_capability: fn_match_phrase_runtime_score
+required_capability: runtime_score_fix
+
+// s holds the score from before the match_phrase, 0.0, so the filter on it keeps every match
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description)), s = _score
+| WHERE s < 0.5 AND match_phrase(content, "Lord of the Rings")
+| STATS c = COUNT(*), min_score = MIN(_score), max_score = MAX(_score)
+;
+
+c:long | min_score:double | max_score:double
+8      | 1.0              | 1.0
+;
+
+matchPhraseOnRuntimeTextThenEarlierScoreAliasFilter
+required_capability: match_phrase_function
+required_capability: metadata_score
+required_capability: fn_match_phrase_runtime_score
+required_capability: runtime_score_fix
+
+// s holds the score from before the match_phrase, 0.0, so nothing passes
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description)), s = _score
+| WHERE match_phrase(content, "Lord of the Rings")
+| WHERE s > 0.5
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
 ;
 
 matchPhraseOnRuntimeKeywordWithScore

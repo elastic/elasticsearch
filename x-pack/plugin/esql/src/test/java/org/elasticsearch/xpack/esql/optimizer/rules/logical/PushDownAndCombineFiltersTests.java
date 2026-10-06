@@ -377,16 +377,19 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         assertEquals(expectedOptimizedPlan, new PushDownAndCombineFilters().apply(filterB, optimizerContext));
     }
 
-    // ... | eval content = <text> | where match(content, "fox") and _score > 1.5
-    // => ... | eval content = <text> | where match(content, "fox") | where _score > 1.5
-    public void testScorePredicateSplitsOutAboveRuntimeScorer() {
+    // ... | eval content = <text> | where match(content, "fox") and _score < 0.5
+    // => ... | where _score < 0.5 | eval content = <text> | where match(content, "fox")
+    public void testScorePredicateSharingFilterWithRuntimeScorerPushesDown() {
         MetadataAttribute score = scoreAttribute();
-        Eval eval = runtimeTextEval(relation(List.of(score)));
+        EsRelation relation = relation(List.of(score));
+        Eval eval = runtimeTextEval(relation);
         Match match = runtimeMatch(eval);
-        GreaterThan scoreCondition = greaterThanOf(score, new Literal(EMPTY, 1.5, DataType.DOUBLE));
+        LessThan scoreCondition = lessThanOf(score, new Literal(EMPTY, 0.5, DataType.DOUBLE));
         Filter filter = new Filter(EMPTY, eval, new And(EMPTY, match, scoreCondition));
 
-        LogicalPlan expected = new Filter(EMPTY, new Filter(EMPTY, eval, match), scoreCondition);
+        // SplitScorePredicatesFromRuntimeSearch has already split out any _score predicate written alongside the
+        // search, so this one came from a copy of _score taken before it, and still sees the score from before.
+        LogicalPlan expected = new Filter(EMPTY, new Eval(EMPTY, new Filter(EMPTY, relation, scoreCondition), eval.fields()), match);
         assertEquals(expected, new PushDownAndCombineFilters().apply(filter, optimizerContext));
     }
 
@@ -410,8 +413,8 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         GreaterThan scoreCondition = greaterThanOf(score, new Literal(EMPTY, 1.5, DataType.DOUBLE));
         Filter filter = new Filter(EMPTY, new Filter(EMPTY, eval, scoreCondition), match);
 
-        // In pipe order the _score predicate runs before the match, so it must not combine with it (and then be split out
-        // above it); it still pushes down past the eval.
+        // In pipe order the _score predicate runs before the match: combining them is fine, as the combined filter
+        // evaluates it before the match scores, and it then pushes down past the eval.
         PushDownAndCombineFilters rule = new PushDownAndCombineFilters();
         LogicalPlan expected = new Filter(EMPTY, new Eval(EMPTY, new Filter(EMPTY, relation, scoreCondition), eval.fields()), match);
         assertEquals(expected, rule.apply(rule.apply(filter, optimizerContext), optimizerContext));

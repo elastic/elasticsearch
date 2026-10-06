@@ -55,10 +55,9 @@ import java.util.function.Predicate;
  * Also combines adjacent filters using a logical {@code AND}.
  * <p>
  * A runtime search that adds to {@code _score} only does so after the filter holding it has run (see
- * {@link FullTextFunction#containsRuntimeScorer}). So {@code _score} predicates are split out of such a filter into one
- * above it, where they see the search's score, and are never pushed back below it. Adjacent filters keep their pipe
- * order: a {@code _score} predicate written before a runtime search is not combined into it, so it still sees the score
- * from before the search.
+ * {@link FullTextFunction#containsRuntimeScorer}). So a {@code _score} predicate above such a filter (see
+ * {@link SplitScorePredicatesFromRuntimeSearch}) is not combined into it, where it would see the score from before
+ * the search. One below it can be: the combined filter still evaluates it before the search scores.
  */
 public final class PushDownAndCombineFilters extends OptimizerRules.ParameterizedOptimizerRule<Filter, LogicalOptimizerContext> {
 
@@ -68,10 +67,6 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
 
     @Override
     protected LogicalPlan rule(Filter filter, LogicalOptimizerContext ctx) {
-        Filter scoreSplit = splitScorePredicatesFromRuntimeScorer(filter);
-        if (scoreSplit != null) {
-            return scoreSplit;
-        }
         LogicalPlan plan = filter;
         LogicalPlan child = filter.child();
         Expression condition = filter.condition();
@@ -81,9 +76,8 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
         // last `STATS ... BY field` can assume that `field` is single-valued (to be checked more thoroughly).
         // https://github.com/elastic/elasticsearch/issues/115311
         if (child instanceof Filter f) {
-            // Combining would evaluate a _score predicate before a runtime scorer it follows, or (once split back out)
-            // after one it precedes.
-            if (scoreOrderMatters(f.condition(), condition) == false) {
+            // Combining would evaluate a _score predicate before the runtime scorer it follows has scored.
+            if ((FullTextFunction.containsRuntimeScorer(f.condition()) && referencesScore(condition)) == false) {
                 // combine nodes into a single Filter with updated ANDed condition
                 plan = f.with(Predicates.combineAnd(List.of(f.condition(), condition)));
             }
@@ -139,35 +133,6 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
         }
         // cannot push past a Limit, this could change the tailing result set returned
         return plan;
-    }
-
-    /**
-     * Splits {@code filter} into a filter of its {@code _score} predicates over a filter of the rest, when it also holds a
-     * runtime scorer; {@code null} if there is nothing to split. A conjunct that both references {@code _score} and holds
-     * a runtime scorer cannot be split and stays below.
-     */
-    private static Filter splitScorePredicatesFromRuntimeScorer(Filter filter) {
-        if (FullTextFunction.containsRuntimeScorer(filter.condition()) == false) {
-            return null;
-        }
-        List<Expression> scorePredicates = new ArrayList<>();
-        List<Expression> rest = new ArrayList<>();
-        for (Expression conjunct : Predicates.splitAnd(filter.condition())) {
-            if (referencesScore(conjunct) && FullTextFunction.containsRuntimeScorer(conjunct) == false) {
-                scorePredicates.add(conjunct);
-            } else {
-                rest.add(conjunct);
-            }
-        }
-        if (scorePredicates.isEmpty()) {
-            return null;
-        }
-        return filter.with(filter.with(filter.child(), Predicates.combineAnd(rest)), Predicates.combineAnd(scorePredicates));
-    }
-
-    private static boolean scoreOrderMatters(Expression lower, Expression upper) {
-        return FullTextFunction.containsRuntimeScorer(lower) && referencesScore(upper)
-            || FullTextFunction.containsRuntimeScorer(upper) && referencesScore(lower);
     }
 
     private static boolean referencesScore(Expression expression) {

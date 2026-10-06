@@ -47,9 +47,12 @@ import org.elasticsearch.columnar.ScanBudget;
 import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.DictionaryStringColumnReader;
+import org.elasticsearch.columnar.string.PageBudget;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringBlockSink;
 import org.elasticsearch.columnar.string.StringColumnReader;
+import org.elasticsearch.columnar.string.StringColumnSource;
+import org.elasticsearch.columnar.string.SummaryPolicy;
 import org.elasticsearch.index.codec.Elasticsearch96Codec;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
@@ -158,7 +161,12 @@ public enum StringFormat {
         }
         long bytes = 0;
         for (String file : directory.listAll()) {
-            if (file.endsWith(".dvd") || file.endsWith(".dvm") || file.endsWith(".cnd") || file.endsWith(".cnm")) {
+            if (file.endsWith(".dvd")
+                || file.endsWith(".dvm")
+                || file.endsWith(".cnd")
+                || file.endsWith(".cna")
+                || file.endsWith(".cnn")
+                || file.endsWith(".cnm")) {
                 bytes += directory.fileLength(file);
             }
         }
@@ -180,7 +188,12 @@ public enum StringFormat {
         }
         long bytes = 0;
         for (String file : directory.listAll()) {
-            if (file.endsWith(".dvd") || file.endsWith(".dvm") || file.endsWith(".cnd") || file.endsWith(".cnm")) {
+            if (file.endsWith(".dvd")
+                || file.endsWith(".dvm")
+                || file.endsWith(".cnd")
+                || file.endsWith(".cna")
+                || file.endsWith(".cnn")
+                || file.endsWith(".cnm")) {
                 bytes += directory.fileLength(file);
             }
         }
@@ -238,6 +251,17 @@ public enum StringFormat {
         };
     }
 
+    /** What each shape leaves behind, chosen to match what it names: a forced shape is not told to hold back. */
+    private SummaryPolicy summaryPolicy() {
+        return switch (this) {
+            case COLUMNAR -> ColumNARDocValuesFormat.DEFAULT_SUMMARY_POLICY;
+            case COLUMNAR_DICTIONARY -> SummaryPolicy.sized(4 << 20);
+            // Nothing is surveyed where no dictionary is allowed, so there is nothing to leave behind either.
+            case COLUMNAR_PLAIN -> SummaryPolicy.NONE;
+            default -> throw new IllegalStateException("not a columnar format: " + this);
+        };
+    }
+
     private Codec codecFor() {
         final DocValuesFormat dv = switch (this) {
             case LUCENE_SORTED -> new Lucene90DocValuesFormat();
@@ -248,7 +272,8 @@ public enum StringFormat {
                 (fieldName, fieldType) -> org.elasticsearch.columnar.numeric.NumericPipeline::defaultPipeline,
                 field -> ColumnarFieldType.STRING,
                 ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
-                dictionaryPolicy()
+                dictionaryPolicy(),
+                summaryPolicy()
             );
         };
         return new Elasticsearch96Codec() {
@@ -267,7 +292,8 @@ public enum StringFormat {
             (fieldName, fieldType) -> org.elasticsearch.columnar.numeric.NumericPipeline::defaultPipeline,
             field -> ColumnarFieldType.STRING,
             ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
-            dictionaryPolicy()
+            dictionaryPolicy(),
+            summaryPolicy()
         );
         final Codec codec = new Elasticsearch96Codec() {
             @Override
@@ -291,7 +317,7 @@ public enum StringFormat {
         }
         long bytes = 0;
         for (String file : directory.listAll()) {
-            if (file.endsWith(".cnd") || file.endsWith(".cnm")) {
+            if (file.endsWith(".cnd") || file.endsWith(".cna") || file.endsWith(".cnl") || file.endsWith(".cnn") || file.endsWith(".cnm")) {
                 bytes += directory.fileLength(file);
             }
         }
@@ -328,6 +354,19 @@ public enum StringFormat {
          * best; this asks all of them for one value at a time, which is all some consumers can ask for.
          */
         long readPerDocument() throws IOException;
+
+        /**
+         * The length of every value and none of its bytes, the shape of {@code BYTE_LENGTH(field)}. A format
+         * with no way to answer from lengths alone reads the values.
+         */
+        default long byteLengths() throws IOException {
+            return readPerDocument();
+        }
+
+        /** Every value read one document at a time from where the column holds it, with no payload built. */
+        default long readDirect() throws IOException {
+            return readPerDocument();
+        }
 
         /** Documents whose value is {@code term}, the shape of {@code WHERE field == "..."}. */
         long matchTerm(BytesRef term) throws IOException;
@@ -460,6 +499,33 @@ public enum StringFormat {
                 reader.readBlock(docs, start, Math.min(pageSize, docs.length - start), sink);
             }
             return sink.checksum;
+        }
+
+        @Override
+        public long readDirect() throws IOException {
+            long checksum = 0;
+            final BinaryDocValues values = leaf.getBinaryDocValues(FIELD);
+            final StringColumnSource column = (StringColumnSource) values;
+            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                final BytesRef value = column.slotAt(0);
+                checksum += value == null ? 0 : value.length;
+            }
+            return checksum;
+        }
+
+        @Override
+        public long byteLengths() throws IOException {
+            long checksum = 0;
+            final int[] counts = new int[pageSize];
+            final int[] lengths = new int[pageSize];
+            for (int start = 0; start < docs.length; start += pageSize) {
+                final int count = Math.min(pageSize, docs.length - start);
+                reader.readByteLengths(docs, start, count, counts, lengths, PageBudget.UNLIMITED);
+                for (int i = 0; i < count; i++) {
+                    checksum += counts[i] == 1 ? lengths[i] : 0;
+                }
+            }
+            return checksum;
         }
 
         @Override
@@ -861,11 +927,22 @@ public enum StringFormat {
             }
         }
 
-        @Override
-        public void appendValues(BytesRef[] values, int count, int[] valueCounts, int docCount) {
-            for (int i = 0; i < count; i++) {
-                checksum += StringFormat.group(groups, values[i]);
+        private final Values streamed = new Values() {
+            @Override
+            public void append(BytesRef value) {
+                checksum += StringFormat.group(groups, value);
             }
+
+            @Override
+            public void finish() {}
+
+            @Override
+            public void close() {}
+        };
+
+        @Override
+        public Values values(int count, int[] valueCounts, int docCount) {
+            return streamed;
         }
     }
 
@@ -879,11 +956,23 @@ public enum StringFormat {
             }
         }
 
-        @Override
-        public void appendValues(BytesRef[] values, int count, int[] valueCounts, int docCount) {
-            for (int i = 0; i < count; i++) {
-                checksum += values[i].length;
+        /** Taken as they are read, as a block loader takes them. */
+        private final Values streamed = new Values() {
+            @Override
+            public void append(BytesRef value) {
+                checksum += value.length;
             }
+
+            @Override
+            public void finish() {}
+
+            @Override
+            public void close() {}
+        };
+
+        @Override
+        public Values values(int count, int[] valueCounts, int docCount) {
+            return streamed;
         }
     }
 
@@ -906,11 +995,22 @@ public enum StringFormat {
             }
         }
 
-        @Override
-        public void appendValues(BytesRef[] values, int count, int[] valueCounts, int docCount) {
-            for (int i = 0; i < count; i++) {
-                checksum += group(groups, values[i]);
+        private final Values streamed = new Values() {
+            @Override
+            public void append(BytesRef value) {
+                checksum += group(groups, value);
             }
+
+            @Override
+            public void finish() {}
+
+            @Override
+            public void close() {}
+        };
+
+        @Override
+        public Values values(int count, int[] valueCounts, int docCount) {
+            return streamed;
         }
 
         @Override

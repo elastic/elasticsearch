@@ -22,7 +22,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
-import org.elasticsearch.xpack.esql.core.type.Converter;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
@@ -64,16 +63,17 @@ import java.util.function.IntFunction;
  * {@code epoch_second} / calendar {@code format} it parses through that format to sub-second
  * precision (double's ~15-16 significant digits bound the resolution, not the parser):
  * <ul>
- *   <li><b>whole-number targets</b> ({@code integer}/{@code long}): any numeric or string source,
- *       reusing the ES|QL {@code ::} cast engine ({@link #numericCoercer}) so a declared read is
- *       value-identical to an explicit {@code ::long}/{@code ::integer} — numeric strings parse
- *       (fractional and scientific accepted), the result <b>rounds</b> (not truncates), out-of-range
- *       throws {@link InvalidArgumentException}. {@code unsigned_long} keeps its {@code ::}-faithful
- *       {@link #coerceToUnsignedLong} twin (truncates toward zero, matching {@code ::unsigned_long});
- *       {@code double} parses with {@code Double.parseDouble} and returns the IEEE value as-is
- *       ({@code NaN}/{@code Infinity} pass through, matching the native columnar double read and CSV —
- *       an external read preserves the file's value; the mapper's finite-only rule is an index-time
- *       concern, not a read one);</li>
+ *   <li><b>whole-number targets</b> ({@code integer}/{@code long}/{@code unsigned_long}): any numeric
+ *       or string source that is <b>exactly</b> a whole number in range — see
+ *       {@link #exactToInt}/{@link #exactToLong}/{@link #exactToUnsignedLong}. A decimal that is not
+ *       whole ({@code 1.9}) is a value error, not a rounded or truncated substitute; {@code 2.0} and
+ *       {@code 1e5} succeed because they name whole numbers. This deliberately diverges from
+ *       {@code ::integer}/{@code ::long} (which round) and from {@link #coerceToUnsignedLong} /
+ *       {@code ::unsigned_long} (which truncate): those remain the query-cast / Hive-partition
+ *       authorities; a reader reports what the file holds. {@code double} parses with
+ *       {@code Double.parseDouble} and returns the IEEE value as-is ({@code NaN}/{@code Infinity} pass
+ *       through, matching the native columnar double read and CSV — an external read preserves the
+ *       file's value; the mapper's finite-only rule is an index-time concern, not a read one);</li>
  *   <li><b>string targets</b> ({@code keyword}/{@code text}): any decodable scalar source —
  *       ingest stringifies the token (temporal sources render in the ISO form the default date
  *       format parses back; ip sources render as address text, never the encoded bytes). The
@@ -83,7 +83,8 @@ import java.util.function.IntFunction;
  *   <li><b>{@code boolean}</b>: string sources only, parsed strictly and case-insensitively
  *       ({@link #strictParseBoolean}: only {@code true}/{@code false} in any case; every other token
  *       fails loudly). This deliberately diverges from {@code ::boolean}, which maps a non-{@code true}
- *       token silently to {@code false} — a silent wrong answer this read must not introduce;</li>
+ *       token silently to {@code false} — a silent wrong answer this read must not introduce. The
+ *       whole-number exact parse above is the same refuse-vs-cast pattern for numeric columns;</li>
  *   <li><b>{@code datetime}</b>: string sources parse via {@link #parseDatetimeMillis} with the
  *       column's declared {@code format} (else the ISO default). A {@code date_nanos} source narrows
  *       nanos&rarr;millis ({@link DateUtils#toMilliSeconds}, truncating sub-millisecond precision) —
@@ -344,7 +345,7 @@ public final class DeclaredTypeCoercions {
                     try {
                         coerced = coercer.apply(read.apply(first));
                     } catch (IllegalArgumentException | DateTimeException | InvalidArgumentException e) {
-                        onCoercionFailure(columnName, from, to, e, warnings, skipRow);
+                        onCoercionFailure(columnName, from, to, e, warnings);
                         if (skipRow) failedPositionSink.accept(pos);
                         builder.appendNull();
                         continue;
@@ -362,7 +363,7 @@ public final class DeclaredTypeCoercions {
                         try {
                             scratch[v] = coercer.apply(read.apply(first + v));
                         } catch (IllegalArgumentException | DateTimeException | InvalidArgumentException e) {
-                            onCoercionFailure(columnName, from, to, e, warnings, skipRow);
+                            onCoercionFailure(columnName, from, to, e, warnings);
                             failed = true;
                         }
                     }
@@ -388,23 +389,22 @@ public final class DeclaredTypeCoercions {
      * {@code null} {@code warnings} sink (strict, {@code error_mode: fail_fast}) the failure
      * propagates and the read fails; with a live sink the caller nulls the cell/position and one
      * capped response {@code Warning} header records the reason. Callers append the null
-     * themselves — this method only decides throw-vs-warn. The {@code skipRow} flag controls the
-     * warning suffix: {@code false} (null_field) appends {@code "; returning null"};
-     * {@code true} (skip_row) appends {@code "; row will be dropped"}.
+     * themselves — this method only decides throw-vs-warn. The detail carries no outcome: every
+     * caller's collector summary already says whether the value is returned as null or its row skipped.
      * <p>
      * As the single decision point it also normalizes the strict failure. The coercers throw heterogeneous
      * low-level exceptions ({@code NumberFormatException} from {@code Double.parseDouble}, a
-     * {@code DateTimeException} from a date parse, {@code InvalidArgumentException} from the reused {@code ::}
-     * engine), so re-raising them verbatim leaked a bare message (e.g. {@code empty String}) with no column
-     * or declared type on the paths that surface the exception directly (a direct {@link #castBlock}, the ORC
-     * fused arms), and a status only incidentally uniform — a leaked {@code DateTimeException} is not an
-     * {@link IllegalArgumentException} and would surface as a 500 rather than the numeric paths' 400. The
-     * strict branch instead re-raises one {@link InvalidArgumentException} (a client 400 that survives the
-     * data-node hop) naming the column, the declared type and the offending value, with the original chained
-     * as the cause and an {@code error_mode=null_field} pointer; readers that wrap a read failure in their own
-     * exception (the Parquet iterator) carry the enriched message in the cause. {@code columnName} is thus
-     * load-bearing in strict mode too (a {@code null} name degrades to {@code <unknown>}), and strict and
-     * lenient share one detail string so they cannot drift.
+     * {@code DateTimeException} from a date parse, {@code InvalidArgumentException} from exact whole-number
+     * conversion or other scalar parsers), so re-raising them verbatim leaked a bare message (e.g.
+     * {@code empty String}) with no column or declared type on the paths that surface the exception directly
+     * (a direct {@link #castBlock}, the ORC fused arms), and a status only incidentally uniform — a leaked
+     * {@code DateTimeException} is not an {@link IllegalArgumentException} and would surface as a 500 rather
+     * than the numeric paths' 400. The strict branch instead re-raises one {@link InvalidArgumentException}
+     * (a client 400 that survives the data-node hop) naming the column, the declared type and the offending
+     * value, with the original chained as the cause and an {@code [error_mode]} pointer; readers that wrap a
+     * read failure in their own exception (the Parquet iterator) carry the enriched message in the cause.
+     * {@code columnName} is thus load-bearing in strict mode too (a {@code null} name degrades to
+     * {@code <unknown>}), and strict and lenient share one detail string so they cannot drift.
      */
     public static void onCoercionFailure(
         @Nullable String columnName,
@@ -413,34 +413,18 @@ public final class DeclaredTypeCoercions {
         RuntimeException e,
         @Nullable SkipWarnings warnings
     ) {
-        onCoercionFailure(columnName, from, to, e, warnings, false);
-    }
-
-    /**
-     * Overload of {@link #onCoercionFailure} that accepts a {@code skipRow} flag controlling the
-     * warning suffix: {@code false} appends {@code "; returning null"} (for {@code null_field});
-     * {@code true} appends {@code "; row will be dropped"} (for {@code skip_row}).
-     */
-    public static void onCoercionFailure(
-        @Nullable String columnName,
-        DataType from,
-        DataType to,
-        RuntimeException e,
-        @Nullable SkipWarnings warnings,
-        boolean skipRow
-    ) {
-        String detail = "Column ["
+        String detail = "column ["
             + (columnName == null ? "<unknown>" : columnName)
-            + "]: cannot coerce value from ["
+            + "]: cannot read ["
             + from.typeName()
-            + "] to declared type ["
+            + "] as ["
             + to.typeName()
             + "]: "
             + e.getMessage();
         if (warnings == null) {
-            throw new InvalidArgumentException(e, detail + "; set error_mode=null_field to read failing values as null instead of failing");
+            throw new InvalidArgumentException(e, detail + "; set [error_mode] to [null_field] to return null instead");
         }
-        warnings.add(detail + (skipRow ? "; row will be dropped" : "; returning null"));
+        warnings.add(detail);
     }
 
     /**
@@ -465,7 +449,7 @@ public final class DeclaredTypeCoercions {
                 case INTEGER, LONG, UNSIGNED_LONG, DOUBLE, BOOLEAN, KEYWORD, TEXT, IP -> String::valueOf;
                 default -> throw new IllegalArgumentException("cannot coerce from [" + from.typeName() + "] blocks");
             };
-            case LONG, INTEGER -> numericCoercer(from, to);
+            case LONG, INTEGER -> exactWholeNumberCoercer(to);
             // double returns the IEEE value the token names: NaN / +Infinity / -Infinity pass through as
             // their double, matching the NATIVE Parquet/ORC double read (raw appendDouble, no finite
             // check) and the CSV Double.parseDouble path. We deliberately do NOT use
@@ -476,7 +460,7 @@ public final class DeclaredTypeCoercions {
             // parses with Double.parseDouble (accepts NaN/Infinity, still rejects garbage via NFE); a
             // numeric source (declared double over a physical int/long/unsigned_long) widens.
             case DOUBLE -> fromString ? v -> Double.parseDouble((String) v) : v -> ((Number) v).doubleValue();
-            case UNSIGNED_LONG -> DeclaredTypeCoercions::coerceToUnsignedLong;
+            case UNSIGNED_LONG -> DeclaredTypeCoercions::exactToUnsignedLong;
             case BOOLEAN -> v -> strictParseBoolean((String) v);
             case DATETIME -> {
                 if (fromString) {
@@ -510,7 +494,7 @@ public final class DeclaredTypeCoercions {
                         : v -> DataTypeConverter.safeDoubleToLong((Double) v);
                 }
                 if (declaredFormat != null) {
-                    // Whole-number source WITH a declared format: the format is the parse dialect / epoch unit,
+                    // Whole-number source with a declared format: the format is the parse dialect / epoch unit,
                     // exactly as the text readers already treat it (NdJsonPageDecoder.decodeDatetimeValue,
                     // CsvFormatReader.tryParseDatetime): epoch_second reads seconds, yyyyMMdd reads 20260101.
                     yield v -> parseDatetimeMillis(String.valueOf(v), declaredFormat);
@@ -563,47 +547,16 @@ public final class DeclaredTypeCoercions {
     }
 
     /**
-     * The per-value coercion into a whole-number target ({@code long}/{@code integer}), reusing the
-     * ES|QL {@code ::} cast engine so a declared read produces the identical value to an explicit
-     * {@code ::long} / {@code ::integer}. A string source runs the same {@link EsqlDataTypeConverter}
-     * string parse the cast uses (fractional and scientific tokens accepted; the result <b>rounds</b>
-     * via {@code safeDoubleToLong}/{@code safeToInt}); a numeric source runs
-     * {@link DataTypeConverter#converterFor(DataType, DataType)}, the same core converter the cast
-     * dispatches to (so {@code double -> long} rounds, not truncates). Both throw
-     * {@link InvalidArgumentException} on an unparseable/overflowing value, which {@link #castBlock}
-     * routes through {@link #onCoercionFailure} (warn+null or fail-fast). Unlike the former
-     * {@code NumberType.parse} path this is not the ingest coercion — it is the query cast, which is
-     * what a user comparing a declared read to {@code ::} expects. ({@code double} is not routed here:
-     * it has no rounding divergence, and it must return non-finite IEEE values — {@code NaN}/
-     * {@code Infinity} — which {@code ::double} rejects; its arm uses {@code Double.parseDouble}.)
+     * Per-value coercion into {@code long}/{@code integer}: exact whole-number conversion only
+     * ({@link #exactToLong}/{@link #exactToInt}). A non-whole decimal is a value error routed through
+     * {@link #onCoercionFailure}; the ES|QL {@code ::} cast engine (which rounds) is not used here.
      */
-    private static Function<Object, Object> numericCoercer(DataType from, DataType to) {
-        if (from == DataType.KEYWORD || from == DataType.TEXT) {
-            return switch (to) {
-                case LONG -> v -> EsqlDataTypeConverter.stringToLong((String) v);
-                case INTEGER -> v -> EsqlDataTypeConverter.stringToInt((String) v);
-                default -> throw new IllegalArgumentException("numericCoercer handles long/integer, not [" + to.typeName() + "]");
-            };
-        }
-        if (from == DataType.DATETIME || from == DataType.DATE_NANOS) {
-            // Temporal sources arrive from valueReader as a raw epoch Long (millis for datetime, nanos for
-            // date_nanos), NOT the ZonedDateTime the :: cast engine's DATETIME converter expects — and
-            // DataTypeConverter has no DATE_NANOS numeric converter at all. Coerce the epoch value directly,
-            // matching TO_LONG(datetime)/TO_INTEGER(datetime): identity to long, range-checked narrow to int
-            // (a real epoch overflows int, so the narrow warn+nulls via onCoercionFailure like any overflow).
-            return switch (to) {
-                case LONG -> v -> ((Number) v).longValue();
-                case INTEGER -> v -> DataTypeConverter.safeToInt(((Number) v).longValue());
-                default -> throw new IllegalArgumentException("numericCoercer handles long/integer, not [" + to.typeName() + "]");
-            };
-        }
-        Converter converter = DataTypeConverter.converterFor(from, to);
-        if (converter == null) {
-            throw new IllegalArgumentException(
-                "no cast converter from [" + from.typeName() + "] to [" + to.typeName() + "]; supports() must gate castBlock callers"
-            );
-        }
-        return converter::convert;
+    private static Function<Object, Object> exactWholeNumberCoercer(DataType to) {
+        return switch (to) {
+            case LONG -> DeclaredTypeCoercions::exactToLong;
+            case INTEGER -> DeclaredTypeCoercions::exactToInt;
+            default -> throw new IllegalArgumentException("exactWholeNumberCoercer handles long/integer, not [" + to.typeName() + "]");
+        };
     }
 
     /**
@@ -613,8 +566,8 @@ public final class DeclaredTypeCoercions {
      * {@code ::boolean} ({@link EsqlDataTypeConverter#stringToBoolean}, which maps every non-{@code true}
      * token — {@code "yes"}, {@code "1"}, a typo — silently to {@code false}): a silent {@code false} on
      * a bad boolean token is exactly the wrong-answer class this feature must not introduce, so the
-     * read-time coercion rejects the token loudly instead. The numeric arms still reuse {@code ::}
-     * verbatim; only boolean is stricter, and by design.
+     * read-time coercion rejects the token loudly instead. Whole-number columns use the same
+     * refuse-vs-cast pattern via {@link #exactToInt}/{@link #exactToLong}/{@link #exactToUnsignedLong}.
      */
     public static boolean strictParseBoolean(String value) {
         if (value.equalsIgnoreCase("true")) {
@@ -627,15 +580,114 @@ public final class DeclaredTypeCoercions {
     }
 
     /**
+     * Exact conversion of a file value into a declared {@code integer} column. Accepts only values that
+     * are mathematically whole and in {@code int} range ({@code 2.0}, {@code 1e5}, {@code 42}); refuses
+     * a non-zero fractional part ({@code 1.9}) with a value error naming the value — never rounds the
+     * way {@link EsqlDataTypeConverter#stringToInt} / {@code ::integer} do. Public so CSV/TSV and NDJSON
+     * can share one authority with {@link #castBlock}.
+     */
+    public static int exactToInt(Object value) {
+        BigInteger big = exactWholeBigInteger(value);
+        try {
+            return big.intValueExact();
+        } catch (ArithmeticException e) {
+            throw new InvalidArgumentException("Value [{}] is out of range for an integer", value);
+        }
+    }
+
+    /**
+     * Exact conversion of a file value into a declared {@code long} column. Same contract as
+     * {@link #exactToInt}: whole numbers only; no rounding through {@link EsqlDataTypeConverter#stringToLong}.
+     */
+    public static long exactToLong(Object value) {
+        BigInteger big = exactWholeBigInteger(value);
+        try {
+            return big.longValueExact();
+        } catch (ArithmeticException e) {
+            throw new InvalidArgumentException("Value [{}] is out of range for a long", value);
+        }
+    }
+
+    /**
+     * Exact conversion of a file value into a declared {@code unsigned_long} column. Accepts only values
+     * that are mathematically whole and in {@code [0, 2^64-1]}; refuses a fractional part with a value
+     * error naming the value — never truncates the way {@link #coerceToUnsignedLong} /
+     * {@code ::unsigned_long} do. Returns the sign-flip block encoding
+     * ({@link NumericUtils#asLongUnsigned(BigInteger)}). {@link #coerceToUnsignedLong} remains for
+     * Hive partition folder names and statistics serialization.
+     */
+    public static long exactToUnsignedLong(Object value) {
+        BigInteger big = exactWholeBigInteger(value);
+        if (NumericUtils.isUnsignedLong(big) == false) {
+            throw new InvalidArgumentException("Value [{}] is out of range for an unsigned_long", value);
+        }
+        return NumericUtils.asLongUnsigned(big);
+    }
+
+    /**
+     * Parses {@code value} to a {@link BigInteger} only when it names a whole number exactly.
+     * A {@code double}/{@code float} must equal its own {@link Math#rint}. Text and
+     * {@link BigDecimal} sources: a non-zero fractional part (after stripping trailing zeros) is
+     * "not a whole number"; a whole value that cannot be materialized (e.g. {@code 1e999999999}) is
+     * "out of range". Never leaks {@link ArithmeticException}.
+     */
+    private static BigInteger exactWholeBigInteger(Object value) {
+        if (value instanceof BigInteger bigInteger) {
+            return bigInteger;
+        }
+        if (value instanceof Double || value instanceof Float) {
+            double d = ((Number) value).doubleValue();
+            if (Double.isFinite(d) == false || d != Math.rint(d)) {
+                throw new InvalidArgumentException("Value [{}] is not a whole number", value);
+            }
+            // Guard above ensures a finite whole double; toBigIntegerExact cannot fail for that set.
+            return BigDecimal.valueOf(d).toBigIntegerExact();
+        }
+        if (value instanceof Long || value instanceof Integer || value instanceof Short || value instanceof Byte) {
+            return BigInteger.valueOf(((Number) value).longValue());
+        }
+        final BigDecimal bd;
+        if (value instanceof BigDecimal bigDecimal) {
+            bd = bigDecimal;
+        } else {
+            try {
+                bd = new BigDecimal(value.toString());
+            } catch (NumberFormatException e) {
+                throw new InvalidArgumentException(e, "Cannot parse number [{}]", value);
+            }
+        }
+        return exactWholeFromBigDecimal(bd, value);
+    }
+
+    /**
+     * Accepts only exact wholes from {@code bd}. Distinguishes a fractional value ("not a whole number")
+     * from a whole that cannot be materialized as a {@link BigInteger} ("out of range") — both throw
+     * {@link ArithmeticException} from {@link BigDecimal#toBigIntegerExact()}, but only the former has a
+     * non-zero fractional part after stripping trailing zeros.
+     */
+    private static BigInteger exactWholeFromBigDecimal(BigDecimal bd, Object valueForMessage) {
+        if (bd.stripTrailingZeros().scale() > 0) {
+            throw new InvalidArgumentException("Value [{}] is not a whole number", valueForMessage);
+        }
+        try {
+            return bd.toBigIntegerExact();
+        } catch (ArithmeticException e) {
+            throw new InvalidArgumentException("Value [{}] is out of range", valueForMessage);
+        }
+    }
+
+    /**
      * The {@code unsigned_long} twin of {@link NumberFieldMapper.NumberType#parse(Object, boolean)
      * NumberType.parse} with {@code coerce=true}: numeric strings parse, decimals truncate toward
      * zero, out-of-[0, 2^64-1]-range throws. Returns the sign-flip block encoding
      * ({@link NumericUtils#asLongUnsigned(BigInteger)}), matching the index path.
      * <p>
-     * Public for the same reason as {@link #strictParseBoolean} and {@link #parseDatetimeMillis}: the text
-     * readers (CSV/TSV, NDJSON) decode a token to a {@link String} or {@link Number} themselves and then
-     * delegate the declared-type conversion here, so a declared {@code unsigned_long} produces the identical
-     * block encoding regardless of file format.
+     * Not used for reading a file value into a declared {@code unsigned_long} column — that path is
+     * {@link #exactToUnsignedLong}. Kept for Hive partition folder names ({@code HivePartitionDetector})
+     * and statistics serialization, where every value reaching this method is already integral.
+     * <p>
+     * Public for the same reason as {@link #strictParseBoolean} and {@link #parseDatetimeMillis}: callers
+     * outside this class still need the truncate-toward-zero scalar.
      */
     public static long coerceToUnsignedLong(Object value) {
         BigInteger big;

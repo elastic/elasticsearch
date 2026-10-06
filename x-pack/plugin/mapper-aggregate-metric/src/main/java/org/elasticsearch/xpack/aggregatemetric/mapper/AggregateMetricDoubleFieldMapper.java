@@ -28,7 +28,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
@@ -593,7 +593,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                         }
 
                         @Override
-                        public SortedBinaryDocValues getBytesValues() {
+                        public SortableBinaryDocValues getBytesValues() {
                             throw new UnsupportedOperationException(
                                 "String representation of doc values " + "for [" + CONTENT_TYPE + "] fields is not supported"
                             );

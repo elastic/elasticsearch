@@ -130,6 +130,35 @@ result:double      | step:datetime            | job:keyword
 2.75               | 2024-05-10T00:10:00.000Z | worker
 ;
 
+// Like Prometheus, a histogram without a +Inf bucket cannot yield an estimate: the quantile is NaN and the series is
+// kept rather than dropped.
+histogram_quantile_without_inf_bucket_is_nan
+required_capability: promql_command_v0
+required_capability: promql_histogram_quantile
+required_capability: promql_non_finite_math
+PROMQL index=promql_classic_histogram step=5m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:10:00.000Z" result=(histogram_quantile(0.5, sum by (job, le) (request_duration_seconds_bucket{le!="+Inf"})))
+| SORT job;
+
+result:double | step:datetime            | job:keyword
+NaN           | 2024-05-10T00:10:00.000Z | api
+NaN           | 2024-05-10T00:10:00.000Z | repair
+NaN           | 2024-05-10T00:10:00.000Z | worker
+;
+
+// Like Prometheus, a histogram without observations has no quantile: the result is NaN and the series is kept.
+histogram_quantile_of_empty_histogram_is_nan
+required_capability: promql_command_v0
+required_capability: promql_histogram_quantile
+required_capability: promql_non_finite_math
+PROMQL index=promql_classic_histogram step=5m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:10:00.000Z" result=(histogram_quantile(0.5, sum by (job, le) (request_duration_seconds_bucket * 0)))
+| SORT job;
+
+result:double | step:datetime            | job:keyword
+NaN           | 2024-05-10T00:10:00.000Z | api
+NaN           | 2024-05-10T00:10:00.000Z | repair
+NaN           | 2024-05-10T00:10:00.000Z | worker
+;
+
 // rate(...) over bucket metrics without an `le` dimension yields an empty result and warning, not an error.
 histogram_quantile_rate_without_le_returns_empty
 required_capability: promql_command_v0

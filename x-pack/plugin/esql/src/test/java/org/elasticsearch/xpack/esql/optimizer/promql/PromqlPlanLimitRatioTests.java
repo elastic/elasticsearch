@@ -262,7 +262,8 @@ public class PromqlPlanLimitRatioTests extends AbstractPromqlPlanOptimizerTests 
     public void testLimitRatioOverConstantRangeConsistentAcrossSteps() {
         var plan = logicalOptimizerWithLatestVersion.optimize(
             planPromql(
-                "PROMQL index=empty_index start=\"2025-01-01T00:00:00Z\" end=\"2025-01-01T00:02:00Z\" step=1m result=(limit_ratio(0.3, vector(1)))",
+                "PROMQL index=empty_index start=\"2025-01-01T00:00:00Z\" end=\"2025-01-01T00:02:00Z\" step=1m "
+                    + "result=(limit_ratio(0.3, vector(1)))",
                 false,
                 false
             )

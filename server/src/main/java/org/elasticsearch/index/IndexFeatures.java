@@ -58,6 +58,10 @@ public class IndexFeatures implements FeatureSpecification {
         "index.merge_scheduler_clamps_max_thread_count"
     );
 
+    private static final NodeFeature STATS_INCLUDE_AUTO_CALIBRATION = new NodeFeature("index.stats_include_auto_calibration");
+
+    private static final NodeFeature SEGMENTS_INCLUDE_AUTO_CALIBRATION = new NodeFeature("index.segments_include_auto_calibration");
+
     @Override
     public Set<NodeFeature> getTestFeatures() {
         Set<NodeFeature> features = new HashSet<>(
@@ -74,7 +78,9 @@ public class IndexFeatures implements FeatureSpecification {
                 InferenceMetadataFieldsMapper.INFERENCE_FIELDS_GET_VIA_SOURCE_INCLUDES,
                 CONSTANT_FIELD_TYPE_NORMALIZED_WILDCARD_QUERY_SUPPORT,
                 InferenceMetadataFieldsMapper.INFERENCE_FIELDS_GET_VIA_SOURCE_EXCLUDE_VECTORS,
-                MERGE_SCHEDULER_CLAMPS_MAX_THREAD_COUNT
+                MERGE_SCHEDULER_CLAMPS_MAX_THREAD_COUNT,
+                STATS_INCLUDE_AUTO_CALIBRATION,
+                SEGMENTS_INCLUDE_AUTO_CALIBRATION
             )
         );
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {

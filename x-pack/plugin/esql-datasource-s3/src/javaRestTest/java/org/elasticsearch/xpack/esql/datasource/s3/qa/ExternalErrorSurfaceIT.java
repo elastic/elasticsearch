@@ -12,19 +12,23 @@ import fixture.aws.DynamicRegionSupplier;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -43,10 +47,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Sweeps the whole user-visible error surface of external datasets — every misconfiguration we can
@@ -89,6 +96,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
 
     private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
+        .setting(S3FixtureUtils.ALLOWED_ENDPOINT_HOSTS_SETTING, S3FixtureUtils.LOOPBACK_ENDPOINT_HOSTS)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
@@ -173,8 +181,18 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
      * @param type       {@code error.type}
      * @param reason     {@code error.reason} — the string every client surfaces
      * @param causeChain flattened {@code caused_by} chain, outermost first
+     * @param objectName last segment of the resource the probe's dataset points at, or {@code null} if it has none
      */
-    private record Probe(String group, String name, String expectation, int status, String type, String reason, List<String> causeChain) {}
+    private record Probe(
+        String group,
+        String name,
+        String expectation,
+        int status,
+        String type,
+        String reason,
+        List<String> causeChain,
+        String objectName
+    ) {}
 
     private final List<Probe> probes = new ArrayList<>();
 
@@ -194,10 +212,16 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         Set.of("tsv object does not exist", "object key does not exist"),
         Set.of("tsv object is empty", "zero-byte object"),
         Set.of("tsv declared as parquet", "explicit format contradicts the bytes (parquet declared, CSV content)"),
-        // The store answers both with an identical 403 AccessDenied, so the message cannot tell them apart from
-        // the response alone. Naming the configured auth mode would ("…AccessDenied, data source uses
-        // auth=anonymous"), but that is local knowledge the storage object does not currently carry.
-        Set.of("wrong access key", "anonymous access against an authenticated endpoint"),
+        // The store answers all three with an identical 403 AccessDenied, so the message cannot tell them apart
+        // from the response alone. Naming the configured auth mode would ("…AccessDenied, data source uses
+        // auth=anonymous"), but that is local knowledge the storage object does not currently carry. The tsv
+        // reported_case probe joins them for the same reason the other tsv probes join their equivalents above:
+        // it is the wrong-credentials condition under a second name, kept visible in the report.
+        Set.of(
+            "wrong access key",
+            "anonymous access against an authenticated endpoint",
+            "tsv under a data source with the wrong credentials"
+        ),
         // Both are "the pattern names no registered format". PUT fail-closes with the same
         // cannot-determine-format message whether the object has no extension or an unknown one;
         // naming the extension would distinguish them, but the dataset refuses either way until
@@ -288,6 +312,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("put s3 data source with anonymous auth plus credentials", 400),
         entry("put s3 data source with an access key and no secret key", 400),
         entry("put s3 data source with a malformed endpoint", 400),
+        entry("put s3 data source with an endpoint that is not an AWS host", 400),
         entry("get an unknown data source", 404),
         entry("delete an unknown data source", 404),
         entry("delete a data source that still has datasets", 409),
@@ -361,6 +386,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("put s3 data source with anonymous auth plus credentials", "validation_exception"),
         entry("put s3 data source with an access key and no secret key", "validation_exception"),
         entry("put s3 data source with a malformed endpoint", "validation_exception"),
+        entry("put s3 data source with an endpoint that is not an AWS host", "validation_exception"),
         entry("get an unknown data source", "resource_not_found_exception"),
         entry("delete an unknown data source", "resource_not_found_exception"),
         entry("delete a data source that still has datasets", "status_exception"),
@@ -394,6 +420,68 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         logger.info("external error surface report written to {}", report.toAbsolutePath());
 
         assertMatrixInvariants();
+    }
+
+    /**
+     * esql-planning#2119: when an IAM policy refuses the read, S3's error message names the principal Elasticsearch
+     * authenticated as and the resource it was refused — account id, role, session, key id. The response must report
+     * the condition and the store's error code, and carry that sentence nowhere: not in {@code reason}, not in any
+     * {@code caused_by} level, not in {@code root_cause} or {@code suppressed}. The whole body is checked, on the
+     * literal {@code arn:aws:} rather than the sentence, so a reworded AWS message still trips it.
+     */
+    public void testIamDenialIsNotRelayedToTheCaller() throws IOException {
+        String key = "data/iam_denied.csv";
+        seed(key, "id,city\n1,Vienna\n");
+        s3HttpFixture.denyKey(
+            key,
+            "User: arn:aws:sts::123456789012:assumed-role/reader/session is not authorized to perform: kms:Decrypt on resource: "
+                + "arn:aws:kms:us-east-1:123456789012:key/11111111-2222-3333-4444-555555555555 with an explicit deny in a "
+                + "resource-based policy"
+        );
+        putDataSource("iam_denied_ds", staticCredentialSettings());
+        putDataset("iam_denied", "iam_denied_ds", s3(key), Map.of("region", regionSupplier.get()), null);
+
+        ResponseException e = expectThrows(ResponseException.class, () -> runEsql("FROM iam_denied | LIMIT 10"));
+
+        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+        String raw = EntityUtils.toString(e.getResponse().getEntity(), StandardCharsets.UTF_8);
+        assertThat(raw, not(containsString("arn:aws:")));
+        assertThat(raw, not(containsString("assumed-role")));
+        Map<String, Object> body = XContentHelper.convertToMap(JsonXContent.jsonXContent, raw, false);
+        Map<?, ?> error = (Map<?, ?>) body.get("error");
+        String reason = str(error.get("reason"));
+        assertThat(reason, containsString("HTTP 403"));
+        assertThat(reason, containsString("AccessDenied"));
+        for (String cause : flattenCauses(error)) {
+            assertThat(cause, not(containsString("arn:aws:")));
+        }
+    }
+
+    /**
+     * The same denial on the read path rather than at resolution: a first query warms the schema cache, so the second
+     * resolves without touching the object and the 403 arrives when the data node reads it.
+     */
+    public void testIamDenialOnTheReadPathIsNotRelayedToTheCaller() throws IOException {
+        String key = "data/iam_denied_on_read.csv";
+        seed(key, "id,city\n1,Vienna\n");
+        putDataSource("iam_denied_read_ds", staticCredentialSettings());
+        putDataset("iam_denied_read", "iam_denied_read_ds", s3(key), Map.of("region", regionSupplier.get()), null);
+        runEsql("FROM iam_denied_read | LIMIT 10");
+        s3HttpFixture.denyKey(
+            key,
+            "User: arn:aws:sts::123456789012:assumed-role/reader/session is not authorized to perform: s3:GetObject on resource: "
+                + "arn:aws:s3:::bucket/data/iam_denied_on_read.csv with an explicit deny in an identity-based policy"
+        );
+
+        ResponseException e = expectThrows(ResponseException.class, () -> runEsql("FROM iam_denied_read | LIMIT 10"));
+
+        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+        String raw = EntityUtils.toString(e.getResponse().getEntity(), StandardCharsets.UTF_8);
+        assertThat(raw, not(containsString("arn:aws:")));
+        assertThat(raw, not(containsString("assumed-role")));
+        Map<String, Object> body = XContentHelper.convertToMap(JsonXContent.jsonXContent, raw, false);
+        String reason = str(((Map<?, ?>) body.get("error")).get("reason"));
+        assertThat(reason, containsString("403"));
     }
 
     // -------- the reported case ------------------------------------------------------------------
@@ -973,6 +1061,15 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         );
         crudProbe(
             "data_source_crud",
+            "put s3 data source with an endpoint that is not an AWS host",
+            "name the setting and say the host is not a supported AWS S3 endpoint",
+            () -> putDataSource(
+                "foreign_endpoint_ds",
+                Map.of("access_key", "k", "secret_key", "s", "region", "us-east-1", "endpoint", "https://storage.example.com")
+            )
+        );
+        crudProbe(
+            "data_source_crud",
             "get an unknown data source",
             "say the data source does not exist",
             () -> get("/_query/data_source/no_such_data_source")
@@ -1020,7 +1117,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         if (setup != null) {
             setup.run();
         }
-        record(group, name, expectation, () -> {
+        record(group, name, expectation, resource, () -> {
             putDataset(dataset, dataSource, resource, Map.of("region", regionSupplier.get()), null);
             runEsql("FROM " + dataset + " | LIMIT 5");
         });
@@ -1035,7 +1132,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         String resource,
         Map<String, Object> settings
     ) throws IOException {
-        record(group, name, expectation, () -> {
+        record(group, name, expectation, resource, () -> {
             Map<String, Object> withRegion = new HashMap<>(settings);
             withRegion.put("region", regionSupplier.get());
             putDataset(dataset, dataSource, resource, Map.copyOf(withRegion), null);
@@ -1057,16 +1154,34 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
      * the report (it usually means a misconfiguration was silently accepted).
      */
     private void record(String group, String name, String expectation, Action action) {
+        record(group, name, expectation, null, action);
+    }
+
+    private void record(String group, String name, String expectation, String resource, Action action) {
+        String objectName = resource == null ? null : resource.substring(resource.lastIndexOf('/') + 1);
         try {
             action.run();
-            probes.add(new Probe(group, name, expectation, 200, "<none>", "<request succeeded>", List.of()));
+            probes.add(new Probe(group, name, expectation, 200, "<none>", "<request succeeded>", List.of(), objectName));
         } catch (ResponseException e) {
             int status = e.getResponse().getStatusLine().getStatusCode();
             Map<String, Object> body = parseBody(e);
             Map<?, ?> error = body.get("error") instanceof Map<?, ?> m ? m : Map.of();
-            probes.add(new Probe(group, name, expectation, status, str(error.get("type")), str(error.get("reason")), flattenCauses(error)));
+            probes.add(
+                new Probe(
+                    group,
+                    name,
+                    expectation,
+                    status,
+                    str(error.get("type")),
+                    str(error.get("reason")),
+                    flattenCauses(error),
+                    objectName
+                )
+            );
         } catch (IOException e) {
-            probes.add(new Probe(group, name, expectation, -1, e.getClass().getSimpleName(), String.valueOf(e.getMessage()), List.of()));
+            probes.add(
+                new Probe(group, name, expectation, -1, e.getClass().getSimpleName(), String.valueOf(e.getMessage()), List.of(), objectName)
+            );
         }
     }
 
@@ -1222,7 +1337,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         sb.append("\n\n## Reason collisions\n\n");
         Map<String, List<String>> byReason = new TreeMap<>();
         for (Probe p : probes) {
-            byReason.computeIfAbsent(normalize(p.reason()), k -> new ArrayList<>()).add(p.group() + "/" + p.name());
+            byReason.computeIfAbsent(normalize(p), k -> new ArrayList<>()).add(p.group() + "/" + p.name());
         }
         byReason.forEach((reason, cases) -> {
             if (cases.size() > 1) {
@@ -1258,12 +1373,21 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
      * collide: "Failed to resolve metadata for [s3://b/a.parquet]" and "...[s3://b/b.csv]" carry exactly the same
      * information, and counting them as two distinct messages would hide the collapse this suite exists to find.
      * <p>
-     * Only URIs are masked, deliberately — not every bracketed token. "Required [resource]" and "Required [type]"
+     * Errors name the object rather than its URI, and end with the dataset context; both vary with the probe, not the
+     * condition, so the probe's own object name and the dataset context are masked the same way.
+     * <p>
+     * Only these are masked, deliberately — not every bracketed token. "Required [resource]" and "Required [type]"
      * name different settings and really are different messages; masking all brackets would fuse them.
      */
-    private static String normalize(String reason) {
+    private static String normalize(Probe probe) {
+        String reason = DATASET_CONTEXT.matcher(probe.reason()).replaceAll(" in dataset [<dataset>]");
+        if (probe.objectName() != null && probe.objectName().isEmpty() == false) {
+            reason = reason.replace("[" + probe.objectName() + "]", "[<location>]");
+        }
         return reason.replaceAll("[A-Za-z0-9]+://[^\\s\\]\",]*", "<location>").toLowerCase(Locale.ROOT);
     }
+
+    private static final Pattern DATASET_CONTEXT = Pattern.compile(" in dataset \\[[^\\]]*] from data source \\[[^\\]]*] \\([^)]*\\)");
 
     /** True when every colliding probe belongs to one {@link #SHARED_CONDITIONS} group, i.e. they are one condition. */
     private static boolean isOneCondition(List<String> collidingNames) {
@@ -1293,7 +1417,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
             if (p.status() == 200) {
                 continue;
             }
-            byReason.computeIfAbsent(normalize(p.reason()), k -> new ArrayList<>()).add(p.name());
+            byReason.computeIfAbsent(normalize(p), k -> new ArrayList<>()).add(p.name());
         }
         byReason.forEach((reason, cases) -> {
             List<String> unresolved = cases.stream().filter(c -> KNOWN_OPEN.containsKey(c) == false).toList();

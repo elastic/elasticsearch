@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.blobcache.shared.DefaultEvictionPolicy;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -40,6 +41,7 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
@@ -47,12 +49,14 @@ import org.elasticsearch.xpack.stateless.cache.TimestampCapturingEvictionPolicy;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.engine.StatelessReaderHeapBreaker;
 import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
 
 import java.io.BufferedInputStream;
@@ -84,6 +88,7 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.UNKNOWN_
 import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.createBlobLocation;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -149,11 +154,7 @@ public class SearchDirectoryTests extends ESTestCase {
                     .put(super.nodeSettings())
                     .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
                     .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
-                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
-                    .put(
-                        StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING.getKey(),
-                        timestampBackfillEnabled
-                    );
+                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize);
                 return settings.build();
             }
 
@@ -204,6 +205,30 @@ public class SearchDirectoryTests extends ESTestCase {
                 ThreadPool threadPool,
                 MeterRegistry MeterRegistry
             ) {
+                if (timestampBackfillEnabled) {
+                    return new StatelessSharedBlobCacheService(
+                        nodeEnvironment,
+                        settings,
+                        clusterSettings,
+                        threadPool,
+                        BlobCacheMetrics.NOOP,
+                        new DefaultEvictionPolicy<FileCacheKey>() {
+                            @Override
+                            public boolean hasRegionTimestampProtection() {
+                                return true;
+                            }
+                        },
+                        System::nanoTime,
+                        threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL),
+                        new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+                    ) {
+                        @Override
+                        protected boolean assertOffsetsWithinFileLength(long offset, long length, long fileLength) {
+                            // this test tries to read beyond the file length
+                            return true;
+                        }
+                    };
+                }
                 StatelessSharedBlobCacheService statelessSharedBlobCacheService = new StatelessSharedBlobCacheService(
                     nodeEnvironment,
                     settings,
@@ -247,7 +272,7 @@ public class SearchDirectoryTests extends ESTestCase {
             final var blobContainer = searchDirectory.getBlobContainer(primaryTerm);
             final int minFileSize = CodecUtil.footerLength();
 
-            final String blobName = StatelessCompoundCommit.blobNameFromGeneration(1L);
+            final String blobName = BatchedCompoundCommit.blobNameFromGeneration(1L);
             long blobLength = 0L;
             long generation = 0L;
 
@@ -653,6 +678,101 @@ public class SearchDirectoryTests extends ESTestCase {
         }
     }
 
+    /**
+     * Deterministic reproduction of the non-PIT ("deferred refresh") production failure
+     * {@code IllegalStateException: Cannot acquire [term=..., gen=...] for generational file [...]}.
+     * <p>
+     * The search shard applies commit notifications one batch at a time via {@link SearchDirectory#updateCommit}. Each notification
+     * only ever references a single BCC (generational files are carried over into the latest BCC), so no assertion is tripped. However,
+     * {@code mergeMetadata} pins every generational file to its <em>first-seen</em> BCC ({@code putIfAbsent}), so once soft-deletes are
+     * introduced in two different flushes the live commit references generational files across two distinct BCCs, while the reader that
+     * would open them may lag behind (the {@link StatelessReaderHeapBreaker#LIMIT_SETTING stateless.search.reader_heap_breaker.limit}
+     * breaker defers the refresh; only {@code segmentInfosAndCommit} is reverted, not the merged metadata / pins). When the lagging
+     * refresh finally opens the older segment's generational file for the first time, it must acquire the BCC that file was first
+     * written to.
+     * <p>
+     * Before the fix, only the latest notification's BCC is pinned, so acquiring the older BCC throws and the refresh fails the shard.
+     * The fix pins every BCC referenced by a live generational file, so the open succeeds.
+     */
+    public void testOpeningGenerationalFileFromEarlierBccAfterCommitAdvanced() throws IOException {
+        var regionSize = ByteSizeValue.ofBytes(4096);
+        var cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 100L);
+        try (var node = createFakeStatelessNode(regionSize, cacheSize)) {
+            final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
+            final var blobContainer = searchDirectory.getBlobContainer(1L);
+
+            final var bcc1 = new PrimaryTermAndGeneration(1L, 1L);
+            final var bcc2 = new PrimaryTermAndGeneration(1L, 2L);
+
+            final var fileSeg0 = "_0.cfs";
+            final var fileSeg1 = "_1.cfs";
+            final var genFileSeg0 = "_0_1.fnm"; // soft-delete of segment _0, first written into BCC (1,1)
+            final var genFileSeg1 = "_1_1.fnm"; // soft-delete of segment _1, first written into BCC (1,2)
+
+            // Backing bytes for the two BCC blobs so the generational files can actually be opened once their BCC is pinned.
+            writeBlob(blobContainer, BatchedCompoundCommit.blobNameFromGeneration(1L), 300);
+            writeBlob(blobContainer, BatchedCompoundCommit.blobNameFromGeneration(2L), 300);
+
+            // Notification for the commit in BCC (1,1): segment _0 and its first soft-delete gen file, all internal to BCC (1,1).
+            searchDirectory.updateCommit(
+                createCommitWithTimestamp(
+                    node.shardId,
+                    1L,
+                    Map.of(fileSeg0, createBlobLocation(1L, 1L, 0L, 100L), genFileSeg0, createBlobLocation(1L, 1L, 100L, 100L)),
+                    Set.of(fileSeg0, genFileSeg0),
+                    null
+                )
+            );
+
+            // Notification for the commit in BCC (1,2): introduces segment _1 and its soft-delete gen file (first seen in BCC (1,2)),
+            // and carries the earlier _0 gen file over into BCC (1,2). This notification still references a single BCC (1,2), matching
+            // production carry-over, so the pre-fix single-BCC pinning path is exercised without tripping any assertion.
+            searchDirectory.updateCommit(
+                createCommitWithTimestamp(
+                    node.shardId,
+                    2L,
+                    Map.of(
+                        fileSeg0,
+                        createBlobLocation(1L, 1L, 0L, 100L), // referenced, unchanged (still in BCC (1,1))
+                        fileSeg1,
+                        createBlobLocation(1L, 2L, 0L, 100L),
+                        genFileSeg0,
+                        createBlobLocation(1L, 2L, 100L, 100L), // carried over into BCC (1,2)
+                        genFileSeg1,
+                        createBlobLocation(1L, 2L, 200L, 100L)
+                    ),
+                    Set.of(fileSeg1, genFileSeg0, genFileSeg1),
+                    null
+                )
+            );
+
+            // putIfAbsent keeps _0's gen file pinned to its first-seen BCC (1,1); _1's gen file is in BCC (1,2): the live commit is
+            // multi-BCC.
+            assertThat(searchDirectory.getBlobLocation(genFileSeg0).getBatchedCompoundCommitTermAndGeneration(), equalTo(bcc1));
+            assertThat(searchDirectory.getBlobLocation(genFileSeg1).getBatchedCompoundCommitTermAndGeneration(), equalTo(bcc2));
+
+            // The lagging refresh opens the older segment's generational file for the first time: it must acquire BCC (1,1).
+            // Before the fix this throws "Cannot acquire [term=1, gen=1] for generational file [_0_1.liv]" because only the latest
+            // notification's BCC (1,2) was pinned; after the fix BCC (1,1) is pinned too and the open succeeds.
+            try (var input = searchDirectory.openInput(genFileSeg0, IOContext.DEFAULT)) {
+                assertThat(input.length(), equalTo(100L));
+            }
+
+            // Every BCC referenced by a live generational file must be pinned so that opening any of them can acquire its BCC.
+            assertThat(searchDirectory.getAcquiredGenerationalFileTermAndGenerations(), containsInAnyOrder(bcc1, bcc2));
+        }
+    }
+
+    private static void writeBlob(BlobContainer blobContainer, String blobName, int length) throws IOException {
+        blobContainer.writeBlob(
+            OperationPurpose.INDICES,
+            blobName,
+            new ByteArrayInputStream(randomByteArrayOfLength(length)),
+            length,
+            false
+        );
+    }
+
     public void testOnDemandReadStampsRegions() throws IOException {
         var regionSize = ByteSizeValue.ofBytes(4096);
         var cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 100L);
@@ -665,7 +785,6 @@ public class SearchDirectoryTests extends ESTestCase {
                     .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
                     .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
                     .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
-                    .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING.getKey(), true)
                     .build();
             }
 
@@ -751,7 +870,7 @@ public class SearchDirectoryTests extends ESTestCase {
                 equalTo(MINIMAL_CACHE_TIMESTAMP)
             );
 
-            final var metadataBlobName = StatelessCompoundCommit.blobNameFromGeneration(3L);
+            final var metadataBlobName = BatchedCompoundCommit.blobNameFromGeneration(3L);
             final var metadataTermAndGen = new PrimaryTermAndGeneration(1L, 3L);
             searchDirectory.updateLatestUploadedBcc(metadataTermAndGen);
             var metadataReadDirectory = searchDirectory.createMetadataReadDirectory(true);
@@ -811,7 +930,7 @@ public class SearchDirectoryTests extends ESTestCase {
                 equalTo(BACKFILL_IN_PROGRESS_TIMESTAMP)
             );
             assertThat(
-                "backfill should be disabled when timestamp backfill setting is off",
+                "backfill should be disabled when the eviction policy has no timestamp protection",
                 directory.timestampBackfillEnabled(),
                 equalTo(false)
             );
@@ -847,7 +966,7 @@ public class SearchDirectoryTests extends ESTestCase {
         // Time-based shard with timestamp backfill enabled.
         try (var node = createFakeStatelessNode(regionSize, cacheSize, true, true)) {
             assertThat(
-                "backfill should be enabled when timestamp backfill setting is on",
+                "backfill should be enabled when the eviction policy has timestamp protection",
                 SearchDirectory.unwrapDirectory(node.searchStore.directory()).timestampBackfillEnabled(),
                 equalTo(true)
             );
@@ -960,7 +1079,6 @@ public class SearchDirectoryTests extends ESTestCase {
                     .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
                     .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
                     .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
-                    .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING.getKey(), true)
                     .build();
             }
 
@@ -1011,8 +1129,8 @@ public class SearchDirectoryTests extends ESTestCase {
             final long primaryTerm = 1L;
             final var orphanTermAndGen = new PrimaryTermAndGeneration(primaryTerm, 1L);
             final var reReadTermAndGen = new PrimaryTermAndGeneration(primaryTerm, 2L);
-            final var orphanBlobName = StatelessCompoundCommit.blobNameFromGeneration(orphanTermAndGen.generation());
-            final var reReadBlobName = StatelessCompoundCommit.blobNameFromGeneration(reReadTermAndGen.generation());
+            final var orphanBlobName = BatchedCompoundCommit.blobNameFromGeneration(orphanTermAndGen.generation());
+            final var reReadBlobName = BatchedCompoundCommit.blobNameFromGeneration(reReadTermAndGen.generation());
 
             final var orphanKey = new FileCacheKey(node.shardId, primaryTerm, orphanBlobName);
             final var reReadKey = new FileCacheKey(node.shardId, primaryTerm, reReadBlobName);

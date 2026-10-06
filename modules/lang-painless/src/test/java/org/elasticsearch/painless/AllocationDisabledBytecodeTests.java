@@ -210,6 +210,43 @@ public class AllocationDisabledBytecodeTests extends ScriptTestCase {
         assertThat(asm, containsString("lambdaBootstrapWithAllocation"));
     }
 
+    public void testNoRegexOperatorChargeBytecodeWhenDisabled() {
+        // The regex operators emit their own Augmentation.matcher call, so they need their own guard.
+        String asm = bytecode("boolean b = 'foo' ==~ /foo/; return 1;", -1L);
+        assertThat(asm, not(containsString("$checkAllocBytes")));
+        assertThat(asm, not(containsString("AllocationGuard")));
+    }
+
+    public void testRegexOperatorChargeBytecodePresentWhenEnabled() {
+        // Charged inline as a constant, so there is no estimator call to look for.
+        String asm = bytecode("boolean b = 'foo' ==~ /foo/; return 1;", 1024 * 1024L);
+        assertThat(asm, containsString("$checkAllocBytes"));
+    }
+
+    public void testNoListLiteralChargeBytecodeWhenDisabled() {
+        // A list literal emits its own constructor and adds, so it needs its own guard.
+        String asm = bytecode("List l = ['a', 'b']; return 1;", -1L);
+        assertThat(asm, not(containsString("$checkAllocBytes")));
+        assertThat(asm, not(containsString("AllocationGuard")));
+    }
+
+    public void testListLiteralChargeBytecodePresentWhenEnabled() {
+        String asm = bytecode("List l = ['a', 'b']; return 1;", 1024 * 1024L);
+        assertThat(asm, containsString("$checkAllocBytes"));
+    }
+
+    public void testNoMapLiteralChargeBytecodeWhenDisabled() {
+        // Same for a map literal.
+        String asm = bytecode("Map m = ['a': 'b']; return 1;", -1L);
+        assertThat(asm, not(containsString("$checkAllocBytes")));
+        assertThat(asm, not(containsString("AllocationGuard")));
+    }
+
+    public void testMapLiteralChargeBytecodePresentWhenEnabled() {
+        String asm = bytecode("Map m = ['a': 'b']; return 1;", 1024 * 1024L);
+        assertThat(asm, containsString("$checkAllocBytes"));
+    }
+
     public void testDefCallChargeIsBootstrapSideNotEmittedWhenEnabled() {
         // Unlike the statically-typed path (see testEstimatorBytecodePresentWhenEnabled), a def call's estimator charge is
         // applied at runtime inside Def.lookupMethod (the bootstrap), not with emitted per-site bytecode — so even with tracking

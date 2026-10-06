@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -18,6 +20,48 @@ import java.util.List;
 public final class ExternalSourceCacheTestAccess {
 
     private ExternalSourceCacheTestAccess() {}
+
+    /**
+     * How many times a resolve has fallen back to the memoized dataset aggregate because the per-file merge came
+     * back incomplete.
+     * <p>
+     * This is what a warm multi-file test needs beyond zero documents found. A warm {@code COUNT(*)} over many
+     * files reports zero documents whether every per-file record carried its statistics or none of them did,
+     * because the dataset aggregate answers the count either way — so that assertion alone cannot see per-file
+     * records silently losing their measurements. Asserting this counter is unchanged across the warm query
+     * says the answer came from the per-file records rather than from the fallback.
+     */
+    public static long datasetAggregateFallbacks(ExternalSourceCacheService service) {
+        Object hits = service.usageStats().get("dataset_aggregate.hits");
+        return hits instanceof Number n ? n.longValue() : 0L;
+    }
+
+    /**
+     * How many per-file schema entries currently carry a harvested row count, for paths containing
+     * {@code pathSubstring}. The exact signal for partial enrichment: a contribution refused for some files and
+     * accepted for others leaves a count here below the file count, while every value assertion still passes.
+     */
+    public static int enrichedPerFileEntries(ExternalSourceCacheService service, String pathSubstring) {
+        int[] enriched = { 0 };
+        service.schemaCache().forEach((key, entry) -> {
+            if (key.isDatasetAggregate() == false
+                && key.canonicalPath().contains(pathSubstring)
+                && entry.safeMetadata().containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)) {
+                enriched[0]++;
+            }
+        });
+        return enriched[0];
+    }
+
+    /**
+     * Sum of {@link SchemaCacheEntry#estimatedBytes()} over every entry currently in the schema cache.
+     * Used by weight-accounting cluster tests to assert retained heap stays inside the schema budget slice.
+     */
+    public static long retainedSchemaWeightBytes(ExternalSourceCacheService service) {
+        long[] total = { 0L };
+        service.schemaCache().forEach((key, entry) -> total[0] += entry.estimatedBytes());
+        return total[0];
+    }
 
     /**
      * Invalidates every per-file schema-cache entry whose canonical path contains {@code pathSubstring},

@@ -120,6 +120,20 @@ final class CsvRecordSplitter implements RecordSplitter {
     private static final long CANCEL_CHECK_INTERVAL_BYTES = 64 * 1024;
 
     /**
+     * Bytes a whole-span scanner pulls per refill. Package-private because the block seam is something tests have
+     * to aim at, and a test mirroring this as its own literal stops straddling a refill the moment it changes
+     * here while still passing.
+     */
+    static final int BLOCK_BYTES = 8 * 1024;
+
+    /**
+     * No byte is waiting to be re-read. Distinct from the end-of-stream {@code -1} so that a held end-of-stream
+     * is taken from the slot rather than read again; both spellings end the walk on the same turn, so this is one
+     * fewer read rather than a correctness condition.
+     */
+    private static final int NO_PENDING = -2;
+
+    /**
      * Whether {@code b} (an unsigned byte value {@code 0..255}) is a "clean symbol": non-whitespace plain content
      * under the enabled options, i.e. not a structural byte ({@code "} when quoting, the escape char when escaping,
      * the delimiter, {@code \r}, {@code \n}) and not ASCII field-leading whitespace. Reading such a byte lands both
@@ -277,7 +291,7 @@ final class CsvRecordSplitter implements RecordSplitter {
         if (supportsProvenProbing() == false) {
             throw new UnsupportedOperationException("bracket multi-value CSV does not support proven probing");
         }
-        BufferedInputStream bis = stream instanceof BufferedInputStream b ? b : new BufferedInputStream(stream);
+        BlockCursor cursor = new BlockCursor(stream);
         boolean quoteAware = options.quoting();
         boolean escapeAware = options.escaping();
         int quoteChar = options.quoteChar();
@@ -291,7 +305,7 @@ final class CsvRecordSplitter implements RecordSplitter {
         // until a proven convergence.
         boolean foundClean = false;
         while (consumed < window) {
-            int ib = bis.read();
+            int ib = cursor.read();
             if (ib == -1) {
                 return AMBIGUOUS;
             }
@@ -316,7 +330,7 @@ final class CsvRecordSplitter implements RecordSplitter {
 
         // Phase 3: lockstep scan.
         while (consumed < window) {
-            int ib = bis.read();
+            int ib = cursor.read();
             if (ib == -1) {
                 return AMBIGUOUS;
             }
@@ -348,7 +362,7 @@ final class CsvRecordSplitter implements RecordSplitter {
             throw new UnsupportedOperationException("bracket multi-value CSV does not support proven probing");
         }
         assert minSkip > 0 : "minSkip must be positive so the opening record start at offset 0 is never returned, got " + minSkip;
-        BufferedInputStream bis = stream instanceof BufferedInputStream b ? b : new BufferedInputStream(stream);
+        BlockCursor cursor = new BlockCursor(stream);
         boolean quoteAware = options.quoting();
         boolean escapeAware = options.escaping();
         byte quoteAsByte = (byte) options.quoteChar();
@@ -359,9 +373,18 @@ final class CsvRecordSplitter implements RecordSplitter {
         boolean inQuotes = false;
         boolean fieldHasNonWhitespace = false;
         long sinceCancelCheck = 0;
+        // A byte that was read to settle a lookahead and turned out not to belong to it, waiting to be read as
+        // itself. End of stream is held here like any other answer and ends the walk on the next turn.
+        int pending = NO_PENDING;
 
         while (true) {
-            int ib = bis.read();
+            int ib;
+            if (pending != NO_PENDING) {
+                ib = pending;
+                pending = NO_PENDING;
+            } else {
+                ib = cursor.read();
+            }
             if (ib == -1) {
                 return -1;
             }
@@ -377,7 +400,7 @@ final class CsvRecordSplitter implements RecordSplitter {
             }
             byte b = (byte) ib;
             if (escapeAware && b == escAsByte) {
-                int esc = bis.read();
+                int esc = cursor.read();
                 if (esc != -1) {
                     consumed++;
                     if (consumed - recordStart > maxRecordBytes) {
@@ -391,14 +414,16 @@ final class CsvRecordSplitter implements RecordSplitter {
             }
             if (inQuotes) {
                 if (b == quoteAsByte) {
-                    if ((byte) peekByte(bis) == quoteAsByte) {
-                        bis.read();
+                    int next = cursor.read();
+                    if ((byte) next == quoteAsByte) {
                         consumed++;
                         if (consumed - recordStart > maxRecordBytes) {
                             return RECORD_TOO_LARGE;
                         }
                         continue;
                     }
+                    // A lone quote closed the field; the byte that proved it is next to be read as itself.
+                    pending = next;
                     inQuotes = false;
                 }
                 continue;
@@ -412,15 +437,14 @@ final class CsvRecordSplitter implements RecordSplitter {
                 continue;
             }
             if (b == '\r') {
-                bis.mark(1);
-                int next = bis.read();
+                int next = cursor.read();
                 if (next == '\n') {
                     consumed++;
                     if (consumed - recordStart > maxRecordBytes) {
                         return RECORD_TOO_LARGE;
                     }
-                } else if (next != -1) {
-                    bis.reset();
+                } else {
+                    pending = next;
                 }
                 recordStart = consumed;
                 fieldHasNonWhitespace = false;
@@ -759,6 +783,60 @@ final class CsvRecordSplitter implements RecordSplitter {
             } else if (CsvFormatReader.isAsciiCsvFieldLeadingWhitespace(ib & 0xff) == false) {
                 fieldHasNonWhitespace = true;
             }
+        }
+    }
+
+    /**
+     * Byte source for the two scanners driven over a whole span rather than to the end of one record:
+     * {@link #findProvenRecordBoundary(InputStream)} and
+     * {@link #findRecordStartAtOrAfter(InputStream, long, BooleanSupplier)}.
+     * <p>
+     * Both step a byte at a time, and {@link BufferedInputStream#read()} is {@code synchronized}, so taking the
+     * bytes from one costs a monitor enter and exit per byte of the span - on a stream the scanner is the only
+     * reader of, so the lock guards nothing. The block is 8kb, the size {@link BufferedInputStream} defaults to,
+     * so a scan holds at most that much read-ahead.
+     * <p>
+     * Read-ahead is bounded by one block, and {@code RecordBoundaryProbe.provenBoundaries} aborts both streams
+     * whatever they read, so the position a scan leaves the stream in is not observable.
+     * <p>
+     * {@code read()} is the whole surface on purpose: a caller settling a lookahead reads the next byte and, if it
+     * turns out not to belong to that lookahead, keeps it in a local until it is read as itself. A cursor that
+     * handed out a byte without consuming it would owe every caller a rule about when that byte stays valid
+     * across a refill.
+     */
+    private static final class BlockCursor {
+
+        private final InputStream in;
+        private final byte[] block = new byte[BLOCK_BYTES];
+        private int pos;
+        private int limit;
+
+        BlockCursor(InputStream in) {
+            this.in = in;
+        }
+
+        /** The next byte as an unsigned {@code 0..255}, consuming it, or {@code -1} at end of stream. */
+        int read() throws IOException {
+            if (pos == limit && fill() == false) {
+                return -1;
+            }
+            return block[pos++] & 0xff;
+        }
+
+        /**
+         * A zero-length read is reported as end of stream, which is what {@link BufferedInputStream} does with
+         * one. Nothing is latched: a stream that answers zero and then yields bytes is still readable by a
+         * later call.
+         */
+        private boolean fill() throws IOException {
+            pos = 0;
+            limit = 0;
+            int n = in.read(block, 0, block.length);
+            if (n <= 0) {
+                return false;
+            }
+            limit = n;
+            return true;
         }
     }
 

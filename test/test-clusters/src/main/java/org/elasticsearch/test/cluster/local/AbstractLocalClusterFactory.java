@@ -292,6 +292,10 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             return configDir;
         }
 
+        Path getDataDir() {
+            return dataDir;
+        }
+
         public void waitUntilReady() {
             try {
                 Retry.retryUntilTrue(NODE_UP_TIMEOUT, Duration.ofMillis(500), () -> {

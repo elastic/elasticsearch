@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.logsdb.qa;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.datageneration.DocumentGenerator;
@@ -34,12 +35,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class DataGenerationHelper {
     private final boolean keepArraySource;
 
+    private final DataGeneratorSpecification specification;
     private final DocumentGenerator documentGenerator;
 
     private final Template template;
@@ -131,7 +134,7 @@ public class DataGenerationHelper {
         // Customize builder if necessary
         builderConfigurator.accept(specificationBuilder);
 
-        var specification = specificationBuilder.build();
+        this.specification = specificationBuilder.build();
 
         this.documentGenerator = new DocumentGenerator(specification);
 
@@ -161,6 +164,27 @@ public class DataGenerationHelper {
                 paths.put(pathToChild, leaf.type());
             }
         }
+    }
+
+    /**
+     * Summarizes the randomly generated template so that a CI failure can be understood without reproducing the seed:
+     * how many leaf fields exist, how many of each type, and which generation flags are active. Field types such as
+     * {@code geo_shape} produce very large values, so the type histogram is what explains an unusually heavy bulk payload.
+     */
+    String describe() {
+        Map<String, Long> fieldTypeHistogram = getTemplateFieldTypes().values()
+            .stream()
+            .collect(Collectors.groupingBy(Function.identity(), TreeMap::new, Collectors.counting()));
+        return Strings.format(
+            "leaf fields [%d], field types %s, fully dynamic mapping [%b], keep array source [%b], max field count per level [%d], "
+                + "max object depth [%d]",
+            fieldTypeHistogram.values().stream().mapToLong(Long::longValue).sum(),
+            fieldTypeHistogram,
+            specification.fullyDynamicMapping(),
+            keepArraySource,
+            specification.maxFieldCountPerLevel(),
+            specification.maxObjectDepth()
+        );
     }
 
     void writeLogsDbMapping(XContentBuilder builder) throws IOException {

@@ -1,0 +1,1 @@
+SET unmapped_fields="LOAD_ALL"; FROM (FROM languages | WHERE language_code > 1)

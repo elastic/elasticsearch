@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetim
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
@@ -489,7 +490,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 reduction.source(),
                 grouping.plan(),
                 order != null ? List.of(order) : List.of(),
-                new ToInteger(reduction.source(), reduction.parameters().getFirst()),
+                new ToInteger(reduction.source(), new Floor(reduction.source(), reduction.parameters().getFirst())),
                 grouping.groupings()
             );
         }

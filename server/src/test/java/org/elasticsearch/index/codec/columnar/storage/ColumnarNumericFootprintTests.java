@@ -30,35 +30,35 @@ public class ColumnarNumericFootprintTests extends ColumnarNumericStorageTestBas
     private static final int BLOCK_SIZE = ColumNARDocValuesFormat.MIN_BLOCK_SIZE;
 
     public void testFootprintMonotonicTimestamps() throws IOException {
-        runFootprintTest("MONOTONIC_TIMESTAMPS", (f, t) -> NumericPipeline::monotonicLongPipeline, 66362);
+        runFootprintTest("MONOTONIC_TIMESTAMPS", (f, t) -> NumericPipeline::monotonicLongPipeline, 66537);
     }
 
     public void testFootprintTsdbSplit() throws IOException {
-        runFootprintTest("TSDB_SPLIT", (f, t) -> NumericPipeline::monotonicLongPipeline, 4804);
+        runFootprintTest("TSDB_SPLIT", (f, t) -> NumericPipeline::monotonicLongPipeline, 4980);
     }
 
     public void testFootprintCounterSteady() throws IOException {
-        runFootprintTest("COUNTER_STEADY", (f, t) -> NumericPipeline::monotonicLongPipeline, 3988);
+        runFootprintTest("COUNTER_STEADY", (f, t) -> NumericPipeline::monotonicLongPipeline, 4164);
     }
 
     public void testFootprintGauge() throws IOException {
-        runFootprintTest("GAUGE", (f, t) -> NumericPipeline::defaultPipeline, 53067);
+        runFootprintTest("GAUGE", (f, t) -> NumericPipeline::defaultPipeline, 53242);
     }
 
     public void testFootprintSensorDoubles() throws IOException {
-        runFootprintTest("SENSOR_DOUBLES", (f, t) -> NumericPipeline::doubleGaugePipeline, 57873);
+        runFootprintTest("SENSOR_DOUBLES", (f, t) -> NumericPipeline::doubleGaugePipeline, 58048);
     }
 
     public void testFootprintDoubleGauge() throws IOException {
-        runFootprintTest("DOUBLE_GAUGE", (f, t) -> NumericPipeline::doubleGaugePipeline, 124096);
+        runFootprintTest("DOUBLE_GAUGE", (f, t) -> NumericPipeline::doubleGaugePipeline, 124271);
     }
 
     public void testFootprintDoubleCounter() throws IOException {
-        runFootprintTest("DOUBLE_COUNTER", (f, t) -> NumericPipeline::doubleCounterPipeline, 48957);
+        runFootprintTest("DOUBLE_COUNTER", (f, t) -> NumericPipeline::doubleCounterPipeline, 49132);
     }
 
     public void testFootprintRandomFull() throws IOException {
-        runFootprintTest("RANDOM_FULL", (f, t) -> NumericPipeline::defaultPipeline, 401839);
+        runFootprintTest("RANDOM_FULL", (f, t) -> NumericPipeline::defaultPipeline, 402014);
     }
 
     private void runFootprintTest(String workload, NumericPipelineSelector selector, long expectedBytes) throws IOException {

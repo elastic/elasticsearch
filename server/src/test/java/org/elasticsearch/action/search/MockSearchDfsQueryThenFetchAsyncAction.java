@@ -16,6 +16,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -71,6 +73,7 @@ public final class MockSearchDfsQueryThenFetchAsyncAction extends SearchDfsQuery
             Map.of(),
             Runnable::run,
             null,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             searchRequest,
             ActionListener.noop(),
             createShardIterators(numShards),

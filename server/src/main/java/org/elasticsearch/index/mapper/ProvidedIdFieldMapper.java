@@ -32,7 +32,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
@@ -266,9 +266,9 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
                 }
 
                 @Override
-                public SortedBinaryDocValues getBytesValues() {
-                    SortedBinaryDocValues inValues = in.getBytesValues();
-                    return new SortedBinaryDocValues(inValues.docIdIterator()) {
+                public SortableBinaryDocValues getBytesValues() {
+                    SortableBinaryDocValues inValues = in.getBytesValues();
+                    return new SortableBinaryDocValues(inValues.docIdIterator()) {
 
                         @Override
                         public BytesRef nextValue() throws IOException {
@@ -299,6 +299,11 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
                         @Override
                         public ValueMode getValueMode() {
                             return inValues.getValueMode();
+                        }
+
+                        @Override
+                        public ValueOrder getValueOrder() {
+                            return inValues.getValueOrder();
                         }
                     };
                 }

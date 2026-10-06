@@ -522,9 +522,7 @@ public class StatelessReshardingPitSearchIT extends AbstractStatelessPluginInteg
         ensureGreen(index.getName());
         var sourceSearchService = internalCluster().getInstance(SearchService.class, nodeName);
         var shard = new ShardId(index, shardId);
-        assertBusy(
-            () -> assertTrue(sourceSearchService.getActivePITContexts(shard).stream().allMatch(PitReaderContext::isRelocating))
-        );
+        assertBusy(() -> assertTrue(sourceSearchService.getActivePITContexts(shard).stream().allMatch(PitReaderContext::isRelocating)));
     }
 
     private void waitForReshardCompletion(Index index) {

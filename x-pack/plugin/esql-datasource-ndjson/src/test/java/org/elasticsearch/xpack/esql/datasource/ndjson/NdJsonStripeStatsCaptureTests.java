@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.cache.DatasetIdentity;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
@@ -463,7 +464,7 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
             .put("esql.external.cache.listing.ttl", "30s")
             .build();
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", "", Map.of());
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, testIdentity(), false);
             service.getOrComputeSchema(
                 key,
                 k -> SchemaCacheEntry.from(schema, "ndjson", path, Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint), Map.of())
@@ -552,7 +553,7 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
             .put("esql.external.cache.listing.ttl", "30s")
             .build();
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", "", Map.of());
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, testIdentity(), false);
             List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "a", DataType.LONG, Nullability.TRUE, null, false));
             service.getOrComputeSchema(
                 key,
@@ -723,5 +724,14 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
                 return StoragePath.of(uniquePath);
             }
         };
+    }
+
+    /**
+     * The identity these cases need is any identity: they exercise the stripe-capture path, not addressing, and
+     * only require that the key they mint and the key they read back agree. The format slot carries the reader
+     * identity, which is where a format name reaches a key now that it is not a component of its own.
+     */
+    private static DatasetIdentity testIdentity() {
+        return DatasetIdentity.of("", null, "", "", ".ndjson", "");
     }
 }

@@ -121,6 +121,12 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         "datafeed_cloud_internal_credential"
     );
     static final TransportVersion DATAFEED_FORCE_REKEYING = TransportVersion.fromName("datafeed_force_rekeying");
+    static final TransportVersion DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES = TransportVersion.fromName(
+        "datafeed_max_consecutive_extraction_failures"
+    );
+    static final TransportVersion DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_REMOVED = TransportVersion.fromName(
+        "datafeed_max_consecutive_extraction_failures_removed"
+    );
 
     /**
      * Returns whether ML cross-project search (CPS) is allowed for datafeeds in the current environment.
@@ -374,6 +380,11 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             this.cloudInternalCredential = in.readOptionalWriteable(PersistedCloudCredential::new);
         } else {
             this.cloudInternalCredential = null;
+        }
+        if (in.getTransportVersion().supports(DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES)
+            && in.getTransportVersion().supports(DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_REMOVED) == false) {
+            // max_consecutive_extraction_failures was removed (#158426); drain the value sent by not-yet-reverted peers
+            in.readOptionalInt();
         }
     }
 
@@ -752,6 +763,11 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         if (out.getTransportVersion().supports(DATAFEED_CLOUD_INTERNAL_CREDENTIAL)) {
             out.writeOptionalWriteable(cloudInternalCredential);
         }
+        if (out.getTransportVersion().supports(DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES)
+            && out.getTransportVersion().supports(DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_REMOVED) == false) {
+            // keep the wire format aligned for not-yet-reverted peers that still read this field
+            out.writeOptionalInt(null);
+        }
     }
 
     @Override
@@ -1052,6 +1068,11 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             if (in.getTransportVersion().supports(DATAFEED_CLOUD_INTERNAL_CREDENTIAL)) {
                 cloudInternalCredential = in.readOptionalWriteable(PersistedCloudCredential::new);
             }
+            if (in.getTransportVersion().supports(DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES)
+                && in.getTransportVersion().supports(DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_REMOVED) == false) {
+                // max_consecutive_extraction_failures was removed (#158426); drain the value sent by not-yet-reverted peers
+                in.readOptionalInt();
+            }
         }
 
         @Override
@@ -1093,6 +1114,11 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             }
             if (out.getTransportVersion().supports(DATAFEED_CLOUD_INTERNAL_CREDENTIAL)) {
                 out.writeOptionalWriteable(cloudInternalCredential);
+            }
+            if (out.getTransportVersion().supports(DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES)
+                && out.getTransportVersion().supports(DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_REMOVED) == false) {
+                // keep the wire format aligned for not-yet-reverted peers that still read this field
+                out.writeOptionalInt(null);
             }
         }
 

@@ -13,7 +13,7 @@ import org.elasticsearch.common.Rounding.Prepared;
 import org.elasticsearch.index.fielddata.DocValueBits;
 import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
@@ -39,7 +39,7 @@ public class HistogramValuesSource {
             }
 
             @Override
-            public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
+            public SortableBinaryDocValues bytesValues(LeafReaderContext context) {
                 return indexFieldData.load(context).getBytesValues();
             }
 

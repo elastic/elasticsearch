@@ -181,6 +181,13 @@ Which returns:
   }
 }
 ```
+
+## Node settings
+The `ip_location` processor shares the same node-level lookup cache as the
+`geoip` processor. See [GeoIP processor node settings](geoip-processor.md#ingest-geoip-settings)
+for details.
+
+
 % TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 

@@ -19,7 +19,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.index.fielddata.IpScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -47,7 +47,7 @@ public class IpDocValuesField extends AbstractScriptFieldFactory<IPAddress>
         this.raw = new SortedSetIpSupplier(input);
     }
 
-    public IpDocValuesField(SortedBinaryDocValues input, String name) {
+    public IpDocValuesField(SortableBinaryDocValues input, String name) {
         this.name = name;
         this.raw = new SortedBinaryIpSupplier(input);
     }
@@ -183,11 +183,11 @@ public class IpDocValuesField extends AbstractScriptFieldFactory<IPAddress>
 
     /** Used if we do not have global ordinals, such as in the IP runtime field see: {@link IpScriptFieldData} */
     protected static class SortedBinaryIpSupplier implements ScriptDocValues.Supplier<InetAddress> {
-        private final SortedBinaryDocValues in;
+        private final SortableBinaryDocValues in;
         private BytesRefBuilder[] values = new BytesRefBuilder[0];
         private int count;
 
-        public SortedBinaryIpSupplier(SortedBinaryDocValues in) {
+        public SortedBinaryIpSupplier(SortableBinaryDocValues in) {
             this.in = in;
         }
 
@@ -196,7 +196,7 @@ public class IpDocValuesField extends AbstractScriptFieldFactory<IPAddress>
             if (in.advanceExact(docId)) {
                 resize(in.docValueCount());
                 for (int i = 0; i < count; i++) {
-                    // We need to make a copy here, because BytesBinaryDVLeafFieldData's SortedBinaryDocValues
+                    // We need to make a copy here, because BytesBinaryDVLeafFieldData's SortableBinaryDocValues
                     // implementation reuses the returned BytesRef. Otherwise we would end up with the same BytesRef
                     // instance for all slots in the values array.
                     values[i].copyBytes(in.nextValue());

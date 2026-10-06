@@ -18,6 +18,7 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.UnifiedCompletionRequestBody;
+import org.elasticsearch.inference.configuration.InferenceServiceFeatures;
 import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
@@ -138,6 +139,12 @@ import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.ImmutableEmptyTaskSettings;
+import org.elasticsearch.xpack.inference.services.tencentcloud.completion.TencentCloudChatCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.tencentcloud.completion.TencentCloudChatCompletionTaskSettings;
+import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.tencentcloud.rerank.TencentCloudRerankServiceSettings;
+import org.elasticsearch.xpack.inference.services.tencentcloud.rerank.TencentCloudRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankServiceSettings;
@@ -200,8 +207,11 @@ public class InferenceNamedWriteablesProvider {
         addNvidiaNamedWriteables(namedWriteables);
         addFireworksAiNamedWriteables(namedWriteables);
         addDeepSeekNamedWriteables(namedWriteables);
+        addTencentCloudNamedWriteables(namedWriteables);
 
         addUnifiedNamedWriteables(namedWriteables);
+
+        namedWriteables.addAll(InferenceServiceFeatures.getNamedWriteables());
 
         namedWriteables.addAll(StreamingTaskManager.namedWriteables());
         namedWriteables.addAll(SageMakerModel.namedWriteables());
@@ -226,6 +236,47 @@ public class InferenceNamedWriteablesProvider {
     private static void addDeepSeekNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(ServiceSettings.class, DeepSeekServiceSettings.NAME, DeepSeekServiceSettings::new)
+        );
+    }
+
+    private static void addTencentCloudNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                TencentCloudEmbeddingsServiceSettings.NAME,
+                TencentCloudEmbeddingsServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                TencentCloudEmbeddingsTaskSettings.NAME,
+                TencentCloudEmbeddingsTaskSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                TencentCloudChatCompletionServiceSettings.NAME,
+                TencentCloudChatCompletionServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                TencentCloudChatCompletionTaskSettings.NAME,
+                TencentCloudChatCompletionTaskSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                TencentCloudRerankServiceSettings.NAME,
+                TencentCloudRerankServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(TaskSettings.class, TencentCloudRerankTaskSettings.NAME, TencentCloudRerankTaskSettings::new)
         );
     }
 

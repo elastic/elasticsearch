@@ -14,10 +14,12 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene104.Lucene104PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
-import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
+import org.elasticsearch.columnar.string.StringColumnOptions;
+import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
@@ -26,15 +28,16 @@ import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatSelector;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
+import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.MetricRole;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -47,6 +50,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
@@ -78,11 +82,15 @@ public class PerFieldFormatSupplier {
         EXCLUDE_MAPPER_TYPES = Set.of("geo_shape");
     }
 
+    // vectordb queries fetch a few top-k documents rather than scanning, so string columns are written in
+    // small chunks to make each read decompress fewer values.
+    private static final int VECTORDB_MAX_VALUES_PER_CHUNK = 128;
+    private static final ChunkBounds VECTORDB_PLAIN_CHUNKS = new ChunkBounds(128 * 1024, VECTORDB_MAX_VALUES_PER_CHUNK);
+    /** Escaped values are reached one at a time, so they are chunked no larger than the values. */
+    private static final ChunkBounds VECTORDB_ESCAPE_CHUNKS = new ChunkBounds(32 * 1024, VECTORDB_MAX_VALUES_PER_CHUNK);
+    private static final int VECTORDB_COMPRESSED_ORDINAL_BLOCK_SIZE = 512;
+
     private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
-    // Only keyword fields are routed to ColumNAR, so the column type is always a string.
-    private static final DocValuesFormat keywordColumnarDocValuesFormatInstance = new ColumNARDocValuesFormat(
-        field -> ColumnarFieldType.STRING
-    );
     private final KnnVectorsFormat knnVectorsFormat;
     private static final ES812PostingsFormat es812PostingsFormat = new ES812PostingsFormat();
     private static final PostingsFormat completionPostingsFormat = PostingsFormat.forName("Completion104");
@@ -97,7 +105,9 @@ public class PerFieldFormatSupplier {
     private final TSDBSyntheticIdPostingsFormat syntheticIdPostingsFormat;
     private final ES94BloomFilterDocValuesFormat idBloomFilterDocValuesFormat;
     private final DocValuesFormat tsdbDocValuesFormat;
-    private final DocValuesFormat keywordColumnarDocValuesFormat;
+    @Nullable
+    private final DocValuesFormat idRandomAccessDocValuesFormat;
+    private final DocValuesFormat stringColumnarDocValuesFormat;
 
     @SuppressWarnings("this-escape")
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
@@ -113,10 +123,15 @@ public class PerFieldFormatSupplier {
         this.tsdbDocValuesFormat = mapperService == null
             ? null
             : TSDBDocValuesFormatSelector.select(mapperService.getIndexSettings(), this::resolveFieldContext);
-        this.keywordColumnarDocValuesFormat = mapperService != null
-            && ColumnarDocValuesFormatSelector.useColumnarCodec(mapperService.getIndexSettings())
-                ? keywordColumnarDocValuesFormatInstance
+        this.idRandomAccessDocValuesFormat = mapperService != null
+            && mapperService.getIndexSettings().getMode() == IndexMode.VECTORDB_COLUMNAR
+                ? ES819Version3TSDBDocValuesFormat.forRandomAccessColumn()
                 : null;
+        // Built per supplier for the same reason the TSDB format is: the options it writes a string column
+        // with are resolved against this index's mapping, so the format cannot be shared between indices.
+        this.stringColumnarDocValuesFormat = mapperService == null
+            ? null
+            : ColumnarDocValuesFormatSelector.select(mapperService.getIndexSettings(), this::resolveStringColumnOptions);
         var bloomFilterSettings = mapperService == null ? null : mapperService.getIndexSettings().syntheticIdBloomFilterSettings();
         this.idBloomFilterDocValuesFormat = bloomFilterSettings == null
             ? new ES94BloomFilterDocValuesFormat(bigArrays, IdFieldMapper.NAME) // fallback to the defaults if no settings are present
@@ -166,7 +181,8 @@ public class PerFieldFormatSupplier {
             DenseVectorFieldMapper.ElementType.FLOAT,
             maxMergingWorkers,
             mergingExecutorService,
-            -1
+            -1,
+            false
         );
     }
 
@@ -242,20 +258,51 @@ public class PerFieldFormatSupplier {
             return idBloomFilterDocValuesFormat;
         }
 
-        if (keywordColumnarDocValuesFormat != null && isKeywordField(field)) {
-            return keywordColumnarDocValuesFormat;
+        if (stringColumnarDocValuesFormat != null && columnarStringOptionsOf(field) != null) {
+            return stringColumnarDocValuesFormat;
         }
 
         if (useTSDBDocValuesFormat(field)) {
-            return tsdbDocValuesFormat;
+            return idRandomAccessDocValuesFormat != null && IdFieldMapper.NAME.equals(field)
+                ? idRandomAccessDocValuesFormat
+                : tsdbDocValuesFormat;
         }
 
         return docValuesFormat;
     }
 
-    private boolean isKeywordField(String field) {
-        return mapperService.mappingLookup().getMapper(field) instanceof KeywordFieldMapper keyword
-            && keyword.fieldType().usesBinaryDocValues();
+    /**
+     * What the named field asked to be written with, or {@code null} when it is not stored as a ColumNAR
+     * string column. The field answers both, so routing it to the codec and writing it the way it asked
+     * cannot come apart.
+     */
+    @Nullable
+    StringColumnOptions columnarStringOptionsOf(final String field) {
+        return mapperService.mappingLookup().getMapper(field) instanceof FieldMapper mapper ? mapper.columnarStringOptions() : null;
+    }
+
+    /**
+     * How a string column is written, asked once per field by the codec. A field that is not stored as one is
+     * never asked, so the defaults here are only ever a fallback for a mapping that changed underneath.
+     */
+    StringColumnOptions resolveStringColumnOptions(final String field, final ColumnarFieldType type) {
+        final StringColumnOptions options = Objects.requireNonNullElse(columnarStringOptionsOf(field), StringColumnOptions.DEFAULT);
+        if (mapperService.getIndexSettings().getMode() != IndexMode.VECTORDB_COLUMNAR) {
+            return options;
+        }
+        final StringColumnOptions.Sizes sizes = options.sizes();
+        return options.withSizes(
+            new StringColumnOptions.Sizes(
+                sizes.valuesPerBlock(),
+                VECTORDB_PLAIN_CHUNKS,
+                VECTORDB_ESCAPE_CHUNKS,
+                sizes.packedOrdinalBlockSize(),
+                VECTORDB_COMPRESSED_ORDINAL_BLOCK_SIZE,
+                sizes.escapeRankBlockSize(),
+                sizes.slotCountsBlockSize(),
+                sizes.lengthBlockSize()
+            )
+        );
     }
 
     FieldContext resolveFieldContext(final String fieldName, final int blockSize) {

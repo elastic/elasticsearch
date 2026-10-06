@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+  - 159265
+pr: 159269
+summary: Fix `TO_TEXT` being ignored in `MATCH/MATCH_PHRASE` on indexed fields
+type: bug

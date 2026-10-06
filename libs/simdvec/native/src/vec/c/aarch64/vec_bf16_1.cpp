@@ -20,8 +20,23 @@ static inline float32x4_t bf16_to_f32(uint16x4_t bf16) {
     return vreinterpretq_f32_u32(vshll_n_u16(bf16, 16));
 }
 
+// Widening bf16 to f32 puts the 16 bits into the upper half of each lane. Interleaving with a zero vector
+// does exactly that on the permute pipes, which on Neoverse V2 run twice as wide as the shift pipes SHLL
+// uses, and lets one 128-bit load feed two f32 vectors.
+static inline float32x4_t bf16_low_to_f32(uint16x8_t bf16) {
+    return vreinterpretq_f32_u16(vzip1q_u16(vdupq_n_u16(0), bf16));
+}
+
+static inline float32x4_t bf16_high_to_f32(uint16x8_t bf16) {
+    return vreinterpretq_f32_u16(vzip2q_u16(vdupq_n_u16(0), bf16));
+}
+
 static inline float32x4_t load_bf16(const bf16_t* ptr, int elements) {
     return bf16_to_f32(vld1_u16((const uint16_t*)(ptr + elements)));
+}
+
+static inline uint16x8_t load_bf16x8(const bf16_t* ptr, int elements) {
+    return vld1q_u16((const uint16_t*)(ptr + elements));
 }
 
 static inline float32x4_t load_f32(const f32_t* ptr, int elements) {
@@ -43,12 +58,15 @@ static inline f32_t bf16_inner(const bf16_t* d, const TQuery* q, const int32_t e
     });
 
     int i = 0;
-    // each value has <elements> floats, and we iterate over <stride> floats at a time
+    // each accumulator covers <elements> consecutive values of a step; one 128-bit load holds the values
+    // of two adjacent accumulators, and we iterate over <stride> values at a time
     constexpr int elements = sizeof(uint16x4_t) / sizeof(bf16_t);
     constexpr int stride = sizeof(uint16x4_t) / sizeof(bf16_t) * batches;
     for (; i < (elementCount & ~(stride - 1)); i += stride) {
-        apply_indexed<batches>([&](auto I) {
-            sums[I] = vector_op(sums[I], load_bf16(d, i + I * elements), load_q(q, i + I * elements));
+        apply_indexed<batches / 2>([&](auto J) {
+            const uint16x8_t dv = load_bf16x8(d, i + 2 * J * elements);
+            sums[2 * J] = vector_op(sums[2 * J], bf16_low_to_f32(dv), load_q(q, i + 2 * J * elements));
+            sums[2 * J + 1] = vector_op(sums[2 * J + 1], bf16_high_to_f32(dv), load_q(q, i + (2 * J + 1) * elements));
         });
     }
 
@@ -109,13 +127,27 @@ static inline void bf16_bulk_inner(
         });
 
         int32_t i = 0;
-        // do <batches> vectors at a time, iterating through the dimensions in parallel
-        constexpr int stride = sizeof(uint16x4_t) / sizeof(bf16_t);
+        // do <batches> vectors at a time, iterating through the dimensions in parallel: one 128-bit load per
+        // vector widens into two f32 vectors that are accumulated in dimension order, so the per-lane sums
+        // are the same as with one 64-bit load per step
+        constexpr int elements = sizeof(uint16x4_t) / sizeof(bf16_t);
+        constexpr int stride = sizeof(uint16x8_t) / sizeof(bf16_t);
         for (; i < (dims & ~(stride - 1)); i += stride) {
+            float32x4_t bi_low = load_q(b, i);
+            float32x4_t bi_high = load_q(b, i + elements);
+            apply_indexed<batches>([&](auto I) {
+                const uint16x8_t av = load_bf16x8(as[I], i);
+                sums[I] = inner_op(sums[I], bf16_low_to_f32(av), bi_low);
+                sums[I] = inner_op(sums[I], bf16_high_to_f32(av), bi_high);
+            });
+        }
+        // a remaining group of <elements> dimensions
+        if (i < (dims & ~(elements - 1))) {
             float32x4_t bi = load_q(b, i);
             apply_indexed<batches>([&](auto I) {
                 sums[I] = inner_op(sums[I], load_bf16(as[I], i), bi);
             });
+            i += elements;
         }
 
         f32_t res[batches];

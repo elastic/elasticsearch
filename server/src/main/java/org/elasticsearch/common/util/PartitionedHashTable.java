@@ -104,6 +104,23 @@ public interface PartitionedHashTable {
          * Releases the state held by this splitter.
          */
         void release(CircuitBreaker breaker);
+
+        /**
+         * Returns a splitter that forwards every call to {@code base} but adds {@code offset} to {@code firstId}.
+         * Useful when the caller's id space is shifted relative to the hash table's internal ordinals.
+         * The returned splitter holds no resources, so its {@link #release} is a no-op.
+         */
+        static PartitionSplitter withOffset(PartitionSplitter base, int offset) {
+            return new PartitionSplitter() {
+                @Override
+                public void split(int firstId, short[] shiftedIds, int batchSize, int[] batchPartitionCounts, int[] partitionOffsets) {
+                    base.split(firstId + offset, shiftedIds, batchSize, batchPartitionCounts, partitionOffsets);
+                }
+
+                @Override
+                public void release(CircuitBreaker b) {}
+            };
+        }
     }
 
     /**

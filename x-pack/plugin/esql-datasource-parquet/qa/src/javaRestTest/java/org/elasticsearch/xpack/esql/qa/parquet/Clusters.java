@@ -8,11 +8,14 @@
 package org.elasticsearch.xpack.esql.qa.parquet;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
+import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
+import org.elasticsearch.xpack.esql.qa.rest.EsqlDataSourceMixedClusterTestSupport;
 
 import java.util.function.Supplier;
 
@@ -96,6 +99,7 @@ public class Clusters {
             .setting("esql.external.local_allowed_paths", FixtureUtils.pathRepoRootForFixtures(Clusters.class))
             // S3 client configuration for accessing the S3HttpFixture
             .setting("s3.client.default.endpoint", s3EndpointSupplier)
+            .setting(S3FixtureUtils.ALLOWED_ENDPOINT_HOSTS_SETTING, S3FixtureUtils.LOOPBACK_ENDPOINT_HOSTS)
             // S3 credentials must be stored in keystore, not as regular settings
             .keystore("s3.client.default.access_key", ACCESS_KEY)
             .keystore("s3.client.default.secret_key", SECRET_KEY)
@@ -120,6 +124,35 @@ public class Clusters {
     }
 
     /**
+     * Mixed old/current variant used only by the reusable data-source BWC tasks.
+     */
+    public static ElasticsearchCluster bwcTestCluster(Supplier<String> s3EndpointSupplier) {
+        String fixturesPath = FixtureUtils.pathRepoRootForFixtures(Clusters.class);
+        return EsqlDataSourceMixedClusterTestSupport.mixedCluster(
+            () -> fixturesPath,
+            builder -> builder.module("repository-s3")
+                .module("repository-gcs")
+                .setting("xpack.security.enabled", "false")
+                .setting("xpack.license.self_generated.type", "trial")
+                .setting("xpack.ml.enabled", "false")
+                .setting("path.repo", fixturesPath)
+                .setting("s3.client.default.endpoint", s3EndpointSupplier)
+                .keystore("s3.client.default.access_key", ACCESS_KEY)
+                .keystore("s3.client.default.secret_key", SECRET_KEY)
+                .setting("s3.client.default.protocol", "http")
+                .environment("AWS_CONFIG_FILE", "/dev/null/aws/config")
+                .environment("AWS_SHARED_CREDENTIALS_FILE", "/dev/null/aws/credentials")
+                .jvmArg("--add-opens=java.base/java.nio=ALL-UNNAMED")
+                .jvmArg("-Darrow.allocation.manager.type=Unsafe")
+                .feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES_LOCAL)
+                .feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES_HTTP)
+                .feature(FeatureFlag.ESQL_EXTERNAL_GCS)
+                .feature(FeatureFlag.ESQL_EXTERNAL_AZURE),
+            (node, version, current) -> {}
+        );
+    }
+
+    /**
      * Encryption-enabled variant of {@link #testCluster(Supplier)} for suites that register data sources
      * carrying secret settings and then read them back via {@code FROM <dataset>}. Registering such a data
      * source encrypts the secrets, which requires an installed project encryption key; without
@@ -130,5 +163,15 @@ public class Clusters {
      */
     public static ElasticsearchCluster testClusterWithEncryption(Supplier<String> s3EndpointSupplier) {
         return testCluster(s3EndpointSupplier, DATASET_ENCRYPTION_CONFIG);
+    }
+
+    /**
+     * A non-shared variant of {@link #testClusterWithEncryption(Supplier)} whose parent circuit breaker sums the child
+     * breakers' reservations instead of measuring real heap usage. That makes the parent breaker deterministic, so a suite
+     * can lower {@code indices.breaker.total.limit} just enough for a specific read to trip it.
+     */
+    public static ElasticsearchCluster reservationParentBreakerTestClusterWithEncryption(Supplier<String> s3EndpointSupplier) {
+        return clusterBuilder(s3EndpointSupplier, DATASET_ENCRYPTION_CONFIG).setting("indices.breaker.total.use_real_memory", "false")
+            .build();
     }
 }

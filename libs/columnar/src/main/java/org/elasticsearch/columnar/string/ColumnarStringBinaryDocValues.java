@@ -31,21 +31,29 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
 
     private final StringColumnReader reader;
     private final ColumnIterator iterator;
+    private final boolean singleValued;
     private final StringBinaryPayload.Builder payload = new StringBinaryPayload.Builder();
 
-    public ColumnarStringBinaryDocValues(StringColumnReader reader, ColumnIterator iterator) {
+    public ColumnarStringBinaryDocValues(StringColumnReader reader, ColumnIterator iterator, boolean singleValued) {
         this.reader = reader;
         this.iterator = iterator;
+        this.singleValued = singleValued;
     }
 
     /**
      * The document's slots, re-encoded as the {@link StringBinaryPayload} they arrived as. Rebuilt from the
      * column rather than stored, so the bytes are equal to what the mapper wrote without ever having been
      * kept in that form.
+     *
+     * <p>When the column was written with {@code singleValued = true} the blob is the raw value bytes —
+     * no count prefix, no framing — exactly as {@code BinaryDocValuesFormat.PLAIN} specifies.
      */
     @Override
     public BytesRef binaryValue() throws IOException {
         final int rank = iterator.rank();
+        if (singleValued) {
+            return reader.valueAt(reader.firstValueAddress(rank));
+        }
         final long first = reader.firstValueAddress(rank);
         final long count = reader.valueCount(rank);
         payload.reset();
@@ -63,8 +71,47 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
     }
 
     @Override
+    public boolean singleValued() {
+        return singleValued;
+    }
+
+    @Override
     public BytesRef extreme(boolean max, BytesRef dst) throws IOException {
         return reader.extreme(iterator.rank(), max, dst);
+    }
+
+    @Override
+    public int nonNullValueCount() throws IOException {
+        final int rank = iterator.rank();
+        final long first = reader.firstValueAddress(rank);
+        final long count = reader.valueCount(rank);
+        int found = 0;
+        for (long i = 0; i < count; i++) {
+            if (reader.isNullSlot(first + i) == false) {
+                found++;
+            }
+        }
+        return found;
+    }
+
+    @Override
+    public int slotCount() throws IOException {
+        return Math.toIntExact(reader.valueCount(iterator.rank()));
+    }
+
+    /** The document {@link #firstAddress} was looked up for, so reading its slots does not look it up again. */
+    private int firstAddressRank = -1;
+    private long firstAddress;
+
+    @Override
+    public BytesRef slotAt(int slot) throws IOException {
+        final int rank = iterator.rank();
+        if (rank != firstAddressRank) {
+            // Held so that reading a document's slots one at a time costs one address lookup, not one a slot.
+            firstAddressRank = rank;
+            firstAddress = reader.firstValueAddress(rank);
+        }
+        return reader.valueAt(firstAddress + slot);
     }
 
     @Override
@@ -86,6 +133,26 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
             dst.bytes = value.bytes;
             dst.offset = value.offset;
             dst.length = value.length;
+        }
+        return found;
+    }
+
+    @Override
+    public int nonNullLength(int[] length) throws IOException {
+        final int rank = iterator.rank();
+        final long first = reader.firstValueAddress(rank);
+        final long count = reader.valueCount(rank);
+        int found = 0;
+        for (long i = 0; i < count; i++) {
+            final long address = first + i;
+            if (reader.isNullSlot(address)) {
+                continue;
+            }
+            if (++found > 1) {
+                // As with the values: the caller wants the arity, and has it the moment there are two.
+                return 2;
+            }
+            length[0] = reader.byteLengthAt(address);
         }
         return found;
     }
@@ -113,6 +180,11 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
     @Override
     public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
         iterator.intoBitSet(upTo, bitSet, offset);
+    }
+
+    @Override
+    public int docIDRunEnd() throws IOException {
+        return iterator.docIDRunEnd();
     }
 
     @Override
@@ -150,7 +222,7 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
             @Override
             public int nullCount() throws IOException {
                 // Whichever layout this is, only what already says which slots are null is touched: the
-                // null-slot table, or the ordinals. The values themselves are never decoded.
+                // lengths, or the ordinals. The values themselves are never decoded.
                 int nulls = 0;
                 for (long i = 0; i < count; i++) {
                     if (reader.isNullSlot(first + i)) {
@@ -185,6 +257,11 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
             }
 
             @Override
+            public int valueLength() throws IOException {
+                return reader.isNullSlot(at) ? -1 : reader.byteLengthAt(at);
+            }
+
+            @Override
             public int docID() {
                 return iterator.docID();
             }
@@ -204,7 +281,7 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
                 return iterator.cost();
             }
 
-            private int position(int doc) {
+            private int position(int doc) throws IOException {
                 if (doc != DocIdSetIterator.NO_MORE_DOCS) {
                     int rank = iterator.rank();
                     first = reader.firstValueAddress(rank);
@@ -212,6 +289,58 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
                     upto = 0;
                 }
                 return doc;
+            }
+        };
+    }
+
+    /**
+     * Wraps a foreign {@link BinaryDocValues} as a write-path cursor treating each document's blob as its
+     * own raw value — one non-null slot, no count prefix. Used for {@code BinaryDocValuesFormat.PLAIN} fields
+     * on the ingest path and as the merge fallback for foreign segments of the same format.
+     */
+    public static StringColumnValues decodeRawValues(BinaryDocValues binary) {
+        return new StringColumnValues() {
+
+            private BytesRef slot;
+
+            @Override
+            public int valueCount() {
+                return 1;
+            }
+
+            @Override
+            public int nullCount() {
+                return 0;
+            }
+
+            @Override
+            public void nextValue() throws IOException {
+                slot = binary.binaryValue();
+            }
+
+            @Override
+            public BytesRef value() {
+                return slot;
+            }
+
+            @Override
+            public int docID() {
+                return binary.docID();
+            }
+
+            @Override
+            public int nextDoc() throws IOException {
+                return binary.nextDoc();
+            }
+
+            @Override
+            public int advance(int target) throws IOException {
+                return binary.advance(target);
+            }
+
+            @Override
+            public long cost() {
+                return binary.cost();
             }
         };
     }

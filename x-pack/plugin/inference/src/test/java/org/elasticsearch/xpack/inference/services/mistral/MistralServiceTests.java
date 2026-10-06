@@ -25,6 +25,7 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceConfigurationTests;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -1106,6 +1107,11 @@ public class MistralServiceTests extends InferenceServiceTestCase {
                        "service": "mistral",
                        "name": "Mistral",
                        "task_types": ["text_embedding", "completion", "chat_completion"],
+                       "features": {
+                           "non_streaming_chat": {
+                               "supported": true
+                           }
+                       },
                        "configurations": {
                            "api_key": {
                                "description": "API Key for the provider you're connecting to.",
@@ -1146,7 +1152,7 @@ public class MistralServiceTests extends InferenceServiceTestCase {
                        }
                    }
                 """);
-            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+            InferenceServiceConfiguration configuration = InferenceServiceConfigurationTests.fromXContentBytes(
                 new BytesArray(content),
                 XContentType.JSON
             );

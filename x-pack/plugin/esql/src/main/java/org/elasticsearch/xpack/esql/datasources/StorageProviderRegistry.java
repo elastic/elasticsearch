@@ -78,8 +78,11 @@ public class StorageProviderRegistry implements Closeable {
     @Nullable
     private final DataSourceCredentials credentials;
     private final int throttleMaxRetryDurationSeconds;
-    /** Per-node in-flight-read permit count sizing each per-scheme {@link ConcurrencyLimiter}; 0 disables limiting. */
-    private final int maxConcurrentRequests;
+    /**
+     * Per-node blob-store concurrency (permit count and whether the setting can raise it). Shared across
+     * schemes; 0 permits disables limiting.
+     */
+    private final ExternalSourceSettings.BlobStoreConcurrency concurrency;
     /** Schedules async read-retry continuations off a timer; {@code DIRECT} (no ThreadPool) in tests. */
     private final RetryScheduler retryScheduler;
     /**
@@ -132,7 +135,7 @@ public class StorageProviderRegistry implements Closeable {
         this.retryScheduler = retryScheduler != null ? retryScheduler : RetryScheduler.DIRECT;
         this.throttleMaxRetryDurationSeconds = ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(this.settings);
         this.localFileAccess = localFileAccess != null ? localFileAccess : LocalFileAccess.UNRESTRICTED;
-        this.maxConcurrentRequests = ExternalSourceSettings.blobStoreConcurrency(this.settings);
+        this.concurrency = ExternalSourceSettings.blobStoreConcurrencyInfo(this.settings);
     }
 
     public void registerFactory(String scheme, StorageProviderFactory factory) {
@@ -188,16 +191,34 @@ public class StorageProviderRegistry implements Closeable {
     }
 
     /**
+     * Returns the {@link StorageProviderFactory} registered for {@code scheme}, or {@code null} if none is registered.
+     * Intended for use by {@code DataSourceModule.testConnection}.
+     */
+    @Nullable
+    public StorageProviderFactory getFactory(String scheme) {
+        if (Strings.isNullOrEmpty(scheme)) {
+            return null;
+        }
+        return factories.get(scheme.toLowerCase(Locale.ROOT));
+    }
+
+    /**
      * Framework-level WITH keys that are consumed by {@link FileSourceFactory} / format readers
      * and must not be forwarded to storage provider configurations. References the canonical
      * constants so adding/renaming a framework option in one place updates the filter here too.
+     * <p>
+     * {@link DefinitionVersion#CONFIG_KEY} is here because the provider cache keys on the whole
+     * config map: left in, it would fragment the client pool per dataset, since the version differs
+     * whenever any part of a dataset's definition does while the credentials the provider is built
+     * from may be identical.
      */
     static final Set<String> FRAMEWORK_KEYS = Set.of(
         FormatNameResolver.CONFIG_FORMAT,
         FormatNameResolver.CONFIG_READER,
         ErrorPolicy.CONFIG_MAX_ERRORS,
         ErrorPolicy.CONFIG_MAX_ERROR_RATIO,
-        ErrorPolicy.CONFIG_ERROR_MODE
+        ErrorPolicy.CONFIG_ERROR_MODE,
+        DefinitionVersion.CONFIG_KEY
     );
 
     /**
@@ -253,7 +274,12 @@ public class StorageProviderRegistry implements Closeable {
         try {
             return configuredProviderCache.getOrCreate(cacheKey, () -> {
                 Configured<StorageProvider> raw = factory.createTrackingConsumedKeys(settings, storageConfig);
-                return new Configured<>(wrapProvider(raw.value(), normalizedScheme), raw.consumedKeys());
+                return new Configured<>(
+                    wrapProvider(raw.value(), normalizedScheme),
+                    raw.consumedKeys(),
+                    raw.identity(),
+                    raw.secretIdentity()
+                );
             });
         } catch (RuntimeException e) {
             throw e;
@@ -309,16 +335,16 @@ public class StorageProviderRegistry implements Closeable {
      * single query cannot starve others on the same backend.
      */
     public ConcurrencyBudgetAllocator allocatorForScheme(String scheme) {
-        if ("file".equals(scheme) || maxConcurrentRequests <= 0) {
+        if ("file".equals(scheme) || concurrency.permits() <= 0) {
             return null;
         }
-        return allocators.computeIfAbsent(scheme, k -> new ConcurrencyBudgetAllocator(maxConcurrentRequests));
+        return allocators.computeIfAbsent(scheme, k -> new ConcurrencyBudgetAllocator(concurrency.permits()));
     }
 
-    private ConcurrencyLimiter limiterForScheme(String scheme) {
+    ConcurrencyLimiter limiterForScheme(String scheme) {
         return limiters.computeIfAbsent(
             scheme,
-            k -> maxConcurrentRequests <= 0 ? ConcurrencyLimiter.UNLIMITED : new ConcurrencyLimiter(maxConcurrentRequests)
+            k -> concurrency.permits() <= 0 ? ConcurrencyLimiter.UNLIMITED : new ConcurrencyLimiter(k, concurrency)
         );
     }
 

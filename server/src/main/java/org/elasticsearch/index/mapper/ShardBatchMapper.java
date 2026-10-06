@@ -118,17 +118,18 @@ public final class ShardBatchMapper {
             return null;
         }
 
-        for (MetadataFieldMapper mapper : lookup.getMapping().getSortedMetadataMappers()) {
-            if (mapper.supportsColumnarMetadataParse(indexSettings) == false) {
-                logger.debug(
-                    "columnar batch mapping disabled: metadata mapper of type [{}] does not support columnar parsing",
-                    mapper.typeName()
-                );
-                return null;
-            }
+        final MetadataFieldMapper[] metadataMappers = lookup.getMapping().getSortedMetadataMappers();
+
+        // An empty metadata mapper array means the index has not yet received its first mapping — the
+        // initial cluster-state mapping was null, so MapperService.mappingLookup() returned EMPTY. We
+        // cannot determine columnar eligibility without metadata mappers (e.g. SourceFieldMapper governs
+        // whether stored _source is compatible), so fall back to the sequential path.
+        if (metadataMappers.length == 0) {
+            logger.debug("batch indexing disabled: mapping not yet established (no metadata mappers)");
+            return null;
         }
 
-        for (MetadataFieldMapper mapper : lookup.getMapping().getSortedMetadataMappers()) {
+        for (MetadataFieldMapper mapper : metadataMappers) {
             if (mapper.supportsColumnarMetadataParse(indexSettings) == false) {
                 logger.debug(
                     "columnar batch mapping disabled: metadata mapper of type [{}] does not support columnar parsing",
@@ -435,6 +436,39 @@ public final class ShardBatchMapper {
                         groupColumns[i] = escfChunk.column(leafIndexes[i]);
                     }
                     group.mapper().mapColumnGroupBatch(context, groupColumns, group.relativeKeys());
+                }
+                // Enforce nullability=false for fields absent from the ESCF schema. Fields that
+                // are present in the schema but carry null/absent values are checked by
+                // FieldMapper.mapColumnBatch(); this block covers the remaining case where the
+                // field produced no column at all because every document in the batch omitted it.
+                if (mappingLookup.hasRequiredFields()) {
+                    final SourceSchema escfSchema = escfChunk.schema();
+                    final HashSet<String> schemaLeafPaths = new HashSet<>(escfSchema.leafCount() * 2);
+                    for (int c = 0; c < escfSchema.leafCount(); c++) {
+                        schemaLeafPaths.add(escfSchema.getFullPath(c));
+                    }
+                    final int batchDocCount = chunkEnd - chunkStart;
+                    // TODO: requiredFields("") returns only top-level required fields. This is
+                    // currently safe because resolveMappers() returns null for any mapping that
+                    // contains nested fields, so nested batches never reach this code. When batch
+                    // support is extended to nested fields, this will need to handle nested required
+                    // fields as well.
+                    for (String fieldName : mappingLookup.requiredFields("")) {
+                        if (schemaLeafPaths.contains(fieldName) == false) {
+                            final Mapper m = mappingLookup.getMapper(fieldName);
+                            assert m instanceof FieldMapper : "required field [" + fieldName + "] must be a FieldMapper";
+                            final FieldMapper fieldMapper = (FieldMapper) m;
+                            if (fieldMapper.onFailureBehavior() == FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE) {
+                                for (int doc = 0; doc < batchDocCount; doc++) {
+                                    context.addIgnoredFieldColumnar(doc, fieldName);
+                                }
+                            } else {
+                                throw new UnsupportedOperationException(
+                                    "mapColumnBatch: nullability=false field [" + fieldName + "] is absent from the ESCF schema"
+                                );
+                            }
+                        }
+                    }
                 }
             } else {
                 throw new IllegalStateException("unexpected batch mapping - only use escf currently");

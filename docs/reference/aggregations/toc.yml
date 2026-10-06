@@ -54,6 +54,7 @@ toc:
       - file: search-aggregations-metrics-percentile-rank-aggregation.md
       - file: search-aggregations-metrics-percentile-aggregation.md
       - file: search-aggregations-metrics-rate-aggregation.md
+      - file: search-aggregations-metrics-roaring-bitmap-aggregation.md
       - file: search-aggregations-metrics-scripted-metric-aggregation.md
       - file: search-aggregations-metrics-stats-aggregation.md
       - file: search-aggregations-metrics-string-stats-aggregation.md

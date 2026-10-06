@@ -148,6 +148,29 @@ public class TargetIndexTests extends ESTestCase {
         assertThat(index.namespace(), equalTo("default"));
     }
 
+    public void testExemplarsTarget() {
+        TargetIndex metrics = TargetIndex.evaluate("metrics", List.of(), null, List.of(), List.of());
+
+        TargetIndex exemplars = metrics.exemplarsTarget();
+
+        assertThat(exemplars.index(), equalTo("exemplars-generic.otel-default"));
+        assertThat(exemplars.type(), equalTo("exemplars"));
+        assertThat(exemplars.dataset(), equalTo("generic.otel"));
+        assertThat(exemplars.namespace(), equalTo("default"));
+    }
+
+    public void testExplicitIndexHasNoExemplarsTarget() {
+        TargetIndex index = TargetIndex.evaluate(
+            "metrics",
+            List.of(createStringAttribute("elasticsearch.index", "custom-index")),
+            null,
+            List.of(),
+            List.of()
+        );
+
+        assertThat(index.exemplarsTarget(), nullValue());
+    }
+
     public void testDataStreamSanitization() {
         List<KeyValue> attributes = List.of(
             createStringAttribute("data_stream.dataset", "Some-Dataset"),

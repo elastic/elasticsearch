@@ -436,7 +436,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(DocumentParserContext context) throws IOException {
-        SourceToParse.Source sourceObject = context.sourceToParse().source();
+        DocumentSource sourceObject = context.sourceToParse().source();
         XContentType contentType = sourceObject.xContentType();
         final boolean recoverySourceEnabled = context.indexSettings().isRecoverySourceEnabled();
         final boolean syntheticRecovery = recoverySourceEnabled && context.indexSettings().isRecoverySourceSyntheticEnabled();
@@ -641,10 +641,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         final int docCount = context.docCount();
         final byte[] sizes = new byte[docCount * 8];
-        final XContentType[] contentTypes = context.contentTypes();
         final BytesReference[] sources = context.sources();
         for (int d = 0; d < docCount; d++) {
-            ByteUtils.writeLongLE(SourceToParse.Source.fromBytes(sources[d], contentTypes[d]).estimatedSizeInBytes(), sizes, d * 8);
+            ByteUtils.writeLongLE(sources[d] == null ? 0 : sources[d].length(), sizes, d * 8);
         }
         context.addColumn(
             MappedColumns.longColumn(

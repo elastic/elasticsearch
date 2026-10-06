@@ -21,12 +21,12 @@ public class StringScriptFieldData extends BinaryScriptFieldData {
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final StringFieldScript.LeafFactory leafFactory;
-        protected final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
+        protected final ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory;
 
         public Builder(
             String name,
             StringFieldScript.LeafFactory leafFactory,
-            ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory
+            ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory
         ) {
             this.name = name;
             this.leafFactory = leafFactory;
@@ -40,12 +40,12 @@ public class StringScriptFieldData extends BinaryScriptFieldData {
     }
 
     private final StringFieldScript.LeafFactory leafFactory;
-    protected final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
+    protected final ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory;
 
     private StringScriptFieldData(
         String fieldName,
         StringFieldScript.LeafFactory leafFactory,
-        ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory
+        ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory
     ) {
         super(fieldName);
         this.leafFactory = leafFactory;
@@ -62,7 +62,7 @@ public class StringScriptFieldData extends BinaryScriptFieldData {
             }
 
             @Override
-            public SortedBinaryDocValues getBytesValues() {
+            public SortableBinaryDocValues getBytesValues() {
                 return new StringScriptDocValues(script);
             }
         };

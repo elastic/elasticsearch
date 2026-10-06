@@ -67,7 +67,6 @@ class GradleApiUsageArchUnitSpec extends AbstractArchUnitSpec {
         "org.elasticsearch.gradle.internal.test.rest.CopyRestTestsTask",
         "org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin",
         "org.elasticsearch.gradle.internal.test.rest.compat.compat.AbstractYamlRestCompatTestPlugin",
-        "org.elasticsearch.gradle.internal.test.rest.compat.compat.LegacyYamlRestCompatTestPlugin",
         "org.elasticsearch.gradle.internal.test.rest.compat.compat.RestCompatTestTransformTask",
         "org.elasticsearch.gradle.internal.test.rest.compat.compat.YamlRestCompatTestPlugin",
         "org.elasticsearch.gradle.internal.util.ports.AvailablePortAllocator",

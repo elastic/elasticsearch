@@ -10,15 +10,10 @@ package org.elasticsearch.xpack.esql.session;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
-import org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException;
-import org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
@@ -30,10 +25,8 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.Cluster;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -71,42 +64,6 @@ public class EsqlCCSUtils {
             }
         }
         return unavailableRemotes;
-    }
-
-    /**
-     * ActionListener that receives LogicalPlan or error from logical planning.
-     * Any Exception sent to onFailure stops processing, but not all are fatal (return a 4xx or 5xx), so
-     * the onFailure handler determines whether to return an empty successful result or a 4xx/5xx error.
-     */
-    abstract static class CssPartialErrorsActionListener implements ActionListener<Versioned<LogicalPlan>> {
-        private final Configuration configuration;
-        private final EsqlExecutionInfo executionInfo;
-        private final ActionListener<Versioned<Result>> listener;
-
-        CssPartialErrorsActionListener(
-            Configuration configuration,
-            EsqlExecutionInfo executionInfo,
-            ActionListener<Versioned<Result>> listener
-        ) {
-            this.configuration = configuration;
-            this.executionInfo = executionInfo;
-            this.listener = listener;
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            if (returnSuccessWithEmptyResult(executionInfo, e)) {
-                updateExecutionInfoToReturnEmptyResult(executionInfo, e);
-                listener.onResponse(
-                    new Versioned<>(
-                        new Result(Analyzer.NO_FIELDS, List.of(), Map.of(), configuration, DriverCompletionInfo.EMPTY, executionInfo, null),
-                        TransportVersion.current()
-                    )
-                );
-            } else {
-                listener.onFailure(e);
-            }
-        }
     }
 
     /**
@@ -211,38 +168,6 @@ public class EsqlCCSUtils {
             } else {
                 throw e;
             }
-        }
-    }
-
-    /**
-     * Check per-cluster failures for remote view errors thrown by remote clusters during field resolution. A view is not
-     * remotable, so such an error must fail the entire query regardless of whether other clusters succeeded.
-     * <p>
-     * Views matched on several clusters are collected in a single pass and reported together, so a query that reaches a
-     * view on more than one of them names all of them at once rather than whichever was iterated first.
-     * <p>
-     * The aggregate carries an empty dataset list: a dataset on another cluster is invisible rather than an error, so
-     * nothing can put one here. Since #157726 this coordinator does not ask a remote to resolve its views either, so
-     * the views half is defensive in the same way. What can still reach it is a remote answering a coordinator old
-     * enough to ask, which is the whole of what either half now reports.
-     */
-    static void checkForRemoteResourceErrors(Map<String, List<FieldCapabilitiesFailure>> failures) {
-        List<String> views = new ArrayList<>();
-        for (var entry : failures.entrySet()) {
-            for (FieldCapabilitiesFailure failure : entry.getValue()) {
-                Throwable cause = ExceptionsHelper.unwrapCause(failure.getException());
-                // The aggregate is read defensively rather than because anything can send one. A remote only ever
-                // reported datasets when the request asked it to, and this coordinator never asks, so no peer can take
-                // its dataset branch. If an aggregate arrives anyway, only its views half can be acted on here.
-                if (cause instanceof RemoteResourceNotSupportedException resourceEx) {
-                    views.addAll(resourceEx.views());
-                } else if (cause instanceof RemoteViewNotSupportedException viewEx) {
-                    views.addAll(viewEx.views());
-                }
-            }
-        }
-        if (views.isEmpty() == false) {
-            throw new RemoteResourceNotSupportedException(views, List.of());
         }
     }
 
@@ -376,6 +301,7 @@ public class EsqlCCSUtils {
     static void updateExecutionInfoAtEndOfPlanning(EsqlExecutionInfo execInfo) {
         // TODO: this logic assumes a single phase execution model, so it may need to altered once INLINE STATS is made CCS compatible
         execInfo.queryProfile().planning().stop();
+        execInfo.queryProfile().foldResolutionIo(execInfo.externalPlanning());
         if (execInfo.isCrossClusterSearch() || execInfo.includeExecutionMetadata() == EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS) {
             for (String clusterAlias : execInfo.clusterAliases()) {
                 EsqlExecutionInfo.Cluster cluster = execInfo.getCluster(clusterAlias);

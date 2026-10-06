@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -44,9 +45,23 @@ public class FormatReaderRegistry {
     private final Map<String, Supplier<FormatReader>> byName = new ConcurrentHashMap<>();
     private final Map<String, Supplier<FormatReader>> byExtension = new ConcurrentHashMap<>();
     private final DecompressionCodecRegistry codecRegistry;
+    private volatile int maxDecompressionRatio = ExternalSourceSettings.MAX_DECOMPRESSION_RATIO.getDefault(Settings.EMPTY);
+    private volatile int maxDecompressionRatioZstd = ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD.getDefault(Settings.EMPTY);
 
     public FormatReaderRegistry(DecompressionCodecRegistry codecRegistry) {
         this.codecRegistry = codecRegistry;
+    }
+
+    public void setMaxDecompressionRatio(int ratio) {
+        this.maxDecompressionRatio = ratio;
+    }
+
+    public void setMaxDecompressionRatioZstd(int ratio) {
+        this.maxDecompressionRatioZstd = ratio;
+    }
+
+    private int maxDecompressionRatio(DecompressionCodec codec) {
+        return "zstd".equals(codec.name()) ? maxDecompressionRatioZstd : maxDecompressionRatio;
     }
 
     public void registerLazy(String formatName, FormatReaderFactory factory, Settings settings, BlockFactory blockFactory) {
@@ -188,6 +203,34 @@ public class FormatReaderRegistry {
     }
 
     /**
+     * Format name claimed by {@code objectName}'s inner extension, with a compression suffix stripped.
+     * Does not wrap a codec or instantiate the reader, so a whole-file-compression veto cannot throw.
+     * Returns {@code null} when the name is empty or the inner extension is unregistered.
+     */
+    @Nullable
+    public String formatNameForObject(String objectName) {
+        if (Strings.isNullOrEmpty(objectName)) {
+            return null;
+        }
+        String name = objectName;
+        if (codecRegistry != null) {
+            String stripped = codecRegistry.stripCompressionSuffix(name);
+            if (stripped != null) {
+                name = stripped;
+            }
+        }
+        String extension = trailingExtension(name);
+        if (extension == null) {
+            return null;
+        }
+        Supplier<FormatReader> supplier = byExtension.get(extension);
+        if (supplier == null) {
+            return null;
+        }
+        return byName.entrySet().stream().filter(e -> e.getValue() == supplier).map(Map.Entry::getKey).findFirst().orElse(null);
+    }
+
+    /**
      * @param objectName   the name being resolved; the compound-extension branch strips it down as it recurses
      * @param originalName  the name the CALLER asked about, carried through untouched. Failures must report it and
      *                      not the stripped intermediate, which names a file that does not exist and would give the
@@ -225,23 +268,6 @@ public class FormatReaderRegistry {
     }
 
     /**
-     * The single builder for "we cannot work out how to read this". Both the resolver's factory-selection
-     * failure and this registry's own extension lookup raise it, so one condition cannot produce two
-     * differently-worded answers depending on which layer caught it.
-     * <p>
-     * It lives here because this registry owns the vocabulary AND the claiming decision: {@code canHandle}
-     * consults {@link #hasExtension}/{@link #hasFormat}, i.e. these very maps. Sourcing the message from
-     * {@link DataSourceCapabilities} instead would let it disagree with what actually claims — capabilities is
-     * built from {@code FormatSpec} declarations alone, so an extension a reader declares only via
-     * {@code FormatReader#fileExtensions()} would be absent from it while this registry, and therefore
-     * {@code canHandle}, honours it. Sourcing the message from the claiming maps means such a reader
-     * cannot make the advice lie.
-     *
-     * @param displayPath what the user asked for, quoted back to them — the full location on the resolver
-     *                    path, the object name here
-     * @param objectName  the object name to diagnose the extension from
-     */
-    /**
      * Raised when {@link #byExtension} cannot map an object name to a reader (no extension, or an
      * extension the registry does not claim). Distinct from {@link #wrapWithCodec} vetoes, which are
      * also {@link IllegalArgumentException} but name a real format/codec incompatibility rather than
@@ -254,6 +280,22 @@ public class FormatReaderRegistry {
         }
     }
 
+    /**
+     * The single builder for "we cannot work out how to read this". Both the resolver's factory-selection
+     * failure and this registry's own extension lookup raise it, so one condition cannot produce two
+     * differently-worded answers depending on which layer caught it.
+     * <p>
+     * It lives here because this registry owns the vocabulary AND the claiming decision: {@code canHandle}
+     * consults {@link #hasExtension}/{@link #hasFormat}, i.e. these very maps. Sourcing the message from
+     * {@link DataSourceCapabilities} instead would let it disagree with what actually claims — capabilities is
+     * built from {@code FormatSpec} declarations alone, so an extension a reader declares only via
+     * {@code FormatReader#fileExtensions()} would be absent from it while this registry, and therefore
+     * {@code canHandle}, honours it. Sourcing the message from the claiming maps means such a reader
+     * cannot make the advice lie.
+     *
+     * @param displayPath quoted back to the user; never the full location, which the user may not be allowed to see
+     * @param objectName  the object name to diagnose the extension from
+     */
     UnreadableObjectException unreadableObject(String displayPath, String objectName) {
         return new UnreadableObjectException(
             "Cannot determine how to read ["
@@ -351,12 +393,34 @@ public class FormatReaderRegistry {
     }
 
     /**
+     * Wraps an already-configured reader with the compression codec implied by {@code objectName}, applying
+     * the same whole-file-compression veto and GA-codec gate as {@link #byNameForObject}. Returns {@code configured}
+     * unchanged when the name has no compression suffix. Unlike {@link #byNameForObject}, this does not allocate a
+     * fresh unconfigured inner — the caller must pass the configured instance the scan will actually use.
+     */
+    public FormatReader wrapForObject(FormatReader configured, String objectName) {
+        if (configured == null || codecRegistry == null || Strings.isNullOrEmpty(objectName)) {
+            return configured;
+        }
+        String extension = trailingExtension(objectName);
+        if (extension == null) {
+            return configured;
+        }
+        DecompressionCodec codec = codecRegistry.byExtension(extension);
+        if (codec == null) {
+            return configured;
+        }
+        return wrapWithCodec(configured, codec, extension, objectName);
+    }
+
+    /**
      * Applies the whole-file-compression veto and the release-build GA-codec gate, then wraps {@code inner}
      * in a {@link CompressionDelegatingFormatReader} for {@code codec}. Shared by {@link #byExtension(String)}
-     * (compound-extension inference) and {@link #byNameForObject(String, String)} (explicit format/reader
-     * override), so the two paths cannot diverge on which codecs/formats are compatible.
+     * (compound-extension inference), {@link #byNameForObject(String, String)} (explicit format/reader
+     * override), and {@link #wrapForObject(FormatReader, String)} (configured reader, per-file wrap),
+     * so the three paths cannot diverge on which codecs/formats are compatible.
      */
-    private static FormatReader wrapWithCodec(FormatReader inner, DecompressionCodec codec, String extension, String objectName) {
+    private FormatReader wrapWithCodec(FormatReader inner, DecompressionCodec codec, String extension, String objectName) {
         if (inner.supportsWholeFileCompression() == false) {
             throw new IllegalArgumentException(
                 "Format ["
@@ -376,7 +440,7 @@ public class FormatReaderRegistry {
                 "compression codec [" + codec.name() + "] is not supported; supported: uncompressed, gzip, zstd"
             );
         }
-        return new CompressionDelegatingFormatReader(inner, codec);
+        return new CompressionDelegatingFormatReader(inner, codec, () -> maxDecompressionRatio(codec));
     }
 
     /**

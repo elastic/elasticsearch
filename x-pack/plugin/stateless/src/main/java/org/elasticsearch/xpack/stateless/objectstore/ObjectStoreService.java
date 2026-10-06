@@ -12,7 +12,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.blobcache.BlobCacheUtils;
@@ -28,6 +27,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.ConcurrentMultipartHelper;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -44,7 +44,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
-import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.FixForMultiProject;
@@ -102,7 +101,6 @@ import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.function.BiFunction;
@@ -114,9 +112,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.parseGenerationFromBlobName;
+import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.startsWithBlobPrefix;
 import static org.elasticsearch.xpack.stateless.commits.BlobFileRanges.computeBlobFileRanges;
-import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.parseGenerationFromBlobName;
-import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.startsWithBlobPrefix;
 
 public class ObjectStoreService extends AbstractLifecycleComponent implements ClusterStateApplier {
 
@@ -909,7 +907,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         PrimaryTermAndGeneration blobTermAndGen,
         long maxBlobLength
     ) throws IOException {
-        var blobName = StatelessCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
+        var blobName = BatchedCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
         var blobReader = getBlobReader(directory, context, blobTermAndGen, maxBlobLength);
         return BatchedCompoundCommit.readFromStore(blobName, maxBlobLength, blobReader, true);
     }
@@ -942,7 +940,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         long maxBlobLength
     ) {
         assert directory.getBlobContainer(blobTermAndGen.primaryTerm()) != null;
-        var blobName = StatelessCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
+        var blobName = BatchedCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
         logger.trace(
             () -> format(
                 "%s reading blob [name=%s, length=%d]%s from object store using cache",
@@ -1258,49 +1256,30 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         assert projectResolver.supportsMultipleProjects() == false || assertShardsAreInSameProject(source, destination);
 
         var sourceShardContainer = getProjectBlobContainer(source);
-
         var blobContainersWithTerms = getContainersToSearch(sourceShardContainer, primaryTerm);
-        PlainActionFuture<Void> future = new PlainActionFuture<>();
+
+        record BlobCopyTask(BlobContainer src, BlobContainer dst, BlobMetadata blob) {}
+        final List<BlobCopyTask> tasks = new ArrayList<>();
+        for (var blobContainerWithTerm : blobContainersWithTerms) {
+            var sourceContainerForTerm = blobContainerWithTerm.v2();
+            Map<String, BlobMetadata> blobs = sourceContainerForTerm.listBlobs(OperationPurpose.INDICES);
+            var destinationContainerForTerm = getProjectBlobContainer(destination, blobContainerWithTerm.v1());
+            for (BlobMetadata blob : blobs.values()) {
+                tasks.add(new BlobCopyTask(sourceContainerForTerm, destinationContainerForTerm, blob));
+            }
+        }
+
         final Executor executor = threadPool.executor(StatelessPlugin.BLOB_COPY_THREAD_POOL);
-        try (var listeners = new RefCountingListener(future)) {
-            for (var blobContainerWithTerm : blobContainersWithTerms) {
-                var sourceContainerForTerm = blobContainerWithTerm.v2();
-                Map<String, BlobMetadata> blobs = sourceContainerForTerm.listBlobs(OperationPurpose.INDICES);
-                var destinationContainerForTerm = getProjectBlobContainer(destination, blobContainerWithTerm.v1());
-                for (BlobMetadata blob : blobs.values()) {
-                    executor.execute(ActionRunnable.run(listeners.acquire(), () -> {
-                        try {
-                            task.ensureNotCancelled();
-                            logger.debug(
-                                "CopyShard copying {} from {} to {}",
-                                blob.name(),
-                                sourceContainerForTerm.path(),
-                                destinationContainerForTerm.path()
-                            );
-                            destinationContainerForTerm.copyBlob(
-                                OperationPurpose.RESHARDING,
-                                sourceContainerForTerm,
-                                blob.name(),
-                                blob.name(),
-                                blob.length(),
-                                null
-                            );
-                        } catch (NoSuchFileException e) {
-                            logger.warn("missing blob during copyShard, assuming benign race [{}]", blob.name());
-                        }
-                    }));
-                }
+        ConcurrentMultipartHelper.runConcurrentTasks(tasks.size(), executor, i -> {
+            var t = tasks.get(i);
+            task.ensureNotCancelled();
+            logger.debug("CopyShard copying {} from {} to {}", t.blob().name(), t.src().path(), t.dst().path());
+            try {
+                t.dst().copyBlob(OperationPurpose.RESHARDING, t.src(), t.blob().name(), t.blob().name(), t.blob().length(), null);
+            } catch (NoSuchFileException e) {
+                logger.warn("missing blob during copyShard, assuming benign race [{}]", t.blob().name());
             }
-        }
-        try {
-            future.actionGet();
-        } catch (UncategorizedExecutionException uee) {
-            // FutureUtils.rethrowExecutionException only directly rethrows RuntimeException causes
-            if (uee.getCause() instanceof ExecutionException ee && ee.getCause() instanceof IOException ioe) {
-                throw ioe;
-            }
-            throw uee;
-        }
+        });
     }
 
     /**
@@ -1483,16 +1462,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
     private record ReferencedFilesAndMaxBlobOffset(long maxBlobOffset, Set<String> files) {}
 
-    private static void logLatestBcc(BatchedCompoundCommit latestBcc, BlobContainer blobContainer) {
-        if (logger.isTraceEnabled()) {
-            logger.trace(
-                "found latest CC in [{}]: {}",
-                blobContainer.path().buildAsString(),
-                latestBcc.lastCompoundCommit().toLongDescription()
-            );
-        }
-    }
-
     /**
      * Abstract class for commit and files upload tasks.
      *
@@ -1663,7 +1632,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         @Override
         public void skipNBytes(long n) throws LocalIOException {
             try {
-                delegate.skip(n);
+                delegate.skipNBytes(n);
             } catch (IOException e) {
                 throw new LocalIOException(e);
             }
@@ -1835,19 +1804,27 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         @Override
         public void onFailure(Exception e) {
             // Might be 100 files only log when debug enabled
+            final var level = lifecycle.started() ? Level.WARN : Level.DEBUG;
             if (logger.isDebugEnabled()) {
-                logger.warn(() -> format("exception while attempting to delete blob files [%s]", toDeleteInThisTask), e);
+                logger.log(level, () -> format("exception while attempting to delete blob files [%s]", toDeleteInThisTask), e);
             } else {
-                logger.warn("exception while attempting to delete blob files", e);
+                logger.log(level, () -> "exception while attempting to delete blob files", e);
             }
         }
 
         @Override
         public void onAfter() {
             translogDeleteSchedulePermit.release();
-            if (translogBlobsToDelete.isEmpty() == false && translogDeleteSchedulePermit.tryAcquire()) {
+            if (isRunning() && translogBlobsToDelete.isEmpty() == false && translogDeleteSchedulePermit.tryAcquire()) {
                 threadPool.executor(StatelessPlugin.TRANSLOG_THREAD_POOL).execute(new FileDeleteTask(blobContainer));
             }
+        }
+
+        @Override
+        public void onRejection(Exception e) {
+            assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
+            assert lifecycle.closed() : lifecycle;
+            // no need to retry or even log, we're shutting down
         }
 
         @Override

@@ -1,0 +1,5 @@
+area: TSDB
+issues: []
+pr: 159987
+summary: Reject Prometheus remote write 2.0 requests
+type: bug

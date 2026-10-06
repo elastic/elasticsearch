@@ -9,6 +9,12 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.InvertableType;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 
@@ -51,8 +57,113 @@ public class ColumnarBinaryDocValuesField extends MultiValuedBinaryDocValuesFiel
      */
     private final StringBinaryPayload.Builder payload = new StringBinaryPayload.Builder();
 
+    /**
+     * The type to report if this field ends the document holding no value, or {@code null} for a field whose values are not indexed.
+     * See {@link #fieldType()}.
+     */
+    IndexableFieldType typeWhenValueless;
+
     public ColumnarBinaryDocValuesField(String name, ValueOrdering ordering) {
         super(name, ordering);
+    }
+
+    /**
+     * The type a field of this kind reports for a document that holds no value, given the type its values are indexed with. It is
+     * the doc-values type plus the index options, norms and term vectors of {@code indexed} — the three Lucene keeps in a field's
+     * {@code FieldInfo} and compares across documents. Tokenized so that {@link #invertableType()} can invert it into nothing;
+     * neither that nor {@code stored} reaches {@code FieldInfo}.
+     *
+     * <p>Meant to be built once per mapper and reused, so documents taking this shape hand Lucene the same frozen type each time.
+     */
+    public static FieldType typeWhenValueless(FieldType indexed) {
+        final FieldType type = new FieldType();
+        type.setDocValuesType(DocValuesType.BINARY);
+        type.setIndexOptions(indexed.indexOptions());
+        type.setOmitNorms(indexed.omitNorms());
+        type.setStoreTermVectors(indexed.storeTermVectors());
+        if (indexed.storeTermVectors()) {
+            type.setStoreTermVectorPositions(indexed.storeTermVectorPositions());
+            type.setStoreTermVectorOffsets(indexed.storeTermVectorOffsets());
+            type.setStoreTermVectorPayloads(indexed.storeTermVectorPayloads());
+        }
+        type.setTokenized(true);
+        type.setStored(false);
+        type.freeze();
+        return type;
+    }
+
+    /**
+     * The doc-values type, or — for a document that turned out to hold no value under an indexed field — that type plus the index
+     * options its values would have carried.
+     *
+     * <p>The payload joins the document as soon as the field appears, so a document whose slots are all null carries the field
+     * without having indexed anything. Lucene builds a field's {@code FieldInfo} from the first document that has it and rejects any
+     * later document presenting it with different index options, so such a document has to state them itself. Lucene asks for the
+     * type while it indexes the document, by which point every value the document had is in, so the question is settled by then.
+     */
+    @Override
+    public IndexableFieldType fieldType() {
+        return typeWhenValueless != null && hasValue() == false ? typeWhenValueless : super.fieldType();
+    }
+
+    /**
+     * Inverted through {@link #tokenStream}, which yields nothing, rather than as the single term the payload bytes would otherwise
+     * be read as. The field is only ever inverted when it reports {@link #typeWhenValueless}, where there is nothing to index.
+     */
+    @Override
+    public InvertableType invertableType() {
+        return InvertableType.TOKEN_STREAM;
+    }
+
+    @Override
+    public TokenStream tokenStream(Analyzer analyzer, TokenStream reuse) {
+        return new EmptyTokenStream();
+    }
+
+    /** Produces no tokens, so the field is inverted into nothing. */
+    private static final class EmptyTokenStream extends TokenStream {
+        @Override
+        public boolean incrementToken() {
+            return false;
+        }
+    }
+
+    /**
+     * A field over a payload that is already encoded, for the batch path, which builds the bytes a column at a time rather than a
+     * slot at a time. Reports the same type for the same document as the row path would, so the two agree field for field.
+     *
+     * @param hasValue whether any of the encoded slots holds a value, which the caller knows from building them
+     */
+    public static ColumnarBinaryDocValuesField encoded(
+        String name,
+        BytesRef encoded,
+        boolean hasValue,
+        IndexableFieldType typeWhenValueless
+    ) {
+        final var field = new Encoded(name, encoded, hasValue);
+        field.typeWhenValueless = typeWhenValueless;
+        return field;
+    }
+
+    private static final class Encoded extends ColumnarBinaryDocValuesField {
+        private final BytesRef encoded;
+        private final boolean hasValue;
+
+        private Encoded(String name, BytesRef encoded, boolean hasValue) {
+            super(name, ValueOrdering.UNSORTED);
+            this.encoded = encoded;
+            this.hasValue = hasValue;
+        }
+
+        @Override
+        public BytesRef binaryValue() {
+            return encoded;
+        }
+
+        @Override
+        public boolean hasValue() {
+            return hasValue;
+        }
     }
 
     /**
@@ -61,6 +172,22 @@ public class ColumnarBinaryDocValuesField extends MultiValuedBinaryDocValuesFiel
      */
     public void addNull() {
         values.add(null);
+    }
+
+    /**
+     * Whether any slot holds a value, as opposed to the document having recorded nothing but nulls for the field. A document with a
+     * value indexed a term for it and so already carries the field's index options; one without states them itself, through
+     * {@link #fieldType()}.
+     *
+     * <p>Costs one pass over this document's slots, which is what the document wrote for this field.
+     */
+    public boolean hasValue() {
+        for (BytesRef value : values) {
+            if (value != null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -86,14 +213,23 @@ public class ColumnarBinaryDocValuesField extends MultiValuedBinaryDocValuesFiel
         getOrCreate(doc, fieldName, ordering).add(value);
     }
 
-    /** Records a {@code null} slot, preserving its position relative to the surrounding values. */
-    public static void recordNull(LuceneDocument doc, String fieldName) {
-        getOrCreate(doc, fieldName, ValueOrdering.UNSORTED).addNull();
+    /**
+     * Records a {@code null} slot, preserving its position relative to the surrounding values.
+     *
+     * @param typeWhenValueless from {@link #typeWhenValueless(FieldType)}, or {@code null} if the field's values are not indexed.
+     *                          Only consulted if the document ends up holding no value; a later value makes it moot.
+     */
+    public static void recordNull(LuceneDocument doc, String fieldName, IndexableFieldType typeWhenValueless) {
+        getOrCreate(doc, fieldName, ValueOrdering.UNSORTED, typeWhenValueless).addNull();
     }
 
-    /** Records an empty array: a payload holding a count of zero, which no other shape produces. */
-    public static void recordEmptyArray(LuceneDocument doc, String fieldName) {
-        getOrCreate(doc, fieldName, ValueOrdering.UNSORTED);
+    /**
+     * Records an empty array: a payload holding a count of zero, which no other shape produces.
+     *
+     * @param typeWhenValueless see {@link #recordNull}
+     */
+    public static void recordEmptyArray(LuceneDocument doc, String fieldName, IndexableFieldType typeWhenValueless) {
+        getOrCreate(doc, fieldName, ValueOrdering.UNSORTED, typeWhenValueless);
     }
 
     /**
@@ -103,11 +239,24 @@ public class ColumnarBinaryDocValuesField extends MultiValuedBinaryDocValuesFiel
      * to hold back for.
      */
     private static ColumnarBinaryDocValuesField getOrCreate(LuceneDocument doc, String fieldName, ValueOrdering ordering) {
-        return (ColumnarBinaryDocValuesField) doc.getOrAddWithKey(fieldName, key -> {
-            var field = new ColumnarBinaryDocValuesField(fieldName, ordering);
-            doc.add(field);
-            return field;
+        return getOrCreate(doc, fieldName, ordering, null);
+    }
+
+    private static ColumnarBinaryDocValuesField getOrCreate(
+        LuceneDocument doc,
+        String fieldName,
+        ValueOrdering ordering,
+        IndexableFieldType typeWhenValueless
+    ) {
+        var field = (ColumnarBinaryDocValuesField) doc.getOrAddWithKey(fieldName, key -> {
+            var created = new ColumnarBinaryDocValuesField(fieldName, ordering);
+            doc.add(created);
+            return created;
         });
+        if (typeWhenValueless != null) {
+            field.typeWhenValueless = typeWhenValueless;
+        }
+        return field;
     }
 
     /**

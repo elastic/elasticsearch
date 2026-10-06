@@ -243,15 +243,14 @@ public class ExternalNdJsonUnionByNameNumericWideningIT extends AbstractExternal
         assertThat(values.get(), hasSize(1));
         assertThat(values.get().get(0).get(0), equalTo(9007199254740994.0));
 
-        String pathA = StoragePath.ofLocalPath(dir.resolve("a.ndjson")).toString();
-        String pathB = StoragePath.ofLocalPath(dir.resolve("b.ndjson")).toString();
-        String summary = "Schema reconciliation widened long and double columns to double; integers above 2^53"
-            + " are not exact. Hint: use schema_resolution = \"strict\" to fail instead.";
-        String detailAb = "Column [v] widened to double: " + pathA + " (long), " + pathB + " (double); distinct types: [long, double]";
-        String detailBa = "Column [v] widened to double: " + pathB + " (double), " + pathA + " (long); distinct types: [double, long]";
-        List<String> reconciliation = warnings.stream()
-            .filter(w -> w.startsWith("Schema reconciliation") || w.startsWith("Column ["))
-            .toList();
+        // Named below the directory the files share: the warning reaches users who may not know the location.
+        String pathA = "a.ndjson";
+        String pathB = "b.ndjson";
+        String summary = "Columns mixing [long] and [double] across files are read as [double], losing precision above 2^53; "
+            + "set [schema_resolution] to [strict] to fail instead";
+        String detailAb = "column [v]: " + pathA + " (long), " + pathB + " (double); types [long, double]";
+        String detailBa = "column [v]: " + pathB + " (double), " + pathA + " (long); types [double, long]";
+        List<String> reconciliation = warnings.stream().filter(w -> w.startsWith("Columns mixing") || w.startsWith("column [v]:")).toList();
         assertThat(reconciliation, containsInAnyOrder(equalTo(summary), either(equalTo(detailAb)).or(equalTo(detailBa))));
     }
 }

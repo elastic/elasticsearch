@@ -155,6 +155,23 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
         assertThat(source.evaluate("data_stream.namespace"), equalTo("default"));
     }
 
+    /** Prometheus treats a label with an empty value as absent: the document carries no such label. A blank value is a value. */
+    public void testRemoteWriteDropsEmptyLabelValues() throws Exception {
+        long timestamp = System.currentTimeMillis();
+        String metricName = "test_empty_label_metric";
+
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(timeSeries(metricName, Map.of("job", "test_job", "missing", "", "blank", " "), sample(1.0, timestamp)))
+            .build();
+
+        sendAndAssertSuccess(writeRequest);
+
+        ObjectPath source = searchSingleDoc(metricName);
+        assertThat(source.evaluate("labels.job"), equalTo("test_job"));
+        assertThat(source.evaluate("labels.missing"), nullValue());
+        assertThat(source.evaluate("labels.blank"), equalTo(" "));
+    }
+
     public void testRemoteWriteIndexesCounterMetric() throws Exception {
         long timestamp = System.currentTimeMillis();
         String metricName = "http_requests_total";
@@ -232,6 +249,36 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
         List<Map<String, Object>> docs = searchDocs(metricName);
         assertThat("Only finite samples should be indexed", docs, hasSize(1));
         assertThat(new ObjectPath(docs.getFirst()).evaluate("metrics." + metricName), equalTo(42.5));
+    }
+
+    public void testRemoteWriteV2ContentTypeRejected() throws Exception {
+        String dataStream = "metrics-prwv2reject.prometheus-default";
+        Request request = new Request("POST", "/_prometheus/metrics/prwv2reject/api/v1/write");
+        request.setEntity(
+            new ByteArrayEntity(
+                snappyEncode(simpleWriteRequest("v2_rejected_metric").toByteArray()),
+                ContentType.parse("application/x-protobuf;proto=io.prometheus.write.v2.Request")
+            )
+        );
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.CONTENT_ENCODING, "snappy").build());
+        addWriteAuth(request);
+
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(415));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("io.prometheus.write.v2.request"));
+        assertFalse("PRW 2.0 content type must not be ingested as a 1.0 write", dataStreamExists(dataStream));
+    }
+
+    public void testRemoteWriteV1ExplicitProtoAccepted() throws Exception {
+        String metricName = "v1_explicit_proto_metric";
+        sendAndAssertSuccess(
+            simpleWriteRequest(metricName),
+            "/_prometheus/metrics/prwv1proto/api/v1/write",
+            ContentType.parse("application/x-protobuf;proto=prometheus.WriteRequest")
+        );
+
+        ObjectPath source = searchSingleDoc("metrics-prwv1proto.prometheus-default", metricName);
+        assertThat(source.evaluate("metrics." + metricName), equalTo(1.0));
     }
 
     public void testRemoteWriteMissingNameLabelReturns400() throws Exception {
@@ -392,8 +439,12 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
     }
 
     private void sendAndAssertSuccess(RemoteWrite.WriteRequest writeRequest, String endpoint) throws IOException {
+        sendAndAssertSuccess(writeRequest, endpoint, ContentType.create("application/x-protobuf"));
+    }
+
+    private void sendAndAssertSuccess(RemoteWrite.WriteRequest writeRequest, String endpoint, ContentType contentType) throws IOException {
         Request request = new Request("POST", endpoint);
-        request.setEntity(new ByteArrayEntity(snappyEncode(writeRequest.toByteArray()), ContentType.create("application/x-protobuf")));
+        request.setEntity(new ByteArrayEntity(snappyEncode(writeRequest.toByteArray()), contentType));
         request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.CONTENT_ENCODING, "snappy").build());
         addWriteAuth(request);
         Response response = client().performRequest(request);

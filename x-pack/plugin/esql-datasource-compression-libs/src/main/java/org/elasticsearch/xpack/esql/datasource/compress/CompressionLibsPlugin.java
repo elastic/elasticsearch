@@ -29,10 +29,9 @@ import org.elasticsearch.plugins.Plugin;
  * Iceberg should adopt it on their direct paths.
  *
  * <p><b>Why this is a named Java module.</b> Hosting {@code PanamaZstd} requires access to
- * the {@code org.elasticsearch.nativeaccess} package, which {@code libs/native} qualifies
- * to a curated list of named modules so that the surrounding native-access surface (process
- * limits, mlock, exec sandbox, systemd hooks, raw memory mapping) stays invisible to plugins
- * in general. Declaring this plugin as a named module ({@code org.elasticsearch.xpack.esql.datasource.compress})
+ * the {@code org.elasticsearch.zstd} package, which {@code libs/zstd} qualifies to a curated
+ * list of named modules so that the underlying native binding stays invisible to plugins in
+ * general. Declaring this plugin as a named module ({@code org.elasticsearch.xpack.esql.datasource.compress})
  * makes it addressable as a single new entry in that qualified-export list.
  *
  * <p>This class deliberately does <em>not</em> implement {@code DataSourcePlugin}. It registers

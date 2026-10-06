@@ -21,7 +21,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexClosedException;
-import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -33,7 +32,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenResponse;
-import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
@@ -61,7 +59,6 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
     private Client client;
     private SecurityIndexManager securityIndex;
     private ClusterService clusterService;
-    private MockLicenseState license;
     private SecurityContext securityContext;
     private MockBytesRefRecycler bytesRefRecycler;
 
@@ -75,8 +72,6 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
         when(client.settings()).thenReturn(SETTINGS);
         securityIndex = mock(SecurityIndexManager.class);
         this.clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        this.license = mock(MockLicenseState.class);
-        when(license.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);
         bytesRefRecycler = new MockBytesRefRecycler();
     }
 
@@ -93,7 +88,6 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
             SETTINGS,
             Clock.systemUTC(),
             client,
-            license,
             securityContext,
             securityIndex,
             securityIndex,
@@ -144,7 +138,6 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
             SETTINGS,
             Clock.systemUTC(),
             client,
-            license,
             securityContext,
             securityIndex,
             securityIndex,

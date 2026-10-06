@@ -11,11 +11,13 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.AbstractAccountableFieldsTestCase;
 
 import java.io.IOException;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class MappingMetadataRamBytesUsedTests extends AbstractAccountableFieldsTestCase {
@@ -46,6 +48,22 @@ public class MappingMetadataRamBytesUsedTests extends AbstractAccountableFieldsT
         MappingMetadata small = new MappingMetadata(CompressedXContent.fromJSON(randomMappingJson(1)));
         MappingMetadata large = new MappingMetadata(CompressedXContent.fromJSON(randomMappingJson(16)));
         assertThat(large.ramBytesUsed(), greaterThan(small.ramBytesUsed()));
+    }
+
+    @SuppressForbidden(reason = "reflectively inspects the private memoization field to verify caching")
+    public void testRamBytesUsedIsMemoized() throws Exception {
+        MappingMetadata mapping = new MappingMetadata(CompressedXContent.fromJSON(randomMappingJson(randomIntBetween(1, 16))));
+
+        var memoField = MappingMetadata.class.getDeclaredField("ramBytesUsed");
+        memoField.setAccessible(true);
+        assertThat(memoField.getLong(mapping), equalTo(-1L));
+
+        long computed = mapping.ramBytesUsed();
+        assertThat(computed, greaterThan(0L));
+        assertThat(memoField.getLong(mapping), equalTo(computed));
+
+        assertThat(mapping.ramBytesUsed(), equalTo(computed));
+        assertThat(memoField.getLong(mapping), equalTo(computed));
     }
 
     private static String randomMappingJson(int fieldCount) {

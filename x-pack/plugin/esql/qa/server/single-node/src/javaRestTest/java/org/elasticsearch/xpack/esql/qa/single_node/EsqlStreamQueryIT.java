@@ -468,9 +468,16 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         assertThat("_clusters must be present with include_execution_metadata=true", footer, hasKey("_clusters"));
         Map<String, Object> clusters = (Map<String, Object>) footer.get("_clusters");
         assertThat(clusters.get("total"), equalTo(1));
+        assertThat(clusters.get("successful"), equalTo(1));
+        assertThat(clusters.get("running"), equalTo(0));
+        assertThat(clusters.get("skipped"), equalTo(0));
+        assertThat(clusters.get("partial"), equalTo(0));
+        assertThat(clusters.get("failed"), equalTo(0));
         assertThat("details must be present", clusters, hasKey("details"));
         Map<String, Object> details = (Map<String, Object>) clusters.get("details");
         assertThat("local cluster entry must be present", details, hasKey("(local)"));
+        Map<String, Object> local = (Map<String, Object>) details.get("(local)");
+        assertThat(local.get("status"), equalTo("successful"));
     }
 
     public void testBothIncludeMetadataFlagsRejected() {

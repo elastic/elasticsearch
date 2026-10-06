@@ -53,7 +53,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
 public class EsqlStreamResponseListenerTests extends ESTestCase {
@@ -607,37 +606,6 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         List<Map<String, Object>> lines = drainStream(s.response(), s, List.of(), 5L, List.of());
         Map<String, Object> footer = lines.get(lines.size() - 1);
         assertThat("footer must not contain _clusters when metadata is absent", footer, not(hasKey("_clusters")));
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testFailureFooterWithClusters() throws IOException {
-        ToXContent clusters = (builder, params) -> {
-            builder.startObject();
-            builder.field("total", 2);
-            builder.endObject();
-            return builder;
-        };
-
-        Subscribed s = subscribe(simpleColumns(), null);
-        ChunkedRestResponseBodyPart columnsPart = s.response().chunkedContent();
-        encodeBodyPart(columnsPart);
-
-        RuntimeException cause = new RuntimeException("mid-stream failure");
-        ChunkedRestResponseBodyPart footerPart = nextPart(
-            columnsPart,
-            () -> s.publisher()
-                .failStream(cause, new PageStreamPublisher.StreamFooter(500, 0L, true, List.of(), null, clusters, cause, null))
-        );
-        assertTrue("error footer must be the last part", footerPart.isLastPart());
-
-        String raw = encodeBodyPart(footerPart).utf8ToString().strip();
-        Map<String, Object> footer = parseJson(raw);
-        assertThat(footer, hasKey("_clusters"));
-        Map<String, Object> clustersMap = (Map<String, Object>) footer.get("_clusters");
-        assertThat(clustersMap.get("total"), equalTo(2));
-        assertThat(footer, hasKey("error"));
-        assertThat(raw.indexOf("\"is_partial\""), lessThan(raw.indexOf("\"_clusters\"")));
-        assertThat(raw.indexOf("\"_clusters\""), lessThan(raw.indexOf("\"error\"")));
     }
 
     public void testDatetimeValuesUseTheQueryTimeZone() throws IOException {

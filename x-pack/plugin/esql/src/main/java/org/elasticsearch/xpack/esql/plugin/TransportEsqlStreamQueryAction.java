@@ -427,7 +427,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                             executionInfo.isPartial(),
                             footerWarnings(threadPool.getThreadContext(), DriverCompletionInfo.EMPTY),
                             null,
-                            footerClusters(executionInfo),
+                            null,
                             ex,
                             null
                         )

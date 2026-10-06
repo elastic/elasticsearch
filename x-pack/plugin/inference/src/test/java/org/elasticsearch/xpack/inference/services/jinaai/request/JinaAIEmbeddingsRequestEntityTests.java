@@ -29,7 +29,6 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.elasticsearch.inference.DataFormat.BASE64;
 import static org.elasticsearch.inference.DataFormat.URL;
-import static org.elasticsearch.inference.DataFormat.URL_INPUT_FORMAT_FEATURE_FLAG;
 import static org.elasticsearch.inference.DataType.AUDIO;
 import static org.elasticsearch.inference.DataType.IMAGE;
 import static org.elasticsearch.inference.DataType.PDF;
@@ -359,17 +358,14 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
     }
 
     public void testXContent_Multimodal_WritesImageUrl() throws IOException {
-        assumeTrue("URL input format feature flag is not enabled", URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled());
         testXContent_Multimodal(IMAGE, URL, "https://example.com/image.png", "image");
     }
 
     public void testXContent_Multimodal_WritesAudioUrl() throws IOException {
-        assumeTrue("URL input format feature flag is not enabled", URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled());
         testXContent_Multimodal(AUDIO, URL, "https://example.com/audio.mp3", "audio");
     }
 
     public void testXContent_Multimodal_WritesVideoUrl() throws IOException {
-        assumeTrue("URL input format feature flag is not enabled", URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled());
         testXContent_Multimodal(VIDEO, URL, "https://example.com/video.mp4", "video");
     }
 

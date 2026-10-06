@@ -89,6 +89,10 @@ teardown:
   - match: { \.ai-index-idx-foo.mappings.dynamic: strict }
   # The implicit privilege provider's DLS filter requires this to be `nested`.
   - match: { \.ai-index-idx-foo.mappings.properties.permissions.properties.kibana.properties.privileges.type: nested }
+  # Flat copies of the nested leaves, readable from ES|QL.
+  - match: { \.ai-index-idx-foo.mappings.properties.permissions.properties.kibana.properties.privileges.properties.space.copy_to: ["permissions.kibana.spaces"] }
+  - match: { \.ai-index-idx-foo.mappings.properties.permissions.properties.kibana.properties.spaces.type: keyword }
+  - match: { \.ai-index-idx-foo.mappings.properties.permissions.properties.kibana.properties.actions.type: keyword }
 
 ---
 "Dot-prefixed data stream AI index is backed by the Elastic-managed template":

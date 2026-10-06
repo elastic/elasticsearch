@@ -13,15 +13,23 @@
                   "type": "nested",
                   "properties": {
                     "name": {
-                      "type": "keyword"
+                      "type": "keyword",
+                      "copy_to": "permissions.kibana.actions"
                     },
                     "space": {
-                      "type": "keyword"
+                      "type": "keyword",
+                      "copy_to": "permissions.kibana.spaces"
                     },
                     "count": {
                       "type": "long"
                     }
                   }
+                },
+                "spaces": {
+                  "type": "keyword"
+                },
+                "actions": {
+                  "type": "keyword"
                 }
               }
             }

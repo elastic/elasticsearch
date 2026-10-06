@@ -94,6 +94,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.fetch.FetchPhaseServices;
+import org.elasticsearch.xpack.esql.fetch.lifetime.FetchContextService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
@@ -250,7 +251,9 @@ public class ComputeService {
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
         this.remoteFetchService = new RemoteFetchService(transportActionServices, this.bigArrays, blockFactory);
-        this.fetchPhaseServices = FetchPhaseServices.create();
+        this.fetchPhaseServices = FetchPhaseServices.create(
+            new FetchContextService(searchService, threadPool, transportActionServices.clusterService().getClusterSettings())
+        );
         this.inferenceService = transportActionServices.inferenceService();
         this.userAgentParserRegistry = transportActionServices.userAgentParserRegistry();
         this.ipLocationService = transportActionServices.ipLocationService();
@@ -293,6 +296,10 @@ public class ComputeService {
 
     RemoteFetchService remoteFetchService() {
         return remoteFetchService;
+    }
+
+    FetchPhaseServices fetchPhaseServices() {
+        return fetchPhaseServices;
     }
 
     FormatReaderRegistry formatReaderRegistry() {

@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.esql.fetch;
 
+import org.elasticsearch.xpack.esql.fetch.lifetime.FetchContextService;
 import org.elasticsearch.xpack.esql.planner.FetchOperatorProvider;
 
 /**
- * The entry point to the runtime of the fetch phase. ES|QL code outside this package gets the operators of the fetch
- * phase from it, so the runtime can change without touching that code.
+ * The entry point to the runtime of the fetch phase. ES|QL code outside this package gets the operators and the reader
+ * contexts of the fetch phase from it, so the runtime can change without touching that code.
  */
-@FunctionalInterface
 public interface FetchPhaseServices {
     /**
      * Builds the operators of the fetch phase.
@@ -21,10 +21,25 @@ public interface FetchPhaseServices {
     FetchOperatorProvider operatorProvider();
 
     /**
-     * Plans each {@link org.elasticsearch.xpack.esql.plan.physical.FetchExec} into a {@link FetchOperator}.
+     * Opens, follows and frees the reader contexts of the fetch phase on this node.
      */
-    static FetchPhaseServices create() {
-        FetchOperatorProvider operators = (exec, docRefChannel, fetchedTypes) -> new FetchOperator.Factory(docRefChannel, fetchedTypes);
-        return () -> operators;
+    FetchContextService contextService();
+
+    /**
+     * The runtime of this node: a {@link FetchOperator} for each {@link org.elasticsearch.xpack.esql.plan.physical.FetchExec},
+     * and the reader contexts of {@code contextService}.
+     */
+    static FetchPhaseServices create(FetchContextService contextService) {
+        return new FetchPhaseServices() {
+            @Override
+            public FetchOperatorProvider operatorProvider() {
+                return FetchOperator.PROVIDER;
+            }
+
+            @Override
+            public FetchContextService contextService() {
+                return contextService;
+            }
+        };
     }
 }

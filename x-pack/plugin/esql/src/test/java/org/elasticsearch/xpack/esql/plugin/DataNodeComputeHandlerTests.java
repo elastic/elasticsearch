@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -40,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -91,6 +93,46 @@ public class DataNodeComputeHandlerTests extends ESTestCase {
         handler.messageReceived(request, channel, mock(Task.class));
 
         expectThrows(ResourceNotFoundException.class, () -> exchangeService.getSinkHandler(request.sessionId()));
+    }
+
+    /**
+     * The remote fetch prototype and the fetch phase each keep contexts open their own way, so a request asks for one.
+     */
+    public void testRetainedAndFetchContextsExcludeEachOther() {
+        Attribute doc = new MetadataAttribute(Source.EMPTY, MetadataAttribute.DOC, DataType.DOC_DATA_TYPE, false);
+        ExchangeSinkExec plan = new ExchangeSinkExec(
+            Source.EMPTY,
+            List.of(doc),
+            false,
+            new ExchangeSourceExec(Source.EMPTY, List.of(doc), false)
+        );
+
+        DataNodeComputeHandler.validateFetchContexts(request(plan, false, TimeValue.timeValueMinutes(1)));
+        DataNodeComputeHandler.validateFetchContexts(request(plan, true, null));
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> DataNodeComputeHandler.validateFetchContexts(request(plan, true, TimeValue.timeValueMinutes(1)))
+        );
+        assertThat(e.getMessage(), equalTo("a request can't retain search contexts and open fetch contexts at once"));
+    }
+
+    private static DataNodeRequest request(ExchangeSinkExec plan, boolean retainSearchContexts, TimeValue fetchContextKeepAlive) {
+        return new DataNodeRequest(
+            "session",
+            EsqlTestUtils.TEST_CFG,
+            "",
+            List.of(),
+            Map.of(),
+            plan,
+            new String[0],
+            IndicesOptions.STRICT_EXPAND_OPEN,
+            true,
+            true,
+            retainSearchContexts,
+            false,
+            List.of(),
+            fetchContextKeepAlive
+        );
     }
 
     private static DataNodeRequest malformedRemoteFetchRequest(String sessionId) {

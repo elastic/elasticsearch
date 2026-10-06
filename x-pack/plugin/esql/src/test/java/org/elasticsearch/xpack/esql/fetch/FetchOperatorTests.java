@@ -47,8 +47,8 @@ public class FetchOperatorTests extends ComputeTestCase {
         assertThat(factory().describe(), equalTo("FetchOperator[docRefChannel=0, fetchedTypes=[BYTES_REF, LONG]]"));
     }
 
-    public void testFactoryOfTheRuntime() {
-        Operator.OperatorFactory factory = FetchPhaseServices.create().operatorProvider().fetchOperator(null, 0, fetchedTypes());
+    public void testProviderBuildsTheFactory() {
+        Operator.OperatorFactory factory = FetchOperator.PROVIDER.fetchOperator(null, 0, fetchedTypes());
         assertThat(factory, equalTo(factory()));
     }
 

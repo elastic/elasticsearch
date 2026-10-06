@@ -50,6 +50,7 @@ import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -148,6 +149,8 @@ import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.fetch.lifetime.FetchContextListener;
+import org.elasticsearch.xpack.esql.fetch.lifetime.FetchContextService;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
@@ -375,6 +378,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     private final SetOnce<EsqlCapabilities> capabilities = new SetOnce<>();
 
+    /**
+     * Follows the reader contexts of the fetch phase on every index. Created with the components, before any index.
+     */
+    private final SetOnce<FetchContextListener> fetchContextListener = new SetOnce<>();
+
     /** Closed by {@link #close()} on node shutdown to release S3/Azure workload-identity resources. */
     private volatile DataSourceModule dataSourceModule;
 
@@ -389,6 +397,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     @Override
     public Collection<?> createComponents(PluginServices services) {
         Settings settings = services.clusterService().getSettings();
+        fetchContextListener.set(new FetchContextListener(settings, services.threadPool().getThreadContext()));
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
         var blockFactoryProvider = blockFactoryProvider(
             BlockFactory.builder(bigArrays)
@@ -729,6 +738,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsqlFlags.ESQL_MAX_BRANCH_COUNT,
                 EsqlFlags.ESQL_MAX_BRANCH_LEVEL,
                 EsqlFlags.ESQL_FETCH_PHASE,
+                FetchContextService.MAX_OPEN_CONTEXTS,
                 RemoteFetchService.MAX_WORKERS_SETTING,
                 ViewService.MAX_VIEWS_COUNT_SETTING,
                 ViewService.MAX_VIEW_LENGTH_SETTING,
@@ -753,6 +763,20 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         settings.addAll(Federation.settings());
 
         return Collections.unmodifiableList(settings);
+    }
+
+    /**
+     * Registered on every index, also while the fetch phase is off: a node must serve the contexts that a coordinator
+     * with the fetch phase on asks it to open.
+     */
+    @Override
+    public void onIndexModule(IndexModule indexModule) {
+        FetchContextListener listener = fetchContextListener.get();
+        assert listener != null : "indices are created after the components";
+        if (listener != null) {
+            indexModule.addSearchOperationListener(listener);
+            indexModule.addIndexEventListener(listener);
+        }
     }
 
     @Override

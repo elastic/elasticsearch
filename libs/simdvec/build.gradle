@@ -117,7 +117,7 @@ nativeLibraryBuild {
   modeEnvironmentVariable = 'VEC_NATIVE_BUILD'
   sourceDir = layout.projectDirectory.dir('native')
   sources = ['src/vec/**', 'Makefile']
-  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:7'
+  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:8'
   forwardedEnvironment = ['CLANG_CXX']
 
   dockerCommand = ['make', 'all']

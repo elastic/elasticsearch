@@ -15,7 +15,7 @@ steps:
         curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh
         export PATH="$${HOME}/.local/bin:$${PATH}"
       fi
-      .buildkite/scripts/promql-compliance-bench.sh promql_test_queries-grafana
+      .buildkite/scripts/promql-coverage-report.sh promql_test_queries-grafana
     timeout_in_minutes: 120
     retry:
       automatic:
@@ -24,7 +24,7 @@ steps:
         - exit_status: 137
           limit: 2
     artifact_paths:
-      - "/tmp/promql-compliance-bench-output/*"
+      - "/tmp/promql-coverage-report-output/*"
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404

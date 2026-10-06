@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161108
+summary: Search refresh-blocked indices that are ready for search
+type: bug

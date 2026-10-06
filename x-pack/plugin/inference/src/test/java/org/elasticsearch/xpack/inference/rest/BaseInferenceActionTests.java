@@ -12,11 +12,14 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceRequestMetadata;
+import org.elasticsearch.inference.InferenceRequestMetadata.Field;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestTests;
 import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -30,6 +33,7 @@ import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -215,6 +219,41 @@ public class BaseInferenceActionTests extends RestActionTestCase {
             Map.of("X-elastic-product-use-case", List.of("first", "second")),
             context -> assertThat(context, equalTo(new InferenceContext("first")))
         );
+    }
+
+    public void testExtractAttributionHeaders_HeaderNameCasingIsIgnoredAndValueCasingIsKept() {
+        for (var field : Field.INFERENCE_PROPAGATED) {
+            var name = field.httpHeader();
+            for (var spelling : List.of(name.toLowerCase(Locale.ROOT), name.toUpperCase(Locale.ROOT), alternateCase(name))) {
+                assertExtractedHeaders(
+                    Map.of(spelling, List.of("Mixed-Case Value")),
+                    context -> assertThat(
+                        spelling,
+                        context,
+                        equalTo(new InferenceContext(InferenceRequestMetadata.builder().put(field, "Mixed-Case Value").build()))
+                    )
+                );
+            }
+        }
+    }
+
+    public void testExtractAttributionHeaders_ProductOriginIsNotCaptured() {
+        assertExtractedHeaders(
+            Map.of(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, List.of("kibana"), "X-elastic-product-use-case", List.of("use-case")),
+            context -> {
+                assertThat(context, equalTo(new InferenceContext("use-case")));
+                assertThat(context.metadata().get(Field.PRODUCT_ORIGIN), nullValue());
+            }
+        );
+    }
+
+    private static String alternateCase(String value) {
+        var builder = new StringBuilder(value.length());
+        for (int i = 0; i < value.length(); i++) {
+            var c = value.charAt(i);
+            builder.append(i % 2 == 0 ? Character.toLowerCase(c) : Character.toUpperCase(c));
+        }
+        return builder.toString();
     }
 
     private void assertExtractedHeaders(Map<String, List<String>> headers, Consumer<InferenceContext> assertion) {

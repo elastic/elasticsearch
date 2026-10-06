@@ -12,12 +12,7 @@ import org.elasticsearch.inference.InferenceRequestMetadata;
 
 /**
  * Snapshot of the headers sent on an Elastic Inference Service request.
- * @param context request metadata captured before the outbound call is executed
- * @param productOrigin originating system, kept separate from {@code context}
+ * @param attribution request attribution, including product origin, captured before the outbound call is executed
  * @param esVersion the Elasticsearch version of the node handling the request
  */
-public record ElasticInferenceServiceRequestMetadata(
-    InferenceRequestMetadata context,
-    @Nullable String productOrigin,
-    @Nullable String esVersion
-) {}
+public record ElasticInferenceServiceRequestMetadata(InferenceRequestMetadata attribution, @Nullable String esVersion) {}

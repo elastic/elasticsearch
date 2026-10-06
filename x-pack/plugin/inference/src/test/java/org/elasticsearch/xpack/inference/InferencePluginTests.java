@@ -14,6 +14,7 @@ import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.rest.RestHeaderDefinition;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
@@ -31,6 +32,9 @@ import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 
 public class InferencePluginTests extends ESTestCase {
@@ -121,6 +125,7 @@ public class InferencePluginTests extends ESTestCase {
                     )
                 )
             );
+            assertThat(restHeaders, not(hasKey(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER)));
         }
     }
 
@@ -138,6 +143,7 @@ public class InferencePluginTests extends ESTestCase {
                     "X-Elastic-Space-Id"
                 )
             );
+            assertThat(plugin.getTaskHeaders(), not(hasItem(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER)));
         }
     }
 }

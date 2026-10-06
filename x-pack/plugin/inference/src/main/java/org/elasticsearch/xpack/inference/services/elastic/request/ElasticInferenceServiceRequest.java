@@ -14,7 +14,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceRequestMetadata;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.inference.common.InferencePreferences;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
@@ -60,8 +59,7 @@ public abstract class ElasticInferenceServiceRequest implements OutboundRequest 
 
         // addHeader, not setHeader: createHttpRequestBase may already have set X-elastic-product-use-case.
         // Sparse and dense embeddings write the input-type value first; the caller value is appended after it.
-        addHeaderIfPresent(request, Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, metadata.productOrigin());
-        metadata.context().forEachPresent((field, value) -> addHeaderIfPresent(request, field.httpHeader(), value));
+        metadata.attribution().forEachPresent((field, value) -> addHeaderIfPresent(request, field.httpHeader(), value));
         addHeaderIfPresent(request, X_ELASTIC_ES_VERSION, metadata.esVersion());
 
         addRegionPolicyHeaders(request, preferences);
@@ -95,10 +93,6 @@ public abstract class ElasticInferenceServiceRequest implements OutboundRequest 
     protected abstract HttpRequestBase createHttpRequestBase();
 
     public static ElasticInferenceServiceRequestMetadata extractRequestMetadataFromThreadContext(ThreadContext context) {
-        return new ElasticInferenceServiceRequestMetadata(
-            InferenceRequestMetadata.capture(context::getHeader),
-            context.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER),
-            Version.CURRENT.toString()
-        );
+        return new ElasticInferenceServiceRequestMetadata(InferenceRequestMetadata.capture(context::getHeader), Version.CURRENT.toString());
     }
 }

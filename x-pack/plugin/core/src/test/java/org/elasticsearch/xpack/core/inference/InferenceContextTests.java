@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.core.inference;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.InferenceRequestMetadata;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -16,15 +19,20 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.Set;
 
 import static org.elasticsearch.inference.InferenceRequestMetadata.Field.INTERACTION_ID;
 import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_FEATURE;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_ORIGIN;
 import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_SOLUTION;
 import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_USE_CASE;
 import static org.elasticsearch.inference.InferenceRequestMetadata.Field.SPACE_ID;
 import static org.elasticsearch.inference.InferenceRequestMetadata.Field.TRACE_ID;
 import static org.elasticsearch.inference.InferenceRequestMetadata.Field.USER_ID;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class InferenceContextTests extends AbstractWireSerializingTestCase<InferenceContext> {
     @Override
@@ -90,6 +98,90 @@ public class InferenceContextTests extends AbstractWireSerializingTestCase<Infer
                 )
             );
         }
+    }
+
+    public void testXContentHasNoProductOrigin() throws IOException {
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            createRandom().toXContent(builder, ToXContent.EMPTY_PARAMS);
+            assertThat(Strings.toString(builder), not(containsString("product_origin")));
+        }
+    }
+
+    /**
+     * Pins the stream layout with literal writes, so reordering {@link InferenceContext#WIRE_LAYOUT} fails here
+     * even though the reader and writer would still agree with each other.
+     */
+    private static BytesReference sevenStrings(
+        String productUseCase,
+        String productSolution,
+        String productFeature,
+        String interactionId,
+        String traceId,
+        String userId,
+        String spaceId
+    ) throws IOException {
+        try (var out = new BytesStreamOutput()) {
+            out.writeString(productUseCase);
+            out.writeString(productSolution);
+            out.writeString(productFeature);
+            out.writeString(interactionId);
+            out.writeString(traceId);
+            out.writeString(userId);
+            out.writeString(spaceId);
+            return new BytesArray(BytesReference.toBytes(out.bytes()));
+        }
+    }
+
+    private static BytesReference written(InferenceContext context) throws IOException {
+        try (var out = new BytesStreamOutput()) {
+            context.writeTo(out);
+            return new BytesArray(BytesReference.toBytes(out.bytes()));
+        }
+    }
+
+    public void testWriterProducesTheSevenStringLayout() throws IOException {
+        var context = context("use-case", "solution", "feature", "interaction", "trace", "user", "space");
+
+        assertThat(written(context), equalTo(sevenStrings("use-case", "solution", "feature", "interaction", "trace", "user", "space")));
+    }
+
+    public void testWriterWritesEmptyStringsForAbsentFields() throws IOException {
+        var context = context("use-case", "", "", "interaction", "", "user", "");
+
+        assertThat(written(context), equalTo(sevenStrings("use-case", "", "", "interaction", "", "user", "")));
+        assertThat(written(InferenceContext.EMPTY_INSTANCE), equalTo(sevenStrings("", "", "", "", "", "", "")));
+    }
+
+    public void testReaderReadsTheSevenStringLayout() throws IOException {
+        try (var in = sevenStrings("use-case", "", "feature", "", "trace", "", "space").streamInput()) {
+            var context = new InferenceContext(in);
+
+            assertThat(context.metadata().get(PRODUCT_USE_CASE), equalTo("use-case"));
+            assertThat(context.metadata().get(PRODUCT_SOLUTION), nullValue());
+            assertThat(context.metadata().get(PRODUCT_FEATURE), equalTo("feature"));
+            assertThat(context.metadata().get(INTERACTION_ID), nullValue());
+            assertThat(context.metadata().get(TRACE_ID), equalTo("trace"));
+            assertThat(context.metadata().get(USER_ID), nullValue());
+            assertThat(context.metadata().get(SPACE_ID), equalTo("space"));
+            assertThat(in.available(), equalTo(0));
+        }
+    }
+
+    public void testWireLayoutCoversExactlyTheInferencePropagatedFields() {
+        assertThat(Set.copyOf(InferenceContext.WIRE_LAYOUT), equalTo(InferenceRequestMetadata.Field.INFERENCE_PROPAGATED));
+        assertThat(InferenceContext.WIRE_LAYOUT.size(), equalTo(InferenceRequestMetadata.Field.INFERENCE_PROPAGATED.size()));
+    }
+
+    public void testConstructorRejectsProductOrigin() {
+        var metadata = InferenceRequestMetadata.builder().put(PRODUCT_USE_CASE, "use-case").put(PRODUCT_ORIGIN, "kibana").build();
+
+        var e = expectThrows(IllegalArgumentException.class, () -> new InferenceContext(metadata));
+        assertThat(e.getMessage(), containsString("product_origin"));
+    }
+
+    public void testToStringIsTheMetadata() {
+        var context = createRandom();
+        assertThat(context.toString(), equalTo(context.metadata().toString()));
     }
 
     private static String valueOrEmpty(InferenceContext instance, InferenceRequestMetadata.Field field) {

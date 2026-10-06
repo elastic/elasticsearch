@@ -11,10 +11,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.InferenceRequestMetadata;
+import org.elasticsearch.inference.InferenceRequestMetadata.Field;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.inference.InferenceRequestMetadata.Field.INTERACTION_ID;
@@ -26,19 +28,38 @@ import static org.elasticsearch.inference.InferenceRequestMetadata.Field.TRACE_I
 import static org.elasticsearch.inference.InferenceRequestMetadata.Field.USER_ID;
 
 /**
- * Transport and XContent adapter for {@link InferenceRequestMetadata}.
- * This is mainly used to pass along inference context on the transport layer without relying on
- * {@link org.elasticsearch.common.util.concurrent.ThreadContext}, which depending on the internal
- * {@link org.elasticsearch.client.internal.Client} throws away parts of the context, when passed along the transport layer.
+ * Request-payload carrier for the {@link InferenceRequestMetadata} fields the inference plugin propagates.
+ * It travels on the request object because {@code stashWithOrigin} clears ordinary
+ * {@link org.elasticsearch.common.util.concurrent.ThreadContext} headers before the inference action runs.
+ * Product origin is not carried here; core preserves it across the stash.
  */
-public final class InferenceContext implements Writeable, ToXContent {
+public record InferenceContext(InferenceRequestMetadata metadata) implements Writeable, ToXContent {
 
-    public static final InferenceContext EMPTY_INSTANCE = new InferenceContext("");
+    /**
+     * Stream and XContent layout. These POST inference actions run on the local node, so this layout is not a
+     * mixed-cluster contract. The outer {@code inference_context} gate does not make a later field addition
+     * compatible with a peer that already understands that version. A caller that sends this request to another
+     * node has to version the layout first. The order is listed explicitly; enum order is not the wire layout.
+     */
+    static final List<Field> WIRE_LAYOUT = List.of(
+        PRODUCT_USE_CASE,
+        PRODUCT_SOLUTION,
+        PRODUCT_FEATURE,
+        INTERACTION_ID,
+        TRACE_ID,
+        USER_ID,
+        SPACE_ID
+    );
 
-    private final InferenceRequestMetadata metadata;
+    public static final InferenceContext EMPTY_INSTANCE = new InferenceContext(InferenceRequestMetadata.EMPTY);
 
-    public InferenceContext(InferenceRequestMetadata metadata) {
-        this.metadata = Objects.requireNonNull(metadata);
+    public InferenceContext {
+        Objects.requireNonNull(metadata);
+        metadata.forEachPresent((field, value) -> {
+            if (WIRE_LAYOUT.contains(field) == false) {
+                throw new IllegalArgumentException("inference context cannot carry [" + field.xContentName() + "]");
+            }
+        });
     }
 
     public InferenceContext(String productUseCase) {
@@ -49,82 +70,37 @@ public final class InferenceContext implements Writeable, ToXContent {
         this(readMetadata(in));
     }
 
-    public InferenceRequestMetadata metadata() {
-        return metadata;
-    }
-
-    /**
-     * These POST inference actions run on the local node, so this layout is not a mixed-cluster contract.
-     * The outer {@code inference_context} gate does not make a later field addition compatible with a peer
-     * that already understands that version. A caller that sends this request to another node has to version
-     * the layout first. Components are listed by name; enum order is not the wire layout.
-     */
     private static InferenceRequestMetadata readMetadata(StreamInput in) throws IOException {
-        var productUseCase = in.readString();
-        var productSolution = in.readString();
-        var productFeature = in.readString();
-        var interactionId = in.readString();
-        var traceId = in.readString();
-        var userId = in.readString();
-        var spaceId = in.readString();
-        return InferenceRequestMetadata.builder()
-            .put(PRODUCT_USE_CASE, productUseCase)
-            .put(PRODUCT_SOLUTION, productSolution)
-            .put(PRODUCT_FEATURE, productFeature)
-            .put(INTERACTION_ID, interactionId)
-            .put(TRACE_ID, traceId)
-            .put(USER_ID, userId)
-            .put(SPACE_ID, spaceId)
-            .build();
+        var builder = InferenceRequestMetadata.builder();
+        for (var field : WIRE_LAYOUT) {
+            builder.put(field, in.readString());
+        }
+        return builder.build();
     }
 
     /**
-     * These POST inference actions run on the local node, so this layout is not a mixed-cluster contract.
-     * The outer {@code inference_context} gate does not make a later field addition compatible with a peer
-     * that already understands that version. A caller that sends this request to another node has to version
-     * the layout first. Components are listed by name; enum order is not the wire layout. Absent values are
-     * written as empty strings.
+     * Absent values are written as empty strings.
      */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(valueOrEmpty(PRODUCT_USE_CASE));
-        out.writeString(valueOrEmpty(PRODUCT_SOLUTION));
-        out.writeString(valueOrEmpty(PRODUCT_FEATURE));
-        out.writeString(valueOrEmpty(INTERACTION_ID));
-        out.writeString(valueOrEmpty(TRACE_ID));
-        out.writeString(valueOrEmpty(USER_ID));
-        out.writeString(valueOrEmpty(SPACE_ID));
+        for (var field : WIRE_LAYOUT) {
+            out.writeString(valueOrEmpty(field));
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        for (var field : InferenceRequestMetadata.Field.values()) {
+        for (var field : WIRE_LAYOUT) {
             builder.field(field.xContentName(), valueOrEmpty(field));
         }
         builder.endObject();
         return builder;
     }
 
-    private String valueOrEmpty(InferenceRequestMetadata.Field field) {
+    private String valueOrEmpty(Field field) {
         var value = metadata.get(field);
         return value == null ? "" : value;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        return metadata.equals(((InferenceContext) o).metadata);
-    }
-
-    @Override
-    public int hashCode() {
-        return metadata.hashCode();
     }
 
     @Override

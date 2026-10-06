@@ -48,7 +48,12 @@ abstract class BaseInferenceAction extends BaseRestHandler {
         var params = parseParams(restRequest);
         var content = restRequest.requiredContent();
         var inferTimeout = parseTimeout(restRequest);
-        var context = new InferenceContext(InferenceRequestMetadata.capture(header -> extractHeader(restRequest, header)));
+        var context = new InferenceContext(
+            InferenceRequestMetadata.capture(
+                InferenceRequestMetadata.Field.INFERENCE_PROPAGATED,
+                header -> extractHeader(restRequest, header)
+            )
+        );
 
         var request = new InferenceActionProxy.Request(
             params.taskType(),

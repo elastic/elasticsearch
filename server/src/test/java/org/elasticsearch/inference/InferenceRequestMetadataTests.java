@@ -9,13 +9,17 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.inference.InferenceRequestMetadata.Field;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.Map;
 
 import static org.elasticsearch.inference.InferenceRequestMetadata.Field.INTERACTION_ID;
 import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_FEATURE;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_ORIGIN;
 import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_SOLUTION;
 import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_USE_CASE;
 import static org.elasticsearch.inference.InferenceRequestMetadata.Field.SPACE_ID;
@@ -29,6 +33,10 @@ import static org.hamcrest.Matchers.sameInstance;
 public class InferenceRequestMetadataTests extends ESTestCase {
 
     public void testFieldCatalogHasTheExpectedHeaderNames() {
+        assertThat(PRODUCT_ORIGIN.httpHeader(), equalTo(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER));
+        assertThat(PRODUCT_ORIGIN.xContentName(), equalTo("product_origin"));
+        assertThat(PRODUCT_ORIGIN.allowsMultipleRestValues(), equalTo(false));
+
         assertThat(PRODUCT_USE_CASE.httpHeader(), equalTo("X-elastic-product-use-case"));
         assertThat(PRODUCT_USE_CASE.xContentName(), equalTo("product_use_case"));
         assertThat(PRODUCT_USE_CASE.allowsMultipleRestValues(), equalTo(true));
@@ -103,6 +111,34 @@ public class InferenceRequestMetadataTests extends ESTestCase {
         assertThat(metadata.get(PRODUCT_SOLUTION), nullValue());
         assertThat(metadata.get(PRODUCT_FEATURE), nullValue());
         assertThat(metadata.get(INTERACTION_ID), equalTo("interaction-id"));
+    }
+
+    public void testInferencePropagatedExcludesOnlyProductOrigin() {
+        assertThat(
+            Field.INFERENCE_PROPAGATED,
+            equalTo(EnumSet.of(PRODUCT_USE_CASE, PRODUCT_SOLUTION, PRODUCT_FEATURE, INTERACTION_ID, TRACE_ID, USER_ID, SPACE_ID))
+        );
+        assertThat(PRODUCT_ORIGIN.propagatedByInference(), equalTo(false));
+        expectThrows(UnsupportedOperationException.class, () -> Field.INFERENCE_PROPAGATED.add(PRODUCT_ORIGIN));
+    }
+
+    public void testCaptureOfAllFieldsIncludesProductOrigin() {
+        Map<String, String> headers = Map.of(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "kibana", "X-Elastic-Trace-Id", "trace-id");
+
+        var metadata = InferenceRequestMetadata.capture(headers::get);
+
+        assertThat(metadata.get(PRODUCT_ORIGIN), equalTo("kibana"));
+        assertThat(metadata.get(TRACE_ID), equalTo("trace-id"));
+    }
+
+    public void testCaptureOfSubsetIgnoresOtherHeaders() {
+        Map<String, String> headers = Map.of(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "kibana", "X-Elastic-Trace-Id", "trace-id");
+
+        var metadata = InferenceRequestMetadata.capture(Field.INFERENCE_PROPAGATED, headers::get);
+
+        assertThat(metadata.get(PRODUCT_ORIGIN), nullValue());
+        assertThat(metadata.get(TRACE_ID), equalTo("trace-id"));
+        assertThat(InferenceRequestMetadata.capture(EnumSet.of(PRODUCT_ORIGIN), headers::get).get(TRACE_ID), nullValue());
     }
 
     public void testCaptureOfNothingIsTheEmptyInstance() {

@@ -218,7 +218,6 @@ import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService;
 import org.elasticsearch.xpack.inference.vectors.EmbeddingQueryVectorBuilder;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -1013,14 +1012,14 @@ public class InferencePlugin extends Plugin
 
     @Override
     public Collection<RestHeaderDefinition> getRestHeaders() {
-        return Arrays.stream(Field.values())
+        return Field.INFERENCE_PROPAGATED.stream()
             .map(field -> new RestHeaderDefinition(field.httpHeader(), field.allowsMultipleRestValues()))
             .toList();
     }
 
     @Override
     public Collection<String> getTaskHeaders() {
-        return Arrays.stream(Field.values()).map(Field::httpHeader).toList();
+        return Field.INFERENCE_PROPAGATED.stream().map(Field::httpHeader).toList();
     }
 
     protected SSLService getSslService() {

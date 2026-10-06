@@ -10,11 +10,14 @@
 package org.elasticsearch.inference;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.Task;
 
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
@@ -22,7 +25,9 @@ import java.util.function.Function;
  * Immutable attribution carried with an inference request and forwarded to Elastic Inference Service.
  * Missing entries are absent. Null and empty values are not stored.
  * <p>
- * Product origin is intentionally not a field. It has its own header and propagation path.
+ * Product origin is a field, but core owns its propagation: core registers its REST header and preserves it
+ * across context stashes. Only {@link Field#INFERENCE_PROPAGATED} fields are registered, carried, and restored
+ * by the inference plugin.
  */
 public final class InferenceRequestMetadata {
 
@@ -30,22 +35,41 @@ public final class InferenceRequestMetadata {
      * A supported request-metadata field. Declaration order is not a transport layout.
      */
     public enum Field {
-        PRODUCT_USE_CASE("X-elastic-product-use-case", "product_use_case", true),
-        PRODUCT_SOLUTION("X-elastic-product-solution", "product_solution", false),
-        PRODUCT_FEATURE("X-elastic-product-feature", "product_feature", false),
-        INTERACTION_ID("X-Elastic-Inference-Interaction-Id", "interaction_id", false),
-        TRACE_ID("X-Elastic-Trace-Id", "trace_id", false),
-        USER_ID("X-Elastic-User-Id", "user_id", false),
-        SPACE_ID("X-Elastic-Space-Id", "space_id", false);
+        PRODUCT_ORIGIN(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "product_origin", false, false),
+        PRODUCT_USE_CASE("X-elastic-product-use-case", "product_use_case", true, true),
+        PRODUCT_SOLUTION("X-elastic-product-solution", "product_solution", false, true),
+        PRODUCT_FEATURE("X-elastic-product-feature", "product_feature", false, true),
+        INTERACTION_ID("X-Elastic-Inference-Interaction-Id", "interaction_id", false, true),
+        TRACE_ID("X-Elastic-Trace-Id", "trace_id", false, true),
+        USER_ID("X-Elastic-User-Id", "user_id", false, true),
+        SPACE_ID("X-Elastic-Space-Id", "space_id", false, true);
+
+        /**
+         * Fields whose REST header registration, request-payload transport, and thread-context restoration
+         * the inference plugin owns.
+         */
+        public static final Set<Field> INFERENCE_PROPAGATED;
+
+        static {
+            var propagated = EnumSet.noneOf(Field.class);
+            for (var field : values()) {
+                if (field.propagatedByInference) {
+                    propagated.add(field);
+                }
+            }
+            INFERENCE_PROPAGATED = Collections.unmodifiableSet(propagated);
+        }
 
         private final String httpHeader;
         private final String xContentName;
         private final boolean allowsMultipleRestValues;
+        private final boolean propagatedByInference;
 
-        Field(String httpHeader, String xContentName, boolean allowsMultipleRestValues) {
+        Field(String httpHeader, String xContentName, boolean allowsMultipleRestValues, boolean propagatedByInference) {
             this.httpHeader = httpHeader;
             this.xContentName = xContentName;
             this.allowsMultipleRestValues = allowsMultipleRestValues;
+            this.propagatedByInference = propagatedByInference;
         }
 
         public String httpHeader() {
@@ -58,6 +82,10 @@ public final class InferenceRequestMetadata {
 
         public boolean allowsMultipleRestValues() {
             return allowsMultipleRestValues;
+        }
+
+        public boolean propagatedByInference() {
+            return propagatedByInference;
         }
     }
 
@@ -74,12 +102,20 @@ public final class InferenceRequestMetadata {
     }
 
     /**
-     * Reads each supported header through {@code headerLookup}. Null and empty results are omitted.
+     * Reads every supported header, including product origin, through {@code headerLookup}. Null and empty results are omitted.
      */
     public static InferenceRequestMetadata capture(Function<String, String> headerLookup) {
+        return capture(EnumSet.allOf(Field.class), headerLookup);
+    }
+
+    /**
+     * Reads only the headers of {@code fields} through {@code headerLookup}. Null and empty results are omitted.
+     */
+    public static InferenceRequestMetadata capture(Set<Field> fields, Function<String, String> headerLookup) {
+        Objects.requireNonNull(fields);
         Objects.requireNonNull(headerLookup);
         var builder = builder();
-        for (var field : Field.values()) {
+        for (var field : fields) {
             builder.put(field, headerLookup.apply(field.httpHeader()));
         }
         return builder.build();

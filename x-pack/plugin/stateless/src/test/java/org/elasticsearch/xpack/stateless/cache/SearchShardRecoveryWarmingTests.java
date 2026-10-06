@@ -684,12 +684,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             new SearchRecoveryTimeoutCalculationService(cacheService, threadPool, clusterSettings)
         ) {
             @Override
-            protected SearchRecoveryTimeout searchRecoveryTimeout(
-                ClusterState state,
-                IndexShard indexShard,
-                long totalBytesToWarm,
-                boolean reevaluation
-            ) {
+            protected SearchRecoveryTimeout searchRecoveryTimeout(ClusterState state, IndexShard indexShard, long totalBytesToWarm) {
                 return planForBytesToWarm.apply(totalBytesToWarm);
             }
 

@@ -395,7 +395,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             final ClusterState stateWithOtherNodeShutdown = withActiveShutdownNodeMetadata(stateWithoutShutdown, self.relocatingNodeId());
             assertThat(stateWithOtherNodeShutdown.metadata().nodeShutdowns().isNodeMarkedForRemoval(self.relocatingNodeId()), is(false));
 
-            final var reevaluatedPlan = service.searchRecoveryTimeout(stateWithOtherNodeShutdown, mockIndexShard(self), 0L, true);
+            final var reevaluatedPlan = service.searchRecoveryTimeout(stateWithOtherNodeShutdown, mockIndexShard(self), 0L);
             assertThat(reevaluatedPlan.awaitWarming(), is(true));
             assertThat(
                 reevaluatedPlan.timeout(),
@@ -597,8 +597,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             final var reevaluatedPlan = service.searchRecoveryTimeout(
                 stateUncapped,
                 mockIndexShard(selfUncapped),
-                totalBytesToWarm(endTargetsToWarm),
-                true
+                totalBytesToWarm(endTargetsToWarm)
             );
             assertThat(reevaluatedPlan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME));
             assertThat(reevaluatedPlan.extendable(), is(false));
@@ -778,7 +777,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
 
             // the first slice expires: 4000ms into the 10s grace → remaining = 6000ms, equal share = 6000 / 4 = 1500ms
             threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 4000);
-            final var reevaluatedPlan = service.searchRecoveryTimeout(state, mockIndexShard(self), totalBytesToWarm, true);
+            final var reevaluatedPlan = service.searchRecoveryTimeout(state, mockIndexShard(self), totalBytesToWarm);
             assertThat(reevaluatedPlan.awaitWarming(), is(true));
             assertThat("the wait is extended by a slice sized from the remaining time", reevaluatedPlan.timeout().millis(), equalTo(1500L));
             assertThat(reevaluatedPlan.timeoutContext(), equalTo(initialPlan.timeoutContext()));
@@ -839,7 +838,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             assertThat("first calculation does not reserve budget for pending shards", firstPlan.timeout().millis(), equalTo(4000L));
             assertThat(firstPlan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
 
-            final SearchRecoveryTimeout plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L, true);
+            final SearchRecoveryTimeout plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L);
 
             assertThat(plan.awaitWarming(), is(true));
             assertThat(plan.timeout().millis(), equalTo(3000L));

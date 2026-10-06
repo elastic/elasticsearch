@@ -826,7 +826,7 @@ public class SharedBlobCacheWarmingService {
     ) {
         final long totalBytesToWarm = totalBytesToWarm(endTargetsToWarm);
         final SearchRecoveryTimeout plan = endTargetsToWarm != null
-            ? searchRecoveryTimeout(clusterStateSupplier.get(), indexShard, totalBytesToWarm, false)
+            ? searchRecoveryTimeout(clusterStateSupplier.get(), indexShard, totalBytesToWarm)
             : SearchRecoveryTimeout.skip();
         if (plan.awaitWarming()) {
             assert endTargetsToWarm != null;
@@ -849,13 +849,8 @@ public class SharedBlobCacheWarmingService {
         }
     }
 
-    protected SearchRecoveryTimeout searchRecoveryTimeout(
-        ClusterState state,
-        IndexShard indexShard,
-        long totalBytesToWarm,
-        boolean reevaluation
-    ) {
-        return searchRecoveryTimeoutCalculationService.searchRecoveryTimeout(state, indexShard, totalBytesToWarm, reevaluation);
+    protected SearchRecoveryTimeout searchRecoveryTimeout(ClusterState state, IndexShard indexShard, long totalBytesToWarm) {
+        return searchRecoveryTimeoutCalculationService.searchRecoveryTimeout(state, indexShard, totalBytesToWarm);
     }
 
     // this indirection is for test purposes (some tests check the listener type that's passed in to warmCache)
@@ -1186,7 +1181,7 @@ public class SharedBlobCacheWarmingService {
                     // Approximate: bytesWarmedSoFar also counts bytes that are not part of bytesToWarm (e.g. header/footer reads), and
                     // regions that were already cached are never counted, so this can under- or overestimate the bytes still to warm.
                     final long bytesRemaining = Math.max(0L, bytesToWarm - bytesWarmedSoFar.getAsLong());
-                    final var newPlan = searchRecoveryTimeout(clusterStateSupplier.get(), indexShard, bytesRemaining, true);
+                    final var newPlan = searchRecoveryTimeout(clusterStateSupplier.get(), indexShard, bytesRemaining);
                     final var elapsed = TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - startedMillis);
                     final var newTimeout = cappedToTotalBudget(newPlan.timeout(), elapsed);
                     if (newPlan.shouldExtendAfter(latestPlan)

@@ -120,7 +120,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
     ) {
         List<Attribute> schema = result.schema();
 
-        int unmappedIdx = CollectionUtils.findIndex(schema, e -> e instanceof UnmappedFieldsAttribute);
+        int unmappedIdx = unmappedFieldsIndex(schema);
         if (unmappedIdx == -1) {
             return result;
         }
@@ -186,13 +186,14 @@ public final class ExpandUnmappedFieldsPostProcessor {
         }
     }
 
-    /**
-     * Whether {@link #expand} would rewrite a result with this schema, i.e. the synthetic {@code _unmapped_fields}
-     * column added by {@code SET unmapped_fields="LOAD_ALL"} is still present. Lets callers decide whether the
-     * CPU-heavy expansion scan is worth dispatching to a dedicated executor rather than running it inline.
-     */
+    /** Whether {@link #expand} would rewrite a result with this schema, i.e. the synthetic {@code _unmapped_fields} column is present. */
     public static boolean hasUnmappedFields(List<Attribute> schema) {
-        return CollectionUtils.findIndex(schema, e -> e instanceof UnmappedFieldsAttribute) != -1;
+        return unmappedFieldsIndex(schema) != -1;
+    }
+
+    /** Index of the synthetic {@code _unmapped_fields} column in {@code schema}, or {@code -1} if none is present. */
+    private static int unmappedFieldsIndex(List<Attribute> schema) {
+        return CollectionUtils.findIndex(schema, e -> e instanceof UnmappedFieldsAttribute);
     }
 
     /**

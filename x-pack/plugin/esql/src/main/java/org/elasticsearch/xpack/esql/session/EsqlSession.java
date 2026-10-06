@@ -674,9 +674,10 @@ public class EsqlSession {
                                 // down); expand() releases them itself once it runs, and page release is idempotent.
                                 threadPool.executor(EsqlPlugin.computePool())
                                     .execute(
-                                        ActionRunnable.wrapReleasing(l, () -> Releasables.closeExpectNoException(inner.pages()), ll -> {
-                                            // The esql_worker invariant is asserted inside ExpandUnmappedFieldsPostProcessor.expand().
-                                            ll.onResponse(
+                                        ActionRunnable.wrapReleasing(
+                                            l,
+                                            () -> Releasables.closeExpectNoException(inner.pages()),
+                                            ll -> ll.onResponse(
                                                 new Versioned<>(
                                                     ExpandUnmappedFieldsPostProcessor.expand(
                                                         inner,
@@ -687,23 +688,13 @@ public class EsqlSession {
                                                     ),
                                                     resultVersion
                                                 )
-                                            );
-                                        })
+                                            )
+                                        )
                                     );
                             } else {
-                                // No LOAD_ALL expansion to do; complete inline to avoid an unnecessary thread hop.
-                                l.onResponse(
-                                    new Versioned<>(
-                                        ExpandUnmappedFieldsPostProcessor.expand(
-                                            inner,
-                                            unmappedFieldsOrdering,
-                                            blockFactory,
-                                            plannerSettings,
-                                            cancellation
-                                        ),
-                                        resultVersion
-                                    )
-                                );
+                                // No LOAD_ALL expansion to do: expand() would return the result unchanged, so pass it through inline
+                                // and avoid both the needless scan and an unnecessary thread hop.
+                                l.onResponse(new Versioned<>(inner, resultVersion));
                             }
                         })
                         .addListener(listener);

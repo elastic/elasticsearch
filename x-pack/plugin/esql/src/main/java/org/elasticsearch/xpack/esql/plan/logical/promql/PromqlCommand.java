@@ -443,11 +443,21 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         p.forEachDown(lp -> {
             switch (lp) {
                 case Selector s -> {
-                    if (s.labelMatchers().nameLabel() != null && s.labelMatchers().nameLabel().matcher().isRegex()) {
+                    // Every `__name__` matcher, not only the last: the parser takes the metric from the first one, so a
+                    // `{__name__!="m",__name__="n"}` would otherwise pass and read `m`.
+                    boolean regexName = false;
+                    boolean negativeName = false;
+                    for (LabelMatcher matcher : s.labelMatchers().matchers()) {
+                        if (LabelMatcher.NAME.equals(matcher.name())) {
+                            regexName |= matcher.matcher().isRegex();
+                            negativeName |= matcher.matcher() == LabelMatcher.Matcher.NEQ;
+                        }
+                    }
+                    if (regexName) {
                         failures.add(fail(s, "regex label selectors on __name__ are not supported at this time [{}]", s.sourceText()));
                     }
                     // `{__name__!="m"}` selects every metric but `m`; a selector reads exactly one metric field here
-                    if (s.labelMatchers().nameLabel() != null && s.labelMatchers().nameLabel().matcher() == LabelMatcher.Matcher.NEQ) {
+                    if (negativeName) {
                         failures.add(fail(s, "negative label selectors on __name__ are not supported at this time [{}]", s.sourceText()));
                     }
                     if (s.series() == null) {

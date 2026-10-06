@@ -95,6 +95,21 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
+    /**
+     * The parser takes the metric from the first {@code __name__} matcher, so every one is checked, not only the last: a
+     * negative or regex name matcher before a plain one would otherwise pass and be read as the metric.
+     */
+    public void testPromqlEveryNameLabelMatcherIsChecked() {
+        tsdb.error(
+            "PROMQL index=test step=5m ({__name__!=\"network.bytes_out\",__name__=\"network.bytes_in\"})",
+            containsString("negative label selectors on __name__ are not supported at this time")
+        );
+        tsdb.error(
+            "PROMQL index=test step=5m ({__name__=~\"network.*\",__name__=\"network.bytes_in\"})",
+            containsString("regex label selectors on __name__ are not supported at this time")
+        );
+    }
+
     public void testPromqlSubquery() {
         tsdb.error(
             "PROMQL index=test step=5m (avg(rate(network.bytes_in[5m:])))",

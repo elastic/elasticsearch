@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.logstash.action.PutPipelineResponse;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.IntSupplier;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -34,6 +35,12 @@ public class RestPutPipelineAction extends BaseRestHandler {
     // A pipeline ID pattern to validate.
     // Reference: https://www.elastic.co/docs/reference/logstash/configuring-centralized-pipelines#wildcard-in-pipeline-id
     private static final Pattern PIPELINE_ID_PATTERN = Pattern.compile("[a-zA-Z_][a-zA-Z0-9_-]*");
+
+    private final IntSupplier maxSizeInBytes;
+
+    public RestPutPipelineAction(IntSupplier maxSizeInBytes) {
+        this.maxSizeInBytes = maxSizeInBytes;
+    }
 
     @Override
     public String getName() {
@@ -69,6 +76,14 @@ public class RestPutPipelineAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String id = request.param("id");
         validatePipelineId(id);
+
+        final int contentLength = request.content().length();
+        final int maxBytes = maxSizeInBytes.getAsInt();
+        if (contentLength > maxBytes) {
+            throw new IllegalArgumentException(
+                "Pipeline body [" + contentLength + " bytes] exceeds the maximum allowed size of [" + maxBytes + " bytes]."
+            );
+        }
 
         try (XContentParser parser = request.contentParser()) {
             // parse pipeline for validation

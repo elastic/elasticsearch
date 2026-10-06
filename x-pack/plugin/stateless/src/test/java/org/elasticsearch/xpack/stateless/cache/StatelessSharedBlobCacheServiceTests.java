@@ -67,7 +67,7 @@ import static org.hamcrest.Matchers.is;
 
 public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
 
-    /// The cache maintenance settings, all of which fall back to the cache boost preference setting.
+    /// The cache maintenance settings, all of which default to true on their own.
     private static final List<Setting<Boolean>> CACHE_MAINTENANCE_SETTINGS = List.of(
         StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
         StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING,

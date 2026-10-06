@@ -118,33 +118,45 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         assertTrue(AggregationInspectionHelper.hasValue(((InternalTopHits) terms.getBucketByKey("d").getAggregations().get("top"))));
     }
 
+    /**
+     * Every bucket fetches through one shared {@link org.elasticsearch.index.query.SearchExecutionContext}, whose field
+     * lookup provider holds the fields of the last hit it loaded. Each bucket therefore asserts a value of its own and
+     * not just a hit count: the id, which the fetch phase reads through that stored field lookup, and a doc value
+     * fetched through the shared context. A value carried over from the previous bucket fails one of the two.
+     */
     public void testSharedFetchContextKeepsBucketsIsolated() throws Exception {
-        int buckets = 50;
-        Directory directory = newDirectory();
-        RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
-        for (int i = 0; i < buckets; i++) {
-            iw.addDocument(document(Integer.toString(i), "term" + i));
-        }
-        iw.close();
-
-        IndexReader indexReader = DirectoryReader.open(directory);
-        Terms terms = searchAndReduce(
-            indexReader,
-            new AggTestConfig(terms("term").field("string").size(buckets).subAggregation(topHits("top")), STRING_FIELD_TYPE)
-        );
-        indexReader.close();
-        directory.close();
-
-        assertEquals(buckets, terms.getBuckets().size());
-        for (int i = 0; i < buckets; i++) {
-            SearchHits hits = ((TopHits) terms.getBucketByKey("term" + i).getAggregations().get("top")).getHits();
-            assertEquals(1L, hits.getTotalHits().value());
-            assertEquals(Integer.toString(i), hits.getAt(0).getId());
+        int buckets = 5;
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+                for (int i = 0; i < buckets; i++) {
+                    iw.addDocument(document(Integer.toString(i), "term" + i));
+                }
+            }
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                Terms terms = searchAndReduce(
+                    indexReader,
+                    new AggTestConfig(
+                        terms("term").field("string").size(buckets).subAggregation(topHits("top").docValueField("string")),
+                        STRING_FIELD_TYPE
+                    )
+                        // Force a single aggregator, so one forked fetch context serves every bucket. Otherwise, a seed can
+                        // give each segment its own aggregator with one bucket each, and the test passes proving nothing.
+                        .withSplitLeavesIntoSeperateAggregators(false)
+                );
+                assertEquals(buckets, terms.getBuckets().size());
+                for (int i = 0; i < buckets; i++) {
+                    assertOnlyHitIs(i, ((TopHits) terms.getBucketByKey("term" + i).getAggregations().get("top")).getHits());
+                }
+            }
         }
     }
 
+    /**
+     * The same guarantee as {@link #testSharedFetchContextKeepsBucketsIsolated}, with the buckets spread over separate
+     * segments so the shared context is reused across leaf readers too.
+     */
     public void testSharedFetchContextSpansSegments() throws Exception {
-        int buckets = 20;
+        int buckets = 5;
         try (Directory directory = newDirectory()) {
             try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
                 for (int i = 0; i < buckets; i++) {
@@ -157,15 +169,13 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
                 // debugTestCase always builds a single aggregator over every segment, where searchAndReduce may
                 // randomly build one per leaf, so the forked fetch context is reused across segments here.
                 debugTestCase(
-                    terms("term").field("string").size(buckets).subAggregation(topHits("top")),
+                    terms("term").field("string").size(buckets).subAggregation(topHits("top").docValueField("string")),
                     Queries.ALL_DOCS_INSTANCE,
                     indexReader,
                     (StringTerms result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                         assertEquals(buckets, result.getBuckets().size());
                         for (int i = 0; i < buckets; i++) {
-                            SearchHits hits = ((TopHits) result.getBucketByKey("term" + i).getAggregations().get("top")).getHits();
-                            assertEquals(1L, hits.getTotalHits().value());
-                            assertEquals(Integer.toString(i), hits.getAt(0).getId());
+                            assertOnlyHitIs(i, ((TopHits) result.getBucketByKey("term" + i).getAggregations().get("top")).getHits());
                         }
                     },
                     null,
@@ -173,6 +183,12 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
                 );
             }
         }
+    }
+
+    private static void assertOnlyHitIs(int id, SearchHits hits) {
+        assertEquals(1L, hits.getTotalHits().value());
+        assertEquals(Integer.toString(id), hits.getAt(0).getId());
+        assertEquals("term" + id, hits.getAt(0).field("string").getValue());
     }
 
     private static final MappedFieldType STRING_FIELD_TYPE = new KeywordFieldMapper.KeywordFieldType("string");

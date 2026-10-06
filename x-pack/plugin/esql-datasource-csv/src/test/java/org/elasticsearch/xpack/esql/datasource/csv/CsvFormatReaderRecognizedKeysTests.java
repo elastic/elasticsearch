@@ -12,8 +12,8 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 
@@ -203,7 +203,7 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
         FormatSpec csvSpec = plugin.formatSpecs().stream().filter(s -> s.format().equals("csv")).findFirst().orElseThrow();
         FormatSpec.FormatConfigValidator validator = csvSpec.configValidator();
         assertNotNull("csv FormatSpec must have a configValidator", validator);
-        CsvFormatReader reader = new CsvFormatReader(NOOP_BLOCK_FACTORY, "csv", List.of(".csv"));
+        CsvFormatReader reader = new CsvFormatReader(NOOP_BLOCK_FACTORY);
 
         // Good values — both must accept without throwing.
         for (Map.Entry<String, Object> good : goodCsvValues()) {
@@ -347,28 +347,12 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
 
     /**
      * Every key the reader consumes must either participate in the cache identity
-     * ({@link SchemaCacheKey#affectsIdentity}) or be declared inert here with a justification. CSV has no inert
+     * (the identity this reader vends) or be declared inert here with a justification. CSV has no inert
      * keys: every recognised option changes record boundaries, values, null-ness, or whether inference fails, so
      * every one of them must split the cache. A new option added without a decision fails here rather than
      * silently sharing a cache entry with a read that interprets the same bytes differently.
      */
     private static final Set<String> IDENTITY_INERT_KEYS = Set.of();
-
-    public void testEveryRecognizedKeyIsIdentityAffectingOrDeclaredInert() {
-        for (String key : CsvFormatReader.RECOGNIZED_KEYS) {
-            boolean affects = SchemaCacheKey.affectsIdentity(key);
-            boolean inert = IDENTITY_INERT_KEYS.contains(key);
-            assertTrue(
-                "key ["
-                    + key
-                    + "] is consumed by the reader but neither participates in the cache identity nor is declared "
-                    + "inert: add it to SchemaCacheKey's identity params, or declare it in IDENTITY_INERT_KEYS with "
-                    + "a justification that it cannot change which rows survive or what values they hold",
-                affects || inert
-            );
-            assertFalse("key [" + key + "] cannot be both identity-affecting and declared inert", affects && inert);
-        }
-    }
 
     public void testDeclaredInertKeysAreStillRecognized() {
         for (String key : IDENTITY_INERT_KEYS) {
@@ -378,4 +362,120 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
             );
         }
     }
+
+    /**
+     * The behavioural form of the pin above, against the value the reader actually vends. CSV declares nothing
+     * inert, so every recognised key must move the identity: a set-membership assertion cannot see a reader that
+     * derived its identity by hand and dropped one.
+     */
+    public void testTheVendedIdentityMovesWithEveryRecognizedKey() {
+        CsvFormatReader reader = new CsvFormatReader(NOOP_BLOCK_FACTORY, "csv", List.of(".csv"));
+        Map<String, Object> base = new HashMap<>();
+        for (String key : CsvFormatReader.RECOGNIZED_KEYS) {
+            base.put(key, sampleValueFor(key));
+        }
+        String baseIdentity = reader.withConfigTrackingConsumedKeys(base).identity();
+
+        for (String key : CsvFormatReader.RECOGNIZED_KEYS) {
+            Map<String, Object> altered = new HashMap<>(base);
+            altered.put(key, otherSampleValueFor(key));
+            assertNotEquals(
+                "recognised key [" + key + "] must move the vended identity, or two reads that differ share a record",
+                baseIdentity,
+                reader.withConfigTrackingConsumedKeys(altered).identity()
+            );
+        }
+    }
+
+    /** A second valid value per key, different from {@link #sampleValueFor}, so each key can be varied alone. */
+    private static Object otherSampleValueFor(String key) {
+        return switch (key) {
+            case "delimiter" -> ";";
+            case "mode" -> "quoted";
+            case "quote" -> "'";
+            case "escape" -> "/";
+            case "comment" -> "%";
+            case "null_value" -> "NULL";
+            case "encoding" -> "ISO-8859-1";
+            case "datetime_format" -> "dd-MM-yyyy";
+            case "max_field_size" -> 2048;
+            case "multi_value_syntax" -> "none";
+            case "header_row" -> true;
+            case "column_prefix" -> "c_";
+            case "trim_spaces" -> false;
+            case "schema_sample_size" -> 20;
+            case "skip_rows" -> 3;
+            default -> throw new AssertionError("update otherSampleValueFor() for new recognised key: " + key);
+        };
+    }
+
+    /**
+     * The error policy moves the vended identity, because it decides which rows survive. This is the guard that
+     * matters most here: a contribution is matched to a cache entry on path, mtime and this identity alone, so if a
+     * {@code skip_row} read and a {@code fail_fast} read of one file derive the same value, the lenient scan's
+     * survivor count enriches the strict entry and the strict query answers where its own scan aborts.
+     * <p>
+     * Derived through the production vend rather than compared as literals, and asserted over
+     * {@link ErrorPolicy#CONFIG_KEYS} rather than a name typed here, so a policy setting added later is covered.
+     */
+    public void testEveryErrorPolicyKeyMovesTheVendedIdentity() {
+        // error_mode is held at skip_row throughout, so a budget key must move the identity on its own. Varying it
+        // alongside the mode would let the mode satisfy every assertion and leave the budget keys unchecked - which
+        // is what the first version of this test did, and it stayed green against an identity of mode.name() alone.
+        Map<String, Object> base = new HashMap<>(Map.of("delimiter", ",", "error_mode", "skip_row"));
+        String baseIdentity = harvestFingerprintOf(base);
+        assertFalse("the fingerprint must not be empty, or this asserts nothing", baseIdentity.isEmpty());
+
+        for (String policyKey : ErrorPolicy.CONFIG_KEYS) {
+            Map<String, Object> altered = new HashMap<>(base);
+            altered.put(policyKey, alternativePolicyValueFor(policyKey));
+            assertNotEquals(
+                "policy key [" + policyKey + "] must move the fingerprint on its own: it changes which rows survive",
+                baseIdentity,
+                harvestFingerprintOf(altered)
+            );
+        }
+    }
+
+    /** A value different from what {@code base} carries for that key, valid for a skip_row policy. */
+    private static Object alternativePolicyValueFor(String policyKey) {
+        return switch (policyKey) {
+            case "error_mode" -> "null_field";
+            case "max_errors" -> 7;
+            case "max_error_ratio" -> 0.5;
+            default -> throw new AssertionError("unhandled error-policy key [" + policyKey + "]");
+        };
+    }
+
+    /**
+     * The reconcile gate compares the fingerprint the coordinator seeded against the one the data node stamped, so
+     * these must be one string. They were two: the seed took the vended {@code Configured.identity()} and the harvest
+     * took the policy-folded value, so no strict text dataset ever warmed.
+     */
+    public void testTheVendedIdentityIsTheFingerprintTheHarvestStamps() {
+        List<Map<String, Object>> configs = new ArrayList<>();
+        configs.add(new HashMap<>(Map.of("delimiter", ",")));
+        configs.add(new HashMap<>(Map.of("delimiter", ",", "error_mode", "skip_row")));
+        Map<String, Object> withBudget = new HashMap<>();
+        withBudget.put("delimiter", ";");
+        withBudget.put("error_mode", "skip_row");
+        withBudget.put("max_errors", 7);
+        configs.add(withBudget);
+        configs.add(new HashMap<>(Map.of("header_row", "true")));
+        for (Map<String, Object> config : configs) {
+            CsvFormatReader reader = new CsvFormatReader(NOOP_BLOCK_FACTORY, "csv", List.of(".csv"));
+            Configured<FormatReader> configured = reader.withConfigTrackingConsumedKeys(config);
+            assertEquals(
+                "the identity the coordinator seeds with must be the fingerprint the data node stamps, for " + config,
+                ((CsvFormatReader) configured.value()).harvestFingerprintForTests(),
+                configured.identity()
+            );
+        }
+    }
+
+    private static String harvestFingerprintOf(Map<String, Object> config) {
+        CsvFormatReader reader = new CsvFormatReader(NOOP_BLOCK_FACTORY, "csv", List.of(".csv"));
+        return ((CsvFormatReader) reader.withConfigTrackingConsumedKeys(config).value()).harvestFingerprintForTests();
+    }
+
 }

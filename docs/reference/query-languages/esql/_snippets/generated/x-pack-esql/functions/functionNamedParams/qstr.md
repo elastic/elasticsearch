@@ -8,7 +8,7 @@
 `allow_leading_wildcard`
 :   (boolean) If true, the wildcard characters * and ? are allowed as the first character of the query string. Defaults to true.
 
-`allow_wildcard`
+`analyze_wildcard`
 :   (boolean) If true, the query attempts to analyze wildcard terms in the query string. Defaults to false.
 
 `analyzer`

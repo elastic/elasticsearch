@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.gpu;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -24,19 +25,18 @@ public class GPUClientMixedNodeYamlTestSuiteIT extends ESClientYamlSuiteTestCase
 
     private static ElasticsearchCluster createCluster() {
         var builder = ElasticsearchCluster.local()
+            .name("gpu-client-mixed-node-cluster")
             .distribution(DistributionType.DEFAULT)
             .nodes(2)
             .module("gpu")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("xpack.security.enabled", "false")
             .setting("vectors.indexing.use_gpu", () -> "true", localNodeSpec -> {
-                return localNodeSpec.getName().equals("test-cluster-0");
+                return localNodeSpec.getName().equals("gpu-client-mixed-node-cluster-0");
             })
-            .setting(
-                "vectors.indexing.use_gpu",
-                () -> "false",
-                localNodeSpec -> { return localNodeSpec.getName().equals("test-cluster-0") == false; }
-            )
+            .setting("vectors.indexing.use_gpu", () -> "false", localNodeSpec -> {
+                return localNodeSpec.getName().equals("gpu-client-mixed-node-cluster-0") == false;
+            })
             // Needed to get access to raw vectors from Lucene scorers
             .jvmArg("--add-opens=org.apache.lucene.core/org.apache.lucene.codecs.lucene99=org.elasticsearch.server")
             .jvmArg("--add-opens=org.apache.lucene.core/org.apache.lucene.codecs.hnsw=org.elasticsearch.server")
@@ -52,7 +52,7 @@ public class GPUClientMixedNodeYamlTestSuiteIT extends ESClientYamlSuiteTestCase
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(gpuSupportedRule).around(cluster);
 
-    public GPUClientMixedNodeYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
+    public GPUClientMixedNodeYamlTestSuiteIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

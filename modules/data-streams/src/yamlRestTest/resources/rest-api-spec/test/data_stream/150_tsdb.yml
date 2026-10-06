@@ -85,6 +85,18 @@ setup:
           - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}'
 
 ---
+teardown:
+  - do:
+      indices.delete_data_stream:
+        name: tsdb-write-blocked
+        ignore: 404
+
+  - do:
+      ingest.delete_pipeline:
+        id: tsdb-write-blocked-pipeline
+        ignore: 404
+
+---
 created the data stream:
   - requires:
       cluster_features: ["gte_v8.1.0"]
@@ -394,20 +406,6 @@ TSDB documents for write blocked backing index go to failure store:
               error.type: cluster_block_exception
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._source.document.index: tsdb-write-blocked }
-
-  - do:
-      indices.delete_data_stream:
-        name: tsdb-write-blocked
-  - is_true: acknowledged
-
-  - do:
-      indices.delete:
-        index: .fs-tsdb-write-blocked-*
-  - is_true: acknowledged
-
-  - do:
-      ingest.delete_pipeline:
-        id: tsdb-write-blocked-pipeline
 
 ---
 index without timestamp with pipeline:

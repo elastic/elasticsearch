@@ -121,6 +121,37 @@ class ConcurrencyLimiter {
         }
     }
 
+    /**
+     * Untimed barge: returns immediately. Fair waiters may be skipped. Used by async retries so a
+     * continuation never parks (fail, reschedule with jitter). First-attempt async still uses
+     * {@link #acquireChecked()}.
+     */
+    boolean tryAcquire() {
+        if (semaphore == null) {
+            return true;
+        }
+        return semaphore.tryAcquire();
+    }
+
+    /**
+     * {@link #tryAcquire()} mapped onto the same retryable {@link ExternalUnavailableException} as
+     * {@link #acquireChecked()}, without parking. throttling=false: local semaphore, not a store 429.
+     */
+    void acquireBargeChecked() {
+        if (tryAcquire() == false) {
+            ExternalUnavailableException ex = new ExternalUnavailableException(
+                Condition.STORE_UNAVAILABLE,
+                StoragePath.NONE,
+                "",
+                "",
+                false,
+                0L
+            );
+            ex.setDetail("No concurrency permit available for [" + scheme + "] (max permits [" + maxPermits() + "])");
+            throw ex;
+        }
+    }
+
     void release() {
         if (semaphore != null) {
             semaphore.release();

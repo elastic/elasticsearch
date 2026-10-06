@@ -232,9 +232,11 @@ public final class DataSourceModule implements Closeable {
         LocalFileAccess effectiveLocalFileAccess = localFileAccess != null ? localFileAccess : LocalFileAccess.UNRESTRICTED;
         // Off-timer scheduler for the async read-retry backoff, so a retry does not park a GENERIC-pool thread on
         // Thread.sleep while it waits; DIRECT (run promptly on the executor) when no ThreadPool is supplied (tests).
-        RetryScheduler retryScheduler = threadPool == null
-            ? RetryScheduler.DIRECT
-            : (command, delayMillis, exec) -> threadPool.schedule(command, TimeValue.timeValueMillis(Math.max(0L, delayMillis)), exec);
+        // Hop the retry *start* onto esql_external_io (splitDiscoveryExecutor), never the caller executor: prefetch
+        // passes Runnable::run, and ThreadPool.ThreadedRunnable would then run ConcurrencyLimiter.tryAcquire on
+        // [scheduler]. Completion still uses the caller executor captured in the continuation.
+        Executor retryStartExecutor = splitDiscoveryExecutor != null ? splitDiscoveryExecutor : executor;
+        RetryScheduler retryScheduler = retryStartScheduler(threadPool, retryStartExecutor);
         this.storageProviderRegistry = new StorageProviderRegistry(
             settings,
             credentials,
@@ -433,6 +435,23 @@ public final class DataSourceModule implements Closeable {
         this.testConnectionStorageProbes = Map.copyOf(tcProbes);
         this.pluginFactories = Map.copyOf(operatorFactoryProviders);
         this.managedCloseables = closeables;
+    }
+
+    /**
+     * Retry start hops onto {@code retryStartExecutor} ({@code esql_external_io} in production),
+     * ignoring the caller executor passed to {@link RetryScheduler#schedule}. Prefetch uses
+     * {@code Runnable::run}; scheduling onto that would run {@link ConcurrencyLimiter#tryAcquire} on
+     * {@code [scheduler]}. Completion still uses the caller executor.
+     */
+    static RetryScheduler retryStartScheduler(@Nullable ThreadPool threadPool, Executor retryStartExecutor) {
+        if (threadPool == null) {
+            return RetryScheduler.DIRECT;
+        }
+        return (command, delayMillis, ignoredCallerExecutor) -> threadPool.schedule(
+            command,
+            TimeValue.timeValueMillis(Math.max(0L, delayMillis)),
+            retryStartExecutor
+        );
     }
 
     @Override

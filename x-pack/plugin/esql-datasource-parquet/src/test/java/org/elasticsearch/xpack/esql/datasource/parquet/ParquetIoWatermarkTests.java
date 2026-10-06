@@ -176,6 +176,10 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         assertEquals(0, watermark.used());
     }
 
+    /**
+     * T3 characterization of the post-161066 stall: concurrent waiters share one overshoot owner and the
+     * rest become partial holders via forced admits. PR5 flips this to {@code forcedAdmits == 0}.
+     */
     public void testConcurrentAdmitWaitTakesOneOvershootRestCharged() throws Exception {
         ParquetIoWatermark watermark = new ParquetIoWatermark(200);
         AtomicInteger admitted = new AtomicInteger();
@@ -312,6 +316,10 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         assertEquals(90, watermark.used());
     }
 
+    /**
+     * T1 characterization of the post-161066 stall: after the admit wait budget a waiter force-charges
+     * ({@code forcedAdmits > 0}) instead of failing. PR5 flips this to {@code forcedAdmits == 0} / no timeout.
+     */
     public void testAdmitWaitChargesAfterTimeoutInsteadOfRejecting() {
         ParquetIoWatermark watermark = new ParquetIoWatermark(100);
         RowGroupIo owner = new RowGroupIo();
@@ -379,9 +387,9 @@ public class ParquetIoWatermarkTests extends ESTestCase {
     }
 
     /**
-     * Waiters force-charge after the watermark admit budget, so the owner's release queued on the
-     * same pool can run. Worker failures are captured on this thread; the pool would otherwise
-     * swallow an AssertionError.
+     * T5 characterization of the post-161066 stall: waiters on a shared pool force-charge after the
+     * admit budget so the owner's release queued behind them can run. PR5 flips this to no timeout
+     * and {@code forcedAdmits == 0}.
      */
     public void testWaitersOnSharedPoolBoundedByAdmitBudget() throws Exception {
         ParquetIoWatermark watermark = new ParquetIoWatermark(100, 200L);

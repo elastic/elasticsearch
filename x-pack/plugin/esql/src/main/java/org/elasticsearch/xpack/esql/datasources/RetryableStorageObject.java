@@ -368,7 +368,39 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
             listener.onFailure(new TaskCancelledException(StorageRetryCancellation.CANCELLED_MESSAGE));
             return;
         }
-        Releasable inner = delegate.startReadBytesAsync(position, length, factory, executor, new ActionListener<>() {
+        Releasable inner = startDelegateRead(
+            position,
+            length,
+            factory,
+            executor,
+            listener,
+            attempt,
+            startNanos,
+            accumulatedBackoffMillis,
+            inflight,
+            cancelled
+        );
+        registerInflight(attempt, inner, inflight, cancelled);
+    }
+
+    /**
+     * First attempt uses a blocking permit wait. Retries barge ({@link ConcurrencyLimiter#tryAcquire()})
+     * so the continuation never parks; a miss is retryable and rescheduled with jitter. The node permit
+     * is not held across attempts.
+     */
+    private Releasable startDelegateRead(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener,
+        int attempt,
+        long startNanos,
+        long accumulatedBackoffMillis,
+        AtomicReference<InflightSlot> inflight,
+        AtomicBoolean cancelled
+    ) {
+        ActionListener<DirectReadBuffer> retryingListener = new ActionListener<>() {
             @Override
             public void onResponse(DirectReadBuffer result) {
                 retryPolicy.notifySuccess();
@@ -446,8 +478,8 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
                     listener.onFailure(rejected);
                 }
             }
-        });
-        registerInflight(attempt, inner, inflight, cancelled);
+        };
+        return delegate.startReadBytesAsync(position, length, factory, executor, retryingListener, attempt > 0);
     }
 
     @Override

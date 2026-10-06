@@ -14,6 +14,8 @@ import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -39,9 +41,13 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -244,6 +250,229 @@ public class RetryableStorageObjectTests extends ESTestCase {
         assertNotNull("async read should deliver a buffer after the scheduled retry", result.get());
         assertEquals("the single transient failure must reschedule exactly one retry continuation", 1, scheduledDelays.size());
         assertEquals("the read must succeed on the second attempt", 2, attempts.get());
+    }
+
+    /**
+     * T4 (C5): real {@link ThreadPool}, dedicated caller executor, full limiter. Prefetch
+     * used to hop the retry onto {@code [scheduler]} via {@code ThreadedRunnable}. The start hop must
+     * be {@code esql_external_io} (generic here); {@link ConcurrencyLimiter#acquire} / {@code tryAcquire}
+     * must never run on a scheduler thread. Completion stays on the caller executor.
+     */
+    public void testRetryHopDoesNotAcquireOnSchedulerThread() throws Exception {
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        List<String> acquireThreads = new CopyOnWriteArrayList<>();
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(3, false)) {
+            @Override
+            void acquire() throws TimeoutException, InterruptedException {
+                acquireThreads.add(Thread.currentThread().getName());
+                super.acquire();
+            }
+
+            @Override
+            boolean tryAcquire() {
+                acquireThreads.add(Thread.currentThread().getName());
+                return super.tryAcquire();
+            }
+        };
+        AtomicInteger attempts = new AtomicInteger();
+        StoragePath path = StoragePath.of("s3://bucket/key");
+        StorageObject flaky = new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
+            public InputStream newStream() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long length() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Instant lastModified() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean exists() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public StoragePath path() {
+                return path;
+            }
+
+            @Override
+            public int readBytes(long position, ByteBuffer target) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void readBytesAsync(
+                long position,
+                long len,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
+                executor.execute(() -> {
+                    if (attempts.getAndIncrement() == 0) {
+                        listener.onFailure(
+                            new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "", "", false, 0L)
+                        );
+                    } else {
+                        listener.onResponse(new DirectReadBuffer(ByteBuffer.allocate(4), () -> {}));
+                    }
+                });
+            }
+
+            @Override
+            public StorageObjectMetrics metrics() {
+                return new StorageObjectMetrics(0, 0, 0, 0);
+            }
+        };
+        Executor io = threadPool.generic();
+        RetryScheduler hopScheduler = DataSourceModule.retryStartScheduler(threadPool, io);
+        ConcurrencyLimitedStorageObject limited = new ConcurrencyLimitedStorageObject(flaky, limiter);
+        RetryableStorageObject obj = new RetryableStorageObject(limited, new RetryPolicy(3, 5, 50), hopScheduler);
+        CountDownLatch done = new CountDownLatch(1);
+        AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        List<String> completionThreads = new CopyOnWriteArrayList<>();
+        ExecutorService completion = Executors.newSingleThreadExecutor(r -> new Thread(r, "t4-completion"));
+        try {
+            obj.readBytesAsync(0, 4, len -> new DirectReadBuffer(ByteBuffer.allocate(len), () -> {}), command -> completion.execute(() -> {
+                completionThreads.add(Thread.currentThread().getName());
+                command.run();
+            }), ActionListener.wrap(r -> {
+                result.set(r);
+                done.countDown();
+            }, e -> {
+                failure.set(e);
+                done.countDown();
+            }));
+            assertTrue(done.await(10, TimeUnit.SECONDS));
+            assertNull(failure.get());
+            assertNotNull(result.get());
+            assertFalse("retry must have acquired a permit", acquireThreads.isEmpty());
+            for (String name : acquireThreads) {
+                assertFalse("scheduler must never acquire a concurrency permit, saw " + name, name.contains("[scheduler]"));
+            }
+            assertFalse("completion must have run on the caller executor", completionThreads.isEmpty());
+            for (String name : completionThreads) {
+                assertEquals("t4-completion", name);
+            }
+            assertEquals("first failure plus one retry hop", 2, attempts.get());
+        } finally {
+            completion.shutdownNow();
+            ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    /**
+     * A retry that cannot barge a permit must reschedule rather than park. The held permit is released
+     * after the first barge miss so the next hop succeeds.
+     */
+    public void testRetryBargeMissReschedulesWithoutParking() throws Exception {
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false), 30_000L);
+        AtomicInteger ioAttempts = new AtomicInteger();
+        StoragePath path = StoragePath.of("s3://bucket/key");
+        StorageObject inner = new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
+            public InputStream newStream() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long length() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Instant lastModified() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean exists() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public StoragePath path() {
+                return path;
+            }
+
+            @Override
+            public int readBytes(long position, ByteBuffer target) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void readBytesAsync(
+                long position,
+                long len,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
+                if (ioAttempts.getAndIncrement() == 0) {
+                    listener.onFailure(new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "", "", false, 0L));
+                } else {
+                    listener.onResponse(new DirectReadBuffer(ByteBuffer.allocate(4), () -> {}));
+                }
+            }
+
+            @Override
+            public StorageObjectMetrics metrics() {
+                return new StorageObjectMetrics(0, 0, 0, 0);
+            }
+        };
+        List<Runnable> pending = new ArrayList<>();
+        RetryScheduler capturing = (command, delayMillis, executor) -> pending.add(command);
+        ConcurrencyLimitedStorageObject limited = new ConcurrencyLimitedStorageObject(inner, limiter);
+        RetryableStorageObject obj = new RetryableStorageObject(limited, new RetryPolicy(3, 5, 50), capturing);
+        AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        obj.readBytesAsync(
+            0,
+            4,
+            len -> new DirectReadBuffer(ByteBuffer.allocate(len), () -> {}),
+            Runnable::run,
+            ActionListener.wrap(result::set, failure::set)
+        );
+        assertEquals("first I/O failure must schedule one retry", 1, pending.size());
+        limiter.acquire();
+        long bargeStarted = System.nanoTime();
+        pending.remove(0).run();
+        long bargeMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - bargeStarted);
+        assertTrue("barge miss must not park, took " + bargeMs + "ms", bargeMs < 1_000);
+        assertEquals("barge miss must reschedule", 1, pending.size());
+        limiter.release();
+        pending.remove(0).run();
+        assertNull(failure.get());
+        assertNotNull(result.get());
+        assertEquals(2, ioAttempts.get());
     }
 
     /**

@@ -168,8 +168,29 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
         Executor executor,
         ActionListener<DirectReadBuffer> listener
     ) {
+        return startReadBytesAsync(position, length, factory, executor, listener, false);
+    }
+
+    /**
+     * {@code barge}: untimed {@link ConcurrencyLimiter#tryAcquire()} so a retry continuation never
+     * parks. Fail is retryable {@link org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException}
+     * (throttling=false). Permit is not held across attempts; the next hop acquires again.
+     */
+    @Override
+    public Releasable startReadBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener,
+        boolean barge
+    ) {
         try {
-            limiter.acquireChecked();
+            if (barge) {
+                limiter.acquireBargeChecked();
+            } else {
+                limiter.acquireChecked();
+            }
         } catch (Exception e) {
             listener.onFailure(e);
             return () -> {};

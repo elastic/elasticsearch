@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator;
 import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorExcerpts;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -7003,25 +7004,6 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals("String length (12) is over the limit (10)", CsvFormatReader.rowErrorReason(reworded));
     }
 
-    public void testCsvErrorMessagesSummarizeShortValuePassesThrough() {
-        assertEquals("hello", CsvErrorMessages.summarize("hello"));
-        assertEquals("null", CsvErrorMessages.summarize((String) null));
-    }
-
-    public void testCsvErrorMessagesSummarizeLongValueIsCapped() {
-        StringBuilder huge = new StringBuilder();
-        for (int i = 0; i < 5_000; i++) {
-            huge.append('x');
-        }
-        String summarized = CsvErrorMessages.summarize(huge.toString());
-        assertTrue(
-            "expected length <= MAX_EXCERPT_CHARS, got " + summarized.length(),
-            summarized.length() <= CsvErrorMessages.MAX_EXCERPT_CHARS
-        );
-        assertTrue("expected truncation marker, got: " + summarized, summarized.contains("truncated"));
-        assertTrue("expected total-length marker, got: " + summarized, summarized.contains("5000"));
-    }
-
     public void testCsvErrorMessagesSummarizeRowEmptyIsSentinel() {
         assertEquals("<unparsed>", CsvErrorMessages.summarizeRow(new String[0]));
         assertEquals("<unparsed>", CsvErrorMessages.summarizeRow(null));
@@ -7105,7 +7087,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         String summarized = CsvErrorMessages.summarizeAround(huge.toString(), faultOffset);
         assertTrue(
             "expected length <= MAX_EXCERPT_CHARS, got " + summarized.length() + ": " + summarized,
-            summarized.length() <= CsvErrorMessages.MAX_EXCERPT_CHARS
+            summarized.length() <= ErrorExcerpts.MAX_EXCERPT_CHARS
         );
         assertTrue(
             "expected offset annotation, got: " + summarized,
@@ -7165,7 +7147,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         String summarized = CsvErrorMessages.summarizeAround(huge.toString(), -1);
         assertTrue(
             "expected length <= MAX_EXCERPT_CHARS, got " + summarized.length(),
-            summarized.length() <= CsvErrorMessages.MAX_EXCERPT_CHARS
+            summarized.length() <= ErrorExcerpts.MAX_EXCERPT_CHARS
         );
         assertTrue("expected truncated marker, got: " + summarized, summarized.contains("truncated"));
         assertTrue("expected total-length marker, got: " + summarized, summarized.contains("5000"));
@@ -7189,7 +7171,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         String summarized = CsvErrorMessages.summarizeAround(huge.toString(), faultOffset);
         assertTrue(
             "expected length <= MAX_EXCERPT_CHARS, got " + summarized.length(),
-            summarized.length() <= CsvErrorMessages.MAX_EXCERPT_CHARS
+            summarized.length() <= ErrorExcerpts.MAX_EXCERPT_CHARS
         );
         assertTrue("expected offset annotation, got: " + summarized, summarized.contains("(offset " + faultOffset + " of 100000 chars)"));
         assertTrue("expected fault bytes in window, got: " + summarized, summarized.contains(marker));
@@ -7199,7 +7181,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      * End-to-end: an unclosed quoted field at end-of-file produces an error excerpt anchored on the
      * opening quote, not a head/tail-truncated view of the entire row. The row is sized so the
      * opening quote sits well inside the elided middle of the legacy head/tail summary, so a
-     * regression that re-routes to {@link CsvErrorMessages#summarize} would hide the fault bytes.
+     * regression that re-routes to {@link ErrorExcerpts#summarize} would hide the fault bytes.
      */
     public void testMalformedRowErrorAnchorsOnQuoteOffset() {
         // Pad both sides of the unmatched quote so the line is much longer than MAX_EXCERPT_CHARS

@@ -55,6 +55,24 @@ public class KnnEvalRescoreTests extends ESTestCase {
         assertTrue(rescore.isRescoreWindowCapped(10, 10000.0f));
     }
 
+    public void testScoresAreQuantizedOnlyWhenNothingRescores() {
+        Map<String, Object> noRescore = Map.of("type", "dense_vector", "index_options", Map.of("type", "bbq_disk", "bits", 4));
+        KnnEvalRescore unrescored = KnnEvalRescore.fromFieldMapping("emb", noRescore);
+        assertTrue(unrescored.returnsQuantizedScores(new KnnEvalSettings(5.0f, null, null, false)));
+        // a request-level oversample, an exact search, or a mapping-level oversample each give full-precision scores
+        assertFalse(unrescored.returnsQuantizedScores(new KnnEvalSettings(5.0f, null, 3.0f, false)));
+        assertFalse(unrescored.returnsQuantizedScores(new KnnEvalSettings(null, null, null, true)));
+        assertFalse(rescoreFor("bbq_disk").returnsQuantizedScores(new KnnEvalSettings(5.0f, null, null, false)));
+    }
+
+    public void testAutoCalibrationRescoresWithoutAnOversample() {
+        KnnEvalRescore rescore = KnnEvalRescore.fromFieldMapping(
+            "emb",
+            Map.of("type", "dense_vector", "index_options", Map.of("type", "bbq_disk", "bits", 4, "auto_calibrate", true))
+        );
+        assertFalse(rescore.returnsQuantizedScores(new KnnEvalSettings(5.0f, null, null, false)));
+    }
+
     public void testAutoCalibrationIsReadFromTheMapping() {
         KnnEvalRescore rescore = KnnEvalRescore.fromFieldMapping(
             "emb",

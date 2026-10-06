@@ -33,6 +33,7 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
     /** Counts quantized visits plus full-precision rescoring work. */
     static final String QUANTIZED_VISIT_PLUS_RESCORE = "quantized_visit_plus_rescore";
 
+    static final ParseField QUERY_SOURCE_FIELD = KnnEvalQuerySource.QUERY_SOURCE_FIELD;
     static final ParseField BASELINE_FIELD = new ParseField("baseline");
     static final ParseField BASELINE_TOOK_MS_FIELD = new ParseField("baseline_took_ms");
     static final ParseField BASELINE_VECTOR_OPS_FIELD = new ParseField("baseline_vector_ops");
@@ -40,6 +41,7 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
     static final ParseField RESULTS_FIELD = new ParseField("results");
     static final ParseField FAILURES_FIELD = new ParseField("failures");
 
+    private final String queryFrom;
     private final ReportedSettings baseline;
     private final long baselineTookMs;
     private final long baselineVectorOps;
@@ -48,6 +50,7 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
     private final Map<String, Exception> failures;
 
     KnnEvalResponse(
+        String queryFrom,
         ReportedSettings baseline,
         long baselineTookMs,
         long baselineVectorOps,
@@ -55,6 +58,7 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
         List<KnnSettingsResult> results,
         Map<String, Exception> failures
     ) {
+        this.queryFrom = Objects.requireNonNull(queryFrom);
         this.baseline = Objects.requireNonNull(baseline);
         this.baselineTookMs = baselineTookMs;
         this.baselineVectorOps = baselineVectorOps;
@@ -64,12 +68,17 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
     }
 
     KnnEvalResponse(StreamInput in) throws IOException {
+        this.queryFrom = in.readString();
         this.baseline = new ReportedSettings(in);
         this.baselineTookMs = in.readVLong();
         this.baselineVectorOps = in.readVLong();
         this.baselineVectorOpsKind = in.readString();
         this.results = in.readCollectionAsList(KnnSettingsResult::new);
         this.failures = in.readMap(StreamInput::readException);
+    }
+
+    public String getQueryFrom() {
+        return queryFrom;
     }
 
     public ReportedSettings getBaseline() {
@@ -98,6 +107,7 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(queryFrom);
         baseline.writeTo(out);
         out.writeVLong(baselineTookMs);
         out.writeVLong(baselineVectorOps);
@@ -109,6 +119,9 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.startObject(QUERY_SOURCE_FIELD.getPreferredName());
+        builder.field(KnnEvalQuerySource.FROM_FIELD.getPreferredName(), queryFrom);
+        builder.endObject();
         builder.field(BASELINE_FIELD.getPreferredName());
         baseline.toXContent(builder, params);
         builder.field(BASELINE_TOOK_MS_FIELD.getPreferredName(), baselineTookMs);
@@ -135,7 +148,8 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         KnnEvalResponse that = (KnnEvalResponse) o;
-        return baselineTookMs == that.baselineTookMs
+        return queryFrom.equals(that.queryFrom)
+            && baselineTookMs == that.baselineTookMs
             && baselineVectorOps == that.baselineVectorOps
             && baseline.equals(that.baseline)
             && baselineVectorOpsKind.equals(that.baselineVectorOpsKind)
@@ -145,7 +159,7 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(baseline, baselineTookMs, baselineVectorOps, baselineVectorOpsKind, results, failureMessages());
+        return Objects.hash(queryFrom, baseline, baselineTookMs, baselineVectorOps, baselineVectorOpsKind, results, failureMessages());
     }
 
     // Exceptions lack value equality, so failures compare by message.
@@ -209,12 +223,17 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
     }
 
     /** The requested settings plus whether full-precision rescoring hit its 10,000-vector limit. */
-    public record ReportedSettings(KnnEvalSettings knnSettings, boolean rescoreWindowCapped) implements Writeable, ToXContentObject {
+    public record ReportedSettings(KnnEvalSettings knnSettings, boolean rescoreWindowCapped, boolean quantizedScores)
+        implements
+            Writeable,
+            ToXContentObject {
 
         static final ParseField RESCORE_WINDOW_CAPPED_FIELD = new ParseField("rescore_window_capped");
+        /** Nothing rescored these hits, so their scores are estimates and no query is excluded for scoring above the baseline cutoff. */
+        static final ParseField QUANTIZED_SCORES_FIELD = new ParseField("quantized_scores");
 
         public static ReportedSettings of(KnnEvalSettings knnSettings) {
-            return new ReportedSettings(knnSettings, false);
+            return new ReportedSettings(knnSettings, false, false);
         }
 
         public ReportedSettings {
@@ -222,13 +241,14 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
         }
 
         ReportedSettings(StreamInput in) throws IOException {
-            this(new KnnEvalSettings(in), in.readBoolean());
+            this(new KnnEvalSettings(in), in.readBoolean(), in.readBoolean());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             knnSettings.writeTo(out);
             out.writeBoolean(rescoreWindowCapped);
+            out.writeBoolean(quantizedScores);
         }
 
         @Override
@@ -237,6 +257,9 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
             knnSettings.innerToXContent(builder, params);
             if (rescoreWindowCapped) {
                 builder.field(RESCORE_WINDOW_CAPPED_FIELD.getPreferredName(), true);
+            }
+            if (quantizedScores) {
+                builder.field(QUANTIZED_SCORES_FIELD.getPreferredName(), true);
             }
             builder.endObject();
             return builder;

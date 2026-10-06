@@ -36,6 +36,12 @@ sealed interface KnnEvalQuerySource extends Writeable, ToXContentObject permits 
     ParseField SEED_FIELD = new ParseField("seed");
     ParseField VECTORS_FIELD = new ParseField("vectors");
 
+    String FROM_DOCS = "docs";
+    String FROM_VECTORS = "vectors";
+
+    /** The {@code from} discriminator this source was parsed from, echoed in responses so results record how their queries were chosen. */
+    String from();
+
     static KnnEvalQuerySource fromXContent(XContentParser parser) throws IOException {
         String from = null;
         Integer size = null;
@@ -72,13 +78,13 @@ sealed interface KnnEvalQuerySource extends Writeable, ToXContentObject permits 
             throw new IllegalArgumentException("[from] is required in [query_source]");
         }
         return switch (from) {
-            case "docs" -> {
+            case FROM_DOCS -> {
                 if (size == null) {
                     throw new IllegalArgumentException("[size] is required when [from] is [docs]");
                 }
                 yield new DocsSource(new KnnEvalSample(size, seed));
             }
-            case "vectors" -> {
+            case FROM_VECTORS -> {
                 if (vectors == null) {
                     throw new IllegalArgumentException("[vectors] is required when [from] is [vectors]");
                 }
@@ -104,6 +110,11 @@ sealed interface KnnEvalQuerySource extends Writeable, ToXContentObject permits 
         }
 
         @Override
+        public String from() {
+            return FROM_DOCS;
+        }
+
+        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeByte((byte) 0);
             sample.writeTo(out);
@@ -112,7 +123,7 @@ sealed interface KnnEvalQuerySource extends Writeable, ToXContentObject permits 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(FROM_FIELD.getPreferredName(), "docs");
+            builder.field(FROM_FIELD.getPreferredName(), from());
             builder.field(SIZE_FIELD.getPreferredName(), sample.getSize());
             if (sample.getSeed() != null) {
                 builder.field(SEED_FIELD.getPreferredName(), sample.getSeed());
@@ -129,6 +140,11 @@ sealed interface KnnEvalQuerySource extends Writeable, ToXContentObject permits 
         }
 
         @Override
+        public String from() {
+            return FROM_VECTORS;
+        }
+
+        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeByte((byte) 1);
             out.writeCollection(vectors);
@@ -137,7 +153,7 @@ sealed interface KnnEvalQuerySource extends Writeable, ToXContentObject permits 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(FROM_FIELD.getPreferredName(), "vectors");
+            builder.field(FROM_FIELD.getPreferredName(), from());
             builder.startArray(VECTORS_FIELD.getPreferredName());
             for (KnnEvalQuery query : vectors) {
                 query.toXContent(builder, params);

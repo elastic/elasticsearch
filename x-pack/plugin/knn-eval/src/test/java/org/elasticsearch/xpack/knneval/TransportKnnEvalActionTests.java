@@ -193,6 +193,21 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         }
     }
 
+    public void testQuantizedCandidateScoresAreNotComparedWithTheBaselineCutoff() {
+        SearchHit[] baselineHits = searchHits("a", "b", "c");
+        SearchHit[] candidateHits = searchHits("a", "b", "x");
+        candidateHits[2].score(2);
+        try {
+            // an estimate above the cutoff proves nothing, so the query keeps its overlap recall
+            KnnEvalRecall.RecallResult detail = KnnEvalRecall.recallOf(candidateHits, KnnEvalRecall.baselineOf(baselineHits), false, 0, 0);
+            assertEquals(2.0 / 3.0, detail.recall(), 0.0);
+            assertEquals(0, detail.baselineMissedBetter());
+        } finally {
+            releaseScratchHits(baselineHits);
+            releaseScratchHits(candidateHits);
+        }
+    }
+
     public void testCandidateHitTiedWithBaselineCutoffDoesNotInvalidateRecall() {
         SearchHit[] baselineHits = searchHits("a", "b", "c");
         SearchHit[] candidateHits = searchHits("a", "b", "x");
@@ -1010,7 +1025,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
     }
 
     private static KnnEvalRecall.RecallResult recall(SearchHit[] candidateHits, SearchHit[] baselineHits) {
-        return KnnEvalRecall.recallOf(candidateHits, KnnEvalRecall.baselineOf(baselineHits), 0, 0);
+        return KnnEvalRecall.recallOf(candidateHits, KnnEvalRecall.baselineOf(baselineHits), true, 0, 0);
     }
 
     private static SearchHit[] searchHits(String... ids) {

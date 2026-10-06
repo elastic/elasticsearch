@@ -44,6 +44,14 @@ record KnnEvalRescore(@Nullable Float mappingOversample, boolean autoCalibrate) 
         return new KnnEvalRescore(mappingOversample, Boolean.TRUE.equals(indexOptions.get(AUTO_CALIBRATE_FIELD)));
     }
 
+    /**
+     * Whether hits for these settings carry quantized scores: nothing rescores them, so their scores are estimates that cannot be compared
+     * with a full-precision cutoff. An exact search always scores in full precision.
+     */
+    boolean returnsQuantizedScores(KnnEvalSettings knnSettings) {
+        return knnSettings.isExact() == false && autoCalibrate == false && effectiveOversample(knnSettings.getRescoreOversample()) == null;
+    }
+
     boolean isRescoreWindowCapped(int searchSize, @Nullable Float requestedOversample) {
         Float oversample = effectiveOversample(requestedOversample);
         return oversample != null && Math.ceil(searchSize * oversample) > DenseVectorFieldMapper.OVERSAMPLE_LIMIT;

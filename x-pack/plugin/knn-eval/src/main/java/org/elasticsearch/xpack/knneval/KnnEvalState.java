@@ -100,7 +100,15 @@ final class KnnEvalState {
             excludeQueryDocument ? query.getId() : null,
             spec.getK()
         );
-        KnnEvalRecall.RecallResult result = KnnEvalRecall.recallOf(candidateHits, baselines.get(query.getId()), tookMs, operations);
+        boolean scoresComparable = rescore.returnsQuantizedScores(spec.getBaseline()) == false
+            && rescore.returnsQuantizedScores(spec.getKnnSettings().get(settingIndex)) == false;
+        KnnEvalRecall.RecallResult result = KnnEvalRecall.recallOf(
+            candidateHits,
+            baselines.get(query.getId()),
+            scoresComparable,
+            tookMs,
+            operations
+        );
         settings.get(settingIndex).add(result);
     }
 
@@ -110,6 +118,7 @@ final class KnnEvalState {
             results.add(settings.get(setting).result(reportedSettings(spec.getKnnSettings().get(setting))));
         }
         return new KnnEvalResponse(
+            spec.getQuerySource().from(),
             reportedSettings(spec.getBaseline()),
             baselineTookMillis,
             baselineVectorOps,
@@ -123,7 +132,7 @@ final class KnnEvalState {
         boolean capped = knnSettings.isExact() == false
             && (rescore.autoCalibrate() == false || knnSettings.getRescoreOversample() != null)
             && rescore.isRescoreWindowCapped(searchSize, knnSettings.getRescoreOversample());
-        return new KnnEvalResponse.ReportedSettings(knnSettings, capped);
+        return new KnnEvalResponse.ReportedSettings(knnSettings, capped, rescore.returnsQuantizedScores(knnSettings));
     }
 
     /** An exact run counts the documents it scanned; an approximate one is profiled. */

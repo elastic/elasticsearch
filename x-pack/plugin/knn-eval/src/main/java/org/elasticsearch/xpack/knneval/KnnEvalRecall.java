@@ -39,14 +39,24 @@ final class KnnEvalRecall {
         return hit.getIndex() + "/" + hit.getId();
     }
 
-    static RecallResult recallOf(SearchHit[] candidateHits, BaselineResult baseline, long tookMs, long vectorOps) {
+    /**
+     * @param scoresComparable whether candidate and baseline scores are both full precision; if not, a candidate hit scoring above the
+     *                         baseline cutoff says nothing, so no query is excluded for it
+     */
+    static RecallResult recallOf(
+        SearchHit[] candidateHits,
+        BaselineResult baseline,
+        boolean scoresComparable,
+        long tookMs,
+        long vectorOps
+    ) {
         int relevant = baseline.keys().size();
         int relevantRetrieved = 0;
         int baselineMissedBetter = 0;
         for (SearchHit hit : candidateHits) {
             if (baseline.keys().contains(key(hit))) {
                 relevantRetrieved++;
-            } else if (hit.getScore() > baseline.lowestScore()) {
+            } else if (scoresComparable && hit.getScore() > baseline.lowestScore()) {
                 baselineMissedBetter++;
             }
         }

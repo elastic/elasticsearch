@@ -57,7 +57,7 @@
       "wait_for_completion": {
         "type": "boolean",
         "default": true,
-        "description": "Whether to wait for the evaluation to complete. If false, return a task identifier and store the completed response for retrieval through the task API."
+        "description": "Whether to wait for the evaluation to complete. A large sweep can run for minutes, and closing the connection (a client or proxy timeout, for example) cancels it, so use false for those. If false, return a task identifier and store the completed response for retrieval through the task API."
       }
     },
     "body": {

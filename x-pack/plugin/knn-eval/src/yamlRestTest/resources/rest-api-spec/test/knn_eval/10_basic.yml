@@ -545,9 +545,72 @@ teardown:
                 oversample: 1001
 
   - is_false: baseline.rescore_window_capped
+  # the default bbq_disk mapping rescores, so these scores are full precision
+  - is_false: baseline.quantized_scores
+  - is_false: results.0.knn_settings.quantized_scores
   - is_false: results.0.knn_settings.rescore_window_capped
   # ceil(k * oversample) exceeds the 10,000-vector rescore limit
   - match: { results.1.knn_settings.rescore_window_capped: true }
+
+---
+"Entries whose scores are quantized are flagged":
+  - do:
+      indices.create:
+        index: knn_eval_unrescored
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              emb:
+                type: dense_vector
+                dims: 4
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: bbq_disk
+                  bits: 4
+
+  - do:
+      bulk:
+        index: knn_eval_unrescored
+        refresh: true
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"emb": [0.1, 0.2, 0.3, 0.4]}'
+          - '{"index": {"_id": "2"}}'
+          - '{"emb": [0.2, 0.3, 0.4, 0.5]}'
+          - '{"index": {"_id": "3"}}'
+          - '{"emb": [0.9, 0.1, 0.5, 0.3]}'
+          - '{"index": {"_id": "4"}}'
+          - '{"emb": [0.4, 0.8, 0.2, 0.7]}'
+
+  - do:
+      knn_eval:
+        index: knn_eval_unrescored
+        body:
+          field: emb
+          k: 2
+          query_source:
+            from: vectors
+            vectors:
+              - id: q1
+                query_vector: [ 0.1, 0.2, 0.3, 0.4 ]
+          baseline:
+            visit_percentage: 100
+            rescore_vector:
+              oversample: 10
+          knn_settings:
+            - visit_percentage: 100
+            - visit_percentage: 100
+              rescore_vector:
+                oversample: 3
+
+  # mapping bits 4 has no rescore_vector, so only the entry that sets one is rescored
+  - is_false: baseline.quantized_scores
+  - match: { results.0.knn_settings.quantized_scores: true }
+  - is_false: results.1.knn_settings.quantized_scores
 
 ---
 "Caller supplied query vectors":

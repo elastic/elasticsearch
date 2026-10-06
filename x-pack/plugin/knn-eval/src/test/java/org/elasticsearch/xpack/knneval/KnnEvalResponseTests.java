@@ -39,6 +39,7 @@ public class KnnEvalResponseTests extends AbstractWireSerializingTestCase<KnnEva
     @Override
     protected KnnEvalResponse createTestInstance() {
         return new KnnEvalResponse(
+            randomQueryFrom(),
             randomReportedSettings(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
@@ -50,13 +51,15 @@ public class KnnEvalResponseTests extends AbstractWireSerializingTestCase<KnnEva
 
     @Override
     protected KnnEvalResponse mutateInstance(KnnEvalResponse instance) {
+        String queryFrom = instance.getQueryFrom();
         ReportedSettings baseline = instance.getBaseline();
         long tookMs = instance.getBaselineTookMs();
         long vectorOps = instance.getBaselineVectorOps();
         String vectorOpsKind = instance.getBaselineVectorOpsKind();
         List<KnnSettingsResult> results = instance.getResults();
         Map<String, Exception> failures = instance.getFailures();
-        switch (between(0, 5)) {
+        switch (between(0, 6)) {
+            case 6 -> queryFrom = randomValueOtherThan(queryFrom, KnnEvalResponseTests::randomQueryFrom);
             case 0 -> baseline = randomValueOtherThan(baseline, KnnEvalResponseTests::randomReportedSettings);
             case 1 -> tookMs = randomValueOtherThan(tookMs, ESTestCase::randomNonNegativeLong);
             case 2 -> vectorOps = randomValueOtherThan(vectorOps, ESTestCase::randomNonNegativeLong);
@@ -69,7 +72,11 @@ public class KnnEvalResponseTests extends AbstractWireSerializingTestCase<KnnEva
             }
             default -> throw new AssertionError("unexpected branch");
         }
-        return new KnnEvalResponse(baseline, tookMs, vectorOps, vectorOpsKind, results, failures);
+        return new KnnEvalResponse(queryFrom, baseline, tookMs, vectorOps, vectorOpsKind, results, failures);
+    }
+
+    private static String randomQueryFrom() {
+        return randomFrom(KnnEvalQuerySource.FROM_DOCS, KnnEvalQuerySource.FROM_VECTORS);
     }
 
     private static String randomVectorOpsKind() {
@@ -96,12 +103,13 @@ public class KnnEvalResponseTests extends AbstractWireSerializingTestCase<KnnEva
                 randomBoolean() ? null : randomFloatBetween(RescoreVectorBuilder.MIN_OVERSAMPLE, 10.0f, true),
                 false
             );
-        return new ReportedSettings(settings, randomBoolean());
+        return new ReportedSettings(settings, randomBoolean(), randomBoolean());
     }
 
     public void testToXContent() throws IOException {
         String expected = """
             {
+              "query_source": { "from": "docs" },
               "baseline": { "visit_percentage": 100.0 },
               "baseline_took_ms": 5,
               "baseline_vector_ops": 600,
@@ -110,7 +118,7 @@ public class KnnEvalResponseTests extends AbstractWireSerializingTestCase<KnnEva
                 {
                   "knn_settings": {
                     "visit_percentage": 20.0, "num_candidates": 200,
-                    "rescore_window_capped": true
+                    "rescore_window_capped": true, "quantized_scores": true
                   },
                   "recall": 0.5,
                   "included_queries": 1,
@@ -137,13 +145,14 @@ public class KnnEvalResponseTests extends AbstractWireSerializingTestCase<KnnEva
 
     private static KnnEvalResponse response() {
         return new KnnEvalResponse(
+            KnnEvalQuerySource.FROM_DOCS,
             KnnEvalResponse.ReportedSettings.of(new KnnEvalSettings(100.0f, null, null, false)),
             5,
             600,
             KnnEvalResponse.QUANTIZED_VISIT_PLUS_RESCORE,
             List.of(
                 new KnnEvalResponse.KnnSettingsResult(
-                    new KnnEvalResponse.ReportedSettings(new KnnEvalSettings(20.0f, 200, null, false), true),
+                    new KnnEvalResponse.ReportedSettings(new KnnEvalSettings(20.0f, 200, null, false), true, true),
                     0.5,
                     1,
                     0,

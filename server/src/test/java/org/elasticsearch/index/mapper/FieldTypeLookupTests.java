@@ -339,6 +339,20 @@ public class FieldTypeLookupTests extends ESTestCase {
         }
     }
 
+    public void testUnmappedSinkResolvesMappedFieldPrefixes() {
+        FlattenedFieldMapper sink = createUnmappedSink();
+        String objectPath = randomAlphanumericOfLength(6) + "." + randomAlphanumericOfLength(4);
+        MockFieldMapper leaf = new MockFieldMapper(objectPath + "." + randomAlphanumericOfLength(5));
+        FieldTypeLookup lookup = new FieldTypeLookup(List.of(sink, leaf), emptyList());
+
+        // The sink resolves even a path prefix of mapped fields: in columnar mode an absorbed scalar can coexist at such a name.
+        MappedFieldType fieldType = lookup.get(objectPath, true);
+        assertThat(fieldType, instanceOf(FlattenedFieldMapper.KeyedFlattenedFieldType.class));
+        assertEquals(objectPath, ((FlattenedFieldMapper.KeyedFlattenedFieldType) fieldType).key());
+        assertEquals(Set.of(objectPath), lookup.getMatchingFieldNames(objectPath, true));
+        assertEquals(Set.of(leaf.fullPath()), lookup.getMatchingFieldNames(objectPath + ".*", true));
+    }
+
     public void testMaxDynamicKeyDepth() {
         {
             FieldTypeLookup lookup = new FieldTypeLookup(emptyList(), emptyList());

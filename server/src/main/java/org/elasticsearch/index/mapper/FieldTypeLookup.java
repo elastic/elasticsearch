@@ -209,7 +209,9 @@ final class FieldTypeLookup {
     /**
      * Returns the mapped field type for the given field name. With {@code includeUnmappedSink} true, a name that is neither mapped nor
      * dynamic falls back to the {@code _unmapped} catch-all, which resolves any name. Only searches that opt in with
-     * {@code unmapped_fields: load} pass true; every other caller must keep treating absorbed names as unmapped.
+     * {@code unmapped_fields: load} pass true; every other caller must keep treating absorbed names as unmapped. The fallback fires even
+     * for a name that is a dotted path prefix of mapped fields ("obj" with mapped "obj.a"): in columnar mode an absorbed scalar can
+     * coexist at such a name.
      */
     MappedFieldType get(String field, boolean includeUnmappedSink) {
         MappedFieldType fieldType = fullNameToFieldType.get(field);

@@ -19,7 +19,9 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -154,11 +156,26 @@ public class ExistsQueryBuilder extends LeafQueryBuilder<ExistsQueryBuilder> {
 
     private static Collection<String> getMappedFields(QueryRewriteContext context, String fieldPattern) {
         Set<String> matchingFieldNames = context.getMatchingFieldNames(fieldPattern);
-        if (matchingFieldNames.isEmpty()) {
-            // might be an object field, so try matching it as an object prefix pattern
-            matchingFieldNames = context.getMatchingFieldNames(fieldPattern + ".*");
+
+        // A name that resolves to nothing might be an object field, so retry it as an object prefix pattern. A sink-resolved name
+        // (unmapped_fields=load resolves any name) can be an object prefix of mapped fields at the same time (ex. "obj" with mapped
+        // "obj.a"), so retry those too and match through the union; a doc matching both legs still matches once through the SHOULD bool.
+        if (matchingFieldNames.isEmpty() || resolvesViaUnmappedSink(context, fieldPattern, matchingFieldNames)) {
+            matchingFieldNames = Sets.union(matchingFieldNames, context.getMatchingFieldNames(fieldPattern + ".*"));
         }
+
         return matchingFieldNames;
+    }
+
+    /**
+     * Returns whether the name is neither mapped nor dynamic and was resolved by the implicit _unmapped sink.
+     */
+    private static boolean resolvesViaUnmappedSink(QueryRewriteContext context, String fieldPattern, Set<String> matchingFieldNames) {
+        if (matchingFieldNames.size() != 1 || matchingFieldNames.contains(fieldPattern) == false) {
+            return false;
+        }
+        return context.fieldType(fieldPattern) instanceof FlattenedFieldMapper.KeyedFlattenedFieldType keyed
+            && FlattenedFieldMapper.UNMAPPED_SINK_NAME.equals(keyed.rootName());
     }
 
     @Override

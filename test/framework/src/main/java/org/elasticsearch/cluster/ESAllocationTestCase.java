@@ -558,15 +558,6 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         };
 
     /**
-     * Builds a cluster state containing the given single-shard indices.
-     * When {@code allocateShards} is false, every shard is left unassigned.
-     * When it is true, shard 0 of each index is started on the node chosen by {@code shardAllocator}.
-     */
-    protected static ClusterState createStateWithIndices(IndexMetadata.Builder... indexMetadataBuilders) {
-        return createStateWithIndices(List.of("node-1", "node-2"), shardId -> "node-1", indexMetadataBuilders);
-    }
-
-    /**
      * Builds a cluster state containing the given single-shard indices on {@code nodeNames}.
      * Each shard is either started or left unassigned, chosen at random.
      */
@@ -592,15 +583,14 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         var metadataBuilder = Metadata.builder();
         var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         if (allocateShards == false) {
-            // allocate all shards from scratch
+            // leave every shard unassigned
             for (var index : indexMetadataBuilders) {
                 var indexMetadata = index.build();
                 metadataBuilder.put(indexMetadata, false);
                 routingTableBuilder.addAsNew(indexMetadata);
             }
         } else {
-            // ensure unbalanced cluster cloud be properly balanced
-            // simulates a case when we add a second node and ensure shards could be evenly spread across all available nodes
+            // start shard 0 of each index on the node chosen by shardAllocator
             for (var index : indexMetadataBuilders) {
                 var inSyncId = UUIDs.randomBase64UUID();
                 var indexMetadata = index.putInSyncAllocationIds(0, Set.of(inSyncId)).build();

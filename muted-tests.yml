@@ -503,3 +503,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.transforms.TransformIndexerStateTests
   method: testStopAtCheckpointForThrottledTransform
   issue: https://github.com/elastic/elasticsearch/issues/161096
+- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
+  method: "test {yaml=/36_columnar_sorting/field collapse on columnar keyword field}"
+  issue: https://github.com/elastic/elasticsearch/issues/158753

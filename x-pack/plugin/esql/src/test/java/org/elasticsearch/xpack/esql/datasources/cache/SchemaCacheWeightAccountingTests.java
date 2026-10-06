@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
 
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -185,7 +186,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             for (int i = 0; i < entries; i++) {
                 String min = "a" + i + "-" + "x".repeat(valueChars);
                 String max = "b" + i + "-" + "y".repeat(valueChars);
-                SchemaCacheKey key = SchemaCacheKey.build("s3://bucket/f" + i + ".csv", 1000L, ".csv", Map.of());
+                SchemaCacheKey key = SchemaCacheKey.build("s3://bucket/f" + i + ".csv", 1000L, ".csv", "", Map.of());
                 Map<String, Object> meta = new LinkedHashMap<>();
                 meta.put(ExternalStats.MTIME_MILLIS_KEY, 1000L);
                 meta.put("_stats.row_count", 10L);
@@ -225,7 +226,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
     public void testOversizePutInvalidatesExistingSchemaEntry() throws Exception {
         Settings settings = Settings.builder().put("esql.external.cache.size", "2mb").build();
         try (ExternalSourceCacheService cache = new ExternalSourceCacheService(settings)) {
-            SchemaCacheKey key = SchemaCacheKey.build("s3://bucket/grow.csv", 1000L, ".csv", Map.of());
+            SchemaCacheKey key = SchemaCacheKey.build("s3://bucket/grow.csv", 1000L, ".csv", "", Map.of());
             cache.putSchema(key, entryWithMin("s3://bucket/grow.csv", "a"));
             assertThat(cache.getSchemaIfPresent(key), notNullValue());
             cache.putSchema(key, entryWithMin("s3://bucket/grow.csv", "x".repeat(1_000_000)));
@@ -250,6 +251,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
                 "file:///tmp/warm-fold/*.ndjson",
                 new FileSetFingerprint(11, 22),
                 "ndjson",
+                "",
                 Map.of("format", "ndjson")
             );
             cache.putDatasetAggregate(key, 828_090L, "ndjson", "file:///tmp/warm-fold/*.ndjson");
@@ -284,7 +286,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             for (int i = 0; i < entries; i++) {
                 String min = "a" + i + "-" + "x".repeat(valueChars);
                 String max = "b" + i + "-" + "y".repeat(valueChars);
-                SchemaCacheKey key = SchemaCacheKey.build("s3://bucket/mid" + i + ".csv", 1000L, ".csv", Map.of());
+                SchemaCacheKey key = SchemaCacheKey.build("s3://bucket/mid" + i + ".csv", 1000L, ".csv", "", Map.of());
                 Map<String, Object> meta = new LinkedHashMap<>();
                 meta.put(ExternalStats.MTIME_MILLIS_KEY, 1000L);
                 meta.put("_stats.row_count", 10L);
@@ -313,6 +315,79 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             );
             assertThat(retainedSchemaWeight(cache), lessThanOrEqualTo(schemaBudget));
         }
+    }
+
+    /**
+     * The eviction count, exactly, rather than "more than none".
+     * <p>
+     * A budget that evicts is not the same as a budget that evicts <em>proportionately</em>. An LRU that discards
+     * more than it needs to make room turns a cache one entry over budget into a cache that keeps re-reading the
+     * siblings it just dropped, and every assertion of the form {@code evictions > 0} is green for both. So the
+     * fixture makes every entry weigh the same — a zero-padded path and constant-length extrema, since the weigher
+     * charges for both — fills the budget exactly, and then adds one.
+     * <p>
+     * One entry over a budget of equal-weight entries costs exactly one of them.
+     */
+    public void testOneEntryOverBudgetEvictsExactlyOneEntry() throws Exception {
+        Settings settings = Settings.builder().put("esql.external.cache.size", "2mb").build();
+        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(settings)) {
+            long schemaBudget = (Long) cache.usageStats().get("schema_budget_bytes");
+            long maxEntry = (Long) cache.usageStats().get("schema_max_entry_bytes");
+
+            int valueChars = 512;
+            while (equalWeightEntry(0, valueChars).estimatedBytes() > maxEntry / 2 && valueChars > 16) {
+                valueChars /= 2;
+            }
+            long perEntry = equalWeightEntry(0, valueChars).estimatedBytes();
+            assertThat("every fixture entry must weigh the same", equalWeightEntry(7, valueChars).estimatedBytes(), equalTo(perEntry));
+
+            int capacity = (int) (schemaBudget / perEntry);
+            assertThat("the budget must hold several entries for this to say anything", capacity, greaterThan(2));
+
+            for (int i = 0; i < capacity; i++) {
+                cache.putSchema(equalWeightKey(i), equalWeightEntry(i, valueChars));
+            }
+            assertThat(
+                "entries that fit the budget exactly must not evict",
+                (Long) cache.usageStats().get("schema_cache.evictions"),
+                equalTo(0L)
+            );
+
+            cache.putSchema(equalWeightKey(capacity), equalWeightEntry(capacity, valueChars));
+            assertThat(
+                "one entry over a budget of equal-weight entries must cost exactly one of them, not a swathe of them",
+                (Long) cache.usageStats().get("schema_cache.evictions"),
+                equalTo(1L)
+            );
+            assertThat(retainedSchemaWeight(cache), lessThanOrEqualTo(schemaBudget));
+        }
+    }
+
+    /** Zero-padded so every path is the same length, because the weigher charges for the path. */
+    private static SchemaCacheKey equalWeightKey(int i) {
+        return SchemaCacheKey.build(String.format(Locale.ROOT, "s3://bucket/eq%06d.csv", i), 1000L, ".csv", "", Map.of());
+    }
+
+    /** Identical in weight for every {@code i}: constant-length path, column name, and extrema. */
+    private static SchemaCacheEntry equalWeightEntry(int i, int valueChars) {
+        String path = String.format(Locale.ROOT, "s3://bucket/eq%06d.csv", i);
+        Map<String, Object> meta = new LinkedHashMap<>();
+        meta.put(ExternalStats.MTIME_MILLIS_KEY, 1000L);
+        meta.put("_stats.row_count", 10L);
+        meta.put("_stats.columns.c.min", "a".repeat(valueChars));
+        meta.put("_stats.columns.c.max", "b".repeat(valueChars));
+        return new SchemaCacheEntry(
+            new String[] { "c" },
+            new DataType[] { DataType.KEYWORD },
+            new Nullability[] { Nullability.TRUE },
+            new boolean[] { false },
+            "csv",
+            path,
+            meta,
+            Map.of(),
+            0L,
+            List.of()
+        );
     }
 
     private static long retainedSchemaWeight(ExternalSourceCacheService cache) {

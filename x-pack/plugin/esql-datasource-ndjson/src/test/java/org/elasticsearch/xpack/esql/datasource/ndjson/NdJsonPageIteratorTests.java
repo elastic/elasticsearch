@@ -774,7 +774,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             {{{not-an-object
             {"id":3}
             """;
-        var object = new BytesStorageObject("memory://warn.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var object = new BytesStorageObject("memory://bucket/private/warn.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
         var reader = new NdJsonFormatReader(null, blockFactory);
         try (
             var iterator = reader.read(
@@ -789,7 +789,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         List<String> warnings = drainWarnings();
         // 1 summary + 1 detail
         assertEquals(2, warnings.size());
-        assertEquals("Some rows in [memory://warn.ndjson] cannot be read; skipping them", warnings.get(0));
+        assertEquals("Some rows in [warn.ndjson] cannot be read; skipping them", warnings.get(0));
         assertTrue("Detail should mention the malformed row, got: " + warnings.get(1), warnings.get(1).endsWith(": malformed JSON"));
     }
 
@@ -803,7 +803,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      */
     public void testStreamConstraintViolationEmitsResponseWarningHeaderAndKeepsGoodRows() throws IOException {
         String ndjson = "{\"id\":1}\n{\"id\":" + "1".repeat(1200) + "}\n{\"id\":3}\n";
-        var object = new BytesStorageObject("memory://constraint.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var object = new BytesStorageObject("memory://bucket/private/constraint.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
         var reader = new NdJsonFormatReader(null, blockFactory);
         List<Integer> ids = new ArrayList<>();
         try (
@@ -826,7 +826,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         List<String> warnings = drainWarnings();
         // 1 summary + 1 detail
         assertEquals(2, warnings.size());
-        assertEquals("Some rows in [memory://constraint.ndjson] cannot be read; skipping them", warnings.get(0));
+        assertEquals("Some rows in [constraint.ndjson] cannot be read; skipping them", warnings.get(0));
         assertTrue(
             "Detail should mention the over-limit row, got: " + warnings.get(1),
             warnings.get(1).endsWith(": JSON over a parser limit")

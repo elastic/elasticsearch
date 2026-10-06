@@ -10,6 +10,7 @@
 package org.elasticsearch.inference.telemetry;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.inference.InferenceRequestMetadata;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
@@ -417,12 +418,12 @@ public class InferenceStatsTests extends ESTestCase {
         );
     }
 
-    public void testWithProductContext_UseCase_Origin_Present() {
+    public void testWithRequestMetadata_UseCase_Origin_Present() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
-        var ctx = new InferenceProductContext(SECURITY_AI_ASSISTANT_USE_CASE, TEST_PRODUCT_ORIGIN);
+        var ctx = requestMetadata(SECURITY_AI_ASSISTANT_USE_CASE, TEST_PRODUCT_ORIGIN);
 
-        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withProductContext(ctx).incrementBy(1);
+        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withRequestMetadata(ctx).incrementBy(1);
 
         verify(longCounter).incrementBy(
             eq(1L),
@@ -441,12 +442,12 @@ public class InferenceStatsTests extends ESTestCase {
         );
     }
 
-    public void testWithProductContext_OnlyProductUseCase() {
+    public void testWithRequestMetadata_OnlyProductUseCase() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
-        var ctx = new InferenceProductContext(SECURITY_AI_ASSISTANT_USE_CASE, null);
+        var ctx = requestMetadata(SECURITY_AI_ASSISTANT_USE_CASE, null);
 
-        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withProductContext(ctx).incrementBy(1);
+        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withRequestMetadata(ctx).incrementBy(1);
 
         verify(longCounter).incrementBy(
             eq(1L),
@@ -463,12 +464,12 @@ public class InferenceStatsTests extends ESTestCase {
         );
     }
 
-    public void testWithProductContext_OnlyProductOrigin() {
+    public void testWithRequestMetadata_OnlyProductOrigin() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
-        var ctx = new InferenceProductContext(null, TEST_PRODUCT_ORIGIN);
+        var ctx = requestMetadata(null, TEST_PRODUCT_ORIGIN);
 
-        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withProductContext(ctx).incrementBy(1);
+        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withRequestMetadata(ctx).incrementBy(1);
 
         verify(longCounter).incrementBy(
             eq(1L),
@@ -485,16 +486,44 @@ public class InferenceStatsTests extends ESTestCase {
         );
     }
 
-    public void testWithProductContext_Empty() {
+    public void testWithRequestMetadata_Empty() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
 
-        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withProductContext(InferenceProductContext.EMPTY).incrementBy(1);
+        stats.requestCount()
+            .withModel(model(TEST_SERVICE, TaskType.ANY))
+            .withRequestMetadata(InferenceRequestMetadata.EMPTY)
+            .incrementBy(1);
 
         verify(longCounter).incrementBy(eq(1L), eq(Map.of(SERVICE_ATTRIBUTE, TEST_SERVICE, TASK_TYPE_ATTRIBUTE, TaskType.ANY.toString())));
     }
 
-    public void testWithProductContext_DoesNotEmitRequestMetadata() {
+    public void testWithRequestMetadata_Null() {
+        var longCounter = mock(LongCounter.class);
+        var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
+
+        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withRequestMetadata(null).incrementBy(1);
+
+        verify(longCounter).incrementBy(eq(1L), eq(Map.of(SERVICE_ATTRIBUTE, TEST_SERVICE, TASK_TYPE_ATTRIBUTE, TaskType.ANY.toString())));
+    }
+
+    public void testWithRequestMetadata_EmptyValuesAreOmitted() {
+        var longCounter = mock(LongCounter.class);
+        var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
+
+        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withRequestMetadata(requestMetadata("", "")).incrementBy(1);
+
+        verify(longCounter).incrementBy(eq(1L), eq(Map.of(SERVICE_ATTRIBUTE, TEST_SERVICE, TASK_TYPE_ATTRIBUTE, TaskType.ANY.toString())));
+    }
+
+    private static InferenceRequestMetadata requestMetadata(String productUseCase, String productOrigin) {
+        return InferenceRequestMetadata.builder()
+            .put(InferenceRequestMetadata.Field.PRODUCT_USE_CASE, productUseCase)
+            .put(InferenceRequestMetadata.Field.PRODUCT_ORIGIN, productOrigin)
+            .build();
+    }
+
+    public void testWithRequestMetadata_DoesNotEmitRequestMetadata() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
         var threadContext = new org.elasticsearch.common.util.concurrent.ThreadContext(org.elasticsearch.common.settings.Settings.EMPTY);
@@ -506,9 +535,9 @@ public class InferenceStatsTests extends ESTestCase {
         threadContext.putHeader("X-Elastic-Trace-Id", randomAlphaOfLength(20));
         threadContext.putHeader("X-Elastic-User-Id", randomAlphaOfLength(20));
         threadContext.putHeader("X-Elastic-Space-Id", randomAlphaOfLength(20));
-        var ctx = InferenceProductContext.create(threadContext);
+        var ctx = InferenceRequestMetadata.capture(threadContext::getHeader);
 
-        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withProductContext(ctx).incrementBy(1);
+        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withRequestMetadata(ctx).incrementBy(1);
 
         verify(longCounter).incrementBy(
             eq(1L),
@@ -540,12 +569,12 @@ public class InferenceStatsTests extends ESTestCase {
         );
     }
 
-    public void testWithProductContext_UnknownUseCase_BucketsAsOther() {
+    public void testWithRequestMetadata_UnknownUseCase_BucketsAsOther() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
-        var ctx = new InferenceProductContext("some-bogus-use-case", TEST_PRODUCT_ORIGIN);
+        var ctx = requestMetadata("some-bogus-use-case", TEST_PRODUCT_ORIGIN);
 
-        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withProductContext(ctx).incrementBy(1);
+        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withRequestMetadata(ctx).incrementBy(1);
 
         verify(longCounter).incrementBy(
             eq(1L),
@@ -564,12 +593,12 @@ public class InferenceStatsTests extends ESTestCase {
         );
     }
 
-    public void testWithProductContext_UnknownOrigin_BucketsAsOther() {
+    public void testWithRequestMetadata_UnknownOrigin_BucketsAsOther() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
-        var ctx = new InferenceProductContext(SECURITY_AI_ASSISTANT_USE_CASE, "some-bogus-origin");
+        var ctx = requestMetadata(SECURITY_AI_ASSISTANT_USE_CASE, "some-bogus-origin");
 
-        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withProductContext(ctx).incrementBy(1);
+        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withRequestMetadata(ctx).incrementBy(1);
 
         verify(longCounter).incrementBy(
             eq(1L),
@@ -609,12 +638,12 @@ public class InferenceStatsTests extends ESTestCase {
         );
     }
 
-    public void testWithProductContext_MixedCaseInput_NormalizedToLowercase() {
+    public void testWithRequestMetadata_MixedCaseInput_NormalizedToLowercase() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
-        var ctx = new InferenceProductContext("Security_AI_Assistant", "KIBANA");
+        var ctx = requestMetadata("Security_AI_Assistant", "KIBANA");
 
-        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withProductContext(ctx).incrementBy(1);
+        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withRequestMetadata(ctx).incrementBy(1);
 
         verify(longCounter).incrementBy(
             eq(1L),
@@ -633,12 +662,12 @@ public class InferenceStatsTests extends ESTestCase {
         );
     }
 
-    public void testWithProductContext_SiemMigrationsVariant_CollapsedToBase() {
+    public void testWithRequestMetadata_SiemMigrationsVariant_CollapsedToBase() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
-        var ctx = new InferenceProductContext(SIEM_MIGRATIONS_PREFIX + randomAlphaOfLength(8), TEST_PRODUCT_ORIGIN);
+        var ctx = requestMetadata(SIEM_MIGRATIONS_PREFIX + randomAlphaOfLength(8), TEST_PRODUCT_ORIGIN);
 
-        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withProductContext(ctx).incrementBy(1);
+        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withRequestMetadata(ctx).incrementBy(1);
 
         verify(longCounter).incrementBy(
             eq(1L),

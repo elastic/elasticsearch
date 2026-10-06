@@ -23,6 +23,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.test.ESTestCase;
@@ -38,16 +39,19 @@ import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Flow;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_SOURCE_ATTRIBUTE;
 import static org.elasticsearch.inference.telemetry.InferenceStats.SERVICE_ATTRIBUTE;
 import static org.elasticsearch.inference.telemetry.InferenceStats.STATUS_CODE_ATTRIBUTE;
 import static org.elasticsearch.inference.telemetry.InferenceStats.TASK_TYPE_ATTRIBUTE;
 import static org.elasticsearch.telemetry.metric.MetricAttributes.ERROR_TYPE;
+import static org.elasticsearch.telemetry.metric.MetricAttributes.ES_PRODUCT_ORIGIN;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isA;
 import static org.mockito.ArgumentMatchers.any;
@@ -416,13 +420,82 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         assertThat(threadContext.getHeader("X-elastic-product-solution"), is(""));
         assertThat(threadContext.getHeader("X-elastic-product-feature"), is("context-feature"));
         assertThat(threadContext.getHeader("X-Elastic-Inference-Interaction-Id"), is("context-interaction"));
+        verify(mockRequestCountCounter).incrementBy(
+            anyLong(),
+            eq(Map.of(SERVICE_ATTRIBUTE, serviceId, TASK_TYPE_ATTRIBUTE, taskType.toString()))
+        );
+    }
+
+    public void testMetricsUseOnlyUseCaseAndOriginFromRestoredAttribution() {
+        var context = InferenceContextTests.context(
+            "Security_AI_Assistant",
+            "security",
+            "attack_discovery",
+            "interaction",
+            "trace",
+            "user",
+            ""
+        );
+        var threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "Kibana");
+
+        executeWithInferenceContext(context, threadContext);
+
+        var expected = Map.<String, Object>of(
+            SERVICE_ATTRIBUTE,
+            serviceId,
+            TASK_TYPE_ATTRIBUTE,
+            taskType.toString(),
+            INFERENCE_SOURCE_ATTRIBUTE,
+            "security_ai_assistant",
+            ES_PRODUCT_ORIGIN,
+            "kibana"
+        );
+        verify(mockRequestCountCounter).incrementBy(anyLong(), eq(expected));
+        var withStatus = new HashMap<>(expected);
+        withStatus.put(STATUS_CODE_ATTRIBUTE, 200);
+        verify(mockInferenceDurationHistogram).record(anyLong(), eq(withStatus));
+    }
+
+    public void testMetricsUseTheAttributionSnapshotTakenBeforeInference() {
+        var threadContext = new ThreadContext(Settings.EMPTY);
+
+        executeWithInferenceContext(new InferenceContext("security_ai_assistant"), threadContext, listener -> {
+            threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "kibana");
+            listener.onResponse(mock());
+        });
+
+        assertThat(threadContext.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER), is("kibana"));
+        verify(mockInferenceDurationHistogram).record(
+            anyLong(),
+            eq(
+                Map.of(
+                    SERVICE_ATTRIBUTE,
+                    serviceId,
+                    TASK_TYPE_ATTRIBUTE,
+                    taskType.toString(),
+                    INFERENCE_SOURCE_ATTRIBUTE,
+                    "security_ai_assistant",
+                    STATUS_CODE_ATTRIBUTE,
+                    200
+                )
+            )
+        );
     }
 
     private ThreadContext executeWithInferenceContext(InferenceContext context, ThreadContext threadContext) {
+        return executeWithInferenceContext(context, threadContext, listener -> listener.onResponse(mock()));
+    }
+
+    private ThreadContext executeWithInferenceContext(
+        InferenceContext context,
+        ThreadContext threadContext,
+        Consumer<ActionListener<InferenceServiceResults>> serviceAction
+    ) {
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
         mockInferenceEndpointRegistry(taskType);
-        mockService(listener -> listener.onResponse(mock()));
+        mockService(serviceAction);
 
         Request request = createRequest();
         when(request.getContext()).thenReturn(context);

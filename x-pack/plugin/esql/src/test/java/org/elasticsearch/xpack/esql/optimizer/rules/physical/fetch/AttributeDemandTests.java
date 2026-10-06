@@ -54,6 +54,43 @@ public class AttributeDemandTests extends ESTestCase {
         assertDemand("FROM idx | EVAL z = a + 1 | SORT ts | LIMIT 10 | KEEP z, b", List.of("ts", "z"), List.of("b"), List.of("a"));
     }
 
+    /** A column an {@code EVAL} before the cut reads is loaded before the cut anyway, so it crosses as a value. */
+    public void testEvalInputThatCrossesStaysEager() {
+        assertDemand("FROM idx | EVAL z = a + 1 | SORT ts | LIMIT 10 | KEEP a, z, b", List.of("a", "ts", "z"), List.of("b"), List.of());
+    }
+
+    /**
+     * A sort key computed from a column is an {@code EVAL} before the cut. The data node loads the column for it, so the
+     * column crosses as a value and the fetch doesn't read it a second time.
+     */
+    public void testColumnOfAComputedSortKeyStaysEager() {
+        AttributeDemand.Demand demand = demand("FROM idx | SORT a + 1 | LIMIT 10 | KEEP a, b");
+        assertThat("eager", namedByTheUser(demand.eager()), equalTo(List.of("a")));
+        assertThat("deferred", names(demand.deferred()), equalTo(List.of("b")));
+    }
+
+    /**
+     * The loader may compute {@code LENGTH(b)} itself and never read {@code b}, so {@code b} is still fetched.
+     */
+    public void testFieldOfAFunctionTheLoaderMayComputeIsDeferred() {
+        assertDemand("FROM idx | EVAL l = LENGTH(b) | SORT ts | LIMIT 10 | KEEP b, l", List.of("l", "ts"), List.of("b"), List.of());
+    }
+
+    /** The loader can't compute {@code LENGTH} of a computed string, so the expression reads the column. */
+    public void testFunctionOfAnExpressionReadsItsColumns() {
+        assertDemand(
+            "FROM idx | EVAL l = LENGTH(CONCAT(b, \"!\")) | SORT ts | LIMIT 10 | KEEP b, l",
+            List.of("b", "l", "ts"),
+            List.of(),
+            List.of()
+        );
+    }
+
+    /** Lucene usually answers a filter without loading values, so a filtered column is still fetched. */
+    public void testFilteredColumnIsDeferred() {
+        assertDemand("FROM idx | WHERE a > 1 | SORT ts | LIMIT 10 | KEEP a, b", List.of("ts"), List.of("a", "b"), List.of());
+    }
+
     /** A filter after the cut reads its field after the cut, so the field is loaded for the surviving rows only. */
     public void testFilterAfterTheCut() {
         assertDemand("FROM idx | SORT ts | LIMIT 10 | WHERE a > 0 | KEEP b", List.of("ts"), List.of("a", "b"), List.of());
@@ -78,6 +115,13 @@ public class AttributeDemandTests extends ESTestCase {
     }
 
     private static void assertDemand(String query, List<String> eager, List<String> deferred, List<String> local) {
+        AttributeDemand.Demand demand = demand(query);
+        assertThat("eager", names(demand.eager()), equalTo(eager));
+        assertThat("deferred", names(demand.deferred()), equalTo(deferred));
+        assertThat("local", names(demand.local()), equalTo(local));
+    }
+
+    private static AttributeDemand.Demand demand(String query) {
         PhysicalPlan plan = plan(query);
         List<ExchangeExec> exchanges = plan.collect(ExchangeExec.class);
         assertThat(plan.toString(), exchanges, hasSize(1));
@@ -88,10 +132,7 @@ public class AttributeDemandTests extends ESTestCase {
         EsRelation relation = fragmentRoot.collect(EsRelation.class).getFirst();
         PhysicalPlan cut = parentOf(plan, exchange);
 
-        AttributeDemand.Demand demand = AttributeDemand.analyze(fragmentRoot, relation, cut);
-        assertThat("eager", names(demand.eager()), equalTo(eager));
-        assertThat("deferred", names(demand.deferred()), equalTo(deferred));
-        assertThat("local", names(demand.local()), equalTo(local));
+        return AttributeDemand.analyze(fragmentRoot, relation, cut);
     }
 
     private static PhysicalPlan parentOf(PhysicalPlan plan, PhysicalPlan child) {
@@ -100,6 +141,11 @@ public class AttributeDemandTests extends ESTestCase {
 
     private static List<String> names(List<Attribute> attributes) {
         return attributes.stream().map(Attribute::name).sorted().toList();
+    }
+
+    /** Leaves out the columns the planner adds, like a computed sort key, whose names it generates. */
+    private static List<String> namedByTheUser(List<Attribute> attributes) {
+        return names(attributes).stream().filter(name -> name.startsWith(Attribute.SYNTHETIC_ATTRIBUTE_NAME_PREFIX) == false).toList();
     }
 
     static PhysicalPlan plan(String query) {

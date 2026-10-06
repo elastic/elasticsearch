@@ -63,6 +63,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -164,6 +165,18 @@ public class PlanFetchTests extends ESTestCase {
         );
         assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
         assertThat(names(fetch.left().output()), equalTo(List.of(PlanFetch.DOC_REF_NAME, "hire_date", "raise")));
+    }
+
+    /**
+     * The data node loads {@code emp_no} to compute the sort key, so it crosses as a value instead of being read a second
+     * time. With nothing else to fetch, the plan stays eager.
+     */
+    public void testColumnOfAComputedSortKeyIsNotFetched() {
+        assertDeclined(plan("FROM employees | SORT emp_no + 1 | LIMIT 10 | KEEP emp_no"), Outcome.INELIGIBLE_NO_DEFERRABLE_FIELDS);
+
+        FetchExec fetch = single(plan("FROM employees | SORT emp_no + 1 | LIMIT 10 | KEEP emp_no, first_name").plan(), FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
+        assertThat(fetch.left().output().stream().map(Attribute::name).toList(), hasItem("emp_no"));
     }
 
     /** WHERE, EVAL and RENAME after the cut run on the coordinator, over the fetched columns. */

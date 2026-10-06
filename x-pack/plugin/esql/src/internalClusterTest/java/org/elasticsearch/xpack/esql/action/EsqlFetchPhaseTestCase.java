@@ -119,7 +119,7 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
             )
         );
         assertFetched(run, 5);
-        assertLoadedBeforeTheCut(run, "unique_sort");
+        assertLoadedOnlyBeforeTheCut(run, "unique_sort");
         assertFetchedOnly(run, "payload");
         assertFetchedOnly(run, "category");
     }
@@ -155,7 +155,7 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
             )
         );
         assertNotFetched(run);
-        assertLoadedBeforeTheCut(run, "payload");
+        assertLoadedOnlyBeforeTheCut(run, "payload");
     }
 
     public void testWithoutKeepKeepsTheOutputOrder() {
@@ -175,7 +175,7 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
         assertThat(run.columns(), equalTo(List.of("payload", "unique_sort")));
         assertThat(run.rows(), equalTo(List.of(List.of("payload-7", 7L), List.of("payload-6", 6L), List.of("payload-5", 5L))));
         assertFetched(run, 3);
-        assertLoadedBeforeTheCut(run, "unique_sort");
+        assertLoadedOnlyBeforeTheCut(run, "unique_sort");
         assertFetchedOnly(run, "payload");
     }
 
@@ -198,8 +198,8 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
             )
         );
         assertFetched(run, 7);
-        assertLoadedBeforeTheCut(run, "sorted");
-        assertLoadedBeforeTheCut(run, "tie_breaker");
+        assertLoadedOnlyBeforeTheCut(run, "sorted");
+        assertLoadedOnlyBeforeTheCut(run, "tie_breaker");
         assertFetchedOnly(run, "payload");
         assertFetchedOnly(run, "metric");
     }
@@ -234,7 +234,7 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
         );
         assertThat(run.rows(), hasSize(300));
         assertFetched(run, 300);
-        assertLoadedBeforeTheCut(run, "unique_sort");
+        assertLoadedOnlyBeforeTheCut(run, "unique_sort");
         assertFetchedOnly(run, "payload");
     }
 
@@ -299,7 +299,18 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
             )
         );
         assertNotFetched(run);
-        assertLoadedBeforeTheCut(run, "payload");
+        assertLoadedOnlyBeforeTheCut(run, "payload");
+    }
+
+    /**
+     * The data nodes read {@code unique_sort} to compute the sort key, so it crosses the exchange as a value. The fetch
+     * doesn't read it a second time, and with nothing else to fetch the query stays eager.
+     */
+    public void testAColumnOfAComputedSortKeyIsReadOnce() {
+        Run run = runBoth("FROM " + indexName + " | SORT unique_sort + 1 DESC | LIMIT 5 | KEEP unique_sort");
+        assertThat(run.rows(), equalTo(List.of(List.of(63L), List.of(62L), List.of(61L), List.of(60L), List.of(59L))));
+        assertNotFetched(run);
+        assertLoadedOnlyBeforeTheCut(run, "unique_sort");
     }
 
     public void testNothingToFetchWhenTheCutNeedsEveryColumn() {
@@ -318,6 +329,7 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
             equalTo(List.of(List.of(63L, "source-payload-63"), List.of(62L, "source-payload-62"), List.of(61L, "source-payload-61")))
         );
         assertFetched(run, 3);
+        assertLoadedOnlyBeforeTheCut(run, "unique_sort");
         assertFetchedOnly(run, "source_payload");
     }
 
@@ -335,12 +347,14 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
             equalTo(List.of(List.of(63L, "payload-63-derived"), List.of(62L, "payload-62-derived"), List.of(61L, "payload-61-derived")))
         );
         assertFetched(run, 3);
+        assertLoadedOnlyBeforeTheCut(run, "unique_sort");
         assertFetchedOnly(run, "payload");
     }
 
     /**
      * An expression before the cut runs on every candidate row, so its input loads before the cut and its value crosses
-     * the exchange. The other columns are still fetched.
+     * the exchange. The input crosses too when the query returns it, instead of being read a second time. The other
+     * columns are still fetched.
      */
     public void testAnExpressionBeforeTheCutStaysEager() {
         Run run = runBoth(
@@ -349,21 +363,20 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
                 + " | EVAL derived = CONCAT(payload, \"-derived\")"
                 + " | SORT unique_sort DESC"
                 + " | LIMIT 3"
-                + " | KEEP unique_sort, derived, category"
+                + " | KEEP unique_sort, payload, derived, category"
         );
         assertThat(
             run.rows(),
             equalTo(
                 List.of(
-                    List.of(63L, "payload-63-derived", "cat-3"),
-                    List.of(62L, "payload-62-derived", "cat-2"),
-                    List.of(61L, "payload-61-derived", "cat-1")
+                    List.of(63L, "payload-63", "payload-63-derived", "cat-3"),
+                    List.of(62L, "payload-62", "payload-62-derived", "cat-2"),
+                    List.of(61L, "payload-61", "payload-61-derived", "cat-1")
                 )
             )
         );
         assertFetched(run, 3);
-        assertLoadedBeforeTheCut(run, "payload");
-        assertNotFetched(run, "payload");
+        assertLoadedOnlyBeforeTheCut(run, "payload");
         assertFetchedOnly(run, "category");
     }
 
@@ -376,7 +389,7 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
             )
         );
         assertFetched(run, 3);
-        assertLoadedBeforeTheCut(run, "_id");
+        assertLoadedOnlyBeforeTheCut(run, "_id");
         assertFetchedOnly(run, "payload");
     }
 
@@ -466,7 +479,7 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
         Run run = runBoth("FROM " + index + " | SORT @timestamp DESC | LIMIT 3 | KEEP @timestamp, payload");
         assertThat(run.rows().stream().map(row -> row.get(1)).toList(), equalTo(List.of("ts-payload-7", "ts-payload-6", "ts-payload-5")));
         assertFetched(run, 3);
-        assertLoadedBeforeTheCut(run, "@timestamp");
+        assertLoadedOnlyBeforeTheCut(run, "@timestamp");
         assertFetchedOnly(run, "payload");
     }
 
@@ -518,8 +531,7 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
             )
         );
         assertFetched(run, 3);
-        assertLoadedBeforeTheCut(run, "optional");
-        assertNotFetched(run, "optional");
+        assertLoadedOnlyBeforeTheCut(run, "optional");
         assertFetchedOnly(run, "payload");
     }
 
@@ -549,7 +561,7 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
         Run run = runBoth("FROM " + dates + "," + nanos + " | SORT unique_sort ASC | LIMIT 6 | KEEP unique_sort, union_value");
         assertThat(run.rows().stream().map(List::getFirst).toList(), equalTo(List.of(0L, 1L, 2L, 3L, 4L, 5L)));
         assertFetched(run, 6);
-        assertLoadedBeforeTheCut(run, "unique_sort");
+        assertLoadedOnlyBeforeTheCut(run, "unique_sort");
         assertFetchedOnly(run, "union_value");
     }
 
@@ -609,16 +621,13 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * The {@code fetch} drivers did not load the field.
+     * The field loaded before the cut, for the candidate rows, and not a second time in the {@code fetch} drivers.
      */
-    protected static void assertNotFetched(Run run, String field) {
-        Set<String> fetched = fieldsLoadedBy(run, Set.of(ComputeService.FETCH_DESCRIPTION));
-        assertFalse("expected [" + field + "] not to load in the fetch, loaded were " + fetched, containsField(fetched, field));
-    }
-
-    protected static void assertLoadedBeforeTheCut(Run run, String field) {
+    protected static void assertLoadedOnlyBeforeTheCut(Run run, String field) {
         Set<String> loaded = fieldsLoadedBy(run, Set.of(ComputeService.DATA_DESCRIPTION, ComputeService.REDUCE_DESCRIPTION));
         assertTrue("expected [" + field + "] to load before the cut, loaded were " + loaded, containsField(loaded, field));
+        Set<String> fetched = fieldsLoadedBy(run, Set.of(ComputeService.FETCH_DESCRIPTION));
+        assertFalse("expected [" + field + "] not to load in the fetch, loaded were " + fetched, containsField(fetched, field));
     }
 
     /**

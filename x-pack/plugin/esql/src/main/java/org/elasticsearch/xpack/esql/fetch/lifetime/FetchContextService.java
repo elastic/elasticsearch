@@ -143,8 +143,9 @@ public final class FetchContextService {
     }
 
     /**
-     * Serves the requests that free fetch contexts on this node. They run on the generic pool, because freeing the last
-     * reference to a reader can block.
+     * Serves the requests that free fetch contexts on this node, on the generic pool because freeing the last reference to
+     * a reader can block. Also closes the lease of a query when its task goes away, whichever action ran the query and
+     * however it ended.
      */
     public void registerHandlers() {
         transportService.registerRequestHandler(
@@ -153,6 +154,7 @@ public final class FetchContextService {
             FetchFreeRequest::new,
             (request, channel, task) -> free(request, channel)
         );
+        transportService.getTaskManager().registerRemovedTaskListener(task -> closeLease(task.getId()));
     }
 
     /**
@@ -168,8 +170,8 @@ public final class FetchContextService {
     /**
      * The lease of the query that runs under {@code rootTask}, created by the first execution of the query that opens fetch
      * contexts. Every later execution of the query shares it, because a later stage can fetch rows an earlier one made.
-     * Cancelling the task closes the lease, and so does {@link #closeLease} when the query ends. Called only while the
-     * query runs, because nothing closes a lease created after the query ended.
+     * The lease closes when the task is cancelled or goes away. Called only while the query runs, because nothing closes
+     * a lease created after its task went away.
      */
     public FetchContextLease leaseFor(CancellableTask rootTask) {
         FetchContextLease existing = leases.get(rootTask.getId());

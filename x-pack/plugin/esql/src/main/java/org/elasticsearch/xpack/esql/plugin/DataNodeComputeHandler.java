@@ -79,8 +79,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.fetch.lifetime.DocRefOriginResolver;
+import org.elasticsearch.xpack.esql.fetch.lifetime.FetchContextLease;
 import org.elasticsearch.xpack.esql.fetch.lifetime.NodeFetchContexts;
 import org.elasticsearch.xpack.esql.fetch.lifetime.OpenContextInfo;
+import org.elasticsearch.xpack.esql.plan.physical.DocRefEncodeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlanConcurrencyCalculator;
@@ -186,6 +188,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         Set<String> concreteIndices,
         OriginalIndices originalIndices,
         ExchangeSourceHandler exchangeSource,
+        // Non-null when the plan makes document references: the data nodes keep fetch contexts open, and the lease frees them.
+        @Nullable FetchContextLease fetchContextLease,
         Runnable runOnTaskFailure,
         ActionListener<ComputeResponse> outListener
     ) {
@@ -276,7 +280,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 // work as the final driver.
                                 queryPragmas.nodeLevelReduction() && sameNodeAsCoordinator == false,
                                 queryPragmas.nodeLevelReduction() && enableReduceNodeLateMaterialization,
-                                sameNodeAsCoordinator && queryPragmas.singleNodeOptimizations() && Strings.isEmpty(clusterAlias)
+                                sameNodeAsCoordinator && queryPragmas.singleNodeOptimizations() && Strings.isEmpty(clusterAlias),
+                                List.of(),
+                                fetchContextLease == null ? null : fetchContextLease.keepAlive()
                             );
                             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
                             transportService.sendChildRequest(
@@ -286,6 +292,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 groupTask,
                                 TransportRequestOptions.EMPTY,
                                 new ActionListenerResponseHandler<>(computeListener.acquireCompute().map(r -> {
+                                    if (fetchContextLease != null) {
+                                        fetchContextLease.add(connection.getNode(), originalIndices, r.openContexts());
+                                    }
                                     nodeResponseRef.set(r);
                                     return r.completionInfo();
                                 }), in -> new DataNodeComputeResponse(in, threadContext), searchExecutor)
@@ -1450,6 +1459,12 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
         ReductionPlan reductionPlan;
         if (request.plan() instanceof ExchangeSinkExec plan) {
+            try {
+                validateFetchContexts(plan, request);
+            } catch (Exception e) {
+                failWithoutStarting(request, listener, e);
+                return;
+            }
             reductionPlan = ComputeService.reductionPlan(
                 computeService.plannerSettings().get(),
                 computeService.createFlags(),
@@ -1546,6 +1561,15 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             return null;
         }
         return sink;
+    }
+
+    /**
+     * Rows that leave the node as document references must name contexts that the fetch phase finds again.
+     */
+    static void validateFetchContexts(PhysicalPlan plan, DataNodeRequest request) {
+        if (request.fetchContextKeepAlive() == null && plan.anyMatch(DocRefEncodeExec.class::isInstance)) {
+            throw new IllegalStateException("document references need fetch contexts, but the request asked for none");
+        }
     }
 
     /**

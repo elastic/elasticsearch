@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.knneval;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -26,11 +25,10 @@ import java.util.Objects;
  * <ul>
  *   <li>{@code "docs"} — sample vectors from stored documents server-side ({@link DocsSource}).</li>
  *   <li>{@code "vectors"} — caller supplies explicit query vectors ({@link VectorsSource}).</li>
- *   <li>{@code "queries"} — future: sample from stored queries ({@link QueriesSource}).</li>
  * </ul>
  */
 sealed interface KnnEvalQuerySource extends Writeable, ToXContentObject permits KnnEvalQuerySource.DocsSource,
-    KnnEvalQuerySource.VectorsSource, KnnEvalQuerySource.QueriesSource {
+    KnnEvalQuerySource.VectorsSource {
 
     ParseField QUERY_SOURCE_FIELD = new ParseField("query_source");
     ParseField FROM_FIELD = new ParseField("from");
@@ -80,19 +78,13 @@ sealed interface KnnEvalQuerySource extends Writeable, ToXContentObject permits 
                 }
                 yield new DocsSource(new KnnEvalSample(size, seed));
             }
-            case "queries" -> {
-                if (size == null) {
-                    throw new IllegalArgumentException("[size] is required when [from] is [queries]");
-                }
-                yield new QueriesSource(size, seed);
-            }
             case "vectors" -> {
                 if (vectors == null) {
                     throw new IllegalArgumentException("[vectors] is required when [from] is [vectors]");
                 }
                 yield new VectorsSource(vectors);
             }
-            default -> throw new IllegalArgumentException("unknown [from] value [" + from + "]; expected one of [docs, vectors, queries]");
+            default -> throw new IllegalArgumentException("unknown [from] value [" + from + "]; expected one of [docs, vectors]");
         };
     }
 
@@ -101,7 +93,6 @@ sealed interface KnnEvalQuerySource extends Writeable, ToXContentObject permits 
         return switch (discriminator) {
             case 0 -> new DocsSource(new KnnEvalSample(in));
             case 1 -> new VectorsSource(in.readCollectionAsList(KnnEvalQuery::new));
-            case 2 -> new QueriesSource(in.readVInt(), in.readOptionalInt());
             default -> throw new IOException("unknown KnnEvalQuerySource discriminator: " + discriminator);
         };
     }
@@ -152,28 +143,6 @@ sealed interface KnnEvalQuerySource extends Writeable, ToXContentObject permits 
                 query.toXContent(builder, params);
             }
             builder.endArray();
-            builder.endObject();
-            return builder;
-        }
-    }
-
-    /** Placeholder for future stored-query sampling. Not yet implemented. */
-    record QueriesSource(int size, @Nullable Integer seed) implements KnnEvalQuerySource {
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeByte((byte) 2);
-            out.writeVInt(size);
-            out.writeOptionalInt(seed);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(FROM_FIELD.getPreferredName(), "queries");
-            builder.field(SIZE_FIELD.getPreferredName(), size);
-            if (seed != null) {
-                builder.field(SEED_FIELD.getPreferredName(), seed);
-            }
             builder.endObject();
             return builder;
         }

@@ -71,7 +71,7 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
         Objects.requireNonNull(querySource, "[" + QUERY_SOURCE_FIELD.getPreferredName() + "] must be provided");
         validateVectorsSource(querySource, k);
         baseline = normalizeBaseline(baseline);
-        boolean sampling = querySource instanceof KnnEvalQuerySource.DocsSource || querySource instanceof KnnEvalQuerySource.QueriesSource;
+        boolean sampling = querySource instanceof KnnEvalQuerySource.DocsSource;
         // a sampled query also retrieves its own document, so it searches one extra candidate
         int maxNumCandidates = sampling ? KnnEvalRescore.MAX_NUM_CANDIDATES - 1 : KnnEvalRescore.MAX_NUM_CANDIDATES;
         validateNumCandidates(baseline, k, maxNumCandidates, sampling);
@@ -109,8 +109,6 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
                     throw new IllegalArgumentException("duplicate query id [" + query.getId() + "]");
                 }
             }
-        } else if (querySource instanceof KnnEvalQuerySource.QueriesSource) {
-            throw new IllegalArgumentException("[from: queries] is not yet implemented; use [from: docs] to sample from stored documents");
         }
     }
 

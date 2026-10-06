@@ -266,7 +266,6 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         long queryCount = switch (spec.getQuerySource()) {
             case KnnEvalQuerySource.VectorsSource vs -> vs.vectors().size();
             case KnnEvalQuerySource.DocsSource ds -> ds.sample().getSize();
-            case KnnEvalQuerySource.QueriesSource qs -> qs.size();
         };
         long comparisons = vectorCount > Long.MAX_VALUE / queryCount ? Long.MAX_VALUE : vectorCount * queryCount;
         if (comparisons > MAX_EXACT_VECTOR_COMPARISONS) {
@@ -317,9 +316,6 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
                     evaluate(task, spec, sampledQueries, true, rescore, pointInTimeId, delegate);
                 }));
             }
-            case KnnEvalQuerySource.QueriesSource qs -> listener.onFailure(
-                new IllegalArgumentException("[from: queries] is not yet implemented")
-            );
         }
     }
 

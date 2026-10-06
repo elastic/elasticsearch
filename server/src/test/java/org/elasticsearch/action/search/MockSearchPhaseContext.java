@@ -56,7 +56,7 @@ import static org.mockito.Mockito.mock;
 /**
  * SearchPhaseContext for tests
  */
-public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<SearchPhaseResult> {
+public class MockSearchPhaseContext extends AbstractSearchAsyncAction<SearchPhaseResult> {
     private static final Logger logger = LogManager.getLogger(MockSearchPhaseContext.class);
     public final AtomicReference<Throwable> phaseFailure = new AtomicReference<>();
     public final AtomicInteger phaseFailures = new AtomicInteger();

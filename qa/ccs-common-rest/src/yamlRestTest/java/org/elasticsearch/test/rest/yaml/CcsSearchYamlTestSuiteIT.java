@@ -9,6 +9,7 @@
 
 package org.elasticsearch.test.rest.yaml;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.lucene.tests.util.TimeUnits;
@@ -20,7 +21,7 @@ import java.io.IOException;
  */
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE) // to account for slow encryption at rest tests
 public class CcsSearchYamlTestSuiteIT extends CcsCommonYamlTestSuiteIT {
-    public CcsSearchYamlTestSuiteIT(ClientYamlTestCandidate testCandidate) throws IOException {
+    public CcsSearchYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) throws IOException {
         super(testCandidate);
     }
 }

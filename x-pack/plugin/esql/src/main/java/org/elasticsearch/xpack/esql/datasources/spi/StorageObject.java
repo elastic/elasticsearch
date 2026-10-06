@@ -452,4 +452,21 @@ public interface StorageObject {
      * to the wrapped object so the metrics attach to the underlying store, not the wrapper layer.
      */
     default void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+    /**
+     * Binds {@code io} to the query-budget scheduler that will grant this object's GETs.
+     * The default is a no-op for objects with no query budget.
+     */
+    default void bindRowGroup(RowGroupIo io) {}
+
+    /**
+     * Timeout in milliseconds exposed by query-budget decorators for permit-acquire waits.
+     * Parquet coalesced PER_GET byte admission no longer reads this; that wait is
+     * {@code ParquetIoWatermark.DEFAULT_ADMIT_WAIT_MS}. Decorators that wrap a query budget still
+     * return {@link QueryAdmission#DEFAULT_ACQUIRE_TIMEOUT_MS} (or the budget acquire timeout)
+     * so tests and any remaining permit-wait callers can observe it.
+     */
+    default long admissionWaitTimeoutMs() {
+        return QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS;
+    }
 }

@@ -212,6 +212,108 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
         );
     }
 
+    public void testUncompressedNdJsonRowLimitCloseDoesNotDrain() throws IOException {
+        // NdJsonPageIterator slurps objects whose length() is at most 16 MiB. Advertise a length
+        // above that so LIMIT close still has leftover GET bytes, without a 16 MiB test blob.
+        byte[] payload = repeatingNdJson(DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES * 4);
+        assertUncompressedRowLimitDoesNotDrain(
+            payload,
+            StoragePath.of("s3://bucket/data.ndjson"),
+            new NdJsonFormatReader(Settings.EMPTY, blockFactory, idNameSchema()),
+            16 * 1024 * 1024 + 1L
+        );
+    }
+
+    public void testUncompressedCsvRowLimitCloseDoesNotDrain() throws IOException {
+        assertUncompressedRowLimitDoesNotDrain(
+            largeCsvOrTsv(','),
+            StoragePath.of("s3://bucket/data.csv"),
+            new CsvFormatReader(blockFactory)
+        );
+    }
+
+    public void testUncompressedTsvRowLimitCloseDoesNotDrain() throws IOException {
+        assertUncompressedRowLimitDoesNotDrain(
+            largeCsvOrTsv('\t'),
+            StoragePath.of("s3://bucket/data.tsv"),
+            new CsvFormatReader(blockFactory).withConfig(Map.of("delimiter", "\t"))
+        );
+    }
+
+    private void assertUncompressedRowLimitDoesNotDrain(byte[] payload, StoragePath path, FormatReader reader) throws IOException {
+        assertUncompressedRowLimitDoesNotDrain(payload, path, reader, payload.length);
+    }
+
+    private void assertUncompressedRowLimitDoesNotDrain(byte[] payload, StoragePath path, FormatReader reader, long advertisedLength)
+        throws IOException {
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject object = productionStack(DrainSimulatingStorageObject.create(payload, tracking, path), advertisedLength);
+        FormatReadContext context = FormatReadContext.builder()
+            .projectedColumns(List.of("id", "name"))
+            .batchSize(100)
+            .rowLimit(5)
+            .readSchema(idNameSchema())
+            .errorPolicy(ErrorPolicy.STRICT)
+            .build();
+
+        try (CloseableIterator<Page> it = reader.read(object, context)) {
+            assertTrue(it.hasNext());
+            Page page = it.next();
+            try {
+                assertThat(page.getPositionCount(), Matchers.greaterThan(0));
+            } finally {
+                page.releaseBlocks();
+            }
+        }
+
+        assertTrue("uncompressed LIMIT close must abort the raw GET", tracking.aborted.get());
+        assertThat(
+            "LIMIT close must not drain the GET; consumed " + tracking.bytesConsumed.get() + " of " + payload.length,
+            tracking.bytesConsumed.get(),
+            Matchers.lessThan((long) payload.length / 2)
+        );
+    }
+
+    private static List<Attribute> idNameSchema() {
+        return List.of(
+            new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, "name", DataType.KEYWORD)
+        );
+    }
+
+    private static byte[] largeCsvOrTsv(char delimiter) {
+        StringBuilder body = new StringBuilder("id:long");
+        body.append(delimiter).append("name:keyword\n");
+        for (int i = 0; i < 200_000; i++) {
+            body.append(i).append(delimiter).append('n').append('_').append(i).append('\n');
+        }
+        byte[] payload = body.toString().getBytes(StandardCharsets.UTF_8);
+        assertThat(payload.length, Matchers.greaterThan(100_000));
+        return payload;
+    }
+
+    /**
+     * Repeating one-line NDJSON until {@code length} bytes.
+     */
+    private static byte[] repeatingNdJson(int length) {
+        byte[] line = "{\"id\":1,\"name\":\"n\"}\n".getBytes(StandardCharsets.UTF_8);
+        byte[] payload = new byte[length];
+        for (int i = 0; i < payload.length; i += line.length) {
+            System.arraycopy(line, 0, payload, i, Math.min(line.length, payload.length - i));
+        }
+        return payload;
+    }
+
+    private static StorageObject productionStack(StorageObject fixture, long length) {
+        return new QueryBudgetedStorageObject(
+            new ConcurrencyLimitedStorageObject(
+                new RetryableStorageObject(new RangeStorageObject(fixture, 0, length), new RetryPolicy(3, 1, 10)),
+                new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(4, false))
+            ),
+            new QueryConcurrencyBudget(4, 60_000L, null)
+        );
+    }
+
     private void assertDelegatesMetadataAndRead(byte[] compressed, String path, DecompressionCodec codec) throws IOException {
         StorageObject rawObject = new BytesStorageObject(compressed, StoragePath.of(path));
 

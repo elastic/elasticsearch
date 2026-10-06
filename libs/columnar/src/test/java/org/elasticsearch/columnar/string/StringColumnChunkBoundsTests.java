@@ -236,11 +236,14 @@ public class StringColumnChunkBoundsTests extends ColumnarStringTestCase {
             final BytesRef other = new BytesRef("dictionary-term-padded-to-carry-the-column-" + ((doc + 1) % distinct));
             // Longer than the small byte target, so a block of them is always past it.
             final BytesRef once = new BytesRef("escaping-value-seen-once-and-longer-than-a-small-chunk-" + doc);
-            docSlots[doc] = switch (doc % 4) {
-                case 0 -> new BytesRef[] { repeated };
-                case 1 -> new BytesRef[] { repeated, other };
-                case 2 -> new BytesRef[] { repeated, null };
-                default -> new BytesRef[] { repeated, once };
+            // NOTE: one value in fourteen escapes, inside the coverage the policy asks of a dictionary. A
+            // column it turns down is written plain, and a plain column has no terms or escapes to cut.
+            docSlots[doc] = switch (doc % 10) {
+                case 0, 1, 2, 3 -> new BytesRef[] { repeated };
+                case 4, 5, 6 -> new BytesRef[] { repeated, other };
+                case 7, 8 -> new BytesRef[] { repeated, null };
+                case 9 -> new BytesRef[] { repeated, once };
+                default -> throw new AssertionError("unreachable remainder " + doc % 10);
             };
         }
         return docSlots;

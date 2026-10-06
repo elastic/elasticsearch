@@ -185,6 +185,12 @@ public final class PlainStringColumnReader extends StringColumnReader {
         return matched;
     }
 
+    /** A null's code is below a repeat's and every length's, so every other code is a value. */
+    @Override
+    protected SlotWindow nonNullSlots() {
+        return new SlotWindow(values.codes(), PlainValues.REPEAT, Long.MAX_VALUE);
+    }
+
     /**
      * The slots whose value is {@code [min, max]} bytes long, compared on the stored codes. A null's code is
      * below every length's, so no range holds one; a repeat's code says nothing of its length, so it takes the
@@ -257,7 +263,7 @@ public final class PlainStringColumnReader extends StringColumnReader {
             for (int i = 0; i < values; i++) {
                 pageValues[i] = pageDictionary[pageOrdinals[i]];
             }
-            sink.appendValues(pageValues, values, pageValueCounts, docCount);
+            appendGathered(sink, values, pageValueCounts, docCount);
             return true;
         }
         sink.appendOrdinals(pageOrdinals, values, pageValueCounts, docCount, pageDictionary, slots);
@@ -299,7 +305,7 @@ public final class PlainStringColumnReader extends StringColumnReader {
             for (int i = 0; i < count; i++) {
                 pageValues[i] = pageDictionary[pageOrdinals[i]];
             }
-            sink.appendValues(pageValues, count, counts, docCount);
+            appendGathered(sink, count, counts, docCount);
             return true;
         }
         sink.appendOrdinals(pageOrdinals, count, counts, docCount, pageDictionary, slots);
@@ -307,38 +313,17 @@ public final class PlainStringColumnReader extends StringColumnReader {
     }
 
     /**
-     * The same page, without a dictionary being built for it. A page handed over as values never reads the one
-     * the method above builds, and building it hashes every value and probes a table for it. So a column whose
-     * values do not repeat is read this way instead: runs are still collapsed, which costs no bytes to find,
-     * but nothing is hashed.
-     *
-     * <p>Only the way the values are found changes. What the sink is given is what it would have been given.
+     * The same page for a column whose values do not repeat, where a dictionary would be built and never read. Each
+     * value is handed to the sink where the column holds it, so nothing is gathered or hashed.
      */
     private boolean appendSingleValuedPageAsValues(int count, int[] counts, int docCount, StringBlockSink sink) throws IOException {
-        growPageValues(count);
-        pageBytesLength = 0;
-        int runs = 0;
-        long previous = -1;
-        int previousLength = -1;
-        int previousRun = -1;
-        for (int i = 0; i < count; i++) {
-            final long identity = values.read(pageRanks[i], scratch);
-            if (previousRun < 0 || identity != previous || scratch.length != previousLength) {
-                // The run before is compared by its bytes before a new one is started.
-                if (previousRun < 0 || pageSlotHolds(previousRun, scratch) == false) {
-                    appendToPage(runs, scratch);
-                    previousRun = runs++;
-                }
-                previous = identity;
-                previousLength = scratch.length;
+        try (StringBlockSink.Values out = sink.values(count, counts, docCount)) {
+            for (int i = 0; i < count; i++) {
+                values.get(pageRanks[i], scratch);
+                out.append(scratch);
             }
-            pageOrdinals[i] = previousRun;
+            out.finish();
         }
-        point(pageDictionary, runs);
-        for (int i = 0; i < count; i++) {
-            pageValues[i] = pageDictionary[pageOrdinals[i]];
-        }
-        sink.appendValues(pageValues, count, counts, docCount);
         return true;
     }
 }

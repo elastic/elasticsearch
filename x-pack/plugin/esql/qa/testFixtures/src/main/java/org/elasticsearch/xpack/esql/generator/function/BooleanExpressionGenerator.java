@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.generator.function;
 
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.generator.AllowedGeneratorFailureException;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.GenerationContext;
@@ -47,6 +49,8 @@ public final class BooleanExpressionGenerator {
         EQUALS,
         NOT_EQUALS
     }
+
+    private static final Logger logger = LogManager.getLogger(BooleanExpressionGenerator.class);
 
     private BooleanExpressionGenerator() {}
 
@@ -142,10 +146,36 @@ public final class BooleanExpressionGenerator {
         // errors that can arise when LIMIT BY or other schema-changing commands produce a schema that
         // does not include the chosen column at analysis time inside an IN subquery.
         QueryExecuted probe = executor.execute(narrowedText, context.subqueryDepth());
-        if (probe.exception() != null || probe.outputSchema() == null || probe.outputSchema().isEmpty()) {
+        if (isUnusableKeepProbe(probe, executor, innerColumns)) {
             return null;
         }
         return chosen.outerField() + (randomBoolean() ? " IN (" : " NOT IN (") + narrowedText + ")";
+    }
+
+    /**
+     * Interprets a KEEP-probe result. Allowed failures, analyzer {@code Unknown column} errors, and empty or null
+     * schemas are generation misses — the probe exists to reject a type-compatible column that is no longer in scope
+     * after a schema-changing inner command. Unexpected probe exceptions propagate so planner regressions fail the test.
+     */
+    static boolean isUnusableKeepProbe(QueryExecuted probe, QueryExecutor executor, List<Column> innerColumns) {
+        if (probe.exception() != null) {
+            if (executor.isAllowedFailure(probe, List.of(), innerColumns) || isUnknownColumnFailure(probe.exception())) {
+                return true;
+            }
+            logger.warn(() -> "KEEP probe failed for inner query [" + probe.query() + "]", probe.exception());
+            throw new RuntimeException("KEEP probe failed for inner query [" + probe.query() + "]", probe.exception());
+        }
+        return probe.outputSchema() == null || probe.outputSchema().isEmpty();
+    }
+
+    /**
+     * {@code Unknown column} on the KEEP probe is the expected invalid-candidate outcome (LIMIT BY, DROP of the last
+     * column, and similar). {@link QueryExecutor#isAllowedFailure} only treats that message as allowed for injected
+     * unmapped names, so it must be recognized here as well.
+     */
+    static boolean isUnknownColumnFailure(Exception e) {
+        String message = e.getMessage();
+        return message != null && message.contains("Unknown column");
     }
 
     /**
@@ -162,7 +192,8 @@ public final class BooleanExpressionGenerator {
             case 8 -> InSubqueryVariant.IS_NULL;
             case 9 -> InSubqueryVariant.IS_NOT_NULL;
             case 10 -> InSubqueryVariant.EQUALS;
-            default -> InSubqueryVariant.NOT_EQUALS;
+            case 11 -> InSubqueryVariant.NOT_EQUALS;
+            default -> throw new IllegalStateException("unexpected IN subquery wrap choice");
         };
         return wrapInSubqueryExpression(expression, variant);
     }

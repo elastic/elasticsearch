@@ -220,4 +220,9 @@ public class GenerativeRestTestTests extends ESTestCase {
         String error = "verification_exception: line 1:64: [MATCH] function cannot be used after RENAME";
         assertFalse(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
     }
+
+    public void testCidrMatchKeywordArgIsAllowedError() {
+        String error = "illegal_argument_exception: Expected [ip/prefix] but was [Mozilla/5.0 (X11; Linux i686; rv:1.9.6.20)]";
+        assertTrue(GenerativeRestTest.isAllowedError(error));
+    }
 }

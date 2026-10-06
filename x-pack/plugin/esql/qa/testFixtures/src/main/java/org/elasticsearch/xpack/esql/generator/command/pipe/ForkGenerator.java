@@ -98,6 +98,11 @@ public class ForkGenerator implements CommandGenerator {
                 }
 
                 @Override
+                public boolean lastCommandKept() {
+                    return continueExecuting;
+                }
+
+                @Override
                 public List<Column> currentSchema() {
                     return previousOutput;
                 }

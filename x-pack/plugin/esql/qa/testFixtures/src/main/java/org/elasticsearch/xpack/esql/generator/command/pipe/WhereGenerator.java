@@ -38,7 +38,11 @@ public class WhereGenerator implements CommandGenerator {
         for (int i = 0; i < nConditions; i++) {
             String exp = EsqlQueryGenerator.booleanExpression(previousOutput, previousCommands, schema, executor, context);
             if (exp == null) {
-                return null;
+                // Keep conditions already generated rather than discarding them (and any IN-subquery flag they set).
+                if (exps.isEmpty()) {
+                    return null;
+                }
+                break;
             }
             exps.add(exp);
         }

@@ -85,6 +85,40 @@ public class ProblemTrackerTests extends ESTestCase {
         assertTrue(problemTracker.hasProblems());
     }
 
+    public void testReportProblem_GivenSameProblemPersists_ReauditsEveryDayOfSearches() {
+        // First occurrence audits immediately
+        problemTracker.reportExtractionProblem(createExtractionProblem("top level", "cause"));
+
+        // NUM_SEARCHES_IN_DAY - 1 more occurrences: no additional audit yet
+        for (int i = 1; i < NUM_SEARCHES_IN_DAY; i++) {
+            problemTracker.reportExtractionProblem(createExtractionProblem("top level", "cause"));
+        }
+        // We're now at NUM_SEARCHES_IN_DAY total calls, which triggers the first re-audit
+        verify(auditor, times(2)).error("foo", "Datafeed is encountering errors extracting data: cause");
+
+        // Another full day of the same problem triggers another re-audit
+        for (int i = 0; i < NUM_SEARCHES_IN_DAY; i++) {
+            problemTracker.reportExtractionProblem(createExtractionProblem("top level", "cause"));
+        }
+        verify(auditor, times(3)).error("foo", "Datafeed is encountering errors extracting data: cause");
+    }
+
+    public void testReportProblem_GivenSameProblemPersists_CountResetsAfterRecovery() {
+        // Run for a full day and check we re-audit
+        for (int i = 0; i < NUM_SEARCHES_IN_DAY; i++) {
+            problemTracker.reportExtractionProblem(createExtractionProblem("top level", "cause"));
+        }
+        verify(auditor, times(2)).error("foo", "Datafeed is encountering errors extracting data: cause");
+
+        // Simulate recovery (no problem this cycle, then finishReport twice to trigger recovery audit)
+        problemTracker.finishReport();
+        problemTracker.finishReport();
+
+        // Same problem resumes: should re-audit immediately (counter reset) and not wait another day
+        problemTracker.reportExtractionProblem(createExtractionProblem("top level", "cause"));
+        verify(auditor, times(3)).error("foo", "Datafeed is encountering errors extracting data: cause");
+    }
+
     public void testUpdateEmptyDataCount_GivenEmptyNineTimes() {
         for (int i = 0; i < 9; i++) {
             problemTracker.reportEmptyDataCount();

@@ -705,6 +705,13 @@ setup:
 
 ---
 "Unsupported queries on keyed flattened fields are client errors":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [ keyed_flattened_unsupported_queries_bad_request ]
+      reason: "before this capability, unsupported queries on keyed flattened fields returned a 5xx"
   - do:
       indices.create:
         index:  keyed_unsupported
@@ -713,6 +720,13 @@ setup:
             properties:
               flattened:
                 type: flattened
+
+  # On stateless a newly created index carries a refresh block, and searches silently skip blocked indices and
+  # return an empty result instead of reaching a shard. Refreshing waits for that block to be lifted, so that the
+  # searches below fail on a shard as expected.
+  - do:
+      indices.refresh:
+        index: keyed_unsupported
 
   - do:
       catch: bad_request

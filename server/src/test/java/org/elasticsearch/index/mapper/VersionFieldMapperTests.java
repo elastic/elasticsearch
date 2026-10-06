@@ -18,6 +18,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -92,35 +94,37 @@ public class VersionFieldMapperTests extends MetadataMapperTestCase {
 
         IndexRequest[] requests = new IndexRequest[] { new IndexRequest("index").id("1"), new IndexRequest("index").id("2") };
         IndexOperationBatch batch = EngineTestCase.initFromRequests(requests);
-        BatchMappingContext context = new BatchMappingContext(
-            batch,
-            mapperService.mappingLookup(),
-            mapperService.getIndexSettings(),
-            BytesRefRecycler.NON_RECYCLING_INSTANCE
-        );
+        try (
+            BatchMappingContext context = new BatchMappingContext(
+                batch,
+                mapperService.mappingLookup(),
+                mapperService.getIndexSettings(),
+                new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
+            )
+        ) {
+            mapper.preColumnarParse(context);
 
-        mapper.preColumnarParse(context);
-
-        final MappedColumns mappedColumns = context.columns();
-        Column versionColumn = null;
-        for (Column column : mappedColumns.toColumnBatch().columns()) {
-            if (column.name().equals(VersionFieldMapper.NAME)) {
-                versionColumn = column;
+            final MappedColumns mappedColumns = context.columns();
+            Column versionColumn = null;
+            for (Column column : mappedColumns.toColumnBatch().columns()) {
+                if (column.name().equals(VersionFieldMapper.NAME)) {
+                    versionColumn = column;
+                }
             }
-        }
-        assertNotNull("expected a _version column", versionColumn);
-        assertEquals("doc values type must be NUMERIC", DocValuesType.NUMERIC, versionColumn.fieldType().docValuesType());
-        assertEquals("must have no inverted index", IndexOptions.NONE, versionColumn.fieldType().indexOptions());
-        assertFalse("must not be stored", versionColumn.fieldType().stored());
+            assertNotNull("expected a _version column", versionColumn);
+            assertEquals("doc values type must be NUMERIC", DocValuesType.NUMERIC, versionColumn.fieldType().docValuesType());
+            assertEquals("must have no inverted index", IndexOptions.NONE, versionColumn.fieldType().indexOptions());
+            assertFalse("must not be stored", versionColumn.fieldType().stored());
 
-        // The engine writes values later; the column should initially yield the default (0L) for each doc.
-        LongColumn longColumn = (LongColumn) versionColumn;
-        var cursor = longColumn.tuples();
-        assertEquals(0, cursor.nextDoc());
-        assertEquals(0L, cursor.longValue());
-        assertEquals(1, cursor.nextDoc());
-        assertEquals(0L, cursor.longValue());
-        assertEquals(DocIdSetIterator.NO_MORE_DOCS, cursor.nextDoc());
+            // The engine writes values later; the column should initially yield the default (0L) for each doc.
+            LongColumn longColumn = (LongColumn) versionColumn;
+            var cursor = longColumn.tuples();
+            assertEquals(0, cursor.nextDoc());
+            assertEquals(0L, cursor.longValue());
+            assertEquals(1, cursor.nextDoc());
+            assertEquals(0L, cursor.longValue());
+            assertEquals(DocIdSetIterator.NO_MORE_DOCS, cursor.nextDoc());
+        }
     }
 
 }

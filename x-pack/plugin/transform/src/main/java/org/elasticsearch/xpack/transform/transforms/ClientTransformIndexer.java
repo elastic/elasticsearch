@@ -105,6 +105,15 @@ class ClientTransformIndexer extends TransformIndexer {
     private volatile long pitCheckpoint;
     private volatile boolean disablePit = false;
 
+    /**
+     * Cached result of {@link #wrappedClient()}. Keyed by reference identity of the context's
+     * {@link PersistedCloudCredential}: credential rotation installs a new instance, so a reference
+     * change invalidates the cache. Avoids re-resolving (and, when encrypted at rest, re-decrypting)
+     * the credential on every outbound search/bulk/PIT call. Published as one volatile so a reader
+     * cannot observe a new credential paired with a stale client during a concurrent swap.
+     */
+    private volatile Tuple<Client, PersistedCloudCredential> currentClientAndCredential;
+
     ClientTransformIndexer(
         ThreadPool threadPool,
         ClusterService clusterService,
@@ -153,8 +162,14 @@ class ClientTransformIndexer extends TransformIndexer {
             && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled();
     }
 
-    private Client wrappedClient() {
-        return credentialManager.wrapClient(client, context.getPersistedCloudCredential());
+    Client wrappedClient() {
+        PersistedCloudCredential nextCredential = context.getPersistedCloudCredential();
+        if (currentClientAndCredential != null && nextCredential == currentClientAndCredential.v2()) {
+            return currentClientAndCredential.v1();
+        }
+        Client nextClient = credentialManager.wrapClient(client, nextCredential);
+        currentClientAndCredential = new Tuple<>(nextClient, nextCredential);
+        return nextClient;
     }
 
     @Override

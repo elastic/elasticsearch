@@ -17,7 +17,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors.HotThreadsOnLargeQue
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -111,7 +110,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     public List<Instrument> setupMetrics(MeterRegistry meterRegistry, String threadPoolName) {
         var instruments = new ArrayList<Instrument>();
         instruments.add(
-            meterRegistry.registerLongsGauge(
+            meterRegistry.registerLongsAsyncGauge(
                 ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + THREAD_POOL_METRIC_NAME_QUEUE_TIME,
                 "Time tasks spent in the queue for the " + threadPoolName + " thread pool",
                 "milliseconds",
@@ -132,20 +131,20 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
             )
         );
         instruments.add(
-            meterRegistry.registerDoubleGauge(
+            meterRegistry.registerDoubleAsyncGauge(
                 ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + THREAD_POOL_METRIC_NAME_UTILIZATION,
                 "fraction of maximum thread time utilized for " + threadPoolName,
                 "fraction",
-                () -> new DoubleWithAttributes(pollUtilization(UtilizationTrackingPurpose.APM), Map.of())
+                () -> pollUtilization(UtilizationTrackingPurpose.APM)
             )
         );
         if (threadUtilizationRate != null) {
             instruments.add(
-                meterRegistry.registerDoubleGauge(
+                meterRegistry.registerDoubleAsyncGauge(
                     ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + THREAD_POOL_METRIC_NAME_UTILIZATION_EWMR,
                     "EWMR-based fraction of maximum thread time utilized for " + threadPoolName,
                     "fraction",
-                    () -> new DoubleWithAttributes(getAverageUtilization(), Map.of())
+                    this::getAverageUtilization
                 )
             );
         }

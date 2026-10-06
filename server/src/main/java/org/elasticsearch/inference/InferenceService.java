@@ -17,6 +17,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.Closeable;
 import java.util.EnumSet;
@@ -137,6 +138,33 @@ public interface InferenceService extends Closeable {
     );
 
     /**
+     * Same as {@link #infer(Model, List, boolean, Map, InputType, TimeValue, ActionListener)}, with the requests sent by the
+     * service registered as children of {@code parentTaskId}.
+     */
+    default void infer(
+        Model model,
+        List<String> input,
+        boolean stream,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        @Nullable TimeValue timeout,
+        TaskId parentTaskId,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        infer(model, input, stream, taskSettings, inputType, timeout, listener);
+    }
+
+    /**
+     * Whether this service supports non-streaming chat completion via the unified API.
+     * Services that return {@code true} here must handle {@link UnifiedCompletionRequest#stream()} being {@code false} in
+     * {@link #unifiedCompletionInfer}.
+     * @return {@code false} by default
+     */
+    default boolean supportsNonStreamingChatCompletion() {
+        return false;
+    }
+
+    /**
      * Perform completion inference on the model using the unified schema.
      *
      * @param model        The model
@@ -152,6 +180,20 @@ public interface InferenceService extends Closeable {
     );
 
     /**
+     * Same as {@link #unifiedCompletionInfer(Model, UnifiedCompletionRequest, TimeValue, ActionListener)}, with the requests sent by
+     * the service registered as children of {@code parentTaskId}.
+     */
+    default void unifiedCompletionInfer(
+        Model model,
+        UnifiedCompletionRequest request,
+        TimeValue timeout,
+        TaskId parentTaskId,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        unifiedCompletionInfer(model, request, timeout, listener);
+    }
+
+    /**
      * Perform multimodal embedding inference on the model using the embedding schema.
      *
      * @param model The model
@@ -160,6 +202,20 @@ public interface InferenceService extends Closeable {
      * @param listener Inference result listener
      */
     void embeddingInfer(Model model, EmbeddingRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener);
+
+    /**
+     * Same as {@link #embeddingInfer(Model, EmbeddingRequest, TimeValue, ActionListener)}, with the requests sent by the service
+     * registered as children of {@code parentTaskId}.
+     */
+    default void embeddingInfer(
+        Model model,
+        EmbeddingRequest request,
+        TimeValue timeout,
+        TaskId parentTaskId,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        embeddingInfer(model, request, timeout, listener);
+    }
 
     /**
      * Override as necessary for services which support images in embedding inputs
@@ -178,6 +234,20 @@ public interface InferenceService extends Closeable {
      * @param listener Inference result listener
      */
     void rerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener);
+
+    /**
+     * Same as {@link #rerankInfer(Model, RerankRequest, TimeValue, ActionListener)}, with the requests sent by the service
+     * registered as children of {@code parentTaskId}.
+     */
+    default void rerankInfer(
+        Model model,
+        RerankRequest request,
+        TimeValue timeout,
+        TaskId parentTaskId,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        rerankInfer(model, request, timeout, listener);
+    }
 
     /**
      * Chunk long text.

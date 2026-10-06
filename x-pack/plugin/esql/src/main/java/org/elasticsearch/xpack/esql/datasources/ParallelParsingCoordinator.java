@@ -17,8 +17,10 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
@@ -26,7 +28,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 
-import java.io.Closeable;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -35,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -43,6 +46,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /**
@@ -424,6 +428,9 @@ public final class ParallelParsingCoordinator {
             statsColumnScope,
             splitIsFileFinal,
             metrics,
+            null,
+            ExternalReadCounters.NOOP,
+            null,
             null
         );
     }
@@ -438,6 +445,7 @@ public final class ParallelParsingCoordinator {
      * skip/null-fill warnings, not a truncation of the whole read — see
      * {@code AsyncExternalSourceBuffer#recordWarning} for that case). Pass {@code null} to fall back to
      * a direct {@code HeaderWarning} call on the parsing thread (tests, benchmarks).
+     * {@code stop} is checked before each segment open; {@code null} never stops early.
      */
     public static CloseableIterator<Page> parallelRead(
         SegmentableFormatReader reader,
@@ -458,20 +466,28 @@ public final class ParallelParsingCoordinator {
         StripeColumnScope statsColumnScope,
         boolean splitIsFileFinal,
         ExternalSourceMetrics metrics,
-        @Nullable Consumer<String> warningSink
+        @Nullable Consumer<String> warningSink,
+        ExternalReadCounters readCounters,
+        @Nullable FormatReadCounters formatCounters,
+        @Nullable BooleanSupplier stop
     ) throws IOException {
         long fileLength = storageObject.length();
         long minSegment = reader.minimumSegmentSize();
 
         // COUNT(*) and similar: projectedColumns is empty while rows still need structural validation
-        // against the file width. When this read includes the file-leading bytes (and therefore any
-        // header), bind the full on-disk schema before segment workers run. For non-leading macro
-        // splits, rebinding via metadata is unsafe because the split-local first row is data, not header.
+        // against the file width. The coordinator pin is already physical file width; bind it in
+        // memory and skip execution metadata() (an unranged GET from byte 0). Null/empty pin
+        // (mixed-version coordinators; FileSplit collapse) still infers from the file. Non-leading
+        // macro-splits must not rebind via metadata: the split-local first row is data, not header.
         SegmentableFormatReader parallelReader = reader;
         if (projectedColumns != null && projectedColumns.isEmpty() && splitIncludesFileLeader) {
-            var meta = parallelReader.metadata(storageObject);
-            if (meta != null && meta.schema() != null && meta.schema().isEmpty() == false) {
-                parallelReader = (SegmentableFormatReader) parallelReader.withSchema(meta.schema());
+            if (readSchema != null && readSchema.isEmpty() == false) {
+                parallelReader = (SegmentableFormatReader) parallelReader.withSchema(readSchema);
+            } else {
+                var meta = parallelReader.metadata(storageObject);
+                if (meta != null && meta.schema() != null && meta.schema().isEmpty() == false) {
+                    parallelReader = (SegmentableFormatReader) parallelReader.withSchema(meta.schema());
+                }
             }
         }
 
@@ -499,6 +515,7 @@ public final class ParallelParsingCoordinator {
             .stats(baseFileOffset, statsStripeSize, splitIsFileFinal)
             .statsColumnScope(statsColumnScope)
             .informationalWarningSink(warningSink)
+            .readCounters(formatCounters)
             .build();
         if (parallelism <= 1 || fileLength < minSegment * 2) {
             return parallelReader.read(storageObject, baseCtx);
@@ -529,11 +546,53 @@ public final class ParallelParsingCoordinator {
             statsColumnScope,
             splitIsFileFinal,
             metrics,
-            warningSink
+            warningSink,
+            readCounters,
+            formatCounters,
+            stop
         );
         // Fully constructed and published before any worker is dispatched — see AsReadyParallelIterator#start.
         iterator.start();
         return iterator;
+    }
+
+    /**
+     * Test helper: default policy/schema/stats with an explicit open-segment window and optional stop.
+     */
+    static CloseableIterator<Page> parallelRead(
+        SegmentableFormatReader reader,
+        StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        int maxConcurrentOpenSegments,
+        @Nullable BooleanSupplier stop
+    ) throws IOException {
+        return parallelRead(
+            reader,
+            storageObject,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            null,
+            false,
+            true,
+            null,
+            0L,
+            maxConcurrentOpenSegments,
+            null,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            -1L,
+            StripeColumnScope.PROJECTED,
+            false,
+            ExternalSourceMetrics.NOOP,
+            null,
+            ExternalReadCounters.NOOP,
+            null,
+            stop
+        );
     }
 
     /**
@@ -591,66 +650,38 @@ public final class ParallelParsingCoordinator {
                     + "] supports neither strided nor proven probing and cannot be segmented"
             );
         }
-        List<Long> boundaries = new ArrayList<>();
-        boundaries.add(0L);
-
-        // The last proven record start (range-relative), the base the exact walk streams from on AMBIGUOUS.
-        long exactCursor = 0L;
-        long pos = nominalSize;
-        while (pos < fileLength) {
-            long remaining = fileLength - pos;
-            if (remaining < minSegment) {
-                break;
-            }
-            long boundary;
-            if (strided) {
-                InputStream stream = storageObject.newStream(pos, remaining);
-                // Abort rather than close: findNextRecordBoundary reads only a prefix of the range
-                // (fileLength - pos bytes), but close() on providers like S3 drains the remainder.
-                try (Closeable abortOnExit = () -> storageObject.abortStream(stream)) {
-                    long skipped = splitter.findNextRecordBoundary(stream);
-                    if (skipped < 0) {
-                        break;
-                    }
-                    boundary = pos + skipped;
-                }
-            } else {
-                long probed;
-                InputStream probeStream = storageObject.newStream(pos, remaining);
-                try (Closeable abortOnExit = () -> storageObject.abortStream(probeStream)) {
-                    probed = splitter.findProvenRecordBoundary(probeStream);
-                }
-                if (probed >= 0) {
-                    boundary = pos + probed;
-                } else if (probed == RecordSplitter.AMBIGUOUS) {
-                    // Exact walk from the last proven boundary. This path is range-bounded and read at planning
-                    // time, so it relies on the existing read-time cancellation rather than a new supplier.
-                    long walkRemaining = fileLength - exactCursor;
-                    InputStream walkStream = storageObject.newStream(exactCursor, walkRemaining);
-                    long start;
-                    try (Closeable abortOnExit = () -> storageObject.abortStream(walkStream)) {
-                        start = splitter.findRecordStartAtOrAfter(walkStream, pos - exactCursor, () -> false);
-                    }
-                    if (start == RecordSplitter.RECORD_TOO_LARGE || start < 0) {
-                        break;
-                    }
-                    boundary = exactCursor + start;
-                } else {
-                    // findProvenRecordBoundary only ever returns a boundary (>= 0) or AMBIGUOUS.
-                    assert false : "findProvenRecordBoundary returned an unexpected sentinel: " + probed;
-                    break;
-                }
-            }
-            if (boundary >= fileLength) {
-                break;
-            }
-            if (fileLength - boundary < minSegment) {
-                break;
-            }
-            assert boundary > boundaries.get(boundaries.size() - 1) : "macro-split boundary must be strictly increasing";
-            boundaries.add(boundary);
-            exactCursor = boundary;
-            pos = boundaries.get(boundaries.size() - 1) + nominalSize;
+        // Both walks are sequential, so either resolves every boundary in one call. Segmentation runs on the
+        // thread that already carries the read's StorageRetryCancellation scope. The walks read that scope
+        // through StorageRetryCancellation::isCancelled; they do not install a nested one, which would
+        // replace the read's live signal. A probe parked in retry/throttle backoff still sees the same
+        // signal through the ambient scope.
+        List<Long> boundaries;
+        if (strided) {
+            // The offsets of a nominal-size grid, resumed from each boundary rather than walked blind. Both
+            // walks read the split at most once, but a blind grid buys that by capping every window at the
+            // stride, which is also a ceiling on the records it can resolve: a file whose records outgrow a
+            // segment would be cut into far fewer pieces than its offsets asked for, and one whose record width
+            // divides the stride would not be cut at all. Resuming gets the same bound from the offsets being
+            // monotonic, so its probes can open the record cap instead. The concurrency a blind grid's
+            // independent offsets allow is no loss here: these probes run on the calling thread either way.
+            boundaries = RecordBoundaryProbe.advancingBoundaries(
+                splitter,
+                storageObject,
+                fileLength,
+                nominalSize,
+                minSegment,
+                maxRecordBytes,
+                StorageRetryCancellation::isCancelled
+            );
+        } else {
+            boundaries = RecordBoundaryProbe.provenBoundaries(
+                splitter,
+                storageObject,
+                fileLength,
+                nominalSize,
+                minSegment,
+                StorageRetryCancellation::isCancelled
+            ).boundaries();
         }
 
         List<long[]> segments = new ArrayList<>(boundaries.size());
@@ -725,6 +756,15 @@ public final class ParallelParsingCoordinator {
          */
         @Nullable
         private final Consumer<String> warningSink;
+        private final ExternalReadCounters readCounters;
+        @Nullable
+        private final FormatReadCounters formatCounters;
+        /**
+         * When true, later segments skip opening a range stream. Filtered LIMIT wires
+         * {@code noFurtherCandidates}; {@code null} means never stop early (STATS / full scan).
+         */
+        @Nullable
+        private final BooleanSupplier stop;
 
         private final List<long[]> segments;
         private final Executor executor;
@@ -738,6 +778,13 @@ public final class ParallelParsingCoordinator {
          */
         private final BlockingQueue<Page> sharedQueue;
         private final AtomicReference<Throwable> firstError = new AtomicReference<>();
+        /**
+         * Live file-level GETs. Key is the inner {@code newStream()} instance (not the unregister
+         * filter the reader holds) so provider abort (S3 {@code Abortable}) still matches. Value is
+         * always the iterator's file-level {@code storageObject}, never the range view — storing
+         * {@code this} would re-enter {@link RegisteringRangeStorageObject#abortStream}.
+         */
+        private final ConcurrentMap<InputStream, StorageObject> liveStreams = new ConcurrentHashMap<>();
         /** Counts segments still running. Reaches 0 when every worker has finished (success or failure). */
         private final AtomicInteger remainingSegments;
         private final CountDownLatch allDone;
@@ -746,6 +793,11 @@ public final class ParallelParsingCoordinator {
         // reads the parked page rather than a stale value, so its blocks are released rather than leaked.
         private volatile Page buffered = null;
         private volatile boolean closed = false;
+        /**
+         * True when a downstream LIMIT stop skipped later segments. {@link #close()} must not
+         * treat that as a clean full-file scan or the coverage tiling caches an under-count.
+         */
+        private volatile boolean stoppedEarly = false;
 
         /**
          * Async-ready signal, mirroring {@code StreamingParallelIterator}. {@code null} when no consumer is
@@ -777,7 +829,10 @@ public final class ParallelParsingCoordinator {
             StripeColumnScope statsColumnScope,
             boolean splitIsFileFinal,
             ExternalSourceMetrics metrics,
-            @Nullable Consumer<String> warningSink
+            @Nullable Consumer<String> warningSink,
+            ExternalReadCounters readCounters,
+            @Nullable FormatReadCounters formatCounters,
+            @Nullable BooleanSupplier stop
         ) {
             this.reader = reader;
             this.storageObject = storageObject;
@@ -794,6 +849,9 @@ public final class ParallelParsingCoordinator {
             this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
             this.metrics = metrics == null ? ExternalSourceMetrics.NOOP : metrics;
             this.warningSink = warningSink;
+            this.readCounters = readCounters;
+            this.formatCounters = formatCounters;
+            this.stop = stop;
             this.segments = segments;
             this.executor = executor;
             // Single clamp site for the effective window: the configured cap, never more than the parser
@@ -831,6 +889,17 @@ public final class ParallelParsingCoordinator {
         private void submitSegment(int startIndex) {
             int segIdx = startIndex;
             while (segIdx < segments.size()) {
+                if (closed || (stop != null && stop.getAsBoolean())) {
+                    if (closed == false) {
+                        stoppedEarly = true;
+                    }
+                    // Skip-open the rest of this window-stride so remainingSegments still hits 0.
+                    do {
+                        finishSegment();
+                        segIdx += maxConcurrentSegments;
+                    } while (segIdx < segments.size());
+                    return;
+                }
                 final int idx = segIdx;
                 final long[] seg = segments.get(idx);
                 try {
@@ -840,7 +909,7 @@ public final class ParallelParsingCoordinator {
                     // Best-effort telemetry: the parser pool refused this segment (saturated / shutting down). The
                     // record method self-guards, so no inner try/catch is needed here.
                     metrics.recordPoolRejected();
-                    firstError.compareAndSet(null, e);
+                    recordError(e);
                     finishSegment();
                     segIdx += maxConcurrentSegments;
                 }
@@ -849,13 +918,17 @@ public final class ParallelParsingCoordinator {
 
         private void parseSegment(int segmentIndex, long offset, long length) {
             try {
-                // Teardown or earlier failure: skip opening a stream; finally still finishes + cascades.
-                if (closed || firstError.get() != null) {
+                // Teardown, earlier failure, or downstream LIMIT already satisfied: skip opening a stream;
+                // finally still finishes + cascades.
+                if (closed || firstError.get() != null || (stop != null && stop.getAsBoolean())) {
+                    if (closed == false && firstError.get() == null) {
+                        stoppedEarly = true;
+                    }
                     return;
                 }
                 readSegment(segmentIndex, offset, length);
             } catch (Exception e) {
-                firstError.compareAndSet(null, e);
+                recordError(e);
             } finally {
                 finishSegment();
                 // Slide the window: this stream is now closed, so the segment maxConcurrentSegments ahead may open.
@@ -874,7 +947,7 @@ public final class ParallelParsingCoordinator {
          */
         private void readSegment(int segmentIndex, long offset, long length) throws Exception {
             boolean lastSplit = segmentIndex == segments.size() - 1;
-            StorageObject segObj = new RangeStorageObject(storageObject, offset, length);
+            StorageObject segObj = new RegisteringRangeStorageObject(storageObject, offset, length);
             // Absolute file offset of this segment's first byte: segment offsets are relative to this
             // (possibly macro-split) storage object, so add its base file offset. The reader uses it to
             // attribute each record to its canonical stripe — a pure stats overlay; this seekable path
@@ -921,6 +994,7 @@ public final class ParallelParsingCoordinator {
                 .stats(segmentFileOffset, statsStripeSize, statsFileFinal)
                 .statsColumnScope(statsColumnScope)
                 .informationalWarningSink(warningSink)
+                .readCounters(formatCounters)
                 .build();
 
             // Bind the consumer-owned sink on this worker so the reader's close hook (which publishes its
@@ -933,6 +1007,11 @@ public final class ParallelParsingCoordinator {
             // with the sink still bound; then the handle restores the previous binding. The reader stamps
             // stripe addressing itself, so the sink no longer carries a coverage.
             ExternalStatsCapture.Handle bound = captureSink != null ? ExternalStatsCapture.bind(captureSink) : () -> {};
+            readCounters.meteredCpu(() -> pagesReadLoop(bound, segObj, ctx));
+        }
+
+        private void pagesReadLoop(ExternalStatsCapture.Handle bound, StorageObject segObj, FormatReadContext ctx) throws IOException,
+            InterruptedException {
             try (bound) {
                 try (CloseableIterator<Page> pages = reader.read(segObj, ctx)) {
                     while (pages.hasNext()) {
@@ -1121,10 +1200,19 @@ public final class ParallelParsingCoordinator {
             // An early close (LIMIT, cancellation) leaves a segment cut off mid-parse — a partial row
             // count under that segment's full byte range — which the coverage tiling could otherwise
             // accept as complete and cache as an under-count. So a non-clean scan poisons the file.
-            boolean cleanCompletion = firstError.get() == null && remainingSegments.get() == 0 && sharedQueue.isEmpty() && buffered == null;
+            boolean cleanCompletion = firstError.get() == null
+                && stoppedEarly == false
+                && remainingSegments.get() == 0
+                && sharedQueue.isEmpty()
+                && buffered == null;
             closed = true;
             // Wake any consumer parked on waitForReady(); isReadyNow() now returns true on closed.
             signalReady();
+            // Abort leftover GETs before waiting for workers. Skip on a clean drain — those streams
+            // already unregistered from close(). Otherwise LIMIT/cancel sits on allDone.await(60s).
+            if (cleanCompletion == false) {
+                abortLiveStreams();
+            }
             // Release the page parked by a hasNext() with no following next(); drainQueue() only sees the shared
             // queue, so without this its Blocks leak against the breaker on every early close.
             if (buffered != null) {
@@ -1154,6 +1242,104 @@ public final class ParallelParsingCoordinator {
             Page p;
             while ((p = sharedQueue.poll()) != null) {
                 p.releaseBlocks();
+            }
+        }
+
+        private void recordError(Throwable e) {
+            if (firstError.compareAndSet(null, e)) {
+                abortLiveStreams();
+                signalReady();
+            }
+        }
+
+        private InputStream registerLiveStream(InputStream in) {
+            liveStreams.put(in, storageObject);
+            LiveStream live = new LiveStream(in);
+            if (closed || firstError.get() != null) {
+                abortLiveStream(in);
+            }
+            return live;
+        }
+
+        private void abortLiveStreams() {
+            for (InputStream in : liveStreams.keySet().toArray(new InputStream[0])) {
+                abortLiveStream(in);
+            }
+        }
+
+        private void abortLiveStream(InputStream in) {
+            try {
+                abortRegistered(in);
+            } catch (Exception e) {
+                logger.warn("Failed to abort stream for [{}]", storageObject.path(), e);
+            }
+        }
+
+        private void abortRegistered(InputStream inner) throws IOException {
+            StorageObject owner = liveStreams.remove(inner);
+            if (owner != null) {
+                owner.abortStream(inner);
+            }
+        }
+
+        /**
+         * Range view that registers the exact inner {@code newStream()} instance so sibling abort
+         * can reach the provider abort path. The reader receives {@link LiveStream}; abort unwraps.
+         */
+        private final class RegisteringRangeStorageObject extends RangeStorageObject {
+            RegisteringRangeStorageObject(StorageObject delegate, long offset, long length) {
+                super(delegate, offset, length);
+            }
+
+            @Override
+            public InputStream newStream() throws IOException {
+                return registerLiveStream(super.newStream());
+            }
+
+            @Override
+            public InputStream newStream(long position, long rangeLength) throws IOException {
+                return registerLiveStream(super.newStream(position, rangeLength));
+            }
+
+            @Override
+            public void abortStream(InputStream stream) throws IOException {
+                if (stream instanceof LiveStream live) {
+                    abortRegistered(live.inner());
+                    return;
+                }
+                super.abortStream(stream);
+            }
+
+            @Override
+            public InputStream withoutResume(InputStream stream) {
+                return super.withoutResume(stream instanceof LiveStream live ? live.inner() : stream);
+            }
+        }
+
+        /**
+         * Unregisters the inner GET on close. Abort must use {@link #inner()}, not this filter.
+         * Only closes the inner stream when this close is the one that removes it from {@code liveStreams};
+         * if {@link #abortRegistered} already removed and aborted it concurrently, calling {@code super.close()}
+         * again would double-close the underlying stream.
+         */
+        private final class LiveStream extends FilterInputStream {
+            private final InputStream inner;
+
+            LiveStream(InputStream inner) {
+                super(inner);
+                this.inner = inner;
+            }
+
+            InputStream inner() {
+                return inner;
+            }
+
+            @Override
+            public void close() throws IOException {
+                if (liveStreams.remove(inner) != null) {
+                    super.close();
+                }
+                // else: already removed + aborted by abortRegistered; inner was already closed there.
             }
         }
     }

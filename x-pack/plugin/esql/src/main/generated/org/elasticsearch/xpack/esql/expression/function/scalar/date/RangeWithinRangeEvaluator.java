@@ -66,10 +66,11 @@ public final class RangeWithinRangeEvaluator implements ExpressionEvaluator {
       LongRangeBlockBuilder.LongRange aScratch = new LongRangeBlockBuilder.LongRange();
       LongRangeBlockBuilder.LongRange bScratch = new LongRangeBlockBuilder.LongRange();
       position: for (int p = 0; p < positionCount; p++) {
+        if (aBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (aBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -77,10 +78,11 @@ public final class RangeWithinRangeEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (bBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (bBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:

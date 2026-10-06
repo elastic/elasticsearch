@@ -101,32 +101,32 @@ public class WriteLoadMetrics {
         this.lastWriteLoadDistributionMetrics = new AtomicReferenceArray<>(trackedPercentiles.length);
         IntStream.range(0, trackedPercentiles.length).forEach(percentileIndex -> {
             lastWriteLoadDistributionMetrics.set(percentileIndex, List.of());
-            meterRegistry.registerDoublesGauge(
+            meterRegistry.registerDoublesAsyncGauge(
                 shardWriteLoadDistributionMetricName(trackedPercentiles[percentileIndex]),
                 trackedPercentiles[percentileIndex] + "th percentile of shard write-load values, broken down by node",
                 "write load",
                 () -> this.getWriteLoadDistributionMetrics(percentileIndex)
             );
         });
-        meterRegistry.registerDoublesGauge(
+        meterRegistry.registerDoublesAsyncGauge(
             WRITE_LOAD_PRIORITISATION_THRESHOLD_METRIC_NAME,
             "The threshold over which shards will be prioritised for movement when hot-spotting, per node",
             "write load",
             this::getWriteLoadPrioritisationThresholdMetrics
         );
-        meterRegistry.registerLongsGauge(
+        meterRegistry.registerLongsAsyncGauge(
             WRITE_LOAD_PRIORITISATION_THRESHOLD_PERCENTILE_RANK_METRIC_NAME,
             "The number of shards whose write-load exceeds the prioritisation threshold, per node",
             "unit",
             this::getWriteLoadPrioritisationThresholdPercentileRankMetrics
         );
-        meterRegistry.registerDoublesGauge(
+        meterRegistry.registerDoublesAsyncGauge(
             WRITE_LOAD_SUM_METRIC_NAME,
             "The sum of the shard write-loads for the shards allocated to each node",
             "write load",
             this::getWriteLoadSumMetrics
         );
-        meterRegistry.registerDoublesGauge(
+        meterRegistry.registerDoublesAsyncGauge(
             NODE_WRITE_LOAD_METRIC_NAME,
             "average node write load (utilisation multiplied by thread pool size)",
             "write load",

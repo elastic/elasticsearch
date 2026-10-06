@@ -185,12 +185,14 @@ public record StandardArgument(TypeName type, String name) implements Argument {
     }
 
     static void skipNull(MethodSpec.Builder builder, String value) {
+        builder.beginControlFlow("if ($N.isNull(p))", value);
+        {
+            builder.addStatement("result.appendNull()");
+            builder.addStatement("continue position");
+        }
+        builder.endControlFlow();
         builder.beginControlFlow("switch ($N.getValueCount(p))", value);
         {
-            builder.addCode("case 0:\n");
-            builder.addStatement("    result.appendNull()");
-            builder.addStatement("    continue position");
-
             builder.addCode("case 1:\n");
             builder.addStatement("    break");
 

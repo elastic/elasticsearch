@@ -7,7 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -18,38 +22,47 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+
 public class FooterByteCacheTests extends ESTestCase {
 
     private FooterByteCache cache;
 
+    private static final TimeValue TTL = TimeValue.timeValueMinutes(5);
+
     @Before
     public void initCache() {
-        FooterByteCache.getInstance().invalidateAll();
-        cache = new FooterByteCache(1024 * 1024, 512 * 1024);
+        cache = new FooterByteCache(1024 * 1024, 512 * 1024, TTL);
+    }
+
+    public void testKeyRejectsNullIdentity() {
+        NullPointerException e = expectThrows(NullPointerException.class, () -> new FooterByteCache.Key(null, "file.parquet", 1000));
+        assertThat(e.getMessage(), containsString("storageIdentity"));
     }
 
     public void testGetReturnsNullOnMiss() {
-        FooterByteCache.Key key = new FooterByteCache.Key("file.parquet", 1000);
+        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
         assertNull(cache.get(key));
     }
 
     public void testPutAndGet() {
-        FooterByteCache.Key key = new FooterByteCache.Key("file.parquet", 1000);
+        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
         byte[] data = randomByteArrayOfLength(256);
         cache.put(key, data);
         assertArrayEquals(data, cache.get(key));
     }
 
     public void testPutSkipsOversizedEntries() {
-        FooterByteCache cache = new FooterByteCache(1024 * 1024, 100);
-        FooterByteCache.Key key = new FooterByteCache.Key("file.parquet", 1000);
+        FooterByteCache cache = new FooterByteCache(1024 * 1024, 100, TTL);
+        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
         byte[] oversized = randomByteArrayOfLength(200);
         cache.put(key, oversized);
         assertNull(cache.get(key));
     }
 
     public void testGetOrLoadPopulatesCache() throws ExecutionException {
-        FooterByteCache.Key key = new FooterByteCache.Key("file.parquet", 1000);
+        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
         byte[] expected = randomByteArrayOfLength(256);
         byte[] result = cache.getOrLoad(key, k -> expected);
         assertArrayEquals(expected, result);
@@ -57,8 +70,8 @@ public class FooterByteCacheTests extends ESTestCase {
     }
 
     public void testGetOrLoadEvictsOversizedEntries() throws ExecutionException {
-        FooterByteCache smallMaxEntry = new FooterByteCache(1024 * 1024, 100);
-        FooterByteCache.Key key = new FooterByteCache.Key("file.parquet", 1000);
+        FooterByteCache smallMaxEntry = new FooterByteCache(1024 * 1024, 100, TTL);
+        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
         byte[] oversized = randomByteArrayOfLength(200);
 
         byte[] result = smallMaxEntry.getOrLoad(key, k -> oversized);
@@ -67,21 +80,21 @@ public class FooterByteCacheTests extends ESTestCase {
     }
 
     public void testGetOrLoadEvictsEmptyEntries() throws ExecutionException {
-        FooterByteCache.Key key = new FooterByteCache.Key("file.parquet", 1000);
+        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
         byte[] result = cache.getOrLoad(key, k -> new byte[0]);
         assertEquals(0, result.length);
         assertNull("Empty entry should be evicted after getOrLoad", cache.get(key));
     }
 
     public void testLruEviction() {
-        FooterByteCache tinyCache = new FooterByteCache(300, 200);
+        FooterByteCache tinyCache = new FooterByteCache(300, 200, TTL);
         byte[] data1 = randomByteArrayOfLength(150);
         byte[] data2 = randomByteArrayOfLength(150);
         byte[] data3 = randomByteArrayOfLength(150);
 
-        FooterByteCache.Key key1 = new FooterByteCache.Key("a.parquet", 1000);
-        FooterByteCache.Key key2 = new FooterByteCache.Key("b.parquet", 2000);
-        FooterByteCache.Key key3 = new FooterByteCache.Key("c.parquet", 3000);
+        FooterByteCache.Key key1 = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "a.parquet", 1000);
+        FooterByteCache.Key key2 = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "b.parquet", 2000);
+        FooterByteCache.Key key3 = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "c.parquet", 3000);
 
         tinyCache.put(key1, data1);
         tinyCache.put(key2, data2);
@@ -92,7 +105,7 @@ public class FooterByteCacheTests extends ESTestCase {
     }
 
     public void testInvalidateAll() {
-        FooterByteCache.Key key = new FooterByteCache.Key("file.parquet", 1000);
+        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
         cache.put(key, randomByteArrayOfLength(100));
         assertNotNull(cache.get(key));
         cache.invalidateAll();
@@ -100,8 +113,8 @@ public class FooterByteCacheTests extends ESTestCase {
     }
 
     public void testSamePathDifferentLengthAreDifferentKeys() {
-        FooterByteCache.Key key1 = new FooterByteCache.Key("file.parquet", 1000);
-        FooterByteCache.Key key2 = new FooterByteCache.Key("file.parquet", 2000);
+        FooterByteCache.Key key1 = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
+        FooterByteCache.Key key2 = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 2000);
         byte[] data1 = randomByteArrayOfLength(100);
         byte[] data2 = randomByteArrayOfLength(100);
 
@@ -113,8 +126,8 @@ public class FooterByteCacheTests extends ESTestCase {
     }
 
     public void testSamePathSameLengthSharesCacheEntry() throws ExecutionException {
-        FooterByteCache.Key key1 = new FooterByteCache.Key("file.parquet", 1000);
-        FooterByteCache.Key key2 = new FooterByteCache.Key("file.parquet", 1000);
+        FooterByteCache.Key key1 = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
+        FooterByteCache.Key key2 = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
         byte[] data = randomByteArrayOfLength(100);
 
         cache.getOrLoad(key1, k -> data);
@@ -133,7 +146,7 @@ public class FooterByteCacheTests extends ESTestCase {
      * invoke the loader exactly once.
      */
     public void testThunderingHerdCoalescesConcurrentLoads() throws Exception {
-        FooterByteCache.Key key = new FooterByteCache.Key("shared.parquet", 5000);
+        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "shared.parquet", 5000);
         byte[] expected = randomByteArrayOfLength(256);
         AtomicInteger loadCount = new AtomicInteger();
         CountDownLatch start = new CountDownLatch(1);
@@ -174,7 +187,7 @@ public class FooterByteCacheTests extends ESTestCase {
     }
 
     public void testGetOrLoadPropagatesLoaderException() {
-        FooterByteCache.Key key = new FooterByteCache.Key("bad.parquet", 1000);
+        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "bad.parquet", 1000);
         ExecutionException ex = expectThrows(ExecutionException.class, () -> cache.getOrLoad(key, k -> {
             throw new RuntimeException("simulated I/O failure");
         }));
@@ -182,9 +195,50 @@ public class FooterByteCacheTests extends ESTestCase {
         assertEquals("simulated I/O failure", ex.getCause().getMessage());
     }
 
-    public void testSingletonInstance() {
-        FooterByteCache instance1 = FooterByteCache.getInstance();
-        FooterByteCache instance2 = FooterByteCache.getInstance();
-        assertSame(instance1, instance2);
+    public void testFromSettingsUsesConfiguredTtl() {
+        Settings settings = Settings.builder().put("esql.external.cache.footer.ttl", "42s").build();
+        FooterByteCache configured = FooterByteCache.fromSettings(settings);
+        assertEquals(TimeValue.timeValueSeconds(42), configured.expireAfterAccess());
+    }
+
+    public void testFromSettingsDefaults() {
+        FooterByteCache defaults = FooterByteCache.fromSettings(Settings.EMPTY);
+        assertEquals(TimeValue.timeValueMinutes(5), defaults.expireAfterAccess());
+        assertThat(defaults.maxEntryBytes(), lessThanOrEqualTo(FooterByteCache.DEFAULT_MAX_ENTRY_BYTES));
+    }
+
+    public void testFromSettingsClampsMaxEntryToBudgetFraction() {
+        // The budget is heap-relative, so a fixed 2 MiB entry ceiling would let one entry evict
+        // nearly the whole cache on a small heap. Entries are capped at a quarter of the budget.
+        Settings settings = Settings.builder().put("esql.external.cache.footer.size", "1mb").build();
+        FooterByteCache small = FooterByteCache.fromSettings(settings);
+        assertEquals(256 * 1024L, small.maxEntryBytes());
+    }
+
+    public void testFromSettingsClampsMaxEntryToDefaultWhenBudgetIsLarge() {
+        Settings settings = Settings.builder().put("esql.external.cache.footer.size", "32mb").build();
+        FooterByteCache large = FooterByteCache.fromSettings(settings);
+        assertEquals(FooterByteCache.DEFAULT_MAX_ENTRY_BYTES, large.maxEntryBytes());
+        assertEquals(2L * 1024 * 1024, large.maxEntryBytes());
+    }
+
+    public void testNonPositiveBudgetIsRejectedAtSettingsParseTime() {
+        // The caches are built lazily on first reader construction, so a zero budget must be
+        // rejected when the setting is parsed rather than on the first Parquet/ORC query.
+        String key = randomFrom("esql.external.cache.footer.size", "esql.external.cache.footer.parsed.size");
+        Setting<?> setting = key.endsWith("parsed.size")
+            ? ExternalSourceCacheSettings.FOOTER_PARSED_CACHE_SIZE
+            : ExternalSourceCacheSettings.FOOTER_CACHE_SIZE;
+        Settings settings = Settings.builder().put(key, randomFrom("0b", "0%")).build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> setting.get(settings));
+        assertThat(e.getMessage(), containsString("must be greater than 0"));
+    }
+
+    public void testEachConstructionIsIndependent() {
+        // Distinct cache instances must not share entries.
+        FooterByteCache other = new FooterByteCache(1024 * 1024, 512 * 1024, TTL);
+        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
+        cache.put(key, randomByteArrayOfLength(100));
+        assertNull("distinct cache instances must not share entries", other.get(key));
     }
 }

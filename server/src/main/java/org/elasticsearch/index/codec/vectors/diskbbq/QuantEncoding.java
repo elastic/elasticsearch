@@ -196,6 +196,16 @@ public enum QuantEncoding {
         throw new IllegalArgumentException("Unknown QuantEncoding id: " + id);
     }
 
+    /**
+     * Returns {@code true} if the given bit width is a supported OSQ document quantization value.
+     */
+    public static boolean isValidBits(byte bits) {
+        return switch (bits) {
+            case 1, 2, 4, 7 -> true;
+            default -> false;
+        };
+    }
+
     public static QuantEncoding fromBits(byte bits) {
         return switch (bits) {
             case 1 -> ONE_BIT_4BIT_QUERY;

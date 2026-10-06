@@ -11,7 +11,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.fireworksai.FireworksAiModel;
@@ -40,7 +40,7 @@ public class FireworksAiChatCompletionModel extends FireworksAiModel {
         return new FireworksAiChatCompletionModel(model, model.getTaskSettings().updatedTaskSettings(taskSettings));
     }
 
-    public static FireworksAiChatCompletionModel of(FireworksAiChatCompletionModel model, UnifiedCompletionRequest request) {
+    public static FireworksAiChatCompletionModel of(FireworksAiChatCompletionModel model, UnifiedCompletionRequestBody request) {
         var originalServiceSettings = model.getServiceSettings();
         var overriddenServiceSettings = new FireworksAiChatCompletionServiceSettings(
             Objects.requireNonNullElse(request.model(), originalServiceSettings.modelId()),

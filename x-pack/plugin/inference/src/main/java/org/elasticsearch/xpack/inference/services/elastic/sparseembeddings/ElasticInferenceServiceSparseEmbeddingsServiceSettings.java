@@ -38,6 +38,7 @@ import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.appl
 import static org.elasticsearch.xpack.inference.common.parser.StringParser.validateStringIsNotNullOrEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE_UPPER_BOUND;
 
@@ -85,7 +86,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
         parser.declareInt(Builder::setMaxBatchSize, new ParseField(MAX_BATCH_SIZE));
         RateLimitSettings.declareUnsupportedRateLimitField(
             parser,
-            ModelConfigurations.SERVICE_SETTINGS,
+            SERVICE_SETTINGS,
             ElasticInferenceService.NAME,
             TaskType.SPARSE_EMBEDDING,
             context

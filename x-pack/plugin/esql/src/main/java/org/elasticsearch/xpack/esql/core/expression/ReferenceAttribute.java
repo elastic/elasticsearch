@@ -18,11 +18,12 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Attribute based on a reference to an expression.
  */
-public final class ReferenceAttribute extends TypedAttribute {
+public final class ReferenceAttribute extends TypedAttribute implements AnalyzedTextExpression {
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
         "ReferenceAttribute",
@@ -30,6 +31,9 @@ public final class ReferenceAttribute extends TypedAttribute {
     );
 
     private static final TransportVersion ESQL_QUALIFIERS_IN_ATTRIBUTES = TransportVersion.fromName("esql_qualifiers_in_attributes");
+    private static final TransportVersion ESQL_TO_TEXT_VALUES_ANALYZER = TransportVersion.fromName("esql_to_text_values_analyzer");
+
+    private final String valuesAnalyzer;
 
     @Deprecated
     /**
@@ -52,7 +56,33 @@ public final class ReferenceAttribute extends TypedAttribute {
         @Nullable NameId id,
         boolean synthetic
     ) {
+        this(source, qualifier, name, dataType, nullability, id, synthetic, null);
+    }
+
+    /**
+     * @param valuesAnalyzer the values (index-time) analyzer declared for the referenced runtime text column via
+     *                       {@code TO_TEXT}'s {@code analyzer} option, or {@code null} when none was declared. Plays
+     *                       the role the mapping's {@code analyzer} plays for an indexed text field, so full-text
+     *                       functions consuming the reference analyze its values consistently.
+     */
+    public ReferenceAttribute(
+        Source source,
+        @Nullable String qualifier,
+        String name,
+        DataType dataType,
+        Nullability nullability,
+        @Nullable NameId id,
+        boolean synthetic,
+        @Nullable String valuesAnalyzer
+    ) {
         super(source, qualifier, name, dataType, nullability, id, synthetic);
+        this.valuesAnalyzer = valuesAnalyzer;
+    }
+
+    @Override
+    @Nullable
+    public String valuesAnalyzer() {
+        return valuesAnalyzer;
     }
 
     @Override
@@ -69,6 +99,21 @@ public final class ReferenceAttribute extends TypedAttribute {
             out.writeEnum(nullable());
             id().writeTo(out);
             out.writeBoolean(synthetic());
+            if (out.getTransportVersion().supports(ESQL_TO_TEXT_VALUES_ANALYZER)) {
+                out.writeOptionalString(valuesAnalyzer);
+            } else if (valuesAnalyzer != null) {
+                // Writing the reference without its analyzer would silently change how the column's values are
+                // analyzed. IllegalArgumentException returns a 400 to the user, which is what we want here.
+                throw new IllegalArgumentException(
+                    "["
+                        + name()
+                        + "] with a values analyzer is not supported in peer node's version ["
+                        + out.getTransportVersion()
+                        + "]. Upgrade to version ["
+                        + ESQL_TO_TEXT_VALUES_ANALYZER
+                        + "] or newer."
+                );
+            }
         }
     }
 
@@ -88,8 +133,9 @@ public final class ReferenceAttribute extends TypedAttribute {
         Nullability nullability = in.readEnum(Nullability.class);
         NameId id = NameId.readFrom((PlanStreamInput) in);
         boolean synthetic = in.readBoolean();
+        String valuesAnalyzer = in.getTransportVersion().supports(ESQL_TO_TEXT_VALUES_ANALYZER) ? in.readOptionalString() : null;
 
-        return new ReferenceAttribute(source, qualifier, name, dataType, nullability, id, synthetic);
+        return new ReferenceAttribute(source, qualifier, name, dataType, nullability, id, synthetic, valuesAnalyzer);
     }
 
     @Override
@@ -107,12 +153,35 @@ public final class ReferenceAttribute extends TypedAttribute {
         NameId id,
         boolean synthetic
     ) {
-        return new ReferenceAttribute(source, qualifier, name, dataType, nullability, id, synthetic);
+        // clone's signature is fixed by Attribute, so the values analyzer is always carried over from this instance;
+        // the withName/withId/... helpers routing through clone cannot silently drop it.
+        return new ReferenceAttribute(source, qualifier, name, dataType, nullability, id, synthetic, valuesAnalyzer);
     }
 
     @Override
     protected NodeInfo<ReferenceAttribute> info() {
-        return NodeInfo.create(this, ReferenceAttribute::new, qualifier(), name(), dataType(), nullable(), id(), synthetic());
+        return NodeInfo.create(
+            this,
+            ReferenceAttribute::new,
+            qualifier(),
+            name(),
+            dataType(),
+            nullable(),
+            id(),
+            synthetic(),
+            valuesAnalyzer
+        );
+    }
+
+    @Override
+    protected int innerHashCode(boolean ignoreIds) {
+        return Objects.hash(super.innerHashCode(ignoreIds), valuesAnalyzer);
+    }
+
+    @Override
+    protected boolean innerEquals(Object o, boolean ignoreIds) {
+        var other = (ReferenceAttribute) o;
+        return super.innerEquals(other, ignoreIds) && Objects.equals(valuesAnalyzer, other.valuesAnalyzer);
     }
 
     @Override

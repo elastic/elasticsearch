@@ -42,7 +42,7 @@ public final class RestSearchActionTests extends RestActionTestCase {
         action = new RestSearchAction(new UsageService().getSearchUsageHolder(), nf -> false, CrossProjectModeDecider.NOOP);
         controller().registerHandler(action);
         verifyingClient.setExecuteVerifier((actionType, request) -> mock(SearchResponse.class));
-        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> mock(SearchResponse.class));
+        verifyingClient.setExecuteAndReturnTaskVerifier((actionType, request) -> mock(SearchResponse.class));
     }
 
     /**

@@ -12,11 +12,11 @@ import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamOutput
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamResponseHandler;
 
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults;
 
 import java.util.ArrayDeque;
 
-class AmazonBedrockCompletionStreamingProcessor extends AmazonBedrockStreamingProcessor<StreamingChatCompletionResults.Results> {
+class AmazonBedrockCompletionStreamingProcessor extends AmazonBedrockStreamingProcessor<StreamingCompletionResults.Results> {
     protected AmazonBedrockCompletionStreamingProcessor(ThreadPool threadPool) {
         super(threadPool);
     }
@@ -35,9 +35,9 @@ class AmazonBedrockCompletionStreamingProcessor extends AmazonBedrockStreamingPr
     private void sendDownstreamOnAnotherThread(ContentBlockDeltaEvent event) {
         runOnUtilityThreadPool(() -> {
             var text = event.delta().text();
-            var result = new ArrayDeque<StreamingChatCompletionResults.Result>(1);
-            result.offer(new StreamingChatCompletionResults.Result(text));
-            var results = new StreamingChatCompletionResults.Results(result);
+            var result = new ArrayDeque<StreamingCompletionResults.Result>(1);
+            result.offer(new StreamingCompletionResults.Result(text));
+            var results = new StreamingCompletionResults.Results(result);
             downstream.onNext(results);
         });
     }

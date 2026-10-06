@@ -15,6 +15,8 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.FieldExistsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -30,6 +32,31 @@ public abstract class TextFamilyFieldType extends StringFieldType {
     public static final String FALLBACK_FIELD_NAME_SUFFIX = "._original";
     private final boolean isSyntheticSourceEnabled;
     private final boolean isWithinMultiField;
+
+    /**
+     * Whether this field's doc values keep array order in a column with a companion {@code .counts}, the layout a strictly columnar
+     * index uses without the ColumNAR codec. See {@link #existsQuery}.
+     */
+    protected boolean keepsArrayOrderWithSeparateCounts() {
+        return false;
+    }
+
+    /**
+     * The field is there if the document wrote at least one slot for it, null slots included — which is the rule a strictly
+     * columnar index applies whichever format is writing.
+     *
+     * <p>Under the ColumNAR codec the payload carries its own count and is written for such a document, so the plain doc-values
+     * query already answers this. The in-order column writes no value for a document whose slots are all null, only the companion
+     * count, so there the count is what says the field is there. Asking the wrong one of the two is how {@code exists} came to
+     * disagree between them for {@code f: [null]}.
+     */
+    @Override
+    public Query existsQuery(SearchExecutionContext context) {
+        if (keepsArrayOrderWithSeparateCounts()) {
+            return new FieldExistsQuery(name() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX);
+        }
+        return super.existsQuery(context);
+    }
 
     public TextFamilyFieldType(
         String name,

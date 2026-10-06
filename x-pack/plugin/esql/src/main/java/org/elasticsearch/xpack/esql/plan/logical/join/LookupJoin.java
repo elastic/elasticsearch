@@ -93,10 +93,15 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, TelemetryA
 
     @Override
     public String telemetryLabel() {
-        if (config().joinOnConditions() == null) {
-            return "LOOKUP JOIN";
+        var label = new StringBuilder();
+        if (executesOn() == ExecuteLocation.COORDINATOR) {
+            label.append("COORDINATOR ");
         }
-        return "LOOKUP JOIN ON EXPRESSION";
+        label.append("LOOKUP JOIN");
+        if (config().joinOnConditions() != null) {
+            label.append(" ON EXPRESSION");
+        }
+        return label.toString();
     }
 
     @Override

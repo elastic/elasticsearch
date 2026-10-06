@@ -52,6 +52,7 @@ import static org.elasticsearch.xpack.inference.services.elastic.authorization.E
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -157,6 +158,39 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                   "summary": "detailed",
                   "unknown_field": "ignored"
                 }
+              },
+              "display": {
+                "name": "Rainbow Sprinkles",
+                "model_creator": "Elastic"
+              },
+              "fingerprint": "fingerprint123"
+            }
+          ]
+        }
+        """;
+
+    // Same as EIS_RAINBOW_SPRINKLES_RESPONSE but with a model_identity block to exercise ModelIdentity parsing.
+    public static final String EIS_RAINBOW_SPRINKLES_WITH_MODEL_IDENTITY_RESPONSE = """
+        {
+          "inference_endpoints": [
+            {
+              "id": ".rainbow-sprinkles-elastic",
+              "model_name": "rainbow-sprinkles",
+              "task_types": {
+                "eis": "chat",
+                "elasticsearch": "chat_completion"
+              },
+              "status": "ga",
+              "properties": [
+                "multilingual"
+              ],
+              "release_date": "2024-05-01",
+              "end_of_life_date": "2024-05-02",
+              "model_identity": {
+                "creator": "elastic",
+                "family": "rainbow-sprinkles",
+                "tier": "rainbow_tier",
+                "version": "rainbow_version"
               },
               "display": {
                 "name": "Rainbow Sprinkles",
@@ -472,6 +506,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             new ElasticInferenceServiceComponents(url),
             new SentenceBoundaryChunkingSettings(250, 1),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(List.of("english"), StatusHeuristic.fromString("preview"), RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal(ELSER_V2_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
                 ELSER_V2_DISPLAY,
@@ -498,6 +533,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 null
             ),
             ELSER_V2_DISPLAY,
+            null,
             ELSER_V2_FINGERPRINT,
             List.of(),
             false
@@ -555,6 +591,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             END_OF_LIFE_DATE_STRING,
             null,
             RAINBOW_SPRINKLES_DISPLAY,
+            null,
             RAINBOW_SPRINKLES_FINGERPRINT,
             List.of(),
             false
@@ -568,6 +605,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             new ElasticInferenceServiceCompletionServiceSettings(GP_LLM_V2_MODEL_NAME),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(List.of("multilingual"), StatusHeuristic.fromString("ga"), RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal(GP_LLM_V2_CHAT_COMPLETION_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
                 GP_LLM_V2_CHAT_COMPLETION_DISPLAY,
@@ -585,6 +623,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             new ElasticInferenceServiceCompletionServiceSettings(GP_LLM_V2_MODEL_NAME),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(List.of("multilingual"), StatusHeuristic.fromString("ga"), RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal(GP_LLM_V2_COMPLETION_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
                 GP_LLM_V2_COMPLETION_DISPLAY,
@@ -606,6 +645,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             null,
             null,
             GP_LLM_V2_CHAT_COMPLETION_DISPLAY,
+            null,
             GP_LLM_V2_CHAT_COMPLETION_FINGERPRINT,
             List.of(),
             false
@@ -623,6 +663,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             null,
             null,
             GP_LLM_V2_COMPLETION_DISPLAY,
+            null,
             GP_LLM_V2_COMPLETION_FINGERPRINT,
             List.of(),
             false
@@ -636,6 +677,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             new ElasticInferenceServiceCompletionServiceSettings(RAINBOW_SPRINKLES_MODEL_NAME),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(
                     List.of("multilingual"),
                     StatusHeuristic.fromString("ga"),
@@ -679,6 +721,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             END_OF_LIFE_DATE_STRING,
             new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(null, null, null, null, MEDIUM_DETAILED_REASONING),
             RAINBOW_SPRINKLES_DISPLAY,
+            null,
             RAINBOW_SPRINKLES_FINGERPRINT,
             List.of(),
             false
@@ -692,6 +735,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             new ElasticInferenceServiceCompletionServiceSettings(RAINBOW_SPRINKLES_MODEL_NAME),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(
                     List.of("multilingual"),
                     StatusHeuristic.fromString("ga"),
@@ -760,6 +804,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 null
             ),
             JINA_EMBED_V3_DISPLAY,
+            null,
             JINA_EMBED_V3_FINGERPRINT,
             List.of(),
             false
@@ -774,6 +819,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             new ElasticInferenceServiceComponents(url),
             new WordBoundaryChunkingSettings(500, 2),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(
                     List.of("multilingual", "open-weights"),
                     StatusHeuristic.fromString("beta"),
@@ -805,6 +851,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 null
             ),
             JINA_EMBED_V5_DISPLAY,
+            null,
             JINA_EMBED_V5_FINGERPRINT,
             List.of(),
             false
@@ -819,6 +866,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             new ElasticInferenceServiceComponents(url),
             new SentenceBoundaryChunkingSettings(250, 1),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(List.of("multilingual"), StatusHeuristic.fromString("ga"), RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal(JINA_EMBED_V5_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
                 JINA_EMBED_V5_DISPLAY,
@@ -845,6 +893,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 null
             ),
             JINA_CLIP_V2_DISPLAY,
+            null,
             JINA_CLIP_V2_FINGERPRINT,
             List.of(),
             false
@@ -859,6 +908,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             new ElasticInferenceServiceComponents(url),
             new WordBoundaryChunkingSettings(500, 2),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(
                     List.of("multilingual", "multimodal", "open-weights"),
                     StatusHeuristic.fromString("beta"),
@@ -884,6 +934,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             null,
             null,
             RERANK_V1_DISPLAY,
+            null,
             RERANK_V1_FINGERPRINT,
             List.of(),
             false
@@ -897,6 +948,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             new ElasticInferenceServiceRerankServiceSettings(RERANK_V1_MODEL_NAME),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(List.of(), StatusHeuristic.fromString("preview"), RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal(RERANK_V1_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
                 RERANK_V1_DISPLAY,
@@ -934,6 +986,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             "",
             null,
             display,
+            null,
             fingerprint,
             List.of(),
             false
@@ -966,6 +1019,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 null,
                 null,
                 new Display("Chat Completion Connector", "ChatCompletion Creator"),
+                null,
                 fingerprintSupplier.get(),
                 List.of(),
                 false
@@ -980,6 +1034,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 null,
                 null,
                 new Display("Sparse Embedding Connector", "Sparse Creator"),
+                null,
                 fingerprintSupplier.get(),
                 List.of(),
                 false
@@ -1000,6 +1055,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                     null
                 ),
                 new Display("Text Embedding Connector", "Text Creator"),
+                null,
                 fingerprintSupplier.get(),
                 List.of(),
                 false
@@ -1020,6 +1076,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                     null
                 ),
                 new Display("Embedding Connector", "Embedding Creator"),
+                null,
                 fingerprintSupplier.get(),
                 List.of(),
                 false
@@ -1034,6 +1091,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 null,
                 null,
                 new Display("Rerank Connector", "Rerank Creator"),
+                null,
                 fingerprintSupplier.get(),
                 List.of(),
                 false
@@ -1048,6 +1106,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 END_OF_LIFE_DATE_STRING,
                 null,
                 new Display("Completion Connector", "Completion Creator"),
+                null,
                 fingerprintSupplier.get(),
                 List.of(),
                 false
@@ -1306,6 +1365,105 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             )
         );
         assertTrue(endpoint.deniedByRegionPolicy());
+    }
+
+    public void testParse_ParsesModelIdentity() throws IOException {
+        var response = parse(EIS_RAINBOW_SPRINKLES_WITH_MODEL_IDENTITY_RESPONSE);
+
+        assertThat(response.authorizedEndpoints().size(), is(1));
+        assertThat(
+            response.authorizedEndpoints().get(0).modelIdentity(),
+            is(new EndpointMetadata.ModelIdentity("elastic", "rainbow-sprinkles", "rainbow_tier", "rainbow_version"))
+        );
+    }
+
+    public void testParse_ParsesCapabilities() throws IOException {
+        var json = Strings.format("""
+            {
+              "inference_endpoints": [
+                {
+                  "id": "test-model",
+                  "model_name": "test-model",
+                  "task_types": { "eis": "%s", "elasticsearch": "chat_completion" },
+                  "status": "ga",
+                  "release_date": "2025-01-01",
+                  "regions": [],
+                  "capabilities": {
+                    "reasoning": {
+                      "supported_effort_levels": ["high", "medium", "low", "none"],
+                      "default_effort_level": "medium"
+                    },
+                    "context_window": {
+                      "max_input_tokens": 1050000,
+                      "max_output_tokens": 128000
+                    }
+                  }
+                }
+              ]
+            }
+            """, EIS_CHAT_PATH);
+
+        var response = parse(json);
+        var capabilities = response.authorizedEndpoints().get(0).capabilities();
+
+        assertThat(
+            capabilities.reasoning().supportedEffortLevels(),
+            is(List.of(ReasoningEffort.HIGH, ReasoningEffort.MEDIUM, ReasoningEffort.LOW, ReasoningEffort.NONE))
+        );
+        assertThat(capabilities.reasoning().defaultEffortLevel(), is(ReasoningEffort.MEDIUM));
+        assertThat(capabilities.contextWindow().maxInputTokens(), is(1050000));
+        assertThat(capabilities.contextWindow().maxOutputTokens(), is(128000));
+    }
+
+    public void testParse_CapabilitiesWithUnknownEffortLevel_FiltersUnknownValues() throws IOException {
+        var json = Strings.format("""
+            {
+              "inference_endpoints": [
+                {
+                  "id": "test-model",
+                  "model_name": "test-model",
+                  "task_types": { "eis": "%s", "elasticsearch": "chat_completion" },
+                  "status": "ga",
+                  "release_date": "2025-01-01",
+                  "regions": [],
+                  "capabilities": {
+                    "reasoning": {
+                      "supported_effort_levels": ["max", "high"],
+                      "default_effort_level": "max"
+                    }
+                  }
+                }
+              ]
+            }
+            """, EIS_CHAT_PATH);
+
+        var response = parse(json);
+        assertThat(response.authorizedEndpoints().size(), is(1));
+
+        var capabilities = response.authorizedEndpoints().get(0).capabilities();
+        assertThat(capabilities.reasoning().supportedEffortLevels(), is(List.of(ReasoningEffort.HIGH)));
+        assertThat(capabilities.reasoning().defaultEffortLevel(), nullValue());
+    }
+
+    public void testParse_EmptyCapabilitiesObject_YieldsEmptyInstance() throws IOException {
+        var json = Strings.format("""
+            {
+              "inference_endpoints": [
+                {
+                  "id": "test-model",
+                  "model_name": "test-model",
+                  "task_types": { "eis": "%s", "elasticsearch": "chat_completion" },
+                  "status": "ga",
+                  "release_date": "2025-01-01",
+                  "regions": [],
+                  "capabilities": {}
+                }
+              ]
+            }
+            """, EIS_CHAT_PATH);
+
+        var response = parse(json);
+        assertThat(response.authorizedEndpoints().get(0).capabilities(), is(EndpointMetadata.Capabilities.EMPTY_INSTANCE));
     }
 
     private ElasticInferenceServiceAuthorizationResponseEntity parse(String json) throws IOException {

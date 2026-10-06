@@ -60,10 +60,11 @@ public final class RandomEvaluator implements ExpressionEvaluator {
   public IntBlock eval(int positionCount, IntBlock boundBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (boundBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (boundBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:

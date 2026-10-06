@@ -43,9 +43,11 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.core.inference.chunking.RecursiveChunkingSettings;
 import org.elasticsearch.xpack.core.inference.chunking.RerankRequestChunker;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
@@ -159,6 +161,14 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         }
     }
 
+    public static boolean isSupported(Settings settings) {
+        return XPackSettings.MACHINE_LEARNING_ENABLED.get(settings) && XPackSettings.NLP_ENABLED.get(settings);
+    }
+
+    public static boolean isServiceNameOrAlias(String name) {
+        return name.equals(ElasticsearchInternalService.NAME) || name.equals(ElasticsearchInternalService.OLD_ELSER_SERVICE_NAME);
+    }
+
     /**
      * Fix for https://github.com/elastic/elasticsearch/issues/124675
      * In 8.13.0 we transitioned from model_version to model_id. Any elser inference endpoints created prior to 8.13.0 will still use
@@ -212,7 +222,9 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             ChunkingSettings chunkingSettings;
             if (TaskType.TEXT_EMBEDDING.equals(taskType) || TaskType.SPARSE_EMBEDDING.equals(taskType)) {
                 chunkingSettings = ChunkingSettingsBuilder.fromMap(
-                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
+                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS),
+                    true,
+                    true
                 );
             } else {
                 chunkingSettings = null;
@@ -645,6 +657,17 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
     @Override
     public void rerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+        rerankInfer(model, request, timeout, TaskId.EMPTY_TASK_ID, listener);
+    }
+
+    @Override
+    public void rerankInfer(
+        Model model,
+        RerankRequest request,
+        TimeValue timeout,
+        TaskId parentTaskId,
+        ActionListener<InferenceServiceResults> listener
+    ) {
         if (request.query().isNonText() || request.inputs().stream().anyMatch(InferenceString::isNonText)) {
             listener.onFailure(createUnsupportedMultimodalRerankException(name()));
             return;
@@ -663,6 +686,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             InputType.UNSPECIFIED,
             timeout,
             request.taskSettings(),
+            parentTaskId,
             listener
         );
     }
@@ -677,13 +701,27 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
+        infer(model, input, stream, taskSettings, inputType, timeout, TaskId.EMPTY_TASK_ID, listener);
+    }
+
+    @Override
+    public void infer(
+        Model model,
+        List<String> input,
+        boolean stream,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        @Nullable TimeValue timeout,
+        TaskId parentTaskId,
+        ActionListener<InferenceServiceResults> listener
+    ) {
         timeout = resolveInferenceTimeout(timeout, inputType, getClusterService(), model.getTaskType());
         if (model instanceof ElasticsearchInternalModel esModel) {
             var taskType = model.getConfigurations().getTaskType();
             if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-                inferTextEmbedding(esModel, input, inputType, timeout, listener);
+                inferTextEmbedding(esModel, input, inputType, timeout, parentTaskId, listener);
             } else if (TaskType.SPARSE_EMBEDDING.equals(taskType)) {
-                inferSparseEmbedding(esModel, input, inputType, timeout, listener);
+                inferSparseEmbedding(esModel, input, inputType, timeout, parentTaskId, listener);
             } else {
                 throw new ElasticsearchStatusException(TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME), RestStatus.BAD_REQUEST);
             }
@@ -697,6 +735,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         List<String> inputs,
         InputType inputType,
         TimeValue timeout,
+        TaskId parentTaskId,
         ActionListener<InferenceServiceResults> listener
     ) {
         var request = buildInferenceRequest(
@@ -706,6 +745,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             inputType,
             timeout
         );
+        request.setParentTask(parentTaskId);
 
         ActionListener<InferModelAction.Response> mlResultsListener = listener.delegateFailureAndWrap(
             (l, inferenceResult) -> l.onResponse(DenseEmbeddingFloatResults.of(inferenceResult.getInferenceResults()))
@@ -723,9 +763,11 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         List<String> inputs,
         InputType inputType,
         TimeValue timeout,
+        TaskId parentTaskId,
         ActionListener<InferenceServiceResults> listener
     ) {
         var request = buildInferenceRequest(model.mlNodeDeploymentId(), TextExpansionConfigUpdate.EMPTY_UPDATE, inputs, inputType, timeout);
+        request.setParentTask(parentTaskId);
 
         ActionListener<InferModelAction.Response> mlResultsListener = listener.delegateFailureAndWrap(
             (l, inferenceResult) -> l.onResponse(SparseEmbeddingResults.of(inferenceResult.getInferenceResults()))
@@ -747,6 +789,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         InputType inputType,
         TimeValue timeout,
         Map<String, Object> requestTaskSettings,
+        TaskId parentTaskId,
         ActionListener<InferenceServiceResults> listener
     ) {
         ActionListener<InferenceServiceResults> resultsListener = listener.delegateFailure((l, results) -> {
@@ -780,6 +823,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
         }
         var request = buildInferenceRequest(model.mlNodeDeploymentId(), new TextSimilarityConfigUpdate(query), inputs, inputType, timeout);
+        request.setParentTask(parentTaskId);
 
         Function<Integer, String> inputSupplier = returnDocs == Boolean.TRUE ? inputs::get : i -> null;
 
@@ -818,20 +862,25 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         }
 
         if (model instanceof ElasticsearchInternalModel esModel) {
-            List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
-                input,
-                EMBEDDING_MAX_BATCH_SIZE,
-                esModel.getConfigurations().getChunkingSettings()
-            ).batchRequestsWithListeners(listener);
+            try {
+                List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
+                    input,
+                    EMBEDDING_MAX_BATCH_SIZE,
+                    getClusterService().getClusterSettings().get(RecursiveChunkingSettings.REGEX_READ_LIMIT_FACTOR_SETTING),
+                    esModel.getConfigurations().getChunkingSettings()
+                ).batchRequestsWithListeners(listener);
 
-            if (batchedRequests.isEmpty()) {
-                listener.onResponse(List.of());
-            } else {
-                timeout = resolveInferenceTimeout(timeout, inputType, getClusterService(), model.getTaskType());
-                // Avoid filling the inference queue by executing the batches in series
-                // Each batch contains up to EMBEDDING_MAX_BATCH_SIZE inference request
-                var sequentialRunner = new BatchIterator(esModel, inputType, timeout, batchedRequests);
-                sequentialRunner.run();
+                if (batchedRequests.isEmpty()) {
+                    listener.onResponse(List.of());
+                } else {
+                    timeout = resolveInferenceTimeout(timeout, inputType, getClusterService(), model.getTaskType());
+                    // Avoid filling the inference queue by executing the batches in series
+                    // Each batch contains up to EMBEDDING_MAX_BATCH_SIZE inference request
+                    var sequentialRunner = new BatchIterator(esModel, inputType, timeout, batchedRequests);
+                    sequentialRunner.run();
+                }
+            } catch (Exception e) {
+                listener.onFailure(e);
             }
         } else {
             listener.onFailure(notElasticsearchModelException(model));
@@ -940,12 +989,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     @Override
     public void updateModelsWithDynamicFields(List<Model> models, ActionListener<List<Model>> listener) {
         if (models.isEmpty()) {
-            listener.onResponse(models);
-            return;
-        }
-
-        // if ML is disabled, do not update Deployment Stats (there won't be changes)
-        if (XPackSettings.MACHINE_LEARNING_ENABLED.get(settings) == false || XPackSettings.NLP_ENABLED.get(settings) == false) {
             listener.onResponse(models);
             return;
         }

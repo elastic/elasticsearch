@@ -16,7 +16,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
+import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -61,11 +61,8 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
         try (var tp = new TestThreadPool(getTestName(), Settings.builder().put(NODE_PROCESSORS_SETTING.getKey(), 10).build())) {
             CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, tp);
             Codec codec = codecService.codec("default");
-            if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
-                codec = deduplicateFieldInfosCodec.delegate();
-            }
-            assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
-            KnnVectorsFormat knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+            assertThat(codec, instanceOf(PerFieldMapperCodec.class));
+            KnnVectorsFormat knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
             String expectedString = Build.current().isSnapshot()
                 ? "ESNextDiskBBQVectorsFormat(vectorPerCluster=384, mergeExec=" + enabled + ", sliceField=null)"
                 : "ES950DiskBBQVectorsFormat(vectorPerCluster=384, mergeExec=" + enabled + ")";
@@ -162,10 +159,7 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
     private static KnnVectorsFormat knnVectorsFormatForField(MapperService mapperService, TestThreadPool tp) {
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, tp);
         Codec codec = codecService.codec("default");
-        if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
-            codec = deduplicateFieldInfosCodec.delegate();
-        }
-        return ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+        return ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
     }
 
 }

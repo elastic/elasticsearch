@@ -7,10 +7,17 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.tasks.TaskCancelledException;
 
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -46,8 +53,7 @@ import java.util.function.BooleanSupplier;
  * discovery / resolution worker, and for the runtime open / drain steps that pull pages on the same thread the
  * scope wraps. It does NOT reach reads outside that synchronous Java retry layer: the bzip2 parallel
  * block-boundary scan and other parallel-parse workers run chunk reads on separate executor threads (the
- * thread-local does not propagate to those threads), and the parquet-rs reader performs footer I/O in a
- * native runtime that bypasses the Java retry layer entirely. Both fall back to their own, non-cancellable
+ * thread-local does not propagate to those threads). These fall back to their own, non-cancellable
  * backoff.
  *
  * <p><b>Degenerate-query cancellation (what the scope does NOT fix).</b> The scope only shortcuts the Java
@@ -65,7 +71,7 @@ import java.util.function.BooleanSupplier;
  * own timeout, not by cancellation. Closing that gap needs interrupt-/stream-abort-based cancellation and is a
  * separate change.
  */
-final class StorageRetryCancellation {
+public final class StorageRetryCancellation {
 
     private static final ThreadLocal<BooleanSupplier> CURRENT = new ThreadLocal<>();
 
@@ -118,9 +124,46 @@ final class StorageRetryCancellation {
     }
 
     /** Returns {@code true} when an ambient cancellation signal is installed and reports cancelled. */
-    static boolean isCancelled() {
+    public static boolean isCancelled() {
         BooleanSupplier current = CURRENT.get();
         return current != null && current.getAsBoolean();
+    }
+
+    /**
+     * Waits for {@code future} while remaining responsive to {@link #isCancelled()}. The delay is
+     * consumed in {@link #POLL_INTERVAL_MS} chunks so a cancel that arrives while the caller is
+     * blocked aborts instead of waiting for the GET to finish. A cancelled future is surfaced as
+     * {@link TaskCancelledException} so callers do not treat it as a prefetch miss and start a
+     * replacement GET.
+     */
+    public static <T> T getWithCancellationChecks(CompletableFuture<T> future) {
+        while (true) {
+            if (isCancelled()) {
+                FutureUtils.cancel(future);
+                throw new TaskCancelledException(CANCELLED_MESSAGE);
+            }
+            try {
+                return future.get(POLL_INTERVAL_MS, TimeUnit.MILLISECONDS);
+            } catch (TimeoutException ignored) {
+                // poll again
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                FutureUtils.cancel(future);
+                throw new TaskCancelledException(CANCELLED_MESSAGE);
+            } catch (CancellationException e) {
+                FutureUtils.cancel(future);
+                throw new TaskCancelledException(CANCELLED_MESSAGE);
+            } catch (ExecutionException e) {
+                Throwable cause = e.getCause();
+                if (cause instanceof RuntimeException runtimeException) {
+                    throw runtimeException;
+                }
+                if (cause instanceof Error error) {
+                    throw error;
+                }
+                throw new CompletionException(cause);
+            }
+        }
     }
 
     /**

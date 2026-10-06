@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrate
 
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -137,14 +138,19 @@ public class FileSourceFactoryErrorPolicyTests extends ESTestCase {
         when(reader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
         when(reader.defaultErrorPolicy()).thenReturn(ErrorPolicy.STRICT);
 
-        expectThrows(
+        IllegalArgumentException ex1 = expectThrows(
             IllegalArgumentException.class,
             () -> FileSourceFactory.resolveErrorPolicy(Map.of("error_mode", "fail_fast", "max_errors", "10"), reader)
         );
-        expectThrows(
+        assertThat(ex1.getMessage(), containsString("cannot be used with"));
+        assertThat(ex1.getMessage(), containsString("fail_fast"));
+
+        IllegalArgumentException ex2 = expectThrows(
             IllegalArgumentException.class,
             () -> FileSourceFactory.resolveErrorPolicy(Map.of("error_mode", "fail_fast", "max_error_ratio", "0.1"), reader)
         );
+        assertThat(ex2.getMessage(), containsString("cannot be used with"));
+        assertThat(ex2.getMessage(), containsString("fail_fast"));
     }
 
     public void testResolveInvalidErrorMode() {

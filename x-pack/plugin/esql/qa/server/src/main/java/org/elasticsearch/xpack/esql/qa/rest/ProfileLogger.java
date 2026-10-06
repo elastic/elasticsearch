@@ -54,6 +54,8 @@ public class ProfileLogger extends TestWatcher {
 
     @Override
     protected void failed(Throwable e, Description description) {
-        LOGGER.info("Profile: {}", profile);
+        if (profile != null) {
+            LOGGER.info("Profile: {}", profile);
+        }
     }
 }

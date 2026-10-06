@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 159867
+summary: "ES|QL|DS: Strip UTF-8 BOM at file start for CSV/TSV"
+type: bug

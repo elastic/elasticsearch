@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 157873
+pr: 158159
+summary: Fix relocated PIT context leak when closed before first search
+type: bug

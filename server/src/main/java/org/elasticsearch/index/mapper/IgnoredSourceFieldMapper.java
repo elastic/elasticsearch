@@ -13,7 +13,6 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -27,7 +26,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
@@ -36,6 +35,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -64,8 +64,10 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
 
     // This factor is used to combine two offsets within the same integer:
     // - the offset of the end of the parent field within the field name (N / PARENT_OFFSET_IN_NAME_OFFSET)
-    // - the offset of the field value within the encoding string containing the offset (first 4 bytes), the field name and value
-    // (N % PARENT_OFFSET_IN_NAME_OFFSET)
+    // - the length of the field name in UTF-16 chars, i.e. String#length() and not the number of UTF-8 bytes (N %
+    // PARENT_OFFSET_IN_NAME_OFFSET)
+    // This limits the field name to fewer than PARENT_OFFSET_IN_NAME_OFFSET chars and the parent offset to fewer than
+    // (Integer.MAX_VALUE / PARENT_OFFSET_IN_NAME_OFFSET) + 1 chars, which is enforced when encoding.
     private static final int PARENT_OFFSET_IN_NAME_OFFSET = 1 << 16;
 
     public static final String NAME = "_ignored_source";
@@ -161,12 +163,12 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
      * Reads individual ignored-source entries from binary doc values (IntegratedCount format).
      */
     private static final class DocValuesIgnoredSourceValueFetcher implements ValueFetcher {
-        private MultiValuedSortedBinaryDocValues docValues;
+        private MultiValuedSortableBinaryDocValues docValues;
 
         @Override
         public void setNextReader(LeafReaderContext context) {
             try {
-                docValues = MultiValuedSortedBinaryDocValues.fromMultiValued(context.reader(), NAME);
+                docValues = MultiValuedSortableBinaryDocValues.fromMultiValued(context.reader(), NAME);
             } catch (IOException e) {
                 throw new ElasticsearchException("Failed to load doc values for " + NAME, e);
             }
@@ -228,7 +230,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // Per-field ignored source is produced only by field (non-metadata) mappers, none of which
         // support columnar parsing yet. postColumnarParse is therefore a no-op for the current
         // empty-doc-only columnar batch scope. When field mappers gain columnar support they will
@@ -262,7 +264,9 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
      * <p>
      * The blob itself is of the following format: {@code [header][field name][value]} where:
      * <ul>
-     *     <li>{@code header} is a little-endian {@code int32} that packs {@code field-name.length} and the parent offset</li>
+     *     <li>{@code header} is a little-endian {@code int32} that packs the length of the field name in UTF-16 chars (<b>not</b> the
+     *     number of UTF-8 bytes, so decoding has to walk the name to find where the value starts) and the parent offset. The name has to
+     *     be shorter than {@code 1 << 16} chars and the parent offset smaller than {@code 1 << 15}</li>
      *     <li>{@code field name} is the full field path, as UTF-8 bytes</li>
      *     <li>{@code value} is the ignored value encoded by {@link XContentDataHelper}</li>
      * </ul>
@@ -270,8 +274,18 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     public static class SingularIgnoredSourceEncoding {
 
         public static BytesRef encode(NameValue values) {
-            assert values.parentOffset < PARENT_OFFSET_IN_NAME_OFFSET;
-            assert values.parentOffset * (long) PARENT_OFFSET_IN_NAME_OFFSET < Integer.MAX_VALUE;
+            // Not asserts: if either limit is exceeded the header silently overflows into a wrong name length or parent offset, which
+            // would then be read back as a different, valid looking entry.
+            if (values.name.length() >= PARENT_OFFSET_IN_NAME_OFFSET) {
+                throw new IllegalArgumentException(
+                    "field name of ignored source entry is too long [" + values.name.length() + "], must be less than [65536] chars"
+                );
+            }
+            if (values.parentOffset > Integer.MAX_VALUE / PARENT_OFFSET_IN_NAME_OFFSET) {
+                throw new IllegalArgumentException(
+                    "parent path of ignored source entry is too long [" + values.parentOffset + "], must be less than [32768] chars"
+                );
+            }
 
             byte[] nameBytes = values.name.getBytes(StandardCharsets.UTF_8);
             byte[] bytes = new byte[4 + nameBytes.length + values.value.length];
@@ -286,13 +300,22 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             int off = ref.offset;
             int len = ref.length;
 
+            if (len < 4) {
+                throw new IllegalStateException("Failed to decode _ignored_source, entry of [" + len + "] bytes has no header");
+            }
             int encodedSize = ByteUtils.readIntLE(bytes, off);
+            if (encodedSize < 0) {
+                throw new IllegalStateException("Failed to decode _ignored_source, invalid header [" + encodedSize + "]");
+            }
             int nameSize = encodedSize % PARENT_OFFSET_IN_NAME_OFFSET;
             int parentOffset = encodedSize / PARENT_OFFSET_IN_NAME_OFFSET;
 
-            String decoded = new String(bytes, off + 4, len - 4, StandardCharsets.UTF_8);
-            String name = decoded.substring(0, nameSize);
-            int nameByteCount = name.getBytes(StandardCharsets.UTF_8).length;
+            // Only the name is decoded into a String. The value can be arbitrarily large, and callers like the block loaders decode
+            // every entry of a document just to find the one they need, so copying the value here is quadratic in the number of fields.
+            int nameByteCount = IgnoredSourceNameUtf8.byteLength(bytes, off + 4, off + len, nameSize);
+            // One byte per char means the name is pure ASCII, which Latin-1 decoding turns into a plain array copy.
+            Charset nameCharset = nameByteCount == nameSize ? StandardCharsets.ISO_8859_1 : StandardCharsets.UTF_8;
+            String name = new String(bytes, off + 4, nameByteCount, nameCharset);
 
             BytesRef value = new BytesRef(bytes, off + 4 + nameByteCount, len - nameByteCount - 4);
             return new NameValue(name, parentOffset, value, null);
@@ -395,7 +418,11 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     ) throws IOException {
         NameValue nameValue = SingularIgnoredSourceEncoding.decode(value);
         if (nameValue.hasValue() == false) {
-            return null;
+            // A void placeholder (written by DocumentParserContext#createCopyToContext) carries no user data; its sole purpose is to
+            // suppress the field's doc-values loader during synthetic source reconstruction so that copy_to-copied values do not appear
+            // in _source. Dropping it would remove the suppression and let the destination field be rebuilt from doc values, leaking the
+            // copied value. The placeholder is always safe to keep: it contains nothing that FLS should hide.
+            return value;
         }
 
         if (XContentDataHelper.isEncodedObject(nameValue.value()) == false) {
@@ -423,7 +450,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                 SourceFilter filter,
                 Map<String, List<Object>> storedFields,
                 int docId,
-                MultiValuedSortedBinaryDocValues docValues
+                MultiValuedSortableBinaryDocValues docValues
             ) {
                 return Map.of();
             }
@@ -449,7 +476,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                 SourceFilter filter,
                 Map<String, List<Object>> storedFields,
                 int docId,
-                MultiValuedSortedBinaryDocValues docValues
+                MultiValuedSortableBinaryDocValues docValues
             ) {
                 var ignoredStoredValues = storedFields.get(NAME);
                 if (ignoredStoredValues == null) {
@@ -488,7 +515,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                 SourceFilter filter,
                 Map<String, List<Object>> storedFields,
                 int docId,
-                MultiValuedSortedBinaryDocValues docValues
+                MultiValuedSortableBinaryDocValues docValues
             ) {
                 var ignoredStoredValues = storedFields.get(NAME);
                 if (ignoredStoredValues == null) {
@@ -570,7 +597,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                 SourceFilter filter,
                 Map<String, List<Object>> storedFields,
                 int docId,
-                MultiValuedSortedBinaryDocValues docValues
+                MultiValuedSortableBinaryDocValues docValues
             ) throws IOException {
                 if (docValues.advanceExact(docId) == false) {
                     return Map.of();
@@ -621,7 +648,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             SourceFilter filter,
             Map<String, List<Object>> storedFields,
             int docId,
-            MultiValuedSortedBinaryDocValues docValues
+            MultiValuedSortableBinaryDocValues docValues
         ) throws IOException;
 
         public abstract void writeIgnoredFields(Collection<NameValue> ignoredFieldValues, IndexVersion indexVersion, boolean hasNestedDocs);
@@ -651,11 +678,13 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         IndexVersion indexCreatedVersion = indexSettings.getIndexVersionCreated();
         // we need TSDB doc values format to use binary doc values for ignored source, otherwise the source will be uncompressed
 
-        IndexVersion switchToDocValuesFormatVersion = Build.current().isSnapshot()
-            ? IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES
-            : IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES_NO_FF;
-
-        if (indexCreatedVersion.onOrAfter(switchToDocValuesFormatVersion) && indexSettings.useTimeSeriesDocValuesFormat()) {
+        // Use the GA (non-feature-flag) threshold for all builds. An earlier snapshot-only threshold
+        // (IGNORED_SOURCE_AS_DOC_VALUES = 9_078_0_00) was removed because it overlapped with the max
+        // index version of the 9.4.6 release (9_094_0_00), which wrote _ignored_source using stored
+        // fields. Using the snapshot threshold on a node that is upgrading from 9.4.6 caused a Lucene
+        // field-type conflict ("cannot change field _ignored_source from doc values type NONE to BINARY").
+        if (indexCreatedVersion.onOrAfter(IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES_NO_FF)
+            && indexSettings.useTimeSeriesDocValuesFormat()) {
             return IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE;
         }
 

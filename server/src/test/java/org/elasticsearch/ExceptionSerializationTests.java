@@ -19,6 +19,7 @@ import org.elasticsearch.action.SliceMissingException;
 import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.action.bulk.BulkOperationTests;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
+import org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException;
 import org.elasticsearch.action.search.SearchContextMissingNodesException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -131,6 +132,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -293,17 +295,16 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testRemoteResourceNotSupportedException() throws IOException {
-        // Both metadata lists (views + datasets) must survive the wire round-trip at the support transport version.
-        var version = org.elasticsearch.TransportVersion.fromName("indices_options_resolve_datasets");
-        var ex = serialize(
-            new org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException(
-                java.util.List.of("c1:v1", "c2:v2"),
-                java.util.List.of("c3:d1")
-            ),
-            version
-        );
-        assertThat(ex.views(), equalTo(java.util.List.of("c1:v1", "c2:v2")));
-        assertThat(ex.datasets(), equalTo(java.util.List.of("c3:d1")));
+        // Both lists must survive the wire round-trip at the support transport version. Nothing produces a populated
+        // dataset list any more, but the field is still on the wire, and a shape that is kept is a shape that is
+        // pinned — otherwise the next edit is free to change it.
+        var version = TransportVersion.fromName("indices_options_resolve_datasets");
+        var ex = serialize(new RemoteResourceNotSupportedException(List.of("c1:v1", "c2:v2"), List.of("c3:d1")), version);
+        assertThat(ex.views(), equalTo(List.of("c1:v1", "c2:v2")));
+        assertThat(ex.datasets(), equalTo(List.of("c3:d1")));
+
+        var viewsOnly = serialize(new RemoteResourceNotSupportedException(List.of("c1:v1"), List.of()), version);
+        assertThat(viewsOnly.datasets(), equalTo(List.of()));
     }
 
     public void testParsingException() throws IOException {

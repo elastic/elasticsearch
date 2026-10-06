@@ -23,8 +23,10 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
@@ -71,7 +73,7 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
         threadPool = mock(ThreadPool.class);
         when(threadPool.executor(ThreadPool.Names.WRITE)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
-        action = new PrometheusRemoteWriteTransportAction(transportService, ActionFilters.EMPTY, threadPool, client);
+        action = new PrometheusRemoteWriteTransportAction(transportService, ActionFilters.EMPTY, threadPool, client, Settings.EMPTY);
     }
 
     @After
@@ -243,7 +245,8 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
                 }
             })),
             threadPool,
-            client
+            client,
+            Settings.EMPTY
         );
 
         @SuppressWarnings("unchecked")
@@ -253,6 +256,57 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
         verify(responseListener).onFailure(any(Exception.class));
         verify(client, never()).prepareBulk();
         assertRegisteredIndexingPressureReleased("indexing pressure should be released when execution short-circuits");
+    }
+
+    public void testLabelFanoutReturns413() {
+        long now = System.currentTimeMillis();
+        Settings settings = Settings.builder()
+            .put(HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_CONTENT_LENGTH.getKey(), "1kb")
+            .put(HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_EXPANDED_CONTENT_LENGTH.getKey(), "10kb")
+            .build();
+        action = new PrometheusRemoteWriteTransportAction(transportService, ActionFilters.EMPTY, threadPool, client, settings);
+
+        // ~1 KiB label value × enough samples that IndexRequest#ramBytesUsed() exceeds the 10 KiB limit
+        String largeLabelValue = "x".repeat(1024);
+        RemoteWrite.TimeSeries.Builder seriesBuilder = RemoteWrite.TimeSeries.newBuilder()
+            .addLabels(RemoteWrite.Label.newBuilder().setName("__name__").setValue("test_metric").build())
+            .addLabels(RemoteWrite.Label.newBuilder().setName("pad").setValue(largeLabelValue).build());
+        for (int i = 0; i < 15; i++) {
+            seriesBuilder.addSamples(RemoteWrite.Sample.newBuilder().setValue(i).setTimestamp(now + i).build());
+        }
+
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder().addTimeseries(seriesBuilder.build()).build();
+        Exception e = executeRequestExpectingFailure(createWriteRequest(writeRequest, "generic", "default"));
+
+        assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.REQUEST_ENTITY_TOO_LARGE));
+        assertThat(e.getMessage(), containsString("expanded content would exceed limit"));
+        verify(client, never()).execute(any(), any(), any());
+    }
+
+    public void testReleasesIndexingPressureOnLabelFanout() {
+        long now = System.currentTimeMillis();
+        Settings settings = Settings.builder()
+            .put(HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_CONTENT_LENGTH.getKey(), "1kb")
+            .put(HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_EXPANDED_CONTENT_LENGTH.getKey(), "10kb")
+            .build();
+        action = new PrometheusRemoteWriteTransportAction(transportService, ActionFilters.EMPTY, threadPool, client, settings);
+
+        String largeLabelValue = "x".repeat(1024);
+        RemoteWrite.TimeSeries.Builder seriesBuilder = RemoteWrite.TimeSeries.newBuilder()
+            .addLabels(RemoteWrite.Label.newBuilder().setName("__name__").setValue("test_metric").build())
+            .addLabels(RemoteWrite.Label.newBuilder().setName("pad").setValue(largeLabelValue).build());
+        for (int i = 0; i < 15; i++) {
+            seriesBuilder.addSamples(RemoteWrite.Sample.newBuilder().setValue(i).setTimestamp(now + i).build());
+        }
+
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder().addTimeseries(seriesBuilder.build()).build();
+        RemoteWriteRequest request = createWriteRequest(writeRequest, "generic", "default");
+
+        @SuppressWarnings("unchecked")
+        ActionListener<RemoteWriteResponse> responseListener = mock(ActionListener.class, CALLS_REAL_METHODS);
+        action.doExecute(null, request, responseListener);
+
+        assertRegisteredIndexingPressureReleased("indexing pressure should be released on label fan-out rejection");
     }
 
     public void testStalenessMarkerIsDropped() {

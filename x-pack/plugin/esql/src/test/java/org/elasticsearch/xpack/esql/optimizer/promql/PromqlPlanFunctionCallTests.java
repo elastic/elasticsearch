@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.capabilities.NonFiniteSupport;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -28,12 +29,12 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
@@ -41,16 +42,23 @@ import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isCounter;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTests {
+
+    public PromqlPlanFunctionCallTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     public void testConstantResults() {
         assertConstantResult("ceil(vector(3.14159))", equalTo(4.0));
@@ -109,6 +117,26 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertConstantResult("round(vector(15.92077), 0.001)", equalTo(15.921));
         assertConstantResult("round(vector(1.8376549999999998), 0.001)", equalTo(1.838));
         assertConstantResult("round(vector(25.832432999999998), 0.001)", equalTo(25.832));
+    }
+
+    /**
+     * Prometheus evaluates {@code round(v, 0)} to {@code NaN}: it computes {@code 1 / to_nearest = +Inf}, so
+     * {@code floor(v * +Inf + 0.5) / +Inf} is {@code NaN} for every input. The PromQL translation builds this chain
+     * with non-finite-preserving arithmetic, so the series is kept as {@code NaN} rather than dropped by the
+     * divide-by-zero guard.
+     */
+    public void testRoundToNearestZeroIsNaN() {
+        assertConstantResult("round(vector(3.7), 0)", equalTo(Double.NaN));
+        assertConstantResult("round(vector(0), 0)", equalTo(Double.NaN)); // exercises the 0 * +Inf = NaN path
+    }
+
+    /**
+     * Prometheus {@code round(NaN)} returns {@code NaN}. The single-argument PromQL {@code round} builds a
+     * non-finite-preserving {@code Round}, so a {@code NaN} input is kept rather than folded to {@code 0} (the value the
+     * strict ES|QL {@code ROUND} produces for {@code NaN}).
+     */
+    public void testRoundOfNaNIsPreserved() {
+        assertConstantResult("round(vector(0 / 0))", equalTo(Double.NaN)); // 0/0 is NaN in PromQL
     }
 
     public void testYearUsesStepTimestampWhenNoArgument() {
@@ -231,6 +259,24 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertConstantResult("clamp(vector(10), 0, 10)", equalTo(10.0));
     }
 
+    /**
+     * Prometheus {@code clamp} returns an empty result (drops the series) when {@code max < min}. The PromQL
+     * translation wraps clamp in {@code CASE(max < min, NULL, clamp)} so the value folds to NULL and is later dropped
+     * by the null-output filter. {@code Clamp} is surrogate-only, so substitute it before folding (as the optimizer
+     * pipeline does).
+     */
+    public void testClampWithMaxBelowMinFoldsToNull() {
+        Expression built = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
+            "clamp",
+            Source.EMPTY,
+            Literal.fromDouble(Source.EMPTY, 5.0),
+            ctxAt("2024-01-01T00:00:00Z"),
+            List.of(Literal.fromDouble(Source.EMPTY, 10.0), Literal.fromDouble(Source.EMPTY, 0.0))
+        );
+        Expression evaluable = built.transformUp(Expression.class, SubstituteSurrogateExpressions::rule);
+        assertThat(evaluable.fold(FoldContext.small()), nullValue());
+    }
+
     public void testClampMin() {
         assertConstantResult("clamp_min(vector(5), 0)", equalTo(5.0));
         assertConstantResult("clamp_min(vector(-5), 0)", equalTo(0.0));
@@ -337,11 +383,8 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertThat(sumAgg.groupings(), hasSize(2));
         assertThat(sumAgg.aggregates().getFirst().collect(Sum.class), not(empty()));
 
-        var pack = as(sumAgg.child(), PackDims.class);
-        assertThat(pack.dims(), hasSize(1));
-        assertThat(Expressions.name(pack.dims().getFirst()), equalTo("cluster"));
-
-        var tsAgg = plan.collect(TimeSeriesAggregate.class).getFirst();
+        var tsAgg = packedTimeSeriesAggregate(sumAgg.child(), 1);
+        assertThat(Expressions.names(packedDims(tsAgg.aggregates())), contains("cluster"));
         assertThat(tsAgg.aggregates().getFirst().collect(LastOverTime.class), not(empty()));
     }
 
@@ -381,5 +424,75 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         var bucketEval = as(tsAgg.child(), Eval.class);
         assertThat(bucketEval.fields(), hasSize(1));
         assertThat(tsAgg.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
+    }
+
+    /**
+     * Scope guard for the PromQL-only non-finite-math invariant: expressions that preserve non-finite results
+     * ({@link NonFiniteSupport#allowNonFinite()} is {@code true}) must be produced ONLY by the PromQL translation and
+     * never by natively-parsed ES|QL. A native {@code EVAL} division and a native {@code STATS AVG} stay strict and
+     * introduce no non-finite expression, while the PromQL translation of a division produces the non-finite variant.
+     */
+    public void testNonFiniteMathIsPromqlOnly() {
+        // Native ES|QL EVAL division is strict and introduces no non-finite-preserving expression.
+        LogicalPlan nativeEval = optimizedPlan("FROM test | EVAL x = salary / emp_no");
+        assertThat(nonFiniteExpressions(nativeEval), empty());
+        List<Div> nativeDivs = new ArrayList<>();
+        nativeEval.forEachExpressionDown(Div.class, nativeDivs::add);
+        assertThat(nativeDivs, not(empty()));
+        nativeDivs.forEach(div -> assertFalse("native Div must be strict", div.allowNonFinite()));
+
+        // The PromQL translation of a division produces the non-finite-preserving variant.
+        LogicalPlan promql = planPromql("PROMQL index=k8s step=1h result=(sum by (cluster) (network.cost) / 0)");
+        List<Div> promqlDivs = new ArrayList<>();
+        promql.forEachExpressionDown(Div.class, promqlDivs::add);
+        assertThat(promqlDivs, not(empty()));
+        assertTrue("PromQL Div must allow non-finite results", promqlDivs.stream().anyMatch(NonFiniteSupport::allowNonFinite));
+
+        // Native ES|QL STATS AVG also stays strict: its surrogate division is finite-only.
+        LogicalPlan nativeStats = optimizedPlan("FROM test | STATS a = AVG(salary)");
+        assertThat(nonFiniteExpressions(nativeStats), empty());
+
+        // The PromQL translation of an average also produces a non-finite variant: the non-finite Avg (and/or the
+        // non-finite Div its surrogate builds) preserves non-finite results, whereas native STATS AVG above stays strict.
+        LogicalPlan promqlAvg = planPromql("PROMQL index=k8s step=1h result=(avg(sum by (cluster) (network.cost)))");
+        assertThat(nonFiniteExpressions(promqlAvg), not(empty()));
+
+        // Native ES|QL STATS STD_DEV / VARIANCE stay strict: they introduce no non-finite-preserving expression.
+        assertThat(nonFiniteExpressions(optimizedPlan("FROM test | STATS s = STD_DEV(salary)")), empty());
+        assertThat(nonFiniteExpressions(optimizedPlan("FROM test | STATS v = VARIANCE(salary)")), empty());
+
+        // The PromQL translation of stddev / stdvar produces the non-finite variants.
+        assertThat(
+            nonFiniteExpressions(planPromql("PROMQL index=k8s step=1h result=(stddev(sum by (cluster) (network.cost)))")),
+            not(empty())
+        );
+        assertThat(
+            nonFiniteExpressions(planPromql("PROMQL index=k8s step=1h result=(stdvar(sum by (cluster) (network.cost)))")),
+            not(empty())
+        );
+
+        // Native ES|QL STATS MAX / MIN stay strict: they introduce no non-finite-preserving expression.
+        assertThat(nonFiniteExpressions(optimizedPlan("FROM test | STATS m = MAX(salary)")), empty());
+        assertThat(nonFiniteExpressions(optimizedPlan("FROM test | STATS m = MIN(salary)")), empty());
+
+        // The PromQL translation of max / min produces the non-finite variants.
+        assertThat(
+            nonFiniteExpressions(planPromql("PROMQL index=k8s step=1h result=(max(sum by (cluster) (network.cost)))")),
+            not(empty())
+        );
+        assertThat(
+            nonFiniteExpressions(planPromql("PROMQL index=k8s step=1h result=(min(sum by (cluster) (network.cost)))")),
+            not(empty())
+        );
+    }
+
+    private static List<Expression> nonFiniteExpressions(LogicalPlan plan) {
+        List<Expression> nonFiniteExpressions = new ArrayList<>();
+        plan.forEachExpressionDown(Expression.class, e -> {
+            if (e instanceof NonFiniteSupport nonFinite && nonFinite.allowNonFinite()) {
+                nonFiniteExpressions.add(e);
+            }
+        });
+        return nonFiniteExpressions;
     }
 }

@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
 import java.io.IOException;
 import java.util.List;
@@ -225,6 +226,141 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
 
         assertThat(e, is(not(nullValue())));
         assertThat(e.getMessage(), containsString("[number_of_allocations] must be 1 when [priority] is low"));
+    }
+
+    public void testValidate_GivenDeploymentIdContainsParentDirectoryTraversal() {
+        Request request = createRandom();
+        request.setDeploymentId("..");
+
+        assertPathUnsafeIdDeprecationWarning(request, Request.DEPLOYMENT_ID.getPreferredName(), "..");
+    }
+
+    public void testValidate_GivenDeploymentIdContainsSlash() {
+        Request request = createRandom();
+        request.setDeploymentId("foo/bar");
+
+        assertPathUnsafeIdDeprecationWarning(request, Request.DEPLOYMENT_ID.getPreferredName(), "foo/bar");
+    }
+
+    public void testValidate_GivenDeploymentIdContainsBackslash() {
+        // '\' must be warned on every platform ES runs on, not only where it happens to be the local
+        // path separator (Windows) - this predicate runs cluster-wide in Request#validate, so the warning
+        // cannot depend on which node handles the request.
+        Request request = createRandom();
+        request.setDeploymentId("foo\\bar");
+
+        assertPathUnsafeIdDeprecationWarning(request, Request.DEPLOYMENT_ID.getPreferredName(), "foo\\bar");
+    }
+
+    public void testValidate_GivenDeploymentIdIsEmpty() {
+        Request request = createRandom();
+        request.setDeploymentId("");
+
+        assertPathUnsafeIdDeprecationWarning(request, Request.DEPLOYMENT_ID.getPreferredName(), "");
+    }
+
+    public void testValidate_GivenDeploymentIdContainsNulByte() {
+        Request request = createRandom();
+        request.setDeploymentId("deployment\u0000id");
+
+        assertPathUnsafeIdDeprecationWarning(request, Request.DEPLOYMENT_ID.getPreferredName(), "deployment\u0000id");
+    }
+
+    public void testValidate_GivenModelIdUsedAsDefaultDeploymentIdIsPathUnsafeShouldWarnUsingModelIdField() {
+        Request request = new Request("valid-model", "foo\\bar");
+        request.setModelId("foo\\bar");
+        request.setDeploymentId("foo\\bar");
+
+        assertPathUnsafeIdDeprecationWarning(request, Request.MODEL_ID.getPreferredName(), "foo\\bar");
+    }
+
+    public void testValidate_GivenDistinctDeploymentIdIsPathUnsafeShouldWarnUsingDeploymentIdField() {
+        Request request = new Request("valid-model", "foo/bar");
+        request.setModelId("valid-model");
+        request.setDeploymentId("foo/bar");
+
+        assertPathUnsafeIdDeprecationWarning(request, Request.DEPLOYMENT_ID.getPreferredName(), "foo/bar");
+    }
+
+    public void testValidate_GivenDeploymentIdIsMixedCaseInferenceEndpointId() {
+        // deployment_id is only required to be safe as a single filesystem path component (see
+        // MlStrings#isValidPathSafeId); it does not have to conform to MlStrings#isValidId's
+        // lowercase-alphanumeric charset. Inference endpoint ids - which are used verbatim as
+        // deployment_id by BaseElasticsearchInternalService - have no such charset restriction today,
+        // so an id like "My-ELSER" must keep working.
+        Request request = createRandom();
+        request.setDeploymentId("My-ELSER");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(nullValue()));
+    }
+
+    public void testValidate_GivenDeploymentIdContainsCharsOutsideIsValidIdCharset() {
+        // "!" is not in MlStrings#isValidId's charset, but path-safety only cares about path
+        // traversal/separator/NUL-byte safety, so this must still be accepted.
+        Request request = createRandom();
+        request.setDeploymentId("deployment!1");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(nullValue()));
+    }
+
+    public void testValidate_GivenDeploymentIdIsValid() {
+        Request request = createRandom();
+        request.setDeploymentId("deployment-1_valid.id");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(nullValue()));
+    }
+
+    public void testValidate_GivenDeploymentIdIsPackagedModelId() {
+        Request request = createRandom();
+        request.setDeploymentId(".elser_model_2");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(nullValue()));
+    }
+
+    public void testValidate_GivenDeploymentIdIsPackagedModelIdWithSnapshotSuffix() {
+        Request request = createRandom();
+        request.setDeploymentId(".elser_model_2_SNAPSHOT");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(nullValue()));
+    }
+
+    public void testValidate_GivenDeploymentIdIsDefaultModelIdWithHyphens() {
+        Request request = createRandom();
+        request.setDeploymentId(".multilingual-e5-small");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(nullValue()));
+    }
+
+    public void testValidate_GivenDeploymentIdIsLeadingDotFollowedBySlash() {
+        Request request = createRandom();
+        request.setDeploymentId("./foo");
+
+        assertPathUnsafeIdDeprecationWarning(request, Request.DEPLOYMENT_ID.getPreferredName(), "./foo");
+    }
+
+    public void testValidate_GivenDeploymentIdIsLoneLeadingDot() {
+        Request request = createRandom();
+        request.setDeploymentId(".");
+
+        assertPathUnsafeIdDeprecationWarning(request, Request.DEPLOYMENT_ID.getPreferredName(), ".");
+    }
+
+    private void assertPathUnsafeIdDeprecationWarning(Request request, String fieldName, String idValue) {
+        ActionRequestValidationException e = request.validate();
+        assertThat(e, is(nullValue()));
+        assertWarnings(Messages.getMessage(Messages.INVALID_PATH_SAFE_ID, fieldName, idValue));
     }
 
     public void testDefaults() {

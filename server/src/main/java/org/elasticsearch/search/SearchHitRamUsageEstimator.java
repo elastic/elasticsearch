@@ -11,18 +11,22 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.lucene.RamUsageEstimates;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
+import org.elasticsearch.xcontent.Text;
 
-import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Conservative upper-bound estimator for the retained heap of a {@link SearchHit}
+ * Estimates the retained heap of a {@link SearchHit}. Not every field is counted, and the value can grow as the hit
+ * materializes more of itself, so a caller charging a breaker must release the amount it charged, never a fresh estimate.
  */
 public final class SearchHitRamUsageEstimator {
 
     private static final long SEARCH_HIT_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(SearchHit.class);
-    private static final long HASH_MAP_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(HashMap.class);
     private static final long SEARCH_HITS_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(SearchHits.class);
+    private static final long HIGHLIGHT_FIELD_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(HighlightField.class);
+    private static final long TEXT_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Text.class);
     private static final long HASH_MAP_NODE_SIZE = RamUsageEstimator.alignObjectSize(
         RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + Integer.BYTES + 3L * RamUsageEstimator.NUM_BYTES_OBJECT_REF
     );
@@ -31,14 +35,27 @@ public final class SearchHitRamUsageEstimator {
 
     private SearchHitRamUsageEstimator() {}
 
+    /**
+     * Returns the estimated retained heap of all {@link org.elasticsearch.common.document.DocumentField}s
+     * on {@code hit}, covering both the {@link SearchHit#getDocumentFields() document fields} and the
+     * {@link SearchHit#getMetadataFields() metadata fields} maps.
+     * <p>
+     * Inner hits are deliberately <em>excluded</em>: their bytes are accounted separately by the nested
+     * fetch and transferred to the parent context by {@code InnerHitsPhase}. Including them here would
+     * double-count.
+     */
+    public static long estimateDocumentFields(SearchHit hit) {
+        return estimateFields(hit.getDocumentFields()) + estimateFields(hit.getMetadataFields());
+    }
+
     public static long estimate(SearchHit hit) {
         long size = SEARCH_HIT_SHALLOW_SIZE + RAM_BYTES_FLOOR + hit.rawSourceLength();
-        size += estimateFields(hit.getDocumentFields());
-        size += estimateFields(hit.getMetadataFields());
+        size += estimateDocumentFields(hit);
+        size += estimateHighlightFields(hit.getHighlightFields());
         Map<String, SearchHits> innerHits = hit.getInnerHits();
         if (innerHits != null) {
-            size += HASH_MAP_SHALLOW_SIZE + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) innerHits.size() * (HASH_MAP_NODE_SIZE
-                + RamUsageEstimator.NUM_BYTES_OBJECT_REF);
+            size += RamUsageEstimates.HASH_MAP_SHALLOW_SIZE + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) innerHits.size()
+                * (HASH_MAP_NODE_SIZE + RamUsageEstimator.NUM_BYTES_OBJECT_REF);
             for (Map.Entry<String, SearchHits> entry : innerHits.entrySet()) {
                 size += RamUsageEstimator.sizeOf(entry.getKey());
                 SearchHit[] innerHitsArray = entry.getValue().getHits();
@@ -56,10 +73,43 @@ public final class SearchHitRamUsageEstimator {
         if (fields == null || fields.isEmpty()) {
             return 0L;
         }
-        long size = HASH_MAP_SHALLOW_SIZE + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) fields.size() * (HASH_MAP_NODE_SIZE
-            + RamUsageEstimator.NUM_BYTES_OBJECT_REF);
+        long size = RamUsageEstimates.HASH_MAP_SHALLOW_SIZE + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) fields.size()
+            * (HASH_MAP_NODE_SIZE + RamUsageEstimator.NUM_BYTES_OBJECT_REF);
         for (DocumentField field : fields.values()) {
             size += field.ramBytesUsedEstimate();
+        }
+        return size;
+    }
+
+    private static long estimateHighlightFields(Map<String, HighlightField> fields) {
+        if (fields.isEmpty()) {
+            return 0L;
+        }
+        long size = RamUsageEstimates.HASH_MAP_SHALLOW_SIZE + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) fields.size()
+            * (HASH_MAP_NODE_SIZE + RamUsageEstimator.NUM_BYTES_OBJECT_REF);
+        for (HighlightField field : fields.values()) {
+            size += HIGHLIGHT_FIELD_SHALLOW_SIZE + RamUsageEstimator.sizeOf(field.name());
+            Text[] fragments = field.fragments();
+            if (fragments != null) {
+                size += RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) fragments.length * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+                for (Text fragment : fragments) {
+                    size += estimateFragment(fragment);
+                }
+            }
+        }
+        return size;
+    }
+
+    /**
+     * Only counts the views a fragment has already materialized, since asking for the other one would build it.
+     */
+    private static long estimateFragment(Text fragment) {
+        long size = TEXT_SHALLOW_SIZE;
+        if (fragment.hasBytes()) {
+            size += RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + fragment.bytes().length();
+        }
+        if (fragment.hasString()) {
+            size += RamUsageEstimator.sizeOf(fragment.string());
         }
         return size;
     }

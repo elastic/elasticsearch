@@ -7,23 +7,34 @@
 
 package org.elasticsearch.xpack.esql.datasource.azure;
 
+import reactor.core.CoreSubscriber;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Hooks;
+import reactor.core.publisher.Mono;
+
 import com.azure.storage.blob.BlobAsyncClient;
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.reactivestreams.Subscription;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
@@ -37,19 +48,13 @@ import static org.hamcrest.Matchers.instanceOf;
  * the same pattern as {@code repository-azure}: build real clients, test wiring
  * and validation without hitting the network.
  * <p>
- * Only the sync client is built here (no Reactor Netty threads). Tests that need
- * the async client use the provider which manages its own lifecycle.
+ * Tests that build {@link BlobAsyncClient} start Reactor-Netty threads; those are filtered
+ * the same way as {@link AzureStorageObjectTests}.
  */
+@ThreadLeakFilters(filters = { AzureReactorThreadFilter.class, AzureStorageObjectTests.ReactorParallelThreadFilter.class })
 public class AzureStorageObjectAsyncTests extends ESTestCase {
 
-    // Hold a strong reference to the BlockFactory so the JVM Cleaner does not close the
-    // arrow root allocator mid-test (BlockFactory.arrowAllocator() registers a cleaner action
-    // on its own BlockFactory instance, which is otherwise unreachable from ALLOCATOR alone).
-    private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("test"))
-        .build();
-    private static final BufferAllocator ALLOCATOR = BLOCK_FACTORY.arrowAllocator();
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forAllocator(ALLOCATOR);
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
 
     private static final String CONNECTION_STRING = "DefaultEndpointsProtocol=http;"
         + "AccountName=devstoreaccount1;"
@@ -75,11 +80,13 @@ public class AzureStorageObjectAsyncTests extends ESTestCase {
     public void testSupportsNativeAsyncWithAsyncClient() {
         AzureStorageObject obj = new AzureStorageObject(blobClient(), blobAsyncClient(), "container", "blob.parquet", PATH);
         assertTrue(obj.supportsNativeAsync());
+        assertTrue(obj.readBytesAsyncReleasesExecutor());
     }
 
     public void testSupportsNativeAsyncWithoutAsyncClient() {
         AzureStorageObject obj = new AzureStorageObject(blobClient(), "container", "blob.parquet", PATH);
         assertFalse(obj.supportsNativeAsync());
+        assertFalse(obj.readBytesAsyncReleasesExecutor());
     }
 
     public void testReadBytesAsyncNegativePositionFails() throws Exception {
@@ -153,6 +160,175 @@ public class AzureStorageObjectAsyncTests extends ESTestCase {
         try (AzureStorageProvider provider = new AzureStorageProvider(azureConfig, null, null)) {
             var obj = provider.newObject(PATH);
             assertTrue("Provider-created objects should support native async", obj.supportsNativeAsync());
+        }
+    }
+
+    /**
+     * Verifies that a synchronous throw during reactive chain construction (simulated here via a
+     * Reactor assembly hook — the realistic trigger is Reactor scheduler rejection on shutdown) closes
+     * the allocated buffer and fails the listener rather than leaking the buffer and stranding the
+     * caller.
+     */
+    public void testReadBytesAsyncSynchronousThrowClosesBufferAndFailsListener() throws Exception {
+        String hookKey = "azure-sync-throw-test";
+        Thread testThread = Thread.currentThread();
+        Hooks.onEachOperator(hookKey, publisher -> {
+            if (Thread.currentThread() == testThread) {
+                throw new RejectedExecutionException("simulated Reactor assembly-time throw");
+            }
+            return publisher;
+        });
+
+        try {
+            AtomicInteger closeCount = new AtomicInteger(0);
+            // Plain direct buffer — no Arrow lifecycle, just track how many times close() is called.
+            DirectBufferFactory trackingFactory = len -> new DirectReadBuffer(ByteBuffer.allocateDirect(len), closeCount::incrementAndGet);
+
+            AzureStorageObject obj = new AzureStorageObject(blobClient(), blobAsyncClient(), "container", "blob.parquet", PATH);
+
+            AtomicReference<Exception> error = new AtomicReference<>();
+
+            obj.readBytesAsync(0, 100, trackingFactory, Runnable::run, new ActionListener<>() {
+                @Override
+                public void onResponse(DirectReadBuffer buffer) {
+                    fail("expected failure, not success");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    error.set(e);
+                }
+            });
+
+            assertNotNull("listener must be called synchronously", error.get());
+            // mapReadFailure wraps non-BlobStorageException failures into IOException
+            assertThat(error.get(), instanceOf(IOException.class));
+            assertThat(error.get().getCause(), instanceOf(RejectedExecutionException.class));
+            assertEquals("buffer must be closed exactly once", 1, closeCount.get());
+        } finally {
+            Hooks.resetOnEachOperator(hookKey);
+        }
+    }
+
+    public void testStartReadBytesAsyncWithoutAsyncClientDoesNotRecurse() {
+        AzureStorageObject obj = new AzureStorageObject(blobClient(), "container", "blob.parquet", PATH);
+        try {
+            // No-op executor: prove the SPI fallback is reached without StackOverflowError and
+            // without issuing a GET against the dummy Azurite endpoint.
+            obj.startReadBytesAsync(0, 1, FACTORY, cmd -> {}, ActionListener.noop());
+        } catch (StackOverflowError e) {
+            fail("sync-only AzureStorageObject must not recurse between readBytesAsync and startReadBytesAsync");
+        }
+    }
+
+    public void testCancelInFlightNotifiesListener() throws Exception {
+        AtomicInteger closeCount = new AtomicInteger(0);
+        DirectBufferFactory trackingFactory = len -> new DirectReadBuffer(ByteBuffer.allocateDirect(len), closeCount::incrementAndGet);
+        AzureStorageObject obj = new AzureStorageObject(blobClient(), blobAsyncClient(), "container", "blob.parquet", PATH);
+
+        AtomicBoolean subscriptionCancelled = new AtomicBoolean();
+        String hookKey = "azure-cancel-in-flight-test";
+        Thread testThread = Thread.currentThread();
+        Hooks.onEachOperator(hookKey, publisher -> {
+            if (Thread.currentThread() == testThread) {
+                if (publisher instanceof Mono<?>) {
+                    return new ParkingMono(subscriptionCancelled);
+                }
+                if (publisher instanceof Flux<?>) {
+                    return Flux.never();
+                }
+                throw new IllegalStateException("unexpected publisher: " + publisher.getClass());
+            }
+            return publisher;
+        });
+
+        try {
+            AtomicReference<Exception> error = new AtomicReference<>();
+            Releasable cancel = obj.startReadBytesAsync(0, 100, trackingFactory, Runnable::run, new ActionListener<>() {
+                @Override
+                public void onResponse(DirectReadBuffer buffer) {
+                    fail("expected failure");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    error.set(e);
+                }
+            });
+            cancel.close();
+            assertThat(error.get(), instanceOf(TaskCancelledException.class));
+            assertEquals("read cancelled", error.get().getMessage());
+            assertTrue("in-flight publisher must be cancelled", subscriptionCancelled.get());
+            assertEquals("buffer must be closed exactly once", 1, closeCount.get());
+        } finally {
+            Hooks.resetOnEachOperator(hookKey);
+        }
+    }
+
+    public void testCancelDisposesWhenListenerThrows() throws Exception {
+        AtomicInteger closeCount = new AtomicInteger(0);
+        DirectBufferFactory trackingFactory = len -> new DirectReadBuffer(ByteBuffer.allocateDirect(len), closeCount::incrementAndGet);
+        AzureStorageObject obj = new AzureStorageObject(blobClient(), blobAsyncClient(), "container", "blob.parquet", PATH);
+
+        AtomicBoolean subscriptionCancelled = new AtomicBoolean();
+        String hookKey = "azure-cancel-listener-throws-test";
+        Thread testThread = Thread.currentThread();
+        Hooks.onEachOperator(hookKey, publisher -> {
+            if (Thread.currentThread() == testThread) {
+                if (publisher instanceof Mono<?>) {
+                    return new ParkingMono(subscriptionCancelled);
+                }
+                if (publisher instanceof Flux<?>) {
+                    return Flux.never();
+                }
+                throw new IllegalStateException("unexpected publisher: " + publisher.getClass());
+            }
+            return publisher;
+        });
+
+        try {
+            Releasable cancel = obj.startReadBytesAsync(0, 100, trackingFactory, Runnable::run, new ActionListener<>() {
+                @Override
+                public void onResponse(DirectReadBuffer buffer) {
+                    fail("expected failure");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    throw new IllegalStateException("listener boom");
+                }
+            });
+            IllegalStateException thrown = expectThrows(IllegalStateException.class, cancel::close);
+            assertEquals("listener boom", thrown.getMessage());
+            assertTrue("in-flight publisher must still be cancelled", subscriptionCancelled.get());
+            assertEquals("buffer must still be closed exactly once", 1, closeCount.get());
+        } finally {
+            Hooks.resetOnEachOperator(hookKey);
+        }
+    }
+
+    /**
+     * Parks forever and records {@link Subscription#cancel()}. Constructed with {@code new} so
+     * {@link Hooks#onEachOperator} can return it without {@code Mono.never()} assembly wrapping.
+     */
+    private static final class ParkingMono extends Mono<Object> {
+        private final AtomicBoolean cancelled;
+
+        ParkingMono(AtomicBoolean cancelled) {
+            this.cancelled = cancelled;
+        }
+
+        @Override
+        public void subscribe(CoreSubscriber<? super Object> subscriber) {
+            subscriber.onSubscribe(new Subscription() {
+                @Override
+                public void request(long n) {}
+
+                @Override
+                public void cancel() {
+                    cancelled.set(true);
+                }
+            });
         }
     }
 }

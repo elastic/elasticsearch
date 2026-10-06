@@ -1770,6 +1770,15 @@ public class EsqlCapabilities {
         USAGE_CONTAINS_DATASOURCE_CONFIG_CHANGES,
 
         /**
+         * Does the usage information for ESQL contain per-component CPU counters for successful
+         * external-source queries ({@code datasources.queries.cpu_nanos.execution},
+         * {@code .read}, {@code .planning}, {@code .split_discovery}, {@code .total})?
+         * Note: the {@code planning} component is currently wall time pending a real planning-CPU
+         * measurement in {@code EsqlQueryProfile}.
+         */
+        USAGE_CONTAINS_DATASOURCES_QUERY_CPU,
+
+        /**
          * Support loading of ip fields if they are not indexed.
          */
         LOADING_NON_INDEXED_IP_FIELDS,
@@ -3833,6 +3842,15 @@ public class EsqlCapabilities {
          * Support for deriving the {@code HIGHLIGHT} query and target fields, including {@code ON *}.
          */
         HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS,
+
+        /**
+         * HIGHLIGHT tokenizes each mapped text field with its index analyzer, and each TO_TEXT column with its
+         * declared analyzer. Query leaf analyzers shape only their own query terms, while WITH overrides every field's
+         * values analyzer. When the queried indices disagree on an ON field's analyzer, HIGHLIGHT tokenizes each row
+         * with the analyzer of the index it came from. For rows with no single source index, like those STATS produces,
+         * HIGHLIGHT falls back to {@code standard} and emits a warning.
+         */
+        HIGHLIGHT_MAPPING_ANALYZER,
 
         /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.

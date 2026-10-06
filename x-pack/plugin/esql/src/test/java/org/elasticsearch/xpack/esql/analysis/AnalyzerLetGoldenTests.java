@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 
 import java.util.EnumSet;
@@ -134,5 +135,28 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
             FROM top
             | SORT language_code
             """, STAGES, Map.of("view_langs", "FROM languages | WHERE language_code > 0"));
+    }
+
+    // -- LET binding name referenced inside a view body is NOT visible to the view --
+    // LetResolver runs on statement.plan() before ViewResolver expands view bodies.
+    // A view body that references a LET binding name treats it as an ES index, not
+    // as the binding, and fails with an index-not-found error.
+
+    public void testViewBodyCannotReferenceLetBinding() {
+        requireLetSupport();
+        var query = """
+            LET subquery = (FROM languages | WHERE language_code > 1 | KEEP language_code, language_name);
+            FROM view
+            | KEEP language_code, language_name
+            """;
+        var statement = EsqlTestUtils.TEST_PARSER.createStatement(query);
+        var planAfterLet = LetResolver.resolve(statement.plan(), statement.letBindings());
+        var ta = EsqlTestUtils.analyzer()
+            .addView("view", "FROM subquery | KEEP language_code, language_name")
+            .addLanguages()
+            .addIndex("subquery", IndexResolution.notFound("subquery"));
+        var parsedPlan = ta.resolveViewsAndInSubqueries(planAfterLet);
+        var e = expectThrows(VerificationException.class, () -> ta.buildAnalyzer().analyze(parsedPlan));
+        assertThat(e.getMessage(), containsString("Unknown index [subquery]"));
     }
 }

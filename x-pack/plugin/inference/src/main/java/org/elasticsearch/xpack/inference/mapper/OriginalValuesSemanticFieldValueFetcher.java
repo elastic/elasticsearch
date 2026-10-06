@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.mapper;
 
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Map;
 import java.util.Set;
@@ -19,6 +20,10 @@ public class OriginalValuesSemanticFieldValueFetcher extends SourceValueFetcher 
         IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
     ) {
         super(sourcePaths, null, ignoredSourceFormat);
+    }
+
+    OriginalValuesSemanticFieldValueFetcher(String fieldName, SearchExecutionContext context) {
+        super(fieldName, context);
     }
 
     @Override

@@ -1137,25 +1137,39 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         }
 
         protected ValueFetcher valueFetcher(SearchExecutionContext context) {
-            return valueFetcher(context, true);
+            if (readsOriginalValuesFromDocValues(context)) {
+                // When _source is rebuilt from doc values, read the original value straight from the binary store so retrieval does not
+                // have to rebuild _source.
+                return new OriginalValuesDocValuesFetcher(SemanticTextField.getOriginalValuesFieldName(name()), inputDecoder());
+            }
+            return new OriginalValuesSemanticFieldValueFetcher(name(), context);
         }
 
-        public ValueFetcher valueFetcher(SearchExecutionContext context, boolean includeCopyToValues) {
-            // When _source is rebuilt from doc values, read the original value straight from the binary store so retrieval does not have
-            // to rebuild _source. The binary store never holds copy_to values, so includeCopyToValues doesn't apply.
-            if (storesOriginalValuesInDocValues && (context.isSourceSynthetic() || context.getMappingLookup().isSourceColumnarStored())) {
+        /**
+         * Fetches only the values assigned directly to this field, leaving out the values copied in through {@code copy_to}.
+         * Chunk offsets are relative to these values.
+         */
+        public ValueFetcher directValueFetcher(SearchExecutionContext context) {
+            if (readsOriginalValuesFromDocValues(context)) {
+                // When _source is rebuilt from doc values, read the original value straight from the binary store so retrieval does not
+                // have to rebuild _source.
                 return new OriginalValuesDocValuesFetcher(SemanticTextField.getOriginalValuesFieldName(name()), inputDecoder());
             }
 
-            Set<String> sourcePaths;
-            if (context.isSourceEnabled() == false) {
-                sourcePaths = Set.of();
-            } else if (includeCopyToValues) {
-                sourcePaths = context.sourcePath(name());
+            final Set<String> sourcePaths;
+            if (context.isSourceEnabled()) {
+                // A multi-field's values live under its parent's path in _source
+                String parentPath = context.parentPath(name());
+                sourcePaths = Set.of(parentPath != null ? parentPath : name());
             } else {
-                sourcePaths = Set.of(name());
+                sourcePaths = Set.of();
             }
+
             return new OriginalValuesSemanticFieldValueFetcher(sourcePaths, context.getIndexSettings().getIgnoredSourceFormat());
+        }
+
+        protected boolean readsOriginalValuesFromDocValues(SearchExecutionContext context) {
+            return storesOriginalValuesInDocValues && (context.isSourceSynthetic() || context.getMappingLookup().isSourceColumnarStored());
         }
 
         /** Decodes a value stored in the binary doc-values store into its {@code _source} form; {@code semantic} uses the encoder. */

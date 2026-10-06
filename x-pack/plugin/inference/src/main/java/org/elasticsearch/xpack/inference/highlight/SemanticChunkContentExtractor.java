@@ -72,7 +72,7 @@ class SemanticChunkContentExtractor implements ChunkContentExtractor {
         // Chunk offsets only cover the values directly assigned to the source field, so exclude copy_to values
         ValueFetcher fetcher;
         if (sourceFieldType instanceof SemanticFieldType semanticFieldType) {
-            fetcher = semanticFieldType.valueFetcher(searchContext, false);
+            fetcher = semanticFieldType.directValueFetcher(searchContext);
         } else {
             fetcher = new OriginalValuesSemanticFieldValueFetcher(
                 Set.of(sourceField),

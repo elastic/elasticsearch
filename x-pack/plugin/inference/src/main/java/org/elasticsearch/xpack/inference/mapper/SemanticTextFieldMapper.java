@@ -666,14 +666,21 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, boolean includeCopyToValues) {
+        protected ValueFetcher valueFetcher(SearchExecutionContext context) {
             // The base class reads the original value from the binary doc values store (with this type's UTF-8 decoder) when _source
             // is rebuilt from doc values; only the legacy text field, kept in _source, differs.
             if (useLegacyFormat) {
-                // Legacy semantic_text rejects copy_to, so its own values are all of its values
                 return SourceValueFetcher.toString(getOriginalTextFieldName(name()), context, null);
             }
-            return super.valueFetcher(context, includeCopyToValues);
+            return super.valueFetcher(context);
+        }
+
+        @Override
+        public ValueFetcher directValueFetcher(SearchExecutionContext context) {
+            if (useLegacyFormat) {
+                return SourceValueFetcher.toString(getOriginalTextFieldName(name()), context, null);
+            }
+            return super.directValueFetcher(context);
         }
 
         @Override

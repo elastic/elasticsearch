@@ -4474,6 +4474,107 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(0, mapped.getSuppressed().length);
     }
 
+    private static final String IAM_DENIAL = "User: arn:aws:sts::123456789012:assumed-role/reader/session is not authorized to "
+        + "perform: s3:GetObject on resource: \"arn:aws:s3:::bucket/key\" with an explicit deny in an identity-based policy";
+
+    /** Stands in for construction inside a class the esql test classpath does not have (a storage SDK, a format library). */
+    private static <T extends Throwable> T builtBy(String className, T t) {
+        t.setStackTrace(new StackTraceElement[] { new StackTraceElement(className, "build", null, 1) });
+        return t;
+    }
+
+    private static <T extends Throwable> T builtBySdk(T t) {
+        return builtBy("software.amazon.awssdk.services.s3.model.S3Exception$BuilderImpl", t);
+    }
+
+    /**
+     * A storage client's message relays what the remote said (an IAM denial names the principal and the resource) and
+     * names no URI or host, so every resolution arm keys on where it was built: the IAE arm, the I/O arm, and an IAE
+     * whose message was copied from {@link ExternalFailures#rootDetail} as {@code FileSourceFactory} does.
+     */
+    public void testAStorageClientMessageIsWithheldAtResolution() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+
+        RuntimeException iae = resolver.mapResolveFailure(
+            "s3://b/x.csv",
+            new ExecutionException(builtBySdk(new IllegalArgumentException(IAM_DENIAL)))
+        );
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(iae));
+        assertEquals("Failed to resolve external source [x.csv] (IllegalArgumentException)", iae.getMessage());
+
+        RuntimeException io = resolver.mapResolveFailure("s3://b/x.csv", new ExecutionException(builtBySdk(new IOException(IAM_DENIAL))));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(io));
+        assertThat(io.getMessage(), not(containsString("arn:aws")));
+        assertNull(io.getCause());
+
+        IOException sdkIo = builtBySdk(new IOException(IAM_DENIAL));
+        RuntimeException copied = resolver.mapResolveFailure(
+            "s3://b/x.csv",
+            new ExecutionException(new IllegalArgumentException(ExternalFailures.rootDetail(sdkIo), sdkIo))
+        );
+        assertThat(copied.getMessage(), not(containsString("arn:aws")));
+        assertNull(copied.getCause());
+    }
+
+    /**
+     * A format library's message describes the file, not who read it, and is what the user needs to fix it: the IAE
+     * arm, the I/O arm and a {@code FileSourceFactory}-style copy all keep it.
+     */
+    public void testAFormatLibraryMessageIsKeptAtResolution() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        String magic = "file is not a Parquet file. Expected magic number at tail, but found [1, 2, 3, 4]";
+
+        RuntimeException iae = resolver.mapResolveFailure(
+            "s3://b/x.parquet",
+            new ExecutionException(builtBy("org.apache.parquet.hadoop.ParquetFileReader", new IllegalArgumentException(magic)))
+        );
+        assertEquals(magic, iae.getMessage());
+
+        IOException footer = builtBy("org.apache.parquet.hadoop.ParquetFileReader", new IOException(magic));
+        RuntimeException io = resolver.mapResolveFailure("s3://b/x.parquet", new ExecutionException(footer));
+        assertThat(io.getMessage(), containsString(magic));
+
+        RuntimeException copied = resolver.mapResolveFailure(
+            "s3://b/x.parquet",
+            new ExecutionException(new IllegalArgumentException(ExternalFailures.rootDetail(footer), footer))
+        );
+        assertEquals(magic, copied.getMessage());
+    }
+
+    /**
+     * The admin's WARN names what the storage client said, since the response does not, but at most once per interval
+     * across the node: anyone who can query a failing dataset can repeat the failure.
+     */
+    public void testAWithheldResolveCauseReachesWarnAtMostOncePerInterval() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        String path = "s3://secret-bucket/private/x.csv";
+        IOException failure = new IOException("Access denied", builtBySdk(new RuntimeException(IAM_DENIAL)));
+        AtomicInteger warns = new AtomicInteger();
+        AtomicInteger withReason = new AtomicInteger();
+
+        MockLog.assertThatLogger(() -> {
+            for (int i = 0; i < 10; i++) {
+                resolver.mapResolveFailure(path, new ExecutionException(failure));
+            }
+        }, ExternalSourceResolver.class, new MockLog.LoggingExpectation() {
+            @Override
+            public void match(LogEvent event) {
+                if (event.getLevel().equals(Level.WARN)) {
+                    warns.incrementAndGet();
+                    if (event.getMessage().getFormattedMessage().contains("arn:aws")) {
+                        withReason.incrementAndGet();
+                    }
+                }
+            }
+
+            @Override
+            public void assertMatched() {
+                assertEquals("every failure still names its location at WARN", 10, warns.get());
+                assertThat("the remote's sentence reaches WARN at most once", withReason.get(), lessThan(2));
+            }
+        });
+    }
+
     /**
      * The user's message omits the location, so the admin's WARN names it, on one line: the stack trace is at DEBUG.
      */
@@ -4748,6 +4849,37 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(mapped));
         assertSame(original, mapped);
+    }
+
+    /**
+     * A rejection or breaker that carries a storage-client cause keeps its 429, and drops the cause: the REST layer
+     * would otherwise render the remote's refusal under {@code caused_by}.
+     */
+    public void testARejectionOrBreakerWithAStorageCauseIsDetached() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        String iam = "User: arn:aws:sts::123456789012:assumed-role/reader/session is not authorized";
+
+        EsRejectedExecutionException rejected = new EsRejectedExecutionException("Interrupted while acquiring permit", true);
+        rejected.initCause(builtBySdk(new RuntimeException(iam)));
+        RuntimeException mappedRejected = resolver.mapResolveFailure("s3://b/x.parquet", new ExecutionException(rejected));
+        assertThat(mappedRejected, instanceOf(EsRejectedExecutionException.class));
+        assertNull(mappedRejected.getCause());
+        assertTrue(((EsRejectedExecutionException) mappedRejected).isExecutorShutdown());
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(mappedRejected));
+
+        CircuitBreakingException breaking = new CircuitBreakingException("over limit", 100, 50, CircuitBreaker.Durability.TRANSIENT);
+        breaking.initCause(builtBySdk(new RuntimeException(iam)));
+        RuntimeException mappedBreaking = resolver.mapResolveFailure("s3://b/x.parquet", new ExecutionException(breaking));
+        assertThat(mappedBreaking, instanceOf(CircuitBreakingException.class));
+        assertNull(mappedBreaking.getCause());
+        assertEquals(100, ((CircuitBreakingException) mappedBreaking).getBytesWanted());
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(mappedBreaking));
+
+        TaskCancelledException cancelled = new TaskCancelledException("cancelled");
+        cancelled.initCause(builtBySdk(new RuntimeException(iam)));
+        RuntimeException mappedCancelled = resolver.mapResolveFailure("s3://b/x.parquet", cancelled);
+        assertThat(mappedCancelled, instanceOf(TaskCancelledException.class));
+        assertNull(mappedCancelled.getCause());
     }
 
     /**
@@ -5251,22 +5383,68 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * A filter that rewrites the glob to a folder that does not exist must resolve to the full listing, not raise
-     * "Glob pattern matched no files". The rewrite spells the value literally ({@code year=2099}); the row filter
-     * still runs, so listing the whole dataset is correct and the query returns zero rows on its own. This is also
-     * what protects a zero-padded {@code month=06} folder from a {@code month == 6} predicate. Inferred
-     * {@code first_file_wins} now passes the same hints, so it must take the same fallback.
+     * A filter that rewrites the glob to a folder that does not exist must resolve to one inference-anchor
+     * file, not raise "Glob pattern matched no files". Three files at cap 2 must not throw. The leftover
+     * file is not the dataset, so stats are partial under both FFW and UBN.
      */
-    public void testZeroMatchPartitionFilterResolvesToFullListingNotError() throws Exception {
+    public void testZeroMatchPartitionFilterResolvesToOneInferenceAnchorNotError() throws Exception {
         String glob = "s3://bucket/data/year=*/*.parquet";
         List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
         Map<String, List<Attribute>> schemas = new HashMap<>();
         schemas.put("s3://bucket/data/year=2024/a.parquet", schema);
+        schemas.put("s3://bucket/data/year=2024/b.parquet", schema);
+        schemas.put("s3://bucket/data/year=2025/c.parquet", schema);
         Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
-        listingsByPrefix.put("s3://bucket/data/", List.of(entry("s3://bucket/data/year=2024/a.parquet", 100)));
+        listingsByPrefix.put(
+            "s3://bucket/data/",
+            List.of(
+                entry("s3://bucket/data/year=2024/a.parquet", 100),
+                entry("s3://bucket/data/year=2024/b.parquet", 100),
+                entry("s3://bucket/data/year=2025/c.parquet", 100)
+            )
+        );
         // The narrowed prefix s3://bucket/data/year=2099/ is deliberately absent: an object store lists it as empty.
-        CountingStorageProvider provider = new CountingStorageProvider(listingsByPrefix, schemas);
 
+        var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "year",
+            PartitionFilterHintExtractor.Operator.EQUALS,
+            List.of(2099)
+        );
+        Settings cap = Settings.builder().put(ExternalSourceSettings.MAX_DISCOVERED_FILES.getKey(), 2).build();
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            for (FormatReader.SchemaResolution strategy : List.of(
+                FormatReader.SchemaResolution.UNION_BY_NAME,
+                FormatReader.SchemaResolution.FIRST_FILE_WINS
+            )) {
+                ExternalSourceResolver resolver = createResolver(schemas, listingsByPrefix, cap, null, null, null, cacheService);
+                ExternalSourceResolution resolution = resolveWith(resolver, glob, Map.of(glob, List.of(hint)), strategy);
+                ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(glob);
+                assertEquals(1, resolved.fileList().fileCount());
+                assertTrue(resolved.fileList().isInferenceAnchor());
+                assertEquals(
+                    "[" + strategy + "] inference-anchor footer is not the dataset",
+                    Boolean.TRUE,
+                    resolved.metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_PARTIAL)
+                );
+            }
+        }
+    }
+
+    /** Hinted all-pruned listing must not serve an unhinted query; the loader runs again for the full glob. */
+    public void testAllPrunedThenUnfilteredListsEveryFile() throws Exception {
+        String glob = "s3://bucket/data/year=*/*.parquet";
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        schemas.put("s3://bucket/data/year=2024/a.parquet", schema);
+        schemas.put("s3://bucket/data/year=2025/b.parquet", schema);
+        schemas.put("s3://bucket/data/year=2026/c.parquet", schema);
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/data/year=2024/a.parquet", 100),
+            entry("s3://bucket/data/year=2025/b.parquet", 100),
+            entry("s3://bucket/data/year=2026/c.parquet", 100)
+        );
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of("s3://bucket/data/", files), schemas);
         var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
             "year",
             PartitionFilterHintExtractor.Operator.EQUALS,
@@ -5275,15 +5453,54 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
             ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
+            ExternalSourceResolution hinted = resolveWith(
+                resolver,
+                glob,
+                Map.of(glob, List.of(hint)),
+                FormatReader.SchemaResolution.UNION_BY_NAME
+            );
+            assertEquals(1, hinted.resolvedSource(glob).fileList().fileCount());
+            assertTrue(hinted.resolvedSource(glob).fileList().isInferenceAnchor());
+            int afterHinted = provider.listCallCount.get();
 
-            for (FormatReader.SchemaResolution strategy : MULTI_FILE_STRATEGIES) {
-                ExternalSourceResolution resolution = resolveWith(resolver, glob, Map.of(glob, List.of(hint)), strategy);
-                assertEquals(
-                    "[" + strategy + "] a rewrite to a missing folder must fall back to the full listing",
-                    1,
-                    resolution.resolvedSource(glob).fileList().fileCount()
-                );
-            }
+            ExternalSourceResolution unhinted = resolveWith(resolver, glob, Map.of(), FormatReader.SchemaResolution.UNION_BY_NAME);
+            assertEquals(3, unhinted.resolvedSource(glob).fileList().fileCount());
+            assertFalse(unhinted.resolvedSource(glob).fileList().isInferenceAnchor());
+            assertTrue("unhinted query must list again, not reuse the hinted one-file entry", provider.listCallCount.get() > afterHinted);
+        }
+    }
+
+    /**
+     * All-pruned UBN infers columns from the leftover file, not the union across the glob. Rows are empty
+     * either way; LIMIT 0 / columns() report the leftover schema.
+     */
+    public void testUnionByNameAllPrunedSchemaIsLeftoverFile() throws Exception {
+        String glob = "s3://bucket/data/year=*/*.parquet";
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        schemas.put("s3://bucket/data/year=2024/a.parquet", List.of(attr("x", DataType.INTEGER)));
+        schemas.put("s3://bucket/data/year=2025/b.parquet", List.of(attr("x", DataType.INTEGER), attr("y", DataType.KEYWORD)));
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        listingsByPrefix.put(
+            "s3://bucket/data/",
+            List.of(entry("s3://bucket/data/year=2024/a.parquet", 100), entry("s3://bucket/data/year=2025/b.parquet", 100))
+        );
+        var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "year",
+            PartitionFilterHintExtractor.Operator.EQUALS,
+            List.of(2099)
+        );
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = createResolver(schemas, listingsByPrefix, Settings.EMPTY, null, null, null, cacheService);
+            ExternalSourceResolution.ResolvedSource resolved = resolveWith(
+                resolver,
+                glob,
+                Map.of(glob, List.of(hint)),
+                FormatReader.SchemaResolution.UNION_BY_NAME
+            ).resolvedSource(glob);
+            assertTrue(resolved.fileList().isInferenceAnchor());
+            List<String> names = resolved.metadata().schema().stream().map(Attribute::name).toList();
+            assertFalse("leftover year=2024 file has no y; UBN must not union the pruned year", names.contains("y"));
+            assertTrue(names.contains("x"));
         }
     }
 

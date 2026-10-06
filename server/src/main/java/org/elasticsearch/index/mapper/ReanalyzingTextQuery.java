@@ -7,9 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.mapper.extras;
+package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.index.FieldInvertState;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -49,6 +52,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -58,11 +62,12 @@ import java.util.Set;
 
 /**
  * A variant of {@link TermQuery}, {@link PhraseQuery}, {@link MultiPhraseQuery}
- * and span queries that uses postings for its approximation, but falls back to
- * stored fields or _source whenever term frequencies or positions are needed.
+ * and span queries that uses postings for its approximation and analyzes the
+ * document's own values again wherever term frequencies or positions are needed.
+ * Where those values live is the caller's to say; see {@link FieldValueFetchers}.
  * This query matches and scores the same way as the wrapped query.
  */
-public final class SourceConfirmedTextQuery extends Query {
+public final class ReanalyzingTextQuery extends Query {
 
     /**
      * Create an approximation for the given query. The returned approximation
@@ -130,6 +135,96 @@ public final class SourceConfirmedTextQuery extends Query {
     /**
      * Similarity that produces the frequency as a score.
      */
+    /**
+     * The terms of a phrase that can be counted by walking a document's values rather than reading positions, or null
+     * where it cannot: anything but an exact phrase, whose terms sit at consecutive positions, on one field.
+     */
+    static Term[] walkablePhrase(Query query) {
+        if (query instanceof PhraseQuery phrase && phrase.getSlop() == 0) {
+            final Term[] terms = phrase.getTerms();
+            final int[] positions = phrase.getPositions();
+            if (terms.length == 0) {
+                return null;
+            }
+            for (int i = 0; i < positions.length; i++) {
+                if (positions[i] != i) {
+                    return null;
+                }
+            }
+            return terms;
+        }
+        return null;
+    }
+
+    /**
+     * How often {@code terms} occur in order and adjacent across {@code values}, which is the frequency an index of
+     * them reports. Positions run on from one value to the next, as that index joins them.
+     *
+     * <p>A prefix of the phrase can only be continued by the token at the position after the one it ended at, and
+     * positions only advance, so one end position per prefix length is all there is to carry. What ends at the
+     * position in hand is held apart until that position is done, since several tokens can share one and a prefix
+     * starting on one of them must not be offered to the others.
+     */
+    static int walkPhraseFreq(Term[] terms, String field, Analyzer analyzer, List<Object> values) throws IOException {
+        final int[] endedBefore = new int[terms.length];
+        final int[] endedHere = new int[terms.length];
+        Arrays.fill(endedBefore, Integer.MIN_VALUE);
+        Arrays.fill(endedHere, Integer.MIN_VALUE);
+        final int gap = analyzer.getPositionIncrementGap(field);
+        int freq = 0;
+        int position = -1;
+        int positionInHand = -1;
+        boolean firstValue = true;
+        for (Object value : values) {
+            if (value == null) {
+                continue;
+            }
+            if (firstValue) {
+                firstValue = false;
+            } else {
+                // The analyzer's gap sits between two values, as it does when the same values are indexed.
+                position += gap;
+            }
+            final String text = value instanceof BytesRef bytes ? bytes.utf8ToString() : value.toString();
+            try (TokenStream stream = analyzer.tokenStream(field, text)) {
+                final TermToBytesRefAttribute term = stream.addAttribute(TermToBytesRefAttribute.class);
+                final PositionIncrementAttribute increment = stream.addAttribute(PositionIncrementAttribute.class);
+                stream.reset();
+                while (stream.incrementToken()) {
+                    position += increment.getPositionIncrement();
+                    if (position != positionInHand) {
+                        for (int length = 0; length < terms.length; length++) {
+                            if (endedHere[length] != Integer.MIN_VALUE) {
+                                endedBefore[length] = endedHere[length];
+                                endedHere[length] = Integer.MIN_VALUE;
+                            }
+                        }
+                        positionInHand = position;
+                    }
+                    final BytesRef token = term.getBytesRef();
+                    if (terms[0].bytes().equals(token)) {
+                        if (terms.length == 1) {
+                            freq++;
+                        } else {
+                            endedHere[0] = position;
+                        }
+                    }
+                    for (int length = 1; length < terms.length; length++) {
+                        if (endedBefore[length - 1] == position - 1 && terms[length].bytes().equals(token)) {
+                            if (length == terms.length - 1) {
+                                freq++;
+                            } else {
+                                endedHere[length] = position;
+                            }
+                        }
+                    }
+                }
+                stream.end();
+            }
+        }
+        return freq;
+    }
+
     private static final Similarity FREQ_SIMILARITY = new Similarity() {
 
         @Override
@@ -151,7 +246,7 @@ public final class SourceConfirmedTextQuery extends Query {
     private final IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider;
     private final Analyzer indexAnalyzer;
 
-    public SourceConfirmedTextQuery(
+    public ReanalyzingTextQuery(
         Query in,
         IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider,
         Analyzer indexAnalyzer
@@ -175,7 +270,7 @@ public final class SourceConfirmedTextQuery extends Query {
         if (obj == null || obj.getClass() != getClass()) {
             return false;
         }
-        SourceConfirmedTextQuery that = (SourceConfirmedTextQuery) obj;
+        ReanalyzingTextQuery that = (ReanalyzingTextQuery) obj;
         // We intentionally do not compare the value fetcher or analyzer, as they
         // do not typically implement equals() themselves, and the inner
         // Query is sufficient to establish identity.
@@ -199,14 +294,14 @@ public final class SourceConfirmedTextQuery extends Query {
     public Query rewrite(IndexSearcher searcher) throws IOException {
         Query inRewritten = in.rewrite(searcher);
         if (inRewritten != in) {
-            return new SourceConfirmedTextQuery(inRewritten, valueFetcherProvider, indexAnalyzer);
+            return new ReanalyzingTextQuery(inRewritten, valueFetcherProvider, indexAnalyzer);
         } else if (in instanceof ConstantScoreQuery) {
             Query sub = ((ConstantScoreQuery) in).getQuery();
-            return new ConstantScoreQuery(new SourceConfirmedTextQuery(sub, valueFetcherProvider, indexAnalyzer));
+            return new ConstantScoreQuery(new ReanalyzingTextQuery(sub, valueFetcherProvider, indexAnalyzer));
         } else if (in instanceof BoostQuery) {
             Query sub = ((BoostQuery) in).getQuery();
             float boost = ((BoostQuery) in).getBoost();
-            return new BoostQuery(new SourceConfirmedTextQuery(sub, valueFetcherProvider, indexAnalyzer), boost);
+            return new BoostQuery(new ReanalyzingTextQuery(sub, valueFetcherProvider, indexAnalyzer), boost);
         } else if (in instanceof MatchNoDocsQuery) {
             return in; // e.g. empty phrase query
         }
@@ -276,7 +371,7 @@ public final class SourceConfirmedTextQuery extends Query {
                 if (scorerSupplier == null) {
                     return Explanation.noMatch("No matching phrase");
                 }
-                RuntimePhraseScorer scorer = (RuntimePhraseScorer) scorerSupplier.get(0);
+                ReanalyzingScorer scorer = (ReanalyzingScorer) scorerSupplier.get(0);
                 if (scorer == null) {
                     return Explanation.noMatch("No matching phrase");
                 }
@@ -308,7 +403,7 @@ public final class SourceConfirmedTextQuery extends Query {
                         final DocIdSetIterator approximation = approximationScorer.iterator();
                         final CheckedIntFunction<List<Object>, IOException> valueFetcher = valueFetcherProvider.apply(context);
                         NumericDocValues norms = context.reader().getNormValues(field);
-                        return new RuntimePhraseScorer(approximation, simScorer, norms, valueFetcher, field, in);
+                        return new ReanalyzingScorer(approximation, simScorer, norms, valueFetcher, field, in);
                     }
 
                     @Override
@@ -335,7 +430,7 @@ public final class SourceConfirmedTextQuery extends Query {
                 if (scorerSupplier == null) {
                     return null;
                 }
-                RuntimePhraseScorer scorer = (RuntimePhraseScorer) scorerSupplier.get(0L);
+                ReanalyzingScorer scorer = (ReanalyzingScorer) scorerSupplier.get(0L);
                 if (scorer == null) {
                     return null;
                 }
@@ -358,7 +453,7 @@ public final class SourceConfirmedTextQuery extends Query {
         }
     }
 
-    private class RuntimePhraseScorer extends Scorer {
+    private class ReanalyzingScorer extends Scorer {
         private final SimScorer scorer;
         private final CheckedIntFunction<List<Object>, IOException> valueFetcher;
         private final String field;
@@ -367,11 +462,14 @@ public final class SourceConfirmedTextQuery extends Query {
         private final NumericDocValues norms;
 
         private final MemoryIndexEntry cacheEntry = new MemoryIndexEntry();
+        private final Term[] walkablePhrase;
+        private int valuesDocID = -1;
+        private List<Object> values;
 
         private int doc = -1;
         private float freq;
 
-        private RuntimePhraseScorer(
+        private ReanalyzingScorer(
             DocIdSetIterator approximation,
             SimScorer scorer,
             NumericDocValues norms,
@@ -384,6 +482,7 @@ public final class SourceConfirmedTextQuery extends Query {
             this.valueFetcher = valueFetcher;
             this.field = field;
             this.query = query;
+            this.walkablePhrase = walkablePhrase(query);
             twoPhase = new TwoPhaseIterator(approximation) {
 
                 @Override
@@ -393,9 +492,9 @@ public final class SourceConfirmedTextQuery extends Query {
 
                 @Override
                 public float matchCost() {
-                    // TODO what is a right value?
-                    // Defaults to a high-ish value so that it likely runs last.
-                    return 10_000f;
+                    // Reading the values and analyzing them dominates either way, so both stay high enough to run
+                    // last among cheaper checks. The walk compares terms as they come rather than indexing them all.
+                    return walkablePhrase != null ? 1_000f : 10_000f;
                 }
             };
         }
@@ -436,10 +535,14 @@ public final class SourceConfirmedTextQuery extends Query {
         private MemoryIndex getOrCreateMemoryIndex() throws IOException {
             if (cacheEntry.docID != docID()) {
                 cacheEntry.docID = docID();
-                cacheEntry.memoryIndex = new MemoryIndex(true, false);
+                // One index per scorer, emptied between documents: the buffers it holds are the point of keeping it.
+                if (cacheEntry.memoryIndex == null) {
+                    cacheEntry.memoryIndex = new MemoryIndex(true, false);
+                } else {
+                    cacheEntry.memoryIndex.reset();
+                }
                 cacheEntry.memoryIndex.setSimilarity(FREQ_SIMILARITY);
-                List<Object> values = valueFetcher.apply(docID());
-                for (Object value : values) {
+                for (Object value : values()) {
                     if (value == null) {
                         continue;
                     }
@@ -455,7 +558,19 @@ public final class SourceConfirmedTextQuery extends Query {
             return cacheEntry.memoryIndex;
         }
 
+        /** The document's values, read once however many of the paths below ask for them: reading is what costs. */
+        private List<Object> values() throws IOException {
+            if (valuesDocID != docID()) {
+                valuesDocID = docID();
+                values = valueFetcher.apply(docID());
+            }
+            return values;
+        }
+
         private float computeFreq() throws IOException {
+            if (walkablePhrase != null) {
+                return walkPhraseFreq(walkablePhrase, field, indexAnalyzer, values());
+            }
             return getOrCreateMemoryIndex().search(query);
         }
 

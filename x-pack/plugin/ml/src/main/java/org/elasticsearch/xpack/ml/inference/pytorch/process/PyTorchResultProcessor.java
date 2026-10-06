@@ -299,13 +299,17 @@ public class PyTorchResultProcessor {
 
     /**
      * Fold a process-stats measurement into the accumulated resident-set-size statistics: the current RSS drives the
-     * average, while the reported peak (OS high-water mark) drives {@link #peakMemoryRssBytes}. When the native process
-     * does not report a peak (e.g. an older ml-cpp) the current RSS is used so the peak is never under-counted.
+     * average, while {@link #peakMemoryRssBytes} tracks the largest observed sample peak. Each sample peak is the
+     * maximum of the current RSS and the reported OS high-water mark when present, because Linux can report
+     * {@code memory_rss} above {@code memory_max_rss} on the same tick. When the native process does not report a peak
+     * (e.g. an older ml-cpp) the current RSS alone drives the sample peak.
      */
     private void recordProcessStats(InferenceProcessStats processStats) {
-        this.inferenceProcessMemoryRssBytesStats.accept(processStats.memoryRss());
-        long reportedPeak = processStats.memoryMaxRss() > 0 ? processStats.memoryMaxRss() : processStats.memoryRss();
-        this.peakMemoryRssBytes = Math.max(this.peakMemoryRssBytes, reportedPeak);
+        long current = processStats.memoryRss();
+        long osPeak = processStats.memoryMaxRss();
+        this.inferenceProcessMemoryRssBytesStats.accept(current);
+        long samplePeak = Math.max(current, osPeak > 0 ? osPeak : current);
+        this.peakMemoryRssBytes = Math.max(this.peakMemoryRssBytes, samplePeak);
     }
 
     public synchronized void updateStats(PyTorchResult result) {

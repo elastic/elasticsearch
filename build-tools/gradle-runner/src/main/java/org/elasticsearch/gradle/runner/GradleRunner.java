@@ -89,6 +89,7 @@ public class GradleRunner {
         canceller.install();
 
         TaskTracker tracker = new TaskTracker(canceller);
+        ProblemsTracker problemsTracker = new ProblemsTracker();
 
         GradleConnector connector = GradleConnector.newConnector().forProjectDirectory(projectDir);
         if (gradleHome != null) {
@@ -104,7 +105,8 @@ public class GradleRunner {
                 .setStandardOutput(System.out)
                 .setStandardError(System.err)
                 .withCancellationToken(tokenSource.token())
-                .addProgressListener(tracker, OperationType.TASK, OperationType.TEST);
+                .addProgressListener(tracker, OperationType.TASK, OperationType.TEST)
+                .addProgressListener(problemsTracker, OperationType.PROBLEMS);
 
             launcher.run();
         } catch (GradleConnectionException e) {
@@ -122,6 +124,7 @@ public class GradleRunner {
         }
 
         writeStatusReport(tracker, projectDir);
+        writeProblemsReport(problemsTracker, projectDir);
 
         if (GcpPreemptionWatchdog.isPreempted()) {
             int preemptionExitCode = getPreemptionExitCode();
@@ -145,6 +148,16 @@ public class GradleRunner {
             report.writeTo(reportFile);
         } catch (Exception e) {
             System.err.println("Failed to write task status report: " + e.getMessage());
+        }
+    }
+
+    private static void writeProblemsReport(ProblemsTracker tracker, File projectDir) {
+        try {
+            File reportFile = new File(projectDir, "build/problems-status.json");
+            ProblemsReport report = tracker.buildReport();
+            report.writeTo(reportFile);
+        } catch (Exception e) {
+            System.err.println("Failed to write problems status report: " + e.getMessage());
         }
     }
 

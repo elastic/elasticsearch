@@ -257,6 +257,12 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                     return super.create(tokenStream);
                 }
 
+                @Override
+                public Object sharingKey() {
+                    // The 8.0+ rejection above runs in create(), which a cache hit skips, so a legacy
+                    // index sharing this analyzer would let a new index accept the deprecated name.
+                    return this;
+                }
             };
         });
         filters.put("elision", requiresAnalysisSettings(ElisionTokenFilterFactory::new));
@@ -298,6 +304,12 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                     return super.create(tokenStream);
                 }
 
+                @Override
+                public Object sharingKey() {
+                    // The 8.0+ rejection above runs in create(), which a cache hit skips, so a legacy
+                    // index sharing this analyzer would let a new index accept the deprecated name.
+                    return this;
+                }
             };
         });
         filters.put("pattern_capture", requiresAnalysisSettings(PatternCaptureGroupTokenFilterFactory::new));

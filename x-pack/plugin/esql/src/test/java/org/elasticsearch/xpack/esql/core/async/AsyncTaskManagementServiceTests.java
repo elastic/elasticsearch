@@ -126,7 +126,8 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
             TaskId parentTaskId,
             Map<String, String> headers,
             Map<String, String> originHeaders,
-            AsyncExecutionId asyncExecutionId
+            AsyncExecutionId asyncExecutionId,
+            TimeValue keepAlive
         ) {
             return new TestTask(
                 id,
@@ -137,7 +138,7 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
                 headers,
                 originHeaders,
                 asyncExecutionId,
-                request.keepAlive
+                keepAlive
             );
         }
 
@@ -227,7 +228,7 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
         boolean keepOnCompletion = randomBoolean();
         CountDownLatch latch = new CountDownLatch(1);
         TestRequest request = new TestRequest(success ? randomAlphaOfLength(10) : "die", TimeValue.timeValueDays(1));
-        service.asyncExecute(request, TimeValue.timeValueMinutes(1), keepOnCompletion, ActionListener.wrap(r -> {
+        service.asyncExecute(request, TimeValue.timeValueMinutes(1), request.keepAlive, keepOnCompletion, ActionListener.wrap(r -> {
             assertThat(success, equalTo(true));
             assertThat(r.string, equalTo("response for [" + request.string + "]"));
             assertThat(r.id, notNullValue());
@@ -262,12 +263,18 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         TestRequest request = new TestRequest(success ? randomAlphaOfLength(10) : "die", TimeValue.timeValueDays(1));
         AtomicReference<TestResponse> responseHolder = new AtomicReference<>();
-        service.asyncExecute(request, TimeValue.timeValueMillis(1), keepOnCompletion, ActionTestUtils.assertNoFailureListener(r -> {
-            assertThat(r.string, nullValue());
-            assertThat(r.id, notNullValue());
-            assertThat(responseHolder.getAndSet(r), nullValue());
-            latch.countDown();
-        }));
+        service.asyncExecute(
+            request,
+            TimeValue.timeValueMillis(1),
+            request.keepAlive,
+            keepOnCompletion,
+            ActionTestUtils.assertNoFailureListener(r -> {
+                assertThat(r.string, nullValue());
+                assertThat(r.id, notNullValue());
+                assertThat(responseHolder.getAndSet(r), nullValue());
+                latch.countDown();
+            })
+        );
         assertThat(latch.await(20, TimeUnit.SECONDS), equalTo(true));
 
         if (timeoutOnFirstAttempt) {
@@ -341,7 +348,7 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
         TestRequest request = new TestRequest(randomAlphaOfLength(10), TimeValue.timeValueHours(1));
         PlainActionFuture<TestResponse> submitResp = new PlainActionFuture<>();
         try {
-            service.asyncExecute(request, TimeValue.timeValueMillis(1), true, submitResp);
+            service.asyncExecute(request, TimeValue.timeValueMillis(1), request.keepAlive, true, submitResp);
             String id = submitResp.get().id;
             assertThat(id, notNullValue());
             TimeValue keepAlive = TimeValue.timeValueDays(between(1, 10));
@@ -379,6 +386,7 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
         service.asyncExecute(
             new TestRequest(randomAlphaOfLength(8), TimeValue.timeValueMinutes(5)),
             TimeValue.timeValueMillis(1),
+            TimeValue.timeValueMinutes(5),
             true,
             submit
         );
@@ -413,7 +421,13 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
         });
 
         PlainActionFuture<TestResponse> submit = new PlainActionFuture<>();
-        service.asyncExecute(new TestRequest("die", TimeValue.timeValueMinutes(5)), TimeValue.timeValueMillis(1), true, submit);
+        service.asyncExecute(
+            new TestRequest("die", TimeValue.timeValueMinutes(5)),
+            TimeValue.timeValueMillis(1),
+            TimeValue.timeValueMinutes(5),
+            true,
+            submit
+        );
         // We returned due to timeout, so only the initial async response is available.
         assertThat(submit.get().string, nullValue());
         executionLatch.countDown();

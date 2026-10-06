@@ -28,6 +28,7 @@ import org.elasticsearch.columnar.substrate.MonotonicReader;
 import org.elasticsearch.columnar.substrate.MonotonicWriter;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * The values of a plain column: their bytes one after another in the data, and each one's length as a column
@@ -55,6 +56,11 @@ final class PlainValues {
     static final long REPEAT = 1;
     /** What a value's byte count is stored above. */
     private static final long LENGTH_BASE = 2;
+
+    /** The code a value of {@code length} bytes is stored as, unless it repeats the one before it. */
+    static long code(long length) {
+        return length + LENGTH_BASE;
+    }
 
     /**
      * Where a plain column's values are, and the units they were written in. {@code starts} and {@code lengths}
@@ -180,7 +186,7 @@ final class PlainValues {
             } else {
                 chunks.append(value.bytes, value.offset, value.length);
                 if (lengths != null) {
-                    lengths.add(value.length + LENGTH_BASE);
+                    lengths.add(code(value.length));
                 }
             }
             valueBytes += value.length;
@@ -335,38 +341,87 @@ final class PlainValues {
          */
         long read(long valueAddress, BytesRef dst) throws IOException {
             assert valueAddress >= 0 && valueAddress < numValues : valueAddress + " out of [0, " + numValues + ")";
-            final long valueBlock = valueAddress >>> valuesShift;
+            loadBlock(valueAddress >>> valuesShift);
             final long start;
             final int length;
             if (constantLength >= 0) {
                 start = valueAddress * constantLength;
                 length = constantLength;
-                if (valueBlock != loadedBlock) {
-                    final long first = valueBlock << valuesShift;
-                    final long end = Math.min(first + valuesPerBlock, numValues);
-                    blockStart = first * constantLength;
-                    chunks.span(blockStart, (int) ((end - first) * constantLength), block);
-                    loadedBlock = valueBlock;
-                }
             } else {
-                loadLengths(valueAddress >>> lengthShift);
                 final int i = (int) (valueAddress & lengthMask);
                 start = slotStarts[i];
                 length = slotLengths[i];
-                if (valueBlock != loadedBlock) {
-                    // Starts never decrease, a repeat taking the start of the value before it, so the block's
-                    // bytes run from its first slot's start to its last slot's end.
-                    final int first = (int) ((valueBlock << valuesShift) & lengthMask);
-                    final int last = Math.min(first + valuesPerBlock, loadedCount) - 1;
-                    blockStart = slotStarts[first];
-                    chunks.span(blockStart, (int) (slotStarts[last] + slotLengths[last] - blockStart), block);
-                    loadedBlock = valueBlock;
-                }
             }
             dst.bytes = block.bytes;
             dst.offset = block.offset + (int) (start - blockStart);
             dst.length = length;
             return start;
+        }
+
+        /**
+         * The stored codes, a block of them at a time: {@link #NULL_CODE}, {@link #REPEAT}, or a length above
+         * {@link #LENGTH_BASE}. A column of one length stores none, and is answered as a block of that length.
+         */
+        StringColumnReader.SlotBlocks codes() {
+            if (constantLength >= 0) {
+                final long[] constant = new long[valuesPerBlock];
+                Arrays.fill(constant, code(constantLength));
+                return new StringColumnReader.SlotBlocks() {
+                    @Override
+                    public int blockSize() {
+                        return valuesPerBlock;
+                    }
+
+                    @Override
+                    public long numValues() {
+                        return numValues;
+                    }
+
+                    @Override
+                    public long[] block(long index) {
+                        return constant;
+                    }
+                };
+            }
+            return new StringColumnReader.SlotBlocks() {
+                @Override
+                public int blockSize() {
+                    return lengthMask + 1;
+                }
+
+                @Override
+                public long numValues() {
+                    return numValues;
+                }
+
+                @Override
+                public long[] block(long index) throws IOException {
+                    return lengths.block(index);
+                }
+            };
+        }
+
+        private void loadBlock(long valueBlock) throws IOException {
+            final long first = valueBlock << valuesShift;
+            if (constantLength >= 0) {
+                if (valueBlock != loadedBlock) {
+                    final long end = Math.min(first + valuesPerBlock, numValues);
+                    blockStart = first * constantLength;
+                    chunks.span(blockStart, (int) ((end - first) * constantLength), block);
+                    loadedBlock = valueBlock;
+                }
+                return;
+            }
+            loadLengths(first >>> lengthShift);
+            if (valueBlock != loadedBlock) {
+                // Starts never decrease, a repeat taking the start of the value before it, so the block's
+                // bytes run from its first slot's start to its last slot's end.
+                final int at = (int) (first & lengthMask);
+                final int last = Math.min(at + valuesPerBlock, loadedCount) - 1;
+                blockStart = slotStarts[at];
+                chunks.span(blockStart, (int) (slotStarts[last] + slotLengths[last] - blockStart), block);
+                loadedBlock = valueBlock;
+            }
         }
 
         private void loadLengths(long lengthBlock) throws IOException {

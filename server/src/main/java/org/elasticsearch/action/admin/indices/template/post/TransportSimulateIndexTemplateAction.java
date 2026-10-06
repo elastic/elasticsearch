@@ -220,9 +220,9 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
         // create the index with dummy settings in the cluster state so we can parse and validate the aliases
         Settings dummySettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put(settings)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(settings)
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
             .build();
 

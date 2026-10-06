@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160534
+summary: Warn instead of failing on cumulative T-Digests
+type: bug

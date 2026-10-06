@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvUnio
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonString;
-import org.elasticsearch.xpack.esql.expression.function.vector.Magnitude;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
@@ -106,7 +105,6 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         MvZip.class, // MV_ZIP(NULL, ["a"], ",") = ["a"]
 
         // Special empty/null handling functions
-        Magnitude.class, // MAGNITUDE(<all-null>) = 0-length block, not null
         MvPSeriesWeightedSum.class, // MV_PSERIES_WEIGHTED_SUM(NULL, 2) = 0.0
 
         // Non-evaluatable grouping functions

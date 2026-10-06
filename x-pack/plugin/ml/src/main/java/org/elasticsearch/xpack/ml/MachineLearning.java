@@ -328,6 +328,7 @@ import org.elasticsearch.xpack.ml.dataframe.process.NativeAnalyticsProcessFactor
 import org.elasticsearch.xpack.ml.dataframe.process.NativeMemoryUsageEstimationProcessFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
+import org.elasticsearch.xpack.ml.inference.DeploymentPathUnsafeIdTelemetry;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 import org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerService;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentClusterService;
@@ -966,6 +967,7 @@ public class MachineLearning extends Plugin
             MachineLearningField.AUTODETECT_PROCESS,
             PROCESS_CONNECT_TIMEOUT,
             MachineLearningField.MODEL_GRAPH_VALIDATION_ENABLED,
+            MachineLearningField.SANDBOX_ENABLED,
             CONCURRENT_JOB_ALLOCATIONS,
             MachineLearningField.MAX_MODEL_MEMORY_LIMIT,
             MachineLearningField.MAX_LAZY_ML_NODES,
@@ -1297,6 +1299,9 @@ public class MachineLearning extends Plugin
         );
         this.autodetectProcessManager.set(autodetectProcessManager);
         DatafeedSearchTelemetry datafeedSearchTelemetry = new DatafeedSearchTelemetry(telemetryProvider.getMeterRegistry());
+        DeploymentPathUnsafeIdTelemetry deploymentPathUnsafeIdTelemetry = new DeploymentPathUnsafeIdTelemetry(
+            telemetryProvider.getMeterRegistry()
+        );
         DatafeedJobBuilder datafeedJobBuilder = new DatafeedJobBuilder(
             client,
             xContentRegistry,
@@ -1517,13 +1522,9 @@ public class MachineLearning extends Plugin
             client,
             inferenceAuditor,
             telemetryProvider.getMeterRegistry(),
-            new NodeLoadDetector(memoryTracker),
             nlpEnabled,
             settings
         );
-        // Feed observed-memory data from the 10-second adaptive-allocations stats response back into
-        // TrainedModelAssignmentClusterService so its 60-second loop can skip those deployments.
-        adaptiveAllocationsScalerService.setStatsResponseConsumer(trainedModelAllocationClusterService.get()::processObservedMemoryStats);
 
         MlInitializationService mlInitializationService = new MlInitializationService(
             settings,
@@ -1532,7 +1533,6 @@ public class MachineLearning extends Plugin
             anomalyDetectionAuditor,
             client,
             adaptiveAllocationsScalerService,
-            trainedModelAllocationClusterService.get(),
             mlAssignmentNotifier,
             indexNameExpressionResolver,
             anomalyDetectionEnabled,
@@ -1593,7 +1593,8 @@ public class MachineLearning extends Plugin
             nodeAvailabilityZoneMapper,
             new MachineLearningExtensionHolder(machineLearningExtension.get()),
             mlMetrics,
-            mlConfigMetrics
+            mlConfigMetrics,
+            deploymentPathUnsafeIdTelemetry
         );
     }
 
@@ -1761,6 +1762,8 @@ public class MachineLearning extends Plugin
         // Included in this section as it's used by MlMemoryAction
         actionHandlers.add(new ActionHandler(TrainedModelCacheInfoAction.INSTANCE, TransportTrainedModelCacheInfoAction.class));
         actionHandlers.add(new ActionHandler(GetMlAutoscalingStats.INSTANCE, TransportGetMlAutoscalingStats.class));
+        // Required by vector query builders regardless of which ML features are enabled
+        actionHandlers.add(new ActionHandler(CoordinatedInferenceAction.INSTANCE, TransportCoordinatedInferenceAction.class));
         if (anomalyDetectionEnabled) {
             actionHandlers.add(new ActionHandler(GetJobsAction.INSTANCE, TransportGetJobsAction.class));
             actionHandlers.add(new ActionHandler(GetJobsStatsAction.INSTANCE, TransportGetJobsStatsAction.class));
@@ -1885,7 +1888,6 @@ public class MachineLearning extends Plugin
                         TransportUpdateTrainedModelAssignmentStateAction.class
                     )
                 );
-                actionHandlers.add(new ActionHandler(CoordinatedInferenceAction.INSTANCE, TransportCoordinatedInferenceAction.class));
             }
         }
         return actionHandlers;

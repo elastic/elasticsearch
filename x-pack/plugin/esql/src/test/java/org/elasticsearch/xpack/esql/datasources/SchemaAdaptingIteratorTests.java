@@ -40,6 +40,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 
 public class SchemaAdaptingIteratorTests extends ESTestCase {
 
@@ -624,12 +625,8 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
         }
 
         assertThat(warnings.size(), equalTo(2));
-        assertThat(
-            warnings.get(0),
-            equalTo("Cross-file schema unification could not convert some values to the unified column type; they are returned as null")
-        );
-        assertThat(warnings.get(1), containsString("Column [value]"));
-        assertThat(warnings.get(1), containsString("date_nanos"));
+        assertThat(warnings.get(0), equalTo("Some values cannot be read as the merged column type; returning null"));
+        assertThat(warnings.get(1), startsWith("column [value]: cannot read [datetime] as [date_nanos]: "));
     }
 
     /**
@@ -783,6 +780,7 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
                 result.releaseBlocks();
             }
         }
+        assertThat(warnings.get(0), equalTo("Some values cannot be read as the merged column type; skipping their rows"));
     }
 
     /**

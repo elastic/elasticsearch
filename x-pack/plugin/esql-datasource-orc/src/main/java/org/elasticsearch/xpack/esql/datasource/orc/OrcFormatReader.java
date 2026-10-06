@@ -424,16 +424,19 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             }
             return tail;
         } catch (ExecutionException e) {
-            // rethrowStructural handles Error/IOException/CircuitBreakingException/
-            // ElasticsearchException; anything else (typically a plain RuntimeException from
-            // orc-core indicating a corrupt tail) is returned for format-specific wrapping.
-            // Unlike Parquet there is no orc-tagged exception factory; surface a structurally
-            // tagged IOException so log lines clearly attribute the failure to ORC tail parsing.
-            Throwable other = ParsedFooterCache.rethrowStructural(e);
-            if (other instanceof RuntimeException re) {
-                throw re;
+            // The ORC library embeds the full storage URI in both its IOException ("Malformed ORC
+            // file <uri>. ...") and RuntimeException messages. Log the full cause for server-side
+            // diagnosis, but do not chain it: the caused_by chain is serialized into API responses
+            // and would expose the storage URI to the caller. Only the object name appears in the
+            // user-facing message.
+            LOGGER.debug(() -> "ORC tail parse failure for [" + path.getName() + "]", e);
+            Throwable re;
+            try {
+                re = ParsedFooterCache.rethrowStructural(e);
+            } catch (IOException io) {
+                throw new IOException("Failed to parse ORC tail for [" + path.getName() + "]: " + io.getClass().getSimpleName());
             }
-            throw new IOException("Failed to parse ORC tail for [" + path + "]", other);
+            throw new IOException("Failed to parse ORC tail for [" + path.getName() + "]: " + re.getClass().getSimpleName());
         }
     }
 
@@ -596,7 +599,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             counters,
             declaredDateFormats,
             declaredTypeColumns,
-            object.path().toString(),
+            object.path().objectName(),
             resolveErrorPolicy(context.errorPolicy()),
             context.informationalWarningSink(),
             context.sharedErrorBudget()
@@ -747,7 +750,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             counters,
             declaredDateFormats,
             declaredTypeColumns,
-            object.path().toString(),
+            object.path().objectName(),
             resolveErrorPolicy(context.errorPolicy()),
             context.informationalWarningSink(),
             context.sharedErrorBudget()
@@ -1555,30 +1558,25 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 if (compatible == false) {
                     if (skipWarnings == null) {
                         skipWarnings = new SkipWarnings(
-                            "ORC file ["
-                                + fileLocation
-                                + "] has columns whose on-disk type is incompatible with planner type; "
-                                + "they are returned as null",
+                            "Some columns in [" + fileLocation + "] have a type the query cannot read; returning null",
                             warningSink
                         );
                     }
                     skipWarnings.add(
-                        "Column ["
+                        "column ["
                             + attr.name()
-                            + "] in file ["
-                            + fileLocation
-                            + "] has type ["
-                            + actualInFile
-                            + "] incompatible with planner type ["
-                            + planner
-                            + "]; returning nulls for this column"
+                            + "]: ["
+                            + actualInFile.typeName()
+                            + "] in the file, ["
+                            + planner.typeName()
+                            + "] in the query"
                     );
                     LOGGER.warn(
-                        "Column [{}] in file [{}] has type [{}] incompatible with planner type [{}]; " + "returning nulls for this column",
+                        "Column [{}] in [{}] is [{}] in the file, [{}] in the query; returning null",
                         attr.name(),
                         fileLocation,
-                        actualInFile,
-                        planner
+                        actualInFile.typeName(),
+                        planner.typeName()
                     );
                     fieldNameToPath.remove(attr.name());
                     leafTypes[col] = null;
@@ -1690,7 +1688,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             if (rowDropHelper != null) {
                 rowDropHelper.addToTotals(batch.size, rowDropHelper.failedCount());
                 try {
-                    rowDropHelper.checkBudget(coercionWarnings());
+                    rowDropHelper.checkBudget();
                 } catch (Exception e) {
                     page.releaseBlocks();
                     throw e;
@@ -1877,11 +1875,9 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 return null;
             }
             if (coercionWarnings == null) {
-                String outcome = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW
-                    ? "their entire row is dropped"
-                    : "they are returned as null";
+                String outcome = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW ? "skipping their rows" : "returning null";
                 coercionWarnings = new SkipWarnings(
-                    "ORC file [" + fileLocation + "] has values that could not be coerced to the declared column type; " + outcome,
+                    "Some values in [" + fileLocation + "] cannot be read as their declared type; " + outcome,
                     warningSink
                 );
             }
@@ -2272,8 +2268,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                                     DataType.KEYWORD,
                                     DataType.DATETIME,
                                     e,
-                                    coercionWarnings(),
-                                    skipRow
+                                    coercionWarnings()
                                 );
                                 failed = true;
                             }
@@ -2535,8 +2530,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                                     DataType.KEYWORD,
                                     DataType.DATETIME,
                                     e,
-                                    coercionWarnings(),
-                                    skipRow
+                                    coercionWarnings()
                                 );
                                 if (skipRow) failedPositionSink.accept(i);
                                 builder.appendNull();

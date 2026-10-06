@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThresholdAware;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -361,7 +362,7 @@ public class AsyncExternalSourceOperatorFactoryThresholdTests extends ESTestCase
         public void close() {}
     }
 
-    private static class TestStorageObject implements StorageObject {
+    private static class TestStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
 
         TestStorageObject(StoragePath path) {

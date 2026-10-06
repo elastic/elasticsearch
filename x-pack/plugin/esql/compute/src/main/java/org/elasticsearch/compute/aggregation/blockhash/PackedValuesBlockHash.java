@@ -141,11 +141,41 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
 
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
-        if (batchWork != null && allVectors(page)) {
-            batchWork.bulkAdd(page, addInput);
-            return;
+        if (batchWork != null) {
+            if (allVectors(page)) {
+                batchWork.bulkAdd(page, addInput);
+                return;
+            }
+            // A column holding no value at a position packs as no bytes, plus its bit in the key's null prefix.
+            // Several values at one position still need the encoders.
+            if (batchWork.supportsNulls() && allSingleValued(page)) {
+                seenNull |= mayHaveNulls(page);
+                batchWork.bulkAdd(page, addInput);
+                return;
+            }
         }
         add(page, addInput, DEFAULT_BATCH_SIZE);
+    }
+
+    /** Whether any key column of the page holds no value at some position. */
+    private boolean mayHaveNulls(Page page) {
+        for (GroupSpec spec : specs) {
+            if (page.getBlock(spec.channel()).mayHaveNulls()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether every key column holds at most one value at every position of the page. */
+    private boolean allSingleValued(Page page) {
+        for (GroupSpec spec : specs) {
+            final Block block = page.getBlock(spec.channel());
+            if (block.asVector() == null && block.mayHaveMultivaluedFields()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private boolean allVectors(Page page) {
@@ -638,6 +668,12 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
      * {@link PackedValuesBlockHash} instance, so calls dispatch monomorphically.
      */
     private sealed interface BatchWork extends Releasable permits FixedWidthBatchWork, VariableWidthBatchWork {
+
+        /** Whether {@link #bulkAdd} packs a position where a key column holds no value. */
+        default boolean supportsNulls() {
+            return false;
+        }
+
         void bulkAdd(Page page, GroupingAggregatorFunction.AddInput addInput);
 
         Block[] getNonNullKeys(IntVector selected, BytesRefHashTable hash, BlockFactory blockFactory);
@@ -906,6 +942,15 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
         private byte[] keyBuf;
         private long usedBytes;
 
+        /** The block of each key column the page holds no vector for, by spec index, and null for the rest. */
+        private final Block[] nullableBlocks;
+        /** Whether any key column of the page arrived without a vector. */
+        private boolean anyNullable;
+        /** Which columns hold no value at row {@code i} of the chunk, as bits by spec index. */
+        private final long[] rowNulls;
+        /** The bytes a column adds to {@link #fixedRowBase}, which a row holding no value there does not pay. */
+        private final int[] fixedContribution;
+
         VariableWidthBatchWork(
             BytesRefSwissHash swiss,
             int emitBatchSize,
@@ -919,6 +964,7 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
             this.emitBatchSize = emitBatchSize;
             this.nullTrackingBytes = nullTrackingBytes;
             this.gToBytesRefIdx = new int[specs.size()];
+            this.fixedContribution = new int[specs.size()];
             int rowBase = nullTrackingBytes;
             int brCount = 0;
             for (int g = 0; g < specs.size(); g++) {
@@ -926,12 +972,16 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
                 if (cs >= 0) {
                     rowBase += cs;
                     this.gToBytesRefIdx[g] = -1;
+                    this.fixedContribution[g] = cs;
                 } else {
                     rowBase += Integer.BYTES;
                     this.gToBytesRefIdx[g] = brCount++;
+                    this.fixedContribution[g] = Integer.BYTES;
                 }
             }
             this.fixedRowBase = rowBase;
+            this.nullableBlocks = new Block[specs.size()];
+            this.rowNulls = new long[BATCH_SIZE];
             this.bytesRefSpecIdx = new int[brCount];
             for (int g = 0, b = 0; g < specs.size(); g++) {
                 if (specs.get(g).elementType() == ElementType.BYTES_REF) {
@@ -939,15 +989,15 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
                 }
             }
             // Approximate accounting:
-            // emitBatchSize + gToBytesRefIdx(specs.size()) ints
-            // + hashes(BATCH_SIZE) longs + rowKeys(BATCH_SIZE) BytesRef objects
+            // emitBatchSize + gToBytesRefIdx(specs.size()) + fixedContribution(specs.size()) ints
+            // + hashes(BATCH_SIZE) + rowNulls(BATCH_SIZE) longs + rowKeys(BATCH_SIZE) BytesRef objects
             // + keyBuf
-            // + rowKeys(BATCH_SIZE) + vectors(specs.size()) + brVectors(brCount) refs
+            // + rowKeys(BATCH_SIZE) + vectors(specs.size()) + nullableBlocks(specs.size()) + brVectors(brCount) refs
             // + bytesRefCache: brCount inner-array refs + brCount * BATCH_SIZE refs + brCount * BATCH_SIZE BytesRef objects
             final long brCacheBytes = (long) brCount * (RamUsageEstimator.NUM_BYTES_OBJECT_REF + (long) BATCH_SIZE
                 * (RamUsageEstimator.NUM_BYTES_OBJECT_REF + BYTES_REF_SHALLOW_BYTES));
-            final long refBytes = (long) (BATCH_SIZE + specs.size() + brCount) * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
-            final long fixedBytes = (long) (emitBatchSize + specs.size()) * Integer.BYTES + (long) BATCH_SIZE * (Long.BYTES
+            final long refBytes = (long) (BATCH_SIZE + 2 * specs.size() + brCount) * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+            final long fixedBytes = (long) (emitBatchSize + 2 * specs.size()) * Integer.BYTES + (long) BATCH_SIZE * (2 * Long.BYTES
                 + BYTES_REF_SHALLOW_BYTES) + INITIAL_KEY_BUF + refBytes + brCacheBytes;
             blockFactory.adjustBreaker(fixedBytes);
             this.usedBytes = fixedBytes;
@@ -983,13 +1033,23 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
         }
 
         @Override
+        public boolean supportsNulls() {
+            // One bit a column in rowNulls, so a key wider than a long's bits packs through the encoders instead.
+            return specs.size() <= Long.SIZE;
+        }
+
+        @Override
         public void bulkAdd(Page page, GroupingAggregatorFunction.AddInput addInput) {
             final int positionCount = page.getPositionCount();
             int positionOffset = 0;
             final int[] cursors = new int[BATCH_SIZE];
             int dummy = 0;
+            anyNullable = false;
             for (int g = 0; g < specs.size(); g++) {
-                vectors[g] = page.getBlock(specs.get(g).channel()).asVector();
+                final Block block = page.getBlock(specs.get(g).channel());
+                vectors[g] = block.asVector();
+                nullableBlocks[g] = vectors[g] == null ? block : null;
+                anyNullable |= vectors[g] == null;
             }
             for (int b = 0; b < brVectors.length; b++) {
                 brVectors[b] = (BytesRefVector) vectors[bytesRefSpecIdx[b]];
@@ -1046,9 +1106,28 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
             int offset = 0;
             int rows = 0;
             for (int i = 0; i < requested; i++) {
+                final int position = positionOffset + i;
                 int sz = fixedRowBase;
+                long nulls = 0;
+                if (anyNullable) {
+                    for (int g = 0; g < nullableBlocks.length; g++) {
+                        final Block block = nullableBlocks[g];
+                        if (block != null && block.isNull(position)) {
+                            nulls |= 1L << g;
+                            sz -= fixedContribution[g];
+                        }
+                    }
+                    rowNulls[i] = nulls;
+                }
                 for (int b = 0; b < brCount; b++) {
-                    final BytesRef br = brVectors[b].getBytesRef(positionOffset + i, bytesRefCache[b][i]);
+                    final int g = bytesRefSpecIdx[b];
+                    if ((nulls & (1L << g)) != 0) {
+                        continue;
+                    }
+                    final BytesRefBlock brBlock = (BytesRefBlock) nullableBlocks[g];
+                    final BytesRef br = brBlock == null
+                        ? brVectors[b].getBytesRef(position, bytesRefCache[b][i])
+                        : brBlock.getBytesRef(brBlock.getFirstValueIndex(position), bytesRefCache[b][i]);
                     bytesRefCache[b][i] = br;
                     sz += br.length;
                 }
@@ -1074,17 +1153,87 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
             usedBytes += delta;
         }
 
+        /**
+         * One key column of the chunk that arrived without a vector. A row holding no value there adds no bytes,
+         * its bit in the null prefix having been written already.
+         */
+        private void serializeNullableColumn(int g, int positionOffset, int rows, int[] cursors) {
+            final Block block = nullableBlocks[g];
+            final long bit = 1L << g;
+            switch (specs.get(g).elementType()) {
+                case LONG -> {
+                    final LongBlock lb = (LongBlock) block;
+                    for (int i = 0; i < rows; i++) {
+                        if ((rowNulls[i] & bit) != 0) {
+                            continue;
+                        }
+                        LONG_HANDLE.set(keyBuf, cursors[i], lb.getLong(lb.getFirstValueIndex(positionOffset + i)));
+                        cursors[i] += Long.BYTES;
+                    }
+                }
+                case INT -> {
+                    final IntBlock ib = (IntBlock) block;
+                    for (int i = 0; i < rows; i++) {
+                        if ((rowNulls[i] & bit) != 0) {
+                            continue;
+                        }
+                        INT_HANDLE.set(keyBuf, cursors[i], ib.getInt(ib.getFirstValueIndex(positionOffset + i)));
+                        cursors[i] += Integer.BYTES;
+                    }
+                }
+                case DOUBLE -> {
+                    final DoubleBlock db = (DoubleBlock) block;
+                    for (int i = 0; i < rows; i++) {
+                        if ((rowNulls[i] & bit) != 0) {
+                            continue;
+                        }
+                        DOUBLE_HANDLE.set(keyBuf, cursors[i], db.getDouble(db.getFirstValueIndex(positionOffset + i)));
+                        cursors[i] += Double.BYTES;
+                    }
+                }
+                case BOOLEAN -> {
+                    final BooleanBlock bb = (BooleanBlock) block;
+                    for (int i = 0; i < rows; i++) {
+                        if ((rowNulls[i] & bit) != 0) {
+                            continue;
+                        }
+                        keyBuf[cursors[i]] = bb.getBoolean(bb.getFirstValueIndex(positionOffset + i)) ? (byte) 1 : (byte) 0;
+                        cursors[i] += Byte.BYTES;
+                    }
+                }
+                case BYTES_REF -> {
+                    final BytesRef[] cacheRow = bytesRefCache[gToBytesRefIdx[g]];
+                    for (int i = 0; i < rows; i++) {
+                        if ((rowNulls[i] & bit) != 0) {
+                            continue;
+                        }
+                        final BytesRef br = cacheRow[i];
+                        final int c = cursors[i];
+                        INT_HANDLE.set(keyBuf, c, br.length);
+                        System.arraycopy(br.bytes, br.offset, keyBuf, c + Integer.BYTES, br.length);
+                        cursors[i] = c + Integer.BYTES + br.length;
+                    }
+                }
+                default -> throw new IllegalStateException("unsupported type: " + specs.get(g).elementType());
+            }
+        }
+
         private void serializeColumns(int positionOffset, int rows, int[] cursors) {
-            // Vectors carry no nulls, so we only need to clear the per-row null tracking prefix; column bytes are fully overwritten below.
+            // The prefix says which columns a row holds no value in; the bytes of the rest are overwritten below.
             for (int i = 0; i < rows; i++) {
                 final int o = rowKeys[i].offset;
+                final long nulls = anyNullable ? rowNulls[i] : 0L;
                 for (int b = 0; b < nullTrackingBytes; b++) {
-                    keyBuf[o + b] = 0;
+                    keyBuf[o + b] = (byte) (nulls >>> (b * Byte.SIZE));
                 }
                 cursors[i] = o + nullTrackingBytes;
             }
             for (int g = 0; g < specs.size(); g++) {
                 final Vector vector = vectors[g];
+                if (vector == null) {
+                    serializeNullableColumn(g, positionOffset, rows, cursors);
+                    continue;
+                }
                 switch (specs.get(g).elementType()) {
                     case LONG -> {
                         LongVector lv = (LongVector) vector;

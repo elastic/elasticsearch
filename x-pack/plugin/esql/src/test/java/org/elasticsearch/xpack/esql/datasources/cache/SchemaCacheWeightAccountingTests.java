@@ -410,6 +410,31 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
         );
     }
 
+    /**
+     * {@code weight_bytes} must be the store's real occupancy, because it is the figure the budget is enforced
+     * against and the counts beside it cannot stand in for it - one many-striped file's entry can outweigh
+     * thousands of narrow ones. Pinned against the independent sum over the retained entries, so a stat that
+     * reported a count, a budget or a stale total would disagree with the oracle.
+     */
+    public void testReportedWeightAgreesWithWhatTheStoreActuallyHolds() {
+        Settings settings = Settings.builder().put("esql.external.cache.size", "10mb").build();
+        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(settings)) {
+            assertThat("an empty store holds nothing", cache.usageStats().get("schema_cache.weight_bytes"), equalTo(0L));
+
+            for (int i = 0; i < 4; i++) {
+                SchemaCacheKey key = SchemaCacheKey.build("s3://bucket/f" + i + ".csv", 1000L + i, "csv", "identity", Map.of());
+                cache.putSchema(key, entryWithMin("s3://bucket/f" + i + ".csv", "v".repeat(1000 * (i + 1))));
+            }
+
+            assertThat(
+                "the reported weight must equal the sum of the weights of the entries retained",
+                cache.usageStats().get("schema_cache.weight_bytes"),
+                equalTo(retainedSchemaWeight(cache))
+            );
+            assertThat("and it must be non-trivial once four entries are held", retainedSchemaWeight(cache), greaterThan(4000L));
+        }
+    }
+
     private static long retainedSchemaWeight(ExternalSourceCacheService cache) {
         long[] total = { 0L };
         cache.schemaCache().forEach((key, entry) -> total[0] += entry.estimatedBytes());

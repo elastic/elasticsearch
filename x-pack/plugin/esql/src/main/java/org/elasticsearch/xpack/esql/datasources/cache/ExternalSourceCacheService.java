@@ -1714,6 +1714,12 @@ public class ExternalSourceCacheService implements Closeable {
         }
     }
 
+    /**
+     * Per-store occupancy and traffic. {@code weight_bytes} is the store's own running weight, the figure its
+     * budget is enforced against - the counts beside it cannot stand in for it, because one many-striped file's
+     * entry can outweigh thousands of narrow ones. Without it the budget split across the stores can only be
+     * asserted, never measured.
+     */
     public Map<String, Object> usageStats() {
         Map<String, Object> stats = new LinkedHashMap<>();
         stats.put("enabled", enabled);
@@ -1723,21 +1729,25 @@ public class ExternalSourceCacheService implements Closeable {
         stats.put("dataset_aggregate_max_entry_bytes", datasetAggregateMaxEntryBytes);
 
         stats.put("schema_cache.count", schemaCache.count());
+        stats.put("schema_cache.weight_bytes", schemaCache.weight());
         stats.put("schema_cache.hits", schemaCache.stats().getHits());
         stats.put("schema_cache.misses", schemaCache.stats().getMisses());
         stats.put("schema_cache.evictions", schemaCache.stats().getEvictions());
 
         stats.put("file_metadata_cache.count", fileMetadataCache.count());
+        stats.put("file_metadata_cache.weight_bytes", fileMetadataCache.weight());
         stats.put("file_metadata_cache.hits", fileMetadataCache.stats().getHits());
         stats.put("file_metadata_cache.misses", fileMetadataCache.stats().getMisses());
         stats.put("file_metadata_cache.evictions", fileMetadataCache.stats().getEvictions());
 
         stats.put("listing_cache.count", listingCache.count());
+        stats.put("listing_cache.weight_bytes", listingCache.weight());
         stats.put("listing_cache.hits", listingCache.stats().getHits());
         stats.put("listing_cache.misses", listingCache.stats().getMisses());
         stats.put("listing_cache.evictions", listingCache.stats().getEvictions());
 
         stats.put("dataset_aggregate_cache.count", datasetAggregateCache.count());
+        stats.put("dataset_aggregate_cache.weight_bytes", datasetAggregateCache.weight());
         stats.put("dataset_aggregate_cache.evictions", datasetAggregateCache.stats().getEvictions());
         stats.put("dataset_aggregate.hits", datasetAggregateHits.sum());
         stats.put("dataset_aggregate.misses", datasetAggregateMisses.sum());

@@ -78,11 +78,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Unit tests for local recovery-retry handoff ({@code retryingShards}): the marker carries
+ * Unit tests for local recovery-retry context ({@code retryingShards}): the marker carries
  * {@code localRecoveryRetries} (and routing) so either the retry applier or cluster-state application may
  * recreate the shard with the same count.
  */
-public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndicesClusterStateServiceTestCase {
+public class IndicesClusterStateServiceRetryContextTests extends AbstractIndicesClusterStateServiceTestCase {
 
     private ThreadPool threadPool;
     private ClusterService clusterService;
@@ -145,7 +145,7 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
         assertThat(pendingApplierTasks.size(), equalTo(0));
     }
 
-    public void testRetryMarksHandoffWithoutNotifyingMaster() {
+    public void testRetrySetContextWithoutNotifyingMaster() {
         ShardRouting shardRouting = applyInitializingPrimary();
         assertNotNull(indicesService.getShardOrNull(shardRouting.shardId()));
 
@@ -154,7 +154,7 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
         assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
         assertThat(
             indicesClusterStateService.retryingShards.get(shardRouting.shardId()),
-            equalTo(new IndicesClusterStateService.RetryHandoff(shardRouting, 1))
+            equalTo(new IndicesClusterStateService.RetryContext(shardRouting, 1))
         );
         assertTrue(indicesClusterStateService.failedShardsCache.isEmpty());
         verify(shardStateAction, never()).localShardFailed(any(), anyString(), any(), any(), any());
@@ -162,7 +162,7 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
         assertThat(pendingApplierTasks.peek().source(), equalTo("retry recovery " + shardRouting.shardId()));
     }
 
-    public void testRetryApplierRecreatesShardAndClearsHandoff() {
+    public void testRetryApplierRecreatesShardAndClearsContext() {
         ShardRouting shardRouting = applyInitializingPrimary();
         int createsBefore = indicesService.createShardCalls.get();
 
@@ -186,7 +186,7 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
         failRecoveryViaListener(RETRY);
         assertThat(
             indicesClusterStateService.retryingShards.get(shardRouting.shardId()),
-            equalTo(new IndicesClusterStateService.RetryHandoff(shardRouting, 1))
+            equalTo(new IndicesClusterStateService.RetryContext(shardRouting, 1))
         );
         drainApplierTasks();
         shardRouting = indicesService.getShardOrNull(shardRouting.shardId()).routingEntry();
@@ -195,7 +195,7 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
         failRecoveryViaListener(RETRY);
         assertThat(
             indicesClusterStateService.retryingShards.get(shardRouting.shardId()),
-            equalTo(new IndicesClusterStateService.RetryHandoff(shardRouting, 2))
+            equalTo(new IndicesClusterStateService.RetryContext(shardRouting, 2))
         );
         drainApplierTasks();
         assertThat(indicesService.getShardOrNull(shardRouting.shardId()).recoveryState().getLocalRetries(), equalTo(2));
@@ -208,7 +208,7 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
         drainApplierTasks();
         assertThat(indicesService.getShardOrNull(shardRouting.shardId()).recoveryState().getLocalRetries(), equalTo(1));
 
-        // New allocation id → handoff cleared; cluster-state create owns recreate with localRecoveryRetries=0.
+        // New allocation id → context cleared; cluster-state create owns recreate with localRecoveryRetries=0.
         ShardRouting newAllocation = TestShardRouting.newShardRouting(
             shardRouting.shardId(),
             shardRouting.currentNodeId(),
@@ -240,21 +240,21 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
         verify(shardStateAction).localShardFailed(eq(shardRouting), anyString(), any(), any(), any());
     }
 
-    public void testClusterStateCreateWhileHandoffAppliesLocalRetries() {
+    public void testClusterStateCreateWhileContextAppliesLocalRetries() {
         ShardRouting shardRouting = applyInitializingPrimary();
         handleRecoveryFailureWithRetry(shardRouting);
         int createsAfterFail = indicesService.createShardCalls.get();
         assertTrue(indicesClusterStateService.retryingShards.containsKey(shardRouting.shardId()));
         assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
 
-        // Intervening cluster-state apply may recreate; handoff supplies localRecoveryRetries.
+        // Intervening cluster-state apply may recreate; context supplies localRecoveryRetries.
         applyState(ClusterState.builder(state).version(state.version() + 1).build());
         assertNotNull(indicesService.getShardOrNull(shardRouting.shardId()));
         assertThat(indicesService.getShardOrNull(shardRouting.shardId()).recoveryState().getLocalRetries(), equalTo(1));
         assertThat(indicesService.createShardCalls.get(), equalTo(createsAfterFail + 1));
         assertFalse(indicesClusterStateService.retryingShards.containsKey(shardRouting.shardId()));
 
-        // Retry applier still pending; handoff already cleared so it must not create again.
+        // Retry applier still pending; context already cleared so it must not create again.
         assertThat(pendingApplierTasks.size(), equalTo(1));
         int createsAfterCs = indicesService.createShardCalls.get();
         drainApplierTasks();
@@ -294,7 +294,7 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
         );
     }
 
-    public void testUpdateRetryHandoffClearsWhenShardNotOnLocalNode() {
+    public void testUpdateRetryContextClearsWhenShardNotOnLocalNode() {
         ShardRouting shardRouting = applyInitializingPrimary();
         handleRecoveryFailureWithRetry(shardRouting);
         assertTrue(indicesClusterStateService.retryingShards.containsKey(shardRouting.shardId()));
@@ -304,7 +304,7 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
         assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
     }
 
-    public void testUpdateRetryHandoffClearsWhenAllocationIdChanges() {
+    public void testUpdateRetryContextClearsWhenAllocationIdChanges() {
         ShardRouting shardRouting = applyInitializingPrimary();
         handleRecoveryFailureWithRetry(shardRouting);
         assertTrue(indicesClusterStateService.retryingShards.containsKey(shardRouting.shardId()));
@@ -319,7 +319,7 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
         assertFalse(indicesClusterStateService.retryingShards.containsKey(shardRouting.shardId()));
     }
 
-    public void testUpdateRetryHandoffClearsWhenNotInitializing() {
+    public void testUpdateRetryContextClearsWhenNotInitializing() {
         ShardRouting shardRouting = applyInitializingPrimary();
         handleRecoveryFailureWithRetry(shardRouting);
         assertTrue(indicesClusterStateService.retryingShards.containsKey(shardRouting.shardId()));
@@ -334,12 +334,12 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
         assertTrue(indicesClusterStateService.retryingShards.isEmpty());
     }
 
-    public void testUpdateRetryHandoffClearsWhenFailedShardsCacheHit() {
+    public void testUpdateRetryContextClearsWhenFailedShardsCacheHit() {
         ShardRouting shardRouting = applyInitializingPrimary();
         handleRecoveryFailureWithRetry(shardRouting);
         assertTrue(indicesClusterStateService.retryingShards.containsKey(shardRouting.shardId()));
 
-        // FAIL_SEND fills failedShardsCache; sendFailShard also clears the handoff.
+        // FAIL_SEND fills failedShardsCache; sendFailShard also clears the context.
         indicesClusterStateService.handleRecoveryFailure(
             shardRouting,
             FAIL_SEND,
@@ -350,9 +350,9 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
         assertTrue(indicesClusterStateService.failedShardsCache.containsKey(shardRouting.shardId()));
         assertFalse(indicesClusterStateService.retryingShards.containsKey(shardRouting.shardId()));
 
-        // Re-seed handoff so both marker and cache are present — isolates updateRetryHandoff's
-        // failedShardsCache branch (sendFailShard already cleared the original handoff).
-        indicesClusterStateService.retryingShards.put(shardRouting.shardId(), new IndicesClusterStateService.RetryHandoff(shardRouting, 1));
+        // Re-seed context so both marker and cache are present — isolates updateRetryContext's
+        // failedShardsCache branch (sendFailShard already cleared the original context).
+        indicesClusterStateService.retryingShards.put(shardRouting.shardId(), new IndicesClusterStateService.RetryContext(shardRouting, 1));
         assertTrue(indicesClusterStateService.retryingShards.containsKey(shardRouting.shardId()));
 
         applyState(ClusterState.builder(state).version(state.version() + 1).build());
@@ -366,7 +366,7 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
         assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
     }
 
-    public void testUpdateRetryHandoffClearsWhenIndexServiceMissing() {
+    public void testUpdateRetryContextClearsWhenIndexServiceMissing() {
         ShardRouting shardRouting = applyInitializingPrimary();
         handleRecoveryFailureWithRetry(shardRouting);
         assertTrue(indicesClusterStateService.retryingShards.containsKey(shardRouting.shardId()));
@@ -383,7 +383,7 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
         assertFalse(indicesClusterStateService.retryingShards.containsKey(shardRouting.shardId()));
     }
 
-    public void testUpdateRetryHandoffClearsWhenShardAlreadyExists() throws IOException {
+    public void testUpdateRetryContextClearsWhenShardAlreadyExists() throws IOException {
         ShardRouting shardRouting = applyInitializingPrimary();
         handleRecoveryFailureWithRetry(shardRouting);
         assertTrue(indicesClusterStateService.retryingShards.containsKey(shardRouting.shardId()));
@@ -392,7 +392,7 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
         indicesService.indexService(shardRouting.index()).createShard(shardRouting);
         assertNotNull(indicesService.getShardOrNull(shardRouting.shardId()));
 
-        // handoff marker still present
+        // context marker still present
         assertTrue(indicesClusterStateService.retryingShards.containsKey(shardRouting.shardId()));
 
         applyState(ClusterState.builder(state).version(state.version() + 1).build());
@@ -404,12 +404,12 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
         handleRecoveryFailureWithRetry(shardRouting);
         assertTrue(indicesClusterStateService.retryingShards.containsKey(shardRouting.shardId()));
 
-        // Empty routing table → RoutingNodes.node(local) is null → clear all handoffs.
+        // Empty routing table → RoutingNodes.node(local) is null → clear all retry contexts.
         applyState(ClusterState.builder(state).routingTable(RoutingTable.builder().build()).metadata(Metadata.builder().build()).build());
         assertTrue(indicesClusterStateService.retryingShards.isEmpty());
     }
 
-    public void testHandoffKeptWhenCreateGivesUpMissingPeerSource() {
+    public void testRetryContextKeptWhenCreateGivesUpMissingPeerSource() {
         String indexName = randomIndexName();
         ClusterState base = ClusterStateCreationUtils.state(indexName, false, ShardRoutingState.STARTED, ShardRoutingState.INITIALIZING);
         String localNodeId = base.nodes().getLocalNodeId();
@@ -450,13 +450,13 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
         assertTrue(indicesClusterStateService.retryingShards.containsKey(replica.shardId()));
         assertThat(
             indicesClusterStateService.retryingShards.get(replica.shardId()),
-            equalTo(new IndicesClusterStateService.RetryHandoff(replica, 1))
+            equalTo(new IndicesClusterStateService.RetryContext(replica, 1))
         );
         assertThat(indicesService.createShardCalls.get(), equalTo(createsBefore));
         assertNull(indicesService.getShardOrNull(replica.shardId()));
     }
 
-    public void testHandoffClearedWhenCreateFails() {
+    public void testRetryContextClearedWhenCreateFails() {
         ShardRouting shardRouting = applyInitializingPrimary();
         handleRecoveryFailureWithRetry(shardRouting);
         assertTrue(indicesClusterStateService.retryingShards.containsKey(shardRouting.shardId()));
@@ -495,7 +495,7 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
         handleRecoveryFailureWithRetry(withRelocating);
         assertThat(
             indicesClusterStateService.retryingShards.get(shardId),
-            equalTo(new IndicesClusterStateService.RetryHandoff(withRelocating, 1))
+            equalTo(new IndicesClusterStateService.RetryContext(withRelocating, 1))
         );
 
         ShardRouting clearedRelocating = TestShardRouting.shardRoutingBuilder(
@@ -506,7 +506,7 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
         ).withAllocationId(withRelocating.allocationId()).build();
         assertThat(clearedRelocating.relocatingNodeId(), nullValue());
         // Publish routing change without CS create so the retry applier is what recreates,
-        // proving updateRetryHandoff passes currentRouting (relocating cleared) into createShard.
+        // proving updateRetryContext passes currentRouting (relocating cleared) into createShard.
         state = stateWithShardRouting(clearedRelocating);
         when(clusterService.state()).thenReturn(state);
         assertTrue(indicesClusterStateService.retryingShards.containsKey(shardId));
@@ -521,7 +521,7 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
         assertFalse(indicesClusterStateService.retryingShards.containsKey(shardId));
     }
 
-    public void testDoubleRetryHandoffAsserts() {
+    public void testDoubleRetryContextAsserts() {
         assumeTrue("assertion-only guard", Assertions.ENABLED);
         ShardRouting shardRouting = applyInitializingPrimary();
         handleRecoveryFailureWithRetry(shardRouting);
@@ -537,15 +537,15 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
                 recoveryState(shardRouting, 1)
             )
         );
-        assertThat(error.getMessage(), equalTo("retry handoff already present for " + shardRouting.shardId()));
+        assertThat(error.getMessage(), equalTo("retry context already present for " + shardRouting.shardId()));
     }
 
-    public void testLockWaitGiveUpKeepsHandoffForLaterCreate() throws Exception {
+    public void testLockWaitGiveUpKeepsRetryContextForLaterCreate() throws Exception {
         ShardRouting shardRouting = applyInitializingPrimary();
         handleRecoveryFailureWithRetry(shardRouting);
         assertThat(
             indicesClusterStateService.retryingShards.get(shardRouting.shardId()),
-            equalTo(new IndicesClusterStateService.RetryHandoff(shardRouting, 1))
+            equalTo(new IndicesClusterStateService.RetryContext(shardRouting, 1))
         );
 
         indicesService.failNextCreateShard = new ShardLockObtainFailedException(shardRouting.shardId(), "test lock held");
@@ -558,7 +558,7 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
             )
         );
 
-        // Newer CS UUID while lock-wait is pending → onResponse(false); handoff must stay.
+        // Newer CS UUID while lock-wait is pending → onResponse(false); context must stay.
         state = ClusterState.builder(state).stateUUID(UUIDs.randomBase64UUID()).build();
         when(clusterService.state()).thenReturn(state);
         drainApplierTasks();
@@ -566,7 +566,7 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
         assertTrue(indicesClusterStateService.retryingShards.containsKey(shardRouting.shardId()));
         assertThat(
             indicesClusterStateService.retryingShards.get(shardRouting.shardId()),
-            equalTo(new IndicesClusterStateService.RetryHandoff(shardRouting, 1))
+            equalTo(new IndicesClusterStateService.RetryContext(shardRouting, 1))
         );
         assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
 

@@ -758,7 +758,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
     }
 
-    public void testClusterStateCreateWhileHandoffAppliesLocalRetries() throws Exception {
+    public void testClusterStateCreateWhileRetryContextAppliesLocalRetries() throws Exception {
         String master = internalCluster().startMasterOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
         String indexName = randomIndexName();
@@ -776,7 +776,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             ShardId shardId = new ShardId(resolveIndex(indexName), 0);
 
             // Hold the applier so RETRY schedules behind this IMMEDIATE blocker, then a HIGH CS apply
-            // can recreate from the handoff before the NORMAL retry runs.
+            // can recreate from the retry context before the NORMAL retry runs.
             var applier = internalCluster().getInstance(ClusterService.class, dataNode).getClusterApplierService();
             Gate applierGate = new Gate("ApplierGate");
             applierGate.block();
@@ -811,12 +811,12 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             applier.runOnApplierThread("assert-cs-applied-local-retries", Priority.HIGH, clusterState -> {
                 try {
                     assertThat(
-                        "cluster-state apply should have recreated the shard from the handoff",
+                        "cluster-state apply should have recreated the shard from the retry context",
                         RetryRecoveryTestPlugin.recoveryCounter.get(),
                         equalTo(2)
                     );
                     IndexShard shard = internalCluster().getInstance(IndicesService.class, dataNode).getShardOrNull(shardId);
-                    assertNotNull("cluster-state apply must create the shard while handoff carries localRetries", shard);
+                    assertNotNull("cluster-state apply must create the shard while retry context carries localRetries", shard);
                     assertThat(shard.recoveryState().getLocalRetries(), equalTo(1));
                 } catch (AssertionError e) {
                     afterCsFailure.set(e);
@@ -827,7 +827,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
             // 1. HIGH CS apply (creates with localRetries=1)
             // 2. HIGH assert
-            // 3. NORMAL retry (handoff already cleared / shard exists)
+            // 3. NORMAL retry (retry context already cleared / shard exists)
             applierGate.release();
             safeAwait(afterCs);
             if (afterCsFailure.get() != null) {

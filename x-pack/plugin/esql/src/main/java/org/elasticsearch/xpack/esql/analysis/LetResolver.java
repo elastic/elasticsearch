@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
 import org.elasticsearch.xpack.esql.plan.LetBinding;
@@ -42,8 +43,19 @@ import java.util.Map;
  *
  * <h2>Scoping</h2>
  * <p>Bindings are evaluated left to right (sequential scoping): binding <em>N</em> sees
- * bindings <em>1..N-1</em> only. This makes circular references structurally impossible — no
- * cycle guard or depth limit is needed.</p>
+ * bindings <em>1..N-1</em> only. This makes true circular references structurally impossible
+ * within a single pass — no cycle guard is needed.</p>
+ *
+ * <h2>One-pass substitution</h2>
+ * <p>{@link #substitute} performs a <em>one-pass</em> substitution: every node that already
+ * belongs to a resolved binding body is skipped when encountered during {@code transformDown}.
+ * This is necessary because {@code transformDown} descends into newly introduced subtrees after
+ * a replacement. Without this guard, a binding body such as {@code LET a = (FROM a | LIMIT 1)}
+ * would cause infinite re-substitution: the inner {@code FROM a} (which refers to the ES index
+ * {@code a}, not the LET binding) would be repeatedly replaced, causing a
+ * {@link StackOverflowError}. The guard is identity-based so that only actual object instances
+ * from resolved bodies are protected — fresh {@code UnresolvedRelation} objects in the original
+ * plan are still substituted normally.</p>
  *
  */
 public final class LetResolver {
@@ -67,31 +79,39 @@ public final class LetResolver {
         Map<String, LogicalPlan> resolved = new LinkedHashMap<>(letBindings.size());
         for (LetBinding binding : letBindings) {
             // Substitute earlier bindings into this binding's body (sequential scoping).
-            resolved.put(binding.name(), substitute(binding.plan(), resolved));
+            var current = substitute(binding.plan(), resolved);
+            resolved.put(binding.name(), current);
+            checkForCycles(current, resolved);
         }
 
         // Substitute the full map into the main query plan.
-        return substitute(plan, resolved);
+        var result = substitute(plan, resolved);
+        checkForCycles(result, resolved);
+        return result;
     }
 
     /**
-     * Replaces every {@link UnresolvedRelation} whose index-pattern string exactly matches a key in {@code resolved} with the
-     * corresponding bound plan. Also substitutes into subquery plans embedded in {@link InSubquery} and {@link MultiColumnInSubquery}
-     * expressions, since those plans are not reachable through the standard plan-tree traversal.
+     * Replaces every {@link UnresolvedRelation} in {@code plan} whose index-pattern string exactly
+     * matches a key in {@code resolved} with the corresponding bound plan, without descending into
+     * the replacement. Any node that is already part of a resolved body is skipped via an
+     * identity-based guard to prevent infinite re-expansion (see class-level Javadoc).
+     * Also substitutes into subquery plans embedded in {@link InSubquery} and
+     * {@link MultiColumnInSubquery} expressions.
      */
     private static LogicalPlan substitute(LogicalPlan plan, Map<String, LogicalPlan> resolved) {
         if (resolved.isEmpty()) {
             return plan;
         }
+
         return plan.transformDown(p -> {
             if (p instanceof UnresolvedRelation ur) {
                 String pattern = ur.indexPattern().indexPattern();
                 LogicalPlan bound = resolved.get(pattern);
                 return bound != null ? bound : ur;
             }
-            // InSubquery and MultiColumnInSubquery carry a LogicalPlan field that is not part of the expression
-            // children, so plan.transformDown(UnresolvedRelation.class, ...) cannot reach it.
-            // Substitute into those plans explicitly here, one plan-node at a time (transformDown handles children).
+            // InSubquery and MultiColumnInSubquery carry a LogicalPlan field that is not part of the
+            // plan-node children, so transformDown cannot reach it via the normal child traversal.
+            // Substitute into those plans explicitly here.
             LogicalPlan result = p.transformExpressionsOnly(InSubquery.class, inSub -> {
                 LogicalPlan newSubquery = substitute(inSub.subquery(), resolved);
                 return newSubquery != inSub.subquery() ? new InSubquery(inSub.source(), inSub.value(), newSubquery) : inSub;
@@ -100,6 +120,26 @@ public final class LetResolver {
                 LogicalPlan newSubquery = substitute(mcsub.subquery(), resolved);
                 return newSubquery != mcsub.subquery() ? new MultiColumnInSubquery(mcsub.source(), mcsub.values(), newSubquery) : mcsub;
             });
+        });
+    }
+
+    private static void checkForCycles(LogicalPlan plan, Map<String, LogicalPlan> resolved) {
+        if (resolved.isEmpty()) {
+            return;
+        }
+
+        plan.forEachDown(p -> {
+            if (p instanceof UnresolvedRelation ur) {
+                String pattern = ur.indexPattern().indexPattern();
+                if (resolved.containsKey(pattern)) {
+                    throw new VerificationException("Circular reference detected in LET bindings");
+                }
+            }
+            // InSubquery and MultiColumnInSubquery carry a LogicalPlan field that is not part of the
+            // plan-node children, so transformDown cannot reach it via the normal child traversal.
+            // Substitute into those plans explicitly here.
+            p.forEachExpression(InSubquery.class, inSub -> { checkForCycles(inSub.subquery(), resolved); });
+            p.forEachExpression(MultiColumnInSubquery.class, mcsub -> { checkForCycles(mcsub.subquery(), resolved); });
         });
     }
 

@@ -9,8 +9,14 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LetBinding;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -18,7 +24,9 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import java.util.Collections;
 import java.util.List;
 
+import static java.util.List.of;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
@@ -108,6 +116,55 @@ public class LetResolverTests extends ESTestCase {
         // "b" resolves to bBody with "a" substituted: Limit(aBody)
         assertThat(result, instanceOf(Limit.class));
         assertThat(((Limit) result).child(), sameInstance(aBody));
+    }
+
+    // -----------------------------------------------------------------------
+    // Cycle detection
+    // -----------------------------------------------------------------------
+
+    public void testLetResolutionSimpleCycle() {
+        // LET a = (FROM a | LIMIT 1); FROM a — body references its own binding name
+        LetBinding a = binding("a", withLimit(relation("a")));
+        var e = expectThrows(VerificationException.class, () -> LetResolver.resolve(relation("a"), List.of(a)));
+        assertThat(e.getMessage(), containsString("Circular reference detected in LET bindings"));
+    }
+
+    public void testLetResolutionComplexCycle() {
+        // LET a = (FROM b | LIMIT 1),
+        // b = (FROM a | LIMIT 1);
+        // FROM a
+        LetBinding a = binding("a", withLimit(relation("b")));
+        LetBinding b = binding("b", withLimit(relation("a")));
+        var e = expectThrows(VerificationException.class, () -> LetResolver.resolve(relation("a"), List.of(a, b)));
+        assertThat(e.getMessage(), containsString("Circular reference detected in LET bindings"));
+    }
+
+    public void testLetResolutionCycleInInSubquery() {
+        // LET a = (FROM b | LIMIT 1),
+        // b = (FROM base | WHERE x IN a | LIMIT 1);
+        // FROM a
+        // substitute replaces InSubquery(x, UR("a")) → InSubquery(x, Limit(UR("b"),1))
+        // checkForCycles recurses into the subquery and finds UR("b") ∈ resolved → cycle
+        LetBinding a = binding("a", withLimit(relation("b")));
+        Expression value = new UnresolvedAttribute(EMPTY, "x");
+        LetBinding b = binding("b", withLimit(new Filter(EMPTY, relation("base"), new InSubquery(EMPTY, value, relation("a")))));
+        var e = expectThrows(VerificationException.class, () -> LetResolver.resolve(relation("a"), List.of(a, b)));
+        assertThat(e.getMessage(), containsString("Circular reference detected in LET bindings"));
+    }
+
+    public void testLetResolutionCycleInMultiColumnInSubquery() {
+        // LET a = (FROM b | LIMIT 1),
+        // b = (FROM base | WHERE (x, y) IN a | LIMIT 1);
+        // FROM a
+        // Same cycle as above but through a multi-column IN subquery.
+        LetBinding a = binding("a", withLimit(relation("b")));
+        List<Expression> values = of(new UnresolvedAttribute(EMPTY, "x"), new UnresolvedAttribute(EMPTY, "y"));
+        LetBinding b = binding(
+            "b",
+            withLimit(new Filter(EMPTY, relation("base"), new MultiColumnInSubquery(EMPTY, values, relation("a"))))
+        );
+        var e = expectThrows(VerificationException.class, () -> LetResolver.resolve(relation("a"), List.of(a, b)));
+        assertThat(e.getMessage(), containsString("Circular reference detected in LET bindings"));
     }
 
     // -----------------------------------------------------------------------

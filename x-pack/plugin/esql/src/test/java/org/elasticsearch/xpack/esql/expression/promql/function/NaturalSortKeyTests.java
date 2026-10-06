@@ -22,7 +22,9 @@ import java.util.regex.Pattern;
 /**
  * Encoding tests for {@link NaturalSortKey}. Byte order of encoded keys is checked against a
  * port of {@code facette/natsort.Compare}, skipping the pairs where that comparator is not a
- * total order (numerically equal but textually different digit runs, and the empty string).
+ * total order (numerically equal but textually different digit runs, and the empty string), and
+ * the pairs with a digit run overflowing {@code long}, which natsort compares as text but the key
+ * deliberately keeps comparing numerically.
  */
 public class NaturalSortKeyTests extends ESTestCase {
 
@@ -60,6 +62,19 @@ public class NaturalSortKeyTests extends ESTestCase {
         assertEquals(key(""), new BytesRef(""));
     }
 
+    /**
+     * natsort compares whole chunks, so a text chunk that is a prefix of the other's text chunk sorts first even when
+     * the longer one continues with a byte below {@code '0'}.
+     */
+    public void testTextChunkPrefixBeforeLongerTextChunk() {
+        assertNatsortOrder("node1", "node-exporter");
+        assertNatsortOrder("host1", "host.example");
+        assertNatsortOrder("eu-west1", "eu-west-2");
+        assertNatsortOrder("a1", "a!");
+        assertNatsortOrder("a1", "a ");
+        assertNatsortOrder("a1b2", "a1b-");
+    }
+
     public void testLeadingZerosShorterNumberStillFirst() {
         assertTrue(compareKeys("09", "10") < 0);
         assertTrue(compareKeys("001", "2") < 0);
@@ -95,7 +110,11 @@ public class NaturalSortKeyTests extends ESTestCase {
                 fail("could not collect " + needed + " non-degenerate pairs after " + attempts + " attempts");
             }
             String a = randomLabel();
-            String b = randomLabel();
+            // Independent labels rarely share a prefix, so also derive one from the other to exercise chunk boundaries.
+            String b = randomBoolean() ? randomLabel() : a.substring(0, randomIntBetween(0, a.length())) + randomLabel();
+            if (hasOverflowingDigitRun(a) || hasOverflowingDigitRun(b)) {
+                continue;
+            }
             boolean natsortAB = natsortCompare(a, b);
             boolean natsortBA = natsortCompare(b, a);
             if (natsortAB == natsortBA) {
@@ -109,6 +128,11 @@ public class NaturalSortKeyTests extends ESTestCase {
             }
             compared++;
         }
+    }
+
+    private static void assertNatsortOrder(String first, String second) {
+        assertTrue("natsort should order [" + first + "] before [" + second + "]", natsortCompare(first, second));
+        assertTrue("key(" + first + ") should precede key(" + second + ")", compareKeys(first, second) < 0);
     }
 
     private static int compareKeys(String a, String b) {
@@ -173,6 +197,16 @@ public class NaturalSortKeyTests extends ESTestCase {
             chunks.add(matcher.group());
         }
         return chunks;
+    }
+
+    private static boolean hasOverflowingDigitRun(String s) {
+        for (String chunk : chunkify(s)) {
+            char first = chunk.charAt(0);
+            if (first >= '0' && first <= '9' && parseLongOrNull(chunk) == null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static Long parseLongOrNull(String chunk) {

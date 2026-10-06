@@ -36,7 +36,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  * <p>
  * Digit runs are rewritten with a length prefix in {@code ['0','9']} so that a shorter number
  * precedes a longer one ({@code pod2} before {@code pod10}) with no upper bound on run length.
- * Non-digit runs are copied verbatim. A value with no digit byte is returned unchanged.
+ * Non-digit runs are copied verbatim, and one that is followed by a digit run is terminated by a
+ * {@code 0x00} byte: natsort compares whole chunks, so a text chunk that is a prefix of another
+ * ({@code node} in {@code node1}) precedes it ({@code node-exporter}) even when the longer chunk
+ * continues with a byte below {@code '0'}. Values containing {@code 0x00} themselves may diverge.
+ * A value with no digit byte is returned unchanged.
  * Numerically equal digit runs that differ only in leading zeros ({@code 007} vs {@code 7})
  * encode to the same key; empty input encodes to empty.
  */
@@ -109,8 +113,9 @@ public final class NaturalSortKey extends UnaryScalarFunction implements Version
      * Encodes {@code v} so that unsigned byte comparison of the result matches natsort order.
      * Digit runs keep at least one digit after stripping leading zeros; the length prefix is
      * {@code (L-1)/9} copies of {@code '9'} followed by {@code '0' + ((L-1) % 9)}, then the
-     * stripped digits. The returned {@link BytesRef} is either {@code v} (no digits) or a view
-     * of {@code scratch} valid only until the next encode into the same builder.
+     * stripped digits. A text run followed by a digit run ends with {@code 0x00}. The returned
+     * {@link BytesRef} is either {@code v} (no digits) or a view of {@code scratch} valid only
+     * until the next encode into the same builder.
      */
     static BytesRef encode(BytesRef v, BreakingBytesRefBuilder scratch) {
         byte[] bytes = v.bytes;
@@ -154,6 +159,9 @@ public final class NaturalSortKey extends UnaryScalarFunction implements Version
                     i++;
                 }
                 scratch.append(bytes, textStart, i - textStart);
+                if (i < end) {
+                    scratch.append((byte) 0);
+                }
             }
         }
         return scratch.bytesRefView();

@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -219,6 +220,36 @@ public class PromqlPlanSortByLabelTests extends AbstractPromqlPlanOptimizerTests
             .toList();
         assertEquals("expected a TopN above TimeSeriesCollapse", 1, topNsAboveCollapse.size());
         assertEquals(List.of("value", PromqlCommand.STEP, MetadataAttribute.TIMESERIES), outputColumns(optimized));
+    }
+
+    /**
+     * A label that a {@code without} below removed is absent from every result series, so like any absent label it
+     * compares as the empty string everywhere and must not break planning.
+     */
+    public void testInstantQuerySortLabelRemovedByWithout() {
+        String instant = "PROMQL index=k8s time=\"2024-05-10T00:03:00.000Z\" ";
+        String query = instant + "result=(sort_by_label(sum without (pod) (network.bytes_in), \"pod\"))";
+        assertThat(nullFilledColumns(planPromql(query, false)), hasItem("pod"));
+        LogicalPlan without = planPromql(instant + "result=(sum without (pod) (network.bytes_in))");
+        assertEquals(outputColumns(without), outputColumns(planPromql(query)));
+    }
+
+    public void testInstantQuerySortLabelKeptByWithoutIsNotNullFilled() {
+        String query = "PROMQL index=k8s time=\"2024-05-10T00:03:00.000Z\" "
+            + "result=(sort_by_label(sum without (pod) (network.bytes_in), \"cluster\"))";
+        assertThat(nullFilledColumns(planPromql(query, false)), not(hasItem("cluster")));
+    }
+
+    private static List<String> nullFilledColumns(LogicalPlan plan) {
+        List<String> names = new ArrayList<>();
+        for (Eval eval : plan.collect(Eval.class)) {
+            for (Alias field : eval.fields()) {
+                if (field.child() instanceof Literal literal && literal.value() == null) {
+                    names.add(field.name());
+                }
+            }
+        }
+        return names;
     }
 
     private static List<String> outputColumns(LogicalPlan plan) {

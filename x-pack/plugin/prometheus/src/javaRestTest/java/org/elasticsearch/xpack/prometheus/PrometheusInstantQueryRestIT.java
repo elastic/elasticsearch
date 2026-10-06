@@ -232,7 +232,7 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
 
     private static void assertMetricObjectUnchanged(List<PromqlResponseSeries> series) {
         for (PromqlResponseSeries s : series) {
-            assertEquals("duplicate labels in metric object: " + s.labels(), s.labels().size(), LABELLED_SERIES_LABELS.size());
+            assertEquals("duplicate labels in metric object: " + s.labels(), LABELLED_SERIES_LABELS.size(), s.labels().size());
             assertTrue(s.labels().keySet().containsAll(LABELLED_SERIES_LABELS));
         }
     }

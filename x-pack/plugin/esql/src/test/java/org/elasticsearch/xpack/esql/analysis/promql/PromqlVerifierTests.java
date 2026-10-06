@@ -507,6 +507,13 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
+    public void testSortByLabelRejectsEmptyLabelName() {
+        tsdb.error(
+            "PROMQL index=test step=5m sort_by_label(network.bytes_in, \"\")",
+            containsString("invalid label name [] in call to function [sort_by_label]")
+        );
+    }
+
     public void testInstantVectorExpectedWithGrouping() {
         tsdb.error(
             "PROMQL index=test step=5m avg by (pod) (network.bytes_in[5m])",

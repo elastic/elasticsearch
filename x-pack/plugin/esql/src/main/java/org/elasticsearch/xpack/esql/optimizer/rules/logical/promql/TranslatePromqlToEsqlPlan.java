@@ -739,10 +739,24 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
          * Identity translation for {@code sort_by_label}/{@code sort_by_label_desc}: histograms are kept, and usable
          * sort labels are pushed into the child's required header next to the packed {@code _timeseries} identity so
          * they materialize as extra columns without unpacking the blob. Ordering is injected later.
+         * <p>
+         * An aggregation below can still drop a requested label (e.g. {@code without (pod)} with {@code "pod"}); it is
+         * then absent from every series and is null-filled, so it compares as the empty string, like Prometheus.
          */
         private IntermediateResult doTranslateSortByLabel(SortByLabelFunction sort) {
-            Header childRequired = required.union(open()).union(finite(mapFinite(sort.usableSortLabels())));
-            return new Translation(cmd, analyzer, stepBucketAlias, childRequired, time).doTranslateNode(sort.child());
+            List<String> sortLabels = mapFinite(sort.usableSortLabels());
+            Header childRequired = required.union(open()).union(finite(sortLabels));
+            IntermediateResult child = new Translation(cmd, analyzer, stepBucketAlias, childRequired, time).doTranslateNode(sort.child());
+            var nulls = new ArrayList<Alias>();
+            for (String label : sortLabels) {
+                if (child.label(label) == null) {
+                    nulls.add(emitNullExpression(mapToRef(label)));
+                }
+            }
+            if (nulls.isEmpty()) {
+                return child;
+            }
+            return child.with(new Eval(cmd.source(), child.plan(), nulls), child.header(), child.value());
         }
 
         /** Translates a generic PromQL function call (rate, ceil, abs, etc.) into an expression over the child's value. */

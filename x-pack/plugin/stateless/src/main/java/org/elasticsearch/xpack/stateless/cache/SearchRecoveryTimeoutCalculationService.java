@@ -30,8 +30,7 @@ public class SearchRecoveryTimeoutCalculationService {
     public static final String OFFLINE_WARMING_TIMEOUT_REEVALUATION_PREFIX =
         SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_timeout_reevaluation";
     /// Enabling causes offline warming timeouts to be reevaluated to see whether we can afford to continue warming before relocating and
-    /// opening a shard. This means that warming for a shard will continue extending until we need to stop to give minimum time slices for
-    /// to-be-relocated shards to relocate. Enabling this setting should reduce blob store cache misses after shard relocations.
+    /// opening a shard. Enabling this setting should reduce blob store cache misses after shard relocations.
     public static final Setting<Boolean> OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING = Setting.boolSetting(
         OFFLINE_WARMING_TIMEOUT_REEVALUATION_PREFIX + ".enabled",
         false,
@@ -120,8 +119,8 @@ public class SearchRecoveryTimeoutCalculationService {
         );
     }
 
-    /// Upper bound on the total time a wait that started with a plan of the given `timeoutContext` may last, summed over the initial
-    /// timeout and all re-evaluation extensions. Zero means no bound: the wait is either never extended, or, for a shutting-down relocation
+    /// Upper bound on the total time a wait may last, summed over the initial timeout and all re-evaluation extensions, when its latest plan
+    /// was computed for the given `timeoutContext`. Zero means no bound: the wait is either never extended, or, for a shutting-down relocation
     /// source, already bounded by the grace deadline that every slice is computed against.
     TimeValue totalBudget(TimeoutContext timeoutContext) {
         return switch (timeoutContext) {
@@ -148,7 +147,7 @@ public class SearchRecoveryTimeoutCalculationService {
     }
 
     /// @param previous the plan whose slice just expired when re-evaluating, `null` for the first calculation. A re-evaluation of an
-    /// equal-share plan only extends the wait by the time saved since `previous`, see [#computeRelocationSourceShutdownWarmingTimeout].
+    /// equal-share plan only extends the wait by the time saved since `previous`.
     public SearchRecoveryTimeout searchRecoveryTimeout(
         ClusterState state,
         IndexShard indexShard,
@@ -232,8 +231,9 @@ public class SearchRecoveryTimeoutCalculationService {
     /// with `deadline = start + min(metadata grace, cap)`.
     ///
     /// The heuristics above decide the first plan of the shutdown phase. Only equal-share plans are
-    /// [extendable][SearchRecoveryTimeout#extendable]. A re-evaluation of an equal-share plan (`previous`) always yields an equal-share plan
-    /// that only extends the wait by the time saved since then, regardless of which heuristic would win, see [#searchRecoveryTimeout(ClusterState, IndexShard, long, SearchRecoveryTimeout)].
+    /// [extendable][SearchRecoveryTimeout#extendable]. A re-evaluation of an equal-share plan (`previous`) always yields an equal-share
+    /// plan that only extends the wait by the time saved since then, regardless of which heuristic would win, see
+    /// [#searchRecoveryTimeout(ClusterState, IndexShard, long, SearchRecoveryTimeout)].
     /// A data-volume plan is accepted as an extension only as the first plan after the source started shutting down, and is never
     /// extended itself, see [SearchRecoveryTimeout#shouldExtendAfter].
     private SearchRecoveryTimeout computeRelocationSourceShutdownWarmingTimeout(

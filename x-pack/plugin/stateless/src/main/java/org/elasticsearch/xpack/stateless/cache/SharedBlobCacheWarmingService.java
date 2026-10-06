@@ -1176,8 +1176,6 @@ public class SharedBlobCacheWarmingService {
             if (race.isDone()) {
                 return;
             }
-            // Whether to extend is decided by the plan whose slice just expired; the total budget of the whole wait is applied on top of it
-            // in cappedToTotalBudget.
             if (searchRecoveryTimeoutCalculationService.reevaluationEnabled() && latestPlan.extendable()) {
                 try {
                     // Approximate: bytesWarmedSoFar also counts bytes that are not part of bytesToWarm (e.g. header/footer reads), and

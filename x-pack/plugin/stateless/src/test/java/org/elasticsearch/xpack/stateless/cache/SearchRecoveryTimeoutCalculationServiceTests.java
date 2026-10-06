@@ -137,26 +137,22 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
 
     /// Builds a cluster state with `numShards` SEARCH\_ONLY replicas on `sourceNodeId`,
     /// with the first `numShardsToTarget` relocating to `targetNodeId` and the remainder
-    /// relocating to `"other-node"`, plus `numStartedShards` additional SEARCH\_ONLY shards
-    /// that are STARTED on `sourceNodeId` (not yet relocating). The source is marked for REMOVE shutdown starting at
-    /// `startedAtMillis`; the effective grace period is controlled via
-    /// [SharedBlobCacheWarmingService#SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING].
+    /// relocating to `"other-node"`. The source is marked for REMOVE shutdown starting at `startedAtMillis`; the effective grace period
+    /// is controlled via [SharedBlobCacheWarmingService#SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING].
     private static ClusterState clusterStateSearchShardsRelocatingFromShuttingDownSource(
         int numShards,
         int numShardsToTarget,
         Index index,
         String sourceNodeId,
         String targetNodeId,
-        long startedAtMillis,
-        int numStartedShards
+        long startedAtMillis
     ) {
         assert numShardsToTarget <= numShards;
         final String primaryNodeId = "primary-node";
         final String masterNodeId = "master-node";
         final String otherNodeId = "other-node";
-        final int totalShards = numShards + numStartedShards;
         final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
-            .settings(indexSettings(IndexVersion.current(), index.getUUID(), totalShards, 1))
+            .settings(indexSettings(IndexVersion.current(), index.getUUID(), numShards, 1))
             .build();
         final IndexRoutingTable.Builder routingBuilder = IndexRoutingTable.builder(index);
         for (int s = 0; s < numShards; s++) {
@@ -170,16 +166,6 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 .withRole(ShardRouting.Role.SEARCH_ONLY)
                 .build();
             routingBuilder.addIndexShard(new IndexShardRoutingTable.Builder(sid).addShard(primary).addShard(relocating));
-        }
-        for (int s = numShards; s < totalShards; s++) {
-            final ShardId sid = new ShardId(index, s);
-            final ShardRouting primary = TestShardRouting.shardRoutingBuilder(sid, primaryNodeId, true, STARTED)
-                .withRole(ShardRouting.Role.INDEX_ONLY)
-                .build();
-            final ShardRouting started = TestShardRouting.shardRoutingBuilder(sid, sourceNodeId, false, STARTED)
-                .withRole(ShardRouting.Role.SEARCH_ONLY)
-                .build();
-            routingBuilder.addIndexShard(new IndexShardRoutingTable.Builder(sid).addShard(primary).addShard(started));
         }
         final SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
             .setNodeId(sourceNodeId)
@@ -208,25 +194,6 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             )
             .routingTable(GlobalRoutingTable.builder().put(DEFAULT_PROJECT_ID, RoutingTable.builder().add(routingBuilder).build()).build())
             .build();
-    }
-
-    private static ClusterState clusterStateSearchShardsRelocatingFromShuttingDownSource(
-        int numShards,
-        int numShardsToTarget,
-        Index index,
-        String sourceNodeId,
-        String targetNodeId,
-        long startedAtMillis
-    ) {
-        return clusterStateSearchShardsRelocatingFromShuttingDownSource(
-            numShards,
-            numShardsToTarget,
-            index,
-            sourceNodeId,
-            targetNodeId,
-            startedAtMillis,
-            0
-        );
     }
 
     /// [SearchRecoveryTimeoutCalculationService#searchRecoveryTimeout] applies to non-promotable search replicas only.
@@ -593,7 +560,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             assertThat(planUncapped.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME));
             assertThat("data volume based plans are never extended", planUncapped.extendable(), is(false));
 
-            // A re-evaluation that lands on the data-volume heuristic must not extend the wait
+            // A data-volume plan is never accepted as an extension of a plan that was already computed for a shutting-down source
             final var reevaluatedPlan = service.searchRecoveryTimeout(
                 stateUncapped,
                 mockIndexShard(selfUncapped),
@@ -880,7 +847,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             final String sourceNodeId = "source-node";
             final String targetNodeId = "target-node";
 
-            // 4 shards on the source, 1 of them relocating to targetNodeId, none pending → shardsOnSource=4, ongoingRelocations=1
+            // 4 shards on the source, 1 of them relocating to targetNodeId → shardsOnSource=4, ongoingRelocations=1
             final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
                 4,
                 1,

@@ -610,7 +610,6 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
     public void testSearchRecoveryWarmingTimeoutReevaluationWhenSourceStartsShuttingDown() throws Exception {
         final var relocationTimeoutSlice = TimeValue.timeValueMillis(200);
-        // Caps the grace period taken from the shutdown metadata once it appears.
         final var gracePeriodCap = TimeValue.timeValueSeconds(4);
         // Bounds the accumulated timeout while the relocation source is not shutting down. Deliberately larger than the grace period cap
         // so that the shutdown deadline, not this budget, decides when the warming finally times out.
@@ -698,7 +697,6 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 )
             );
 
-            // Relocate all shards to the target node
             updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", sourceSearchNode), indexName);
 
             // Let the first slice expire and be re-evaluated at least once before anything changes in the cluster state. Counting
@@ -763,7 +761,6 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     "shutdown for cache warming test",
                     null,
                     null,
-                    // deliberately longer than the grace period cap, so that the cap is what bounds the warming deadline
                     TimeValue.timeValueMinutes(5)
                 )
             )

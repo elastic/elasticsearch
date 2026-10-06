@@ -30,6 +30,7 @@ final class GenericFileList implements FileList {
     private final FileSetFingerprint fileSetFingerprint;
     private final List<String> listingWarnings;
     private final boolean truncated;
+    private final long estimatedBytes;
 
     GenericFileList(List<StorageEntry> files, String originalPattern) {
         this(files, originalPattern, null);
@@ -88,6 +89,7 @@ final class GenericFileList implements FileList {
         this.fileSetFingerprint = truncated == false && files.size() >= 2 ? FileSetFingerprints.compute(files) : null;
         this.truncated = truncated;
         this.listingWarnings = listingWarnings == null || listingWarnings.isEmpty() ? List.of() : List.copyOf(listingWarnings);
+        this.estimatedBytes = computeEstimatedBytes();
     }
 
     List<StorageEntry> files() {
@@ -129,8 +131,18 @@ final class GenericFileList implements FileList {
         return files.get(i).lastModified().toEpochMilli();
     }
 
+    /**
+     * Computed once at construction, for the reason the sibling implementations give: the shared {@code Cache}
+     * runs its weigher twice on every hit that is not already at the LRU head. The per-entry term is O(1), but
+     * {@link FileList#listingWarningBytes()} walks the warnings, so this was not a constant either. A listing is
+     * immutable, so one computation is exact.
+     */
     @Override
     public long estimatedBytes() {
+        return estimatedBytes;
+    }
+
+    private long computeEstimatedBytes() {
         // 64B object header + ~700B per StorageEntry (path String + Instant + long)
         return 64 + files.size() * FileList.LISTING_BYTES_PER_ENTRY + listingWarningBytes();
     }

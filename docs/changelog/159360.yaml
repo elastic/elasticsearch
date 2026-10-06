@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 150104
+pr: 159360
+summary: Fix grouping pruning crashing on long alias chains and dropping aliases still in use
+type: bug

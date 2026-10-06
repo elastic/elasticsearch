@@ -14,10 +14,12 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -28,6 +30,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -40,6 +43,14 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isIntegral;
 public final class PruneRedundantAggregateGroupings extends OptimizerRules.OptimizerRule<Aggregate>
     implements
         OptimizerRules.LocalAware<Aggregate> {
+
+    /**
+     * How many nodes expanding one derived grouping may visit. The expansion never recurses deeper than the nodes it has
+     * visited, and with constants folded each visit adds at most one node to the rebuilt expression, so this caps both the
+     * recursion and the depth and size of the expression rebuilt above the aggregate. Tying it to the parser keeps the rule
+     * from building an expression deeper than one a query could spell out, whatever the length of the alias chain behind it.
+     */
+    private static final int MAX_DERIVED_EXPANSION_NODES = ExpressionBuilder.MAX_EXPRESSION_DEPTH;
 
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {
@@ -89,7 +100,7 @@ public final class PruneRedundantAggregateGroupings extends OptimizerRules.Optim
         }
 
         LogicalPlan plan = aggregate.with(
-            pruneUnusedChildEvals(aggregate.child(), prunedGroupings, newGroupings, newAggregates),
+            pruneUnusedChildEvals(aggregate.child(), newGroupings, newAggregates),
             newGroupings,
             newAggregates
         );
@@ -159,7 +170,6 @@ public final class PruneRedundantAggregateGroupings extends OptimizerRules.Optim
 
     private static LogicalPlan pruneUnusedChildEvals(
         LogicalPlan child,
-        List<PrunedGrouping> prunedGroupings,
         List<Expression> newGroupings,
         List<NamedExpression> newAggregates
     ) {
@@ -167,26 +177,23 @@ public final class PruneRedundantAggregateGroupings extends OptimizerRules.Optim
             return child;
         }
 
-        AttributeSet requiredByAggregate = Aggregate.computeReferences(newAggregates, newGroupings);
-        AttributeSet.Builder removableAttributes = AttributeSet.builder();
-        for (PrunedGrouping prunedGrouping : prunedGroupings) {
-            Attribute attribute = Expressions.attribute(prunedGrouping.grouping());
-            if (attribute != null && requiredByAggregate.contains(attribute) == false) {
-                removableAttributes.add(attribute);
+        // Only the aggregate reads this Eval, so a field is needed only if the aggregate or a needed field after it reads it,
+        // such as a kept grouping `b = a * 2` reading a pruned `a`. A field reads only fields before it, so walking backwards
+        // settles each field after all of its readers.
+        AttributeSet.Builder required = Aggregate.computeReferences(newAggregates, newGroupings).asBuilder();
+        List<Alias> fields = eval.fields();
+        List<Alias> remainingFields = new ArrayList<>(fields.size());
+        for (int i = fields.size() - 1; i >= 0; i--) {
+            Alias field = fields.get(i);
+            if (required.contains(field.toAttribute())) {
+                required.addAll(field.child().references());
+                remainingFields.add(field);
             }
         }
-
-        if (removableAttributes.isEmpty()) {
+        if (remainingFields.size() == fields.size()) {
             return child;
         }
-
-        List<Alias> remainingFields = eval.fields()
-            .stream()
-            .filter(alias -> removableAttributes.contains(alias.toAttribute()) == false)
-            .toList();
-        if (remainingFields.size() == eval.fields().size()) {
-            return child;
-        }
+        Collections.reverse(remainingFields);
         return remainingFields.isEmpty() ? eval.child() : new Eval(eval.source(), eval.child(), remainingFields);
     }
 
@@ -215,66 +222,92 @@ public final class PruneRedundantAggregateGroupings extends OptimizerRules.Optim
             return definition;
         }
 
-        Expression expanded = expandAliases(definition, evalAliases, retainedGroupingAttributes, new HashSet<>());
-        if (isSafeDerivedExpression(expanded, retainedGroupingAttributes, externalAttributes, groupingOutputAttributes)) {
-            // The expression references the retained grouping attributes as they exist below the aggregate; rebind them
-            // to the attributes the aggregate exposes so the rebuilt Eval above the aggregate stays consistent.
-            return expanded.transformUp(Attribute.class, attribute -> groupingOutputAttributes.resolve(attribute, attribute));
+        // Only external groupings can back a pruned derived grouping, so without any there is nothing worth expanding.
+        if (externalAttributes.isEmpty()) {
+            return null;
         }
-        return null;
+        return new DerivedExpansion(evalAliases, retainedGroupingAttributes, externalAttributes, groupingOutputAttributes).rebuild(
+            definition
+        );
     }
 
-    private static Expression expandAliases(
-        Expression expression,
-        AttributeMap<Expression> evalAliases,
-        AttributeSet retainedGroupingAttributes,
-        Set<Attribute> expanding
-    ) {
-        return expression.transformUp(Attribute.class, attribute -> {
-            if (retainedGroupingAttributes.contains(attribute)) {
-                return attribute;
+    /**
+     * Rebuilds a derived grouping from the retained groupings it is computed from, or gives up so the grouping is kept. It
+     * gives up as soon as the definition reads anything but retained, external, integral groupings, uses anything but
+     * addition, subtraction and negation over them, or needs more than {@link #MAX_DERIVED_EXPANSION_NODES} visits. Checking
+     * while building means an unprunable grouping costs at most that many visits, however long the alias chain behind it.
+     */
+    private static final class DerivedExpansion {
+        private final AttributeMap<Expression> evalAliases;
+        private final AttributeSet retainedGroupingAttributes;
+        private final AttributeSet externalAttributes;
+        private final AttributeMap<Attribute> groupingOutputAttributes;
+        private final Set<Attribute> expanding = new HashSet<>();
+        private int remainingVisits = MAX_DERIVED_EXPANSION_NODES;
+        private boolean readsRetainedGrouping;
+
+        DerivedExpansion(
+            AttributeMap<Expression> evalAliases,
+            AttributeSet retainedGroupingAttributes,
+            AttributeSet externalAttributes,
+            AttributeMap<Attribute> groupingOutputAttributes
+        ) {
+            this.evalAliases = evalAliases;
+            this.retainedGroupingAttributes = retainedGroupingAttributes;
+            this.externalAttributes = externalAttributes;
+            this.groupingOutputAttributes = groupingOutputAttributes;
+        }
+
+        /** The rebuilt grouping, or {@code null} to keep it. */
+        Expression rebuild(Expression definition) {
+            Expression expanded = expand(definition);
+            return expanded != null && readsRetainedGrouping ? expanded : null;
+        }
+
+        private Expression expand(Expression expression) {
+            if (remainingVisits == 0) {
+                return null;
             }
-            Expression replacement = evalAliases.get(attribute);
-            if (replacement == null || expanding.add(attribute) == false) {
-                return attribute;
+            remainingVisits--;
+            if (expression instanceof Attribute attribute) {
+                return expandAttribute(attribute);
+            }
+            if (expression instanceof Add || expression instanceof Sub || expression instanceof Neg) {
+                List<Expression> children = new ArrayList<>(expression.children().size());
+                for (Expression child : expression.children()) {
+                    Expression expandedChild = expand(child);
+                    if (expandedChild == null) {
+                        return null;
+                    }
+                    children.add(expandedChild);
+                }
+                return expression.replaceChildrenSameSize(children);
+            }
+            // Folded rather than kept whole, so that this visit adds a single node to the rebuilt expression.
+            return isScalarFoldable(expression) ? Literal.of(FoldContext.small(), expression) : null;
+        }
+
+        private Expression expandAttribute(Attribute attribute) {
+            if (retainedGroupingAttributes.contains(attribute)) {
+                if (externalAttributes.contains(attribute) == false
+                    || isIntegral(attribute.dataType()) == false
+                    || groupingOutputAttributes.containsKey(attribute) == false) {
+                    return null;
+                }
+                readsRetainedGrouping = true;
+                // The rebuilt Eval sits above the aggregate, so it reads the attribute the aggregate exposes, possibly a rename.
+                return groupingOutputAttributes.resolve(attribute, attribute);
+            }
+            Expression definition = evalAliases.get(attribute);
+            if (definition == null || expanding.add(attribute) == false) {
+                return null;
             }
             try {
-                return expandAliases(replacement, evalAliases, retainedGroupingAttributes, expanding);
+                return expand(definition);
             } finally {
                 expanding.remove(attribute);
             }
-        });
-    }
-
-    private static boolean isSafeDerivedExpression(
-        Expression expression,
-        AttributeSet retainedGroupingAttributes,
-        AttributeSet externalAttributes,
-        AttributeMap<Attribute> groupingOutputAttributes
-    ) {
-        AttributeSet references = expression.references();
-        // The containsKey check requires every referenced attribute to be exposed by the aggregate output, otherwise the
-        // rebuilt Eval above the aggregate would dangle on an attribute the aggregate no longer surfaces.
-        return references.isEmpty() == false
-            && references.subsetOf(retainedGroupingAttributes)
-            && references.subsetOf(externalAttributes)
-            && references.stream().allMatch(groupingOutputAttributes::containsKey)
-            && references.stream().allMatch(PruneRedundantAggregateGroupings::isSafeIntegralAttribute)
-            && expression.anyMatch(PruneRedundantAggregateGroupings::isUnsafeDerivedExpression) == false;
-    }
-
-    private static boolean isUnsafeDerivedExpression(Expression expression) {
-        if (expression instanceof Attribute) {
-            return false;
         }
-        if (isScalarFoldable(expression)) {
-            return false;
-        }
-        return expression instanceof Add == false && expression instanceof Sub == false && expression instanceof Neg == false;
-    }
-
-    private static boolean isSafeIntegralAttribute(Attribute attribute) {
-        return isIntegral(attribute.dataType());
     }
 
     private static boolean isScalarFoldable(Expression expression) {

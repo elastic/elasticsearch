@@ -2874,6 +2874,13 @@ public class EsqlCapabilities {
         FIX_PRUNE_RENAMED_DERIVED_EXTERNAL_GROUPING,
 
         /**
+         * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggregateGroupings} keeps a pruned derived
+         * external grouping's alias below the aggregate while a kept grouping or another field still reads it, fixing the
+         * {@code optimized incorrectly due to missing references} verification failure that old coordinators still hit.
+         */
+        FIX_PRUNE_DERIVED_EXTERNAL_GROUPING_READ_BY_KEPT_FIELD,
+
+        /**
          * A present-but-empty field on a string (KEYWORD/TEXT) column in an external CSV/TSV datasource reads as the empty
          * string {@code ""} instead of {@code null}. Genuinely missing fields (a row shorter than the schema) and empty
          * fields on non-string columns still read as {@code null}. Used to gate the affected external csv-spec tests so they

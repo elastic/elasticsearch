@@ -30,6 +30,8 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -154,8 +156,8 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
 
     /**
      * A {@code multi_value: false} field is stored by the codec like any other, but it records no {@code .offsets} sidecar and so is not
-     * array-ordered. It still writes a payload, so every reader of it has to decode one — this pins that against the same field with the
-     * codec off.
+     * array-ordered. It writes each document's value as its own bytes rather than a payload, so every reader of it has to take the blob
+     * as the value — this pins that against the same field with the codec off.
      */
     public void testSingleValuedFieldRendersAsItDoesWithoutTheCodec() throws IOException {
         assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
@@ -190,6 +192,102 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
             final Map<String, Object> codec = client().prepareGet(withCodec, Integer.toString(i)).get().getSourceAsMap();
             final Map<String, Object> plain = client().prepareGet(withoutCodec, Integer.toString(i)).get().getSourceAsMap();
             assertEquals(values.get(i), plain.get("kw"), codec.get("kw"));
+        }
+    }
+
+    /**
+     * An index sorted by a {@code multi_value: false} field, whose sort key is each document's value as its own bytes. The flushed
+     * segment is sorted by what the indexing buffer holds and the merged one by what the column holds, so both are checked: one batch,
+     * and several batches force-merged. Documents without the field sort to whichever end {@code missing} names.
+     */
+    public void testIndexSortedBySingleValuedField() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
+
+        final boolean descending = randomBoolean();
+        final boolean missingFirst = randomBoolean();
+        final String mapping = """
+            {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword","doc_values":{"multi_value":false}}}}""";
+        final List<String> values = new ArrayList<>();
+        final int numDocs = between(50, 200);
+        for (int i = 0; i < numDocs; i++) {
+            values.add(switch (i % 6) {
+                case 0 -> null;
+                case 1 -> "";
+                case 2 -> "term-" + (i % 5);
+                default -> "value-" + randomAlphaOfLength(between(1, 8));
+            });
+        }
+        final List<String> shuffled = new ArrayList<>(values);
+        Collections.shuffle(shuffled, random());
+
+        final List<String> expected = new ArrayList<>();
+        values.stream()
+            .filter(v -> v != null)
+            .sorted(descending ? Comparator.reverseOrder() : Comparator.naturalOrder())
+            .forEach(expected::add);
+        final long nulls = values.stream().filter(v -> v == null).count();
+        for (long n = 0; n < nulls; n++) {
+            if (missingFirst) {
+                expected.addFirst(null);
+            } else {
+                expected.add(null);
+            }
+        }
+
+        for (boolean codecEnabled : new boolean[] { true, false }) {
+            for (int batches : new int[] { 1, 3 }) {
+                final String index = INDEX + "-sorted-" + codecEnabled + "-" + batches;
+                final Settings settings = Settings.builder()
+                    .put(columnarSettings(IndexMode.COLUMNAR, codecEnabled))
+                    .put("index.sort.field", "kw")
+                    .put("index.sort.order", descending ? "desc" : "asc")
+                    .put("index.sort.missing", missingFirst ? "_first" : "_last")
+                    .build();
+                indicesAdmin().prepareCreate(index).setSettings(settings).setMapping(mapping).get();
+                final int perBatch = (shuffled.size() + batches - 1) / batches;
+                for (int from = 0; from < shuffled.size(); from += perBatch) {
+                    final BulkRequestBuilder bulk = client().prepareBulk();
+                    for (int i = from; i < Math.min(from + perBatch, shuffled.size()); i++) {
+                        final Map<String, Object> source = new LinkedHashMap<>();
+                        source.put("@timestamp", "2024-01-01T00:00:00Z");
+                        if (shuffled.get(i) != null) {
+                            source.put("kw", shuffled.get(i));
+                        }
+                        bulk.add(prepareIndex(index).setSource(source));
+                    }
+                    final var response = bulk.get();
+                    assertFalse(response.buildFailureMessage(), response.hasFailures());
+                    indicesAdmin().prepareRefresh(index).get();
+                }
+                if (batches > 1) {
+                    indicesAdmin().prepareForceMerge(index).setMaxNumSegments(1).get();
+                    indicesAdmin().prepareRefresh(index).get();
+                }
+                if (codecEnabled) {
+                    assertKeywordFieldUsesColumnarFormat(index);
+                } else {
+                    assertKeywordFieldAvoidsColumnarFormat(index);
+                }
+                assertEquals(
+                    "index order of [" + index + "] desc=" + descending + " missingFirst=" + missingFirst,
+                    expected,
+                    valuesInIndexOrder(index)
+                );
+            }
+        }
+    }
+
+    /** Each document's {@code kw} in the order the one segment of {@code index} holds them, {@code null} where it has none. */
+    private List<String> valuesInIndexOrder(String index) {
+        final var response = client().prepareSearch(index).addSort("_doc", org.elasticsearch.search.sort.SortOrder.ASC).setSize(1000).get();
+        try {
+            final List<String> ordered = new ArrayList<>();
+            for (var hit : response.getHits().getHits()) {
+                ordered.add((String) hit.getSourceAsMap().get("kw"));
+            }
+            return ordered;
+        } finally {
+            response.decRef();
         }
     }
 

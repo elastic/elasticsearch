@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceMetricsTaskExecutor;
+import org.elasticsearch.cluster.routing.allocation.RecoveryDirectCancellationService;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
@@ -91,10 +92,13 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.PostRecoveryMerger;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.RecoveryGate;
+import org.elasticsearch.indices.recovery.RecoveryGateMonitor;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.indices.recovery.StatelessUnpromotableRelocationAction;
+import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
@@ -151,6 +155,7 @@ import org.elasticsearch.xpack.stateless.cache.DefaultWarmingRatioProviderFactor
 import org.elasticsearch.xpack.stateless.cache.PinnedWindowEvictionPolicy;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
+import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCachePeriodicMetrics;
@@ -850,12 +855,19 @@ public class StatelessPlugin extends Plugin
             ? warmingRatioProviderFactoryRef.get()
             : new DefaultWarmingRatioProviderFactory();
         final WarmingRatioProvider warmingRatioProvider = warmingRatioProviderFactory.create(clusterService.getClusterSettings());
+        final var searchRecoveryTimeoutCalculationService = new SearchRecoveryTimeoutCalculationService(
+            cacheService,
+            threadPool,
+            clusterService.getClusterSettings()
+        );
+        components.add(searchRecoveryTimeoutCalculationService);
         var cacheWarmingService = createSharedBlobCacheWarmingService(
             cacheService,
             threadPool,
             services.telemetryProvider(),
             clusterService.getClusterSettings(),
-            warmingRatioProvider
+            warmingRatioProvider,
+            searchRecoveryTimeoutCalculationService
         );
         setAndGet(this.sharedBlobCacheWarmingService, cacheWarmingService);
 
@@ -1224,9 +1236,17 @@ public class StatelessPlugin extends Plugin
         ThreadPool threadPool,
         TelemetryProvider telemetryProvider,
         ClusterSettings clusterSettings,
-        WarmingRatioProvider warmingRatioProvider
+        WarmingRatioProvider warmingRatioProvider,
+        SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
     ) {
-        return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings, warmingRatioProvider);
+        return new SharedBlobCacheWarmingService(
+            cacheService,
+            threadPool,
+            telemetryProvider,
+            clusterSettings,
+            warmingRatioProvider,
+            searchRecoveryTimeoutCalculationService
+        );
     }
 
     protected ReshardIndexService createMetadataReshardIndexService(
@@ -1357,7 +1377,7 @@ public class StatelessPlugin extends Plugin
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        Releasables.close(estimatedHeapUsageRecoveryGate.get(), sharedBlobCacheService.get());
+        Releasables.close(sharedBlobCacheService.get());
         IOUtils.close(reshardSearchFilters.get());
         try {
             IOUtils.close(blobStoreHealthIndicator.get());
@@ -1416,6 +1436,7 @@ public class StatelessPlugin extends Plugin
             ObjectStoreGCTask.GC_INTERVAL_SETTING,
             TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING,
             TransportStatelessPrimaryRelocationAction.ID_LOOKUP_RECENCY_THRESHOLD_SETTING,
+            TransportStatelessPrimaryRelocationAction.ID_LOOKUP_PREWARM_MAX_SEGMENTS_SETTING,
             GetVirtualBatchedCompoundCommitChunksPressure.CHUNKS_BYTES_LIMIT,
             CacheBlobReaderService.TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING,
             FillCacheMemoryPressure.FILL_BYTES_LIMIT,
@@ -1530,7 +1551,16 @@ public class StatelessPlugin extends Plugin
             UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_REMOVAL_THRESHOLD,
             UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_COOLDOWN,
             PostRecoveryMerger.POST_RECOVERY_MERGER_DELAY,
-            StatelessPrimaryRelocationSourceService.PRE_FLUSH_SLOW_UPLOAD_QUEUE_THRESHOLD_SETTING
+            StatelessPrimaryRelocationSourceService.PRE_FLUSH_SLOW_UPLOAD_QUEUE_THRESHOLD_SETTING,
+            StatelessPrimaryRelocationSourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING,
+            PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
+            ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING,
+            ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING,
+            ThrottlingRecoveryService.INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING,
+            RecoveryDirectCancellationService.ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING,
+            RecoveryDirectCancellationService.ENABLE_DIRECT_CANCELLATIONS_FOR_SNAPSHOTS_SETTING,
+            RecoveryGateMonitor.ENABLE_RECOVERY_GATES_SETTING,
+            RecoveryGateMonitor.RECHECK_INTERVAL_SETTING
         );
     }
 

@@ -270,6 +270,32 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         }
     }
 
+    public void testBreakerBytesMoveToTheResultThatTakesTheHits() throws IOException {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 5, breaker);
+
+        final FetchSearchResult result;
+        final long charged;
+        try {
+            writeChunk(stream, createChunkWithSourceSize(0, 5, 0, 1024));
+            charged = breaker.getUsed();
+            assertThat(charged, greaterThan(0L));
+
+            result = buildFinalResult(stream);
+            stream.transferBreakerBytesTo(result);
+        } finally {
+            stream.decRef();
+        }
+
+        // Closing the stream gives nothing back, because the result owns the charge now.
+        assertThat(breaker.getUsed(), equalTo(charged));
+        assertThat(result.getSearchHitsSizeBytes(), equalTo(charged));
+        assertTrue(result.isChargedOnCoordinator());
+
+        result.decRef();
+        assertThat("Releasing the result gives the charge back exactly once", breaker.getUsed(), equalTo(0L));
+    }
+
     public void testBreakerChargesRetainedFieldGraphNotSerializedSize() throws IOException {
         CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
         FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 5, breaker);

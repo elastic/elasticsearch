@@ -176,6 +176,8 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -2505,6 +2507,48 @@ public class LoggingAuditTrailTests extends ESTestCase {
         checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         authentication(authentication, checkedFields);
         assertMsg(reducedLogLine, checkedFields);
+    }
+
+    public void testSecurityConfigChangeIsNotSuppressedAndCarriesContext() {
+        final String requestId = randomRequestId();
+        final String[] roles = new String[] { "superuser" };
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, roles);
+        final Authentication authentication = createAuthentication();
+        final AtomicInteger suppressCalls = new AtomicInteger();
+        final AtomicReference<AuditEventContext> seenContext = new AtomicReference<>();
+        // actor attribution is left at its default (off): the context is attached to the config-change entry regardless
+        final LoggingAuditTrail forcingTrail = new LoggingAuditTrail(
+            settings,
+            clusterService,
+            logger,
+            threadContext,
+            new AuditLogCustomizer() {
+                @Override
+                public boolean suppress(AuditEventContext ctx) {
+                    suppressCalls.incrementAndGet();
+                    return true;
+                }
+
+                @Override
+                public Message rewrite(AuditEventContext ctx, MapMessage<?, ?> entry) {
+                    seenContext.set(ctx);
+                    return entry;
+                }
+            }
+        );
+
+        final PutUserRequest putUserRequest = new PutUserRequest();
+        putUserRequest.username(randomAlphaOfLength(3));
+        putUserRequest.enabled(true);
+        putUserRequest.roles(new String[] { randomAlphaOfLength(4) });
+
+        forcingTrail.accessGranted(requestId, authentication, PutUserAction.NAME, putUserRequest, authorizationInfo);
+        // access_granted is suppressed; the config-change event is still written and is the only entry
+        assertThat(singleLogLine(logger), containsString("security_config_change"));
+        // suppress applies to access_granted only
+        assertThat(suppressCalls.get(), is(1));
+        assertArrayEquals(roles, seenContext.get().roles());
+        assertThat(seenContext.get().subject().principal(), equalTo(authentication.getEffectiveSubject().getUser().principal()));
     }
 
     public void testSystemAccessGranted() throws Exception {

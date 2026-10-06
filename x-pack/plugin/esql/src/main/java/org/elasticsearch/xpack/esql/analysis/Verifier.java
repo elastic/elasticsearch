@@ -156,7 +156,8 @@ public class Verifier {
         checkHighlightSupported(plan, failures, context.minimumVersion());
 
         // collect plan checkers
-        var planCheckers = planCheckers(plan, context.analysisRegistry());
+        Consumer<String> warnings = context.deferredHeaderWarnings()::add;
+        var planCheckers = planCheckers(plan, context.analysisRegistry(), warnings);
         planCheckers.addAll(extraCheckers);
 
         // Concrete verifications
@@ -169,7 +170,7 @@ public class Verifier {
             planCheckers.forEach(c -> c.accept(p, failures));
             p.forEachExpression(e -> {
                 if (e instanceof PostAnalysisVerificationAware va) {
-                    va.postAnalysisVerification(context.analysisRegistry(), failures);
+                    va.postAnalysisVerification(context.analysisRegistry(), warnings, failures);
                 }
             });
 
@@ -213,19 +214,28 @@ public class Verifier {
 
     /** Fails fast with a 4xx so older recipients never see the node and 5xx on deserialization. */
     private static void checkHighlightSupported(LogicalPlan plan, Failures failures, TransportVersion minimumVersion) {
-        if (minimumVersion.supports(Highlight.ESQL_HIGHLIGHT)) {
-            return;
-        }
-        plan.forEachDown(
-            Highlight.class,
-            highlight -> failures.add(
-                fail(
-                    highlight,
-                    "HIGHLIGHT is not supported on every participating node; "
-                        + "rolling upgrade in progress, or a remote cluster is on an older version"
-                )
-            )
-        );
+        plan.forEachDown(Highlight.class, highlight -> {
+            if (minimumVersion.supports(Highlight.ESQL_HIGHLIGHT) == false) {
+                failures.add(
+                    fail(
+                        highlight,
+                        "HIGHLIGHT is not supported on every participating node; "
+                            + "rolling upgrade in progress, or a remote cluster is on an older version"
+                    )
+                );
+                return;
+            }
+            if ((highlight.implicitQuery() || highlight.derivedFields())
+                && minimumVersion.supports(Highlight.ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS) == false) {
+                failures.add(
+                    fail(
+                        highlight,
+                        "HIGHLIGHT with a derived query or field list is not supported on every participating node; "
+                            + "rolling upgrade in progress, or a remote cluster is on an older version"
+                    )
+                );
+            }
+        });
     }
 
     private static void checkTStepIncompatibleWithTRange(LogicalPlan plan, Failures failures) {
@@ -335,7 +345,11 @@ public class Verifier {
     /**
      * Build a list of checkers based on the components in the plan.
      */
-    private static List<BiConsumer<LogicalPlan, Failures>> planCheckers(LogicalPlan plan, AnalysisRegistry analysisRegistry) {
+    private static List<BiConsumer<LogicalPlan, Failures>> planCheckers(
+        LogicalPlan plan,
+        AnalysisRegistry analysisRegistry,
+        Consumer<String> warnings
+    ) {
         List<BiConsumer<LogicalPlan, Failures>> planCheckers = new ArrayList<>();
         Consumer<? super Node<?>> collectPlanCheckers = p -> {
             if (p instanceof PostAnalysisPlanVerificationAware pva) {
@@ -349,7 +363,7 @@ public class Verifier {
             if (p instanceof PostAnalysisVerificationAware va) {
                 planCheckers.add((lp, failures) -> {
                     if (lp.getClass().equals(va.getClass())) {
-                        va.postAnalysisVerification(analysisRegistry, failures);
+                        va.postAnalysisVerification(analysisRegistry, warnings, failures);
                     }
                 });
             }
@@ -612,7 +626,8 @@ public class Verifier {
             || plan instanceof Enrich
             || plan instanceof Fork
             || (plan instanceof UnionAll && plan instanceof ViewUnionAll == false)
-            || (plan instanceof Subquery && plan instanceof NamedSubquery == false);
+            || (plan instanceof Subquery && plan instanceof NamedSubquery == false)
+            || plan instanceof AbstractSubqueryJoin;
     }
 
     /**

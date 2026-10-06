@@ -87,7 +87,6 @@ class Elasticsearch {
 
     private static final String POLICY_PATCH_PREFIX = "es.entitlements.policy.";
     private static final String SERVER_POLICY_PATCH_NAME = POLICY_PATCH_PREFIX + "server";
-    private static final String APM_AGENT_PACKAGE_NAME = "co.elastic.apm.agent";
 
     /**
      * Main entry point for starting elasticsearch.
@@ -271,7 +270,7 @@ class Elasticsearch {
 
         pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, findPluginsWithNativeAccess(pluginPolicies));
 
-        var scopeResolver = ScopeResolver.create(pluginsLoader.pluginLayers(), APM_AGENT_PACKAGE_NAME);
+        var scopeResolver = ScopeResolver.create(pluginsLoader.pluginLayers());
         Map<String, Collection<Path>> pluginSourcePaths = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())
             .collect(Collectors.toUnmodifiableMap(bundle -> bundle.pluginDescriptor().getName(), bundle -> List.of(bundle.getDir())));
         EntitlementBootstrap.bootstrap(

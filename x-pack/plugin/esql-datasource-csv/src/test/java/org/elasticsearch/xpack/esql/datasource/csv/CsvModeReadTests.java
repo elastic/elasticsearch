@@ -17,8 +17,10 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.Before;
@@ -746,6 +748,11 @@ public class CsvModeReadTests extends ESTestCase {
         @Override
         public StoragePath path() {
             return StoragePath.of("mem://csv-mode-read-tests");
+        }
+
+        @Override
+        public StorageIdentity storageIdentity() {
+            return AbstractTestStorageObject.NOOP;
         }
     }
 }

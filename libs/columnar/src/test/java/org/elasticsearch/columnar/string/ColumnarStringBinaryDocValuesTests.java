@@ -57,6 +57,25 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
         });
     }
 
+    /** A run of documents holding a value is reported to its end, so a consumer can take it whole. */
+    public void testRunOfDocuments() throws IOException {
+        final BytesRef[] dense = dense(between(50, 500));
+        withSurface(dense, dv -> {
+            assertEquals(0, dv.nextDoc());
+            assertEquals("every document holds a value", dense.length, dv.docIDRunEnd());
+        });
+        final BytesRef[] sparse = sparse(between(200, 800));
+        withSurface(sparse, dv -> {
+            for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
+                final int runEnd = dv.docIDRunEnd();
+                assertTrue("a run holds the document it is asked at", runEnd > doc);
+                for (int d = doc; d < runEnd; d++) {
+                    assertNotNull("document " + d + " is inside a run", sparse[d]);
+                }
+            }
+        });
+    }
+
     /** Re-asking for the current document must not move the cursor or change the value. */
     public void testAdvanceExactIsRepeatable() throws IOException {
         final BytesRef[] docValues = dense(between(20, 100));
@@ -212,11 +231,91 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
     public void testBinaryValueRebuildsThePayload() throws IOException {
         final BytesRef[][] docSlots = randomDocSlots(between(20, 300), 6, true, true);
         withColumn(docSlots, (metadata, reader) -> {
-            final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator());
+            final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator(), false);
             for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
                 assertEquals("doc " + doc, encode(docSlots[doc]), dv.binaryValue());
             }
         });
+    }
+
+    /**
+     * A single-valued surface hands back each document's value as its own bytes, with no payload around it, whether it
+     * got there by scanning or by seeking. Over a plain column and over a dictionary one that let a value escape, since
+     * those resolve a value differently; the empty string is among the values, and must not read as absent.
+     */
+    public void testSingleValuedBinaryValueIsTheBareValue() throws IOException {
+        final String[] terms = { "alpha", "bravo", "" };
+        final BytesRef[] docValues = new BytesRef[between(400, 1200)];
+        for (int d = 0; d < docValues.length; d++) {
+            if (random().nextInt(5) == 0) {
+                continue;
+            }
+            docValues[d] = d % 9 == 4 ? new BytesRef("escaped-" + d) : new BytesRef(terms[d % terms.length]);
+        }
+        for (boolean dictionary : new boolean[] { false, true }) {
+            final DictionaryPolicy policy = dictionary ? ROOMY : DictionaryPolicy.NONE;
+            withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
+                assertEquals("dictionary", dictionary, reader.hasDictionary());
+                final ColumnarStringBinaryDocValues scan = new ColumnarStringBinaryDocValues(reader, reader.iterator(), true);
+                int seen = 0;
+                for (int doc = scan.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = scan.nextDoc()) {
+                    assertEquals("doc " + doc, docValues[doc], scan.binaryValue());
+                    seen++;
+                }
+                assertEquals("documents with a value", present(docValues), seen);
+
+                final ColumnarStringBinaryDocValues seek = new ColumnarStringBinaryDocValues(reader, reader.iterator(), true);
+                for (int doc = 0; doc < docValues.length; doc += between(1, 7)) {
+                    final boolean found = seek.advanceExact(doc);
+                    assertEquals("presence at doc " + doc, docValues[doc] != null, found);
+                    if (found) {
+                        assertEquals("doc " + doc, docValues[doc], seek.binaryValue());
+                    }
+                }
+            });
+        }
+    }
+
+    /**
+     * The ingest cursor over a foreign single-valued field: every document it lands on holds exactly one slot, which is
+     * the blob itself, and it hands every position to the field it wraps.
+     */
+    public void testDecodeRawValuesTakesEachBlobAsTheValue() throws IOException {
+        final BytesRef[] docValues = sparse(between(20, 300));
+        docValues[between(0, docValues.length - 1)] = new BytesRef("");
+        final StringColumnValues cursor = ColumnarStringBinaryDocValues.decodeRawValues(rawOver(docValues));
+        assertEquals("cost", present(docValues), cursor.cost());
+        int seen = 0;
+        for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+            assertEquals("docID follows the field", doc, cursor.docID());
+            assertEquals("slot count at doc " + doc, 1, cursor.valueCount());
+            assertEquals("null count at doc " + doc, 0, cursor.nullCount());
+            cursor.nextValue();
+            assertEquals("doc " + doc, docValues[doc], slotOf(cursor));
+            seen++;
+        }
+        assertEquals("documents with a value", present(docValues), seen);
+    }
+
+    /** The same cursor driven by {@code advance}, which ingest and merge never use. */
+    public void testDecodeRawValuesAdvances() throws IOException {
+        final BytesRef[] docValues = sparse(between(50, 400));
+        final StringColumnValues cursor = ColumnarStringBinaryDocValues.decodeRawValues(rawOver(docValues));
+        int target = 0;
+        while (target < docValues.length) {
+            final int expected = nextPresent(docValues, target);
+            final int landed = cursor.advance(target);
+            if (expected == DocIdSetIterator.NO_MORE_DOCS) {
+                assertEquals("past the last value", DocIdSetIterator.NO_MORE_DOCS, landed);
+                break;
+            }
+            assertEquals("advance(" + target + ")", expected, landed);
+            assertEquals("slot count", 1, cursor.valueCount());
+            cursor.nextValue();
+            assertEquals("value at doc " + landed, docValues[landed], slotOf(cursor));
+            target = landed + between(1, 5);
+        }
+        assertEquals("past the end", DocIdSetIterator.NO_MORE_DOCS, cursor.advance(docValues.length));
     }
 
     /** A null slot survives the column and comes back distinguishable from the empty string beside it. */
@@ -231,7 +330,7 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
         withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), 64, (metadata, reader) -> {
             assertEquals("null slots recorded", numNullSlots(docSlots), metadata.numNullSlots());
             assertEquals("null slots counted by hand", 5L, numNullSlots(docSlots));
-            final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator());
+            final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator(), false);
             for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
                 assertEquals("doc " + doc, encode(docSlots[doc]), dv.binaryValue());
             }
@@ -259,7 +358,7 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
             // answering from the ordinals alone gives up on a column that let anything escape, so a null
             // costing an escape would cost that column the ordinals entirely.
             assertEquals("a null does not escape", 0L, reader.escapeCount());
-            final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator());
+            final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator(), false);
             for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
                 assertEquals("doc " + doc, encode(docSlots[doc]), dv.binaryValue());
             }
@@ -306,7 +405,7 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
                 dictionary.ordinalAt(first + 1)
             );
 
-            final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator());
+            final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator(), false);
             for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
                 assertEquals("doc " + doc, encode(docSlots[doc]), dv.binaryValue());
             }
@@ -431,6 +530,49 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
     }
 
     /**
+     * An in-memory binary field carrying each document's value as its own bytes, as a {@code multi_value: false}
+     * columnar keyword field writes it; a null is a document without the field.
+     */
+    private static BinaryDocValues rawOver(BytesRef[] docValues) {
+        final BytesRef[][] docSlots = new BytesRef[docValues.length][];
+        for (int d = 0; d < docValues.length; d++) {
+            docSlots[d] = docValues[d] == null ? null : new BytesRef[] { docValues[d] };
+        }
+        final BinaryDocValues payloads = payloadsOver(docSlots);
+        return new BinaryDocValues() {
+            @Override
+            public BytesRef binaryValue() {
+                return BytesRef.deepCopyOf(docValues[payloads.docID()]);
+            }
+
+            @Override
+            public boolean advanceExact(int target) throws IOException {
+                return payloads.advanceExact(target);
+            }
+
+            @Override
+            public int docID() {
+                return payloads.docID();
+            }
+
+            @Override
+            public int nextDoc() throws IOException {
+                return payloads.nextDoc();
+            }
+
+            @Override
+            public int advance(int target) throws IOException {
+                return payloads.advance(target);
+            }
+
+            @Override
+            public long cost() {
+                return payloads.cost();
+            }
+        };
+    }
+
+    /**
      * The cursor a merge reads a dictionary column through. Moving and reading are separate, so walking it
      * has to land on every value exactly once: each value the dictionary holds answers with its ordinal
      * carried through the map, and one that escaped answers with its bytes instead.
@@ -451,7 +593,7 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
                 final int ordinal = StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL + i;
                 ordinalMap[ordinal] = ordinal + 100;
             }
-            final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator());
+            final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator(), false);
             final StringColumnValues cursor = dv.directValues(ordinalMap);
             final BytesRef term = new BytesRef();
 
@@ -481,7 +623,7 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
 
     /** Writes {@code docValues} as a column, opens it at the binary surface, and runs {@code check} over it. */
     private void withSurface(BytesRef[] docValues, SurfaceCheck check) throws IOException {
-        withColumn(docValues, (metadata, reader) -> check.check(new ColumnarStringBinaryDocValues(reader, reader.iterator())));
+        withColumn(docValues, (metadata, reader) -> check.check(new ColumnarStringBinaryDocValues(reader, reader.iterator(), false)));
     }
 
     /** The current document's only value, decoded out of the one-slot payload the surface hands back. */

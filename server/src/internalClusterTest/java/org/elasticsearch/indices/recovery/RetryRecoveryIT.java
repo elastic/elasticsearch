@@ -44,10 +44,9 @@ import org.junit.After;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Semaphore;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -199,17 +198,16 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try {
             failTestIfReceiveShardFailure(transportService);
 
-            Gate gate = RetryRecoveryTestPlugin.beforeIndexShardRecoveryGate;
-            gate.block();
+            final var recoveryBarrier = armRecoveryPause();
 
             prepareCreate(indexName, indexSettings(1, 0)).execute();
-            gate.await();
+            safeAwait(recoveryBarrier);
 
             PlainActionFuture<Void> closed = new PlainActionFuture<>();
             internalCluster().getInstance(IndicesService.class, node)
                 .indexServiceSafe(resolveIndex(indexName))
                 .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), closed);
-            gate.release();
+            safeAwait(recoveryBarrier);
             safeGet(closed);
 
             assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(1));
@@ -237,17 +235,16 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             failTestIfReceiveShardFailure(transportService);
 
             RetryRecoveryTestPlugin.reset();
-            Gate gate = RetryRecoveryTestPlugin.beforeIndexShardRecoveryGate;
-            gate.block();
+            final var recoveryBarrier = armRecoveryPause();
 
             indicesAdmin().prepareOpen(indexName).execute();
-            gate.await();
+            safeAwait(recoveryBarrier);
 
             PlainActionFuture<Void> closed = new PlainActionFuture<>();
             internalCluster().getInstance(IndicesService.class, node)
                 .indexServiceSafe(resolveIndex(indexName))
                 .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), closed);
-            gate.release();
+            safeAwait(recoveryBarrier);
             safeGet(closed);
 
             assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(1));
@@ -276,18 +273,17 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             failTestIfReceiveShardFailure(transportService);
 
             RetryRecoveryTestPlugin.reset();
-            Gate gate = RetryRecoveryTestPlugin.beforeIndexShardRecoveryGate;
-            gate.block();
+            final var recoveryBarrier = armRecoveryPause();
 
             // Recover from local shard
             ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
-            gate.await();
+            safeAwait(recoveryBarrier);
 
             PlainActionFuture<Void> closed = new PlainActionFuture<>();
             internalCluster().getInstance(IndicesService.class, node)
                 .indexServiceSafe(resolveIndex(targetIndexName))
                 .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), closed);
-            gate.release();
+            safeAwait(recoveryBarrier);
             safeGet(closed);
 
             assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(1));
@@ -324,18 +320,17 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             failTestIfReceiveShardFailure(transportService);
 
             RetryRecoveryTestPlugin.reset();
-            Gate gate = RetryRecoveryTestPlugin.beforeIndexShardRecoveryGate;
-            gate.block();
+            final var recoveryBarrier = armRecoveryPause();
 
             // Recover from snapshot
             clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(true).execute();
-            gate.await();
+            safeAwait(recoveryBarrier);
 
             PlainActionFuture<Void> closed = new PlainActionFuture<>();
             internalCluster().getInstance(IndicesService.class, node)
                 .indexServiceSafe(resolveIndex(indexName))
                 .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), closed);
-            gate.release();
+            safeAwait(recoveryBarrier);
             safeGet(closed);
 
             assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(1));
@@ -448,15 +443,14 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             failTestIfReceiveShardFailure(transportService);
 
             RetryRecoveryTestPlugin.armRandomFailure();
-            Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
-            gate.block();
+            final var recoveryBarrier = armRecoveryPause();
 
             prepareCreate(indexName, indexSettings(1, 0)).execute();
-            gate.await();
+            safeAwait(recoveryBarrier);
             indicesAdmin().prepareDelete(indexName).execute();
 
             // Release will make recovery/retry race with index deletion
-            gate.release();
+            safeAwait(recoveryBarrier);
 
             waitNoPendingTasksOnAll();
             assertThat(indexExists(indexName), equalTo(false));
@@ -480,16 +474,15 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             failTestIfReceiveShardFailure(transportService);
 
             RetryRecoveryTestPlugin.armRandomFailure();
-            Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
-            gate.block();
+            final var recoveryBarrier = armRecoveryPause();
 
             // Recover from existing store
             indicesAdmin().prepareOpen(indexName).execute();
-            gate.await();
+            safeAwait(recoveryBarrier);
             indicesAdmin().prepareDelete(indexName).execute();
 
             // Release recovery will make recovery/retry race with index deletion
-            gate.release();
+            safeAwait(recoveryBarrier);
 
             waitNoPendingTasksOnAll();
             assertThat(indexExists(indexName), equalTo(false));
@@ -516,16 +509,15 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             failTestIfReceiveShardFailure(transportService);
 
             RetryRecoveryTestPlugin.armRandomFailure();
-            Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
-            gate.block();
+            final var recoveryBarrier = armRecoveryPause();
 
             // Recover from local shard async
             ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
-            gate.await();
+            safeAwait(recoveryBarrier);
             indicesAdmin().prepareDelete(targetIndexName).execute();
 
             // Release recovery will make recovery/retry race with index deletion
-            gate.release();
+            safeAwait(recoveryBarrier);
 
             waitNoPendingTasksOnAll();
             assertThat(indexExists(targetIndexName), equalTo(false));
@@ -558,16 +550,15 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
             RetryRecoveryTestPlugin.reset();
             RetryRecoveryTestPlugin.armRandomFailure();
-            Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
-            gate.block();
+            final var recoveryBarrier = armRecoveryPause();
 
             // Recover from snapshot async
             clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(false).execute();
-            gate.await();
+            safeAwait(recoveryBarrier);
             indicesAdmin().prepareDelete(indexName).execute();
 
             // Release recovery will make recovery/retry race with index deletion
-            gate.release();
+            safeAwait(recoveryBarrier);
 
             waitNoPendingTasksOnAll();
             assertThat(indexExists(indexName), equalTo(false));
@@ -586,12 +577,11 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             failTestIfReceiveShardFailure(masterATransport);
 
             RetryRecoveryTestPlugin.armRandomFailure();
-            Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
-            gate.block();
+            final var recoveryBarrier = armRecoveryPause();
 
             // Create index async
             prepareCreate(indexName, indexSettings(1, 0)).execute();
-            gate.await();
+            safeAwait(recoveryBarrier);
 
             // Isolating dataNode will cause shard to go unassigned
             NetworkDisruption disruption = new NetworkDisruption(
@@ -604,7 +594,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             awaitClusterState(master, state -> state.nodes().nodeExists(dataNodeId) == false);
 
             // Release recovery will make recovery/retry race with network disruption
-            gate.release();
+            safeAwait(recoveryBarrier);
             disruption.stopDisrupting();
 
             waitNoPendingTasksOnAll();
@@ -630,12 +620,11 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             failTestIfReceiveShardFailure(masterATransport);
 
             RetryRecoveryTestPlugin.armRandomFailure();
-            Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
-            gate.block();
+            final var recoveryBarrier = armRecoveryPause();
 
             // Recover from existing store async
             indicesAdmin().prepareOpen(indexName).execute();
-            gate.await();
+            safeAwait(recoveryBarrier);
 
             // Isolating dataNode will cause shard to go unassigned
             NetworkDisruption disruption = new NetworkDisruption(
@@ -648,7 +637,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             awaitClusterState(master, state -> state.nodes().nodeExists(dataNodeId) == false);
 
             // Release recovery will make recovery/retry race with network disruption
-            gate.release();
+            safeAwait(recoveryBarrier);
             disruption.stopDisrupting();
 
             waitNoPendingTasksOnAll();
@@ -677,12 +666,11 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             failTestIfReceiveShardFailure(masterATransport);
 
             RetryRecoveryTestPlugin.armRandomFailure();
-            Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
-            gate.block();
+            final var recoveryBarrier = armRecoveryPause();
 
             // Recover from local shard async
             ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
-            gate.await();
+            safeAwait(recoveryBarrier);
 
             // Isolating dataNode will cause shard to go unassigned
             NetworkDisruption disruption = new NetworkDisruption(
@@ -695,7 +683,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             awaitClusterState(master, state -> state.nodes().nodeExists(dataNodeId) == false);
 
             // Release recovery will make recovery/retry race with network disruption
-            gate.release();
+            safeAwait(recoveryBarrier);
             disruption.stopDisrupting();
 
             waitNoPendingTasksOnAll();
@@ -730,12 +718,11 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             failTestIfReceiveShardFailure(masterATransport);
 
             RetryRecoveryTestPlugin.armRandomFailure();
-            Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
-            gate.block();
+            final var recoveryBarrier = armRecoveryPause();
 
             // Recover from snapshot async
             clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(false).execute();
-            gate.await();
+            safeAwait(recoveryBarrier);
 
             // Isolating dataNode will cause shard to go unassigned
             NetworkDisruption disruption = new NetworkDisruption(
@@ -748,7 +735,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             awaitClusterState(master, state -> state.nodes().nodeExists(dataNodeId) == false);
 
             // Release recovery will make recovery/retry race with network disruption
-            gate.release();
+            safeAwait(recoveryBarrier);
             disruption.stopDisrupting();
 
             waitNoPendingTasksOnAll();
@@ -768,25 +755,23 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             failTestIfReceiveShardFailure(masterTransport);
 
             RetryRecoveryTestPlugin.failureTarget.set(BEFORE_INDEX_SHARD_RECOVERY);
-            Gate recoveryGate = RetryRecoveryTestPlugin.beforeIndexShardRecoveryGate;
-            recoveryGate.block();
+            final var recoveryBarrier = armRecoveryPause();
 
             prepareCreate(indexName, indexSettings(1, 0)).execute();
-            recoveryGate.await();
+            safeAwait(recoveryBarrier);
             ShardId shardId = new ShardId(resolveIndex(indexName), 0);
 
             // Hold the applier so RETRY schedules behind this IMMEDIATE blocker, then a HIGH CS apply
             // can recreate from the retry context before the NORMAL retry runs.
             var applier = internalCluster().getInstance(ClusterService.class, dataNode).getClusterApplierService();
-            Gate applierGate = new Gate("ApplierGate");
-            applierGate.block();
+            final var applierBarrier = new CyclicBarrier(2);
             applier.runOnApplierThread("block-applier", Priority.IMMEDIATE, clusterState -> {
-                applierGate.enter();
-                applierGate.exit();
+                safeAwait(applierBarrier);
+                safeAwait(applierBarrier);
             }, ActionListener.noop());
-            applierGate.await();
+            safeAwait(applierBarrier);
 
-            recoveryGate.release();
+            safeAwait(recoveryBarrier);
             assertBusy(
                 () -> assertTrue(
                     "expected NORMAL retry-recovery task on data-node applier",
@@ -828,7 +813,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             // 1. HIGH CS apply (creates with localRetries=1)
             // 2. HIGH assert
             // 3. NORMAL retry (retry context already cleared / shard exists)
-            applierGate.release();
+            safeAwait(applierBarrier);
             safeAwait(afterCs);
             if (afterCsFailure.get() != null) {
                 throw afterCsFailure.get();
@@ -867,94 +852,31 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         );
     }
 
-    /// Think of a Gate as... well, a gate with a visitor and a guard.
-    /// The visitor tries to [enter] the gate and when it leaves, [exit] the gate.
-    /// The guard might prevent the visitor from entering by [block] the gate, then [await] for visitor to try to [enter],
-    /// and finally [release] to let the visitor in.
-    /// Visitor/T1:
-    /// ```
-    /// gate.enter();
-    /// // Do stuff while inside
-    /// gate.exit();
-    /// ```
-    /// Guard/T2:
-    /// ```
-    /// gate.block();
-    /// gate.await();
-    /// // Do stuff while visitor is waiting to enter
-    /// gate.release();
-    /// ```
-    static class Gate {
-        private final Semaphore gate = new Semaphore(1);
-        private final Semaphore entered = new Semaphore(0);
-        /// Name is useful for logging while testing
-        private final String name;
-
-        Gate(String name) {
-            this.name = name;
-        }
-
-        void reset() {
-            gate.drainPermits();
-            gate.release();
-            entered.drainPermits();
-        }
-
-        /// Block visitor from enter
-        void block() {
-            safeAcquire(gate);
-        }
-
-        /// Wait for visitor to try and enter
-        void await() {
-            safeAcquire(entered);
-            entered.release();
-        }
-
-        /// Allow visitor to enter
-        public void release() {
-            gate.release();
-        }
-
-        /// Try to enter through the gate
-        void enter() {
-            entered.release();
-            safeAcquire(gate);
-        }
-
-        /// Exit through the gate
-        void exit() {
-            gate.release();
-            safeAcquire(entered);
-        }
-
-        @Override
-        public String toString() {
-            return name;
-        }
+    /// One-shot pause in [IndexEventListener#beforeIndexShardRecovery]. Recovery takes the barrier
+    /// with {@code getAndSet(null)} so a later retry does not pause again.
+    private static CyclicBarrier armRecoveryPause() {
+        final var barrier = new CyclicBarrier(2);
+        assertNull(RetryRecoveryTestPlugin.recoveryBarrier.getAndSet(barrier));
+        return barrier;
     }
 
     /// This plugin does a few things:
     /// - Count number of recovery attempts [recoveryCounter]
     /// - Inject failures into recover path through [IndexEventListener] and [failureTarget] + [FailureTarget]
-    /// - Concurrency control via [Gate]s on the recovery path through [IndexEventListener]
+    /// - One-shot pause in [IndexEventListener#beforeIndexShardRecovery] via [recoveryBarrier]
     /// - Inject a one-shot [AlreadyClosedException] from the Lucene Directory during temporary IndexWriter use
     /// - Set indices.recovery.local_retry=true
     public static class RetryRecoveryTestPlugin extends Plugin {
         private static final AtomicReference<FailureTarget> failureTarget = new AtomicReference<>(null);
         private static final AtomicInteger recoveryCounter = new AtomicInteger();
         private static final AtomicBoolean throwAceOnCreateOutput = new AtomicBoolean();
-
-        // Gates in the order they are invoked
-        static final Gate beforeIndexShardRecoveryGate = new Gate("beforeIndexShardRecoveryGate");
-        private static final Gate stateChangePostRecoveryGate = new Gate("stateChangePostRecoveryGate");
-        private static final List<Gate> allGates = List.of(beforeIndexShardRecoveryGate, stateChangePostRecoveryGate);
+        static final AtomicReference<CyclicBarrier> recoveryBarrier = new AtomicReference<>();
 
         public static void reset() {
             failureTarget.set(null);
             recoveryCounter.set(0);
             throwAceOnCreateOutput.set(false);
-            allGates.forEach(Gate::reset);
+            recoveryBarrier.set(null);
         }
 
         /// Arm index event listener with a random failure target
@@ -970,16 +892,12 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             throwAceOnCreateOutput.set(true);
         }
 
-        /// Returns a [Gate] that sits at some random point before the currently armed [FailureTarget].
-        /// This is useful because we want to race recovery retry against some other concurrent event or operation
-        /// and in order to do that we want to make that the recovery has started but not yet failed.
-        public static Gate randomGateBeforeTargetFailure() {
-            assert failureTarget.get() != null;
-            List<Gate> validGates = switch (failureTarget.get()) {
-                case BEFORE_INDEX_SHARD_RECOVERY, AFTER_INDEX_SHARD_RECOVERY -> List.of(beforeIndexShardRecoveryGate);
-                case STATE_CHANGED_POST_RECOVERY -> allGates;
-            };
-            return randomFrom(validGates);
+        private static void maybePauseRecovery() {
+            final var barrier = recoveryBarrier.getAndSet(null);
+            if (barrier != null) {
+                safeAwait(barrier);
+                safeAwait(barrier);
+            }
         }
 
         @Override
@@ -1005,13 +923,9 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
                 @Override
                 public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
-                    beforeIndexShardRecoveryGate.enter();
-                    try {
-                        maybeThrow(BEFORE_INDEX_SHARD_RECOVERY);
-                        listener.onResponse(null);
-                    } finally {
-                        beforeIndexShardRecoveryGate.exit();
-                    }
+                    maybePauseRecovery();
+                    maybeThrow(BEFORE_INDEX_SHARD_RECOVERY);
+                    listener.onResponse(null);
                 }
 
                 @Override
@@ -1031,12 +945,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                         recoveryCounter.incrementAndGet();
                     }
                     if (currentState == IndexShardState.POST_RECOVERY) {
-                        stateChangePostRecoveryGate.enter();
-                        try {
-                            maybeThrow(STATE_CHANGED_POST_RECOVERY);
-                        } finally {
-                            stateChangePostRecoveryGate.exit();
-                        }
+                        maybeThrow(STATE_CHANGED_POST_RECOVERY);
                     }
                 }
 

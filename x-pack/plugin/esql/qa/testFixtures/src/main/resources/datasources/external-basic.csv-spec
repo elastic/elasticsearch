@@ -358,6 +358,25 @@ count:long | lang:integer | lang_plus:integer
 2          | 5            | 6
 ;
 
+// A kept grouping reading a pruned one used to fail optimization with a 500 (PruneRedundantAggregateGroupings dropped the
+// pruned alias from the EVAL below the aggregate while the kept grouping still read it).
+derivedGroupingReadByKeptGrouping
+required_capability: fix_prune_derived_external_grouping_read_by_kept_field
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+FROM employees_no_mv
+| WHERE emp_no <= 10005
+| EVAL lang_m1 = languages - 1, lang_x2 = lang_m1 * 2
+| STATS count = COUNT(*) BY languages, lang_m1, lang_x2
+| SORT languages;
+
+count:long | languages:integer | lang_m1:integer | lang_x2:integer
+1          | 1                 | 0               | 0
+1          | 2                 | 1               | 2
+1          | 4                 | 3               | 6
+2          | 5                 | 4               | 8
+;
+
 // Additional STATS aggregate: SUM
 
 aggregateSumSalary

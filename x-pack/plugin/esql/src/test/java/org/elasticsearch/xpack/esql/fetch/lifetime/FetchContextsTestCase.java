@@ -54,7 +54,7 @@ public abstract class FetchContextsTestCase extends ESSingleNodeTestCase {
      * Indices whose name starts with this prefix get no {@link FetchContextListener}.
      */
     static final String UNLISTENED_PREFIX = "unlistened";
-    static final int SHARDS = 3;
+    protected static final int SHARDS = 3;
 
     /**
      * Registers a {@link FetchContextListener} on every index and the settings of fetch contexts, the way the ES|QL

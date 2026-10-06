@@ -29,10 +29,12 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -250,22 +252,34 @@ public final class FetchContextService {
     }
 
     private void free(FetchFreeRequest request, TransportChannel channel) {
+        int freed = freeFetchContexts(request.contextIds(), request);
+        logger.debug("freed [{}] of [{}] fetch contexts at the request of their coordinator", freed, request.contextIds().size());
+        channel.sendResponse(ActionResponse.Empty.INSTANCE);
+    }
+
+    /**
+     * Frees the contexts among {@code ids} that {@code request} may look up: fetch contexts its user opened. The others
+     * stay open, as if they were gone, so a request can't free a scroll, a point in time or another user's context whose
+     * id it learned. One context that can't be freed doesn't keep the others open.
+     *
+     * @param request a request of the fetch phase. This runs in its thread context, which names its user.
+     * @return how many contexts it freed
+     */
+    public <R extends TransportRequest & FetchContextRequest> int freeFetchContexts(Collection<ShardSearchContextId> ids, R request) {
         int freed = 0;
-        for (ShardSearchContextId id : request.contextIds()) {
+        for (ShardSearchContextId id : ids) {
             try {
                 if (freeFetchContext(id, request)) {
                     freed++;
                 }
             } catch (Exception e) {
-                // one context that can't be freed doesn't keep the others open
                 logger.debug(() -> Strings.format("failed to free fetch context [%s]", id), e);
             }
         }
-        logger.debug("freed [{}] of [{}] fetch contexts at the request of their coordinator", freed, request.contextIds().size());
-        channel.sendResponse(ActionResponse.Empty.INSTANCE);
+        return freed;
     }
 
-    private boolean freeFetchContext(ShardSearchContextId id, FetchFreeRequest request) {
+    private boolean freeFetchContext(ShardSearchContextId id, TransportRequest request) {
         ReaderContext readerContext;
         try {
             // rejects other users and other kinds of requests as if the context was gone
@@ -273,8 +287,7 @@ public final class FetchContextService {
         } catch (SearchContextMissingException e) {
             return false;
         }
-        // only fetch contexts, so the request can't free a scroll or a point in time whose id it learned
-        return readerContext.getFromContext(FetchContextListener.MARKER_KEY) != null && searchService.freeReaderContext(id);
+        return FetchContextListener.isFetchContext(readerContext) && searchService.freeReaderContext(id);
     }
 
     SearchService searchService() {

@@ -151,9 +151,9 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         clusterService.getClusterSettings()
             .initializeAndWatch(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING, v -> {
                 if (v) {
-                    cache = new FieldCapsCache();
-                } else {
                     cache = null;
+                } else {
+                    cache = new FieldCapsCache();
                 }
             });
     }

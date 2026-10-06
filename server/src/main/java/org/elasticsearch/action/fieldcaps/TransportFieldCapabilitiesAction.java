@@ -116,8 +116,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     private final ThreadPool threadPool;
     private final TimeValue forceConnectTimeoutSecs;
     private final CrossProjectModeDecider crossProjectModeDecider;
-    private final FieldCapsCache cache = new FieldCapsCache();
-    private volatile boolean cacheEnabled;
+    private volatile FieldCapsCache cache = new FieldCapsCache();
 
     @Inject
     public TransportFieldCapabilitiesAction(
@@ -150,7 +149,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         this.crossProjectModeDecider = crossProjectModeDecider;
         // _id aggregate depends on this setting
         clusterService.getClusterSettings()
-            .initializeAndWatch(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING, v -> this.cacheEnabled = v == false);
+            .initializeAndWatch(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING, v -> {
+                if (v) {
+                    cache = new FieldCapsCache();
+                } else {
+                    cache = null;
+                }
+            });
     }
 
     @Override
@@ -520,9 +525,6 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             return false;
         }
         if (concreteLocalIndices.length > FieldCapsCache.MAX_INDICES) {
-            return false;
-        }
-        if (cacheEnabled == false) {
             return false;
         }
         if (request.cacheable() == false) {

@@ -1139,10 +1139,15 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         protected ValueFetcher valueFetcher(SearchExecutionContext context) {
             // When _source is rebuilt from doc values, read the original value straight from the binary store so retrieval (the
             // fields option, highlighting) does not have to rebuild _source.
-            if (storesOriginalValuesInDocValues && (context.isSourceSynthetic() || context.getMappingLookup().isSourceColumnarStored())) {
+            if (readsOriginalValuesFromDocValues(context)) {
                 return new OriginalValuesDocValuesFetcher(SemanticTextField.getOriginalValuesFieldName(name()), inputDecoder());
             }
             return new OriginalValuesSemanticFieldValueFetcher(name(), context);
+        }
+
+        /** Whether original values are read from the internal binary doc values store instead of {@code _source}. */
+        public boolean readsOriginalValuesFromDocValues(SearchExecutionContext context) {
+            return storesOriginalValuesInDocValues && (context.isSourceSynthetic() || context.getMappingLookup().isSourceColumnarStored());
         }
 
         /** Decodes a value stored in the binary doc-values store into its {@code _source} form; {@code semantic} uses the encoder. */

@@ -14,6 +14,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils;
 import org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticFieldContent;
+import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper.SemanticFieldType;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextUtils;
 
 import java.io.IOException;
@@ -66,7 +67,14 @@ class SemanticChunkContentExtractor implements ChunkContentExtractor {
             throw new IllegalStateException("Field [" + sourceField + "] is not mapped");
         }
 
-        List<Object> rawFieldValues = HighlightUtils.loadFieldValues(sourceFieldType, searchContext, hitContext);
-        return new SemanticFieldContent(rawFieldValues);
+        // The doc values store holds only the field's own values (copy_to into inference fields is skipped at parse time)
+        if (sourceFieldType instanceof SemanticFieldType semanticFieldType
+            && semanticFieldType.readsOriginalValuesFromDocValues(searchContext)) {
+            List<Object> rawFieldValues = HighlightUtils.loadFieldValues(sourceFieldType, searchContext, hitContext);
+            return new SemanticFieldContent(rawFieldValues);
+        }
+
+        // Read only the field's own path: its source paths would include copy_to sources, which chunk offsets don't cover
+        return new SemanticFieldContent(hitContext.source().extractValue(sourceField, null));
     }
 }

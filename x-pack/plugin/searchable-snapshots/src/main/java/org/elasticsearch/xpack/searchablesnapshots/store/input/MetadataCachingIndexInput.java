@@ -121,7 +121,9 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
         ByteRange headerBlobCacheByteRange,
         ByteRange footerBlobCacheByteRange
     ) {
-        super(name, context, length);
+        // A merge context asks for a larger buffer than the blob store cache keeps, and Lucene opens files with one outside of
+        // merges too, for instance when it hands out a stored fields reader that reads documents in order.
+        super(name, Math.min(bufferSize(context), BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE), length);
         this.isCfs = IndexFileNames.matchesExtension(name, "cfs");
         this.logger = Objects.requireNonNull(logger);
         this.fileInfo = Objects.requireNonNull(fileInfo);

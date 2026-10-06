@@ -1366,11 +1366,15 @@ public final class TextFieldMapper extends FieldMapper {
 
         @Override
         public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, SearchExecutionContext context) throws IOException {
-            final boolean reanalyzes = verifiesPositionsFromDocValues(context);
-            if (countTokens(stream) > 1 && reanalyzes == false) {
+            // One term asks nothing of positions - it is a query over the terms the index holds, which answers it
+            // whole - so the values are neither checked for positions nor read for them.
+            final boolean asksForPositions = countTokens(stream) > 1;
+            final boolean reanalyzes = asksForPositions && verifiesPositionsFromDocValues(context);
+            if (asksForPositions && reanalyzes == false) {
                 checkForPositions(false);
             }
-            return reanalyzePositions(analyzePhrasePrefix(stream, slop, maxExpansions, reanalyzes), context);
+            final Query query = analyzePhrasePrefix(stream, slop, maxExpansions, reanalyzes);
+            return reanalyzes ? reanalyzePositions(query, context) : query;
         }
 
         private Query analyzePhrasePrefix(TokenStream stream, int slop, int maxExpansions, boolean reanalyzesValues) throws IOException {

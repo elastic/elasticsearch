@@ -43,6 +43,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 /**
  * A {@code text} field indexing no positions answers the queries that ask about them by confirming against its own
@@ -114,7 +116,7 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
         }
         queries.add(new MatchPhraseQueryBuilder("body", "quick fox").slop(1));
         queries.add(new MatchPhraseQueryBuilder("body", "quick fox").slop(2));
-        for (String phrase : List.of("quick bro", "the quick brown f", "fox th")) {
+        for (String phrase : List.of("quick bro", "the quick brown f", "fox th", "qui")) {
             queries.add(new MatchPhrasePrefixQueryBuilder("body", phrase));
         }
         queries.add(intervals(new IntervalsSourceProvider.Match("quick brown", 0, true, null, null, null)));
@@ -293,6 +295,16 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
     }
 
     /** A span reads positions straight from the index, so with none indexed every form of it says so. */
+    /**
+     * One term asks nothing of positions: the query over the terms the index holds answers it whole, so the values
+     * are not read for it. Two terms are a phrase, and those are read.
+     */
+    public void testOneTermIsNotReadFromTheValues() throws IOException {
+        final SearchExecutionContext context = createSearchExecutionContext(mapper("docs"));
+        assertThat(new MatchPhrasePrefixQueryBuilder("body", "qui").toQuery(context), not(instanceOf(ReanalyzingTextQuery.class)));
+        assertThat(new MatchPhrasePrefixQueryBuilder("body", "quick bro").toQuery(context), instanceOf(ReanalyzingTextQuery.class));
+    }
+
     public void testSpanQueriesRefuse() throws IOException {
         final SearchExecutionContext context = createSearchExecutionContext(mapper("docs"));
         final SpanTermQueryBuilder term = new SpanTermQueryBuilder("body", "quick");

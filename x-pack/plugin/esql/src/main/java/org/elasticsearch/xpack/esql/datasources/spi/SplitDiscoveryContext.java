@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
@@ -47,6 +48,9 @@ import java.util.function.BooleanSupplier;
  *        including empty, is authoritative, except those three location keys are still dropped.
  *        {@link org.elasticsearch.xpack.esql.datasources.ExternalSchema#EMPTY} does not imply an
  *        empty set: an empty schema means "do not narrow the file read", not "keep nothing".
+ * @param minTransportVersion the minimum transport version of the nodes that will read the splits, so a split provider
+ *        never emits a split shape an older node cannot read. The convenience constructors default it to
+ *        {@link TransportVersion#current()}.
  */
 public record SplitDiscoveryContext(
     SourceMetadata metadata,
@@ -75,8 +79,51 @@ public record SplitDiscoveryContext(
     @Nullable PlanningMemory listingMemory,
     // Drivers the planner will start for this query ({@code task_concurrency}). Discovery sizes LIMIT cuts
     // from this so a single-driver LIMIT does not probe. Zero or negative means the search-pool default.
-    int taskConcurrency
+    int taskConcurrency,
+    TransportVersion minTransportVersion
 ) {
+    /**
+     * As the canonical constructor, for a cluster where every node runs this build.
+     */
+    public SplitDiscoveryContext(
+        SourceMetadata metadata,
+        FileList fileList,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+        Map<String, Object> config,
+        PartitionMetadata partitionInfo,
+        List<Expression> filterHints,
+        ExternalSchema querySchema,
+        @Nullable ExternalSchema unifiedSchema,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled,
+        DeclaredReadSpec declaredReadSpec,
+        Set<String> metadataColumnNames,
+        @Nullable Set<String> retainedPartitionKeys,
+        int rowLimit,
+        @Nullable PlanningMemory listingMemory,
+        int taskConcurrency
+    ) {
+        this(
+            metadata,
+            fileList,
+            schemaMap,
+            config,
+            partitionInfo,
+            filterHints,
+            querySchema,
+            unifiedSchema,
+            maxRecordBytes,
+            isCancelled,
+            declaredReadSpec,
+            metadataColumnNames,
+            retainedPartitionKeys,
+            rowLimit,
+            listingMemory,
+            taskConcurrency,
+            TransportVersion.current()
+        );
+    }
+
     public SplitDiscoveryContext(
         SourceMetadata metadata,
         FileList fileList,
@@ -151,7 +198,8 @@ public record SplitDiscoveryContext(
             retainedPartitionKeys,
             rowLimit,
             listingMemory,
-            taskConcurrency
+            taskConcurrency,
+            minTransportVersion
         );
     }
 
@@ -323,6 +371,9 @@ public record SplitDiscoveryContext(
         retainedPartitionKeys = retainedPartitionKeys == null ? null : Set.copyOf(retainedPartitionKeys);
         if (taskConcurrency <= 0) {
             taskConcurrency = ExternalLimitSplits.DEFAULT_TASK_CONCURRENCY;
+        }
+        if (minTransportVersion == null) {
+            throw new IllegalArgumentException("minTransportVersion cannot be null");
         }
     }
 }

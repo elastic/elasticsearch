@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
@@ -275,6 +276,11 @@ public class ComputeService {
         this.formatReaderRegistry = formatReaderRegistry;
     }
 
+    /** The minimum transport version of the nodes that may read the splits planned here. */
+    private TransportVersion minTransportVersion() {
+        return clusterService.state().getMinTransportVersion();
+    }
+
     PlannerSettings.Holder plannerSettings() {
         return plannerSettings;
     }
@@ -372,6 +378,7 @@ public class ComputeService {
                     FormatReader.NO_LIMIT,
                     discoveryMemory(run),
                     configuration.pragmas().taskConcurrency(),
+                    minTransportVersion(),
                     ioExecutor,
                     ActionListener.wrap(result -> {
                         try {
@@ -931,6 +938,7 @@ public class ComputeService {
                 work.guarded().rowLimit(),
                 discoveryMemory(run),
                 taskConcurrency,
+                minTransportVersion(),
                 ioExecutor,
                 ActionListener.wrap(result -> {
                     try {

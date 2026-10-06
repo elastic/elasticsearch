@@ -149,8 +149,14 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
-    public boolean declaredNameBindingNeedsFileStart() {
-        return inner.declaredNameBindingNeedsFileStart();
+    public boolean readsHeaderLine() {
+        return inner.readsHeaderLine();
+    }
+
+    @Override
+    public List<String> fileHeaderColumns(StorageObject file) throws IOException {
+        // The inner reader aborts the stream, which DecompressingStorageObject routes to the raw GET without draining it.
+        return inner.fileHeaderColumns(new DecompressingStorageObject(file, codec, null, maxDecompressionRatio()));
     }
 
     @Override

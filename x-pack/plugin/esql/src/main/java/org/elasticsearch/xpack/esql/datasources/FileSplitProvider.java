@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.Strings;
@@ -156,6 +157,14 @@ import java.util.function.BooleanSupplier;
 public class FileSplitProvider implements SplitProvider {
 
     private static final Logger LOGGER = LogManager.getLogger(FileSplitProvider.class);
+
+    /**
+     * A node before this version cannot bind a headered CSV/TSV split past the file's first byte by the file's header,
+     * so below it such files stay one whole-file split.
+     */
+    static final TransportVersion ESQL_EXTERNAL_TEXT_HEADER_EVERY_SPLIT = TransportVersion.fromName(
+        "esql_external_text_header_every_split"
+    );
 
     /**
      * In-flight {@link FileTask} shells for this provider. One discovery runs at a time.
@@ -1189,7 +1198,8 @@ public class FileSplitProvider implements SplitProvider {
         @Nullable Map<String, DataType> inferredFileTypes,
         @Nullable SourceStatistics statistics,
         @Nullable Map<String, Object> foldedSourceMetadata,
-        boolean unknownNativeTypes
+        boolean unknownNativeTypes,
+        TransportVersion minTransportVersion
     ) {
         private FileTask toTask() {
             return new FileTask(
@@ -1206,7 +1216,8 @@ public class FileSplitProvider implements SplitProvider {
                 inferredFileTypes,
                 statistics,
                 foldedSourceMetadata,
-                unknownNativeTypes
+                unknownNativeTypes,
+                minTransportVersion
             );
         }
     }
@@ -1621,7 +1632,8 @@ public class FileSplitProvider implements SplitProvider {
             inferredFileTypes,
             fileStatistics,
             context.metadata() == null ? null : context.metadata().sourceMetadata(),
-            unknownNativeTypes
+            unknownNativeTypes,
+            context.minTransportVersion()
         );
     }
 
@@ -2596,7 +2608,9 @@ public class FileSplitProvider implements SplitProvider {
         @Nullable Map<String, Object> foldedSourceMetadata,
         // True when this FIRST_FILE_WINS glob file has no native-type snapshot. Column statistics
         // must be withheld before alignment can interpret them against the pinned read schema.
-        boolean unknownNativeTypes
+        boolean unknownNativeTypes,
+        // The cluster's minimum transport version, for ESQL_EXTERNAL_TEXT_HEADER_EVERY_SPLIT.
+        TransportVersion minTransportVersion
     ) {}
 
     /**
@@ -2808,7 +2822,7 @@ public class FileSplitProvider implements SplitProvider {
             if (configuredReader != null && task.declaredReadSpec().provenance() == SchemaProvenance.DECLARED) {
                 configuredReader = configuredReader.withDeclaredProvenanceBinding(true);
             }
-            if (requiresSequentialWholeFileRead(configuredReader)) {
+            if (requiresSequentialWholeFileRead(configuredReader, task.minTransportVersion())) {
                 listener.onResponse(
                     new PlanResult.Splits(
                         List.of(
@@ -2879,9 +2893,8 @@ public class FileSplitProvider implements SplitProvider {
 
         // Resolve the config-aware reader once and reuse it for both the sequential-whole-file gate and the
         // newline-aligned macro-split attempt below, which would otherwise each resolve it independently. The
-        // declared-name binding bit rides the typed DeclaredReadSpec (NOT the config map), so it must be applied
-        // here too, or the split-side reader's declaredNameBindingNeedsFileStart() is silently false and the gate
-        // below never fires — the read-side reader would then hit a chunk with no header line to bind against.
+        // declared-name binding bit rides the typed DeclaredReadSpec (NOT the config map), so it is applied here too,
+        // keeping the split-side reader configured exactly as the read-side one is.
         FormatReader configuredReader = resolveConfiguredReader(task.filePath(), task.config());
         if (configuredReader != null && task.declaredReadSpec().provenance() == SchemaProvenance.DECLARED) {
             configuredReader = configuredReader.withDeclaredProvenanceBinding(true);
@@ -2892,7 +2905,7 @@ public class FileSplitProvider implements SplitProvider {
         // splitting is safe: not newline-aligned macro-splits, nor compressed block/frame-aligned splits.
         // Emit a single whole-file split (identical to the fallback below); the reader consumes it as one
         // sequential stream and finds boundaries quote/escape-aware.
-        if (requiresSequentialWholeFileRead(configuredReader)) {
+        if (requiresSequentialWholeFileRead(configuredReader, task.minTransportVersion())) {
             fileSplits.add(
                 wholeFileSplit(
                     task.filePath(),
@@ -3086,13 +3099,19 @@ public class FileSplitProvider implements SplitProvider {
      * is not a compression-delegating reader (a quoted {@code .csv.bz2} stays whole-file: the probe would run
      * against compressed bytes). Returns {@code false} (splitting allowed) when the reader could not be resolved,
      * so an unresolvable reader is treated as splittable.
+     * <p>
+     * A file with a header line ({@link FormatReader#readsHeaderLine()}) is also kept whole while
+     * {@code minTransportVersion} predates {@link #ESQL_EXTERNAL_TEXT_HEADER_EVERY_SPLIT}.
      */
-    private boolean requiresSequentialWholeFileRead(@Nullable FormatReader reader) {
+    private static boolean requiresSequentialWholeFileRead(@Nullable FormatReader reader, TransportVersion minTransportVersion) {
         if (reader == null) {
             return false;
         }
-        if (reader.declaredNameBindingNeedsFileStart()) {
-            // Binding is resolved against the header, which only a split starting at byte 0 can read.
+        // This covers a new coordinator planning for old data nodes, not the reverse. An old coordinator splits an
+        // inferred headered file as it always has, and until the upgrade finishes a new data node binds its split by the
+        // header's names while an old node binds a sibling split of the same file by position. Each row is then either
+        // correct or what the old version returns for it today.
+        if (reader.readsHeaderLine() && minTransportVersion.supports(ESQL_EXTERNAL_TEXT_HEADER_EVERY_SPLIT) == false) {
             return true;
         }
         SegmentableFormatReader seg = AsyncExternalSourceOperatorFactory.resolveSegmentableReader(reader);

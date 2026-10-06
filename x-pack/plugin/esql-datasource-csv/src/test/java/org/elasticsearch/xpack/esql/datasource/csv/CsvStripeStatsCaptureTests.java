@@ -712,6 +712,11 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
             .firstSplit(firstSplit)
             .lastSplit(true)
             .readSchema(readSchema)
+            // A later split of a headered file binds the schema by the header columns the planner hands it; the
+            // schema here names the file's columns in file order.
+            .fileHeaderColumns(
+                headerRow && firstSplit == false && readSchema != null ? readSchema.stream().map(Attribute::name).toList() : null
+            )
             .splitStartByte(baseOffset)
             .stats(baseOffset, stripeSize, fileFinal)
             .build();

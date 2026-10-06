@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
@@ -319,8 +320,44 @@ public final class SplitDiscoveryPhase {
         PlanningMemory listingMemory,
         int taskConcurrency
     ) {
+        return resolveExternalSplitsWithStats(
+            plan,
+            sourceFactories,
+            maxRecordBytes,
+            isCancelled,
+            seedFilters,
+            seedRowLimit,
+            listingMemory,
+            taskConcurrency,
+            TransportVersion.current()
+        );
+    }
+
+    /**
+     * As above, carrying the minimum transport version of the nodes that will read the splits, so a split provider never
+     * emits a split shape an older node cannot read. The narrower overloads pass {@link TransportVersion#current()}.
+     */
+    public static Result resolveExternalSplitsWithStats(
+        PhysicalPlan plan,
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled,
+        List<Expression> seedFilters,
+        int seedRowLimit,
+        PlanningMemory listingMemory,
+        int taskConcurrency,
+        TransportVersion minTransportVersion
+    ) {
         ScanStats stats = new ScanStats();
-        Traversal traversal = new Traversal(sourceFactories, maxRecordBytes, stats, isCancelled, listingMemory, taskConcurrency);
+        Traversal traversal = new Traversal(
+            sourceFactories,
+            maxRecordBytes,
+            stats,
+            isCancelled,
+            listingMemory,
+            taskConcurrency,
+            minTransportVersion
+        );
         ExternalPlanningIo planningIo = ExternalPlanningIo.current();
         PhysicalPlan resolved;
         try (Releasable ignored = ExternalPlanningIo.activate(planningIo)) {
@@ -403,6 +440,38 @@ public final class SplitDiscoveryPhase {
         Executor executor,
         ActionListener<Result> listener
     ) {
+        resolveExternalSplitsWithStatsAsync(
+            plan,
+            sourceFactories,
+            maxRecordBytes,
+            isCancelled,
+            seedFilters,
+            seedRowLimit,
+            listingMemory,
+            taskConcurrency,
+            TransportVersion.current(),
+            executor,
+            listener
+        );
+    }
+
+    /**
+     * As above, carrying the minimum transport version of the nodes that will read the splits, so a split provider never
+     * emits a split shape an older node cannot read. The narrower overloads pass {@link TransportVersion#current()}.
+     */
+    public static void resolveExternalSplitsWithStatsAsync(
+        PhysicalPlan plan,
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled,
+        List<Expression> seedFilters,
+        int seedRowLimit,
+        PlanningMemory listingMemory,
+        int taskConcurrency,
+        TransportVersion minTransportVersion,
+        Executor executor,
+        ActionListener<Result> listener
+    ) {
         ActionListener.run(listener, l -> {
             ScanStats stats = new ScanStats();
             ExternalPlanningIo planningIo = ExternalPlanningIo.current();
@@ -410,7 +479,7 @@ public final class SplitDiscoveryPhase {
                 plan,
                 seedFilters,
                 seedRowLimit,
-                new Traversal(sourceFactories, maxRecordBytes, stats, isCancelled, listingMemory, taskConcurrency),
+                new Traversal(sourceFactories, maxRecordBytes, stats, isCancelled, listingMemory, taskConcurrency, minTransportVersion),
                 wrapPlanningIo(executor, planningIo),
                 l.map(
                     resolved -> new Result(
@@ -454,7 +523,8 @@ public final class SplitDiscoveryPhase {
         ScanStats stats,
         BooleanSupplier isCancelled,
         PlanningMemory listingMemory,
-        int taskConcurrency
+        int taskConcurrency,
+        TransportVersion minTransportVersion
     ) {}
 
     private static void resolveRecursiveAsync(
@@ -628,7 +698,8 @@ public final class SplitDiscoveryPhase {
             PartitionValueLayout.retainedKeys(querySchema, partitionInfo, metadataColumnNames),
             rowLimit,
             traversal.listingMemory(),
-            traversal.taskConcurrency()
+            traversal.taskConcurrency(),
+            traversal.minTransportVersion()
         );
 
         SplitDiscoveryResult result;
@@ -683,7 +754,8 @@ public final class SplitDiscoveryPhase {
             PartitionValueLayout.retainedKeys(querySchema, partitionInfo, metadataColumnNames),
             rowLimit,
             traversal.listingMemory(),
-            traversal.taskConcurrency()
+            traversal.taskConcurrency(),
+            traversal.minTransportVersion()
         );
 
         splitProvider.discoverSplitsAsync(context, executor, ActionListener.wrap(result -> {

@@ -2828,7 +2828,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             String[] names = pendingWarnings;
             pendingWarnings = null;
             for (String name : names) {
-                sink.accept(SkipWarnings.absentDeclaredColumnMessage(name));
+                sink.accept(SkipWarnings.absentColumnMessage(name));
             }
         }
 
@@ -3641,7 +3641,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             String[] names = pendingAbsentWarnings;
             pendingAbsentWarnings = null;
             for (String name : names) {
-                sink.accept(SkipWarnings.absentDeclaredColumnMessage(name));
+                sink.accept(SkipWarnings.absentColumnMessage(name));
             }
         }
 

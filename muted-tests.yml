@@ -222,6 +222,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/161067
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
   issue: https://github.com/elastic/elasticsearch/issues/161083
+- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
+  method: testRandomQueries
+  issue: https://github.com/elastic/elasticsearch/issues/161093
 
 # Examples:
 #

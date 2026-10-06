@@ -2980,6 +2980,49 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * A cut-short gather forwards read configs only for the files it reached, and the promise is registered on
+     * that partial map. The map is why: a cacheable text dataset whose schema budget refuses every entry has no
+     * per-file warm rail, so the memoized dataset aggregate is its only metadata-served COUNT(*). An unrecorded
+     * path falls back to the config-level check; suppressing the promise instead would cost every warm query a
+     * re-scan. Reinstating a completeness guard in front of the registration fails here.
+     */
+    public void testPromiseIsRegisteredOnAPartialPerPathMap() {
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = datasetGateResolver(cacheService);
+            String pathA = "s3://bucket/data/a.ndjson";
+            String pathB = "s3://bucket/data/b.ndjson";
+            SourceMetadata referenceMeta = new SimpleSourceMetadata(List.of(), "ndjson", pathA);
+            FileList listing = GlobExpander.fileListOf(List.of(entry(pathA, 100), entry(pathB, 200)), "s3://bucket/data/*.ndjson");
+            SchemaCacheKey key = resolver.datasetAggregateKey(listing, "", Map.of());
+            assertNotNull(key);
+            String promised = ReadConfigFingerprint.of(List.of(attr("x", DataType.LONG)), DeclaredReadSpec.NONE);
+
+            // Only pathA recorded: the shape a gather leaves when it stops after the file that killed the fold.
+            resolver.applyDatasetAggregate(
+                new HashMap<>(Map.of(pathA, promised)),
+                new ExternalSourceResolver.DatasetAggregatePrefetch(key, null),
+                null,
+                listing,
+                referenceMeta,
+                Map.of()
+            );
+
+            String fingerprint = resolver.formatConfigIdentity(listing.path(0).objectName(), Map.of());
+            cacheService.reconcileSourceStatsFromContributions(
+                Map.of(
+                    pathA,
+                    List.of(promiseContribution(fingerprint, promised, 40L)),
+                    pathB,
+                    List.of(promiseContribution(fingerprint, promised, 60L))
+                )
+            );
+            Map<String, Object> aggregate = cacheService.getDatasetAggregate(key);
+            assertNotNull("a partial per-path map must still register the promise", aggregate);
+            assertEquals(100L, ((Number) aggregate.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+        }
+    }
+
+    /**
      * The wiring the per-path read-configuration gate stands on: a multi-file resolve must record each file's
      * stamped resolved read configuration and forward the per-path map into the dataset-aggregate promise. The
      * cache-side gate only checks what a promise CARRIES — a rail that forwards an empty map leaves the gate to
@@ -3318,6 +3361,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * cancelled mid-flight, and must stop reading further per-file footers rather than scanning the whole
      * glob. The resolver runs on the DIRECT executor here, so footer reads happen sequentially and the
      * cancellation flag (flipped after a couple of reads) deterministically short-circuits the rest.
+     */
+    /**
+     * Also pins the drain's cancellation raise: the stub publishes no statistics, so the fold dies on the first
+     * file and the gather reaches the drain rather than the per-read check.
      */
     public void testMultiFileResolveCancellationStopsReadingFooters() {
         int fileCount = 5;

@@ -2303,10 +2303,9 @@ public class ExternalSourceResolver {
         Map<String, Object> referenceMetadata = referenceMeta.sourceMetadata();
         Object stamped = referenceMetadata != null ? referenceMetadata.get(ExternalStats.CONFIG_FINGERPRINT_KEY) : null;
         String fingerprint = stamped instanceof String s ? s : formatConfigIdentity(listing.path(0).objectName(), storageConfig(config));
-        // A cut-short gather records read configs only for the files it reached. Registering on that
-        // partial map is deliberate: an unrecorded path falls back to the config-level check, the anchor
-        // is always recorded, and suppressing instead would deny the promise to the refused-budget
-        // datasets that have no other warm path.
+        // A cut-short gather records read configs only for the files it reached; an unrecorded path falls
+        // back to the config-level check. Registering anyway is deliberate - a refused budget leaves this
+        // dataset no other warm path.
         cacheService.registerPendingDatasetAggregate(
             datasetKey,
             pathToMtime,
@@ -2627,7 +2626,7 @@ public class ExternalSourceResolver {
 
     /** What a gather is for. Who consumes the results decides whether every file must be read. */
     enum GatherPurpose {
-        /** Folds a cross-file aggregate and warms the schema cache. No consumer needs every file's result. */
+        /** Folds a cross-file aggregate, warming the schema cache where cacheable. No consumer needs every file. */
         STATS_AGGREGATE,
         /** The schema is the union of every file's, so union_by_name and strict need all of them. */
         SCHEMA_RECONCILIATION;

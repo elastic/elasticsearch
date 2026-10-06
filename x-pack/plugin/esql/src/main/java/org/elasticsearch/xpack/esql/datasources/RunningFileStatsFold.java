@@ -141,7 +141,7 @@ final class RunningFileStatsFold {
      * applied here; they are known only once every schema has been reconciled. See {@link #applyPinnedColumns}.
      */
     @Nullable
-    Map<String, Object> finish() {
+    synchronized Map<String, Object> finish() {
         if (failed || accepted == 0 || accumulator == null) {
             return null;
         }

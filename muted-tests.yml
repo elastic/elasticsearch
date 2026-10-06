@@ -220,6 +220,8 @@ tests:
 - class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
   method: falls back to source build with warning when mode=dra but DRA snapshot is unavailable (distribution archive)
   issue: https://github.com/elastic/elasticsearch/issues/161067
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/161083
 
 # Examples:
 #

@@ -826,7 +826,7 @@ public class SharedBlobCacheWarmingService {
     ) {
         final long totalBytesToWarm = totalBytesToWarm(endTargetsToWarm);
         final SearchRecoveryTimeout plan = endTargetsToWarm != null
-            ? searchRecoveryTimeout(clusterStateSupplier.get(), indexShard, totalBytesToWarm)
+            ? searchRecoveryTimeout(clusterStateSupplier.get(), indexShard, totalBytesToWarm, null)
             : SearchRecoveryTimeout.skip();
         if (plan.awaitWarming()) {
             assert endTargetsToWarm != null;
@@ -849,8 +849,13 @@ public class SharedBlobCacheWarmingService {
         }
     }
 
-    protected SearchRecoveryTimeout searchRecoveryTimeout(ClusterState state, IndexShard indexShard, long totalBytesToWarm) {
-        return searchRecoveryTimeoutCalculationService.searchRecoveryTimeout(state, indexShard, totalBytesToWarm);
+    protected SearchRecoveryTimeout searchRecoveryTimeout(
+        ClusterState state,
+        IndexShard indexShard,
+        long totalBytesToWarm,
+        @Nullable SearchRecoveryTimeout previous
+    ) {
+        return searchRecoveryTimeoutCalculationService.searchRecoveryTimeout(state, indexShard, totalBytesToWarm, previous);
     }
 
     // this indirection is for test purposes (some tests check the listener type that's passed in to warmCache)
@@ -1137,8 +1142,6 @@ public class SharedBlobCacheWarmingService {
         private final LongSupplier bytesWarmedSoFar;
         private final long startedMillis;
         private final SubscribableListener<SearchRecoveryWaitOutcome> race;
-        // spans the whole wait, so it is fixed by the situation the wait started in
-        private final TimeValue totalBudget;
 
         private volatile SearchRecoveryTimeout latestPlan;
         private volatile Scheduler.ScheduledCancellable scheduledTask;
@@ -1160,7 +1163,6 @@ public class SharedBlobCacheWarmingService {
             this.startedMillis = startedMillis;
             this.race = race;
             this.latestPlan = initialPlan;
-            this.totalBudget = searchRecoveryTimeoutCalculationService.totalBudget(initialPlan.timeoutContext());
         }
 
         void schedule() {
@@ -1181,9 +1183,9 @@ public class SharedBlobCacheWarmingService {
                     // Approximate: bytesWarmedSoFar also counts bytes that are not part of bytesToWarm (e.g. header/footer reads), and
                     // regions that were already cached are never counted, so this can under- or overestimate the bytes still to warm.
                     final long bytesRemaining = Math.max(0L, bytesToWarm - bytesWarmedSoFar.getAsLong());
-                    final var newPlan = searchRecoveryTimeout(clusterStateSupplier.get(), indexShard, bytesRemaining);
+                    final var newPlan = searchRecoveryTimeout(clusterStateSupplier.get(), indexShard, bytesRemaining, latestPlan);
                     final var elapsed = TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - startedMillis);
-                    final var newTimeout = cappedToTotalBudget(newPlan.timeout(), elapsed);
+                    final var newTimeout = cappedToTotalBudget(newPlan, elapsed);
                     if (newPlan.shouldExtendAfter(latestPlan)
                         && newTimeout.compareTo(searchRecoveryTimeoutCalculationService.reevaluationAbortThreshold()) >= 0) {
                         latestPlan = newPlan;
@@ -1205,13 +1207,17 @@ public class SharedBlobCacheWarmingService {
             race.onResponse(SearchRecoveryWaitOutcome.TIMEOUT);
         }
 
-        /// Caps `timeout` so that the total wait does not exceed the total budget; no cap when there is no budget.
-        private TimeValue cappedToTotalBudget(TimeValue timeout, TimeValue elapsed) {
+        /// Caps the timeout of `plan` so that the total wait does not exceed the total budget for the situation `plan` was computed for;
+        /// no cap when there is no budget. The budget comes from the new plan rather than from the one the wait started with: once the
+        /// relocation source is shutting down, every slice is already bounded by the grace deadline, so the cap that applies before it
+        /// must not shorten the slices computed against it.
+        private TimeValue cappedToTotalBudget(SearchRecoveryTimeout plan, TimeValue elapsed) {
+            final TimeValue totalBudget = searchRecoveryTimeoutCalculationService.totalBudget(plan.timeoutContext());
             if (totalBudget.millis() <= 0) {
-                return timeout;
+                return plan.timeout();
             }
             final long budgetLeftMs = Math.max(0L, totalBudget.millis() - elapsed.millis());
-            return budgetLeftMs >= timeout.millis() ? timeout : TimeValue.timeValueMillis(budgetLeftMs);
+            return budgetLeftMs >= plan.timeout().millis() ? plan.timeout() : TimeValue.timeValueMillis(budgetLeftMs);
         }
 
         private String latestTimeoutContextDescription() {

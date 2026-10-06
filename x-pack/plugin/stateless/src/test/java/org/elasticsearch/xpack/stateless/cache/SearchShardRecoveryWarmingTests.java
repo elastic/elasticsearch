@@ -106,7 +106,6 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING,
                 SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING,
                 SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING,
-                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_MIN_BUDGET_PER_PENDING_SHARD_SETTING,
                 DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING,
                 SharedBlobCacheWarmingService.UPLOAD_PREWARM_MAX_SIZE_SETTING,
                 SharedBlobCacheWarmingService.WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING,
@@ -684,7 +683,12 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             new SearchRecoveryTimeoutCalculationService(cacheService, threadPool, clusterSettings)
         ) {
             @Override
-            protected SearchRecoveryTimeout searchRecoveryTimeout(ClusterState state, IndexShard indexShard, long totalBytesToWarm) {
+            protected SearchRecoveryTimeout searchRecoveryTimeout(
+                ClusterState state,
+                IndexShard indexShard,
+                long totalBytesToWarm,
+                @Nullable SearchRecoveryTimeout previous
+            ) {
                 return planForBytesToWarm.apply(totalBytesToWarm);
             }
 
@@ -720,7 +724,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             final SharedBlobCacheWarmingService service = newReevaluatingService(
                 threadPool,
                 settings,
-                () -> new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE)
+                () -> new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN)
             );
             final var resume = new PlainActionFuture<Void>();
             service.searchRecoveryWarmingListener(
@@ -749,6 +753,46 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             task3.run(); // eval 3: remaining=0 → time out
             safeGet(resume);
             assertThat("no reschedule after budget exhausted", threadPool.drainTask(), nullValue());
+        }
+    }
+
+    /// The total timeout cap only bounds waits computed for a source that is not shutting down. Once the source is shutting down, slices
+    /// are bounded by the grace deadline alone, so the cap of the plan the wait started with must not shorten them.
+    public void testReevaluationLoopDoesNotApplyTotalTimeoutCapToShutdownPlans() {
+        final var sliceSize = TimeValue.timeValueMillis(200);
+        final var settings = Settings.builder()
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TOTAL_TIMEOUT_CAP_SETTING.getKey(), TimeValue.timeValueMillis(300))
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
+            .put(
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(),
+                TimeValue.timeValueMillis(50)
+            )
+            .build();
+
+        try (var threadPool = new ReEvaluationThreadPool(getTestName())) {
+            final var service = newReevaluatingService(
+                threadPool,
+                settings,
+                () -> new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE)
+            );
+            final var resume = new PlainActionFuture<Void>();
+            service.searchRecoveryWarmingListener(
+                new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN),
+                () -> null, // unused in this test case
+                randomMockIndexShard(),
+                mockDirectory(),
+                0L,
+                resume
+            );
+
+            // elapsed grows past the 300ms cap after the second slice, shutdown plans must still be extended in full
+            for (int i = 0; i < 4; i++) {
+                final var task = threadPool.drainTask();
+                assertThat("re-evaluation " + i + " must have been scheduled", task, notNullValue());
+                task.run();
+                assertThat(resume.isDone(), is(false));
+            }
+            assertThat(threadPool.drainTask(), notNullValue());
         }
     }
 
@@ -810,7 +854,8 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
 
     /// Extension rules depending on the transition between the previous and the re-evaluated plan:
     /// no shutdown -> no shutdown extends, no shutdown -> shutdown metadata present extends, shutdown metadata present -> same does not
-    /// extend, shutdown metadata present -> source shutting down extends.
+    /// extend, shutdown metadata present -> source shutting down extends. A data-volume plan extends only as the first plan after the
+    /// source started shutting down, never after a plan that already was computed for a shutting down source.
     public void testReevaluationLoopExtensionRulesByTransition() {
         final var sliceSize = TimeValue.timeValueMillis(200);
         final var settings = Settings.builder()
@@ -826,7 +871,14 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT
         );
         final var sourceShuttingDown = new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE);
+        final var sourceShuttingDownSavedTime = new SearchRecoveryTimeout(
+            sliceSize,
+            TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE_SAVED_TIME
+        );
         final var dataVolume = new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME);
+        // plans for which there is nothing to wait for any more, even with a non-zero slice
+        final var skip = new SearchRecoveryTimeout(sliceSize, TimeoutContext.SKIP);
+        final var graceElapsed = new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_GRACE_ELAPSED);
 
         // previous plan, re-evaluated plan, whether the wait is extended
         final var scenarios = List.of(
@@ -834,7 +886,13 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             new Object[] { noShutdown, metadataPresent, true },
             new Object[] { metadataPresent, metadataPresent, false },
             new Object[] { metadataPresent, sourceShuttingDown, true },
-            new Object[] { sourceShuttingDown, dataVolume, false }
+            new Object[] { noShutdown, dataVolume, true },
+            new Object[] { metadataPresent, dataVolume, true },
+            new Object[] { sourceShuttingDown, dataVolume, false },
+            new Object[] { sourceShuttingDown, sourceShuttingDownSavedTime, true },
+            new Object[] { sourceShuttingDownSavedTime, dataVolume, false },
+            new Object[] { noShutdown, skip, false },
+            new Object[] { noShutdown, graceElapsed, false }
         );
         for (final var scenario : scenarios) {
             final var initialPlan = (SearchRecoveryTimeout) scenario[0];
@@ -920,7 +978,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         final LongFunction<SearchRecoveryTimeout> plan = bytesRemaining -> {
             bytesRemainingSeen.add(bytesRemaining);
             return bytesRemaining > bytesToWarm / 2
-                ? new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME)
+                ? new SearchRecoveryTimeout(TimeValue.ZERO, TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME)
                 : new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE);
         };
 

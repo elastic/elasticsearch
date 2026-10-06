@@ -11,11 +11,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -50,16 +49,6 @@ public class SearchRecoveryTimeoutCalculationService {
         Setting.Property.Dynamic
     );
 
-    /// Minimum grace-period budget reserved per wave of pending shards on the relocation source when computing the timeout extension
-    /// for a relocating shard.
-    public static final Setting<TimeValue> OFFLINE_WARMING_TIMEOUT_REEVALUATION_MIN_BUDGET_PER_PENDING_SHARD_SETTING = Setting.timeSetting(
-        OFFLINE_WARMING_TIMEOUT_REEVALUATION_PREFIX + ".min_budget_per_pending_shard",
-        TimeValue.timeValueMillis(500),
-        TimeValue.ZERO,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
     /// Upper bound on the total time a recovering search shard may wait for warming, summed over the initial timeout and all
     /// re-evaluation extensions, when no relocation source is shutting down.
     public static final Setting<TimeValue> OFFLINE_WARMING_TOTAL_TIMEOUT_CAP_SETTING = Setting.timeSetting(
@@ -79,7 +68,6 @@ public class SearchRecoveryTimeoutCalculationService {
     private volatile TimeValue searchRecoveryWarmingTotalTimeoutCap;
     private volatile boolean searchRecoveryWarmingTimeoutReevaluationEnabled;
     private volatile TimeValue searchRecoveryReevaluationAbortThreshold;
-    private volatile TimeValue searchRecoveryWarmingSourceShutdownMinBudgetPerPendingShard;
     private volatile double searchRecoveryWarmingSourceShutdownShareFactor;
     private volatile double searchRecoveryWarmingCacheRatio;
 
@@ -123,10 +111,6 @@ public class SearchRecoveryTimeoutCalculationService {
             value -> this.searchRecoveryReevaluationAbortThreshold = value
         );
         clusterSettings.initializeAndWatch(
-            OFFLINE_WARMING_TIMEOUT_REEVALUATION_MIN_BUDGET_PER_PENDING_SHARD_SETTING,
-            value -> this.searchRecoveryWarmingSourceShutdownMinBudgetPerPendingShard = value
-        );
-        clusterSettings.initializeAndWatch(
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
             value -> this.searchRecoveryWarmingSourceShutdownShareFactor = value
         );
@@ -144,8 +128,7 @@ public class SearchRecoveryTimeoutCalculationService {
             case NON_RELOCATION_ANOTHER_ACTIVE_COPY, RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN,
                 RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT -> searchRecoveryWarmingTotalTimeoutCap;
             case SKIP, RESHARD_SPLIT_TARGET, RELOCATION_SOURCE_SHUTTING_DOWN_GRACE_ELAPSED, RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME,
-                RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE, RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE_CAPPED_FOR_PENDING_SHARDS ->
-                TimeValue.ZERO;
+                RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE, RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE_SAVED_TIME -> TimeValue.ZERO;
         };
     }
 
@@ -161,13 +144,30 @@ public class SearchRecoveryTimeoutCalculationService {
     /// a computed share when the source is shutting down. Non-relocation: wait only if another active search shard copy exists and there
     /// is no cluster shutdown metadata, using [SharedBlobCacheWarmingService#SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING].
     public SearchRecoveryTimeout searchRecoveryTimeout(ClusterState state, IndexShard indexShard, long totalBytesToWarm) {
+        return searchRecoveryTimeout(state, indexShard, totalBytesToWarm, null);
+    }
+
+    /// @param previous the plan whose slice just expired when re-evaluating, `null` for the first calculation. A re-evaluation of an
+    /// equal-share plan only extends the wait by the time saved since `previous`, see [#computeRelocationSourceShutdownWarmingTimeout].
+    public SearchRecoveryTimeout searchRecoveryTimeout(
+        ClusterState state,
+        IndexShard indexShard,
+        long totalBytesToWarm,
+        @Nullable SearchRecoveryTimeout previous
+    ) {
         final ShardRouting shardRouting = indexShard.routingEntry();
         assert shardRouting.isPromotableToPrimary() == false;
         if (isRelocationTarget(shardRouting)) {
             final String sourceNodeId = shardRouting.relocatingNodeId();
             assert sourceNodeId != null;
             if (state.metadata().nodeShutdowns().isNodeMarkedForRemoval(sourceNodeId)) {
-                return computeRelocationSourceShutdownWarmingTimeout(state, sourceNodeId, shardRouting.currentNodeId(), totalBytesToWarm);
+                return computeRelocationSourceShutdownWarmingTimeout(
+                    state,
+                    sourceNodeId,
+                    shardRouting.currentNodeId(),
+                    totalBytesToWarm,
+                    previous
+                );
             }
             if (hasActiveShutdownForRemovalNodes(state)) {
                 return new SearchRecoveryTimeout(
@@ -212,22 +212,6 @@ public class SearchRecoveryTimeoutCalculationService {
         return node == null ? 0 : node.size();
     }
 
-    /// Counts shards that are in [ShardRoutingState#STARTED] state on `nodeId`. These are shards that have not yet begun
-    /// relocating and will need grace-period budget in a future recovery round.
-    private static int countStartedShardsOnNode(ClusterState clusterState, String nodeId) {
-        final RoutingNode node = clusterState.getRoutingNodes().node(nodeId);
-        if (node == null) {
-            return 0;
-        }
-        int count = 0;
-        for (ShardRouting shard : node) {
-            if (shard.state() == ShardRoutingState.STARTED) {
-                count++;
-            }
-        }
-        return count;
-    }
-
     private static boolean hasActiveShutdownForRemovalNodes(ClusterState state) {
         for (Map.Entry<String, SingleNodeShutdownMetadata> entry : state.metadata().nodeShutdowns().getAll().entrySet()) {
             if (entry.getValue().getType().isRemovalType() && state.nodes().nodeExists(entry.getKey())) {
@@ -247,14 +231,16 @@ public class SearchRecoveryTimeoutCalculationService {
     ///
     /// with `deadline = start + min(metadata grace, cap)`.
     ///
-    /// Only equal-share plans are [extendable][SearchRecoveryTimeout#extendable]. When `reevaluation` is `true`
-    /// the equal-share timeout is additionally capped to reserve time for shards still pending on the source. A re-evaluation that
-    /// lands on a data-volume plan is not extended, see [SearchRecoveryTimeout#shouldExtendAfter].
+    /// Only equal-share plans are [extendable][SearchRecoveryTimeout#extendable]. A re-evaluation of an equal-share plan (`previous`)
+    /// only extends the wait by the time saved since then, see [#searchRecoveryTimeout(ClusterState, IndexShard, long, SearchRecoveryTimeout)].
+    /// A data-volume plan is accepted as an extension only as the first plan after the source started shutting down, and is never
+    /// extended itself, see [SearchRecoveryTimeout#shouldExtendAfter].
     private SearchRecoveryTimeout computeRelocationSourceShutdownWarmingTimeout(
         ClusterState state,
         String sourceNodeId,
         String targetNodeId,
-        long totalBytesToWarm
+        long totalBytesToWarm,
+        @Nullable SearchRecoveryTimeout previous
     ) {
         final var shutdown = state.metadata().nodeShutdowns().get(sourceNodeId);
         assert shutdown != null;
@@ -298,9 +284,21 @@ public class SearchRecoveryTimeoutCalculationService {
                 TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME
             );
         }
+        if (previous != null && previous.perShardShareMs() > 0) {
+            // Re-evaluation: every shard still on the source was already budgeted previous.perShardShareMs() when the previous plan was
+            // computed, so only the part of the fresh share above that is time saved by shards that finished early. When none did, the
+            // fresh share is not larger and there is nothing to extend by.
+            final double savedPerShardMs = Math.max(0.0, equalShareMs - previous.perShardShareMs());
+            return new SearchRecoveryTimeout(
+                TimeValue.timeValueMillis(Math.round(Math.min(remaining, savedPerShardMs * ongoingRelocations))),
+                TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE_SAVED_TIME,
+                equalShareMs
+            );
+        }
         return new SearchRecoveryTimeout(
             TimeValue.timeValueMillis(Math.round(Math.min(remaining, equalShareMs * ongoingRelocations))),
-            TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE
+            TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE,
+            equalShareMs
         );
     }
 

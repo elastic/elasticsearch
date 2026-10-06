@@ -84,8 +84,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING,
                 SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING,
-                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING,
-                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_MIN_BUDGET_PER_PENDING_SHARD_SETTING
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING
             )
         );
         final var cacheService = Mockito.mock(StatelessSharedBlobCacheService.class);
@@ -775,22 +774,20 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 equalTo(TimeValue.ZERO)
             );
 
-            // the first slice expires: 4000ms into the 10s grace → remaining = 6000ms, equal share = 6000 / 4 = 1500ms
+            // the first slice expires and no shard has left the source: 4000ms into the 10s grace → remaining = 6000ms, fresh share
+            // = 6000 / 4 = 1500ms, which is below the 2000ms already budgeted per shard, so nothing was saved
             threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 4000);
-            final var reevaluatedPlan = service.searchRecoveryTimeout(state, mockIndexShard(self), totalBytesToWarm);
-            assertThat(reevaluatedPlan.awaitWarming(), is(true));
-            assertThat("the wait is extended by a slice sized from the remaining time", reevaluatedPlan.timeout().millis(), equalTo(1500L));
-            assertThat(reevaluatedPlan.timeoutContext(), equalTo(initialPlan.timeoutContext()));
+            final var reevaluatedPlan = service.searchRecoveryTimeout(state, mockIndexShard(self), totalBytesToWarm, initialPlan);
+            assertThat("nothing saved, so nothing to extend by", reevaluatedPlan.timeout().millis(), equalTo(0L));
+            assertThat(reevaluatedPlan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE_SAVED_TIME));
             assertThat(reevaluatedPlan.extendable(), is(true));
         }
     }
 
-    /**
-     * When some shards on the shutting-down source are still STARTED (not yet relocating), the timeout for the
-     * currently relocating shard is reduced to reserve budget for those pending shards. Pending shards relocate in parallel waves,
-     * approximated by the number of relocations currently in flight, so the budget is reserved once per wave, not once per shard.
-     */
-    public void testPendingShardBudgetReservationCapsRelocatingShard() {
+    /// A re-evaluation only hands out the time saved by shards that left the source since the previous plan, split across the shards
+    /// still on it: 10s grace, 4 shards on the source gives each 2500ms; after 2000ms two of them are done, so the remaining two share
+    /// the 8000ms left (4000ms each), i.e. 1500ms more than they were budgeted.
+    public void testReevaluationExtendsOnlyByTimeSavedByFinishedShards() {
         try (
             var threadPool = new FakeTimeThreadPool(
                 getTestName(),
@@ -801,51 +798,52 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             final Settings settings = Settings.builder()
                 .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
                 .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
-                .put(
-                    SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_MIN_BUDGET_PER_PENDING_SHARD_SETTING
-                        .getKey(),
-                    "5000ms"
-                )
                 .build();
             final var service = newCalculationService(threadPool, settings, 0L);
 
             final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
             threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
             final long startedAtMillis = threadPool.absoluteTimeInMillis();
-
             final var index = new Index("idx", randomUUID());
             final String sourceNodeId = "source-node";
             final String targetNodeId = "target-node";
 
-            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
-
-            final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
+            final ClusterState initialState = clusterStateSearchShardsRelocatingFromShuttingDownSource(
                 4,
-                4,
+                1,
                 index,
                 sourceNodeId,
                 targetNodeId,
-                startedAtMillis,
-                4
+                startedAtMillis
             );
-
-            final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
+            final ShardRouting self = initialState.routingTable(DEFAULT_PROJECT_ID)
                 .shardRoutingTable(new ShardId(index, 0))
                 .shardsWithState(RELOCATING)
                 .getFirst()
                 .getTargetRelocatingShard();
-            final SearchRecoveryTimeout firstPlan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L);
-            assertThat("first calculation does not reserve budget for pending shards", firstPlan.timeout().millis(), equalTo(4000L));
-            assertThat(firstPlan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
+            final var initialPlan = service.searchRecoveryTimeout(initialState, mockIndexShard(self), 0L);
+            assertThat(initialPlan.timeout().millis(), equalTo(10_000L / 4));
+            assertThat(initialPlan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
 
-            final SearchRecoveryTimeout plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L);
-
-            assertThat(plan.awaitWarming(), is(true));
-            assertThat(plan.timeout().millis(), equalTo(3000L));
-            assertThat(
-                plan.timeoutContext(),
-                equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE_CAPPED_FOR_PENDING_SHARDS)
+            // two other shards finished on time, one slice later only two shards are left on the source
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
+            final ClusterState stateAfterEarlyFinishes = clusterStateSearchShardsRelocatingFromShuttingDownSource(
+                2,
+                1,
+                index,
+                sourceNodeId,
+                targetNodeId,
+                startedAtMillis
             );
+            final var reevaluatedPlan = service.searchRecoveryTimeout(stateAfterEarlyFinishes, mockIndexShard(self), 0L, initialPlan);
+            assertThat(reevaluatedPlan.timeout().millis(), equalTo(8000L / 2 - 10_000L / 4));
+            assertThat(reevaluatedPlan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE_SAVED_TIME));
+            assertThat(reevaluatedPlan.extendable(), is(true));
+
+            // the saved-time plan carries the share it was computed from, so only the time saved after it is handed out next
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 4000);
+            final var nextPlan = service.searchRecoveryTimeout(stateAfterEarlyFinishes, mockIndexShard(self), 0L, reevaluatedPlan);
+            assertThat(nextPlan.timeout().millis(), equalTo(0L));
         }
     }
 

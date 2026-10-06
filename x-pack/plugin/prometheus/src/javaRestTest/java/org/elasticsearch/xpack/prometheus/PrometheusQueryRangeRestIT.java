@@ -88,6 +88,20 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         );
     }
 
+    /** Prometheus rejects a string literal in a range query: "invalid expression type "string" for range query". */
+    public void testQueryRangeStringLiteralIsRejected() throws Exception {
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query_range",
+            new BasicNameValuePair("query", "\"a string\""),
+            new BasicNameValuePair("start", "2026-01-01T00:00:00Z"),
+            new BasicNameValuePair("end", "2026-01-01T00:02:00Z"),
+            new BasicNameValuePair("step", "60s")
+        );
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("for range query, must be Scalar or instant Vector"));
+    }
+
     public void testQueryRangeWithIngestedData() throws Exception {
         ingestTestData("test_gauge_qr");
 
@@ -529,6 +543,17 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("for range query, must be scalar or instant vector"));
+    }
+
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantWithoutOverAClosedBinaryOperator}. */
+    public void testRangeWithoutOverAClosedBinaryOperator() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeGroups(
+            "sum without (host) (sum by (host, cluster) (tx) / sum by (host, cluster) (rx))",
+            "cluster",
+            Map.of("prod", 15.0, "qa", 3.0)
+        );
+        assertBinopRangeValues("sum without (host, cluster) (sum by (host, cluster) (tx) / sum by (host, cluster) (rx))", 18);
     }
 
     /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantFractionalKIsTruncated}. */

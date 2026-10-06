@@ -21,6 +21,7 @@ import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -29,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -55,6 +57,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
@@ -63,9 +67,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -657,6 +664,84 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
             currentDataStream().getIndices().get(0),
             equalTo(firstRestoredIndex)
         );
+    }
+
+    /**
+     * A restore keeps the generic shard-unavailable errors unless its caller explicitly asks for
+     * {@link org.elasticsearch.snapshots.ShardRestoringException}, so the {@code restoreOverExistingDataStreams} overload without the
+     * parameter does not set {@link RestoreInProgress.Entry#reportShardRestoring()}.
+     */
+    public void testRestoreOverExistingDataStreamDoesNotReportShardRestoringByDefault() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        createRepositoryAndSnapshottedDataStream();
+        final RestoreTarget restoreTarget = resolveRestoreTarget();
+
+        final List<Boolean> reported = captureReportShardRestoring(
+            future -> restoreService().restoreOverExistingDataStreams(
+                ProjectId.DEFAULT,
+                restoreTarget.snapshot(),
+                restoreTarget.snapshotInfo(),
+                TEST_REQUEST_TIMEOUT,
+                UUIDs.randomBase64UUID(),
+                List.of(restoreTarget.target()),
+                restoreTarget.snapshotDataStreamAliases(),
+                future
+            )
+        );
+
+        assertThat(reported, not(empty()));
+        assertThat(reported, everyItem(is(false)));
+    }
+
+    public void testRestoreOverExistingDataStreamReportsShardRestoringWhenRequested() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        createRepositoryAndSnapshottedDataStream();
+        final RestoreTarget restoreTarget = resolveRestoreTarget();
+
+        final List<Boolean> reported = captureReportShardRestoring(
+            future -> restoreService().restoreOverExistingDataStreams(
+                ProjectId.DEFAULT,
+                restoreTarget.snapshot(),
+                restoreTarget.snapshotInfo(),
+                TEST_REQUEST_TIMEOUT,
+                UUIDs.randomBase64UUID(),
+                true,
+                List.of(restoreTarget.target()),
+                restoreTarget.snapshotDataStreamAliases(),
+                future
+            )
+        );
+
+        assertThat(reported, not(empty()));
+        assertThat(reported, everyItem(is(true)));
+    }
+
+    /**
+     * Starts a restore with {@code startRestore}, waits for it to complete, and returns
+     * {@link RestoreInProgress.Entry#reportShardRestoring()} of every restore entry the master applied meanwhile. It is read on the master
+     * because the flag is not part of the wire format yet.
+     */
+    private List<Boolean> captureReportShardRestoring(Consumer<PlainActionFuture<RestoreService.RestoreCompletionResponse>> startRestore)
+        throws Exception {
+        final List<Boolean> seen = new CopyOnWriteArrayList<>();
+        final ClusterService masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        final ClusterStateListener listener = event -> {
+            for (RestoreInProgress.Entry entry : RestoreInProgress.get(event.state())) {
+                seen.add(entry.reportShardRestoring());
+            }
+        };
+        masterClusterService.addListener(listener);
+        try {
+            final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
+            startRestore.accept(future);
+            safeGet(future);
+            awaitRestoreCompleted();
+        } finally {
+            masterClusterService.removeListener(listener);
+        }
+        return seen;
     }
 
     private int createRepositoryAndSnapshottedDataStream() throws Exception {

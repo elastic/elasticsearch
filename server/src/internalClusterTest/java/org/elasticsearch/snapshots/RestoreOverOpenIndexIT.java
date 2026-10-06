@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -60,7 +61,9 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -68,8 +71,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -79,6 +84,9 @@ import static org.hamcrest.Matchers.nullValue;
  * index UUID and stays {@link IndexMetadata.State#OPEN} but receives a new history UUID, so every data node holding a copy must remove and
  * recreate its index service with reopened-index semantics rather than update it in place, while keeping the shard store on disk so that
  * the restore file diff can reuse identical local Lucene files.
+ * <p>
+ * It also tests that the restore entry points that open a restore over an open index only record, on the restore's
+ * {@link RestoreInProgress.Entry}, that its shards are to be reported as {@link ShardRestoringException} when their caller asks for it.
  * <p>
  * {@link #initializeRestoreOverOpenIndex} drives this through the public {@link RestoreService#restoreSnapshot} API, opting in via
  * {@link RestoreSnapshotRequest#restoreOverExisting()}, except for {@link #testOverlappingRestoreTransitionsDoNotCorruptTheSecondRestore},
@@ -951,6 +959,129 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
                 .index(INDEX_NAME),
             nullValue()
         );
+    }
+
+    /**
+     * A restore keeps the generic shard-unavailable errors unless its caller explicitly asks for {@link ShardRestoringException}, so the
+     * {@link RestoreService#restoreSnapshot} overload without the parameter does not set
+     * {@link RestoreInProgress.Entry#reportShardRestoring()}.
+     */
+    public void testRestoreSnapshotDoesNotReportShardRestoringByDefault() throws Exception {
+        createClusterAndSnapshottedIndex();
+
+        final List<Boolean> reported = captureReportShardRestoring(
+            future -> restoreService().restoreSnapshot(
+                ProjectId.DEFAULT,
+                restoreOverOpenIndexRequest(),
+                UUIDs.randomBase64UUID(),
+                future,
+                (state, builder) -> {}
+            )
+        );
+
+        assertThat(reported, not(empty()));
+        assertThat(reported, everyItem(is(false)));
+    }
+
+    public void testRestoreSnapshotReportsShardRestoringWhenRequested() throws Exception {
+        createClusterAndSnapshottedIndex();
+
+        final List<Boolean> reported = captureReportShardRestoring(
+            future -> restoreService().restoreSnapshot(
+                ProjectId.DEFAULT,
+                restoreOverOpenIndexRequest(),
+                UUIDs.randomBase64UUID(),
+                true,
+                future,
+                (state, builder) -> {}
+            )
+        );
+
+        assertThat(reported, not(empty()));
+        assertThat(reported, everyItem(is(true)));
+    }
+
+    public void testRestoreSnapshotOverOpenIndicesDoesNotReportShardRestoringByDefault() throws Exception {
+        createClusterAndSnapshottedIndex();
+        final SnapshotInfo snapshotInfo = getSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME);
+        final Snapshot snapshot = new Snapshot(REPOSITORY_NAME, snapshotInfo.snapshotId());
+        final RestoreService.OpenIndexRestoreTarget target = openIndexTarget(INDEX_NAME);
+
+        final List<Boolean> reported = captureReportShardRestoring(
+            future -> restoreService().restoreSnapshotOverOpenIndices(
+                ProjectId.DEFAULT,
+                snapshot,
+                snapshotInfo,
+                TEST_REQUEST_TIMEOUT,
+                UUIDs.randomBase64UUID(),
+                List.of(target),
+                future
+            )
+        );
+
+        assertThat(reported, not(empty()));
+        assertThat(reported, everyItem(is(false)));
+    }
+
+    public void testRestoreSnapshotOverOpenIndicesReportsShardRestoringWhenRequested() throws Exception {
+        createClusterAndSnapshottedIndex();
+        final SnapshotInfo snapshotInfo = getSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME);
+        final Snapshot snapshot = new Snapshot(REPOSITORY_NAME, snapshotInfo.snapshotId());
+        final RestoreService.OpenIndexRestoreTarget target = openIndexTarget(INDEX_NAME);
+
+        final List<Boolean> reported = captureReportShardRestoring(
+            future -> restoreService().restoreSnapshotOverOpenIndices(
+                ProjectId.DEFAULT,
+                snapshot,
+                snapshotInfo,
+                TEST_REQUEST_TIMEOUT,
+                UUIDs.randomBase64UUID(),
+                true,
+                List.of(target),
+                future
+            )
+        );
+
+        assertThat(reported, not(empty()));
+        assertThat(reported, everyItem(is(true)));
+    }
+
+    private void createClusterAndSnapshottedIndex() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        createRepositoryAndSnapshottedIndex();
+    }
+
+    private static RestoreSnapshotRequest restoreOverOpenIndexRequest() {
+        return new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(INDEX_NAME)
+            .restoreOverExisting(true);
+    }
+
+    /**
+     * Starts a restore with {@code startRestore}, waits for it to complete, and returns
+     * {@link RestoreInProgress.Entry#reportShardRestoring()} of every restore entry the master applied meanwhile. The flag is set when
+     * the restore starts and carried by the entry through every cluster state the master builds, so recording it there is deterministic.
+     * It is read on the master because the flag is not part of the wire format yet.
+     */
+    private List<Boolean> captureReportShardRestoring(Consumer<PlainActionFuture<RestoreService.RestoreCompletionResponse>> startRestore)
+        throws Exception {
+        final List<Boolean> seen = new CopyOnWriteArrayList<>();
+        final ClusterService masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        final ClusterStateListener listener = event -> {
+            for (RestoreInProgress.Entry entry : RestoreInProgress.get(event.state())) {
+                seen.add(entry.reportShardRestoring());
+            }
+        };
+        masterClusterService.addListener(listener);
+        try {
+            final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
+            startRestore.accept(future);
+            safeGet(future);
+            awaitRestoreCompleted();
+        } finally {
+            masterClusterService.removeListener(listener);
+        }
+        return seen;
     }
 
     /**

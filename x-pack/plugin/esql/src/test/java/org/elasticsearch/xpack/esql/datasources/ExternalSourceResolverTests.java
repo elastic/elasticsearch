@@ -1730,6 +1730,30 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * A stats gather that can neither fold nor cache stops reading. A format whose metadata carries no row
+     * count — the shape of every line-oriented text format, which publishes size and identity at resolution
+     * and harvests statistics later from the data-node capture — kills the fold on the first file accepted.
+     * With no cache to warm either (non-cacheable provider here), every remaining read buys an aggregate
+     * that is already unreachable and an entry that will not be kept, so the gather drains instead.
+     * <p>
+     * The counterpart is {@link #testFirstFileWinsEagerlyReadsFootersWhenStatsRequired}, which pins the
+     * footer-format control at all four reads on the identical listing: the rule is economic, not a format
+     * test, and this pair is what tells the two apart.
+     */
+    public void testStatsGatherStopsOnceTheFoldIsDeadAndNothingWillBeCached() throws Exception {
+        AtomicInteger metadataReads = new AtomicInteger();
+        ThreeFileStats withoutRowCounts = new ThreeFileStats(threeFileSchemas(), Map.of());
+        ExternalSourceResolution resolution = resolveFfwWithRequirement(withoutRowCounts, metadataReads, Set.of(GLOB), null);
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(GLOB);
+        assertNotNull(resolved);
+        assertEquals("anchor footer plus the single read that kills the fold", 2, metadataReads.get());
+        Map<String, Object> meta = resolved.metadata().sourceMetadata();
+        assertEquals("an unfinished fold leaves stats partial", Boolean.TRUE, meta.get(SourceStatisticsSerializer.STATS_PARTIAL));
+        assertEquals("file count still comes from the listing, not the gather", 3L, meta.get(SourceStatisticsSerializer.STATS_FILE_COUNT));
+    }
+
+    /**
      * Legacy {@code null} overload: a {@code null} {@code pathsRequiringStats} keeps the original
      * eager-for-every-path behavior, so all footers are read regardless of query shape.
      */

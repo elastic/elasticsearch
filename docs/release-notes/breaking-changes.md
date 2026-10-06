@@ -19,11 +19,11 @@ stack: ga 9.4.8
 
 There are no breaking changes associated with this release.
 
-## 9.4.7 [elasticsearch-9.4.7-breaking-changes]
+## 9.5.4 [elasticsearch-9.5.4-breaking-changes]
 
 There are no breaking changes associated with this release.
 
-## 9.5.4 [elasticsearch-9.5.4-breaking-changes]
+## 9.4.7 [elasticsearch-9.4.7-breaking-changes]
 
 There are no breaking changes associated with this release.
 

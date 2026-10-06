@@ -116,6 +116,14 @@ public class ReadConfigFingerprintDerivationSitesTests extends ESTestCase {
                 + "schemaMap is empty (documented unreachable for stamped entries)",
             Role.SERVE_EXPECTATION,
             "same pairing as the per-file loop; kept only as a fallback"
+        ),
+        new Site(
+            RESOLVER,
+            "first-file-wins statistics lookup — of(base.schema(), declaredReadSpecOf(declaredMapping)) handed to the "
+                + "per-file gather, which addresses each file's statistics record by the read it is about to do",
+            Role.SERVE_EXPECTATION,
+            "the HARVEST over perFileReadSchema, which on this rail IS the anchor's schema shipped per split; pinned by "
+                + "testFirstFileWinsStatisticsLookupAgreesWithTheHarvestOverThePin below"
         )
     );
 
@@ -233,6 +241,40 @@ public class ReadConfigFingerprintDerivationSitesTests extends ESTestCase {
                 + "fingerprint — a disagreement serves nothing and re-scans forever",
             harvestSide,
             stampSide
+        );
+    }
+
+    /**
+     * The pairing fixture the declaration above demands. Statistics for a file on the first-file-wins rail are
+     * addressed by the read the query will perform, which is the ANCHOR's schema — not the file's own. The harvest
+     * that lands there derives its fingerprint from {@code perFileReadSchema}, which on this rail is that same
+     * anchor schema shipped down per split. The two must agree, or the lookup addresses a record the harvest never
+     * writes and the file stays permanently cold — the failure this whole address exists to end.
+     * <p>
+     * The second assertion is the one that matters for the defect: the file's OWN schema derives a DIFFERENT
+     * fingerprint, which is why addressing statistics by it (as the schema record does) cannot serve this read.
+     */
+    public void testFirstFileWinsStatisticsLookupAgreesWithTheHarvestOverThePin() {
+        List<Attribute> anchorSchema = List.of(attr("a", DataType.LONG), attr("b", DataType.LONG));
+        // A sibling file carrying a third column: same rail, read at the anchor's schema regardless.
+        List<Attribute> thisFilesOwnSchema = List.of(attr("a", DataType.LONG), attr("b", DataType.LONG), attr("c", DataType.LONG));
+
+        String lookupSide = ReadConfigFingerprint.of(anchorSchema, DeclaredReadSpec.NONE);
+        String harvestSide = ReadConfigFingerprint.of(anchorSchema, DeclaredReadSpec.NONE);
+        String ownSchemaSide = ReadConfigFingerprint.of(thisFilesOwnSchema, DeclaredReadSpec.NONE);
+
+        assertNotEquals(ReadConfigFingerprint.UNKNOWN, lookupSide);
+        assertEquals(
+            "the statistics lookup (the anchor's schema) and the harvest (perFileReadSchema, the same anchor schema) "
+                + "must derive the same fingerprint — a disagreement addresses a record nobody writes",
+            harvestSide,
+            lookupSide
+        );
+        assertNotEquals(
+            "a file's own schema must NOT derive the read's fingerprint: addressing statistics by it is what leaves a "
+                + "file unlike the anchor permanently cold",
+            lookupSide,
+            ownSchemaSide
         );
     }
 

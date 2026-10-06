@@ -1346,6 +1346,10 @@ public class ExternalSourceResolver {
                     storageIdentity,
                     fileConfig,
                     null,
+                    // The anchor resolve is what DECIDES the bound read, so there is no bound read to address
+                    // statistics by yet. Its own schema record is the right answer for it either way: the file it
+                    // describes and the file the query will read at that schema are the same file.
+                    null,
                     anchorListener.map(meta -> (ExternalSourceMetadata) meta)
                 );
             } else {
@@ -1460,6 +1464,10 @@ public class ExternalSourceResolver {
                         ffwReadConfigs,
                         ffwInferredTypes,
                         ffwSlimStats,
+                        // Every file on this rail is read at the anchor's schema, so that is the read whose
+                        // statistics each per-file lookup wants. Null leaves every lookup on the schema record
+                        // alone, which is the behaviour before this address existed.
+                        ReadConfigFingerprint.of(base.schema(), declaredReadSpecOf(declaredMapping)),
                         statsListener
                     );
                 } else {
@@ -2593,13 +2601,23 @@ public class ExternalSourceResolver {
         ActionListener<Map<StoragePath, SourceMetadata>> listener
     ) {
         int fileCount = fileList.fileCount();
-        gatherPerFile(fileList, storageIdentity, config, cacheable, fold, schemaInterner, privateLists, ActionListener.wrap(perFile -> {
-            Map<StoragePath, SourceMetadata> result = new LinkedHashMap<>();
-            for (int i = 0; i < fileCount; i++) {
-                result.put(fileList.path(i), perFile.get(i));
-            }
-            listener.onResponse(result);
-        }, listener::onFailure));
+        gatherPerFile(
+            fileList,
+            storageIdentity,
+            config,
+            cacheable,
+            fold,
+            schemaInterner,
+            privateLists,
+            null,
+            ActionListener.wrap(perFile -> {
+                Map<StoragePath, SourceMetadata> result = new LinkedHashMap<>();
+                for (int i = 0; i < fileCount; i++) {
+                    result.put(fileList.path(i), perFile.get(i));
+                }
+                listener.onResponse(result);
+            }, listener::onFailure)
+        );
     }
 
     /**
@@ -2626,7 +2644,7 @@ public class ExternalSourceResolver {
         @Nullable RunningFileStatsFold fold,
         ActionListener<List<SourceMetadata>> listener
     ) {
-        gatherPerFile(fileList, storageIdentity, config, cacheable, fold, null, null, listener);
+        gatherPerFile(fileList, storageIdentity, config, cacheable, fold, null, null, null, listener);
     }
 
     private void gatherPerFile(
@@ -2637,6 +2655,7 @@ public class ExternalSourceResolver {
         @Nullable RunningFileStatsFold fold,
         @Nullable SchemaInterner schemaInterner,
         @Nullable ExternalPlanningReservation.Run privateLists,
+        @Nullable String boundReadConfig,
         ActionListener<List<SourceMetadata>> listener
     ) {
         int fileCount = fileList.fileCount();
@@ -2702,7 +2721,7 @@ public class ExternalSourceResolver {
                 // footer read.
                 ListingHint hint = new ListingHint(fileList.size(i), fileList.lastModifiedMillis(i));
                 if (cacheable) {
-                    cachedResolveSingleSourceAsync(filePath, hint, storageIdentity, config, admission, itemListener);
+                    cachedResolveSingleSourceAsync(filePath, hint, storageIdentity, config, admission, boundReadConfig, itemListener);
                 } else {
                     resolveSingleSourceAsync(filePath.toString(), hint, config, itemListener);
                 }
@@ -2801,6 +2820,7 @@ public class ExternalSourceResolver {
         String storageIdentity,
         Map<String, Object> config,
         @Nullable SchemaFanOutAdmission admission,
+        @Nullable String boundReadConfig,
         ActionListener<SourceMetadata> listener
     ) {
         String formatType = detectFormatType(filePath, config);
@@ -2811,6 +2831,19 @@ public class ExternalSourceResolver {
             cacheIdentity(filePath.objectName(), storageIdentity, storageConfig(config)),
             storageConfig(config)
         );
+        // Statistics first, addressed by the read this resolve is about to do. The schema record beside it
+        // describes the file and is the same answer whoever asks; a statistic describes one read, so it is
+        // only this read's if it was harvested under this read's configuration. A hit here is the warm answer
+        // for a file whose own schema differs from the one the query binds, which the schema record alone
+        // cannot carry — it holds whatever the last matching read left, and for such a file nothing matches.
+        if (boundReadConfig != null) {
+            SchemaCacheEntry stats = cacheService.getSchemaIfPresent(schemaKey.withReadConfig(boundReadConfig));
+            if (stats != null) {
+                pendingMetadataWarnings.addAll(stats.warnings());
+                listener.onResponse(buildMetadataFromCache(stats, stats.toAttributes(), config));
+                return;
+            }
+        }
         SchemaCacheEntry cached = cacheService.getSchemaIfPresent(schemaKey);
         if (cached != null) {
             pendingMetadataWarnings.addAll(cached.warnings());
@@ -3454,9 +3487,10 @@ public class ExternalSourceResolver {
         Map<String, String> readConfigsOut,
         Map<StoragePath, Map<String, DataType>> inferredTypesOut,
         Map<StoragePath, SourceStatistics> slimStatsOut,
+        @Nullable String boundReadConfig,
         ActionListener<Map<String, Object>> listener
     ) {
-        gatherPerFile(listing, storageIdentity, config, true, fold, ActionListener.wrap(allMeta -> {
+        gatherPerFile(listing, storageIdentity, config, true, fold, null, null, boundReadConfig, ActionListener.wrap(allMeta -> {
             collectReadConfigs(listing, allMeta, readConfigsOut);
             collectInferredTypes(listing, allMeta, inferredTypesOut);
             collectSlimStatistics(listing, allMeta, slimStatsOut);

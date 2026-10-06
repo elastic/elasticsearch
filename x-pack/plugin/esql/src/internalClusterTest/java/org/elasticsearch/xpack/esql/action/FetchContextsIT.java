@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
@@ -21,6 +20,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -29,14 +29,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
- * The reader contexts of the fetch phase, on a cluster with three data nodes. The fetch can't load documents yet, so a
- * query that gets the fetch phase fails on its first row. Its data nodes still open a registered context per shard, and
- * every one of them is freed by the time the query is over.
+ * The reader contexts of the fetch phase, on a cluster with three data nodes. The data nodes of a query that gets the
+ * fetch phase open a registered context per shard, the coordinator fetches from them, and every one of them is freed by
+ * the time the query is over.
  */
 @ESIntegTestCase.ClusterScope(numDataNodes = 3)
 public class FetchContextsIT extends AbstractEsqlIntegTestCase {
@@ -94,12 +93,17 @@ public class FetchContextsIT extends AbstractEsqlIntegTestCase {
 
     /**
      * Every data node registers a context per shard, with the keep-alive of {@link FetchContextService#CONTEXT_KEEP_ALIVE}.
-     * The coordinator fails on the first row it would fetch, and all the contexts are freed: by the data nodes for shards
-     * without surviving rows or on cancellation, and by the coordinator's lease for the rest.
+     * The query returns the rows it returns without the fetch phase, and all the contexts are freed: by the data nodes
+     * for shards without surviving rows, by the fetch for the shards it read, and by the coordinator's lease for the rest.
      */
     public void testQueryWithTheFetchPhaseFreesItsContexts() throws Exception {
-        Exception e = expectThrows(Exception.class, () -> run(request(true)).close());
-        assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("the fetch phase can't load documents yet"));
+        List<List<Object>> eager;
+        try (EsqlQueryResponse response = run(request(false))) {
+            eager = getValuesList(response);
+        }
+        try (EsqlQueryResponse response = run(request(true))) {
+            assertThat(getValuesList(response), equalTo(eager));
+        }
 
         assertThat("a registered context per shard", registered.get(), equalTo(shards));
         assertThat("the keep-alive the coordinator sent", keepAlivesMillis, equalTo(Set.of(keepAlive.millis())));

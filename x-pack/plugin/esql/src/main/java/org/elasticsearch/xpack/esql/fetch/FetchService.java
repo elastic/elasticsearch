@@ -7,13 +7,20 @@
 
 package org.elasticsearch.xpack.esql.fetch;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.fetch.lifetime.FetchContextService;
@@ -49,6 +56,7 @@ public final class FetchService {
     );
 
     private final TransportService transportService;
+    private final BlockFactory blockFactory;
     private final DataNodeFetchExecutor executor;
     private volatile int maxConcurrentShardTasks;
 
@@ -69,6 +77,7 @@ public final class FetchService {
         FetchPlannerFactory plannerFactory
     ) {
         this.transportService = transportService;
+        this.blockFactory = blockFactory;
         this.executor = new DataNodeFetchExecutor(
             transportService,
             clusterService,
@@ -81,6 +90,27 @@ public final class FetchService {
             () -> maxConcurrentShardTasks
         );
         clusterService.getClusterSettings().initializeAndWatch(MAX_CONCURRENT_SHARD_TASKS, max -> maxConcurrentShardTasks = max);
+    }
+
+    /**
+     * Sends a fetch request to {@code node} as a child of the task of the query. The response is read on the search pool,
+     * into the block factory of this node. A request to this node is handed over without serialization, through the
+     * same handler and the same authorization. A node that isn't connected fails the listener on the search pool too.
+     */
+    public void sendFetch(DiscoveryNode node, FetchRequest request, Task parentTask, ActionListener<FetchResponse> listener) {
+        ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+        transportService.sendChildRequest(
+            node,
+            FETCH_ACTION_NAME,
+            request,
+            parentTask,
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(
+                listener,
+                in -> new FetchResponse(new BlockStreamInput(in, blockFactory), threadContext),
+                transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
+            )
+        );
     }
 
     /**

@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -73,6 +74,8 @@ public class AuditIT extends ESRestTestCase {
         .setting("esql.federation.enabled", "true")
         // Endpoints are confined to AWS hosts, so permit loopback the way the esql suites do.
         .setting("esql.external.allowed_endpoint_hosts", "127.0.0.1:*,[::1]:*,localhost:*")
+        // _test REST handler is FeatureFlag-gated (snapshot-on, release-off); AuditIT covers credential masking on it.
+        .feature(FeatureFlag.ESQL_DATA_SOURCE_TEST_CONNECTION)
         .keystore("cluster.state.encryption.password." + ENCRYPTION_PASSWORD_ID, "audit-it-encryption-password")
         .keystore("cluster.state.encryption.active_password_id", ENCRYPTION_PASSWORD_ID)
         .user("admin_user", "admin-password")

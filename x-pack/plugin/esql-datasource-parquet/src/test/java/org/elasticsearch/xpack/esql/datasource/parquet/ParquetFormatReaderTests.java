@@ -49,6 +49,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -59,6 +60,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -70,12 +72,14 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatt
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
-import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.ExternalIoExecutors;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
@@ -83,6 +87,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
@@ -117,11 +122,14 @@ import java.util.OptionalLong;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -992,6 +1000,252 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * Fourteen concurrent metadata callers per file share one tail GET. Distinct
+     * {@link StorageObject} instances per caller still coalesce on {@code (path, length)}.
+     */
+    public void testMetadataAsyncCoalescesFourteenCallersPerFile() throws Exception {
+        byte[] parquetData = createVpcFlowShapedParquet();
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        SourceMetadata sync = reader.metadata(createStorageObject(parquetData, "memory://coalesce/sync.parquet"));
+        reader.clearFooterCachesForTests();
+
+        int files = 5;
+        int callers = 14;
+        CountDownLatch release = new CountDownLatch(1);
+        AtomicInteger gets = new AtomicInteger();
+        ExecutorService io = Executors.newFixedThreadPool(files);
+        try {
+            List<PlainActionFuture<SourceMetadata>> futures = new ArrayList<>(files * callers);
+            for (int f = 0; f < files; f++) {
+                String path = "memory://coalesce/f" + f + ".parquet";
+                for (int c = 0; c < callers; c++) {
+                    StorageObject object = gatedAsyncStorageObject(parquetData, path, io, gets, release, null);
+                    PlainActionFuture<SourceMetadata> future = new PlainActionFuture<>();
+                    reader.metadataAsync(object, Runnable::run, future);
+                    futures.add(future);
+                }
+            }
+            assertEquals("one GET per file while 14 callers attach", files, gets.get());
+            release.countDown();
+            for (PlainActionFuture<SourceMetadata> future : futures) {
+                SourceMetadata async = future.actionGet(30, TimeUnit.SECONDS);
+                assertEquals(sync.schema().size(), async.schema().size());
+                assertStatisticsEqual(sync, async);
+            }
+            assertEquals(files, gets.get());
+        } finally {
+            release.countDown();
+            io.shutdownNow();
+        }
+    }
+
+    /**
+     * Split-range callers coalesce the same way metadata callers do: 5 files × 14 callers → 5 GETs.
+     */
+    public void testDiscoverSplitRangesAsyncCoalescesFourteenCallersPerFile() throws Exception {
+        byte[] parquetData = createVpcFlowShapedParquet();
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        List<RangeAwareFormatReader.SplitRange> sync = reader.discoverSplitRanges(
+            createStorageObject(parquetData, "memory://coalesce/sync.parquet")
+        );
+        reader.clearFooterCachesForTests();
+
+        int files = 5;
+        int callers = 14;
+        CountDownLatch release = new CountDownLatch(1);
+        AtomicInteger gets = new AtomicInteger();
+        ExecutorService io = Executors.newFixedThreadPool(files);
+        try {
+            List<PlainActionFuture<List<RangeAwareFormatReader.SplitRange>>> futures = new ArrayList<>(files * callers);
+            for (int f = 0; f < files; f++) {
+                String path = "memory://coalesce/split-" + f + ".parquet";
+                for (int c = 0; c < callers; c++) {
+                    StorageObject object = gatedAsyncStorageObject(parquetData, path, io, gets, release, null);
+                    PlainActionFuture<List<RangeAwareFormatReader.SplitRange>> future = new PlainActionFuture<>();
+                    reader.discoverSplitRangesAsync(object, Runnable::run, future);
+                    futures.add(future);
+                }
+            }
+            assertEquals(files, gets.get());
+            release.countDown();
+            for (var future : futures) {
+                assertSplitRangesEqual(sync, future.actionGet(30, TimeUnit.SECONDS));
+            }
+            assertEquals(files, gets.get());
+        } finally {
+            release.countDown();
+            io.shutdownNow();
+        }
+    }
+
+    /**
+     * Mixed metadata and split-range callers on the same files still pay one GET per file.
+     */
+    public void testMixedMetadataAndSplitCallersCoalesce() throws Exception {
+        byte[] parquetData = createVpcFlowShapedParquet();
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        StorageObject syncObject = createStorageObject(parquetData, "memory://coalesce/sync.parquet");
+        SourceMetadata syncMeta = reader.metadata(syncObject);
+        List<RangeAwareFormatReader.SplitRange> syncRanges = reader.discoverSplitRanges(syncObject);
+        reader.clearFooterCachesForTests();
+
+        int files = 5;
+        int callers = 14;
+        CountDownLatch release = new CountDownLatch(1);
+        AtomicInteger gets = new AtomicInteger();
+        ExecutorService io = Executors.newFixedThreadPool(files);
+        try {
+            List<PlainActionFuture<SourceMetadata>> metaFutures = new ArrayList<>();
+            List<PlainActionFuture<List<RangeAwareFormatReader.SplitRange>>> rangeFutures = new ArrayList<>();
+            for (int f = 0; f < files; f++) {
+                String path = "memory://coalesce/mix-" + f + ".parquet";
+                for (int c = 0; c < callers; c++) {
+                    StorageObject object = gatedAsyncStorageObject(parquetData, path, io, gets, release, null);
+                    if ((c & 1) == 0) {
+                        PlainActionFuture<SourceMetadata> future = new PlainActionFuture<>();
+                        reader.metadataAsync(object, Runnable::run, future);
+                        metaFutures.add(future);
+                    } else {
+                        PlainActionFuture<List<RangeAwareFormatReader.SplitRange>> future = new PlainActionFuture<>();
+                        reader.discoverSplitRangesAsync(object, Runnable::run, future);
+                        rangeFutures.add(future);
+                    }
+                }
+            }
+            assertEquals(files, gets.get());
+            release.countDown();
+            for (var future : metaFutures) {
+                assertStatisticsEqual(syncMeta, future.actionGet(30, TimeUnit.SECONDS));
+            }
+            for (var future : rangeFutures) {
+                assertSplitRangesEqual(syncRanges, future.actionGet(30, TimeUnit.SECONDS));
+            }
+            assertEquals(files, gets.get());
+        } finally {
+            release.countDown();
+            io.shutdownNow();
+        }
+    }
+
+    /**
+     * A waiter attached to a failed leader flight retries with its own object: two GETs, waiter OK.
+     */
+    public void testFooterLoadWaiterRetriesAfterLeaderReadFailure() throws Exception {
+        byte[] parquetData = createVpcFlowShapedParquet();
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        reader.clearFooterCachesForTests();
+        SourceMetadata expected = reader.metadata(createStorageObject(parquetData, "memory://coalesce/ok.parquet"));
+        reader.clearFooterCachesForTests();
+
+        CountDownLatch release = new CountDownLatch(1);
+        AtomicInteger gets = new AtomicInteger();
+        AtomicBoolean failFirst = new AtomicBoolean(true);
+        ExecutorService io = Executors.newSingleThreadExecutor();
+        String path = "memory://coalesce/retry.parquet";
+        try {
+            PlainActionFuture<SourceMetadata> leader = new PlainActionFuture<>();
+            PlainActionFuture<SourceMetadata> waiter = new PlainActionFuture<>();
+            reader.metadataAsync(gatedAsyncStorageObject(parquetData, path, io, gets, release, failFirst), Runnable::run, leader);
+            reader.metadataAsync(gatedAsyncStorageObject(parquetData, path, io, gets, release, failFirst), Runnable::run, waiter);
+            assertEquals(1, gets.get());
+            release.countDown();
+            expectThrows(Exception.class, () -> leader.actionGet(30, TimeUnit.SECONDS));
+            SourceMetadata recovered = waiter.actionGet(30, TimeUnit.SECONDS);
+            assertStatisticsEqual(expected, recovered);
+            assertEquals("leader GET plus waiter retry GET", 2, gets.get());
+        } finally {
+            release.countDown();
+            io.shutdownNow();
+        }
+    }
+
+    /** A corrupt footer fails every coalesced waiter and is not cached. */
+    public void testCorruptFooterFailsAllCallersAndIsNotCached() throws Exception {
+        byte[] parquetData = createVpcFlowShapedParquet();
+        byte[] corrupt = parquetData.clone();
+        Arrays.fill(corrupt, 0, Math.max(0, corrupt.length - 8), (byte) 0);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        reader.clearFooterCachesForTests();
+
+        CountDownLatch release = new CountDownLatch(1);
+        AtomicInteger gets = new AtomicInteger();
+        ExecutorService io = Executors.newSingleThreadExecutor();
+        String path = "memory://coalesce/corrupt.parquet";
+        try {
+            List<PlainActionFuture<SourceMetadata>> futures = new ArrayList<>();
+            for (int i = 0; i < 5; i++) {
+                PlainActionFuture<SourceMetadata> future = new PlainActionFuture<>();
+                reader.metadataAsync(gatedAsyncStorageObject(corrupt, path, io, gets, release, null), Runnable::run, future);
+                futures.add(future);
+            }
+            assertEquals(1, gets.get());
+            release.countDown();
+            for (var future : futures) {
+                expectThrows(Exception.class, () -> future.actionGet(30, TimeUnit.SECONDS));
+            }
+            StorageObject keyObject = createStorageObject(corrupt, path);
+            assertNull(reader.parsedFooterForTests(FooterByteCache.Key.keyFor(keyObject, keyObject.length())));
+            assertEquals("leader GET plus one waiter retry GET", 2, gets.get());
+            PlainActionFuture<SourceMetadata> fresh = new PlainActionFuture<>();
+            reader.metadataAsync(gatedAsyncStorageObject(corrupt, path, io, gets, release, null), Runnable::run, fresh);
+            expectThrows(Exception.class, () -> fresh.actionGet(30, TimeUnit.SECONDS));
+            assertNull(reader.parsedFooterForTests(FooterByteCache.Key.keyFor(keyObject, keyObject.length())));
+            assertEquals("uncached corrupt footer is loaded again by a fresh caller", 3, gets.get());
+        } finally {
+            release.countDown();
+            io.shutdownNow();
+        }
+    }
+
+    /**
+     * The waiter executor restores header B even though the leader parse completes under header A.
+     */
+    public void testFooterWaiterExecutorRestoresCallerHeader() throws Exception {
+        byte[] parquetData = createVpcFlowShapedParquet();
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        reader.clearFooterCachesForTests();
+
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader("x-esql-footer", "A");
+        var restorableA = threadContext.newRestorableContext(true);
+        threadContext.stashContext();
+        threadContext.putHeader("x-esql-footer", "B");
+        var restorableB = threadContext.newRestorableContext(true);
+        threadContext.stashContext();
+
+        Executor execA = ExternalIoExecutors.restoring(Runnable::run, restorableA, null);
+        Executor execB = ExternalIoExecutors.restoring(Runnable::run, restorableB, null);
+
+        CountDownLatch release = new CountDownLatch(1);
+        AtomicInteger gets = new AtomicInteger();
+        ExecutorService io = Executors.newSingleThreadExecutor();
+        String path = "memory://coalesce/ctx.parquet";
+        AtomicReference<String> headerOnLeader = new AtomicReference<>();
+        AtomicReference<String> headerOnWaiter = new AtomicReference<>();
+        try {
+            PlainActionFuture<SourceMetadata> leader = new PlainActionFuture<>();
+            PlainActionFuture<SourceMetadata> waiter = new PlainActionFuture<>();
+            reader.metadataAsync(gatedAsyncStorageObject(parquetData, path, io, gets, release, null), execA, ActionListener.wrap(meta -> {
+                headerOnLeader.set(threadContext.getHeader("x-esql-footer"));
+                leader.onResponse(meta);
+            }, leader::onFailure));
+            reader.metadataAsync(gatedAsyncStorageObject(parquetData, path, io, gets, release, null), execB, ActionListener.wrap(meta -> {
+                headerOnWaiter.set(threadContext.getHeader("x-esql-footer"));
+                waiter.onResponse(meta);
+            }, waiter::onFailure));
+            assertEquals(1, gets.get());
+            release.countDown();
+            leader.actionGet(30, TimeUnit.SECONDS);
+            waiter.actionGet(30, TimeUnit.SECONDS);
+            assertEquals("A", headerOnLeader.get());
+            assertEquals("B", headerOnWaiter.get());
+        } finally {
+            release.countDown();
+            io.shutdownNow();
+        }
+    }
+
+    /**
      * After {@code metadataAsync} on a file that fits in the 64 KiB footer prefetch, a later
      * optimized scan must reuse the cached whole-file tail: still one GET, rows intact.
      */
@@ -1264,7 +1518,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             reader.metadataAsync(asyncObject, probePool, meta);
             Exception metaEx = expectThrows(Exception.class, () -> meta.actionGet(30, TimeUnit.SECONDS));
             assertThat(ExceptionsHelper.stackTrace(metaEx), containsString("Could not read"));
-            assertThat(ExceptionsHelper.stackTrace(metaEx), containsString("as a Parquet file"));
+            assertThat(ExceptionsHelper.stackTrace(metaEx), containsString("the Parquet file"));
             assertEquals(0, asyncReadCount.get());
             assertEquals(0, streamCount.get());
 
@@ -1303,7 +1557,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             reader.metadataAsync(asyncObject, probePool, meta);
             Exception metaEx = expectThrows(Exception.class, () -> meta.actionGet(30, TimeUnit.SECONDS));
             assertThat(ExceptionsHelper.stackTrace(metaEx), containsString("Could not read"));
-            assertThat(ExceptionsHelper.stackTrace(metaEx), containsString("as a Parquet file"));
+            assertThat(ExceptionsHelper.stackTrace(metaEx), containsString("the Parquet file"));
             assertEquals(0, streamCount.get());
 
             PlainActionFuture<List<RangeAwareFormatReader.SplitRange>> ranges = new PlainActionFuture<>();
@@ -2027,6 +2281,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
         try {
             StorageObject asyncObject = new StorageObject() {
                 @Override
+                public StorageIdentity storageIdentity() {
+                    return AbstractTestStorageObject.NOOP;
+                }
+
+                @Override
                 public InputStream newStream() {
                     streamCount.incrementAndGet();
                     throw new AssertionError("async path must not fall back to newStream");
@@ -2092,7 +2351,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             reader.metadataAsync(asyncObject, probePool, future);
             Exception ex = expectThrows(Exception.class, () -> future.actionGet(30, TimeUnit.SECONDS));
             assertThat(ExceptionsHelper.stackTrace(ex), containsString("Could not read"));
-            assertThat(ExceptionsHelper.stackTrace(ex), containsString("as a Parquet file"));
+            assertThat(ExceptionsHelper.stackTrace(ex), containsString("the Parquet file"));
             assertEquals("the tail prefetch must be attempted once", 1, asyncReadCount.get());
             assertEquals("short read must not open a stream", 0, streamCount.get());
         } finally {
@@ -2309,9 +2568,10 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 totalRows += page.getPositionCount();
             }
             assertEquals(5, totalRows);
-            // After open, only the parquet I/O window buffer / footer parsing may have been charged
-            // — the count-only path must not grow the breaker further per row group / page. (Iterating
-            // pages allocates no column readers, no decode buffers, no value blocks.)
+            // A standing window is not expected, because this path is not expected to read the
+            // long-lived stream. The count-only path must not grow the breaker further per row
+            // group / page. (Iterating pages allocates no column readers, no decode buffers, no
+            // value blocks.)
             assertEquals("count-only iteration must not allocate per-page; breaker must not grow", afterOpen, trackingBreaker.getUsed());
         }
         // After close everything allocated during open is released and the breaker returns to its initial level.
@@ -2351,8 +2611,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
 
         {
-            // The window is clamped to the file length, so the limit must cover that window and leave
-            // only enough leftover to trip on page allocation — not the historical 4 MiB floor.
+            // File length plus 1000 bytes. metadata() stays within the limit. The read below throws
+            // CircuitBreakingException. The limit is not sized around the sliding window; confirm which
+            // charge trips when this assertion is next changed.
             var limitedFactory = new BlockFactory(
                 new LimitedBreaker("test", ByteSizeValue.ofBytes(parquetData.length + 1000)),
                 this.blockFactory.bigArrays()
@@ -2434,7 +2695,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             assertEquals(0, tinyBreaker.getUsed());
         }
 
-        // 2. Breaker fits the footer and the sliding window but leaves only modest headroom.
+        // 2. Extra room is for the footer read and the prefetch buffers, not a reserved window.
         // These small row groups fit whether they arrive through prefetch or the breaker-accounted
         // synchronous fallback. The iteration must produce every row and release every byte.
         {
@@ -3790,7 +4051,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             new ParquetFormatReader(blockFactory),
             new ParquetFormatReader(blockFactory).withBaselinePath()
         )) {
-            StorageObject storageObject = createStorageObject(ARROW_GH_45185, "memory://ARROW-GH-45185.parquet");
+            StorageObject storageObject = createStorageObject(ARROW_GH_45185, "memory:///ARROW-GH-45185.parquet");
             try (CloseableIterator<Page> iterator = reader.read(storageObject, List.of("x"), 2)) {
                 IllegalArgumentException e = expectThrows(IllegalArgumentException.class, iterator::next);
                 assertThat(e.getMessage(), allOf(containsString("ARROW-GH-45185.parquet"), containsString("column [x]")));
@@ -3807,7 +4068,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 new ParquetFormatReader(blockFactory).withBaselinePath()
             )) {
                 List<String> warnings = new ArrayList<>();
-                StorageObject storageObject = createStorageObject(ARROW_GH_45185, "memory://ARROW-GH-45185.parquet");
+                StorageObject storageObject = createStorageObject(ARROW_GH_45185, "memory:///ARROW-GH-45185.parquet");
                 List<Attribute> attributes = reader.metadata(storageObject).schema();
                 ErrorPolicy policy = new ErrorPolicy(mode, Long.MAX_VALUE, 0.0, false);
                 int expectedRow = 0;
@@ -3848,7 +4109,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             new ParquetFormatReader(blockFactory),
             new ParquetFormatReader(blockFactory).withBaselinePath()
         )) {
-            StorageObject storageObject = createStorageObject(ARROW_GH_45185, "memory://ARROW-GH-45185.parquet");
+            StorageObject storageObject = createStorageObject(ARROW_GH_45185, "memory:///ARROW-GH-45185.parquet");
             List<Attribute> attributes = reader.metadata(storageObject).schema();
             try (
                 CloseableIterator<Page> iterator = reader.readRange(
@@ -3868,7 +4129,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             new ParquetFormatReader(blockFactory).withBaselinePath()
         )) {
             List<String> warnings = new ArrayList<>();
-            StorageObject storageObject = createStorageObject(ARROW_GH_45185, "memory://ARROW-GH-45185.parquet");
+            StorageObject storageObject = createStorageObject(ARROW_GH_45185, "memory:///ARROW-GH-45185.parquet");
             List<Attribute> attributes = reader.metadata(storageObject).schema();
             FormatReadContext context = FormatReadContext.builder()
                 .projectedColumns(List.of("x"))
@@ -4730,7 +4991,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertThat(
             ex.getMessage(),
             allOf(
-                containsString("Could not read [s3://bucket/path/file.parquet] as a Parquet file"),
+                containsString("Could not read the Parquet file"),
                 containsString("is not a Parquet file. Expected magic number at tail, but found [")
             )
         );
@@ -4742,10 +5003,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> reader.metadata(storageObject));
         assertThat(
             ex.getMessage(),
-            allOf(
-                containsString("Could not read [memory://empty.parquet] as a Parquet file:"),
-                containsString("is not a Parquet file (length is too low: 0)")
-            )
+            allOf(containsString("Could not read the Parquet file"), containsString("is not a Parquet file (length is too low: 0)"))
         );
     }
 
@@ -4760,7 +5018,10 @@ public class ParquetFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(truncated, "https://host/obj.parquet");
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> reader.metadata(storageObject));
-        assertTrue(ex.getMessage(), ex.getMessage().contains("https://host/obj.parquet"));
+        // The object name (filename) is interpolated by parquet-mr into the error; the full storage
+        // path is intentionally absent — only the object name is ever shown.
+        assertThat(ex.getMessage(), containsString("obj.parquet"));
+        assertThat(ex.getMessage(), not(containsString("https://host")));
     }
 
     public void testCorruptDataPageIsClient400() throws Exception {
@@ -4827,9 +5088,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> ParquetFormatReader.validateFooterIntegrity("https://example.com/bad.parquet", schema, List.of(block))
+            () -> ParquetFormatReader.validateFooterIntegrity(schema, List.of(block))
         );
-        assertThat(ex.getMessage(), containsString("https://example.com/bad.parquet"));
         assertThat(ex.getMessage(), containsString("column [id] is declared required but row group reports 5 null(s)"));
     }
 
@@ -4857,7 +5117,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         block.setRowCount(100);
         block.addColumn(ccm);
 
-        ParquetFormatReader.validateFooterIntegrity("https://example.com/ok.parquet", schema, List.of(block));
+        ParquetFormatReader.validateFooterIntegrity(schema, List.of(block));
     }
 
     public void testValidateFooterIntegrityPassesForRequiredColumnWithZeroNulls() {
@@ -4884,7 +5144,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         block.setRowCount(100);
         block.addColumn(ccm);
 
-        ParquetFormatReader.validateFooterIntegrity("https://example.com/ok.parquet", schema, List.of(block));
+        ParquetFormatReader.validateFooterIntegrity(schema, List.of(block));
     }
 
     public void testValidParquetZeroRowsMetadata() throws Exception {
@@ -6521,7 +6781,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         List<String> warnings = drainWarnings();
         // 1 summary + 1 detail
         assertEquals("Expected summary + 1 detail, got: " + warnings, 2, warnings.size());
-        assertTrue("Summary should mention the file path, got: " + warnings.get(0), warnings.get(0).contains("s3://bucket/warn.parquet"));
+        assertTrue("Summary should mention the file path, got: " + warnings.get(0), warnings.get(0).contains("warn.parquet"));
         assertEquals("column [x]: [integer] in the file, [ip] in the query", warnings.get(1));
     }
 
@@ -6565,7 +6825,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
         // 1 summary + 1 detail
         assertEquals("Expected summary + 1 detail, got: " + sunk, 2, sunk.size());
-        assertTrue("Summary should mention the file path, got: " + sunk.get(0), sunk.get(0).contains("s3://bucket/warn.parquet"));
+        assertTrue("Summary should mention the file path, got: " + sunk.get(0), sunk.get(0).contains("warn.parquet"));
         assertTrue("Detail should mention column [x], got: " + sunk.get(1), sunk.get(1).contains("column [x]"));
         assertTrue("no message should reach the thread-local response headers", drainWarnings().isEmpty());
     }
@@ -7101,6 +7361,94 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * Distinct {@link StorageObject} per caller: same path and bytes so footer keys collide, but
+     * {@code readBytesAsync} is held on {@code release} so sequential attaches coalesce into one GET.
+     * When {@code failFirst} is true the first GET fails after the latch, later GETs succeed.
+     */
+    private static StorageObject gatedAsyncStorageObject(
+        byte[] data,
+        String locationUri,
+        ExecutorService pool,
+        AtomicInteger asyncReadCount,
+        CountDownLatch release,
+        @Nullable AtomicBoolean failFirst
+    ) {
+        return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
+            public InputStream newStream() {
+                throw new AssertionError("coalesced footer load must not fall back to newStream");
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                throw new AssertionError("coalesced footer load must not fall back to newStream");
+            }
+
+            @Override
+            public void readBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor ignored,
+                ActionListener<DirectReadBuffer> listener
+            ) {
+                int get = asyncReadCount.incrementAndGet();
+                pool.execute(() -> {
+                    try {
+                        if (release.await(30, TimeUnit.SECONDS) == false) {
+                            listener.onFailure(new IllegalStateException("timed out waiting to release footer GET"));
+                            return;
+                        }
+                        if (get == 1 && failFirst != null && failFirst.compareAndSet(true, false)) {
+                            listener.onFailure(new IOException("injected leader GET failure"));
+                            return;
+                        }
+                        listener.onResponse(allocateFilledWindow(data, position, length, factory));
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    }
+                });
+            }
+
+            @Override
+            public long length() {
+                return data.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.ofEpochMilli(0);
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of(locationUri);
+            }
+        };
+    }
+
+    private static void assertSplitRangesEqual(
+        List<RangeAwareFormatReader.SplitRange> expected,
+        List<RangeAwareFormatReader.SplitRange> actual
+    ) {
+        assertEquals(expected.size(), actual.size());
+        for (int i = 0; i < expected.size(); i++) {
+            assertEquals(expected.get(i).offset(), actual.get(i).offset());
+            assertEquals(expected.get(i).length(), actual.get(i).length());
+        }
+    }
+
     private static StorageObject createAsyncStorageObject(
         byte[] data,
         ExecutorService pool,
@@ -7126,6 +7474,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
         AtomicInteger streamCount
     ) {
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 if (streamCount != null) {
@@ -7181,6 +7534,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
             }
 
             @Override
+            public boolean supportsNativeAsync() {
+                return true;
+            }
+
+            @Override
             public StoragePath path() {
                 return StoragePath.of("memory://async-test.parquet");
             }
@@ -7202,6 +7560,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
     ) {
         AtomicInteger readIndex = new AtomicInteger();
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);
@@ -7261,6 +7624,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
             }
 
             @Override
+            public boolean supportsNativeAsync() {
+                return true;
+            }
+
+            @Override
             public StoragePath path() {
                 return StoragePath.of("memory://async-leak-test.parquet");
             }
@@ -7273,6 +7641,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
     private StorageObject createStorageObject(byte[] data, String locationUri) {
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() throws IOException {
                 return new ByteArrayInputStream(data);
@@ -9492,7 +9865,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * Test double for {@code RangeStorageObject}: {@code length()} is the split span while footer
      * cache keys use the underlying file size.
      */
-    private static final class SplitSpanStorageObject implements StorageObject {
+    private static final class SplitSpanStorageObject extends AbstractTestStorageObject {
         private final StorageObject file;
         private final long span;
 

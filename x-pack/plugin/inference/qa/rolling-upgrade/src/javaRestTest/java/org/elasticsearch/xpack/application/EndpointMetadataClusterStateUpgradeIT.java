@@ -102,11 +102,6 @@ public class EndpointMetadataClusterStateUpgradeIT extends ParameterizedRollingU
             // Enqueue one auth response to service the initial auth call triggered by CCM enable.
             mockEISServer.enqueueAuthorizeAllModelsResponse();
             putCCMConfiguration(ENABLE_CCM_REQUEST);
-            assertBusy(() -> {
-                var models = getMinimalConfigsFromClusterState();
-                assertNotNull("Expected EIS endpoints to appear in cluster state after CCM enable", models);
-                assertFalse("Expected at least one EIS endpoint in cluster state after CCM enable", models.isEmpty());
-            });
             // Verify that old-cluster nodes write the full EndpointMetadata (including display) to cluster state,
             // so that the post-upgrade assertion that display is absent is meaningful.
             // This check is skipped when the old cluster already carries the cluster-state subset change
@@ -118,16 +113,23 @@ public class EndpointMetadataClusterStateUpgradeIT extends ParameterizedRollingU
                 getOldClusterVersion(),
                 oldClusterWritesFullMetadata
             );
-            if (oldClusterWritesFullMetadata) {
-                var oldModels = getMinimalConfigsFromClusterState();
-                assertTrue(
-                    "At least one EIS endpoint must have display in cluster state on the old cluster",
-                    oldModels.values().stream().anyMatch(endpoint -> {
-                        var metadata = (Map<String, Object>) XContentMapValues.extractValue("metadata", endpoint);
-                        return metadata != null && metadata.containsKey("display");
-                    })
-                );
-            }
+            assertBusy(() -> {
+                var models = getMinimalConfigsFromClusterState();
+                assertNotNull("Expected EIS endpoints to appear in cluster state after CCM enable", models);
+                assertFalse("Expected at least one EIS endpoint in cluster state after CCM enable", models.isEmpty());
+                if (oldClusterWritesFullMetadata) {
+                    // On pre-9.6 masters the model-registry auto upgrade can register the endpoints from the
+                    // .inference index without metadata, before the store's own cluster-state update (which carries
+                    // the full EndpointMetadata including display) is applied. Retry until the Add task wins.
+                    assertTrue(
+                        "At least one EIS endpoint must have display in cluster state on the old cluster",
+                        models.values().stream().anyMatch(endpoint -> {
+                            var metadata = (Map<String, Object>) XContentMapValues.extractValue("metadata", endpoint);
+                            return metadata != null && metadata.containsKey("display");
+                        })
+                    );
+                }
+            });
         }
 
         if (isMixedCluster() || isUpgradedCluster()) {

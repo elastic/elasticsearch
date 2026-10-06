@@ -1908,6 +1908,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         Variable captured = writeScope.getVariable(irTypedCaptureReferenceNode.getDecorationValue(IRDCaptureNames.class).get(0));
         Class<?> expressionType = irTypedCaptureReferenceNode.getDecorationValue(IRDExpressionType.class);
         String expressionCanonicalTypeName = irTypedCaptureReferenceNode.getDecorationString(IRDExpressionType.class);
+        boolean pushesScript = irTypedCaptureReferenceNode.hasCondition(IRCInstanceCapture.class);
+        boolean chargesAllocation = irTypedCaptureReferenceNode.hasCondition(IRCChargeAllocation.class);
+
+        // The capture object holds the receiver and, when pushed, the script. Charged like the other reference forms.
+        writeAllocationCheck(writeScope, AllocSizes.captureSize(pushesScript ? 2 : 1));
 
         methodWriter.visitVarInsn(captured.getAsmType().getOpcode(Opcodes.ILOAD), captured.getSlot());
 
@@ -1915,11 +1920,8 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             methodWriter.box(captured.getAsmType());
         }
 
-        boolean chargesAllocation = irTypedCaptureReferenceNode.hasCondition(IRCChargeAllocation.class);
-
-        if (chargesAllocation) {
-            // Charging def-receiver bound ref: push the script (typed CLASS_TYPE) after the receiver. Def.lookupReference drops
-            // the script capture and charges when the target resolved for the runtime receiver is annotated.
+        if (pushesScript) {
+            // The script (typed CLASS_TYPE) goes after the receiver, which the REFERENCE call site dispatches on.
             writeInstanceScriptCapture(writeScope, methodWriter);
         }
 
@@ -1928,6 +1930,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             MethodWriter.getType(expressionType),
             captured.getAsmType(),
             expressionCanonicalTypeName,
+            pushesScript,
             chargesAllocation
         );
     }

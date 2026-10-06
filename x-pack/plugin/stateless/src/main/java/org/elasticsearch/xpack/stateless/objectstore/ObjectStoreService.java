@@ -392,6 +392,18 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
     private final InstrumentedThrottledTaskRunner<ActionListener<Releasable>> bccMultipartUploadTaskRunner;
 
+    // TODO: We have it here because it is used by the `elasticsearch-serverless` repository in `ProjectLifeCycleServiceTests.java`
+    // but we can remove when we do the change in `elasticsearch-serverless`
+    public ObjectStoreService(
+        Settings settings,
+        RepositoriesService repositoriesService,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        ProjectResolver projectResolver
+    ) {
+        this(settings, repositoriesService, threadPool, clusterService, projectResolver, MeterRegistry.NOOP);
+    }
+
     public ObjectStoreService(
         Settings settings,
         RepositoriesService repositoriesService,

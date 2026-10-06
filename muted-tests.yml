@@ -631,9 +631,6 @@ tests:
 - class: org.elasticsearch.xpack.encryption.KeyRotationIT
   method: testRotationContinuesAfterMasterFailover
   issue: https://github.com/elastic/elasticsearch/issues/160824
-- class: org.elasticsearch.columnar.string.StringMatchTests
-  method: testWindowedCollectionOnAMultiValuedDictionary
-  issue: https://github.com/elastic/elasticsearch/issues/160837
 - class: org.elasticsearch.xpack.esql.datasource.parquet.PrefetchLatencySimulationTests
   method: testWatermarkEmptyQueueOverrunIsNodeWide
   issue: https://github.com/elastic/elasticsearch/issues/160849
@@ -688,12 +685,12 @@ tests:
 - class: org.elasticsearch.workloadidentity.HttpsWorkloadIdentityIssuerClientTests
   method: testTokenIssuanceSurvivesSslReload
   issue: https://github.com/elastic/elasticsearch/issues/161088
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardFlushIT
-  method: testPreFlushWaitsForOngoingFlushes
-  issue: https://github.com/elastic/elasticsearch/issues/161089
 - class: org.elasticsearch.index.reindex.RestoringShardReindexIT
   method: testReindexFromRestoringSourceFailsFastWithServiceUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/161090
 - class: org.elasticsearch.index.reindex.RestoringShardReindexIT
   method: testDeleteByQueryWhileRestoringParks
   issue: https://github.com/elastic/elasticsearch/issues/161091
+- class: org.elasticsearch.xpack.esql.datasources.StreamingPermitCycleSmallTests
+  method: testEightGzipStreamsCompleteUnderTinyLimiterBudget
+  issue: https://github.com/elastic/elasticsearch/issues/161165

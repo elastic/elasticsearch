@@ -1476,7 +1476,9 @@ public class ExternalSourceResolver {
                 }
                 // A bounded listing whose first page held one matching file reports fileCount() == 1 for a
                 // dataset of ninety thousand, so the anchor's stats must not be presented as the dataset's.
-            } else if (listing.fileCount() > 1 || listing.isTruncated()) {
+                // An inference-anchor listing is also one leftover file after every folder was pruned: its
+                // footer is not the glob.
+            } else if (listing.fileCount() > 1 || listing.isTruncated() || listing.isInferenceAnchor()) {
                 // Defer branch (requiresStats == false): skip the N footer reads. The anchor-only stats are not
                 // representative of the whole glob, so mark them partial — exactly the state the failed-aggregation
                 // path produces, which downstream already handles (SplitStats.resolveEffectiveStats returns null
@@ -1659,7 +1661,7 @@ public class ExternalSourceResolver {
         @Nullable SchemaCacheEntry cached,
         @Nullable SourceStatistics captured
     ) {
-        if (listing.fileCount() > 1) {
+        if (listing.fileCount() > 1 || listing.isInferenceAnchor()) {
             // Eager gather stored slim file-level counts. The defer branch never folds, so captured is null
             // and the warm cache harvest is what the single-unit footer skip needs.
             return captured != null ? captured : fileStatisticsFromCache(cached);
@@ -1757,7 +1759,8 @@ public class ExternalSourceResolver {
         // when the listing is unbounded (eager stats) or the matching set fits the prefix bound.
         // FIRST_FILE_WINS then pins schema to the first of those matching files, in listing order
         // (S3/Azure/GCS LIST is lexicographic by key; otherwise the provider's order) unless the
-        // query set file_sort_by / file_order.
+        // query set file_sort_by / file_order. An all-pruned partition filter keeps one
+        // inference-anchor file instead of listing G (see FileList#isInferenceAnchor).
         FileList listing = cacheable && extents.boundsFileSet() == false
             ? cachedListing(path, storagePath, provider, storageIdentity, secretIdentity, hints, config)
             : expandAndCompact(path, provider, hints, config, storagePath, extents);
@@ -2338,8 +2341,11 @@ public class ExternalSourceResolver {
         SchemaInterner schemaInterner,
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
     ) {
-        // These modes reconcile every file by contract, so the schema's listing is the whole dataset and the scan
-        // reads the same set. One listing answers both, which is why nothing here has to choose.
+        // These modes reconcile every file by contract, so a complete schema listing is the dataset and the
+        // scan reads the same set. An inference-anchor listing is one leftover file after every folder was
+        // pruned, not the glob: the declared columns are that file's, not the union across G, and strict's
+        // cross-file check is vacuous. Stats are marked partial below and Phase 2 must not treat it as the
+        // scan set.
         FileList fileList = discovery.scanFileSet();
         long startNanos = System.nanoTime();
         // Absent-column policy is fixed before files complete out of order. A file dataset passes
@@ -2430,10 +2436,12 @@ public class ExternalSourceResolver {
                         datasetFormat
                     );
 
-                    // Mirror the FFW invariants: file count enables canSkipSplitDiscovery; partial-stats
-                    // marking is gated on fileCount > 1 (single-file globs have no "other file" missing stats).
+                    // Mirror the FFW invariants: file count enables canSkipSplitDiscovery. Partial-stats
+                    // marking is gated on fileCount > 1 (a genuine single-file glob has no other file missing
+                    // stats) OR on isInferenceAnchor: that listing is one leftover file, not the dataset, so
+                    // its footer must not fold as complete COUNT/MIN/MAX.
                     extMetadata = enrichWithFileCount(extMetadata, fileList.fileCount());
-                    if (aggregatedStats == null && fileList.fileCount() > 1) {
+                    if (fileList.isInferenceAnchor() || (aggregatedStats == null && fileList.fileCount() > 1)) {
                         extMetadata = markStatsAsPartial(extMetadata);
                     }
 
@@ -4474,7 +4482,7 @@ public class ExternalSourceResolver {
             declaredReadSpecOf(declaredMapping)
         );
         extMetadata = enrichWithFileCount(extMetadata, listing.fileCount());
-        if (listing.isTruncated()) {
+        if (listing.isTruncated() || listing.isInferenceAnchor()) {
             // The count is a floor, not the dataset's total. The inferred rail marks it in completeFirstFileWins;
             // the two rails build their metadata separately, so there is no shared site.
             extMetadata = markStatsAsPartial(extMetadata);

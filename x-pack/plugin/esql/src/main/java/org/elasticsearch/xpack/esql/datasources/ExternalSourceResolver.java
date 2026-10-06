@@ -1402,9 +1402,8 @@ public class ExternalSourceResolver {
                 // path (the resolve overload with a null pathsRequiringStats set), preserving the original
                 // eager-for-all behavior.
                 //
-                // For an eager (requiresStats) resolve the cost is acceptable because, and only while, one
-                // of the two things a read buys is still obtainable - see remainingReadsBuyNothing, which
-                // stops the gather when neither is:
+                // For an eager (requiresStats) resolve the cost is acceptable while a read still buys
+                // something - remainingReadsBuyNothing stops the gather when none does:
                 // - the cacheable path consults the schema cache, so repeat resolves are free;
                 // - the non-cacheable path reads footers with an async fan-out bounded by an in-flight permit
                 // (metadataReadConcurrency), releasing the pool thread across each footer read;
@@ -2302,10 +2301,8 @@ public class ExternalSourceResolver {
             pathToMtime.put(listing.path(i).toString(), listing.lastModifiedMillis(i));
         }
         if (pathToReadConfig != null && pathToReadConfig.size() < listing.fileCount()) {
-            // The gather stopped early (see remainingReadsBuyNothing), so this map covers only the files it
-            // reached. The promise's per-path read-config gate is all-or-nothing across paths, and an
-            // unrecorded path falls back to the config-level check alone - registering on a partial map
-            // would narrow that gate without saying so. Skip it; a resolve that reads every file registers.
+            // A cut-short gather recorded only the files it reached, and the per-path gate is
+            // all-or-nothing - a partial map would narrow it silently. The next full resolve registers.
             return null;
         }
         Map<String, Object> referenceMetadata = referenceMeta.sourceMetadata();
@@ -2618,7 +2615,7 @@ public class ExternalSourceResolver {
             fold,
             schemaInterner,
             privateLists,
-            false,
+            GatherPurpose.SCHEMA_RECONCILIATION,
             ActionListener.wrap(perFile -> {
                 Map<StoragePath, SourceMetadata> result = new LinkedHashMap<>();
                 for (int i = 0; i < fileCount; i++) {
@@ -2629,21 +2626,29 @@ public class ExternalSourceResolver {
         );
     }
 
+    /** What a gather is for. Who consumes the results decides whether every file must be read. */
+    enum GatherPurpose {
+        /** Folds a cross-file aggregate and warms the schema cache. Nothing else reads the results. */
+        STATS_AGGREGATE,
+        /** The schema is the union of every file's, so union_by_name and strict need all of them. */
+        SCHEMA_RECONCILIATION;
+
+        boolean requiresEveryFile() {
+            return this == SCHEMA_RECONCILIATION;
+        }
+    }
+
     /**
-     * Whether the unread files would buy nothing: the fold has already failed and no entry from this gather
-     * will be retained, so both of its purposes are gone. On text each remaining read parses a sample of a
-     * file to produce an aggregate nothing can reach and an entry nothing will keep.
-     * <p>
-     * Not a format test — an admitted text dataset keeps fanning out, because warming the per-file schema
-     * rail is worth the reads by itself. Only gathers whose results feed nothing but the fold and the cache
-     * may stop; the reconciliation rail needs every file's schema whatever the fold is doing.
+     * Whether the unread files would buy nothing: the fold has failed and no entry will be retained.
+     * Not a format test — admitted text keeps fanning out, because warming the per-file schema rail is
+     * worth the reads by itself.
      */
     private static boolean remainingReadsBuyNothing(
-        boolean resultsFeedOnlyStatsAndCache,
+        GatherPurpose purpose,
         @Nullable RunningFileStatsFold fold,
         @Nullable SchemaFanOutAdmission admission
     ) {
-        if (resultsFeedOnlyStatsAndCache == false || fold == null) {
+        if (purpose.requiresEveryFile() || fold == null) {
             return false;
         }
         synchronized (fold) {
@@ -2679,7 +2684,7 @@ public class ExternalSourceResolver {
         @Nullable RunningFileStatsFold fold,
         ActionListener<List<SourceMetadata>> listener
     ) {
-        gatherPerFile(fileList, storageIdentity, config, cacheable, fold, null, null, true, listener);
+        gatherPerFile(fileList, storageIdentity, config, cacheable, fold, null, null, GatherPurpose.STATS_AGGREGATE, listener);
     }
 
     private void gatherPerFile(
@@ -2690,7 +2695,7 @@ public class ExternalSourceResolver {
         @Nullable RunningFileStatsFold fold,
         @Nullable SchemaInterner schemaInterner,
         @Nullable ExternalPlanningReservation.Run privateLists,
-        boolean resultsFeedOnlyStatsAndCache,
+        GatherPurpose purpose,
         ActionListener<List<SourceMetadata>> listener
     ) {
         int fileCount = fileList.fileCount();
@@ -2709,10 +2714,9 @@ public class ExternalSourceResolver {
                 releasable.close();
                 return;
             }
-            if (remainingReadsBuyNothing(resultsFeedOnlyStatsAndCache, fold, admission)) {
-                // Cancellation is observed inside the per-file read, so a gather that stops issuing them
-                // must raise it here or complete with partial stats instead. Pinned by
-                // testMultiFileResolveCancellationStopsReadingFooters, which fails without this.
+            if (remainingReadsBuyNothing(purpose, fold, admission)) {
+                // Cancellation is observed inside the per-file read; raise it here or the gather
+                // completes with partial stats. Pinned by testMultiFileResolveCancellationStopsReadingFooters.
                 if (isCancelled()) {
                     failure.compareAndSet(null, new TaskCancelledException(RESOLUTION_CANCELLED_MESSAGE));
                 }

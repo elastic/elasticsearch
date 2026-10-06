@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
 import org.elasticsearch.xpack.encryption.spi.EncryptionServiceRegistry;
 import org.elasticsearch.xpack.encryption.spi.EncryptionServiceState;
+import org.junit.After;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -44,6 +45,11 @@ public class EncryptingSnapshotGlobalStateTransformerTests extends ESTestCase {
 
     private static final ProjectId PROJECT_ID = ProjectId.DEFAULT;
     private static final char[] GOOD_PASSWORD = "correcthorsebatterystaple".toCharArray();
+
+    @After
+    public void clearRegistry() {
+        EncryptedDataHandlerRegistry.INSTANCE.set(null);
+    }
 
     // --- inline test custom ---
 
@@ -185,6 +191,16 @@ public class EncryptingSnapshotGlobalStateTransformerTests extends ESTestCase {
 
         Metadata metadata = Metadata.builder().put(ProjectMetadata.builder(PROJECT_ID)).build();
         assertThat(t.transformForSnapshot(PROJECT_ID, metadata, encryptedDataWithPassword()), sameInstance(metadata));
+    }
+
+    public void testUnsetRegistryIsNoOp() {
+        Setup s = buildSetup();
+        EncryptedDataHandlerRegistry.INSTANCE.set(null);
+        EncryptingSnapshotGlobalStateTransformer t = new EncryptingSnapshotGlobalStateTransformer();
+
+        assertThat(t.transformForSnapshot(PROJECT_ID, s.metadata(), encryptedDataWithPassword()), sameInstance(s.metadata()));
+        assertThat(t.transformForSnapshot(PROJECT_ID, s.metadata(), null), sameInstance(s.metadata()));
+        assertFalse(t.containsEncryptedData(PROJECT_ID, s.metadata()));
     }
 
     public void testContainsEncryptedDataReturnsTrueWhenCustomPresent() {

@@ -283,6 +283,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -1265,8 +1266,12 @@ class NodeConstruction {
             snapshotMetrics
         );
 
-        final var snapshotGlobalStateTransformers = pluginsService.loadServiceProviders(SnapshotGlobalStateTransformer.class);
-        snapshotsService.setSnapshotGlobalStateTransformers(snapshotGlobalStateTransformers);
+        // A provider is discovered once per plugin whose classloader can see it (e.g. extending plugins), so keep one per class
+        final var snapshotGlobalStateTransformers = pluginsService.loadServiceProviders(SnapshotGlobalStateTransformer.class)
+            .stream()
+            .collect(Collectors.toMap(Object::getClass, Function.identity(), (a, b) -> a, LinkedHashMap::new))
+            .values();
+        snapshotsService.setSnapshotGlobalStateTransformers(List.copyOf(snapshotGlobalStateTransformers));
 
         SnapshotShardsService snapshotShardsService = new SnapshotShardsService(
             settings,

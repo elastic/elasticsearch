@@ -52,7 +52,7 @@ public final class EncryptingSnapshotGlobalStateTransformer implements SnapshotG
     @Override
     public Metadata transformForSnapshot(ProjectId projectId, Metadata metadata, @Nullable SnapshotEncryptedData encryptedData) {
         EncryptedDataHandlerRegistry registry = EncryptedDataHandlerRegistry.getInstance();
-        if (registry.handlers().isEmpty()) {
+        if (registry == null || registry.handlers().isEmpty()) {
             return metadata;
         }
 
@@ -90,10 +90,8 @@ public final class EncryptingSnapshotGlobalStateTransformer implements SnapshotG
 
     @Override
     public boolean containsEncryptedData(ProjectId projectId, Metadata metadata) {
-        EncryptedDataHandlerRegistry registry;
-        try {
-            registry = EncryptedDataHandlerRegistry.getInstance();
-        } catch (IllegalStateException e) {
+        EncryptedDataHandlerRegistry registry = EncryptedDataHandlerRegistry.getInstance();
+        if (registry == null) {
             return false;
         }
         ProjectMetadata project = metadata.getProject(projectId);

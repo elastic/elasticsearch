@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.encryption;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandlerProvider;
 
@@ -39,14 +40,12 @@ public record EncryptedDataHandlerRegistry(List<EncryptedDataHandler<?>> handler
     }
 
     /**
-     * Returns the singleton instance registered by the encryption plugin's {@code createComponents}.
-     * @throws IllegalStateException if the plugin has not yet wired the registry
+     * Returns the singleton instance registered by the encryption plugin's {@code createComponents}, or {@code null} if the plugin has
+     * not wired one. The SPI transformer can be discovered without the plugin being installed (e.g. when plugins share a classpath in
+     * internal cluster tests), so callers must treat {@code null} as "no encrypted data handlers".
      */
+    @Nullable
     static EncryptedDataHandlerRegistry getInstance() {
-        EncryptedDataHandlerRegistry reg = INSTANCE.get();
-        if (reg == null) {
-            throw new IllegalStateException("EncryptedDataHandlerRegistry is not constructed yet");
-        }
-        return reg;
+        return INSTANCE.get();
     }
 }

@@ -304,6 +304,48 @@ public class QueryConcurrencyBudgetTests extends ESTestCase {
         budget.release();
     }
 
+    public void testFavouredStaysDuringActiveGet() throws Exception {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 60_000L, null);
+        RowGroupIo favoured = bound(budget, 6);
+        RowGroupIo other = bound(budget, 6);
+        budget.acquire();
+        Thread favouredWaiter = startAcquire(budget, favoured);
+        awaitWaiters(budget, 1);
+        budget.release();
+        favouredWaiter.join(5_000);
+        assertSame(favoured, budget.favoured());
+
+        Thread otherWaiter = startAcquire(budget, other);
+        awaitWaiters(budget, 1);
+        budget.updateMaxPermits(2);
+        otherWaiter.join(5_000);
+        assertTrue(otherWaiter.isAlive() == false);
+        assertSame("mid-GET favoured must not be replaced just because it is not waiting", favoured, budget.favoured());
+        budget.release();
+        budget.release();
+    }
+
+    public void testGapOfTwoStillPreemptsMidGetFavoured() throws Exception {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 60_000L, null);
+        RowGroupIo favoured = bound(budget, 6);
+        RowGroupIo closer = bound(budget, 4);
+        budget.acquire();
+        Thread favouredWaiter = startAcquire(budget, favoured);
+        awaitWaiters(budget, 1);
+        budget.release();
+        favouredWaiter.join(5_000);
+        assertSame(favoured, budget.favoured());
+
+        Thread closerWaiter = startAcquire(budget, closer);
+        awaitWaiters(budget, 1);
+        budget.updateMaxPermits(2);
+        closerWaiter.join(5_000);
+        assertTrue(closerWaiter.isAlive() == false);
+        assertSame(closer, budget.favoured());
+        budget.release();
+        budget.release();
+    }
+
     public void testPinnedFavouriteIsNotPreemptedAtGapTwo() throws Exception {
         QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 60_000L, null);
         RowGroupIo favoured = bound(budget, 6);

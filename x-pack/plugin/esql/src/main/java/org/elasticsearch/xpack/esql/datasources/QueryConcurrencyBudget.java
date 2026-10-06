@@ -391,6 +391,8 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
      * Picks the next waiter. Outstanding is read at grant time, not copied onto the waiter.
      * {@code acquire(null)} is FIFO among null leases and never becomes {@code favoured}, except a
      * null waiter that has waited {@link #NULL_LEASE_MAX_WAIT_MS} takes one grant.
+     * A live favoured lease (unfinished, and either waiting, still holding outstanding GETs, or
+     * pinned) is not replaced just because it is mid-GET and absent from {@code waiting}.
      */
     Waiter choose(Collection<Waiter> waiting) {
         Waiter nullDue = oldestNullLeaseWaitingAtLeast(waiting, NULL_LEASE_MAX_WAIT_MS);
@@ -399,7 +401,10 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
         }
 
         Waiter incumbent = waiterFor(waiting, favoured);
-        if (incumbent != null && favoured.isFinished() == false) {
+        boolean favouredLive = favoured != null
+            && favoured.isFinished() == false
+            && (incumbent != null || favoured.outstanding() > 0 || favoured.isPinned());
+        if (favouredLive) {
             if (favoured.isPinned() == false) {
                 Waiter challenger = closestOther(waiting, favoured);
                 if (challenger != null && favoured.outstanding() - challenger.outstanding() >= PREEMPT_GAP) {
@@ -407,7 +412,10 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
                     return challenger;
                 }
             }
-            return incumbent;
+            if (incumbent != null) {
+                return incumbent;
+            }
+            return grantWithoutUnseating(waiting);
         }
         Waiter oldest = smallestStartSeq(waiting);
         Waiter closest = smallestOutstanding(waiting);
@@ -419,6 +427,19 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
             return closest;
         }
         favoured = oldest.lease;
+        return oldest;
+    }
+
+    /** Grants a waiter without changing {@link #favoured}. */
+    private Waiter grantWithoutUnseating(Collection<Waiter> waiting) {
+        Waiter oldest = smallestStartSeq(waiting);
+        if (oldest == null) {
+            return oldestNull(waiting);
+        }
+        Waiter closest = smallestOutstanding(waiting);
+        if (oldest != closest && closest != null && oldest.outstanding() - closest.outstanding() >= PREEMPT_GAP) {
+            return closest;
+        }
         return oldest;
     }
 

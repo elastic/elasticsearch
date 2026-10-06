@@ -1,4 +1,4 @@
-import { execFileSync } from "child_process";
+import { execFileSync, spawnSync } from "child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join, resolve } from "path";
@@ -121,34 +121,27 @@ exit "$(cat "${dir}/$run.rc" 2>/dev/null || echo 0)"
     writeFileSync(join(dir, "control.log"), promcheckLog(control));
     writeFileSync(join(dir, "test.log"), promcheckLog(tested));
     if (opts.controlRc !== undefined) writeFileSync(join(dir, "control.rc"), String(opts.controlRc));
-    let status = 0;
-    let stderr = "";
-    try {
-      execFileSync("bash", [SCRIPT, DATASET], {
-        cwd: repo,
-        env: {
-          ...process.env,
-          PATH: `${join(dir, "bin")}:${process.env.PATH}`,
-          PROMETHEUS_COMPLIANCE_TMPDIR: join(dir, "tmp"),
-          GH_TOKEN: "token",
-          PROMCHECK_VER: VERSION,
-          PROMCHECK_TEST_INSTANCE_TIMEOUT: "900",
-          BUILDKITE_PULL_REQUEST_BASE_BRANCH: "main",
-          BUILDKITE_BUILD_URL: "",
-          BUILDKITE_JOB_ID: "",
-          ...opts.env,
-        },
-        stdio: "pipe",
-      });
-    } catch (e) {
-      status = (e as { status: number }).status;
-      stderr = String((e as { stderr: Buffer }).stderr);
-    }
+    const result = spawnSync("bash", [SCRIPT, DATASET], {
+      cwd: repo,
+      env: {
+        ...process.env,
+        PATH: `${join(dir, "bin")}:${process.env.PATH}`,
+        PROMETHEUS_COMPLIANCE_TMPDIR: join(dir, "tmp"),
+        GH_TOKEN: "token",
+        PROMCHECK_VER: VERSION,
+        PROMCHECK_TEST_INSTANCE_TIMEOUT: "900",
+        BUILDKITE_PULL_REQUEST_BASE_BRANCH: "main",
+        BUILDKITE_BUILD_URL: "",
+        BUILDKITE_JOB_ID: "",
+        ...opts.env,
+      },
+      encoding: "utf8",
+    });
     const report = join(dir, "tmp", "validate-prometheus-compliance-output", `@${DATASET}-report.md`);
     const read = (f: string) => (existsSync(f) ? readFileSync(f, "utf8") : "");
     return {
-      status,
-      stderr,
+      status: result.status,
+      output: result.stdout + result.stderr,
       report: read(report),
       agent: read(join(dir, "agent.log")),
       controlHead: read(join(dir, "control.head")).trim(),
@@ -163,20 +156,20 @@ exit "$(cat "${dir}/$run.rc" 2>/dev/null || echo 0)"
   test("no change reports no regressions in one sentence, without a details block", () => {
     const r = run(STABLE, STABLE);
     expect(r.status).toBe(0);
-    expect(r.report.startsWith("<!-- promcheck-pr-report -->\n## Promcheck\n\n**✅ No regressions**\n\nNo query compatibility changes detected.\n")).toBe(true);
+    expect(r.report.startsWith("<!-- promcheck-pr-report -->\n## Promcheck\n\n**No regressions**\n\nNo query compatibility changes detected.\n")).toBe(true);
     expect(r.report).not.toContain("<details>");
     expect(r.agent).toContain("== annotate --context ctx-validate-prometheus-compliance --style success");
   });
 
-  test("a regression fails the job and lists only the regressions", () => {
+  test("a regression is reported without failing the job, listing only the regressions", () => {
     const r = run(STABLE, [
       ["001", "FAIL", "up"],
       ["002", "FAIL", "rate(http_requests_total[5m])"],
     ]);
-    expect(r.status).toBe(1);
-    expect(r.report).toContain("**❌ Regression detected**\n\n1 regression · 0 fixes · 1 changed case\n");
+    expect(r.status).toBe(0);
+    expect(r.report).toContain("**Regression detected**\n\n1 regression, 0 fixes, 1 changed case\n");
     expect(r.report).toContain("<summary><strong>Show changed queries</strong></summary>");
-    expect(r.report).toContain("### Regressions\n\n| Case | Result | Query |\n|---:|:---:|---|\n| 001 | `PASS → FAIL` | `up` |\n");
+    expect(r.report).toContain("### Regressions\n\n| Case | Result | Query |\n|---:|:---:|---|\n| 001 | `PASS -> FAIL` | `up` |\n");
     expect(r.report).not.toContain("### Fixed");
     expect(r.agent).toContain("--style error");
   });
@@ -187,14 +180,13 @@ exit "$(cat "${dir}/$run.rc" 2>/dev/null || echo 0)"
       ["002", "OK", "rate(http_requests_total[5m])"],
     ]);
     expect(r.status).toBe(0);
-    expect(r.report).toContain("**✅ No regressions**\n\n0 regressions · 1 fix · 1 changed case\n");
-    expect(r.report).toContain("| 002 | `FAIL → PASS` | `rate(http_requests_total[5m])` |");
+    expect(r.report).toContain("**No regressions**\n\n0 regressions, 1 fix, 1 changed case\n");
+    expect(r.report).toContain("| 002 | `FAIL -> PASS` | `rate(http_requests_total[5m])` |");
     expect(r.report).not.toContain("### Regressions");
     expect(r.agent).toContain("--style success");
   });
 
-  /** The report flags any regression; the job itself still passes or fails on the OK count. */
-  test("a regression next to a fix is reported even when the OK count holds", () => {
+  test("a regression next to a fix is reported even when the number of passing queries holds", () => {
     const r = run(
       [
         ["001", "OK", "up"],
@@ -208,8 +200,8 @@ exit "$(cat "${dir}/$run.rc" 2>/dev/null || echo 0)"
       ]
     );
     expect(r.status).toBe(0);
-    expect(r.report).toContain("**❌ Regression detected**\n\n1 regression · 1 fix · 2 changed cases\n");
-    expect(r.report).toContain("| 003 | `PASS → ERROR` | `sum(x)` |");
+    expect(r.report).toContain("**Regression detected**\n\n1 regression, 1 fix, 2 changed cases\n");
+    expect(r.report).toContain("| 003 | `PASS -> ERROR` | `sum(x)` |");
     expect(r.report.indexOf("### Regressions")).toBeLessThan(r.report.indexOf("### Fixed"));
     expect(r.agent).toContain("--style error");
   });
@@ -238,9 +230,9 @@ exit "$(cat "${dir}/$run.rc" 2>/dev/null || echo 0)"
     const r = run(STABLE, STABLE, {
       env: { BUILDKITE_BUILD_URL: "https://buildkite.com/elastic/elasticsearch-pull-request/builds/42", BUILDKITE_JOB_ID: "job-7" },
     });
-    expect(r.report).toContain(`**Compared** \`${r.controlHead.slice(0, 10)}\` → \`${head.slice(0, 10)}\`  \n`);
+    expect(r.report).toContain(`**Compared** \`${r.controlHead.slice(0, 10)}\` -> \`${head.slice(0, 10)}\`  \n`);
     expect(r.report).toContain(
-      `[Buildkite run](https://buildkite.com/elastic/elasticsearch-pull-request/builds/42#job-7) · ` +
+      `[Buildkite run](https://buildkite.com/elastic/elasticsearch-pull-request/builds/42#job-7) | ` +
         `[promcheck v${VERSION}](https://github.com/elastic/promcheck/releases/tag/v${VERSION})\n`
     );
   });
@@ -295,8 +287,8 @@ exit "$(cat "${dir}/$run.rc" 2>/dev/null || echo 0)"
         ["002", "FAIL", 'label_replace(up, "x", "`y`", "", "")'],
       ]
     );
-    expect(r.report).toContain('| 001 | `PASS → FAIL` | `up{job=~"a\\|b"}` |');
-    expect(r.report).toContain('| 002 | `PASS → FAIL` | `` label_replace(up, "x", "`y`", "", "") `` |');
+    expect(r.report).toContain('| 001 | `PASS -> FAIL` | `up{job=~"a\\|b"}` |');
+    expect(r.report).toContain('| 002 | `PASS -> FAIL` | `` label_replace(up, "x", "`y`", "", "") `` |');
   });
 
   test("more changes than the table holds link the full list as an artifact", () => {
@@ -309,10 +301,38 @@ exit "$(cat "${dir}/$run.rc" 2>/dev/null || echo 0)"
     expect(r.report).toContain(`_2 more in <a href="artifact://${join(dir, "tmp").slice(1)}/validate-prometheus-compliance-output/@${DATASET}-changes.tsv">`);
   });
 
-  test("a control run that crashes fails the job without a report", () => {
+  test("a control run that crashes is reported as not compared without failing the job", () => {
     const r = run(STABLE, STABLE, { controlRc: 2 });
+    expect(r.status).toBe(0);
+    expect(r.output).toContain("Not compared: The control run failed");
+    expect(r.agent).toContain("== annotate --context ctx-validate-prometheus-compliance --style warning");
+    expect(r.agent).toContain(
+      "<!-- promcheck-pr-report -->\n## Promcheck\n\n**Not compared**\n\nThe control run failed.\n\n" +
+        `[promcheck v${VERSION}](https://github.com/elastic/promcheck/releases/tag/v${VERSION})\n`
+    );
+    expect(r.agent).toContain("== meta-data set pr_comment:validate-prometheus-compliance:body");
+    expect(r.report).toBe("");
+  });
+
+  test("a misconfigured pipeline fails the job", () => {
+    const r = run(STABLE, STABLE, { env: { PROMCHECK_TEST_INSTANCE_TIMEOUT: "soon" } });
     expect(r.status).toBe(1);
-    expect(r.stderr).toContain("control run failed");
+    expect(r.output).toContain("PROMCHECK_TEST_INSTANCE_TIMEOUT must be a positive integer: soon");
     expect(r.agent).toBe("");
+  });
+
+  test("the report is ASCII only", () => {
+    const r = run(
+      [
+        ["001", "OK", "up"],
+        ["002", "FAIL", "rate(http_requests_total[5m])"],
+      ],
+      [
+        ["001", "FAIL", "up"],
+        ["002", "OK", "rate(http_requests_total[5m])"],
+      ],
+      { env: { BUILDKITE_BUILD_URL: "https://buildkite.com/elastic/elasticsearch-pull-request/builds/42", BUILDKITE_JOB_ID: "job-7" } }
+    );
+    expect(r.report).toMatch(/^[\x00-\x7F]+$/);
   });
 });

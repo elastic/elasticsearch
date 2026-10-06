@@ -111,8 +111,8 @@ public class InstrumentedThrottledTaskRunner<T extends ActionListener<Releasable
     /// Returns an [Executor] that runs each [Runnable] as a throttled task of `runner`.
     /// NOTE: The executor has the same caveats as the [ThrottledTaskRunner#asExecutor()], meaning that [Runnable]s are throttled to
     /// the extent they do NOT fork off on a different executor.
-    public static Executor asExecutor(InstrumentedThrottledTaskRunner<ActionListener<Releasable>> runner) {
-        return new ThrottledTaskRunner.ThrottledExecutorAdapter(runner.getTaskRunnerName(), runner::enqueueTask);
+    public static Executor asExecutor(InstrumentedThrottledTaskRunner<ActionListener<Releasable>> instrumentedRunner) {
+        return new ThrottledTaskRunner.ThrottledExecutorAdapter(instrumentedRunner.getTaskRunnerName(), instrumentedRunner::enqueueTask);
     }
 
     // we wrap each task in a TimedTask that includes its enqueued time, so we can compute the latency from the `runner'`s queue itself.

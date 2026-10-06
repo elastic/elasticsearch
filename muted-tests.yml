@@ -703,3 +703,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecMatchFunctionIT
   method: test {csv-spec:match-function.matchWithScoreSortAscending}
   issue: https://github.com/elastic/elasticsearch/issues/161131
+- class: org.elasticsearch.xpack.esql.datasources.StreamingPermitCycleSmallTests
+  method: testEightGzipStreamsCompleteUnderTinyLimiterBudget
+  issue: https://github.com/elastic/elasticsearch/issues/161165

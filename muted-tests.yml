@@ -214,12 +214,17 @@ tests:
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {yaml=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old outlier_detection job}
   issue: https://github.com/elastic/elasticsearch/issues/160950
-- class: org.elasticsearch.xpack.esql.inference.rerank.RerankOperatorTests
-  method: testInferenceFailure
-  issue: https://github.com/elastic/elasticsearch/issues/160974
-- class: org.elasticsearch.search.ccs.CrossClusterSearchIT
-  method: testClusterDetailsAfterCCSWithFailuresOnRemoteClusterOnly
-  issue: https://github.com/elastic/elasticsearch/issues/160975
+- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
+  method: falls back to source build with warning when mode=dra but DRA snapshot is unavailable (distribution archive)
+  issue: https://github.com/elastic/elasticsearch/issues/161067
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/161083
+- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
+  method: testRandomQueries
+  issue: https://github.com/elastic/elasticsearch/issues/161093
+- class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
+  method: testRandomQueries
+  issue: https://github.com/elastic/elasticsearch/issues/161094
 
 # Examples:
 #

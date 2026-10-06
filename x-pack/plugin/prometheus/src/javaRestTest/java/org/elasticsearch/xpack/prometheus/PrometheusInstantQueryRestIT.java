@@ -542,6 +542,15 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertThat(error.getMessage(), containsString("duplicate"));
     }
 
+    /**
+     * Fused with the other operand's aggregate, a selector's matchers filter its own series: {@code rx{host="a"}} has only
+     * a {@code prod} element, so the operator pairs {@code prod} alone, (10 + 30) - 2.
+     */
+    public void testInstantFusedOperandKeepsItsMatchers() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantGroups("sum by (cluster) (tx) - sum by (cluster) (rx{host=\"a\"})", "cluster", Map.of("prod", 38.0));
+    }
+
     /** Prometheus converts k with an integer cast: {@code topk(1.5, tx)} keeps one series and {@code topk(0.5, tx)} none. */
     public void testInstantFractionalKIsTruncated() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_TIME);

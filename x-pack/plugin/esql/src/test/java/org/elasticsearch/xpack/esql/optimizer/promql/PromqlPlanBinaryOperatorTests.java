@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -699,6 +700,31 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
                 + "/ on (cluster) sum by (cluster) (network.eth0.rx)) or sum by (cluster) (network.eth0.rx))"
         );
         assertThat(plan.collect(InnerJoin.class), hasSize(1));
+    }
+
+    /**
+     * Fused with another aggregate, an operand's matchers filter its per-series function: they reference source fields
+     * that only the first phase of the time-series aggregate reads, not the outer aggregate.
+     */
+    public void testFusedOperandFiltersItsSeriesFunction() {
+        LogicalPlan plan = planPromql(
+            "PROMQL index=k8s step=1m result=(count by (cluster) (network.bytes_in) - count by (cluster) (network.cost{pod=\"one\"}))"
+        );
+        TimeSeriesAggregate series = plan.collect(TimeSeriesAggregate.class).getFirst();
+        List<Expression> seriesFilters = new ArrayList<>();
+        series.forEachExpression(LastOverTime.class, f -> {
+            if (f.hasFilter()) {
+                seriesFilters.add(f.filter());
+            }
+        });
+        assertThat(seriesFilters, hasSize(1));
+        assertThat(seriesFilters.getFirst().references().stream().map(Attribute::name).toList(), equalTo(List.of("pod")));
+        Aggregate outer = plan.collect(Aggregate.class)
+            .stream()
+            .filter(a -> a instanceof TimeSeriesAggregate == false)
+            .findFirst()
+            .orElseThrow();
+        outer.forEachExpression(Count.class, count -> assertThat(count.hasFilter(), equalTo(false)));
     }
 
     private static void assertNoIndexBackedPromqlPlan(LogicalPlan plan) {

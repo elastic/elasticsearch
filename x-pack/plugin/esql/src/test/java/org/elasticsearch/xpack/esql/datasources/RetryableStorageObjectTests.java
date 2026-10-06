@@ -256,12 +256,13 @@ public class RetryableStorageObjectTests extends ESTestCase {
 
     /**
      * Prefetch used to hop the retry onto {@code [scheduler]} via {@code ThreadedRunnable}.
-     * The start hop is {@link ThreadPool#generic()}; {@link ConcurrencyLimiter#acquire} /
+     * The start hop is {@code esql_external_io}; {@link ConcurrencyLimiter#acquire} /
      * {@code tryAcquire} must never run on a scheduler thread. Completion stays on the caller
      * executor.
      */
     public void testRetryHopDoesNotAcquireOnSchedulerThread() throws Exception {
         ThreadPool threadPool = new TestThreadPool(getTestName());
+        ExecutorService io = Executors.newSingleThreadExecutor(r -> new Thread(r, "t4-esql_external_io"));
         List<String> acquireThreads = new CopyOnWriteArrayList<>();
         List<String> tryAcquireThreads = new CopyOnWriteArrayList<>();
         ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(3, false)) {
@@ -344,7 +345,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
                 return new StorageObjectMetrics(0, 0, 0, 0);
             }
         };
-        RetryScheduler hopScheduler = DataSourceModule.retryStartScheduler(threadPool);
+        RetryScheduler hopScheduler = DataSourceModule.retryStartScheduler(threadPool, io);
         ConcurrencyLimitedStorageObject limited = new ConcurrencyLimitedStorageObject(flaky, limiter);
         RetryableStorageObject obj = new RetryableStorageObject(limited, new RetryPolicy(3, 5, 50), hopScheduler);
         CountDownLatch done = new CountDownLatch(1);
@@ -372,8 +373,9 @@ public class RetryableStorageObjectTests extends ESTestCase {
             }
             assertFalse("retry barge must have tried a permit", tryAcquireThreads.isEmpty());
             for (String name : tryAcquireThreads) {
-                assertThat("tryAcquire must run on the io/generic pool, saw " + name, name, containsString("[generic]"));
+                assertThat("tryAcquire must run on esql_external_io, saw " + name, name, containsString("t4-esql_external_io"));
                 assertFalse("scheduler must never barge a concurrency permit, saw " + name, name.contains("[scheduler]"));
+                assertFalse("GENERIC must not issue blob GET retries, saw " + name, name.contains("[generic]"));
                 assertNotEquals("tryAcquire must not run on the caller completion executor", "t4-completion", name);
             }
             assertFalse("completion must have run on the caller executor", completionThreads.isEmpty());
@@ -383,15 +385,15 @@ public class RetryableStorageObjectTests extends ESTestCase {
             assertEquals("first failure plus one retry hop", 2, attempts.get());
         } finally {
             completion.shutdownNow();
+            io.shutdownNow();
             ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }
     }
 
     /**
-     * Repro for hopping the retry onto the pool that is parked in {@code actionGet()} (Parquet
-     * {@code PreloadedRowGroupMetadata.preload} does this on {@code esql_external_io} with
-     * {@code Runnable::run}). One waiter thread, first GET fails, retry queued behind the waiter:
-     * the continuation never runs.
+     * Production hops retry start onto {@code esql_external_io}, the same pool Parquet preload
+     * parks in timed {@code actionGet}. One waiter thread, first GET fails, retry queued behind
+     * the waiter: unbounded join never completes. Timed {@code actionGet} is the stall-break.
      */
     public void testRetryHopOntoActionGetWaiterPoolDeadlocks() throws Exception {
         ThreadPool threadPool = new TestThreadPool(getTestName());
@@ -426,44 +428,6 @@ public class RetryableStorageObjectTests extends ESTestCase {
             waiterPool.shutdownNow();
             ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
             assertTrue(done.await(5, TimeUnit.SECONDS));
-        }
-    }
-
-    /**
-     * Production hop is {@link ThreadPool#generic()}, so a thread parked in {@code actionGet()} on
-     * the I/O pool can still be completed by the retry.
-     */
-    public void testRetryStartSchedulerDoesNotJoinActionGetWaiterPool() throws Exception {
-        ThreadPool threadPool = new TestThreadPool(getTestName());
-        ExecutorService waiterPool = Executors.newSingleThreadExecutor(r -> new Thread(r, "waiter-io"));
-        AtomicInteger attempts = new AtomicInteger();
-        RetryableStorageObject obj = new RetryableStorageObject(
-            failOnceAsync(attempts, StoragePath.of("s3://bucket/key")),
-            new RetryPolicy(3, 1, 50),
-            DataSourceModule.retryStartScheduler(threadPool)
-        );
-        CountDownLatch done = new CountDownLatch(1);
-        AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
-        AtomicReference<Exception> failure = new AtomicReference<>();
-        try {
-            waiterPool.execute(() -> {
-                try {
-                    PlainActionFuture<DirectReadBuffer> future = new PlainActionFuture<>();
-                    obj.readBytesAsync(0, 4, len -> new DirectReadBuffer(ByteBuffer.allocate(len), () -> {}), Runnable::run, future);
-                    result.set(future.actionGet(10, TimeUnit.SECONDS));
-                } catch (Exception e) {
-                    failure.set(e);
-                } finally {
-                    done.countDown();
-                }
-            });
-            assertTrue("retry on generic must complete the actionGet waiter", done.await(10, TimeUnit.SECONDS));
-            assertNull(failure.get());
-            assertNotNull(result.get());
-            assertEquals(2, attempts.get());
-        } finally {
-            waiterPool.shutdownNow();
-            ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }
     }
 

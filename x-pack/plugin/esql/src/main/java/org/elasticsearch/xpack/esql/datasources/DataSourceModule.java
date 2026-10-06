@@ -230,12 +230,13 @@ public final class DataSourceModule implements Closeable {
         DataSourceUsageAccumulator accumulator = new DataSourceUsageAccumulator();
         this.externalSourceMetrics = new ExternalSourceMetrics(meterRegistry != null ? meterRegistry : MeterRegistry.NOOP, accumulator);
         LocalFileAccess effectiveLocalFileAccess = localFileAccess != null ? localFileAccess : LocalFileAccess.UNRESTRICTED;
-        // Off-timer scheduler for the async read-retry backoff, so a retry does not park a GENERIC-pool thread on
-        // Thread.sleep while it waits; DIRECT (run promptly on the executor) when no ThreadPool is supplied (tests).
-        // Hop the retry *start* onto GENERIC, never the caller executor and never esql_external_io: prefetch
-        // passes Runnable::run (ThreadedRunnable would run tryAcquire on [scheduler]), and Parquet preload
-        // parks esql_external_io on actionGet() waiting for this retry.
-        RetryScheduler retryScheduler = retryStartScheduler(threadPool);
+        // Off-timer scheduler for the async read-retry backoff, so a retry does not park a worker
+        // thread on Thread.sleep while it waits; DIRECT (run promptly on the executor) when no
+        // ThreadPool is supplied (tests). Retry *start* hops onto esql_external_io (split-discovery
+        // executor), never GENERIC: that pool must not issue blob GETs. Prefetch passes
+        // Runnable::run; scheduling onto that would run tryAcquire on [scheduler]. Preload parks
+        // esql_external_io on timed actionGet; same-pool retry queues until that wait expires.
+        RetryScheduler retryScheduler = retryStartScheduler(threadPool, splitDiscoveryExecutor);
         this.storageProviderRegistry = new StorageProviderRegistry(
             settings,
             credentials,
@@ -437,21 +438,21 @@ public final class DataSourceModule implements Closeable {
     }
 
     /**
-     * Retry start hops onto {@link ThreadPool#generic()}, ignoring the caller executor passed to
-     * {@link RetryScheduler#schedule}. Prefetch uses {@code Runnable::run}; scheduling onto that
-     * would run {@link ConcurrencyLimiter#tryAcquire} on {@code [scheduler]}. Preload parks
-     * {@code esql_external_io} on {@code actionGet()} with no timeout; hopping the retry onto that
-     * same pool deadlocks (the waiter cannot run the continuation that completes it). Completion
-     * still uses the caller executor.
+     * Retry start hops onto {@code esql_external_io} ({@code retryStart}), ignoring the caller
+     * executor passed to {@link RetryScheduler#schedule}. Prefetch uses {@code Runnable::run};
+     * scheduling onto that would run {@link ConcurrencyLimiter#tryAcquire} on {@code [scheduler]}.
+     * GENERIC must not issue blob GETs. Preload may park {@code esql_external_io} on timed
+     * {@code actionGet}; a same-pool retry waits until that bound expires.
+     * Completion still uses the caller executor.
      */
-    static RetryScheduler retryStartScheduler(@Nullable ThreadPool threadPool) {
-        if (threadPool == null) {
+    static RetryScheduler retryStartScheduler(@Nullable ThreadPool threadPool, @Nullable Executor retryStart) {
+        if (threadPool == null || retryStart == null) {
             return RetryScheduler.DIRECT;
         }
         return (command, delayMillis, ignoredCallerExecutor) -> threadPool.schedule(
             command,
             TimeValue.timeValueMillis(Math.max(0L, delayMillis)),
-            threadPool.generic()
+            retryStart
         );
     }
 

@@ -23,6 +23,7 @@ public class PrometheusPluginTests extends ESTestCase {
 
     public void testQueryTimeoutAcceptsPositiveAndMinusOne() {
         assertThat(PROMETHEUS_QUERY_TIMEOUT.get(timeoutSettings("30s")), equalTo(TimeValue.timeValueSeconds(30)));
+        assertThat(PROMETHEUS_QUERY_TIMEOUT.get(timeoutSettings("500ms")), equalTo(TimeValue.timeValueMillis(500)));
         assertThat(PROMETHEUS_QUERY_TIMEOUT.get(timeoutSettings("-1")), equalTo(TimeValue.MINUS_ONE));
     }
 

@@ -143,6 +143,8 @@ final class PromqlQueryExecutor {
                     );
                 }
             }, timeout, threadPool.generic());
+            // If the query completed before scheduledTimeout was set, its listener had nothing to cancel, so cancel it here.
+            // Even if the timeout fires first, it is a no-op because `completed` is already set.
             if (completed.get()) {
                 scheduledTimeout.cancel();
             }

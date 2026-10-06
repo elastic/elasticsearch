@@ -892,10 +892,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         @Override
         public SortedNumericDoubleValues getDoubleValues() {
             final SortedNumericLongValues values = scaledFieldData.getLongValues();
-            // In the common case of a singleton field, read straight off the unwrapped LongValues
-            // instead of going through the extra SortedNumericLongValues.singleton(...) wrapper.
-            // This keeps the per-value call chain as flat as possible, which matters more since
-            // JDK 27's compact object headers made every extra virtual hop a bit more expensive.
+            // For a singleton field, read straight off the unwrapped LongValues, skipping the
+            // extra SortedNumericLongValues.singleton(...) wrapper layer.
             final LongValues singleton = SortedNumericLongValues.unwrapSingleton(values);
             if (singleton != null) {
                 return SortedNumericDoubleValues.singleton(new DoubleValues() {

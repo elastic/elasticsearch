@@ -335,6 +335,10 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessPluginIn
             return acquirePermitsForClusterAndNode(this::nonMasterIndexingNodes);
         }
 
+        NamedReleasable acquirePermitsForClusterAndSearchNode() {
+            return acquirePermitsForClusterAndNode(this::searchNodes);
+        }
+
         NamedReleasable acquirePermitForIndexingNode() {
             return acquirePermitForNodeFrom(this::nonMasterIndexingNodes);
         }
@@ -745,8 +749,8 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessPluginIn
                 }
                 final boolean restartIndexingNode = randomBoolean();
                 Supplier<NamedReleasable> permitSupplier = restartIndexingNode
-                    ? this::acquirePermitForIndexingNode
-                    : this::acquirePermitForSearchNode;
+                    ? this::acquirePermitsForClusterAndIndexingNode
+                    : this::acquirePermitsForClusterAndSearchNode;
                 try (var namedReleasable = permitSupplier.get()) {
                     if (namedReleasable == NamedReleasable.EMPTY) {
                         return;

@@ -31,21 +31,29 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
 
     private final StringColumnReader reader;
     private final ColumnIterator iterator;
+    private final boolean singleValued;
     private final StringBinaryPayload.Builder payload = new StringBinaryPayload.Builder();
 
-    public ColumnarStringBinaryDocValues(StringColumnReader reader, ColumnIterator iterator) {
+    public ColumnarStringBinaryDocValues(StringColumnReader reader, ColumnIterator iterator, boolean singleValued) {
         this.reader = reader;
         this.iterator = iterator;
+        this.singleValued = singleValued;
     }
 
     /**
      * The document's slots, re-encoded as the {@link StringBinaryPayload} they arrived as. Rebuilt from the
      * column rather than stored, so the bytes are equal to what the mapper wrote without ever having been
      * kept in that form.
+     *
+     * <p>When the column was written with {@code singleValued = true} the blob is the raw value bytes —
+     * no count prefix, no framing — exactly as {@code BinaryDocValuesFormat.PLAIN} specifies.
      */
     @Override
     public BytesRef binaryValue() throws IOException {
         final int rank = iterator.rank();
+        if (singleValued) {
+            return reader.valueAt(reader.firstValueAddress(rank));
+        }
         final long first = reader.firstValueAddress(rank);
         final long count = reader.valueCount(rank);
         payload.reset();
@@ -271,6 +279,58 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
                     upto = 0;
                 }
                 return doc;
+            }
+        };
+    }
+
+    /**
+     * Wraps a foreign {@link BinaryDocValues} as a write-path cursor treating each document's blob as its
+     * own raw value — one non-null slot, no count prefix. Used for {@code BinaryDocValuesFormat.PLAIN} fields
+     * on the ingest path and as the merge fallback for foreign segments of the same format.
+     */
+    public static StringColumnValues decodeRawValues(BinaryDocValues binary) {
+        return new StringColumnValues() {
+
+            private BytesRef slot;
+
+            @Override
+            public int valueCount() {
+                return 1;
+            }
+
+            @Override
+            public int nullCount() {
+                return 0;
+            }
+
+            @Override
+            public void nextValue() throws IOException {
+                slot = binary.binaryValue();
+            }
+
+            @Override
+            public BytesRef value() {
+                return slot;
+            }
+
+            @Override
+            public int docID() {
+                return binary.docID();
+            }
+
+            @Override
+            public int nextDoc() throws IOException {
+                return binary.nextDoc();
+            }
+
+            @Override
+            public int advance(int target) throws IOException {
+                return binary.advance(target);
+            }
+
+            @Override
+            public long cost() {
+                return binary.cost();
             }
         };
     }

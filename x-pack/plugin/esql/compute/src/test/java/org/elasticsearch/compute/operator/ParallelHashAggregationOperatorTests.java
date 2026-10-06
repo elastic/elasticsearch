@@ -137,6 +137,20 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
         assertThat(operatorStatus.operator(), equalTo("ParallelHashAggregationOperator"));
     }
 
+    public void testMemoryThresholdPromotes() {
+        HashAggregationOperator.ParallelConfig config = new HashAggregationOperator.ParallelConfig(
+            randomWorkerExecutor(),
+            randomIntBetween(1, 32),
+            randomIntBetween(1, 1024),
+            Integer.MAX_VALUE,
+            1
+        );
+        DriverContext driverContext = driverContext();
+        var status = runTest(4096, true, randomBoolean(), driverContext.blockFactory(), driverContext, config);
+        assertThat(status.completedOperators(), hasSize(3));
+        assertThat(status.completedOperators().get(1).operator(), equalTo("ParallelHashAggregationOperator"));
+    }
+
     public void testTwoPassesStatus() {
         HashAggregationOperator.ParallelConfig config = new HashAggregationOperator.ParallelConfig(
             randomWorkerExecutor(),

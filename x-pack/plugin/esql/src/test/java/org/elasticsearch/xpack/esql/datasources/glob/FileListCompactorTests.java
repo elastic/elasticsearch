@@ -83,15 +83,28 @@ public class FileListCompactorTests extends ESTestCase {
                     );
                 }
             }
-            if (compact instanceof DirectoryGroupedFileList) {
+            if (compact != raw && directoriesRepeat(raw)) {
                 assertThat(
-                    "DGF should share one value row per directory group",
+                    "shared rows follow directories, including a dictionary listing",
                     compactPm.rowCount(),
-                    Matchers.lessThanOrEqualTo(compactPm.fileCount())
+                    Matchers.lessThan(compactPm.fileCount())
                 );
             }
         }
         return compact;
+    }
+
+    /** True when at least two listed files share a parent directory, so grouping can shrink the row count. */
+    private static boolean directoriesRepeat(GenericFileList raw) {
+        Set<String> parents = new HashSet<>();
+        for (int i = 0; i < raw.fileCount(); i++) {
+            StoragePath parent = raw.path(i).parentDirectory();
+            String key = parent == null ? "" : parent.toString();
+            if (parents.add(key) == false) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void assertPathsDistinct(FileList list) {
@@ -324,6 +337,7 @@ public class FileListCompactorTests extends ESTestCase {
         }
         FileList compact = assertRoundTrip(base, listOf(base + "**/*.parquet", keys.toArray(new String[0])));
         assertThat(compact, Matchers.instanceOf(DictionaryFileList.class));
+        assertEquals(compact.fileCount(), compact.partitionMetadata().rowCount());
     }
 
     // ------------------------------------------------------------------

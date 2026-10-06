@@ -1506,6 +1506,22 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     }
 
     /**
+     * A URL-format input should be accepted regardless of the configured {@code maxBase64InputSize}: the base64 size validation only
+     * applies to base64 data URIs and must not be triggered for URL-format inputs.
+     */
+    public void testUrlInputIsAcceptedWithoutBase64SizeValidation() throws Exception {
+        assumeFalse("Multimodal inputs are only supported in the non-legacy format", useLegacyFormat);
+        // A URL string is far smaller than any base64 payload, but we set an absurdly low limit to prove the validation is skipped.
+        ByteSizeValue maxSize = ByteSizeValue.ofBytes(2);
+        InferenceString input = new InferenceString(DataType.IMAGE, DataFormat.URL, "https://example.com/image.png");
+
+        assertNull(
+            "a URL-format input should be accepted regardless of the binary size limit",
+            runSingleInputThroughFilter(maxSize, input)
+        );
+    }
+
+    /**
      * Indexes a single document with one inference field set to the given input and returns the resulting item failure, or {@code null} if
      * the item was processed successfully. When {@code cacheEmbedding} is set, the inference result for the input is pre-cached so that the
      * inference call succeeds for inputs that are expected to pass the base64 size check.

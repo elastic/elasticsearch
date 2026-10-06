@@ -45,7 +45,7 @@ public class LocalStorageObjectMetricsTests extends ESTestCase {
 
         StorageObjectMetrics snapshot = object.metrics();
         assertEquals("expected exactly one request after newStream(pos, len)", 1L, snapshot.requestCount());
-        assertEquals("range request records the requested length", (long) rangeLen, snapshot.bytesRead());
+        assertEquals("range request records the bytes actually read", (long) rangeLen, snapshot.bytesRead());
         assertEquals("local FS has no SDK retries", 0L, snapshot.retryCount());
     }
 
@@ -62,7 +62,7 @@ public class LocalStorageObjectMetricsTests extends ESTestCase {
 
         StorageObjectMetrics afterFull = object.metrics();
         assertEquals("expected exactly one request after newStream()", 1L, afterFull.requestCount());
-        assertEquals("newStream() records the file size", (long) PAYLOAD.length, afterFull.bytesRead());
+        assertEquals("newStream() records the bytes actually read", (long) PAYLOAD.length, afterFull.bytesRead());
         assertEquals(0L, afterFull.retryCount());
     }
 
@@ -82,7 +82,19 @@ public class LocalStorageObjectMetricsTests extends ESTestCase {
 
         StorageObjectMetrics snapshot = object.metrics();
         assertEquals("two requests after one range + one full read", 2L, snapshot.requestCount());
-        assertEquals("bytesRead = range length + full file size", (long) rangeLen + PAYLOAD.length, snapshot.bytesRead());
+        assertEquals("bytesRead = received range + full file", (long) rangeLen + PAYLOAD.length, snapshot.bytesRead());
+    }
+
+    public void testCloseWithoutReadBooksZeroBytes() throws IOException {
+        Path tempFile = createTempFile("metrics", ".bin");
+        Files.write(tempFile, PAYLOAD);
+
+        LocalStorageObject object = new LocalStorageObject(tempFile);
+        object.newStream(0, 16).close();
+
+        StorageObjectMetrics snapshot = object.metrics();
+        assertEquals(1L, snapshot.requestCount());
+        assertEquals(0L, snapshot.bytesRead());
     }
 
     public void testReadBytesIncrementsCounters() throws IOException {

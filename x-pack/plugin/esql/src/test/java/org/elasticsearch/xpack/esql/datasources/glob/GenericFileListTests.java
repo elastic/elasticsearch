@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.glob;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -97,9 +98,55 @@ public class GenericFileListTests extends ESTestCase {
         PartitionMetadata pm = new PartitionMetadata(Map.of("year", DataType.INTEGER), Map.of(path, Map.of("year", 2024)));
         GenericFileList a = (GenericFileList) GlobExpander.fileListOf(List.of(entry), "s3://bucket/year=*/*.parquet", pm);
         GenericFileList b = (GenericFileList) GlobExpander.fileListOf(List.of(entry), "s3://bucket/year=*/*.parquet", pm);
-        GenericFileList c = (GenericFileList) GlobExpander.fileListOf(List.of(entry), "s3://bucket/year=*/*.parquet", null);
+        GenericFileList c = (GenericFileList) GlobExpander.fileListOf(
+            List.of(entry),
+            "s3://bucket/year=*/*.parquet",
+            (PartitionMetadata) null
+        );
 
         assertEquals(a, b);
         assertNotEquals(a, c);
+    }
+
+    public void testFileListOfDetectsHivePartitions() {
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://bucket/year=2024/file.parquet"), 100, Instant.EPOCH);
+        for (PartitionConfig config : List.of(PartitionConfig.DEFAULT, new PartitionConfig(PartitionConfig.Strategy.HIVE, null))) {
+            FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://bucket/year=2024/file.parquet", config);
+            assertTrue(fileList.isResolved());
+            assertFalse(fileList.isEmpty());
+            assertEquals(1, fileList.fileCount());
+            assertNotNull(fileList.partitionMetadata());
+            assertFalse(fileList.partitionMetadata().isEmpty());
+            assertEquals(DataType.INTEGER, fileList.partitionMetadata().partitionColumns().get("year"));
+        }
+    }
+
+    public void testFileListOfDetectsNoneLeavesMetadataNull() {
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://bucket/year=2024/file.parquet"), 100, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(entry),
+            "s3://bucket/year=2024/file.parquet",
+            new PartitionConfig(PartitionConfig.Strategy.NONE, null)
+        );
+        assertTrue(fileList.isResolved());
+        assertEquals(1, fileList.fileCount());
+        assertNull(fileList.partitionMetadata());
+        assertTrue(fileList.listingWarnings().isEmpty());
+    }
+
+    public void testFileListOfDetectsReservedRenameOnListingWarnings() {
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://bucket/_index=alpha/file.parquet"), 100, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://bucket/_index=alpha/file.parquet", PartitionConfig.DEFAULT);
+        assertTrue(fileList.isResolved());
+        assertEquals(1, fileList.fileCount());
+        assertEquals(
+            List.of(
+                "Partition keys named like a metadata column are renamed to [_partition.<key>]",
+                "partition key [_index] is named [_partition._index]"
+            ),
+            fileList.listingWarnings()
+        );
+        assertNotNull(fileList.partitionMetadata());
+        assertEquals(DataType.KEYWORD, fileList.partitionMetadata().partitionColumns().get("_partition._index"));
     }
 }

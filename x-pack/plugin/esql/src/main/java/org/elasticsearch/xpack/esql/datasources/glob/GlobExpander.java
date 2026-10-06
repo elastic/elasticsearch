@@ -72,6 +72,19 @@ public final class GlobExpander {
     }
 
     /**
+     * Creates a file list from raw entries and runs {@link #detectPartitions} over them, the same
+     * detection the listing rail applies to a hint-collapsed concrete path. Detector notices ride
+     * {@link FileList#listingWarnings()}. {@link PartitionConfig.Strategy#NONE} and an empty detect
+     * leave metadata null. The list stays resolved; an empty {@code entries} is still not the
+     * {@link FileList#UNRESOLVED} sentinel.
+     */
+    public static FileList fileListOf(List<StorageEntry> entries, String pattern, PartitionConfig partitionConfig) {
+        List<String> notices = new ArrayList<>();
+        PartitionMetadata metadata = detectPartitions(entries, partitionConfig, notices::add);
+        return new GenericFileList(entries, pattern, metadata, notices);
+    }
+
+    /**
      * A file list that is a prefix of what the pattern matches, as a bounded listing produces. For tests that need
      * the shape a schema-only listing has: {@link FileList#isTruncated()} is what tells a reader of such a list
      * that it is not the dataset.

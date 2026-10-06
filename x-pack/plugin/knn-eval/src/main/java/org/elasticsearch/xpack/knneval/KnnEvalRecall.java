@@ -12,6 +12,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.SearchHit;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
@@ -70,9 +71,13 @@ final class KnnEvalRecall {
 
     /** Both runs are trimmed identically, so the overlap is over comparable windows. */
     static SearchHit[] topKExcluding(SearchHit[] hits, @Nullable String excludedKey, int k) {
+        if (excludedKey == null) {
+            // nothing to drop, so the top k is simply the first k hits
+            return hits.length <= k ? hits : Arrays.copyOf(hits, k);
+        }
         List<SearchHit> kept = new ArrayList<>(Math.min(hits.length, k));
         for (SearchHit hit : hits) {
-            if (excludedKey != null && excludedKey.equals(key(hit))) {
+            if (excludedKey.equals(key(hit))) {
                 continue;
             }
             kept.add(hit);

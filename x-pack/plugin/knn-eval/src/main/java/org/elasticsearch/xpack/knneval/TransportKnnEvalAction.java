@@ -350,12 +350,12 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         Task task,
         KnnEvalSpec spec,
         List<KnnEvalQuery> queries,
-        boolean excludeQueryDocument,
+        boolean queryIsSampledFromDocuments,
         KnnEvalRescore rescore,
         BytesReference pointInTimeId,
         ActionListener<KnnEvalResponse> listener
     ) {
-        new EvaluationRunner(task, new KnnEvalState(spec, excludeQueryDocument, queries, rescore), pointInTimeId, listener).run();
+        new EvaluationRunner(task, new KnnEvalState(spec, queryIsSampledFromDocuments, queries, rescore), pointInTimeId, listener).run();
     }
 
     private final class EvaluationRunner {

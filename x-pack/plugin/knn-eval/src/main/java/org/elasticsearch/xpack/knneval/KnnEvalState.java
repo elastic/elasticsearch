@@ -24,7 +24,8 @@ import java.util.Map;
 final class KnnEvalState {
 
     final KnnEvalSpec spec;
-    final boolean excludeQueryDocument;
+    /** Whether each query vector is a stored document's own vector, so that document is its own nearest neighbour and must be dropped. */
+    final boolean queryIsSampledFromDocuments;
     final List<KnnEvalQuery> queries;
     final int searchSize;
 
@@ -37,12 +38,13 @@ final class KnnEvalState {
     private long baselineVectorOps;
     private List<KnnEvalQuery> evaluableQueries;
 
-    KnnEvalState(KnnEvalSpec spec, boolean excludeQueryDocument, List<KnnEvalQuery> queries, KnnEvalRescore rescore) {
+    KnnEvalState(KnnEvalSpec spec, boolean queryIsSampledFromDocuments, List<KnnEvalQuery> queries, KnnEvalRescore rescore) {
         this.spec = spec;
-        this.excludeQueryDocument = excludeQueryDocument;
+        this.queryIsSampledFromDocuments = queryIsSampledFromDocuments;
         this.queries = List.copyOf(queries);
         this.rescore = rescore;
-        this.searchSize = excludeQueryDocument ? spec.getK() + 1 : spec.getK();
+        // one extra hit, because the sampled document itself comes back and is dropped, leaving k real neighbours
+        this.searchSize = queryIsSampledFromDocuments ? spec.getK() + 1 : spec.getK();
         this.settings = new ArrayList<>(spec.getKnnSettings().size());
         for (int setting = 0; setting < spec.getKnnSettings().size(); setting++) {
             settings.add(new SettingAccumulator());
@@ -59,7 +61,7 @@ final class KnnEvalState {
         baselineVectorOps += baselineVectorOperations(response);
         SearchHit[] baselineHits = KnnEvalRecall.topKExcluding(
             response.getHits().getHits(),
-            excludeQueryDocument ? query.getId() : null,
+            queryIsSampledFromDocuments ? query.getId() : null,
             spec.getK()
         );
         if (baselineHits.length < spec.getK()) {
@@ -97,7 +99,7 @@ final class KnnEvalState {
         long operations = vectorOperationsCount(response);
         SearchHit[] candidateHits = KnnEvalRecall.topKExcluding(
             response.getHits().getHits(),
-            excludeQueryDocument ? query.getId() : null,
+            queryIsSampledFromDocuments ? query.getId() : null,
             spec.getK()
         );
         boolean scoresComparable = rescore.returnsQuantizedScores(spec.getBaseline()) == false

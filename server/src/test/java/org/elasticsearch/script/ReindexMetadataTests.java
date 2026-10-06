@@ -13,8 +13,6 @@ import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import static org.hamcrest.Matchers.containsString;
-
 public class ReindexMetadataTests extends ESTestCase {
     private static final String INDEX = "myIndex";
     private static final String ID = "myId";
@@ -77,7 +75,6 @@ public class ReindexMetadataTests extends ESTestCase {
     }
 
     public void testRouting() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         assertFalse(metadata.routingChanged());
 
         metadata.put("_routing", ROUTING);
@@ -103,7 +100,6 @@ public class ReindexMetadataTests extends ESTestCase {
     }
 
     public void testRoutingAndSliceAliasMapStateStayConsistent() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
 
         metadata.put("_routing", "routing1");
         assertTrue(metadata.containsKey("_routing"));
@@ -129,7 +125,6 @@ public class ReindexMetadataTests extends ESTestCase {
     }
 
     public void testSliceAlias() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         assertFalse(metadata.routingChanged());
 
         metadata.put(SliceIndexing.FIELD_NAME, ROUTING);
@@ -147,7 +142,6 @@ public class ReindexMetadataTests extends ESTestCase {
     }
 
     public void testRoutingProvenanceTracksSliceAliasUsage() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
 
         metadata.put(SliceIndexing.FIELD_NAME, "slice2");
         assertTrue(metadata.routingChanged());
@@ -159,7 +153,6 @@ public class ReindexMetadataTests extends ESTestCase {
     }
 
     public void testRoutingChangedWithSliceTracksProvenanceOnlyChanges() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
 
         assertFalse(metadata.routingChangedWithSlice(false));
         assertTrue(metadata.routingChangedWithSlice(true));
@@ -178,22 +171,11 @@ public class ReindexMetadataTests extends ESTestCase {
     }
 
     public void testRoutingChangedWithSliceTracksRoutingValueChanges() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
 
         metadata.put("_routing", "routing2");
         assertTrue(metadata.routingChanged());
         assertTrue(metadata.routingChangedWithSlice(false));
         assertTrue(metadata.routingChangedWithSlice(true));
-    }
-
-    public void testSliceUnavailableWhenFeatureFlagDisabled() {
-        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        assertFalse(metadata.isAvailable(SliceIndexing.FIELD_NAME));
-        assertFalse(metadata.keySet().contains(SliceIndexing.FIELD_NAME));
-        assertNull(metadata.get(SliceIndexing.FIELD_NAME));
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> metadata.put(SliceIndexing.FIELD_NAME, "slice1"));
-        assertThat(e.getMessage(), containsString(SliceIndexing.FIELD_NAME + " cannot be updated"));
     }
 
     public void testVersion() {

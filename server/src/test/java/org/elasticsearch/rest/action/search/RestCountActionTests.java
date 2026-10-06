@@ -20,7 +20,6 @@ import java.util.Map;
 public class RestCountActionTests extends RestActionTestCase {
 
     public void testApplyRoutingOrSliceWithSliceParam() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/_count")
             .withParams(Map.of(SliceIndexing.PARAM_NAME, "s1,s2"))
@@ -33,7 +32,6 @@ public class RestCountActionTests extends RestActionTestCase {
     }
 
     public void testApplyRoutingOrSliceWithSliceAllParam() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/_count")
             .withParams(Map.of(SliceIndexing.PARAM_NAME, SliceIndexing.SLICE_ALL))
@@ -46,7 +44,6 @@ public class RestCountActionTests extends RestActionTestCase {
     }
 
     public void testApplyRoutingOrSliceRejectsRoutingAndSliceTogether() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/_count")
             .withParams(Map.of(SliceIndexing.PARAM_NAME, "s1", "routing", "r1"))
@@ -57,19 +54,5 @@ public class RestCountActionTests extends RestActionTestCase {
             () -> RestCountAction.applyRoutingOrSliceForCountRequest(request, countRequest)
         );
         assertEquals("[routing] is not allowed together with [slice]", e.getMessage());
-    }
-
-    public void testApplyRoutingOrSliceRejectsSliceWhenFeatureDisabled() {
-        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
-            .withPath("/_count")
-            .withParams(Map.of(SliceIndexing.PARAM_NAME, "s1"))
-            .build();
-        SearchRequest countRequest = new SearchRequest();
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> RestCountAction.applyRoutingOrSliceForCountRequest(request, countRequest)
-        );
-        assertEquals("request does not support [slice]", e.getMessage());
     }
 }

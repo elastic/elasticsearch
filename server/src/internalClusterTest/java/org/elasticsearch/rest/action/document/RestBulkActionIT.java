@@ -14,7 +14,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -108,7 +107,6 @@ public class RestBulkActionIT extends ESIntegTestCase {
     }
 
     public void testBulkSliceRequiredWhenIndexSettingEnabled() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         final String index = "bulk-slice-required";
         Request create = new Request("PUT", "/" + index);
         create.setJsonEntity("""
@@ -139,7 +137,6 @@ public class RestBulkActionIT extends ESIntegTestCase {
     }
 
     public void testBulkSliceRequiredForIndexUpdateDeleteWhenIndexSettingEnabled() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         final String index = "bulk-slice-required-iud";
         Request create = new Request("PUT", "/" + index);
         create.setJsonEntity("""
@@ -164,7 +161,6 @@ public class RestBulkActionIT extends ESIntegTestCase {
     }
 
     public void testBulkRoutingRejectedWhenSliceSettingEnabled() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         final String index = "bulk-slice-routing-rejected";
         Request create = new Request("PUT", "/" + index);
         create.setJsonEntity("""
@@ -205,7 +201,6 @@ public class RestBulkActionIT extends ESIntegTestCase {
     }
 
     public void testBulkSliceRequiredWhenWritingViaAlias() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         final String backingIndex = "bulk-slice-alias-000001";
         final String alias = "bulk-slice-alias";
         Request create = new Request("PUT", "/" + backingIndex);
@@ -252,7 +247,6 @@ public class RestBulkActionIT extends ESIntegTestCase {
     }
 
     public void testBulkSliceIndexUpdateDeleteFlow() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         final String index = "bulk-slice-iud";
         Request create = new Request("PUT", "/" + index);
         create.setJsonEntity("""
@@ -285,21 +279,7 @@ public class RestBulkActionIT extends ESIntegTestCase {
         assertThat(getResponse, containsString("\"found\":false"));
     }
 
-    public void testBulkSliceParamRejectedWhenFeatureFlagDisabled() throws Exception {
-        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        Request bulk = new Request("POST", "/test_index/_bulk");
-        bulk.addParameter("slice", "s1");
-        bulk.setJsonEntity("""
-            {"index":{"_id":"1"}}
-            {"field":"value1"}
-            """);
-        ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(bulk));
-        String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
-        assertThat(response, containsString("request does not support [slice]"));
-    }
-
     public void testBulkSliceRejectedWhenSettingDisabled() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         final String index = "bulk-slice-disabled";
         Request create = new Request("PUT", "/" + index);
         create.setJsonEntity("""

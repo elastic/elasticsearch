@@ -64,7 +64,6 @@ public class RestIndexActionIT extends ESIntegTestCase {
     }
 
     public void testSliceValidationAndRequirement() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request create = new Request("PUT", "/slice-index-it");
         create.setJsonEntity("""
             {
@@ -109,7 +108,6 @@ public class RestIndexActionIT extends ESIntegTestCase {
     }
 
     public void testSliceRejectedWhenSettingDisabled() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request create = new Request("PUT", "/slice-index-disabled");
         create.setJsonEntity("""
             {
@@ -131,7 +129,6 @@ public class RestIndexActionIT extends ESIntegTestCase {
     }
 
     public void testRoutingRejectedWhenSliceEnabled() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request create = new Request("PUT", "/slice-index-routing-rejected");
         create.setJsonEntity("""
             {
@@ -153,21 +150,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
         assertThat(response, containsString("use [slice] instead"));
     }
 
-    public void testSliceParamRejectedWhenFeatureFlagDisabled() throws Exception {
-        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        Request request = new Request("POST", "/test_index/_doc/1");
-        request.addParameter(SliceIndexing.PARAM_NAME, "s1");
-        request.setJsonEntity("""
-            {
-              "field": "value"
-            }""");
-        ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
-        String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
-        assertThat(response, containsString("request does not support [slice]"));
-    }
-
     public void testSliceFieldAliasWorksForQueries() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request create = new Request("PUT", "/slice-query-filter-it");
         create.setJsonEntity("""
             {
@@ -235,7 +218,6 @@ public class RestIndexActionIT extends ESIntegTestCase {
     }
 
     public void testSliceQueryBehavesAsUnmappedWhenSliceDisabled() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request create = new Request("PUT", "/slice-query-disabled-it");
         create.setJsonEntity("""
             {
@@ -284,7 +266,6 @@ public class RestIndexActionIT extends ESIntegTestCase {
     }
 
     public void testSliceQueryThrowsWhenUnmappedFieldsDisallowed() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request create = new Request("PUT", "/slice-query-disabled-strict-unmapped-it");
         create.setJsonEntity("""
             {
@@ -320,7 +301,6 @@ public class RestIndexActionIT extends ESIntegTestCase {
     }
 
     public void testSearchUrlWithoutSliceDefaultsToAllWhenSliceEnabled() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request create = new Request("PUT", "/slice-search-url-required-it");
         create.setJsonEntity("""
             {
@@ -352,7 +332,6 @@ public class RestIndexActionIT extends ESIntegTestCase {
     }
 
     public void testSearchUrlRoutingRejectedWhenSliceEnabled() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request create = new Request("PUT", "/slice-search-url-routing-rejected-it");
         create.setJsonEntity("""
             {
@@ -387,7 +366,6 @@ public class RestIndexActionIT extends ESIntegTestCase {
     }
 
     public void testCountUrlWithoutSliceDefaultsToAllWhenSliceEnabled() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request create = new Request("PUT", "/slice-count-url-required-it");
         create.setJsonEntity("""
             {
@@ -419,7 +397,6 @@ public class RestIndexActionIT extends ESIntegTestCase {
     }
 
     public void testCountUrlRoutingRejectedWhenSliceEnabled() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request create = new Request("PUT", "/slice-count-url-routing-rejected-it");
         create.setJsonEntity("""
             {
@@ -454,7 +431,6 @@ public class RestIndexActionIT extends ESIntegTestCase {
     }
 
     public void testCountUrlSliceFilterIsAdditiveToQueryFilter() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request create = new Request("PUT", "/slice-count-url-additive-filter-it");
         create.setJsonEntity("""
             {
@@ -508,7 +484,6 @@ public class RestIndexActionIT extends ESIntegTestCase {
     }
 
     public void testSearchPitWithoutSliceSucceedsWhenSliceEnabled() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request create = new Request("PUT", "/slice-search-pit-it");
         create.setJsonEntity("""
             {
@@ -540,7 +515,6 @@ public class RestIndexActionIT extends ESIntegTestCase {
     }
 
     public void testSearchUrlSliceRejectedWhenNoSliceEnabledIndices() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request create = new Request("PUT", "/slice-search-url-disabled-it");
         create.setJsonEntity("""
             {
@@ -573,7 +547,6 @@ public class RestIndexActionIT extends ESIntegTestCase {
     }
 
     public void testSearchUrlSliceAcceptedForMixedIndicesAndAppliesGlobalFilter() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request createEnabled = new Request("PUT", "/slice-search-url-mixed-enabled-it");
         createEnabled.setJsonEntity("""
             {
@@ -635,7 +608,6 @@ public class RestIndexActionIT extends ESIntegTestCase {
     }
 
     public void testSearchUrlSliceFilterIsAdditiveToQueryFilter() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request create = new Request("PUT", "/slice-search-url-additive-filter-it");
         create.setJsonEntity("""
             {
@@ -688,7 +660,6 @@ public class RestIndexActionIT extends ESIntegTestCase {
     }
 
     public void testSearchUrlSliceSupportsMultipleValues() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request create = new Request("PUT", "/slice-search-url-multiple-values-it");
         create.setJsonEntity("""
             {
@@ -750,7 +721,6 @@ public class RestIndexActionIT extends ESIntegTestCase {
     }
 
     public void testSearchUrlSliceAllReturnsAllDocumentsAcrossSlices() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request create = new Request("PUT", "/slice-search-url-all-slices-it");
         create.setJsonEntity("""
             {
@@ -813,7 +783,6 @@ public class RestIndexActionIT extends ESIntegTestCase {
     }
 
     public void testSliceRequirementAndValidationForGetAndDelete() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request create = new Request("PUT", "/slice-get-delete-enabled");
         create.setJsonEntity("""
             {
@@ -865,7 +834,6 @@ public class RestIndexActionIT extends ESIntegTestCase {
     }
 
     public void testSliceRequirementAndValidationForExplain() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request createEnabled = new Request("PUT", "/slice-explain-enabled");
         createEnabled.setJsonEntity("""
             {
@@ -985,7 +953,6 @@ public class RestIndexActionIT extends ESIntegTestCase {
     }
 
     public void testSliceRejectedForGetAndDeleteWhenSettingDisabled() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request create = new Request("PUT", "/slice-get-delete-disabled");
         create.setJsonEntity("""
             {
@@ -1016,7 +983,6 @@ public class RestIndexActionIT extends ESIntegTestCase {
     }
 
     public void testSliceBehaviorRespectsIndexTemplateSetting() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
 
         final String disabledTemplateName = "slice-template-disabled-" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
         final String disabledPattern = "slice-template-disabled-" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT) + "-*";
@@ -1075,7 +1041,6 @@ public class RestIndexActionIT extends ESIntegTestCase {
     }
 
     public void testSliceProvenanceValidationViaCoordinatingOnlyNode() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         final String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         final RestClient restClient = getRestClient();
         final List<Node> originalNodes = restClient.getNodes();

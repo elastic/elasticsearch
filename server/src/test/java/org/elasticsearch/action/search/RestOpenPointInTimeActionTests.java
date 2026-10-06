@@ -11,7 +11,6 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -61,7 +60,6 @@ public class RestOpenPointInTimeActionTests extends RestActionTestCase {
     }
 
     public void testSliceParameter() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestOpenPointInTimeAction action = new RestOpenPointInTimeAction(CrossProjectModeDecider.NOOP);
         controller().registerHandler(action);
         Queue<OpenPointInTimeRequest> transportRequests = ConcurrentCollections.newQueue();

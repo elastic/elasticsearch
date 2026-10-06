@@ -17,7 +17,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
@@ -1090,7 +1089,7 @@ public abstract class DocumentParserContext {
             return this;
         }
         final LuceneDocument doc = new LuceneDocument(nestedMapper.fullPath(), doc());
-        if (indexSettings().isSliceEnabled() && SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
+        if (indexSettings().isSliceEnabled()) {
             final String routing = routing();
             if (routing != null) {
                 RoutingFieldMapper routingFieldMapper = (RoutingFieldMapper) getMetadataMapper(RoutingFieldMapper.NAME);

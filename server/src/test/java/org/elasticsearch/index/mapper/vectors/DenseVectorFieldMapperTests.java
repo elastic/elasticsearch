@@ -1028,6 +1028,87 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         })));
     }
 
+    public void testBBQDiskByteRejectedOnPre96Index() throws IOException {
+        IndexVersion preByteVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DISK_BBQ_ES960);
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                preByteVersion,
+                fieldMapping(
+                    b -> b.field("type", "dense_vector")
+                        .field("element_type", "byte")
+                        .field("dims", 8)
+                        .field("index", true)
+                        .field("similarity", "dot_product")
+                        .startObject("index_options")
+                        .field("type", "bbq_disk")
+                        .endObject()
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("[element_type] [byte] is not supported with index type [bbq_disk]"));
+        assertThat(e.getMessage(), containsString("on indices created before version"));
+    }
+
+    public void testBBQDiskByteAcceptedOn96Index() throws IOException {
+        MapperService mapperService = createMapperService(
+            IndexVersions.DISK_BBQ_ES960,
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("element_type", "byte")
+                    .field("dims", 8)
+                    .field("index", true)
+                    .field("similarity", "dot_product")
+                    .startObject("index_options")
+                    .field("type", "bbq_disk")
+                    .endObject()
+            )
+        );
+        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertEquals(ElementType.BYTE, mapper.fieldType().getElementType());
+    }
+
+    public void testBBQDiskAshRejectedOnPre96Index() throws IOException {
+        IndexVersion preAshVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DISK_BBQ_ES960);
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                preAshVersion,
+                fieldMapping(
+                    b -> b.field("type", "dense_vector")
+                        .field("dims", 64)
+                        .field("index", true)
+                        .field("similarity", "max_inner_product")
+                        .startObject("index_options")
+                        .field("type", "bbq_disk")
+                        .field("quantization_type", "ash")
+                        .endObject()
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("quantization_type 'ash' is not supported on indices created before version"));
+    }
+
+    public void testBBQDiskAshAcceptedOn96Index() throws IOException {
+        MapperService mapperService = createMapperService(
+            IndexVersions.DISK_BBQ_ES960,
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", 64)
+                    .field("index", true)
+                    .field("similarity", "max_inner_product")
+                    .startObject("index_options")
+                    .field("type", "bbq_disk")
+                    .field("quantization_type", "ash")
+                    .endObject()
+            )
+        );
+        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) mapper.fieldType()
+            .getIndexOptions();
+        assertEquals(DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType.ASH, indexOptions.getQuantizationType());
+    }
+
     public void testRescoreVectorForNonQuantized() {
         for (String indexType : List.of("hnsw", "flat")) {
             Exception e = expectThrows(

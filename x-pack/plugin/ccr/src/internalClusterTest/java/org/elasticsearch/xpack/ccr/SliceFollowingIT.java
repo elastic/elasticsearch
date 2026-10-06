@@ -14,10 +14,8 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.xpack.CcrSingleNodeTestCase;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
-import org.junit.Before;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -29,11 +27,6 @@ import static org.hamcrest.Matchers.equalTo;
  * user id in different slices stays distinct and a delete only removes its own slice.
  */
 public class SliceFollowingIT extends CcrSingleNodeTestCase {
-
-    @Before
-    public void requireSliceFeatureFlag() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-    }
 
     public void testFollowSliceIndexReplicatesPerSliceOps() throws Exception {
         // Leader is a slice-enabled index. CCR requires soft deletes, which are enabled by default.

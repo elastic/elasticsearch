@@ -165,9 +165,6 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
     }
 
     private static void requireSliceRoutingWhenEnabled(ProjectState state, UpdateRequest request) {
-        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
-            return;
-        }
         final String concreteName = IndexNameExpressionResolver.resolveDateMathExpression(request.index());
         final boolean sliceEnabled = Optional.ofNullable(state.metadata().getIndicesLookup().get(concreteName))
             .map(IndexAbstraction::getWriteIndex)

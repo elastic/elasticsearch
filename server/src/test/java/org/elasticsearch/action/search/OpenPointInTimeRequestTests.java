@@ -16,7 +16,6 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase<OpenPointInTimeRequest> {
@@ -37,7 +36,7 @@ public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase
         if (randomBoolean()) {
             request.preference(randomAlphaOfLength(10));
         }
-        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && randomBoolean()) {
+        if (randomBoolean()) {
             request.searchSlice(randomBoolean() ? SliceIndexing.SLICE_ALL : randomAlphaOfLength(10));
         } else if (randomBoolean()) {
             request.routing(randomAlphaOfLength(10));
@@ -47,7 +46,7 @@ public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase
 
     @Override
     protected OpenPointInTimeRequest mutateInstance(OpenPointInTimeRequest in) throws IOException {
-        final int maxCase = SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() ? 5 : 4;
+        final int maxCase = 5;
         return switch (between(0, maxCase)) {
             case 0 -> {
                 OpenPointInTimeRequest request = new OpenPointInTimeRequest("new-index");
@@ -110,7 +109,6 @@ public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase
     }
 
     public void testSearchSliceSetsRoutingAndProvenance() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         OpenPointInTimeRequest request = new OpenPointInTimeRequest("idx").searchSlice("s1");
         assertEquals("s1", request.routing());
         assertEquals("s1", request.searchSlice());
@@ -131,12 +129,5 @@ public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase
         assertNull(request.searchSlice());
         assertFalse(request.isRoutingFromSlice());
         assertNull(request.routing());
-    }
-
-    public void testSearchSliceRejectedWhenFeatureDisabled() {
-        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        OpenPointInTimeRequest request = new OpenPointInTimeRequest("idx");
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> request.searchSlice("s1"));
-        assertThat(ex.getMessage(), containsString("request does not support [slice]"));
     }
 }

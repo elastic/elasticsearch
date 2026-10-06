@@ -21,7 +21,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
@@ -177,7 +176,6 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
     }
 
     public void testSliceRoutingValidationAndFiltering() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         assertAcked(
             prepareCreate("slice-enabled").setSettings(Settings.builder().put("index.slice.enabled", true).put("number_of_shards", 1))
         );

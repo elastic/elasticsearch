@@ -33,7 +33,6 @@ public class SearchTemplateSliceSupportIT extends ESIntegTestCase {
     }
 
     public void testSearchTemplateSupportsSliceParam() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request create = new Request("PUT", "/search-template-slice-support-it");
         create.setJsonEntity("""
             {

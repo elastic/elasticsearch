@@ -10,7 +10,6 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.SliceIndexing;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -87,9 +86,7 @@ public class CreateIndexCapabilities {
         if (IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled()) {
             caps.add(VECTORDB_COLUMNAR_INDEX_MODE_CAPABILITY);
         }
-        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
-            caps.add(SLICE_INDEXING_CAPABILITY);
-        }
+        caps.add(SLICE_INDEXING_CAPABILITY);
         CAPABILITIES = Set.copyOf(caps);
     }
 }

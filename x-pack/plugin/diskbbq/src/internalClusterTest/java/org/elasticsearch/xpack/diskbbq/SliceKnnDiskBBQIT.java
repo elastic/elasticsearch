@@ -15,7 +15,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -48,8 +47,6 @@ public class SliceKnnDiskBBQIT extends ESIntegTestCase {
     }
 
     public void testKnnSearchWithoutSliceDefaultsToAllSlices() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-
         assertAcked(
             prepareCreate("slice-knn-bbq-all").setSettings(
                 Settings.builder()
@@ -92,8 +89,6 @@ public class SliceKnnDiskBBQIT extends ESIntegTestCase {
     }
 
     public void testKnnSearchSlices() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-
         final int dimensions = randomIntBetween(12, 128);
         final int numDocs = randomIntBetween(20, 200);
         final int numSlices = randomIntBetween(3, 8);

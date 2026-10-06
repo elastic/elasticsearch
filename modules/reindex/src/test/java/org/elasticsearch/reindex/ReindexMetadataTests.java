@@ -14,7 +14,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.reindex.PaginatedHitSource.Hit;
@@ -64,7 +63,6 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByPaginatedSearchActi
     }
 
     public void testRoutingSetFromSliceIfRequested() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         TestAction action = action();
         action.mainRequest().getDestination().routing("=cat").setRoutingFromSlice(true);
         IndexRequest index = new IndexRequest();

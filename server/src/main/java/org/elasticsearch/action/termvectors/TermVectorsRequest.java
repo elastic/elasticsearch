@@ -615,9 +615,6 @@ public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequ
                     }
                     termVectorsRequest.routing = parser.text();
                 } else if (SLICE.match(currentFieldName, parser.getDeprecationHandler())) {
-                    if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
-                        throw new ElasticsearchParseException("request does not support [" + SliceIndexing.PARAM_NAME + "]");
-                    }
                     if (termVectorsRequest.routingFromSlice == false && termVectorsRequest.routing != null) {
                         throw new IllegalArgumentException("[routing] is not allowed together with [" + SliceIndexing.PARAM_NAME + "]");
                     }

@@ -11,7 +11,6 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestRequest;
 
@@ -28,7 +27,6 @@ public final class SliceIndexing {
     public static final String PARAM_NAME = "slice";
     /** Metadata field / script-context name (mirrors {@code _routing}); the request-parameter form is {@link #PARAM_NAME}. */
     public static final String FIELD_NAME = "_slice";
-    public static final FeatureFlag SLICE_FEATURE_FLAG = new FeatureFlag("slice_indexing");
     public static final TransportVersion SLICE_MISSING_EXCEPTION_VERSION = TransportVersion.fromName("slice_missing_exception");
     public static final TransportVersion REINDEX_DEST_ROUTING_PROVENANCE_VERSION = TransportVersion.fromName(
         "reindex_dest_routing_provenance"
@@ -112,9 +110,6 @@ public final class SliceIndexing {
     public static ParsedRouting parseRoutingOrSliceWithProvenance(RestRequest request) {
         final String routing = request.param("routing");
         final String slice = request.param(PARAM_NAME);
-        if (slice != null && SLICE_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalArgumentException("request does not support [slice]");
-        }
         if (slice != null) {
             validateUserSliceValue(slice);
         }
@@ -132,9 +127,6 @@ public final class SliceIndexing {
     public static ParsedRouting parseSearchRoutingOrSliceWithProvenance(RestRequest request) {
         final String routing = request.param("routing");
         final String slice = request.param(PARAM_NAME);
-        if (slice != null && SLICE_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalArgumentException("request does not support [slice]");
-        }
         if (slice != null && routing != null) {
             throw new IllegalArgumentException("[routing] is not allowed together with [slice]");
         }

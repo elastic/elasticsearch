@@ -122,7 +122,6 @@ public class ReindexValidatorTests extends ESTestCase {
     }
 
     public void testRejectRoutingInSliceEnabledDestination() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         ReindexValidator validator = validatorWithProject(projectMetadataWithDestinationSliceSetting(true));
         ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
         request.getDestination().routing("keep");
@@ -139,7 +138,6 @@ public class ReindexValidatorTests extends ESTestCase {
     }
 
     public void testRequireSliceInSliceEnabledDestination() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         ReindexValidator validator = validatorWithProject(projectMetadataWithDestinationSliceSetting(true));
         ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
 
@@ -148,7 +146,6 @@ public class ReindexValidatorTests extends ESTestCase {
     }
 
     public void testAllowSliceInSliceEnabledDestination() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         ReindexValidator validator = validatorWithProject(projectMetadataWithDestinationSliceSetting(true));
         ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
         request.getDestination().routing("keep").setRoutingFromSlice(true);
@@ -157,7 +154,6 @@ public class ReindexValidatorTests extends ESTestCase {
     }
 
     public void testRejectSliceInSliceDisabledDestination() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         ReindexValidator validator = validatorWithProject(projectMetadataWithDestinationSliceSetting(false));
         ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
         request.getDestination().routing("keep").setRoutingFromSlice(true);
@@ -167,7 +163,6 @@ public class ReindexValidatorTests extends ESTestCase {
     }
 
     public void testRequireSliceInSliceEnabledDestinationFromV1Template() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         ReindexValidator validator = validatorWithProject(projectMetadataWithDestinationV1TemplateSetting(true));
         ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-auto");
 
@@ -176,7 +171,6 @@ public class ReindexValidatorTests extends ESTestCase {
     }
 
     public void testRejectSliceInSliceDisabledDestinationFromV1Template() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         ReindexValidator validator = validatorWithProject(projectMetadataWithDestinationV1TemplateSetting(false));
         ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-auto");
         request.getDestination().routing("keep").setRoutingFromSlice(true);

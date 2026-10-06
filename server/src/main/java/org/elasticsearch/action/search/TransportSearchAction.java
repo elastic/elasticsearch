@@ -326,9 +326,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         String[] requestedIndices,
         boolean hasRemoteIndices
     ) {
-        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
-            return null;
-        }
         final boolean fromSlice = searchRequest.isRoutingFromSlice();
         final String requestedSlice = fromSlice ? searchRequest.searchSlice() : null;
         final boolean anySliceEnabled = concreteLocalIndicesMetadata.values()

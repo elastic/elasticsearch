@@ -248,20 +248,7 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals(Build.current().isSnapshot(), IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(Settings.EMPTY));
     }
 
-    public void testSliceEnabledSettingRequiresFeatureFlag() {
-        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> new IndexSettings(
-                newIndexMeta("index", Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build()),
-                Settings.EMPTY
-            )
-        );
-        assertThat(exception.getMessage(), containsString("unknown setting [index.slice.enabled]"));
-    }
-
     public void testSliceEnabledSettingRejectedForTimeSeriesMode() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
             () -> new IndexSettings(

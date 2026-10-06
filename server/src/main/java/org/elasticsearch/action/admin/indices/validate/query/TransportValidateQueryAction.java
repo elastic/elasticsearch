@@ -279,9 +279,6 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
     }
 
     static String validateAndResolveSliceRouting(ValidateQueryRequest request, ProjectMetadata projectMetadata, String[] concreteIndices) {
-        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
-            return request.routing();
-        }
         final boolean fromSlice = request.isRoutingFromSlice();
         final String requestedSlice = fromSlice ? request.searchSlice() : null;
         final boolean anySliceEnabled = Arrays.stream(concreteIndices)

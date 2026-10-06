@@ -52,7 +52,7 @@ import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestU
 
 /**
  * Benchmarks for {@link ES940OSQVectorsScorer} as used by the DiskBBQ readers
- * ({@code ES9{20,40}DiskBBQVectorsReader}, {@code ESNextDiskBBQVectorsReader}).
+ * ({@code ES9{20,40,50,60}DiskBBQVectorsReader}, {@code ESNextDiskBBQVectorsReader}).
  *
  * <p>Methods are split into two groups:
  * <ul>

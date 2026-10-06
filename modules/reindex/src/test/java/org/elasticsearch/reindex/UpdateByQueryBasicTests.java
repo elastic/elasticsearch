@@ -13,7 +13,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
@@ -120,7 +119,6 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
     }
 
     public void testSliceRoutingValidationAndFiltering() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         assertAcked(
             prepareCreate("slice-enabled").setSettings(Settings.builder().put("index.slice.enabled", true).put("number_of_shards", 1))
         );

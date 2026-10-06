@@ -145,9 +145,6 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     }
 
     private static void requireSliceRoutingWhenEnabled(ProjectState state, ExplainRequest request, String concreteIndex) {
-        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
-            return;
-        }
         final boolean sliceEnabled = Optional.ofNullable(state.metadata().index(concreteIndex))
             .map(metadata -> IndexSettings.SLICE_ENABLED.get(metadata.getSettings()))
             .orElse(false);

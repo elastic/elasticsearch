@@ -1,0 +1,942 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+package org.elasticsearch.index.codec.vectors.diskbbq.es96;
+
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.FilterCodec;
+import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.CodecReader;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.VectorEncoding;
+import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopDocsCollector;
+import org.apache.lucene.search.TopKnnCollector;
+import org.apache.lucene.search.Weight;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.codec.vectors.ESBaseKnnVectorsFormatTestCase;
+import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
+import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.search.vectors.ESAcceptDocs;
+import org.elasticsearch.search.vectors.ESAcceptDocs.SliceAcceptDocs;
+import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
+
+import java.io.IOException;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
+
+import static java.lang.String.format;
+import static org.elasticsearch.index.codec.vectors.diskbbq.es96.ES960DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION;
+import static org.elasticsearch.index.codec.vectors.diskbbq.es96.ES960DiskBBQVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.diskbbq.es96.ES960DiskBBQVectorsFormat.MAX_PRECONDITIONING_BLOCK_DIMS;
+import static org.elasticsearch.index.codec.vectors.diskbbq.es96.ES960DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.diskbbq.es96.ES960DiskBBQVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.diskbbq.es96.ES960DiskBBQVectorsFormat.MIN_PRECONDITIONING_BLOCK_DIMS;
+import static org.elasticsearch.index.codec.vectors.diskbbq.es96.ES960DiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.LambdaMatchers.transformedArrayItemsMatch;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
+
+public class ES960DiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestCase {
+
+    @Override
+    protected boolean supportsFloatVectorFallback() {
+        return false;
+    }
+
+    KnnVectorsFormat format;
+
+    @Override
+    protected VectorSimilarityFunction randomSimilarity() {
+        return randomFrom(
+            VectorSimilarityFunction.DOT_PRODUCT,
+            VectorSimilarityFunction.EUCLIDEAN,
+            VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT
+        );
+    }
+
+    @Override
+    protected VectorEncoding randomVectorEncoding() {
+        return VectorEncoding.FLOAT32;
+    }
+
+    @Override
+    public void testSearchWithVisitedLimit() {
+        // ivf doesn't enforce visitation limit
+    }
+
+    @Override
+    protected Codec getCodec() {
+        if (format == null) {
+            QuantEncoding encoding = randomFrom(QuantEncoding.values());
+            boolean disableFlatOnFlush = random().nextBoolean();
+            if (rarely()) {
+                int vectorPerCluster = random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER);
+                int flatVectorThreshold = disableFlatOnFlush ? 0 : ES960DiskBBQVectorsFormat.defaultFlatThreshold(vectorPerCluster);
+                format = new ES960DiskBBQVectorsFormat(
+                    encoding,
+                    vectorPerCluster,
+                    random().nextInt(8, MAX_CENTROIDS_PER_PARENT_CLUSTER),
+                    DenseVectorFieldMapper.ElementType.FLOAT,
+                    false,
+                    null,
+                    1,
+                    false,
+                    DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                    flatVectorThreshold,
+                    null
+                );
+            } else if (rarely()) {
+                int vectorPerCluster = random().nextInt(MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER);
+                int flatVectorThreshold = disableFlatOnFlush ? 0 : ES960DiskBBQVectorsFormat.defaultFlatThreshold(vectorPerCluster);
+                format = new ES960DiskBBQVectorsFormat(
+                    encoding,
+                    vectorPerCluster,
+                    random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, MAX_CENTROIDS_PER_PARENT_CLUSTER),
+                    DenseVectorFieldMapper.ElementType.FLOAT,
+                    false,
+                    null,
+                    1,
+                    true,
+                    random().nextInt(MIN_PRECONDITIONING_BLOCK_DIMS, MAX_PRECONDITIONING_BLOCK_DIMS),
+                    flatVectorThreshold,
+                    null
+                );
+            } else {
+                // run with low numbers to force many clusters with parents
+                int vectorPerCluster = random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER);
+                int flatVectorThreshold = disableFlatOnFlush ? 0 : ES960DiskBBQVectorsFormat.defaultFlatThreshold(vectorPerCluster);
+                format = new ES960DiskBBQVectorsFormat(
+                    encoding,
+                    vectorPerCluster,
+                    random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8),
+                    DenseVectorFieldMapper.ElementType.FLOAT,
+                    false,
+                    null,
+                    1,
+                    false,
+                    DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                    flatVectorThreshold,
+                    null
+                );
+            }
+        }
+        return TestUtil.alwaysKnnVectorsFormat(format);
+    }
+
+    @Override
+    protected void assertOffHeapByteSize(LeafReader r, String fieldName) throws IOException {
+        var fieldInfo = r.getFieldInfos().fieldInfo(fieldName);
+
+        if (r instanceof CodecReader codecReader) {
+            KnnVectorsReader knnVectorsReader = codecReader.getVectorReader();
+            if (knnVectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
+                knnVectorsReader = fieldsReader.getFieldReader(fieldName);
+            }
+            var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
+            long totalByteSize = offHeap.values().stream().mapToLong(Long::longValue).sum();
+            assertThat(offHeap, aMapWithSize(3));
+            assertThat(totalByteSize, greaterThanOrEqualTo(0L));
+        } else {
+            throw new AssertionError("unexpected:" + r.getClass());
+        }
+    }
+
+    @Override
+    public void testAdvance() throws Exception {
+        // TODO re-enable with hierarchical IVF, clustering as it is is flaky
+    }
+
+    public void testToString() {
+        FilterCodec customCodec = new FilterCodec("foo", Codec.getDefault()) {
+            @Override
+            public KnnVectorsFormat knnVectorsFormat() {
+                return new ES960DiskBBQVectorsFormat(128, 4, null);
+            }
+        };
+        String expectedPattern = "ES960DiskBBQVectorsFormat(vectorPerCluster=128, mergeExec=false, sliceField=null)";
+
+        var defaultScorer = format(Locale.ROOT, expectedPattern, "DefaultFlatVectorScorer");
+        var memSegScorer = format(Locale.ROOT, expectedPattern, "Lucene99MemorySegmentFlatVectorsScorer");
+        assertThat(customCodec.knnVectorsFormat().toString(), is(oneOf(defaultScorer, memSegScorer)));
+    }
+
+    public void testLimits() {
+        expectThrows(IllegalArgumentException.class, () -> new ES960DiskBBQVectorsFormat(MIN_VECTORS_PER_CLUSTER - 1, 16, null));
+        expectThrows(IllegalArgumentException.class, () -> new ES960DiskBBQVectorsFormat(MAX_VECTORS_PER_CLUSTER + 1, 16, null));
+        expectThrows(IllegalArgumentException.class, () -> new ES960DiskBBQVectorsFormat(128, MIN_CENTROIDS_PER_PARENT_CLUSTER - 1, null));
+        expectThrows(IllegalArgumentException.class, () -> new ES960DiskBBQVectorsFormat(128, MAX_CENTROIDS_PER_PARENT_CLUSTER + 1, null));
+    }
+
+    public void testSimpleOffHeapSize() throws IOException {
+        float[] vector = randomVector(random().nextInt(12, 500));
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+            Document doc = new Document();
+            doc.add(new KnnFloatVectorField("f", vector, VectorSimilarityFunction.EUCLIDEAN));
+            w.addDocument(doc);
+            w.commit();
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                LeafReader r = getOnlyLeafReader(reader);
+                if (r instanceof CodecReader codecReader) {
+                    KnnVectorsReader knnVectorsReader = codecReader.getVectorReader();
+                    if (knnVectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
+                        knnVectorsReader = fieldsReader.getFieldReader("f");
+                    }
+                    var fieldInfo = r.getFieldInfos().fieldInfo("f");
+                    var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
+                    assertThat(offHeap, aMapWithSize(3));
+                }
+            }
+        }
+    }
+
+    public void testFewVectorManyTimes() throws IOException {
+        int numDifferentVectors = random().nextInt(1, 20);
+        float[][] vectors = new float[numDifferentVectors][];
+        int dimensions = random().nextInt(12, 500);
+        for (int i = 0; i < numDifferentVectors; i++) {
+            vectors[i] = randomVector(dimensions);
+        }
+        int numDocs = random().nextInt(100, 10_000);
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+            for (int i = 0; i < numDocs; i++) {
+                float[] vector = vectors[random().nextInt(numDifferentVectors)];
+                Document doc = new Document();
+                doc.add(new KnnFloatVectorField("f", vector, VectorSimilarityFunction.EUCLIDEAN));
+                w.addDocument(doc);
+            }
+            w.commit();
+            if (rarely()) {
+                w.forceMerge(1);
+            }
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                List<LeafReaderContext> subReaders = reader.leaves();
+                for (LeafReaderContext r : subReaders) {
+                    LeafReader leafReader = r.reader();
+                    float[] vector = randomVector(dimensions);
+                    TopDocs topDocs = leafReader.searchNearestVectors(
+                        "f",
+                        vector,
+                        10,
+                        AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc()),
+                        Integer.MAX_VALUE
+                    );
+                    assertThat(topDocs.scoreDocs, arrayWithSize(Math.min(leafReader.maxDoc(), 10)));
+                }
+
+            }
+        }
+    }
+
+    public void testOneRepeatedVector() throws IOException {
+        int dimensions = random().nextInt(12, 500);
+        float[] repeatedVector = randomVector(dimensions);
+        int numDocs = random().nextInt(100, 10_000);
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+            for (int i = 0; i < numDocs; i++) {
+                float[] vector = random().nextInt(3) == 0 ? repeatedVector : randomVector(dimensions);
+                Document doc = new Document();
+                doc.add(new KnnFloatVectorField("f", vector, VectorSimilarityFunction.EUCLIDEAN));
+                w.addDocument(doc);
+            }
+            w.commit();
+            if (rarely()) {
+                w.forceMerge(1);
+            }
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                List<LeafReaderContext> subReaders = reader.leaves();
+                for (LeafReaderContext r : subReaders) {
+                    LeafReader leafReader = r.reader();
+                    float[] vector = randomVector(dimensions);
+                    TopDocs topDocs = leafReader.searchNearestVectors(
+                        "f",
+                        vector,
+                        10,
+                        AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc()),
+                        Integer.MAX_VALUE
+                    );
+                    assertThat(topDocs.scoreDocs, arrayWithSize(Math.min(leafReader.maxDoc(), 10)));
+                }
+
+            }
+        }
+    }
+
+    // this is a modified version of lucene's TestSearchWithThreads test case
+    public void testWithThreads() throws Exception {
+        final int numThreads = random().nextInt(2, 5);
+        final int numSearches = atLeast(100);
+        final int numDocs = atLeast(1000);
+        final int dimensions = random().nextInt(12, 500);
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+            for (int docCount = 0; docCount < numDocs; docCount++) {
+                final Document doc = new Document();
+                doc.add(new KnnFloatVectorField("f", randomVector(dimensions), VectorSimilarityFunction.EUCLIDEAN));
+                w.addDocument(doc);
+            }
+            w.forceMerge(1);
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                final AtomicBoolean failed = new AtomicBoolean();
+                Thread[] threads = new Thread[numThreads];
+                for (int threadID = 0; threadID < numThreads; threadID++) {
+                    threads[threadID] = new Thread(() -> {
+                        try {
+                            long totSearch = 0;
+                            for (; totSearch < numSearches && failed.get() == false; totSearch++) {
+                                float[] vector = randomVector(dimensions);
+                                LeafReader leafReader = getOnlyLeafReader(reader);
+                                leafReader.searchNearestVectors(
+                                    "f",
+                                    vector,
+                                    10,
+                                    AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc()),
+                                    Integer.MAX_VALUE
+                                );
+                            }
+                            assertTrue(totSearch > 0);
+                        } catch (Exception exc) {
+                            failed.set(true);
+                            throw new RuntimeException(exc);
+                        }
+                    });
+                    threads[threadID].setDaemon(true);
+                }
+
+                for (Thread t : threads) {
+                    t.start();
+                }
+
+                for (Thread t : threads) {
+                    t.join();
+                }
+            }
+        }
+    }
+
+    public void testRestrictiveFilterDense() throws IOException {
+        doRestrictiveFilter(true);
+    }
+
+    public void testRestrictiveFilterSparse() throws IOException {
+        doRestrictiveFilter(false);
+    }
+
+    public void testIndexSortOnFlush() throws IOException {
+        IndexWriterConfig config = newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format))
+            .setIndexSort(new Sort(new SortField("sort", SortField.Type.STRING)))
+            .setMergePolicy(NoMergePolicy.INSTANCE)
+            .setMaxBufferedDocs(10)
+            .setRAMBufferSizeMB(1);
+        ;
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, config)) {
+            float[] vectorA = new float[] { 3f, 3f };
+            float[] vectorB = new float[] { 0f, 0f };
+            float[] vectorC = new float[] { -3f, -3f };
+            addSortedVectorDoc(w, "c", vectorC);
+            addSortedVectorDoc(w, "a", vectorA);
+            addSortedVectorDoc(w, "b", vectorB);
+            w.commit();
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                LeafReader leafReader = getOnlyLeafReader(reader);
+
+                // we might collect the same document twice because of soar assignments
+                KnnCollector collector = new TopKnnCollector(3, Integer.MAX_VALUE);
+                leafReader.searchNearestVectors(
+                    "f",
+                    vectorA,
+                    collector,
+                    AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc())
+                );
+                TopDocs topDocs = collector.topDocs();
+                assertThat(topDocs.scoreDocs, transformedArrayItemsMatch(sd -> sd.doc, arrayContaining(0, 1, 2)));
+            }
+        }
+    }
+
+    private void doRestrictiveFilter(boolean dense) throws IOException {
+        int dimensions = random().nextInt(12, 500);
+        int maxMatchingDocs = random().nextInt(1, 10);
+        int matchingDocs = 0;
+        int numDocs = random().nextInt(100, 3_000);
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        if (random().nextBoolean()) {
+            iwc.setIndexSort(new Sort(new SortField("k", SortField.Type.STRING)));
+        }
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
+            for (int i = 0; i < numDocs; i++) {
+                Document doc = new Document();
+                if (dense || rarely() == false) {
+                    float[] vector = randomVector(dimensions);
+                    doc.add(new KnnFloatVectorField("f", vector, VectorSimilarityFunction.EUCLIDEAN));
+                }
+                if (random().nextBoolean()) {
+                    doc.add(new StringField("k", new BytesRef("A"), Field.Store.YES));
+                    doc.add(new SortedDocValuesField("k", new BytesRef("A")));
+                } else {
+                    doc.add(new StringField("k", new BytesRef("C"), Field.Store.YES));
+                    doc.add(new SortedDocValuesField("k", new BytesRef("C")));
+                }
+                w.addDocument(doc);
+                if (matchingDocs < maxMatchingDocs && rarely()) {
+                    matchingDocs++;
+                    doc = new Document();
+                    doc.add(new KnnFloatVectorField("f", randomVector(dimensions), VectorSimilarityFunction.EUCLIDEAN));
+                    doc.add(new StringField("k", new BytesRef("B"), Field.Store.YES));
+                    doc.add(new SortedDocValuesField("k", new BytesRef("B")));
+                    w.addDocument(doc);
+                }
+                if (dense == false && rarely()) {
+                    doc = new Document();
+                    doc.add(new StringField("k", new BytesRef("B"), Field.Store.YES));
+                    doc.add(new SortedDocValuesField("k", new BytesRef("B")));
+                    w.addDocument(doc);
+                }
+            }
+            if (matchingDocs == 0) {
+                // make sure we have at least one matching doc with a vector
+                matchingDocs++;
+                float[] vector = randomVector(dimensions);
+                Document doc = new Document();
+                doc.add(new KnnFloatVectorField("f", vector, VectorSimilarityFunction.EUCLIDEAN));
+                doc.add(new StringField("k", new BytesRef("B"), Field.Store.YES));
+                doc.add(new SortedDocValuesField("k", new BytesRef("B")));
+                w.addDocument(doc);
+            }
+            w.commit();
+            if (random().nextBoolean()) {
+                // force one leave
+                w.forceMerge(1);
+            }
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                TopDocs[] topDocsArray = new TopDocs[reader.leaves().size()];
+                for (int i = 0; i < reader.leaves().size(); i++) {
+                    LeafReaderContext context = reader.leaves().get(i);
+                    LeafReader leafReader = context.reader();
+                    float[] vector = randomVector(dimensions);
+                    // we might collect the same document twice because of soar assignments
+                    KnnCollector collector;
+                    if (random().nextBoolean()) {
+                        collector = new TopKnnCollector(random().nextInt(2 * matchingDocs, 3 * matchingDocs), Integer.MAX_VALUE);
+                    } else {
+                        collector = new TopKnnCollector(
+                            random().nextInt(2 * matchingDocs, 3 * matchingDocs),
+                            Integer.MAX_VALUE,
+                            new IVFKnnSearchStrategy(0.25f, 10, 10, null)
+                        );
+                    }
+                    if (leafReader.postings(new Term("k", new BytesRef("B"))) == null) {
+                        topDocsArray[i] = TopDocsCollector.EMPTY_TOPDOCS;
+                        continue;
+                    }
+                    leafReader.searchNearestVectors(
+                        "f",
+                        vector,
+                        collector,
+                        AcceptDocs.fromIteratorSupplier(
+                            () -> leafReader.postings(new Term("k", new BytesRef("B"))),
+                            leafReader.getLiveDocs(),
+                            leafReader.maxDoc()
+                        )
+                    );
+                    TopDocs leafTopDocs = collector.topDocs();
+                    ScoreDoc[] adjusted = new ScoreDoc[leafTopDocs.scoreDocs.length];
+                    for (int docIndex = 0; docIndex < leafTopDocs.scoreDocs.length; docIndex++) {
+                        ScoreDoc scoreDoc = leafTopDocs.scoreDocs[docIndex];
+                        adjusted[docIndex] = new ScoreDoc(scoreDoc.doc + context.docBase, scoreDoc.score);
+                    }
+                    topDocsArray[i] = new TopDocs(leafTopDocs.totalHits, adjusted);
+                    // match no docs
+                    leafReader.searchNearestVectors(
+                        "f",
+                        vector,
+                        new TopKnnCollector(2, Integer.MAX_VALUE),
+                        AcceptDocs.fromIteratorSupplier(DocIdSetIterator::empty, leafReader.getLiveDocs(), leafReader.maxDoc())
+                    );
+                }
+                TopDocs topDocs = TopDocs.merge(2 * maxMatchingDocs, topDocsArray);
+                Set<Integer> uniqueDocIds = new HashSet<>();
+                for (int i = 0; i < topDocs.scoreDocs.length; i++) {
+                    uniqueDocIds.add(topDocs.scoreDocs[i].doc);
+                    Document document = reader.storedFields().document(topDocs.scoreDocs[i].doc);
+                    assertThat(document.getField("k").binaryValue().utf8ToString(), equalTo("B"));
+                }
+                assertThat(uniqueDocIds, hasSize(matchingDocs));
+            }
+        }
+    }
+
+    private static void addSortedVectorDoc(IndexWriter writer, String id, float[] vector) throws IOException {
+        Document doc = new Document();
+        doc.add(new KnnFloatVectorField("f", vector, VectorSimilarityFunction.EUCLIDEAN));
+        doc.add(new SortedDocValuesField("sort", new BytesRef(id)));
+        writer.addDocument(doc);
+    }
+
+    /**
+     * Exercises {@link ES960DiskBBQVectorsFormat#validateSliceSort} directly. The writer test below covers the same
+     * branches end to end, but the reader calls this method too and no writer-produced segment can reach its failure
+     * paths, so this pins the logic both call sites share.
+     */
+    public void testValidateSliceSort() {
+        String sliceField = "_slice";
+
+        // no slice field configured: any sort, or none, is fine
+        ES960DiskBBQVectorsFormat.validateSliceSort(null, null);
+        ES960DiskBBQVectorsFormat.validateSliceSort(null, new Sort(new SortField("other", SortField.Type.LONG)));
+
+        SortField valid = new SortField(sliceField, SortField.Type.STRING, false, SortField.STRING_LAST);
+        ES960DiskBBQVectorsFormat.validateSliceSort(sliceField, new Sort(valid));
+        // trailing sort fields are allowed
+        ES960DiskBBQVectorsFormat.validateSliceSort(sliceField, new Sort(valid, new SortField("other", SortField.Type.LONG)));
+
+        assertValidateSliceSortThrows(sliceField, null, "requires index sort");
+
+        SortField otherPrimary = new SortField("other", SortField.Type.STRING, false, SortField.STRING_LAST);
+        assertValidateSliceSortThrows(sliceField, new Sort(otherPrimary, valid), "must be primary index sort");
+
+        assertValidateSliceSortThrows(sliceField, new Sort(new SortField(sliceField, SortField.Type.LONG)), "of type STRING");
+
+        SortField descending = new SortField(sliceField, SortField.Type.STRING, true, SortField.STRING_LAST);
+        assertValidateSliceSortThrows(sliceField, new Sort(descending), "must be ascending");
+
+        assertValidateSliceSortThrows(sliceField, new Sort(new SortField(sliceField, SortField.Type.STRING)), "missing=LAST");
+
+        SortField missingFirst = new SortField(sliceField, SortField.Type.STRING, false, SortField.STRING_FIRST);
+        assertValidateSliceSortThrows(sliceField, new Sort(missingFirst), "missing=LAST");
+    }
+
+    private static void assertValidateSliceSortThrows(String sliceField, Sort sort, String message) {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> ES960DiskBBQVectorsFormat.validateSliceSort(sliceField, sort)
+        );
+        assertThat(e.getMessage(), containsString(message));
+    }
+
+    /**
+     * A sliced format must refuse to write unless the primary index sort is the slice field, of type STRING,
+     * ascending, with missing values last. Sliced search assumes exactly that layout, so the writer rejects
+     * anything else up front rather than producing segments that would fail or return wrong results at query time.
+     */
+    public void testSlicedFormatRejectsInvalidIndexSort() throws IOException {
+        String sliceField = "_slice";
+        ES960DiskBBQVectorsFormat slicedFormat = new ES960DiskBBQVectorsFormat(128, 4, sliceField);
+
+        assertSliceSortRejected(slicedFormat, slicedVectorDoc(sliceField), null, "requires index sort");
+
+        SortField otherPrimary = new SortField("other", SortField.Type.STRING, false, SortField.STRING_LAST);
+        assertSliceSortRejected(slicedFormat, slicedVectorDoc(sliceField), new Sort(otherPrimary), "must be primary index sort");
+
+        // Give the slice field numeric doc values here so Lucene's own sort/doc-values type check passes and ours is the one that fires.
+        Document numericSliceDoc = new Document();
+        numericSliceDoc.add(new NumericDocValuesField(sliceField, 0L));
+        numericSliceDoc.add(new KnnFloatVectorField("vector", randomVector(16), VectorSimilarityFunction.EUCLIDEAN));
+        assertSliceSortRejected(slicedFormat, numericSliceDoc, new Sort(new SortField(sliceField, SortField.Type.LONG)), "of type STRING");
+
+        SortField descending = new SortField(sliceField, SortField.Type.STRING, true, SortField.STRING_LAST);
+        assertSliceSortRejected(slicedFormat, slicedVectorDoc(sliceField), new Sort(descending), "must be ascending");
+
+        assertSliceSortRejected(
+            slicedFormat,
+            slicedVectorDoc(sliceField),
+            new Sort(new SortField(sliceField, SortField.Type.STRING)),
+            "missing=LAST"
+        );
+
+        SortField missingFirst = new SortField(sliceField, SortField.Type.STRING, false, SortField.STRING_FIRST);
+        assertSliceSortRejected(slicedFormat, slicedVectorDoc(sliceField), new Sort(missingFirst), "missing=LAST");
+
+        // the valid configuration writes without complaint
+        SortField valid = new SortField(sliceField, SortField.Type.STRING, false, SortField.STRING_LAST);
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        iwc.setIndexSort(new Sort(valid));
+        iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(slicedFormat));
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
+            w.addDocument(slicedVectorDoc(sliceField));
+            w.commit();
+        }
+    }
+
+    private static void assertSliceSortRejected(ES960DiskBBQVectorsFormat slicedFormat, Document doc, Sort sort, String message)
+        throws IOException {
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        if (sort != null) {
+            iwc.setIndexSort(sort);
+        }
+        iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(slicedFormat));
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
+            IllegalStateException e = expectThrows(IllegalStateException.class, () -> w.addDocument(doc));
+            assertThat(e.getMessage(), containsString(message));
+        }
+    }
+
+    private static Document slicedVectorDoc(String sliceField) {
+        Document doc = new Document();
+        doc.add(SortedDocValuesField.indexedField(sliceField, new BytesRef("0")));
+        doc.add(new KnnFloatVectorField("vector", randomVector(16), VectorSimilarityFunction.EUCLIDEAN));
+        return doc;
+    }
+
+    public void testSlicedIndexOneVectorPerSlice() throws IOException {
+        String sliceField = "_slice";
+        String vectorField = "vector";
+        int slices = random().nextInt(2, 100);
+        int dimensions = random().nextInt(12, 500);
+        ES960DiskBBQVectorsFormat localFormat = new ES960DiskBBQVectorsFormat(
+            QuantEncoding.ONE_BIT_4BIT_QUERY,
+            MIN_VECTORS_PER_CLUSTER,
+            MIN_CENTROIDS_PER_PARENT_CLUSTER,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            false,
+            null,
+            1,
+            false,
+            DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+            random().nextInt(100, 1000),
+            sliceField
+        );
+        SortField sliceSortField = new SortField(sliceField, SortField.Type.STRING, false, SortField.STRING_LAST);
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        iwc.setIndexSort(new Sort(sliceSortField));
+        iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(localFormat));
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
+            for (int slice = 0; slice < slices; slice++) {
+                Document doc = new Document();
+                doc.add(SortedDocValuesField.indexedField(sliceField, new BytesRef("" + slice)));
+                doc.add(new KnnFloatVectorField(vectorField, randomVector(dimensions), VectorSimilarityFunction.EUCLIDEAN));
+                w.addDocument(doc);
+            }
+            w.commit();
+            w.forceMerge(1);
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                assertEquals(1, reader.leaves().size());
+                LeafReader leafReader = reader.leaves().get(0).reader();
+                KnnVectorsReader vectorReader = ((CodecReader) leafReader).getVectorReader();
+                if (vectorReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
+                    vectorReader = fieldsReader.getFieldReader(vectorField);
+                }
+                assertThat(vectorReader, instanceOf(ES960DiskBBQVectorsReader.class));
+                try (
+                    IVFVectorsReader.CentroidData<?> centroidData = ((ES960DiskBBQVectorsReader) vectorReader).readCentroidData(vectorField)
+                ) {
+                    assertNotNull(centroidData);
+                    assertThat(centroidData.numCentroids(), equalTo(1));
+                    assertThat(centroidData.centroids().size(), equalTo(1));
+                }
+            }
+        }
+    }
+
+    /**
+     * A sliced segment produced by a single flush is not clustered per slice ({@code numSlices == 0}) and is
+     * searched over a doc id range. Plain Lucene {@link AcceptDocs} (as used by {@code CheckIndex}) carry no slice
+     * information and must fall back to the whole segment, while an {@link ESAcceptDocs} without a slice ordinal
+     * violates the reader contract and is rejected by assertion rather than silently searching a wrong range.
+     */
+    public void testSlicedFlushedSegmentWithoutSliceOrdinal() throws IOException {
+        String sliceField = "_slice";
+        String vectorField = "vector";
+        int numDocs = random().nextInt(10, 200);
+        int dimensions = random().nextInt(12, 500);
+        ES960DiskBBQVectorsFormat localFormat = new ES960DiskBBQVectorsFormat(
+            MIN_VECTORS_PER_CLUSTER,
+            MIN_CENTROIDS_PER_PARENT_CLUSTER,
+            sliceField
+        );
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        SortField sliceSortField = new SortField(sliceField, SortField.Type.STRING, false, SortField.STRING_LAST);
+        iwc.setIndexSort(new Sort(sliceSortField));
+        iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(localFormat));
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
+            for (int i = 0; i < numDocs; i++) {
+                Document doc = new Document();
+                doc.add(SortedDocValuesField.indexedField(sliceField, new BytesRef("" + random().nextInt(5))));
+                doc.add(new KnnFloatVectorField(vectorField, randomVector(dimensions), VectorSimilarityFunction.EUCLIDEAN));
+                w.addDocument(doc);
+            }
+            w.commit();
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                // newIndexWriterConfig() randomizes the flush policy, so there may be several flushed segments
+                for (LeafReaderContext context : reader.leaves()) {
+                    LeafReader leafReader = context.reader();
+                    KnnVectorsReader vectorReader = ((CodecReader) leafReader).getVectorReader();
+                    if (vectorReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
+                        vectorReader = fieldsReader.getFieldReader(vectorField);
+                    }
+                    assertThat(vectorReader, instanceOf(ES960DiskBBQVectorsReader.class));
+                    // a flushed sliced segment is written as a single flat posting list, i.e. without per-slice centroids
+                    try (
+                        IVFVectorsReader.CentroidData<?> centroidData = ((ES960DiskBBQVectorsReader) vectorReader).readCentroidData(
+                            vectorField
+                        )
+                    ) {
+                        assertThat(centroidData.numCentroids(), equalTo(1));
+                    }
+                    float[] vector = randomVector(dimensions);
+                    KnnCollector collector = new TopKnnCollector(leafReader.maxDoc(), Integer.MAX_VALUE);
+                    leafReader.searchNearestVectors(vectorField, vector, collector, AcceptDocs.fromLiveDocs(null, leafReader.maxDoc()));
+                    Set<Integer> docIds = new HashSet<>();
+                    for (ScoreDoc scoreDoc : collector.topDocs().scoreDocs) {
+                        docIds.add(scoreDoc.doc);
+                    }
+                    assertThat(docIds, hasSize(leafReader.maxDoc()));
+
+                    // Call getPostingVisitor directly via a package-private test helper, bypassing the
+                    // assertion in getNumberOfVectors, to test the fix in the numSlices==0 branch itself.
+                    // With the old dead null-guard (esAccept.sliceAcceptDocs() != null) this threw
+                    // NullPointerException; with the fix it throws AssertionError.
+                    ES960DiskBBQVectorsReader esNextReader = (ES960DiskBBQVectorsReader) vectorReader;
+                    AssertionError error = expectThrows(
+                        AssertionError.class,
+                        () -> esNextReader.getPostingVisitorForTest(vectorField, vector, new ESAcceptDocs.ESAcceptDocsAll())
+                    );
+                    assertThat(error.getMessage(), equalTo("sliced segment searched without a slice ordinal"));
+                }
+            }
+        }
+    }
+
+    public void testSlicesDense() throws IOException {
+        doTestSlicesDense(false);
+    }
+
+    public void testSlicesDenseWithFilter() throws IOException {
+        doTestSlicesDense(true);
+    }
+
+    public void testSlicesSparse() throws IOException {
+        doTestSlicesSparse(false);
+    }
+
+    public void testSlicesSparseWithFilter() throws IOException {
+        doTestSlicesSparse(true);
+    }
+
+    private void doTestSlicesSparse(boolean applyFilter) throws IOException {
+        if (rarely()) {
+            doTestSlices(() -> random().nextInt(1000) == 0, applyFilter);
+        } else {
+            int bound = random().nextInt(2, 50);
+            doTestSlices(() -> random().nextInt(bound) == 0, applyFilter);
+        }
+    }
+
+    private void doTestSlicesDense(boolean applyFilter) throws IOException {
+        doTestSlices(() -> true, applyFilter);
+    }
+
+    private void doTestSlices(BooleanSupplier supplier, boolean applyFilter) throws IOException {
+        String sliceField = "_slice";
+        String filterField = "_filter";
+        String filterValue = "match";
+        String filterMiss = "miss";
+        String docIdField = "_doc_id";
+        QuantEncoding encoding = QuantEncoding.values()[random().nextInt(QuantEncoding.values().length)];
+        int vectorPerCluster = random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER);
+        ES960DiskBBQVectorsFormat localFormat = new ES960DiskBBQVectorsFormat(
+            encoding,
+            vectorPerCluster,
+            random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, MAX_CENTROIDS_PER_PARENT_CLUSTER),
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            false,
+            null,
+            1,
+            false,
+            DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+            0,
+            sliceField
+        );
+        int dimensions = random().nextInt(12, 500);
+        int slices = random().nextInt(2, 100);
+        int numDocs = random().nextInt(100, 10_000);
+        int[] docsPerSlice = new int[slices];
+        int[] docsPerSliceFiltered = new int[slices];
+        int[] docSlices = new int[numDocs];
+        boolean[] docHasVector = new boolean[numDocs];
+        boolean[] docFilterMatch = new boolean[numDocs];
+        SortField sliceSortField = new SortField(sliceField, SortField.Type.STRING, false, SortField.STRING_LAST);
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        iwc.setIndexSort(new Sort(sliceSortField));
+        iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(localFormat));
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
+            for (int i = 0; i < numDocs; i++) {
+                int slice = random().nextInt(slices);
+                Document doc = new Document();
+                doc.add(SortedDocValuesField.indexedField(sliceField, new BytesRef("" + slice)));
+                boolean filterMatch = random().nextBoolean();
+                String filterText = filterMatch ? filterValue : filterMiss;
+                doc.add(new StringField(filterField, filterText, Field.Store.NO));
+                doc.add(new StoredField(filterField, new BytesRef(filterText)));
+                doc.add(new StringField(docIdField, "doc_" + i, Field.Store.NO));
+                boolean hasVector = supplier.getAsBoolean();
+                if (hasVector) {
+                    docsPerSlice[slice]++;
+                    if (filterMatch) {
+                        docsPerSliceFiltered[slice]++;
+                    }
+                    doc.add(new KnnFloatVectorField("vector", randomVector(dimensions), VectorSimilarityFunction.EUCLIDEAN));
+                }
+                doc.add(new StoredField(sliceField, new BytesRef("" + slice)));
+                w.addDocument(doc);
+                docSlices[i] = slice;
+                docHasVector[i] = hasVector;
+                docFilterMatch[i] = filterMatch;
+            }
+            w.commit();
+            if (random().nextBoolean()) {
+                int deleteCount = random().nextInt(0, Math.max(1, numDocs / 10));
+                Set<Integer> docsToDelete = new HashSet<>();
+                while (docsToDelete.size() < deleteCount) {
+                    docsToDelete.add(random().nextInt(numDocs));
+                }
+                for (int docId : docsToDelete) {
+                    if (docHasVector[docId]) {
+                        docsPerSlice[docSlices[docId]]--;
+                        if (docFilterMatch[docId]) {
+                            docsPerSliceFiltered[docSlices[docId]]--;
+                        }
+                    }
+                    w.deleteDocuments(new Term(docIdField, "doc_" + docId));
+                }
+                if (docsToDelete.isEmpty() == false) {
+                    w.commit();
+                }
+            } else if (random().nextBoolean()) {
+                w.forceMerge(1);
+            }
+            float[] vector = randomVector(dimensions);
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                Weight filterWeight = null;
+                if (applyFilter) {
+                    Query filterQuery = new TermQuery(new Term(filterField, filterValue));
+                    filterWeight = filterQuery.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1);
+                }
+                for (int slice = 0; slice < slices; slice++) {
+                    int expectedDocs = applyFilter ? docsPerSliceFiltered[slice] : docsPerSlice[slice];
+                    Query query = SortedDocValuesField.newSlowExactQuery(sliceField, new BytesRef("" + slice));
+                    Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1);
+                    TopDocs[] topDocsArray = new TopDocs[reader.leaves().size()];
+                    for (int i = 0; i < reader.leaves().size(); i++) {
+                        LeafReaderContext context = reader.leaves().get(i);
+                        LeafReader leafReader = context.reader();
+
+                        int ord = leafReader.getSortedDocValues(sliceField).lookupTerm(new BytesRef("" + slice));
+                        if (ord < 0) {
+                            topDocsArray[i] = TopDocsCollector.EMPTY_TOPDOCS;
+                            continue;
+                        }
+                        ScorerSupplier scorerSupplier = weight.scorerSupplier(context);
+                        DocIdSetIterator iterator = scorerSupplier.get(DocIdSetIterator.NO_MORE_DOCS).iterator();
+                        int minDoc = iterator.nextDoc();
+                        if (minDoc == DocIdSetIterator.NO_MORE_DOCS) {
+                            assertEquals(0, expectedDocs);
+                            continue;
+                        }
+                        int maxDoc = minDoc;
+                        while (iterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                            maxDoc = iterator.docID();
+                        }
+                        ESAcceptDocs.SliceAcceptDocs sliceAcceptDocs = new SliceAcceptDocs(minDoc, maxDoc + 1);
+                        Bits liveDocs = leafReader.getLiveDocs();
+                        ESAcceptDocs acceptDocs;
+                        if (applyFilter) {
+                            ScorerSupplier filterSupplier = filterWeight.scorerSupplier(context);
+                            if (filterSupplier == null) {
+                                topDocsArray[i] = TopDocsCollector.EMPTY_TOPDOCS;
+                                continue;
+                            }
+                            acceptDocs = new ESAcceptDocs.ScorerSupplierAcceptDocs(
+                                () -> filterSupplier.get(Long.MAX_VALUE).iterator(),
+                                filterSupplier::cost,
+                                liveDocs,
+                                leafReader.maxDoc(),
+                                ord,
+                                () -> sliceAcceptDocs
+                            );
+                        } else if (liveDocs == null) {
+                            acceptDocs = new ESAcceptDocs.ESAcceptDocsAll(ord, () -> sliceAcceptDocs);
+                        } else {
+                            acceptDocs = new ESAcceptDocs.BitsAcceptDocs(liveDocs, leafReader.maxDoc(), ord, () -> sliceAcceptDocs);
+                        }
+
+                        // we might collect the same document twice because of soar assignments
+                        KnnCollector collector = new TopKnnCollector(2 * Math.max(1, expectedDocs), Integer.MAX_VALUE);
+                        weight.scorer(context);
+                        leafReader.searchNearestVectors("vector", vector, collector, acceptDocs);
+                        TopDocs leafTopDocs = collector.topDocs();
+                        ScoreDoc[] adjusted = new ScoreDoc[leafTopDocs.scoreDocs.length];
+                        for (int docIndex = 0; docIndex < leafTopDocs.scoreDocs.length; docIndex++) {
+                            ScoreDoc scoreDoc = leafTopDocs.scoreDocs[docIndex];
+                            adjusted[docIndex] = new ScoreDoc(scoreDoc.doc + context.docBase, scoreDoc.score);
+                        }
+                        topDocsArray[i] = new TopDocs(leafTopDocs.totalHits, adjusted);
+                    }
+                    TopDocs topDocs = TopDocs.merge(2 * expectedDocs, topDocsArray);
+                    Set<Integer> uniqueDocIds = new HashSet<>();
+                    for (int i = 0; i < topDocs.scoreDocs.length; i++) {
+                        uniqueDocIds.add(topDocs.scoreDocs[i].doc);
+                        Document document = reader.storedFields().document(topDocs.scoreDocs[i].doc);
+                        assertThat(document.getField(sliceField).binaryValue().utf8ToString(), equalTo("" + slice));
+                        if (applyFilter) {
+                            assertThat(document.getField(filterField).binaryValue().utf8ToString(), equalTo(filterValue));
+                        }
+                    }
+                    assertThat(uniqueDocIds, hasSize(expectedDocs));
+                }
+            }
+        }
+    }
+
+}

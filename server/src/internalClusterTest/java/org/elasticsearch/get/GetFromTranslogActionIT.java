@@ -18,7 +18,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -99,7 +98,6 @@ public class GetFromTranslogActionIT extends ESIntegTestCase {
     }
 
     public void testGetFromTranslogOnSliceIndex() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         final String index = "slice-test";
         assertAcked(
             prepareCreate(index).setMapping("field1", "type=keyword,store=true")

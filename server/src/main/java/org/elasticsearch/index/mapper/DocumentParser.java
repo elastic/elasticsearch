@@ -21,7 +21,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
@@ -432,7 +431,7 @@ public final class DocumentParser {
         LuceneDocument nestedDoc = context.doc();
         LuceneDocument parentDoc = nestedDoc.getParent();
         IndexVersion indexVersion = context.indexSettings().getIndexVersionCreated();
-        boolean sliceEnabled = context.indexSettings().isSliceEnabled() && SliceIndexing.SLICE_FEATURE_FLAG.isEnabled();
+        boolean sliceEnabled = context.indexSettings().isSliceEnabled();
         if (nested.isIncludeInParent()) {
             addFields(indexVersion, nestedDoc, parentDoc, sliceEnabled);
         }

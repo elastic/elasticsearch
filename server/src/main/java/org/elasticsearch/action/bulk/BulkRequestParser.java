@@ -470,9 +470,6 @@ public final class BulkRequestParser {
                                 routing = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
                                 routingProvided = true;
                             } else if (SLICE.match(currentFieldName, parser.getDeprecationHandler())) {
-                                if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
-                                    throw new IllegalArgumentException("request does not support [slice]");
-                                }
                                 final String sliceValue = parser.text();
                                 SliceIndexing.validateUserSliceValue(sliceValue);
                                 if (routingProvided) {

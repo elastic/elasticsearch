@@ -393,9 +393,6 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
     }
 
     private static SliceIndexing.ParsedRouting parseSearchRoutingOrSlice(String sliceValue) {
-        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalArgumentException("request does not support [slice]");
-        }
         if (SliceIndexing.SLICE_ALL.equals(sliceValue)) {
             return new SliceIndexing.ParsedRouting(null, true);
         }

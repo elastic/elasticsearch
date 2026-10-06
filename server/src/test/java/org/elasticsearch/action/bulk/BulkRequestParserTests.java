@@ -14,7 +14,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.UpdateForV10;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
@@ -340,7 +339,6 @@ public class BulkRequestParserTests extends ESTestCase {
     }
 
     public void testIndexRequestParsesSliceMetadataAsRouting() throws IOException {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         BytesArray request = new BytesArray("""
             { "index":{ "_id": "bar", "slice": "s1" } }
             {}
@@ -368,7 +366,6 @@ public class BulkRequestParserTests extends ESTestCase {
     }
 
     public void testIndexRequestMarksTopLevelSliceProvenance() throws IOException {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         BytesArray request = new BytesArray("""
             { "index":{ "_id": "bar" } }
             {}
@@ -397,7 +394,6 @@ public class BulkRequestParserTests extends ESTestCase {
     }
 
     public void testIndexRequestRejectsItemRoutingWhenTopLevelSliceProvided() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         BytesArray request = new BytesArray("""
             { "index":{ "_id": "bar", "routing": "r1" } }
             {}
@@ -426,7 +422,6 @@ public class BulkRequestParserTests extends ESTestCase {
     }
 
     public void testIndexRequestRejectsRoutingAndSliceMetadataTogether() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         BytesArray request = new BytesArray("""
             { "index":{ "_id": "bar", "routing": "r1", "slice": "s1" } }
             {}
@@ -454,7 +449,6 @@ public class BulkRequestParserTests extends ESTestCase {
     }
 
     public void testIndexRequestRejectsInvalidSliceMetadata() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         BytesArray request = new BytesArray("""
             { "index":{ "_id": "bar", "slice": "_all" } }
             {}

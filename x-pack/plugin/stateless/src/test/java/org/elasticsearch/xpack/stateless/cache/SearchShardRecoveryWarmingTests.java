@@ -674,12 +674,14 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         LongFunction<SearchRecoveryTimeout> planForBytesToWarm
     ) {
         final var clusterSettings = newClusterSettings(settings);
+        final var cacheService = Mockito.mock(StatelessSharedBlobCacheService.class);
         return new SharedBlobCacheWarmingService(
-            Mockito.mock(StatelessSharedBlobCacheService.class),
+            cacheService,
             threadPool,
             TelemetryProvider.NOOP,
             clusterSettings,
-            new DefaultWarmingRatioProviderFactory().create(clusterSettings)
+            new DefaultWarmingRatioProviderFactory().create(clusterSettings),
+            new SearchRecoveryTimeoutCalculationService(cacheService, threadPool, clusterSettings)
         ) {
             @Override
             protected SearchRecoveryTimeout searchRecoveryTimeout(

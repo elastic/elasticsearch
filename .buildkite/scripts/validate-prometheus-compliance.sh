@@ -3,13 +3,15 @@ set -euo pipefail
 
 prog=${0##*/}
 job=${prog%.sh}
-work=/tmp/$job
+# The pipeline uploads $tmp/$job-output as artifacts; tests point this at a scratch directory.
+tmp=${PROMETHEUS_COMPLIANCE_TMPDIR:-/tmp}
+work=$tmp/$job
 input=$work/input
-output=/tmp/$job-output
+output=$tmp/$job-output
 cache=$work/.cache
 artifact=promcheck.tar.gz
 control=
-annotation_context=ctx-promql-coverage-report
+annotation_context=ctx-validate-prometheus-compliance
 # Changed cases listed per kind in the report; the full list is the changes artifact.
 max_rows=50
 
@@ -77,7 +79,7 @@ annotate() {
 	command -v buildkite-agent >/dev/null || return 0
 	buildkite-agent annotate --context "$annotation_context" --style "$style" < "$file" \
 		|| log 'failed to annotate the build'
-	buildkite-agent meta-data set "pr_comment:promql-coverage-report:body" < "$file" \
+	buildkite-agent meta-data set "pr_comment:validate-prometheus-compliance:body" < "$file" \
 		|| log 'failed to set the PR comment meta-data'
 }
 
@@ -168,7 +170,7 @@ main() {
 	# $branch since would otherwise count as this PR's regression or improvement.
 	base=$(git merge-base "origin/$branch" HEAD) || die "can't find the merge base with origin/$branch"
 	log "control: $base"
-	control=$(mktemp -d "/tmp/$job-control-XXXXXX")
+	control=$(mktemp -d "$tmp/$job-control-XXXXXX")
 	git worktree add --detach "$control" "$base"
 	uv python install "$python_version"
 
@@ -217,7 +219,7 @@ main() {
 	regressions=$(grep -c '^regression' "$changes_tsv" || true)
 	improvements=$(grep -c '^improvement' "$changes_tsv" || true)
 	{
-		printf '**PromQL coverage** · [promcheck %s](https://github.com/elastic/promcheck/tree/v%s) · ' "$version" "$version"
+		printf '**Prometheus compliance** · [promcheck %s](https://github.com/elastic/promcheck/tree/v%s) · ' "$version" "$version"
 		printf '[`%s`](%s/commit/%s) → [`%s`](%s/commit/%s) · ok %s → %s (%+d)\n' \
 			"${base:0:10}" "$repo_url" "$base" "${revision:0:10}" "$repo_url" "$revision" "$c_ok" "$t_ok" "$delta"
 		if ((regressions + improvements)); then

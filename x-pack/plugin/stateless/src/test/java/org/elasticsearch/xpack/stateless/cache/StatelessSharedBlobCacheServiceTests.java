@@ -411,7 +411,9 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
                     SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(),
                     ByteSizeValue.ofBytes(cacheRegionSizeInBytes(1)).getStringRep()
                 )
-                .put(STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
+                // The default factory ignores boost preference and always returns DefaultEvictionPolicy,
+                // including when the preference is enabled (previously that selected another policy).
+                .put(STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), randomBoolean())
                 .put("path.home", createTempDir())
                 .build();
             final var taskQueue = new DeterministicTaskQueue();

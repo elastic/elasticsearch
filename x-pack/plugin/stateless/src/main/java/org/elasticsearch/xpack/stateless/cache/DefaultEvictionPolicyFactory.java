@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 /**
  * Default {@link EvictionPolicyFactory} when no SPI implementation is registered.
- * Every region is eligible for eviction.
+ * Creates an instance of {@link DefaultEvictionPolicy}.
  */
 public class DefaultEvictionPolicyFactory implements EvictionPolicyFactory {
 

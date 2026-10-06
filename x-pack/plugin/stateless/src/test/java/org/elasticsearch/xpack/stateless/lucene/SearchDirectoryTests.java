@@ -214,7 +214,7 @@ public class SearchDirectoryTests extends ESTestCase {
                         BlobCacheMetrics.NOOP,
                         new DefaultEvictionPolicy<FileCacheKey>() {
                             @Override
-                            public boolean hasTimestampProtection() {
+                            public boolean hasRegionTimestampProtection() {
                                 return true;
                             }
                         },

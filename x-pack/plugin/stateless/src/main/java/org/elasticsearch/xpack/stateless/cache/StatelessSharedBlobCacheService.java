@@ -224,7 +224,8 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         );
     }
 
-    /// The constructor the public one delegates to, and for tests that want to alter/inject behavior.
+    /// Injects an [org.elasticsearch.blobcache.shared.EvictionPolicy] directly, for testing. The other public
+    /// constructors delegate here after creating a policy from an [EvictionPolicyFactory].
     public StatelessSharedBlobCacheService(
         NodeEnvironment environment,
         Settings settings,
@@ -439,10 +440,10 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
 
     /**
      * Whether time-based shards should use metadata-read timestamp backfill (sentinel stamping followed by completion backfill).
-     * Follows {@link EvictionPolicy#hasTimestampProtection()} on the policy that is currently installed.
+     * Follows {@link EvictionPolicy#hasRegionTimestampProtection()} on the policy that is currently installed.
      */
     public boolean isMetadataTimestampBackfillEnabled() {
-        return getEvictionPolicy().hasTimestampProtection();
+        return getEvictionPolicy().hasRegionTimestampProtection();
     }
 
     /// Whether to asynchronously force-evict cache regions corresponding to obsolete segments that are not referenced anymore.

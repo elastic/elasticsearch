@@ -28,7 +28,7 @@ public final class TimestampCapturingEvictionPolicy extends DefaultEvictionPolic
     private final Map<FileCacheKey, Collection<CacheRegion<FileCacheKey>>> liveRegions = new ConcurrentHashMap<>();
 
     @Override
-    public boolean hasTimestampProtection() {
+    public boolean hasRegionTimestampProtection() {
         return true;
     }
 

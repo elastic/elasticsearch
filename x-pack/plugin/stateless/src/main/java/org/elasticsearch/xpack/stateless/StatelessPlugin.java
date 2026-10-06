@@ -1916,7 +1916,7 @@ public class StatelessPlugin extends Plugin
         if (evictionPolicyFactories.size() > 1) {
             throw new IllegalStateException(EvictionPolicyFactory.class + " may not have multiple implementations");
         } else if (evictionPolicyFactories.size() == 1) {
-            evictionPolicyFactoryRef.set(evictionPolicyFactories.get(0));
+            evictionPolicyFactoryRef.set(evictionPolicyFactories.getFirst());
         }
     }
 

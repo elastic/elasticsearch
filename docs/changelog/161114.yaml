@@ -1,0 +1,5 @@
+area: "ILM, Data streams"
+issues: []
+pr: 161114
+summary: Explain why an index is not managed in the DLM and ILM explain APIs
+type: enhancement

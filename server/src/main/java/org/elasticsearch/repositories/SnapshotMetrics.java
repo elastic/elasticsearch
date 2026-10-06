@@ -11,7 +11,11 @@ package org.elasticsearch.repositories;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.snapshots.CachingSnapshotAndShardByStateMetricsService;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.LongAsyncGauge;
 import org.elasticsearch.telemetry.metric.LongCounter;
@@ -19,31 +23,16 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public record SnapshotMetrics(
-    LongCounter snapshotsStartedCounter,
-    LongCounter snapshotsCompletedCounter,
-    DoubleHistogram snapshotsDurationHistogram,
-    LongCounter shardsStartedCounter,
-    LongCounter shardsCompletedCounter,
-    DoubleHistogram shardsDurationHistogram,
-    DoubleHistogram shardsQueueTimeHistogram,
-    LongCounter shardsUnsuccessfulCounter,
-    LongHistogram shardsUnsuccessfulHistogram,
-    LongCounter blobsUploadedCounter,
-    LongCounter bytesUploadedCounter,
-    LongCounter uploadDurationCounter,
-    LongCounter uploadReadDurationCounter,
-    LongCounter createThrottleDurationCounter,
-    LongCounter restoreThrottleDurationCounter,
-    MeterRegistry meterRegistry
-) {
+public class SnapshotMetrics extends AbstractLifecycleComponent {
 
-    public static final SnapshotMetrics NOOP = new SnapshotMetrics(MeterRegistry.NOOP);
+    public static final SnapshotMetrics NOOP = new SnapshotMetrics(MeterRegistry.NOOP, List::of, List::of, List::of, List::of);
 
     public static final String SNAPSHOTS_STARTED = "es.repositories.snapshots.started.total";
     public static final String SNAPSHOTS_COMPLETED = "es.repositories.snapshots.completed.total";
@@ -65,75 +54,206 @@ public record SnapshotMetrics(
     public static final String SNAPSHOT_RESTORE_THROTTLE_DURATION = "es.repositories.snapshots.restore_throttling.time.total";
     public static final String SNAPSHOT_SHARDS_WAITING_LATENCY = "es.repositories.snapshots.shards.waiting.latency.time.current";
 
-    public SnapshotMetrics(MeterRegistry meterRegistry) {
+    private final LongCounter snapshotsStartedCounter;
+    private final LongCounter snapshotsCompletedCounter;
+    private final DoubleHistogram snapshotsDurationHistogram;
+    private final LongCounter shardsStartedCounter;
+    private final LongCounter shardsCompletedCounter;
+    private final DoubleHistogram shardsDurationHistogram;
+    private final DoubleHistogram shardsQueueTimeHistogram;
+    private final LongCounter shardsUnsuccessfulCounter;
+    private final LongHistogram shardsUnsuccessfulHistogram;
+    private final LongCounter blobsUploadedCounter;
+    private final LongCounter bytesUploadedCounter;
+    private final LongCounter uploadDurationCounter;
+    private final LongCounter uploadReadDurationCounter;
+    private final LongCounter createThrottleDurationCounter;
+    private final LongCounter restoreThrottleDurationCounter;
+    private final List<LongAsyncGauge> asyncGauges;
+    private final MeterRegistry meterRegistry;
+    private final Supplier<Collection<LongWithAttributes>> shardSnapshotsInProgressObserver;
+    private final Supplier<Collection<LongWithAttributes>> shardSnapshotsByStatusObserver;
+    private final Supplier<Collection<LongWithAttributes>> snapshotsByStatusObserver;
+    private final Supplier<Collection<LongWithAttributes>> longestWaitingTimeMillisObserver;
+
+    public SnapshotMetrics(
+        MeterRegistry meterRegistry,
+        CachingSnapshotAndShardByStateMetricsService cachingSnapshotAndShardByStateMetricsService,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
         this(
-            meterRegistry.registerLongCounter(SNAPSHOTS_STARTED, "snapshots started", "unit"),
-            meterRegistry.registerLongCounter(SNAPSHOTS_COMPLETED, "snapshots completed", "unit"),
-            // We use seconds rather than milliseconds due to the limitations of the default bucket boundaries
-            // see https://www.elastic.co/docs/reference/apm/agents/java/config-metrics#config-custom-metrics-histogram-boundaries
-            meterRegistry.registerDoubleHistogram(SNAPSHOT_DURATION, "snapshots duration", "s"),
-            meterRegistry.registerLongCounter(SNAPSHOT_SHARDS_STARTED, "shard snapshots started", "unit"),
-            meterRegistry.registerLongCounter(SNAPSHOT_SHARDS_COMPLETED, "shard snapshots completed", "unit"),
-            // We use seconds rather than milliseconds due to the limitations of the default bucket boundaries
-            // see https://www.elastic.co/docs/reference/apm/agents/java/config-metrics#config-custom-metrics-histogram-boundaries
-            meterRegistry.registerDoubleHistogram(SNAPSHOT_SHARDS_DURATION, "shard snapshots duration", "s"),
-            meterRegistry.registerDoubleHistogram(SNAPSHOT_SHARDS_QUEUE_TIME, "shard snapshots queue time", "s"),
-            meterRegistry.registerLongCounter(SNAPSHOT_SHARDS_UNSUCCESSFUL, "unsuccessful shard snapshots", "unit"),
-            meterRegistry.registerLongHistogram(
-                SNAPSHOT_SHARDS_UNSUCCESSFUL_HISTOGRAM,
-                "unsuccessful shard snapshots per snapshot",
-                "unit",
-                // Boundaries are chosen to:
-                // - give 0 its own bucket so clean snapshots are trivially separated from affected ones;
-                // - provide fine granularity at low counts (1–10) where individual shard failures are actionable;
-                // - extend well past the default per-index shard limit (1 024) because a snapshot can include many
-                // indices, so the total unsuccessful count is bounded only by the cluster-wide shard count
-                // (cluster.max_shards_per_node × data nodes, default 1 000/node).
-                List.of(0L, 1L, 2L, 5L, 10L, 25L, 50L, 100L, 250L, 500L, 1000L, 2500L, 5000L, 10_000L, 50_000L)
-            ),
-            meterRegistry.registerLongCounter(SNAPSHOT_BLOBS_UPLOADED, "snapshot blobs uploaded", "unit"),
-            meterRegistry.registerLongCounter(SNAPSHOT_BYTES_UPLOADED, "snapshot bytes uploaded", "bytes"),
-            meterRegistry.registerLongCounter(SNAPSHOT_UPLOAD_DURATION, "snapshot upload duration", "ms"),
-            meterRegistry.registerLongCounter(SNAPSHOT_UPLOAD_READ_DURATION, "time spent in read() calls when snapshotting", "ms"),
-            meterRegistry.registerLongCounter(SNAPSHOT_CREATE_THROTTLE_DURATION, "time throttled in snapshot create", "ns"),
-            meterRegistry.registerLongCounter(SNAPSHOT_RESTORE_THROTTLE_DURATION, "time throttled in snapshot restore", "ns"),
-            meterRegistry
+            meterRegistry,
+            () -> repositoriesServiceSupplier.get().getShardSnapshotsInProgress(),
+            cachingSnapshotAndShardByStateMetricsService::getShardsByState,
+            cachingSnapshotAndShardByStateMetricsService::getSnapshotsByState,
+            cachingSnapshotAndShardByStateMetricsService::getLongestWaitingTimeMillis
         );
     }
 
-    public LongAsyncGauge createSnapshotShardsInProgressMetric(Supplier<Collection<LongWithAttributes>> shardSnapshotsInProgressObserver) {
-        return meterRegistry.registerLongsAsyncGauge(
-            SNAPSHOT_SHARDS_IN_PROGRESS,
-            "shard snapshots in progress",
+    public SnapshotMetrics(
+        MeterRegistry meterRegistry,
+        Supplier<Collection<LongWithAttributes>> shardSnapshotsInProgressObserver,
+        Supplier<Collection<LongWithAttributes>> shardSnapshotsByStatusObserver,
+        Supplier<Collection<LongWithAttributes>> snapshotsByStatusObserver,
+        Supplier<Collection<LongWithAttributes>> longestWaitingTimeMillisObserver
+    ) {
+        this.shardSnapshotsInProgressObserver = shardSnapshotsInProgressObserver;
+        this.shardSnapshotsByStatusObserver = shardSnapshotsByStatusObserver;
+        this.snapshotsByStatusObserver = snapshotsByStatusObserver;
+        this.longestWaitingTimeMillisObserver = longestWaitingTimeMillisObserver;
+        this.snapshotsStartedCounter = meterRegistry.registerLongCounter(SNAPSHOTS_STARTED, "snapshots started", "unit");
+        this.snapshotsCompletedCounter = meterRegistry.registerLongCounter(SNAPSHOTS_COMPLETED, "snapshots completed", "unit");
+        // We use seconds rather than milliseconds due to the limitations of the default bucket boundaries
+        // see https://www.elastic.co/docs/reference/apm/agents/java/config-metrics#config-custom-metrics-histogram-boundaries
+        this.snapshotsDurationHistogram = meterRegistry.registerDoubleHistogram(SNAPSHOT_DURATION, "snapshots duration", "s");
+        this.shardsStartedCounter = meterRegistry.registerLongCounter(SNAPSHOT_SHARDS_STARTED, "shard snapshots started", "unit");
+        this.shardsCompletedCounter = meterRegistry.registerLongCounter(SNAPSHOT_SHARDS_COMPLETED, "shard snapshots completed", "unit");
+        // We use seconds rather than milliseconds due to the limitations of the default bucket boundaries
+        // see https://www.elastic.co/docs/reference/apm/agents/java/config-metrics#config-custom-metrics-histogram-boundaries
+        this.shardsDurationHistogram = meterRegistry.registerDoubleHistogram(SNAPSHOT_SHARDS_DURATION, "shard snapshots duration", "s");
+        this.shardsQueueTimeHistogram = meterRegistry.registerDoubleHistogram(
+            SNAPSHOT_SHARDS_QUEUE_TIME,
+            "shard snapshots queue time",
+            "s"
+        );
+        this.shardsUnsuccessfulCounter = meterRegistry.registerLongCounter(
+            SNAPSHOT_SHARDS_UNSUCCESSFUL,
+            "unsuccessful shard snapshots",
+            "unit"
+        );
+        this.shardsUnsuccessfulHistogram = meterRegistry.registerLongHistogram(
+            SNAPSHOT_SHARDS_UNSUCCESSFUL_HISTOGRAM,
+            "unsuccessful shard snapshots per snapshot",
             "unit",
-            shardSnapshotsInProgressObserver
+            // Boundaries are chosen to:
+            // - give 0 its own bucket so clean snapshots are trivially separated from affected ones;
+            // - provide fine granularity at low counts (1–10) where individual shard failures are actionable;
+            // - extend well past the default per-index shard limit (1 024) because a snapshot can include many
+            // indices, so the total unsuccessful count is bounded only by the cluster-wide shard count
+            // (cluster.max_shards_per_node × data nodes, default 1 000/node).
+            List.of(0L, 1L, 2L, 5L, 10L, 25L, 50L, 100L, 250L, 500L, 1000L, 2500L, 5000L, 10_000L, 50_000L)
         );
-    }
-
-    public LongAsyncGauge createSnapshotShardsByStateMetric(Supplier<Collection<LongWithAttributes>> shardSnapshotsByStatusObserver) {
-        return meterRegistry.registerLongsAsyncGauge(
-            SNAPSHOT_SHARDS_BY_STATE,
-            "snapshotting shards by state",
-            "unit",
-            shardSnapshotsByStatusObserver
+        this.blobsUploadedCounter = meterRegistry.registerLongCounter(SNAPSHOT_BLOBS_UPLOADED, "snapshot blobs uploaded", "unit");
+        this.bytesUploadedCounter = meterRegistry.registerLongCounter(SNAPSHOT_BYTES_UPLOADED, "snapshot bytes uploaded", "bytes");
+        this.uploadDurationCounter = meterRegistry.registerLongCounter(SNAPSHOT_UPLOAD_DURATION, "snapshot upload duration", "ms");
+        this.uploadReadDurationCounter = meterRegistry.registerLongCounter(
+            SNAPSHOT_UPLOAD_READ_DURATION,
+            "time spent in read() calls when snapshotting",
+            "ms"
         );
-    }
-
-    public LongAsyncGauge createSnapshotsByStateMetric(Supplier<Collection<LongWithAttributes>> snapshotsByStatusObserver) {
-        return meterRegistry.registerLongsAsyncGauge(SNAPSHOTS_BY_STATE, "snapshots by state", "unit", snapshotsByStatusObserver);
-    }
-
-    public LongAsyncGauge createLongestWaitingTimeMetric(Supplier<Collection<LongWithAttributes>> longestWaitingTimeMillisObserver) {
-        return meterRegistry.registerLongsAsyncGauge(
-            SNAPSHOT_SHARDS_WAITING_LATENCY,
-            "current longest time any shard snapshot has been WAITING (with the current master)",
-            "milliseconds",
-            longestWaitingTimeMillisObserver
+        this.createThrottleDurationCounter = meterRegistry.registerLongCounter(
+            SNAPSHOT_CREATE_THROTTLE_DURATION,
+            "time throttled in snapshot create",
+            "ns"
         );
+        this.restoreThrottleDurationCounter = meterRegistry.registerLongCounter(
+            SNAPSHOT_RESTORE_THROTTLE_DURATION,
+            "time throttled in snapshot restore",
+            "ns"
+        );
+        this.asyncGauges = new ArrayList<>();
+        this.meterRegistry = meterRegistry;
     }
 
     @FixForMultiProject(description = "When multi-project arrives we should add project ID to the labels")
     public static Map<String, Object> createAttributesMap(ProjectId projectId, RepositoryMetadata meta) {
         return Map.of("repo_type", meta.type(), "repo_name", meta.name());
+    }
+
+    public LongCounter snapshotsStartedCounter() {
+        return snapshotsStartedCounter;
+    }
+
+    public LongCounter snapshotsCompletedCounter() {
+        return snapshotsCompletedCounter;
+    }
+
+    public DoubleHistogram snapshotsDurationHistogram() {
+        return snapshotsDurationHistogram;
+    }
+
+    public LongCounter shardsStartedCounter() {
+        return shardsStartedCounter;
+    }
+
+    public LongCounter shardsCompletedCounter() {
+        return shardsCompletedCounter;
+    }
+
+    public DoubleHistogram shardsDurationHistogram() {
+        return shardsDurationHistogram;
+    }
+
+    public DoubleHistogram shardsQueueTimeHistogram() {
+        return shardsQueueTimeHistogram;
+    }
+
+    public LongCounter shardsUnsuccessfulCounter() {
+        return shardsUnsuccessfulCounter;
+    }
+
+    public LongHistogram shardsUnsuccessfulHistogram() {
+        return shardsUnsuccessfulHistogram;
+    }
+
+    public LongCounter blobsUploadedCounter() {
+        return blobsUploadedCounter;
+    }
+
+    public LongCounter bytesUploadedCounter() {
+        return bytesUploadedCounter;
+    }
+
+    public LongCounter uploadDurationCounter() {
+        return uploadDurationCounter;
+    }
+
+    public LongCounter uploadReadDurationCounter() {
+        return uploadReadDurationCounter;
+    }
+
+    public LongCounter createThrottleDurationCounter() {
+        return createThrottleDurationCounter;
+    }
+
+    public LongCounter restoreThrottleDurationCounter() {
+        return restoreThrottleDurationCounter;
+    }
+
+    @Override
+    protected void doStart() {
+        asyncGauges.add(
+            meterRegistry.registerLongsAsyncGauge(
+                SNAPSHOT_SHARDS_IN_PROGRESS,
+                "shard snapshots in progress",
+                "unit",
+                shardSnapshotsInProgressObserver
+            )
+        );
+        asyncGauges.add(
+            meterRegistry.registerLongsAsyncGauge(
+                SNAPSHOT_SHARDS_BY_STATE,
+                "snapshotting shards by state",
+                "unit",
+                shardSnapshotsByStatusObserver
+            )
+        );
+        asyncGauges.add(meterRegistry.registerLongsAsyncGauge(SNAPSHOTS_BY_STATE, "snapshots by state", "unit", snapshotsByStatusObserver));
+        asyncGauges.add(
+            meterRegistry.registerLongsAsyncGauge(
+                SNAPSHOT_SHARDS_WAITING_LATENCY,
+                "current longest time any shard snapshot has been WAITING (with the current master)",
+                "milliseconds",
+                longestWaitingTimeMillisObserver
+            )
+        );
+    }
+
+    @Override
+    protected void doStop() {}
+
+    @Override
+    protected void doClose() throws IOException {
+        Releasables.close(asyncGauges.stream().map(g -> (Releasable) g::close).toList());
     }
 }

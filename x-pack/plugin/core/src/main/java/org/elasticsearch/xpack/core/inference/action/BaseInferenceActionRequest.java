@@ -14,11 +14,16 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Base class for inference action requests. Tracks request routing state to prevent potential routing loops
@@ -117,6 +122,11 @@ public abstract class BaseInferenceActionRequest extends UntypedActionRequest {
     public abstract TaskType getTaskType();
 
     public abstract String getInferenceEntityId();
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, format("inference[%s]", getInferenceEntityId()), parentTaskId, headers);
+    }
 
     public InferenceContext getContext() {
         return context;

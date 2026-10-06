@@ -549,6 +549,11 @@ public final class LongIntBlockHash extends PartitionedBlockHash {
     }
 
     @Override
+    public long estimatedBytesForPartitioning() {
+        return (long) numKeys() * (Long.BYTES * 2);
+    }
+
+    @Override
     public IntVector nonEmpty() {
         return blockFactory.newIntRangeVector(0, numKeys());
     }

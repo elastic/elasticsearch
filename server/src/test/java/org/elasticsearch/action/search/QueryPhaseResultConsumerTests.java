@@ -12,11 +12,15 @@ package org.elasticsearch.action.search;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
@@ -50,12 +54,14 @@ import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestEsExecutors;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -75,6 +81,10 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 
 public class QueryPhaseResultConsumerTests extends ESTestCase {
+
+    private static final TransportVersion BATCHED_QUERY_EXECUTION_DELAYABLE_WRITEABLE = TransportVersion.fromName(
+        "batched_query_execution_delayable_writeable"
+    );
 
     private SearchPhaseController searchPhaseController;
     private ThreadPool threadPool;
@@ -307,6 +317,71 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         // a node response for the batched path lands after the failed phase closed the consumer
         consumer.addBatchedPartialResult(new SearchPhaseController.TopDocsStats(0), countingMergeResult(released));
         assertEquals("a result arriving after close must be released too", 2, released.get());
+    }
+
+    public void testBatchedTopHitsFromOldConnectionAreReleasedOnDiscard() throws IOException {
+        SearchRequest searchRequest = new SearchRequest("index");
+        searchRequest.source(new SearchSourceBuilder().aggregation(new TopHitsAggregationBuilder("th").size(1)).size(0));
+
+        QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
+            searchRequest,
+            executor,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            searchPhaseController,
+            () -> false,
+            SearchProgressListener.NOOP,
+            2,
+            e -> {
+                throw new AssertionError("unexpected partial merge failure", e);
+            }
+        );
+
+        QueryPhaseResultConsumer.MergeResult drainedOnClose = mergeResultFromOldConnection();
+        SearchHits drainedHits = topHitsOf(drainedOnClose);
+        consumer.addBatchedPartialResult(new SearchPhaseController.TopDocsStats(0), drainedOnClose);
+        assertTrue("a result added before close is still needed by the reduce", drainedHits.hasReferences());
+
+        consumer.close();
+        assertFalse("close must release the hits the referencing wrapper leaves behind", drainedHits.hasReferences());
+
+        QueryPhaseResultConsumer.MergeResult arrivingAfterClose = mergeResultFromOldConnection();
+        SearchHits lateHits = topHitsOf(arrivingAfterClose);
+        consumer.addBatchedPartialResult(new SearchPhaseController.TopDocsStats(0), arrivingAfterClose);
+        assertFalse("a result arriving after close must be released too", lateHits.hasReferences());
+    }
+
+    // MergeResult.readFrom below batched_query_execution_delayable_writeable is the only production site that
+    // produces a referencing wrapper, so the fixture goes through the wire rather than building one by hand
+    private QueryPhaseResultConsumer.MergeResult mergeResultFromOldConnection() throws IOException {
+        TransportVersion version = TransportVersionUtils.randomVersionNotSupporting(BATCHED_QUERY_EXECUTION_DELAYABLE_WRITEABLE);
+        TopDocsAndMaxScore topDocs = new TopDocsAndMaxScore(
+            new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(0, 1.0f) }),
+            1.0f
+        );
+        SearchHit hit = new SearchHit(0, "id");
+        hit.sourceRef(Source.fromMap(Map.of("f", "v"), XContentType.JSON).internalSourceRef());
+        hit.score(1.0f);
+        SearchHits sent = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
+        InternalAggregations aggs = InternalAggregations.from(List.of(new InternalTopHits("th", 0, 1, topDocs, sent, Map.of())));
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(version);
+        try {
+            // the pre-batched branch of writeAggs writes a referencing wrapper out as a plain tree and releases nothing
+            new QueryPhaseResultConsumer.MergeResult(List.of(), null, DelayableWriteable.referencing(aggs), 0L).writeTo(out);
+        } finally {
+            sent.decRef();
+        }
+        try (StreamInput in = out.bytes().streamInput()) {
+            in.setTransportVersion(version);
+            return QueryPhaseResultConsumer.MergeResult.readFrom(new NamedWriteableAwareStreamInput(in, writableRegistry()));
+        }
+    }
+
+    private static SearchHits topHitsOf(QueryPhaseResultConsumer.MergeResult mergeResult) {
+        SearchHits hits = mergeResult.reducedAggs().expand().<InternalTopHits>get("th").getHits();
+        assertTrue("the round-trip must hand back pooled hits, otherwise nothing is at risk", hits.isPooled());
+        return hits;
     }
 
     private static QueryPhaseResultConsumer.MergeResult countingMergeResult(AtomicInteger released) {

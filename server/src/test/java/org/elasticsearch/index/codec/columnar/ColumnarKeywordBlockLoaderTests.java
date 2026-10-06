@@ -93,6 +93,33 @@ public class ColumnarKeywordBlockLoaderTests extends ESTestCase {
         });
     }
 
+    /**
+     * Documents without the field among every other shape, alone and in long stretches. A page covering them is still
+     * served, each arriving as a null, and agrees with reading one document at a time.
+     */
+    public void testDocumentsWithoutTheField() throws IOException {
+        assertPageMatchesPerDocument(docs -> {
+            boolean absentStretch = false;
+            for (int d = 0; d < docs.length; d++) {
+                if (random().nextInt(40) == 0) {
+                    absentStretch = absentStretch == false;
+                }
+                if (absentStretch || random().nextInt(5) == 0) {
+                    docs[d] = null;
+                    continue;
+                }
+                docs[d] = switch (random().nextInt(6)) {
+                    case 0 -> new String[] { "a-" + (d % 5), null, "b" };
+                    case 1 -> new String[] { null };
+                    case 2 -> new String[0];
+                    case 3 -> new String[] { "" };
+                    case 4 -> new String[] { "a-" + (d % 5), "c" };
+                    default -> new String[] { "a-" + (d % 5) };
+                };
+            }
+        });
+    }
+
     /** Values distinct enough that a page has nothing worth naming, so it comes back as values rather than ordinals. */
     public void testPageThatDoesNotRepeat() throws IOException {
         assertPageMatchesPerDocument(docs -> {
@@ -140,7 +167,10 @@ public class ColumnarKeywordBlockLoaderTests extends ESTestCase {
             try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec()))) {
                 for (String[] slots : docs) {
                     final Document doc = new Document();
-                    doc.add(new Field(FIELD, encode(slots), type));
+                    // A null entry is a document without the field at all.
+                    if (slots != null) {
+                        doc.add(new Field(FIELD, encode(slots), type));
+                    }
                     writer.addDocument(doc);
                 }
                 writer.forceMerge(1);

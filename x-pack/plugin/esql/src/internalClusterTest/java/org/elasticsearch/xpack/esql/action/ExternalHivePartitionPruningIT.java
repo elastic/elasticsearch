@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.ChunkedToXContent.wrapAsToXContent;
@@ -87,6 +88,8 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
     /** The region fixture's three single-row files, each id fixed to its folder so the expected row is unambiguous. */
     private static final String[] REGIONS = { "US", "EU", "AP" };
     private static final long US_ID = 0L;
+
+    private static final int SIGNED_ZERO_FILES = 3;
 
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
@@ -561,6 +564,22 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
         assertPrune(dataset, "WHERE year == 2025", TOTAL_FILES, 4, idsWhere((y, m, d) -> y == 2025));
     }
 
+    /**
+     * {@code city=New%20York} is the on-disk spelling of New York. An IN must return that row and Paris, and not
+     * Berlin, on both a keyed {@code city=*} glob and a {@code **} glob.
+     */
+    public void testKeyedCityInKeepsPercentEncodedFolder() throws Exception {
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String dataset = registerCityTree("csv_city_keyed", "/city=*/**/*.csv");
+        assertPrune(dataset, "WHERE city IN (\"New York\", \"Paris\")", 3, 2, List.of(1L, 2L));
+    }
+
+    public void testGlobstarCityInKeepsPercentEncodedFolder() throws Exception {
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String dataset = registerCityTree("csv_city_globstar", "/**/*.csv");
+        assertPrune(dataset, "WHERE city IN (\"New York\", \"Paris\")", 3, 2, List.of(1L, 2L));
+    }
+
     /** Same, across all three keys, so every segment of the glob is rewritten. */
     public void testKeyedGlobPrunesOnAllThreeKeys() throws Exception {
         String dataset = registerKeyedTree("csv_keyed_full", "csv");
@@ -654,6 +673,164 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
                 response.getExecutionInfo().queryProfile().filesScanned(),
                 equalTo(4)
             );
+        }
+    }
+
+    // -- Signed zero: the engine compares doubles with ==, under which -0.0 and 0.0 are equal --
+    // A pruner that orders -0.0 before 0.0 drops a zero folder that the filter matches, and nothing downstream can bring
+    // the file back. The fixture is registerSignedZeroTree: d=-0e0 holds id 0, d=0e0 holds id 1, d=1e5 holds id 2.
+
+    public void testCsvNegativeZeroPartitionIsNotPrunedByEqualsZero() throws Exception {
+        assertSignedZeroEquality(registerSignedZeroTree("csv_signed_zero", "csv", false));
+    }
+
+    public void testParquetNegativeZeroPartitionIsNotPrunedByEqualsZero() throws Exception {
+        assertSignedZeroEquality(registerSignedZeroTree("pq_signed_zero", "parquet", false));
+    }
+
+    /**
+     * Every comparison operator against both zero literals. The {@code **} glob leads the listing walk, so both pruning
+     * layers decide here. {@code IN} has its own test, {@link #testCsvSignedZeroInAnswersAsAnUnprunableQueryDoes}.
+     */
+    public void testCsvSignedZeroPartitionAcrossComparisonOperators() throws Exception {
+        String dataset = registerSignedZeroTree("csv_signed_zero_ops", "csv", false);
+        for (String zero : List.of("0.0", "-0.0")) {
+            assertPrune(dataset, "WHERE d == " + zero, SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
+            assertPrune(dataset, "WHERE d >= " + zero, SIGNED_ZERO_FILES, 3, List.of(0L, 1L, 2L));
+            assertPrune(dataset, "WHERE d <= " + zero, SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
+            assertPrune(dataset, "WHERE d != " + zero, SIGNED_ZERO_FILES, 1, List.of(2L));
+            assertPrune(dataset, "WHERE d > " + zero, SIGNED_ZERO_FILES, 1, List.of(2L));
+            assertPrune(dataset, "WHERE d < " + zero, SIGNED_ZERO_FILES, 0, List.of());
+            assertPrune(dataset, "WHERE NOT d != " + zero, SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
+            assertPrune(dataset, "WHERE NOT d > " + zero, SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
+            assertPrune(dataset, "WHERE NOT d < " + zero, SIGNED_ZERO_FILES, 3, List.of(0L, 1L, 2L));
+        }
+    }
+
+    /**
+     * A glob naming {@code d=*} takes the textual rewrite instead of the walk. The rewrite spells {@code d == 0.0} as
+     * {@code d=0.0}, which matches no folder here, so it must fall back to the full listing rather than an empty one.
+     */
+    public void testCsvKeyedGlobKeepsTheNegativeZeroFolder() throws Exception {
+        String dataset = registerSignedZeroTree("csv_signed_zero_keyed", "csv", true);
+        for (String zero : List.of("0.0", "-0.0")) {
+            assertPrune(dataset, "WHERE d == " + zero, SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
+            assertPrune(dataset, "WHERE d >= " + zero, SIGNED_ZERO_FILES, 3, List.of(0L, 1L, 2L));
+            assertPrune(dataset, "WHERE d <= " + zero, SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
+        }
+    }
+
+    /** A request filter on {@code d} arrives as the multivalue comparison functions, which share the comparator. */
+    public void testCsvRequestFilterKeepsBothZeroFolders() throws Exception {
+        String dataset = registerSignedZeroTree("csv_signed_zero_rf", "csv", false);
+        for (double zero : new double[] { 0.0, -0.0 }) {
+            assertPruneFilter(dataset, QueryBuilders.termQuery("d", zero), SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
+            assertPruneFilter(dataset, QueryBuilders.termsQuery("d", new double[] { zero, 7.0 }), SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
+            assertPruneFilter(dataset, QueryBuilders.rangeQuery("d").gte(zero).lte(zero), SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
+        }
+    }
+
+    /**
+     * The engine's {@code IN} orders doubles with {@code Double.compare}, so unlike {@code ==} it tells the zeros apart.
+     * Pruning must not change its answer either way: each query must return what the same predicate over
+     * {@code d * 1.0} returns, which no layer can prune. {@code NOT IN} is the case that lost the {@code d=-0e0} row.
+     */
+    public void testCsvSignedZeroInAnswersAsAnUnprunableQueryDoes() throws Exception {
+        assertSignedZeroInMatchesUnprunable(registerSignedZeroTree("csv_signed_zero_in", "csv", false));
+    }
+
+    public void testParquetSignedZeroInAnswersAsAnUnprunableQueryDoes() throws Exception {
+        assertSignedZeroInMatchesUnprunable(registerSignedZeroTree("pq_signed_zero_in", "parquet", false));
+    }
+
+    private void assertSignedZeroInMatchesUnprunable(String dataset) {
+        for (String zero : List.of("0.0", "-0.0")) {
+            for (String predicate : List.of(
+                "%s IN (" + zero + ", 7.0)",
+                "NOT %s IN (" + zero + ", 7.0)",
+                "%s NOT IN (" + zero + ", 7.0)"
+            )) {
+                String unprunable = "WHERE " + String.format(Locale.ROOT, predicate, "(d * 1.0)");
+                List<List<Object>> rows = runPruned(dataset, unprunable + " | KEEP id | SORT id ASC", SIGNED_ZERO_FILES, SIGNED_ZERO_FILES);
+                List<Long> expected = rows.stream().map(row -> ((Number) row.get(0)).longValue()).toList();
+                assertThat("[" + unprunable + "] the oracle must select something", expected, not(empty()));
+                // The opposite-sign zero folder is unknown and kept, the equal one is decided, d=1e5 is decided.
+                assertPrune(dataset, "WHERE " + String.format(Locale.ROOT, predicate, "d"), SIGNED_ZERO_FILES, 2, expected);
+            }
+        }
+    }
+
+    /**
+     * The zero folders are readable and the non-zero folder answers its own equality, so an empty answer to
+     * {@code d == 0.0} can only come from pruning.
+     */
+    private void assertSignedZeroEquality(String dataset) {
+        assertPrune(dataset, "WHERE id == 0", SIGNED_ZERO_FILES, SIGNED_ZERO_FILES, List.of(0L));
+        assertPrune(dataset, "WHERE d == 100000.0", SIGNED_ZERO_FILES, 1, List.of(2L));
+        assertPrune(dataset, "WHERE d == 0.0", SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
+    }
+
+    /**
+     * Registers {@code d=-0e0}, {@code d=0e0} and {@code d=1e5}, one single-row file each, with ids 0, 1 and 2. The
+     * zeros are spelled in exponent form, which types {@code d} as {@code DOUBLE}. {@code keyedGlob} names {@code d=*}
+     * in the glob, which takes the textual rewrite instead of the listing walk; the default {@code **} glob is the one
+     * the walk narrows.
+     */
+    private String registerSignedZeroTree(String name, String format, boolean keyedGlob) throws IOException {
+        Path root = createTempDir().resolve(name);
+        String[] folders = { "-0e0", "0e0", "1e5" };
+        for (int i = 0; i < folders.length; i++) {
+            Path dir = root.resolve("d=" + folders[i]);
+            Files.createDirectories(dir);
+            writeRow(dir, i, format);
+        }
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String glob = StoragePath.fileUri(root) + (keyedGlob ? "/d=*/**/*." : "/**/*.") + format;
+        return registerDataset(name, glob, Map.of("partition_detection", "hive"));
+    }
+
+    /** An empty Hive folder {@code k=} is the value {@code ""}. {@code k == "x"} returns the other file. */
+    public void testCsvEmptyPartitionFolderFilters() throws Exception {
+        String name = "csv_empty_k";
+        Path root = createTempDir().resolve(name);
+        Path empty = root.resolve("k=");
+        Path valued = root.resolve("k=x");
+        Files.createDirectories(empty);
+        Files.createDirectories(valued);
+        Files.writeString(empty.resolve("f.csv"), "id\n1\n", StandardCharsets.UTF_8);
+        Files.writeString(valued.resolve("f.csv"), "id\n2\n", StandardCharsets.UTF_8);
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String glob = StoragePath.fileUri(root) + "/**/*.csv";
+        String dataset = registerDataset(name, glob, Map.of("partition_detection", "hive"));
+
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | WHERE k == \"x\" | KEEP id"))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(1));
+            assertThat(((Number) rows.get(0).get(0)).intValue(), equalTo(2));
+        }
+    }
+
+    /** {@code price=1.5} is a partition value. A filter on {@code year} returns both prices. */
+    public void testCsvDottedPricePartitionValue() throws Exception {
+        String name = "csv_dotted_price";
+        Path root = createTempDir().resolve(name);
+        Path decimal = root.resolve("year=2024").resolve("price=1.5");
+        Path integral = root.resolve("year=2024").resolve("price=2");
+        Files.createDirectories(decimal);
+        Files.createDirectories(integral);
+        Files.writeString(decimal.resolve("f1.csv"), "v\n1\n", StandardCharsets.UTF_8);
+        Files.writeString(integral.resolve("f2.csv"), "v\n2\n", StandardCharsets.UTF_8);
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String glob = StoragePath.fileUri(root) + "/**/*.csv";
+        String dataset = registerDataset(name, glob, Map.of("partition_detection", "hive"));
+
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | WHERE year == 2024 | KEEP v, price | SORT v"))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(2));
+            assertThat(((Number) rows.get(0).get(0)).intValue(), equalTo(1));
+            assertThat(((Number) rows.get(0).get(1)).doubleValue(), equalTo(1.5));
+            assertThat(((Number) rows.get(1).get(0)).intValue(), equalTo(2));
+            assertThat(((Number) rows.get(1).get(1)).doubleValue(), equalTo(2.0));
         }
     }
 
@@ -815,6 +992,25 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
     @FunctionalInterface
     private interface PartitionPredicate {
         boolean test(int year, int month, int day);
+    }
+
+    /**
+     * Three city folders, one row each: {@code New%20York} (id 1), {@code Paris} (id 2), {@code Berlin} (id 3).
+     * {@code globSuffix} is appended to the directory URI and must contain {@code **} so the local provider recurses.
+     */
+    private String registerCityTree(String name, String globSuffix) throws IOException {
+        Path root = createTempDir().resolve(name);
+        writeCity(root, "New%20York", 1);
+        writeCity(root, "Paris", 2);
+        writeCity(root, "Berlin", 3);
+        String glob = StoragePath.fileUri(root) + globSuffix;
+        return registerDataset(name, glob, Map.of("partition_detection", "hive"));
+    }
+
+    private static void writeCity(Path root, String folderValue, int id) throws IOException {
+        Path dir = root.resolve("city=" + folderValue);
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("f.csv"), "id\n" + id + "\n", StandardCharsets.UTF_8);
     }
 
     /**

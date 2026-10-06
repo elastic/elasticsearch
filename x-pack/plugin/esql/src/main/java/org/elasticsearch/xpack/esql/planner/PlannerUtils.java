@@ -119,7 +119,7 @@ public class PlannerUtils {
     // TODO: Move analyzer verification into a shared helper that HIGHLIGHT, TOP_SNIPPETS, MATCH, and MATCH_PHRASE can use.
     // FullTextFunction may be the right place for it.
     @Nullable
-    public static Analyzer resolveAnalyzer(@Nullable String analyzerName, @Nullable AnalysisRegistry analysisRegistry) {
+    public static NamedAnalyzer resolveAnalyzer(@Nullable String analyzerName, @Nullable AnalysisRegistry analysisRegistry) {
         if (analyzerName == null) {
             return null;
         }
@@ -135,13 +135,13 @@ public class PlannerUtils {
         if (analyzer == null) {
             throw new InvalidArgumentException("[{}] is not a registered analyzer", analyzerName);
         }
-        if (analyzer instanceof NamedAnalyzer == false) {
-            // Node-level plugin analyzers (AnalysisPlugin#getAnalyzers) resolve to bare Lucene analyzers: the registry
-            // bakes the text-field position increment gap only into prebuilt analyzers. Wrap them the way index
-            // mappings do, so multi-value analysis keeps the gap the same analyzer would have on a mapped field.
-            analyzer = new NamedAnalyzer(analyzerName, AnalyzerScope.GLOBAL, analyzer, TextFieldMapper.Defaults.POSITION_INCREMENT_GAP);
+        if (analyzer instanceof NamedAnalyzer named) {
+            return named;
         }
-        return analyzer;
+        // Node-level plugin analyzers (AnalysisPlugin#getAnalyzers) resolve to bare Lucene analyzers: the registry
+        // bakes the text-field position increment gap only into prebuilt analyzers. Wrap them the way index
+        // mappings do, so multi-value analysis keeps the gap the same analyzer would have on a mapped field.
+        return new NamedAnalyzer(analyzerName, AnalyzerScope.GLOBAL, analyzer, TextFieldMapper.Defaults.POSITION_INCREMENT_GAP);
     }
 
     /**
@@ -273,7 +273,12 @@ public class PlannerUtils {
      * This deliberately skips general local optimization while retaining the passes that make field extraction explicit.
      */
     public static PhysicalPlan toPhysicalPlanForReductionSchema(LogicalPlan plan, LocalPhysicalOptimizerContext context) {
-        var logicalContext = new LocalLogicalOptimizerContext(context.configuration(), context.foldCtx(), context.searchStats());
+        var logicalContext = new LocalLogicalOptimizerContext(
+            context.configuration(),
+            context.foldCtx(),
+            context.searchStats(),
+            context.flags()
+        );
         // Replace NULL-typed fields from UNMAPPED_FIELDS="NULLIFY" before field extraction tries to load them from an index.
         LogicalPlan optimized = new ReplaceFieldWithConstantOrNull().apply(plan, logicalContext);
         return new InsertFieldExtraction().apply(new ReplaceSourceAttributes().apply(LocalMapper.INSTANCE.map(optimized)), context);
@@ -387,7 +392,9 @@ public class PlannerUtils {
         SearchStats searchStats,
         PlanTimeProfile planTimeProfile
     ) {
-        final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
+        final var logicalOptimizer = new LocalLogicalPlanOptimizer(
+            new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats, flags)
+        );
         var physicalOptimizer = new LocalPhysicalPlanOptimizer(
             new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, searchStats)
         );
@@ -429,7 +436,9 @@ public class PlannerUtils {
         SearchStats searchStats,
         PlanTimeProfile planTimeProfile
     ) {
-        final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
+        final var logicalOptimizer = new LocalLogicalPlanOptimizer(
+            new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats, flags)
+        );
         var physicalOptimizer = new LocalPhysicalPlanOptimizer(
             new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, searchStats)
         );
@@ -476,7 +485,9 @@ public class PlannerUtils {
         List<? extends ExternalSplit> externalSplits,
         PlanTimeProfile planTimeProfile
     ) {
-        final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
+        final var logicalOptimizer = new LocalLogicalPlanOptimizer(
+            new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats, flags)
+        );
         var physicalOptimizer = new LocalPhysicalPlanOptimizer(
             new LocalPhysicalOptimizerContext(
                 plannerSettings,
@@ -754,7 +765,7 @@ public class PlannerUtils {
         .build();
 
     public static boolean usesScoring(QueryPlan<?> plan) {
-        return plan.output().stream().anyMatch(attr -> attr instanceof MetadataAttribute ma && ma.name().equals(MetadataAttribute.SCORE));
+        return plan.output().stream().anyMatch(MetadataAttribute::isScoreAttribute);
     }
 
     /**

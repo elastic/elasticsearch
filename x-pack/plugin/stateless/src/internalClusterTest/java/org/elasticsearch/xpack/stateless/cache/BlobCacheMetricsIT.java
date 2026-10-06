@@ -153,7 +153,7 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
 
         long newReads = collectReadTotal(testTelemetryPlugin);
         long newMisses = collectMissTotal(testTelemetryPlugin);
-        double newRatio = testTelemetryPlugin.getDoubleGaugeMeasurement("es.blob_cache.miss.ratio").getLast().getDouble();
+        double newRatio = testTelemetryPlugin.getDoubleAsyncGaugeMeasurement("es.blob_cache.miss.ratio").getLast().getDouble();
 
         assertThat(newReads, greaterThan(reads));
         assertThat(newMisses, greaterThan(misses));
@@ -165,14 +165,14 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
         TestTelemetryPlugin testTelemetryPlugin = getTestTelemetryPlugin(searchNode);
         long reads = collectReadTotal(testTelemetryPlugin);
         long misses = collectMissTotal(testTelemetryPlugin);
-        double ratio = testTelemetryPlugin.getDoubleGaugeMeasurement("es.blob_cache.miss.ratio").getLast().getDouble();
+        double ratio = testTelemetryPlugin.getDoubleAsyncGaugeMeasurement("es.blob_cache.miss.ratio").getLast().getDouble();
         assertThat(misses, lessThanOrEqualTo(reads));
 
         executeSearch(indexName);
 
         long newReads = collectReadTotal(testTelemetryPlugin);
         long newMisses = collectMissTotal(testTelemetryPlugin);
-        double newRatio = testTelemetryPlugin.getDoubleGaugeMeasurement("es.blob_cache.miss.ratio").getLast().getDouble();
+        double newRatio = testTelemetryPlugin.getDoubleAsyncGaugeMeasurement("es.blob_cache.miss.ratio").getLast().getDouble();
 
         assertThat(newReads, greaterThan(reads));
         assertThat(newMisses, equalTo(misses));
@@ -186,7 +186,7 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
     private static long collectReadTotal(TestTelemetryPlugin plugin) {
         plugin.resetMeter();
         plugin.collect();
-        return plugin.getLongGaugeMeasurement(BLOB_CACHE_READ_TOTAL).getLast().getLong();
+        return plugin.getLongAsyncGaugeMeasurement(BLOB_CACHE_READ_TOTAL).getLast().getLong();
     }
 
     /**
@@ -194,7 +194,7 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
      * Must be called immediately after {@link #collectReadTotal} with no intervening meter mutation.
      */
     private static long collectMissTotal(TestTelemetryPlugin plugin) {
-        return plugin.getLongGaugeMeasurement(BLOB_CACHE_MISS_TOTAL).getLast().getLong();
+        return plugin.getLongAsyncGaugeMeasurement(BLOB_CACHE_MISS_TOTAL).getLast().getLong();
     }
 
     private static void executeSearch(String indexName) {
@@ -430,8 +430,8 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
             clearShardCache(findSearchShard(bc.indexName()));
             plugin.resetMeter();
             plugin.collect();
-            final long readsBefore = plugin.getLongGaugeMeasurement(BLOB_CACHE_READ_TOTAL).getLast().getLong();
-            final long missesBefore = plugin.getLongGaugeMeasurement(BLOB_CACHE_MISS_TOTAL).getLast().getLong();
+            final long readsBefore = plugin.getLongAsyncGaugeMeasurement(BLOB_CACHE_READ_TOTAL).getLast().getLong();
+            final long missesBefore = plugin.getLongAsyncGaugeMeasurement(BLOB_CACHE_MISS_TOTAL).getLast().getLong();
 
             executeSearch(bc.indexName());
 
@@ -449,12 +449,12 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
             plugin.collect();
             assertThat(
                 "read total should increase after cache eviction + search for bucket '" + bc.bucket().label() + "'",
-                plugin.getLongGaugeMeasurement(BLOB_CACHE_READ_TOTAL).getLast().getLong(),
+                plugin.getLongAsyncGaugeMeasurement(BLOB_CACHE_READ_TOTAL).getLast().getLong(),
                 greaterThan(readsBefore)
             );
             assertThat(
                 "miss total should increase after cache eviction + search for bucket '" + bc.bucket().label() + "'",
-                plugin.getLongGaugeMeasurement(BLOB_CACHE_MISS_TOTAL).getLast().getLong(),
+                plugin.getLongAsyncGaugeMeasurement(BLOB_CACHE_MISS_TOTAL).getLast().getLong(),
                 greaterThan(missesBefore)
             );
         }
@@ -463,8 +463,8 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
         clearShardCache(findSearchShard(otherIndexName));
         plugin.resetMeter();
         plugin.collect();
-        final long otherReadsBefore = plugin.getLongGaugeMeasurement(BLOB_CACHE_READ_TOTAL).getLast().getLong();
-        final long otherMissesBefore = plugin.getLongGaugeMeasurement(BLOB_CACHE_MISS_TOTAL).getLast().getLong();
+        final long otherReadsBefore = plugin.getLongAsyncGaugeMeasurement(BLOB_CACHE_READ_TOTAL).getLast().getLong();
+        final long otherMissesBefore = plugin.getLongAsyncGaugeMeasurement(BLOB_CACHE_MISS_TOTAL).getLast().getLong();
 
         executeSearch(otherIndexName);
 
@@ -474,12 +474,12 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
         plugin.collect();
         assertThat(
             "read total should increase after eviction + search of sentinel index",
-            plugin.getLongGaugeMeasurement(BLOB_CACHE_READ_TOTAL).getLast().getLong(),
+            plugin.getLongAsyncGaugeMeasurement(BLOB_CACHE_READ_TOTAL).getLast().getLong(),
             greaterThan(otherReadsBefore)
         );
         assertThat(
             "miss total should increase after eviction + search of sentinel index",
-            plugin.getLongGaugeMeasurement(BLOB_CACHE_MISS_TOTAL).getLast().getLong(),
+            plugin.getLongAsyncGaugeMeasurement(BLOB_CACHE_MISS_TOTAL).getLast().getLong(),
             greaterThan(otherMissesBefore)
         );
     }

@@ -113,7 +113,6 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
 import static org.elasticsearch.index.mapper.Mapper.IgnoreAbove.getIgnoreAboveDefaultValue;
 
 /**
@@ -246,7 +245,7 @@ public class WildcardFieldMapper extends FieldMapper {
         private Builder(String name, MappingParserContext mappingParserContext) {
             this(
                 name,
-                IGNORE_ABOVE_SETTING.get(mappingParserContext.getSettings()),
+                mappingParserContext.getIndexSettings().getIgnoreAbove(),
                 mappingParserContext.getIndexSettings().getMode(),
                 mappingParserContext.indexVersionCreated(),
                 mappingParserContext.getIndexSettings()
@@ -351,6 +350,20 @@ public class WildcardFieldMapper extends FieldMapper {
         /** Which framing a reader of this field's binary doc values has to decode. */
         private BinaryDocValuesFormat binaryFormat() {
             return arrayOrderBinaryDocValues ? BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL : BinaryDocValuesFormat.SEPARATE_COUNT;
+        }
+
+        /**
+         * The field is there if the document wrote at least one slot for it, null slots included. A document whose slots are all
+         * null has no binary doc value, only the companion count, so the count is what says so. See
+         * {@link org.elasticsearch.index.mapper.TextFamilyFieldType#existsQuery}, which reaches the same answer for the string
+         * types that share a base with each other; wildcard does not, so it states it here.
+         */
+        @Override
+        public Query existsQuery(SearchExecutionContext context) {
+            if (binaryFormat() == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL) {
+                return new FieldExistsQuery(name() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX);
+            }
+            return super.existsQuery(context);
         }
 
         @Override
@@ -1208,9 +1221,10 @@ public class WildcardFieldMapper extends FieldMapper {
             } else {
                 createFields(value, parseDoc, fields);
             }
-        } else if (fieldType().usesArrayOrderBinaryDocValues()) {
+        } else if (fieldType().usesArrayOrderBinaryDocValues() && MultiValuedBinaryDocValuesField.keepsNullSlot(context, indexMode)) {
             // In-order path: preserve the null's position. A value that tripped ignore_above (value != null) records no slot,
-            // matching the legacy sort-and-dedup path where ignored values are simply dropped.
+            // matching the legacy sort-and-dedup path where ignored values are simply dropped. A null that is not an element of
+            // the field's own array has no position to preserve and is the field being absent; see keepsNullSlot.
             MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(parseDoc, fieldType().name());
         }
         parseDoc.addAll(fields);
@@ -1316,15 +1330,21 @@ public class WildcardFieldMapper extends FieldMapper {
             int docSlotCount = 0;
             int lastValueLength = 0;
             boolean hasNonNull = false;
+            final boolean strictColumnar = indexMode.isStrictColumnar();
 
             while (true) {
                 final int nextDoc = cursor.nextDoc();
                 if (nextDoc != currentDoc) {
                     if (docSlotCount > 0) {
-                        dvCounts.setLong(currentDoc, docSlotCount);
-                        if (hasNonNull) {
-                            final int length = docSlotCount == 1 ? lastValueLength : pos;
-                            binaryDvs.setString(currentDoc, docBlob.bytes(), pos - length, length);
+                        // A bare null is the field being absent, matching the row path: the document keeps no slot for it. Only a
+                        // null written inside the field's own array keeps its place. See keepsNullSlot.
+                        final boolean bareNull = strictColumnar && hasNonNull == false && source.isNull(currentDoc);
+                        if (bareNull == false) {
+                            dvCounts.setLong(currentDoc, docSlotCount);
+                            if (hasNonNull) {
+                                final int length = docSlotCount == 1 ? lastValueLength : pos;
+                                binaryDvs.setString(currentDoc, docBlob.bytes(), pos - length, length);
+                            }
                         }
                         pos = 0;
                         docSlotCount = 0;

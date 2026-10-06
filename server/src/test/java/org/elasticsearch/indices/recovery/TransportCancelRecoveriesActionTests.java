@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -75,7 +76,11 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
             Settings.builder()
                 .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
                 .build(),
-            Set.of(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING)
+            Set.of(
+                ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING,
+                ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING,
+                ThrottlingRecoveryService.INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING
+            )
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         throttlingRecoveryService = new ThrottlingRecoveryService(
@@ -83,7 +88,8 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
             DefaultProjectResolver.INSTANCE,
             clusterService,
             RecoverySchedulingListener.NOOP,
-            new RecoveryGateMonitor(() -> List.of(), taskQueue.getThreadPool(), clusterSettings)
+            new RecoveryGateMonitor(() -> List.of(), taskQueue.getThreadPool(), clusterSettings),
+            ByteSizeValue.ofBytes(Long.MAX_VALUE)
         );
         throttlingRecoveryService.start();
         action = new TransportCancelRecoveriesAction(
@@ -482,7 +488,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+            public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
                 if (e instanceof RecoveryCancelledException) {
                     cancelled.set(true);
                 } else {

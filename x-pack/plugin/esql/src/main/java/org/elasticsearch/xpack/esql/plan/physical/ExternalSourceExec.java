@@ -610,6 +610,34 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         );
     }
 
+    /**
+     * Returns a copy with {@link #schemaMap()} replaced. Once splits have been copied, the coordinator
+     * drops the listing map; per-split {@code readSchema} and {@code columnMapping} already carry what
+     * the read needs. An empty map here is not an exhaustive prune — {@link #splits()} is unchanged.
+     */
+    public ExternalSourceExec withSchemaMap(Map<StoragePath, SchemaReconciliation.FileSchemaInfo> newSchemaMap) {
+        return new ExternalSourceExec(
+            source(),
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            pushedExpressions,
+            pushedLimit,
+            pushedTopN,
+            estimatedRowSize,
+            fileList,
+            newSchemaMap,
+            unifiedSchema,
+            splits,
+            datasetName,
+            deferredExtraction,
+            declaredReadSpec
+        );
+    }
+
     public ExternalSourceExec withPushedFilter(Object newFilter) {
         return new ExternalSourceExec(
             source(),
@@ -1021,9 +1049,16 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
-        // sourcePath (external location) and pushedFilter (opaque local-only filter) are free-form
-        // user content — redact under anonymization. sourceType is a low-cardinality format enum.
-        sb.append(nodeName()).append("[").append(mapper.opaque(sourcePath)).append("][").append(sourceType).append("]");
+        // sourcePath is an external storage location — only the object name (last path segment) is
+        // included; bucket, prefix, and full URI are always omitted. pushedFilter is a predicate the
+        // caller wrote themselves — redact under anonymization only.
+        // sourceType is a low-cardinality format enum, never redacted.
+        sb.append(nodeName())
+            .append("[")
+            .append(mapper.location(StoragePath.objectName(sourcePath)))
+            .append("][")
+            .append(sourceType)
+            .append("]");
         if (pushedFilter != null) {
             sb.append("[filter=").append(mapper.opaque(String.valueOf(pushedFilter))).append("]");
         }
@@ -1037,9 +1072,9 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             sb.append("[splits=").append(splits.size()).append("]");
         }
         if (datasetName != null) {
-            // Dataset names are free-form user content, same as sourcePath — redact under anonymization.
-            sb.append("[dataset=").append(mapper.opaque(datasetName)).append("]");
+            sb.append("[dataset=").append(mapper.location(datasetName)).append("]");
         }
         NodeUtils.toString(sb, attributes, format, mapper);
     }
+
 }

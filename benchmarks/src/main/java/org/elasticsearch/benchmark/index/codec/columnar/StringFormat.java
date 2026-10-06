@@ -159,7 +159,12 @@ public enum StringFormat {
         }
         long bytes = 0;
         for (String file : directory.listAll()) {
-            if (file.endsWith(".dvd") || file.endsWith(".dvm") || file.endsWith(".cnd") || file.endsWith(".cnm")) {
+            if (file.endsWith(".dvd")
+                || file.endsWith(".dvm")
+                || file.endsWith(".cnd")
+                || file.endsWith(".cna")
+                || file.endsWith(".cnn")
+                || file.endsWith(".cnm")) {
                 bytes += directory.fileLength(file);
             }
         }
@@ -181,7 +186,12 @@ public enum StringFormat {
         }
         long bytes = 0;
         for (String file : directory.listAll()) {
-            if (file.endsWith(".dvd") || file.endsWith(".dvm") || file.endsWith(".cnd") || file.endsWith(".cnm")) {
+            if (file.endsWith(".dvd")
+                || file.endsWith(".dvm")
+                || file.endsWith(".cnd")
+                || file.endsWith(".cna")
+                || file.endsWith(".cnn")
+                || file.endsWith(".cnm")) {
                 bytes += directory.fileLength(file);
             }
         }
@@ -243,7 +253,7 @@ public enum StringFormat {
     private SummaryPolicy summaryPolicy() {
         return switch (this) {
             case COLUMNAR -> ColumNARDocValuesFormat.DEFAULT_SUMMARY_POLICY;
-            case COLUMNAR_DICTIONARY -> new SummaryPolicy(4 << 20);
+            case COLUMNAR_DICTIONARY -> SummaryPolicy.sized(4 << 20);
             // Nothing is surveyed where no dictionary is allowed, so there is nothing to leave behind either.
             case COLUMNAR_PLAIN -> SummaryPolicy.NONE;
             default -> throw new IllegalStateException("not a columnar format: " + this);
@@ -305,7 +315,7 @@ public enum StringFormat {
         }
         long bytes = 0;
         for (String file : directory.listAll()) {
-            if (file.endsWith(".cnd") || file.endsWith(".cnm")) {
+            if (file.endsWith(".cnd") || file.endsWith(".cna") || file.endsWith(".cnl") || file.endsWith(".cnn") || file.endsWith(".cnm")) {
                 bytes += directory.fileLength(file);
             }
         }

@@ -160,12 +160,13 @@ lo:date_nanos | hi:date_nanos
 parquetUbnMixedRepresentationMinMax
 required_capability: external_command
 required_capability: external_source_read_schema
+required_capability: external_dataset_messages
 dataset: employees_type_drift_union: "{{employees_multifile_type_drift}}" WITH {"schema_resolution": "union_by_name"}
 
 FROM employees_type_drift_union
 | STATS lo = MIN(code), hi = MAX(code);
-warningRegex:Column \[code\] widened to keyword:.*distinct types: \[integer, keyword\]
-warningRegex:Schema reconciliation widened columns to keyword due to cross-file type disagreement.*
+warningRegex:column \[code\]: .*; types \[integer, keyword\]
+warningRegex:Columns whose type differs between files are read as \[keyword\]; set \[schema_resolution\] to \[strict\] to fail instead
 
 lo:keyword | hi:keyword
 10         | 9
@@ -177,14 +178,15 @@ lo:keyword | hi:keyword
 parquetUbnFilterTypeDriftedColumn
 required_capability: external_command
 required_capability: external_source_read_schema
+required_capability: external_dataset_messages
 dataset: employees_type_drift_union: "{{employees_multifile_type_drift}}" WITH {"schema_resolution": "union_by_name"}
 
 FROM employees_type_drift_union
 | WHERE code > "5"
 | KEEP id, code
 | SORT id ASC;
-warningRegex:Column \[code\] widened to keyword:.*distinct types: \[integer, keyword\]
-warningRegex:Schema reconciliation widened columns to keyword due to cross-file type disagreement.*
+warningRegex:column \[code\]: .*; types \[integer, keyword\]
+warningRegex:Columns whose type differs between files are read as \[keyword\]; set \[schema_resolution\] to \[strict\] to fail instead
 
 id:integer | code:keyword
 2          | 9
@@ -491,12 +493,13 @@ parquetFfwAllRows
 required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 required_capability: external_source_file_order_options
+required_capability: external_dataset_messages
 dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins", "file_sort_by": "name"}
 
 FROM employees_multifile_ubn_ffw
 | SORT name ASC;
-warningRegex:Column \[age\] in file \[.*parquet_ubn_b\.parquet\] has type \[LONG\] incompatible with planner type \[INTEGER\]; returning nulls for this column
-warningRegex:Parquet file \[.*parquet_ubn_b\.parquet\] has columns whose on-disk type is incompatible with planner type; they are returned as null
+warningRegex:column \[age\]: \[long\] in the file, \[integer\] in the query
+warningRegex:Some columns in \[.*parquet_ubn_b\.parquet\] have a type the query cannot read; returning null
 warningRegex:declared column \[score\] is not present in some source files
 
 name:keyword | age:integer | score:double
@@ -510,12 +513,13 @@ parquetFfwCount
 required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 required_capability: external_source_file_order_options
+required_capability: external_dataset_messages
 dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins", "file_sort_by": "name"}
 
 FROM employees_multifile_ubn_ffw
 | STATS count = COUNT(*);
-warningRegex:Column \[age\] in file \[.*parquet_ubn_b\.parquet\] has type \[LONG\] incompatible with planner type \[INTEGER\]; returning nulls for this column
-warningRegex:Parquet file \[.*parquet_ubn_b\.parquet\] has columns whose on-disk type is incompatible with planner type; they are returned as null
+warningRegex:column \[age\]: \[long\] in the file, \[integer\] in the query
+warningRegex:Some columns in \[.*parquet_ubn_b\.parquet\] have a type the query cannot read; returning null
 
 count:long
 4
@@ -525,14 +529,15 @@ parquetFfwFilterAnchorOnly
 required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 required_capability: external_source_file_order_options
+required_capability: external_dataset_messages
 dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins", "file_sort_by": "name"}
 
 FROM employees_multifile_ubn_ffw
 | WHERE score IS NOT NULL
 | KEEP name, score
 | SORT name ASC;
-warningRegex:Column \[age\] in file \[.*parquet_ubn_b\.parquet\] has type \[LONG\] incompatible with planner type \[INTEGER\]; returning nulls for this column
-warningRegex:Parquet file \[.*parquet_ubn_b\.parquet\] has columns whose on-disk type is incompatible with planner type; they are returned as null
+warningRegex:column \[age\]: \[long\] in the file, \[integer\] in the query
+warningRegex:Some columns in \[.*parquet_ubn_b\.parquet\] have a type the query cannot read; returning null
 warningRegex:declared column \[score\] is not present in some source files
 
 name:keyword | score:double

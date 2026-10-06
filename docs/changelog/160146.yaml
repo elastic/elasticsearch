@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160146
+summary: Prune keyed glob IN by value
+type: enhancement

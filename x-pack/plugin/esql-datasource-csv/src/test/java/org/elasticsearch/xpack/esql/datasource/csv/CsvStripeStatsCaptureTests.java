@@ -25,11 +25,13 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
@@ -640,7 +642,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
             .put("esql.external.cache.listing.ttl", "30s")
             .build();
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of());
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of());
             service.getOrComputeSchema(
                 key,
                 k -> SchemaCacheEntry.from(schema, "csv", path, Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint), Map.of())
@@ -1441,7 +1443,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
             .put("esql.external.cache.listing.ttl", "30s")
             .build();
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of());
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of());
             List<Attribute> schema = List.of(
                 new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.KEYWORD, Nullability.TRUE, null, false)
             );
@@ -1477,6 +1479,11 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
     private StorageObject memoryObject(byte[] bytes, Instant fixedMtime) {
         String uniquePath = "memory://" + UUID.randomUUID() + ".csv";
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(bytes);

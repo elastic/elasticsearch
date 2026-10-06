@@ -1730,15 +1730,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * A stats gather that can neither fold nor cache stops reading. A format whose metadata carries no row
-     * count — the shape of every line-oriented text format, which publishes size and identity at resolution
-     * and harvests statistics later from the data-node capture — kills the fold on the first file accepted.
-     * With no cache to warm either (non-cacheable provider here), every remaining read buys an aggregate
-     * that is already unreachable and an entry that will not be kept, so the gather drains instead.
-     * <p>
-     * The counterpart is {@link #testFirstFileWinsEagerlyReadsFootersWhenStatsRequired}, which pins the
-     * footer-format control at all four reads on the identical listing: the rule is economic, not a format
-     * test, and this pair is what tells the two apart.
+     * No row counts (the text shape) kills the fold on the first file, and a non-cacheable provider leaves
+     * nothing to warm, so the gather drains. {@link #testFirstFileWinsEagerlyReadsFootersWhenStatsRequired}
+     * is the footer control at 4 reads on the same listing.
      */
     public void testStatsGatherStopsOnceTheFoldIsDeadAndNothingWillBeCached() throws Exception {
         AtomicInteger metadataReads = new AtomicInteger();
@@ -1754,13 +1748,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * The same dead fold, but the entries WILL be kept: the gather reads every file anyway. Warming the
-     * per-file schema rail is the fan-out's other purpose and it is worth the reads on its own, so a
-     * format that cannot fold is not thereby a format that must not fan out.
-     * <p>
-     * This is the control that makes {@link #testStatsGatherStopsOnceTheFoldIsDeadAndNothingWillBeCached}
-     * mean something. Both resolve the identical row-count-less listing; only the cache budget differs.
-     * A rule keyed on the format would read 2 here and be wrong.
+     * Same dead fold, but the entries will be kept, so the gather reads every file: warming the per-file
+     * rail is worth the reads on its own. Differs from
+     * {@link #testStatsGatherStopsOnceTheFoldIsDeadAndNothingWillBeCached} only in cache budget — a rule
+     * keyed on the format would stop here and be wrong.
      */
     public void testStatsGatherStillFansOutWhenTheCacheWillKeepTheEntries() throws Exception {
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
@@ -1779,9 +1770,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * Cacheable, but the listing cannot fit the schema budget, so the resolver's schema fan-out admission refuses
-     * every entry after sizing the first. With the fold already dead there is nothing left to buy and the
-     * gather drains - the partitioned-tree case, where the file count is exactly what overruns the budget.
+     * Cacheable, but the listing overruns the schema budget so admission refuses after sizing the first entry.
+     * With the fold dead too there is nothing left to buy — the partitioned-tree case.
      */
     public void testStatsGatherStopsWhenTheSchemaBudgetRefusesTheFanOut() throws Exception {
         Settings tinyCache = Settings.builder()

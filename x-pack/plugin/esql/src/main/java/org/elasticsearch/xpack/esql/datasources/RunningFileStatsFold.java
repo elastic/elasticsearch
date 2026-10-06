@@ -128,10 +128,8 @@ final class RunningFileStatsFold {
     }
 
     /**
-     * Whether this fold has already given up, so every further {@link #accept} is a no-op and {@link #finish}
-     * will return null whatever else arrives. A gather whose results feed nothing but this fold and the schema
-     * cache consults it to stop issuing reads it cannot spend: on a format whose metadata carries no row count
-     * the first file fails the fold, and the remaining reads buy an aggregate that is already unreachable.
+     * Whether this fold has given up, so further {@link #accept} is a no-op and {@link #finish} returns null.
+     * A gather consults it to stop reading for an aggregate that is already unreachable.
      */
     boolean failed() {
         return failed;

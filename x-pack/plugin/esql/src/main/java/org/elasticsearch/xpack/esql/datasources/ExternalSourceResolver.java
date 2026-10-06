@@ -2611,26 +2611,13 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Whether the files this gather has not read yet would buy nothing, so reading them is pure cost.
+     * Whether the unread files would buy nothing: the fold has already failed and no entry from this gather
+     * will be retained, so both of its purposes are gone. On text each remaining read parses a sample of a
+     * file to produce an aggregate nothing can reach and an entry nothing will keep.
      * <p>
-     * A stats gather spends its reads on two things: the cross-file fold, and the per-file schema cache entries
-     * its misses create. Both can be gone at once. The fold dies on the first file whose metadata carries no row
-     * count — which is every file of a line-oriented text format, whose statistics arrive later from the data-node
-     * capture rather than from a footer — and {@link SchemaFanOutAdmission} refuses every entry once it has sized
-     * one against the budget, which is what happens when a dataset has more files than the budget can hold. When
-     * both have happened the remaining reads produce an aggregate that is already unreachable and entries that
-     * will not be kept, and on a text format each of those reads parses a sample of the file to do it. That is an
-     * optimisation running in reverse: it pays the cost of the scan it exists to avoid, and returns nothing.
-     * <p>
-     * It is deliberately not a format test. A text dataset whose entries ARE admitted keeps fanning out, because
-     * warming the per-file rail is worth the reads even when this query's fold cannot use them; a footer format
-     * never trips the first clause at all. The supplier answers with its own metadata, and the first file read is
-     * the answer — which is also the read {@code SchemaFanOutAdmission} needs to size the budget, so nothing is
-     * read that was not needed anyway.
-     * <p>
-     * Only gathers whose results feed nothing but the fold and the cache may stop. The reconciliation rail passes
-     * {@code false}: union-by-name and strict resolution need every file's schema whatever the fold is doing, so
-     * stopping early there would change the schema rather than the cost of computing it.
+     * Not a format test — an admitted text dataset keeps fanning out, because warming the per-file schema
+     * rail is worth the reads by itself. Only gathers whose results feed nothing but the fold and the cache
+     * may stop; the reconciliation rail needs every file's schema whatever the fold is doing.
      */
     private static boolean remainingReadsBuyNothing(
         boolean resultsFeedOnlyStatsAndCache,
@@ -2645,7 +2632,7 @@ public class ExternalSourceResolver {
                 return false;
             }
         }
-        // A null admission is a gather that was never going to cache: a non-cacheable provider, or a single file.
+        // A null admission never meant to cache: non-cacheable provider, or a single file.
         return admission == null || admission.refused();
     }
 
@@ -2704,10 +2691,8 @@ public class ExternalSourceResolver {
                 return;
             }
             if (remainingReadsBuyNothing(resultsFeedOnlyStatsAndCache, fold, admission)) {
-                // Nothing left to buy: drain without issuing reads. See the method's contract.
-                // Cancellation outranks the economic stop. The signal is observed inside the per-file read,
-                // so a gather that stops issuing reads would otherwise complete with partial stats instead of
-                // surfacing the cancellation a still-reading gather would have raised.
+                // Cancellation is observed inside the per-file read, so a gather that stops issuing them
+                // must raise it here or complete with partial stats instead.
                 if (isCancelled()) {
                     failure.compareAndSet(null, new TaskCancelledException(RESOLUTION_CANCELLED_MESSAGE));
                 }
@@ -2923,10 +2908,7 @@ public class ExternalSourceResolver {
             this.fileCount = fileCount;
         }
 
-        /**
-         * Whether this fan-out has already been sized and refused, so no entry it reads will be retained.
-         * Sizing happens on the first entry offered, so this stays false until one file has been read.
-         */
+        /** Sized against the budget and refused, so no entry will be retained. False until one file is read. */
         boolean refused() {
             synchronized (this) {
                 return refuse;

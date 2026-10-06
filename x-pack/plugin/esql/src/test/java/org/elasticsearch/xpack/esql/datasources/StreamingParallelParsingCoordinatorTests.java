@@ -1643,6 +1643,96 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
+     * Two parsers hold the first two pooled buffers; the third fill waits for that so the pool is
+     * empty at the fourth take. That take inlines the queued chunk in {@code takeOrAllocateBuffer};
+     * a parse error there must not recycle the buffer into another upstream read.
+     * Parallelism {@code 2} (pool size 3) on a 3-thread pool: segmentator plus two holding parsers.
+     */
+    public void testInlineParseErrorDoesNotReadAfterRecycledBuffer() throws Exception {
+        byte[] contentBytes = buildContent(200).getBytes(StandardCharsets.UTF_8);
+        AtomicBoolean parseFailed = new AtomicBoolean();
+        AtomicInteger readsAfterParseFail = new AtomicInteger();
+        AtomicInteger parseCalls = new AtomicInteger();
+        AtomicInteger upstreamReads = new AtomicInteger();
+        CountDownLatch twoHolding = new CountDownLatch(2);
+        CountDownLatch releaseHold = new CountDownLatch(1);
+        InputStream stream = new FilterInputStream(new ByteArrayInputStream(contentBytes)) {
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                if (parseFailed.get()) {
+                    readsAfterParseFail.incrementAndGet();
+                }
+                int n = upstreamReads.getAndIncrement();
+                if (n == 2) {
+                    try {
+                        if (twoHolding.await(30, TimeUnit.SECONDS) == false) {
+                            throw new IOException("parsers did not hold buffers before the third fill");
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new IOException(e);
+                    }
+                }
+                return super.read(b, off, len);
+            }
+        };
+        ExecutorService pool = Executors.newFixedThreadPool(3);
+        try {
+            StreamingSegmentatorAdmission admission = new StreamingSegmentatorAdmission(1);
+            CloseableIterator<Page> it = StreamingParallelParsingCoordinator.parallelRead(new FailingFormatReader(Integer.MAX_VALUE, 64) {
+                @Override
+                public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+                    int n = parseCalls.getAndIncrement();
+                    if (n >= 2) {
+                        parseFailed.set(true);
+                        throw new IOException("injected failure after held parsers");
+                    }
+                    twoHolding.countDown();
+                    try {
+                        if (releaseHold.await(30, TimeUnit.SECONDS) == false) {
+                            throw new IOException("parser hold timed out");
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new IOException(e);
+                    }
+                    return super.read(object, context);
+                }
+            },
+                stream,
+                null,
+                List.of("line"),
+                50,
+                2,
+                pool,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                admission,
+                new NoopCircuitBreaker("test"),
+                ExternalReadCounters.NOOP,
+                null
+            );
+            Exception ex = expectThrows(Exception.class, () -> {
+                while (it.hasNext()) {
+                    it.next().releaseBlocks();
+                }
+            });
+            assertThat(ex.getMessage(), Matchers.containsString("injected"));
+            assertEquals("segmentator must not read after inline parse failure recycled the buffer", 0, readsAfterParseFail.get());
+            it.close();
+        } finally {
+            releaseHold.countDown();
+            pool.shutdownNow();
+        }
+    }
+
+    /**
      * EOF with a mix of inlined chunks and pool parsers: one segmentator, one free parser thread
      * (production cap 1 on a 2-thread pool, nothing pinned).
      */

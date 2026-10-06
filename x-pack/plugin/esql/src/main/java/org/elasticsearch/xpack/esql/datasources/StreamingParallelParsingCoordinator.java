@@ -1476,9 +1476,12 @@ public final class StreamingParallelParsingCoordinator {
          * once {@link #close()} has begun.
          */
         private PoolBuffer takeOrAllocateBuffer() throws InterruptedException {
-            PoolBuffer buf = bufferPool.poll();
+            PoolBuffer buf = keepUnlessAborting(bufferPool.poll());
             if (buf != null) {
                 return buf;
+            }
+            if (abortDispatch()) {
+                return null;
             }
             // Charge first, then claim the slot with a CAS, so the tally only ever counts charges that
             // landed: a breaker trip leaves nothing to roll back, and close() refunds exactly the tally.
@@ -1487,7 +1490,7 @@ public final class StreamingParallelParsingCoordinator {
             // claim leaves the charge counted for close() to refund.
             while (true) {
                 int allocated = buffersAllocated.get();
-                if (allocated == POOL_CLOSED_MARKER) {
+                if (allocated == POOL_CLOSED_MARKER || abortDispatch()) {
                     return null;
                 }
                 if (allocated >= bufferPoolSize) {
@@ -1495,7 +1498,7 @@ public final class StreamingParallelParsingCoordinator {
                         if (runOneQueuedInline() == false) {
                             break;
                         }
-                        buf = bufferPool.poll();
+                        buf = keepUnlessAborting(bufferPool.poll());
                         if (buf != null) {
                             return buf;
                         }
@@ -1509,7 +1512,7 @@ public final class StreamingParallelParsingCoordinator {
                         if (buffersAllocated.get() == POOL_CLOSED_MARKER) {
                             return null;
                         }
-                        buf = bufferPool.poll(50, TimeUnit.MILLISECONDS);
+                        buf = keepUnlessAborting(bufferPool.poll(50, TimeUnit.MILLISECONDS));
                         if (buf != null) {
                             return buf;
                         }
@@ -1518,10 +1521,30 @@ public final class StreamingParallelParsingCoordinator {
                 }
                 breaker.addEstimateBytesAndMaybeBreak(chunkSize, "streaming-parse-chunk-buffer");
                 if (buffersAllocated.compareAndSet(allocated, allocated + 1)) {
+                    if (abortDispatch()) {
+                        new PoolBuffer().release();
+                        return null;
+                    }
                     return new PoolBuffer();
                 }
                 breaker.addWithoutBreaking(-chunkSize);
             }
+        }
+
+        /**
+         * Recycle {@code buf} and abort when dispatch has already failed or closed, so an inline
+         * {@link #consumeChunk} that records {@link #firstError} cannot hand the recycled buffer
+         * back to the segmentator for another upstream read.
+         */
+        private PoolBuffer keepUnlessAborting(PoolBuffer buf) {
+            if (buf == null) {
+                return null;
+            }
+            if (abortDispatch()) {
+                buf.release();
+                return null;
+            }
+            return buf;
         }
 
         /**

@@ -134,11 +134,31 @@ class ConcurrencyLimiter {
     }
 
     /**
-     * {@link #tryAcquire()} mapped onto the same retryable {@link ExternalUnavailableException} as
-     * {@link #acquireChecked()}, without parking. throttling=false: local semaphore, not a store 429.
+     * {@link #tryAcquire()} mapped onto {@link PermitMissException} so the retry layer can wait on
+     * the admission clock without consuming a storage attempt. throttling=false: local semaphore.
      */
     void acquireBargeChecked() {
         if (tryAcquire() == false) {
+            throw new PermitMissException(scheme, maxPermits());
+        }
+    }
+
+    long acquireTimeoutMs() {
+        return acquireTimeoutMs;
+    }
+
+    /**
+     * Untimed barge missed the node semaphore. Not a store fault: {@link RetryableStorageObject}
+     * reschedules on {@link #acquireTimeoutMs()} and does not burn a storage retry or record
+     * retry/error metrics. Terminal admission timeout is converted to the same
+     * {@link ExternalUnavailableException} as {@link #acquireChecked()}.
+     */
+    static final class PermitMissException extends RuntimeException {
+        PermitMissException(String scheme, int maxPermits) {
+            super("No concurrency permit available for [" + scheme + "] (max permits [" + maxPermits + "])");
+        }
+
+        ExternalUnavailableException toUnavailable() {
             ExternalUnavailableException ex = new ExternalUnavailableException(
                 Condition.STORE_UNAVAILABLE,
                 StoragePath.NONE,
@@ -147,8 +167,8 @@ class ConcurrencyLimiter {
                 false,
                 0L
             );
-            ex.setDetail("No concurrency permit available for [" + scheme + "] (max permits [" + maxPermits() + "])");
-            throw ex;
+            ex.setDetail(getMessage());
+            return ex;
         }
     }
 

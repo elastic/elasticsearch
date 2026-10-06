@@ -261,6 +261,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
     public void testRetryHopDoesNotAcquireOnSchedulerThread() throws Exception {
         ThreadPool threadPool = new TestThreadPool(getTestName());
         List<String> acquireThreads = new CopyOnWriteArrayList<>();
+        List<String> tryAcquireThreads = new CopyOnWriteArrayList<>();
         ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(3, false)) {
             @Override
             void acquire() throws TimeoutException, InterruptedException {
@@ -270,7 +271,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
 
             @Override
             boolean tryAcquire() {
-                acquireThreads.add(Thread.currentThread().getName());
+                tryAcquireThreads.add(Thread.currentThread().getName());
                 return super.tryAcquire();
             }
         };
@@ -364,9 +365,15 @@ public class RetryableStorageObjectTests extends ESTestCase {
             assertTrue(done.await(10, TimeUnit.SECONDS));
             assertNull(failure.get());
             assertNotNull(result.get());
-            assertFalse("retry must have acquired a permit", acquireThreads.isEmpty());
+            assertFalse("first attempt must have acquired a permit", acquireThreads.isEmpty());
             for (String name : acquireThreads) {
                 assertFalse("scheduler must never acquire a concurrency permit, saw " + name, name.contains("[scheduler]"));
+            }
+            assertFalse("retry barge must have tried a permit", tryAcquireThreads.isEmpty());
+            for (String name : tryAcquireThreads) {
+                assertThat("tryAcquire must run on the io/generic pool, saw " + name, name, containsString("[generic]"));
+                assertFalse("scheduler must never barge a concurrency permit, saw " + name, name.contains("[scheduler]"));
+                assertNotEquals("tryAcquire must not run on the caller completion executor", "t4-completion", name);
             }
             assertFalse("completion must have run on the caller executor", completionThreads.isEmpty());
             for (String name : completionThreads) {
@@ -473,6 +480,202 @@ public class RetryableStorageObjectTests extends ESTestCase {
         assertNull(failure.get());
         assertNotNull(result.get());
         assertEquals(2, ioAttempts.get());
+    }
+
+    /**
+     * Permit misses wait on the limiter timeout and must not burn storage retry attempts or
+     * record extra retries. Holding the permit across more hops than {@code maxRetries} still
+     * succeeds once the permit is released.
+     */
+    public void testBargeMissDoesNotConsumeStorageAttempts() throws Exception {
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false), 30_000L);
+        AtomicInteger ioAttempts = new AtomicInteger();
+        StoragePath path = StoragePath.of("s3://bucket/key");
+        StorageObject inner = new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
+            public InputStream newStream() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long length() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Instant lastModified() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean exists() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public StoragePath path() {
+                return path;
+            }
+
+            @Override
+            public int readBytes(long position, ByteBuffer target) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void readBytesAsync(
+                long position,
+                long len,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
+                if (ioAttempts.getAndIncrement() == 0) {
+                    listener.onFailure(new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "", "", false, 0L));
+                } else {
+                    listener.onResponse(new DirectReadBuffer(ByteBuffer.allocate(4), () -> {}));
+                }
+            }
+
+            @Override
+            public StorageObjectMetrics metrics() {
+                return new StorageObjectMetrics(0, 0, 0, 0);
+            }
+        };
+        List<Runnable> pending = new ArrayList<>();
+        RetryScheduler capturing = (command, delayMillis, executor) -> pending.add(command);
+        ConcurrencyLimitedStorageObject limited = new ConcurrencyLimitedStorageObject(inner, limiter);
+        RetryableStorageObject obj = new RetryableStorageObject(limited, new RetryPolicy(3, 5, 50), capturing);
+        AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        obj.readBytesAsync(
+            0,
+            4,
+            len -> new DirectReadBuffer(ByteBuffer.allocate(len), () -> {}),
+            Runnable::run,
+            ActionListener.wrap(result::set, failure::set)
+        );
+        assertEquals("first I/O failure must schedule one retry", 1, pending.size());
+        assertEquals(1L, obj.metrics().retryCount());
+        limiter.acquire();
+        for (int i = 0; i < 5; i++) {
+            pending.remove(0).run();
+            assertNull("barge miss must not fail the read", failure.get());
+            assertNull(result.get());
+            assertEquals("barge miss must reschedule without a storage attempt", 1, pending.size());
+            assertEquals("barge miss must not issue I/O", 1, ioAttempts.get());
+            assertEquals("barge miss must not record a storage retry", 1L, obj.metrics().retryCount());
+        }
+        limiter.release();
+        pending.remove(0).run();
+        assertNull(failure.get());
+        assertNotNull(result.get());
+        assertEquals(2, ioAttempts.get());
+        assertEquals(1L, obj.metrics().retryCount());
+    }
+
+    /**
+     * A barge miss that outlives {@link StorageObject#admissionWaitTimeoutMs()} fails as the same
+     * {@link ExternalUnavailableException} as a blocking permit timeout, without extra I/O.
+     */
+    public void testBargeMissAdmissionTimeoutDoesNotIssueStorageRetry() throws Exception {
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false), 0L);
+        AtomicInteger ioAttempts = new AtomicInteger();
+        StoragePath path = StoragePath.of("s3://bucket/key");
+        StorageObject inner = new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
+            public InputStream newStream() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long length() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Instant lastModified() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean exists() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public StoragePath path() {
+                return path;
+            }
+
+            @Override
+            public int readBytes(long position, ByteBuffer target) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void readBytesAsync(
+                long position,
+                long len,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
+                if (ioAttempts.getAndIncrement() == 0) {
+                    listener.onFailure(new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "", "", false, 0L));
+                } else {
+                    listener.onResponse(new DirectReadBuffer(ByteBuffer.allocate(4), () -> {}));
+                }
+            }
+
+            @Override
+            public StorageObjectMetrics metrics() {
+                return new StorageObjectMetrics(0, 0, 0, 0);
+            }
+        };
+        List<Runnable> pending = new ArrayList<>();
+        RetryScheduler capturing = (command, delayMillis, executor) -> pending.add(command);
+        ConcurrencyLimitedStorageObject limited = new ConcurrencyLimitedStorageObject(inner, limiter);
+        RetryableStorageObject obj = new RetryableStorageObject(limited, new RetryPolicy(3, 5, 50), capturing);
+        AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        obj.readBytesAsync(
+            0,
+            4,
+            len -> new DirectReadBuffer(ByteBuffer.allocate(len), () -> {}),
+            Runnable::run,
+            ActionListener.wrap(result::set, failure::set)
+        );
+        assertEquals(1, pending.size());
+        limiter.acquire();
+        pending.remove(0).run();
+        assertNull(result.get());
+        assertTrue(pending.isEmpty());
+        assertThat(failure.get(), instanceOf(ExternalUnavailableException.class));
+        assertThat(failure.get().getMessage(), containsString("No concurrency permit available"));
+        assertEquals("admission timeout must not issue another storage GET", 1, ioAttempts.get());
+        assertEquals("admission timeout must not count a storage retry", 1L, obj.metrics().retryCount());
+        limiter.release();
     }
 
     /**

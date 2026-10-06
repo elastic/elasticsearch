@@ -140,6 +140,11 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
     }
 
     @Override
+    public long admissionWaitTimeoutMs() {
+        return limiter.acquireTimeoutMs();
+    }
+
+    @Override
     public int readBytes(long position, ByteBuffer target) throws IOException {
         limiter.acquireChecked();
         try {
@@ -173,8 +178,9 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
 
     /**
      * {@code barge}: untimed {@link ConcurrencyLimiter#tryAcquire()} so a retry continuation never
-     * parks. Fail is retryable {@link org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException}
-     * (throttling=false). Permit is not held across attempts; the next hop acquires again.
+     * parks. A miss is {@link ConcurrencyLimiter.PermitMissException}; the retry layer waits on
+     * {@link #admissionWaitTimeoutMs()} without burning a storage attempt. Permit is not held
+     * across attempts; the next hop acquires again.
      */
     @Override
     public Releasable startReadBytesAsync(

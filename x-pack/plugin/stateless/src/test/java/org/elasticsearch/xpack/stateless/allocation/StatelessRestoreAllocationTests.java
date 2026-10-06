@@ -103,11 +103,7 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
     }
 
     private ClusterInfo info(Map<String, DiskUsage> disks, Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservations) {
-        return ClusterInfo.builder()
-            .leastAvailableSpaceUsage(disks)
-            .mostAvailableSpaceUsage(disks)
-            .reservedSpace(reservations)
-            .build();
+        return ClusterInfo.builder().leastAvailableSpaceUsage(disks).mostAvailableSpaceUsage(disks).reservedSpace(reservations).build();
     }
 
     private record RestoreDeciderAndPressure(SnapshotRestoreAllocationDecider decider, SnapshotRestoreDiskPressure pressure) {}

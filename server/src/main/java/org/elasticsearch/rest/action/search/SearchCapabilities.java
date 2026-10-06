@@ -74,6 +74,8 @@ public final class SearchCapabilities {
     private static final String KNN_RETRIEVER_OPTIONAL_NUM_CANDIDATES = "knn_retriever_optional_num_candidates";
     /** Query types that keyed {@code flattened} subfields do not support are rejected with a 400 instead of a 500. */
     private static final String KEYED_FLATTENED_UNSUPPORTED_QUERIES_BAD_REQUEST = "keyed_flattened_unsupported_queries_bad_request";
+    /** {@code BinaryDocValuesRangeQuery} descriptions (e.g. in {@code _explanation}) name the queried range field. */
+    private static final String RANGE_FIELD_DV_QUERY_DESCRIPTION_HAS_FIELD = "range_field_dv_query_description_has_field";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -113,6 +115,7 @@ public final class SearchCapabilities {
         capabilities.add(AGGREGATE_METRIC_DOUBLE_DEFAULTS_TO_AVERAGE);
         capabilities.add(KNN_RETRIEVER_OPTIONAL_NUM_CANDIDATES);
         capabilities.add(KEYED_FLATTENED_UNSUPPORTED_QUERIES_BAD_REQUEST);
+        capabilities.add(RANGE_FIELD_DV_QUERY_DESCRIPTION_HAS_FIELD);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

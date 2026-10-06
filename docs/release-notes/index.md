@@ -106,15 +106,13 @@ TSDB:
 
 
 
-## 9.5.4 [elasticsearch-9.5.4-release-notes]
+## 9.4.7 [elasticsearch-9.4.7-release-notes]
 
-### Features and enhancements [elasticsearch-9.5.4-features-enhancements]
+### Features and enhancements [elasticsearch-9.4.7-features-enhancements]
 
-Authorization:
-* Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` [#156029](https://github.com/elastic/elasticsearch/pull/156029)
-
-Infra/Core:
-* Upgrade Jackson to 2.21.6 [#157295](https://github.com/elastic/elasticsearch/pull/157295) (issue: [#141442](https://github.com/elastic/elasticsearch/issues/141442))
+Audit:
+* Add `request.raw_body` to audit events for protobuf request bodies [#158143](https://github.com/elastic/elasticsearch/pull/158143)
+* Reject oversized request bodies when request-body auditing is enabled [#157760](https://github.com/elastic/elasticsearch/pull/157760)
 
 Machine Learning:
 * Add EuroBERT and Jina v5 ops to graph validation allowlist [#3015](https://github.com/elastic/ml-cpp/pull/3015)
@@ -125,6 +123,7 @@ Machine Learning:
 * Harden `pytorch_inference` with TorchScript model graph validation [#3008](https://github.com/elastic/ml-cpp/pull/3008) (issue: [#2890](https://github.com/elastic/ml-cpp/issues/2890))
 * Improve adherence to memory limits for the bucket gatherer [#2848](https://github.com/elastic/ml-cpp/pull/2848)
 * Report the actual memory usage of the autodetect process [#2846](https://github.com/elastic/ml-cpp/pull/2846)
+* Restrict file system access for PyTorch models [#2851](https://github.com/elastic/ml-cpp/pull/2851)
 * Update the PyTorch library to version 2.7.1 [#2863](https://github.com/elastic/ml-cpp/pull/2863)
 
 Search:

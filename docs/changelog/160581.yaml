@@ -1,0 +1,6 @@
+area: Security
+issues:
+ - 106075
+pr: 160581
+summary: Add origin address to API key authentication failure log entries
+type: enhancement

@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -112,6 +113,36 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
                     return block;
                 }
             }
+            if (docValues.docValues() instanceof StringColumnSource columnar) {
+                return readFromColumn(factory, docs, offset, columnar);
+            }
+            return readByDecoding(factory, docs, offset);
+        }
+
+        /**
+         * The columnar codec keeps each value's byte length apart from its (possibly compressed) bytes, so
+         * this reads the length straight from that metadata instead of materializing (and, for the columnar
+         * codec, decompressing) the value just to call {@code BytesRef#length}.
+         */
+        private BlockLoader.Block readFromColumn(BlockFactory factory, Docs docs, int offset, StringColumnSource columnar)
+            throws IOException {
+            int[] length = new int[1];
+            try (BlockLoader.IntBuilder builder = factory.ints(docs.count() - offset)) {
+                for (int i = offset; i < docs.count(); i++) {
+                    int doc = docs.get(i);
+                    if (docValues.docValues().advanceExact(doc) == false) {
+                        builder.appendNull();
+                    } else if (columnar.nonNullLength(length) == 1) {
+                        builder.appendInt(length[0]);
+                    } else {
+                        builder.appendNull();
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        private BlockLoader.Block readByDecoding(BlockFactory factory, Docs docs, int offset) throws IOException {
             try (BlockLoader.IntBuilder builder = factory.ints(docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);

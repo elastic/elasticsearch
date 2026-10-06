@@ -16,10 +16,13 @@ import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
@@ -27,6 +30,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
+import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -48,6 +52,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.instanceOf;
@@ -193,6 +198,151 @@ public class ColumnarKeywordFunctionTests extends ESTestCase {
         );
         assertSingleValuedLoaderMatches(docs, fieldName -> new MvMaxBytesRefsFromBinaryBlockLoader(fieldName, plain), values);
         assertSingleValuedLoaderMatches(docs, fieldName -> new MvMinBytesRefsFromBinaryBlockLoader(fieldName, plain), values);
+    }
+
+    /**
+     * BYTE_LENGTH must answer from {@link StringColumnSource#nonNullLength}, not by decoding the value.
+     * {@link #testFunctionsOverSingleValuedColumn} already covers correctness; this counts calls to
+     * {@link BinaryDocValues#binaryValue()} to prove the cheap path is the one actually taken.
+     */
+    public void testByteLengthOfSingleValuedColumnNeverDecodesTheValue() throws IOException {
+        final String[][] docs = new String[between(200, 800)][];
+        for (int d = 0; d < docs.length; d++) {
+            docs[d] = switch (d % 4) {
+                case 0 -> null;
+                case 1 -> new String[] { "" };
+                default -> new String[] { randomAlphaOfLengthBetween(1, 40) };
+            };
+        }
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec()))) {
+                for (String[] slots : docs) {
+                    final Document doc = new Document();
+                    if (slots != null) {
+                        doc.add(new SingleValuedColumnarBinaryDocValuesField(FIELD, new BytesRef(slots[0])));
+                    }
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                final LeafReaderContext leaf = reader.leaves().get(0);
+                final AtomicInteger decodeCalls = new AtomicInteger();
+                final LeafReaderContext counting = countingLeaf(leaf, decodeCalls);
+                final var loader = new ByteLengthFromBytesRefDocValuesBlockLoader(new MockWarnings(), FIELD, BinaryDocValuesFormat.PLAIN);
+                final TestBlock block = (TestBlock) loader.reader(NOOP, counting).read(TestBlock.factory(), docs(0, docs.length), 0, false);
+                assertEquals("positions", docs.length, block.size());
+                assertEquals("BYTE_LENGTH must read the length from the column, not by decoding the value", 0, decodeCalls.get());
+            }
+        }
+    }
+
+    /** Wraps {@code leaf} so calls to {@code binaryValue()} on {@link #FIELD}'s column are counted in {@code decodeCalls}. */
+    private static LeafReaderContext countingLeaf(LeafReaderContext leaf, AtomicInteger decodeCalls) {
+        LeafReader wrapped = new FilterLeafReader(leaf.reader()) {
+            @Override
+            public BinaryDocValues getBinaryDocValues(String field) throws IOException {
+                final BinaryDocValues in = super.getBinaryDocValues(field);
+                if (in == null || field.equals(FIELD) == false) {
+                    return in;
+                }
+                return new CountingBinaryDocValues(in, decodeCalls);
+            }
+
+            @Override
+            public CacheHelper getCoreCacheHelper() {
+                return in.getCoreCacheHelper();
+            }
+
+            @Override
+            public CacheHelper getReaderCacheHelper() {
+                return in.getReaderCacheHelper();
+            }
+        };
+        return wrapped.getContext();
+    }
+
+    /**
+     * Delegates every {@link BinaryDocValues} and {@link StringColumnSource} method to the real column,
+     * except {@link #binaryValue} counts its calls — the only observable difference between the fast,
+     * metadata-only length path and the path that decodes the value.
+     */
+    private static final class CountingBinaryDocValues extends BinaryDocValues implements StringColumnSource {
+        private final BinaryDocValues in;
+        private final StringColumnSource source;
+        private final AtomicInteger decodeCalls;
+
+        CountingBinaryDocValues(BinaryDocValues in, AtomicInteger decodeCalls) {
+            this.in = in;
+            this.source = (StringColumnSource) in;
+            this.decodeCalls = decodeCalls;
+        }
+
+        @Override
+        public BytesRef binaryValue() throws IOException {
+            decodeCalls.incrementAndGet();
+            return in.binaryValue();
+        }
+
+        @Override
+        public boolean advanceExact(int target) throws IOException {
+            return in.advanceExact(target);
+        }
+
+        @Override
+        public int docID() {
+            return in.docID();
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            return in.nextDoc();
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            return in.advance(target);
+        }
+
+        @Override
+        public long cost() {
+            return in.cost();
+        }
+
+        @Override
+        public StringColumnReader reader() {
+            return source.reader();
+        }
+
+        @Override
+        public BytesRef extreme(boolean max, BytesRef dst) throws IOException {
+            return source.extreme(max, dst);
+        }
+
+        @Override
+        public int nonNullValues(BytesRef dst) throws IOException {
+            return source.nonNullValues(dst);
+        }
+
+        @Override
+        public int nonNullValueCount() throws IOException {
+            return source.nonNullValueCount();
+        }
+
+        @Override
+        public int slotCount() throws IOException {
+            return source.slotCount();
+        }
+
+        @Override
+        public BytesRef slotAt(int slot) throws IOException {
+            return source.slotAt(slot);
+        }
+
+        @Override
+        public int nonNullLength(int[] length) throws IOException {
+            return source.nonNullLength(length);
+        }
     }
 
     /** BYTE_LENGTH over documents without the field among every other shape, which read as null. */

@@ -151,9 +151,6 @@ public class BulkUpdateStoredFieldsPrefetchIT extends AbstractStatelessPluginInt
         ensureStableCluster(2);
 
         String indexName = randomIdentifier();
-        // For SYNTHETIC source, Lucene calls IndexInput.prefetch() during doc-value reads used to
-        // reconstruct the source, so the metric is non-zero even though our pre-resolution path is
-        // skipped.
         Settings.Builder indexSettingsBuilder = indexSettings(1, 0).put(
             IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
             SourceFieldMapper.Mode.COLUMNAR_STORED.name()
@@ -176,20 +173,49 @@ public class BulkUpdateStoredFieldsPrefetchIT extends AbstractStatelessPluginInt
         TestTelemetryPlugin telemetry = getTelemetryPlugin(indexNode);
         telemetry.resetMeter();
 
+        // Block the auto-put-mapping acknowledgement on the master. Item-0 is an index request
+        // introducing a new field, which stalls the shard thread mid-execution waiting for the
+        // mapping ACK. This creates an observable window: pre-resolution has already run (and
+        // was skipped for COLUMNAR_STORED), but the update items haven't executed yet. We assert
+        // no prefetches in that window, proving stored-fields pre-resolution was skipped.
+        // (After the shard unblocks, doc-values reads during update execution fire prefetches, but
+        // those are unrelated to stored-fields pre-resolution and are not measured here.)
+        CountDownLatch mappingUpdateReached = new CountDownLatch(1);
+        CountDownLatch mappingUpdateRelease = new CountDownLatch(1);
+        MockTransportService masterTransport = MockTransportService.getInstance(internalCluster().getMasterName());
+        masterTransport.addRequestHandlingBehavior(TransportAutoPutMappingAction.TYPE.name(), (handler, request, channel, task) -> {
+            mappingUpdateReached.countDown();
+            safeAwait(mappingUpdateRelease);
+            handler.messageReceived(request, channel, task);
+        });
+
         var bulk = client().prepareBulk();
+        // Item-0: index with a new field to trigger a dynamic mapping update that lets us observe
+        // the pre-resolution window.
+        bulk.add(client().prepareIndex(indexName).setSource(Map.of("value", randomInt(), "new_dynamic_field", randomInt())));
         for (String id : docIds) {
             bulk.add(client().prepareUpdate(indexName, id).setDoc(Map.of("value", randomInt())));
         }
-        assertNoFailures(safeGet(bulk.execute()));
+        var bulkFuture = bulk.execute();
 
-        long totalPrefetches = telemetry.getLongCounterMeasurement(BlobCacheMetrics.BLOB_CACHE_PREFETCH_TOTAL)
-            .stream()
-            .mapToLong(Measurement::getLong)
-            .sum();
-        assertEquals(
-            "no stored-fields prefetch should occur for source mode " + SourceFieldMapper.Mode.COLUMNAR_STORED.name(),
-            0L,
-            totalPrefetches
-        );
+        safeAwait(mappingUpdateReached);
+
+        // Shard thread is blocked: pre-resolution ran (skipped) and update items haven't executed.
+        try {
+            long totalPrefetches = telemetry.getLongCounterMeasurement(BlobCacheMetrics.BLOB_CACHE_PREFETCH_TOTAL)
+                .stream()
+                .mapToLong(Measurement::getLong)
+                .sum();
+            assertEquals(
+                "no stored-fields prefetch should occur for source mode " + SourceFieldMapper.Mode.COLUMNAR_STORED.name(),
+                0L,
+                totalPrefetches
+            );
+        } finally {
+            mappingUpdateRelease.countDown();
+            masterTransport.clearAllRules();
+        }
+
+        assertNoFailures(safeGet(bulkFuture));
     }
 }

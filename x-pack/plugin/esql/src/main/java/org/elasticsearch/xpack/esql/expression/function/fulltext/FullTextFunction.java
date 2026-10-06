@@ -31,10 +31,12 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -49,10 +51,12 @@ import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.SplitScorePredicatesFromRuntimeSearch;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -69,6 +73,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -249,7 +254,7 @@ public abstract class FullTextFunction extends Function
     private static void checkFullTextQueryFunctions(LogicalPlan plan, Failures failures) {
         if (plan instanceof Filter f) {
             checkFullTextFunctionsInFilter(f, failures, false);
-            checkScoreComparedWithRuntimeScorer(f.condition(), failures);
+            checkScoreWithRuntimeScorerOutsideConjunction(f, failures);
         } else if (plan instanceof Aggregate agg) {
             checkFullTextFunctionsInAggs(agg, failures);
         } else if (plan instanceof LookupJoin lookupJoin) {
@@ -288,42 +293,70 @@ public abstract class FullTextFunction extends Function
     }
 
     /**
-     * A {@code _score} predicate can only be evaluated after a runtime scorer in the same filter when the two are separate
-     * conjuncts (see {@code SplitScorePredicatesFromRuntimeSearch}); anywhere else it would see the score from before the
-     * search ran. Only run after optimization: a search on an alias or RENAME of an indexed field looks like a runtime
-     * search when analyzed, but push-down turns it back into one that scores at the source.
+     * A {@code _score} predicate can only see the score of a runtime search in the same filter when the two are separate
+     * conjuncts, which {@code SplitScorePredicatesFromRuntimeSearch} splits apart; anywhere else, under {@code OR},
+     * {@code NOT} or a comparison, it would see the score from before the search. That rule normalizes the condition
+     * first, so this checks the conjuncts of the same normalized condition. Only run after analysis, while every
+     * {@code _score} is one written in the query: optimization substitutes {@code _score} for a copy of it, which holds
+     * the score from before the search and can be combined with it freely.
      */
-    private static void checkScoreOutsideConjunctionWithRuntimeScorer(Expression condition, Failures failures) {
-        for (Expression conjunct : Predicates.splitAnd(condition)) {
-            if (conjunct.anyMatch(MetadataAttribute::isScoreAttribute) == false) {
-                continue;
+    private static void checkScoreWithRuntimeScorerOutsideConjunction(Filter filter, Failures failures) {
+        if (filter.condition().anyMatch(MetadataAttribute::isScoreAttribute) == false) {
+            return;
+        }
+        Expression normalized = SplitScorePredicatesFromRuntimeSearch.normalize(filter.condition(), FoldContext.small());
+        for (Expression conjunct : Predicates.splitAnd(normalized)) {
+            if (conjunct.anyMatch(MetadataAttribute::isScoreAttribute) && holdsRuntimeScorerOncePushedDown(conjunct, filter.child())) {
+                conjunct.forEachDown(FullTextFunction.class, ftf -> {
+                    if (ftf.isRuntimeSearch() && ftf.contributesToScore()) {
+                        failures.add(scoreWithRuntimeScorerFailure(conjunct, ftf));
+                    }
+                });
             }
-            conjunct.forEachDown(FullTextFunction.class, ftf -> {
-                if (ftf.isRuntimeSearch() && ftf.contributesToScore()) {
-                    failures.add(scoreWithRuntimeScorerFailure(conjunct, ftf));
-                }
-            });
         }
     }
 
     /**
-     * A comparison hides a {@code _score} predicate ANDed with a runtime scorer from
-     * {@code SplitScorePredicatesFromRuntimeSearch}, which can't split it out, and optimization can then fold the
-     * comparison away, leaving a predicate that sees the score from before the search but passes
-     * {@link #checkScoreOutsideConjunctionWithRuntimeScorer}. Only run after analysis, while every {@code _score} is one
-     * written in the query: optimization substitutes {@code _score} for a copy of it, which holds the score from before
-     * the search and can be compared freely.
+     * Whether {@code conjunct}, of a filter over {@code child}, still holds a runtime search that adds to {@code _score}
+     * once push-down has moved it as far down as it goes. A search on an alias or {@code RENAME} of an indexed field
+     * looks like a runtime search when analyzed, but push-down resolves the alias and turns it back into one that scores
+     * at the source. This moves the conjunct the way {@code PushDownAndCombineFilters} would, resolving aliases as it
+     * goes, and stops wherever that would stop, or at any command it doesn't follow it past.
      */
-    private static void checkScoreComparedWithRuntimeScorer(Expression condition, Failures failures) {
-        condition.forEachDown(EsqlBinaryComparison.class, comparison -> {
-            if (comparison.anyMatch(MetadataAttribute::isScoreAttribute)) {
-                comparison.forEachDown(FullTextFunction.class, ftf -> {
-                    if (ftf.isRuntimeSearch() && ftf.contributesToScore()) {
-                        failures.add(scoreWithRuntimeScorerFailure(comparison, ftf));
-                    }
+    private static boolean holdsRuntimeScorerOncePushedDown(Expression conjunct, LogicalPlan child) {
+        Expression pushed = conjunct;
+        LogicalPlan plan = child;
+        while (containsRuntimeScorer(pushed)) {
+            if (plan instanceof Eval eval) {
+                AttributeMap.Builder<Expression> builder = AttributeMap.builder();
+                eval.fields().forEach(alias -> builder.put(alias.toAttribute(), alias.child()));
+                AttributeMap<Expression> evalAliases = builder.build();
+                // Only aliases of attributes from before the Eval are resolved, and a conjunct that still references
+                // what the Eval creates stays above it.
+                Expression resolved = pushed.transformDown(ReferenceAttribute.class, reference -> {
+                    Expression source = evalAliases.resolve(reference, null);
+                    return source instanceof Attribute && eval.inputSet().contains(source) ? source : reference;
                 });
+                if (resolved.anyMatch(evalAliases::containsKey)) {
+                    return true;
+                }
+                pushed = resolved;
+            } else if (plan instanceof Project project) {
+                AttributeMap.Builder<Expression> builder = AttributeMap.builder();
+                project.forEachExpression(Alias.class, alias -> builder.put(alias.toAttribute(), alias.child()));
+                AttributeMap<Expression> projectAliases = builder.build();
+                pushed = pushed.transformDown(Attribute.class, attribute -> projectAliases.resolve(attribute, attribute));
+            } else if (plan instanceof Filter filter) {
+                // A _score predicate doesn't combine into a filter holding a runtime scorer.
+                if (containsRuntimeScorer(filter.condition())) {
+                    return true;
+                }
+            } else if (plan instanceof OrderBy == false) {
+                return true;
             }
-        });
+            plan = ((UnaryPlan) plan).child();
+        }
+        return false;
     }
 
     private static Failure scoreWithRuntimeScorerFailure(Expression expression, FullTextFunction ftf) {
@@ -843,7 +876,6 @@ public abstract class FullTextFunction extends Function
         return (logicalPlan, failures) -> {
             if (logicalPlan instanceof Filter f) {
                 checkFullTextFunctionsInFilter(f, failures, true);
-                checkScoreOutsideConjunctionWithRuntimeScorer(f.condition(), failures);
                 // After optimization, if a coordinator-executed join still sits anywhere beneath this filter
                 // (not just as a direct child), the push-down optimizer could not move the filter to the data
                 // nodes. An index-backed search requires a Lucene shard context that the coordinator does not have;

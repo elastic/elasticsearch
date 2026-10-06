@@ -3106,6 +3106,39 @@ c:long | min_score:double | max_score:double
 6      | 2.0              | 2.0
 ;
 
+matchOnRuntimeTextAndScoreFilterOrFoldedFalse
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: runtime_score_fix
+
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE (match(content, "Tolkien Rings") AND _score > 1.5) OR (1 == 2)
+| STATS c = COUNT(*), min_score = MIN(_score), max_score = MAX(_score)
+;
+
+c:long | min_score:double | max_score:double
+6      | 2.0              | 2.0
+;
+
+matchOnRuntimeTextOrScoreAliasFilter
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: runtime_score_fix
+
+// s holds the score from before the match, 0.0, so every row passes the filter
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description)), s = _score
+| WHERE s < 0.5 OR match(content, "Tolkien Rings")
+| STATS c = COUNT(*), min_score = MIN(_score), max_score = MAX(_score)
+;
+
+c:long | min_score:double | max_score:double
+79     | 0.0              | 2.0
+;
+
 matchOnRuntimeTextAndScoreFilterInBothOrBranches
 required_capability: match_function
 required_capability: metadata_score

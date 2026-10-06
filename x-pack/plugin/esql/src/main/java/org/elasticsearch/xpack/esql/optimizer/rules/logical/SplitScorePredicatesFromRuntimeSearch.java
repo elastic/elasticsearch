@@ -8,8 +8,11 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
@@ -27,9 +30,9 @@ import java.util.List;
  * <p>
  * This has to run before anything substitutes {@code _score} for an alias or {@code RENAME} of it: a copy taken before
  * the search holds the score from before it, and once substituted it can't be told apart from a {@code _score} written
- * alongside the search. So it also applies {@link BooleanSimplification} first, which would otherwise only expose an
- * {@code AND} hidden under, say, {@code NOT NOT} after this rule has run. A comparison can hide one too; the verifier
- * rejects those.
+ * alongside the search. So it {@link #normalize}s the condition first, to expose an {@code AND} that optimization
+ * would otherwise only expose after this rule has run. The verifier rejects any other mix of {@code _score} and a
+ * runtime search, using the same normalization.
  * <p>
  * Whether a search is a runtime one isn't settled yet either, as a search on an alias of an indexed field looks like
  * one until push-down resolves the alias. Splitting such a filter does no harm: the search scores at the source, so
@@ -51,9 +54,14 @@ public final class SplitScorePredicatesFromRuntimeSearch extends OptimizerRules.
             || filter.condition().anyMatch(MetadataAttribute::isScoreAttribute) == false) {
             return filter;
         }
+        Expression normalized = normalize(filter.condition(), ctx.foldCtx());
+        if (FullTextFunction.containsRuntimeScorer(normalized) == false) {
+            // The search was simplified away, as in (MATCH(...) OR true) AND _score > 1.5, so there is nothing to split.
+            return filter;
+        }
         List<Expression> scorePredicates = new ArrayList<>();
         List<Expression> rest = new ArrayList<>();
-        for (Expression conjunct : Predicates.splitAnd(simplify(filter.condition(), ctx))) {
+        for (Expression conjunct : Predicates.splitAnd(normalized)) {
             // A conjunct that both reads _score and holds a runtime search can't be split; it stays with the search.
             if (conjunct.anyMatch(MetadataAttribute::isScoreAttribute) && FullTextFunction.containsRuntimeScorer(conjunct) == false) {
                 scorePredicates.add(conjunct);
@@ -67,13 +75,20 @@ public final class SplitScorePredicatesFromRuntimeSearch extends OptimizerRules.
         return filter.with(filter.with(filter.child(), Predicates.combineAnd(rest)), Predicates.combineAnd(scorePredicates));
     }
 
-    private static Expression simplify(Expression condition, LogicalOptimizerContext ctx) {
-        Expression simplified = condition;
+    /**
+     * Folds boolean constants in {@code condition} and simplifies its boolean logic, as {@link ConstantFolding} and
+     * {@link BooleanSimplification} later would, until neither changes it.
+     */
+    public static Expression normalize(Expression condition, FoldContext foldCtx) {
+        Expression normalized = condition;
         Expression previous;
         do {
-            previous = simplified;
-            simplified = previous.transformUp(ScalarFunction.class, e -> BOOLEAN_SIMPLIFICATION.rule(e, ctx));
-        } while (simplified.equals(previous) == false);
-        return simplified;
+            previous = normalized;
+            normalized = previous.transformDown(
+                e -> e instanceof Literal == false && e.foldable() && e.dataType() == DataType.BOOLEAN ? Literal.of(foldCtx, e) : e
+            );
+            normalized = normalized.transformUp(ScalarFunction.class, BOOLEAN_SIMPLIFICATION::simplify);
+        } while (normalized.equals(previous) == false);
+        return normalized;
     }
 }

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.ONE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
@@ -93,6 +95,32 @@ public class SplitScorePredicatesFromRuntimeSearchTests extends ESTestCase {
 
         LogicalPlan expected = new Filter(EMPTY, new Filter(EMPTY, eval, match), new Or(EMPTY, scoreCondition, conditionB));
         assertEquals(expected, new SplitScorePredicatesFromRuntimeSearch().apply(filter, unboundLogicalOptimizerContext()));
+    }
+
+    // ... | where (match(content, "fox") and _score > 1.5) or 1 == 2
+    // => ... | where match(content, "fox") | where _score > 1.5
+    public void testScorePredicateOrFoldedFalseSplitsOut() {
+        MetadataAttribute score = scoreAttribute();
+        Eval eval = runtimeTextEval(relation(List.of(score)));
+        Match match = runtimeMatch(eval);
+        GreaterThan scoreCondition = greaterThanOf(score, new Literal(EMPTY, 1.5, DataType.DOUBLE));
+        Filter filter = new Filter(EMPTY, eval, new Or(EMPTY, new And(EMPTY, match, scoreCondition), new Equals(EMPTY, ONE, TWO)));
+
+        LogicalPlan expected = new Filter(EMPTY, new Filter(EMPTY, eval, match), scoreCondition);
+        assertEquals(expected, new SplitScorePredicatesFromRuntimeSearch().apply(filter, unboundLogicalOptimizerContext()));
+    }
+
+    // ... | where (match(content, "fox") or true) and _score > 1.5 => unchanged
+    public void testRuntimeSearchSimplifiedAwayLeavesFilterUnchanged() {
+        MetadataAttribute score = scoreAttribute();
+        Eval eval = runtimeTextEval(relation(List.of(score)));
+        Filter filter = new Filter(
+            EMPTY,
+            eval,
+            new And(EMPTY, new Or(EMPTY, runtimeMatch(eval), Literal.TRUE), greaterThanOf(score, new Literal(EMPTY, 1.5, DataType.DOUBLE)))
+        );
+
+        assertEquals(filter, new SplitScorePredicatesFromRuntimeSearch().apply(filter, unboundLogicalOptimizerContext()));
     }
 
     // ... | where not (not (match(content, "fox") or _score > 1.5)) => unchanged, not even simplified

@@ -37,6 +37,14 @@ public final class BooleanSimplification extends OptimizerRules.OptimizerExpress
 
     @Override
     public Expression rule(ScalarFunction e, LogicalOptimizerContext ctx) {
+        return simplify(e);
+    }
+
+    /**
+     * Simplifies {@code e} without an optimizer context, for callers outside the optimizer, which need the same
+     * simplification to agree with it (see {@link SplitScorePredicatesFromRuntimeSearch#normalize}).
+     */
+    public Expression simplify(ScalarFunction e) {
         if (e instanceof And || e instanceof Or) {
             return simplifyAndOr((BinaryPredicate<?, ?, ?, ?>) e);
         }

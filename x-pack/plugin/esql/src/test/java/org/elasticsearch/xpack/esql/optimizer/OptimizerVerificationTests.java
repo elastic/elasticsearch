@@ -110,40 +110,59 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             " inside OR, NOT or a comparison, as it would see the score from before the search; filter on [_score] with a top-level AND "
                 + "or a separate WHERE instead";
         String matchMessage = "[_score] can't be used with runtime search [MATCH]" + rest;
-        assertThat(error(fullTextAnalyzer().query(prefix + "match(t, \"cat\") or _score > 1.5")), containsString(matchMessage));
-        assertThat(error(fullTextAnalyzer().query(prefix + "not (match(t, \"cat\") and _score > 1.5)")), containsString(matchMessage));
-        assertThat(
-            error(fullTextAnalyzer().query(prefix + "(match(t, \"cat\") and _score > 1.5) or title == \"dog\"")),
+        fullTextAnalyzer().error(prefix + "match(t, \"cat\") or _score > 1.5", containsString(matchMessage));
+        fullTextAnalyzer().error(prefix + "not (match(t, \"cat\") and _score > 1.5)", containsString(matchMessage));
+        fullTextAnalyzer().error(prefix + "(match(t, \"cat\") and _score > 1.5) or title == \"dog\"", containsString(matchMessage));
+        fullTextAnalyzer().error(prefix + "not (match(t, \"cat\") or _score > 1.5)", containsString(matchMessage));
+        fullTextAnalyzer().error(prefix + "not match(t, \"cat\") or _score > 1.5", containsString(matchMessage));
+        fullTextAnalyzer().error(
+            prefix + "match_phrase(t, \"cat\") or _score > 1.5",
+            containsString("[_score] can't be used with runtime search [MATCH_PHRASE]" + rest)
+        );
+        // Only optimization would turn this into a conjunction, after the _score predicate could be split out.
+        fullTextAnalyzer().error(
+            "from test metadata _score | eval t = to_text(concat(title, body)), f = false | where (match(t, \"cat\") and _score > 1.5) or f",
             containsString(matchMessage)
         );
-        assertThat(error(fullTextAnalyzer().query(prefix + "not (match(t, \"cat\") or _score > 1.5)")), containsString(matchMessage));
-        assertThat(error(fullTextAnalyzer().query(prefix + "not match(t, \"cat\") or _score > 1.5")), containsString(matchMessage));
-        assertThat(
-            error(fullTextAnalyzer().query(prefix + "match_phrase(t, \"cat\") or _score > 1.5")),
-            containsString("[_score] can't be used with runtime search [MATCH_PHRASE]" + rest)
+        // The filter can't be pushed past the LIMIT, so the search on the alias stays a runtime one.
+        fullTextAnalyzer().error(
+            "from test metadata _score | eval t = title | limit 10 | where match(t, \"cat\") or _score > 1.5",
+            containsString(matchMessage)
+        );
+        // Nor past an EVAL creating something else it references, or a filter holding a runtime search.
+        fullTextAnalyzer().error(
+            "from test metadata _score | eval t = title, k = length(body) | where match(t, \"cat\") or _score > k",
+            containsString(matchMessage)
+        );
+        fullTextAnalyzer().error(
+            "from test metadata _score | eval t = to_text(concat(title, body)), u = title | where match(t, \"cat\") "
+                + "| where match(u, \"dog\") or _score > 1.5",
+            containsString(matchMessage)
         );
 
         // A conjunction can be split so _score is compared after the search has scored.
         optimize(fullTextAnalyzer().query(prefix + "match(t, \"cat\") and _score > 1.5"));
         optimize(fullTextAnalyzer().query(prefix + "match(t, \"cat\") and (_score > 1.5 or title == \"dog\")"));
+        optimize(fullTextAnalyzer().query(prefix + "(match(t, \"cat\") and _score > 1.5) or (1 == 2)"));
+        optimize(fullTextAnalyzer().query(prefix + "(match(t, \"cat\") or true) and _score > 1.5"));
     }
 
-    /**
-     * A copy of {@code _score} taken before a runtime search holds the score from before it, so ORing it with the search
-     * is well defined. But once optimization substitutes {@code _score} for the copy, as it does when a projection
-     * follows, the check can no longer tell it from a {@code _score} written after the search, so it is rejected too.
-     */
-    public void testScoreCopiedBeforeRuntimeScorerAndOredWithItRejected() {
+    public void testScoreCopiedBeforeRuntimeScorerAndOredWithItAccepted() {
         String prefix = "from test metadata _score | eval t = to_text(concat(title, body)) | ";
-        String message = "[_score] can't be used with runtime search [MATCH] inside OR, NOT or a comparison";
-        assertThat(
-            error(fullTextAnalyzer().query(prefix + "eval s = _score | where s < 0.5 or match(t, \"cat\") | keep s")),
-            containsString(message)
+        optimize(fullTextAnalyzer().query(prefix + "eval s = _score | where s < 0.5 or match(t, \"cat\") | keep s"));
+        optimize(fullTextAnalyzer().query(prefix + "rename _score as s | where s < 0.5 or match(t, \"cat\") | keep s"));
+    }
+
+    public void testScoreComparedWithSearchOnIndexedFieldAliasAccepted() {
+        String prefix = "from test metadata _score | ";
+        optimize(fullTextAnalyzer().query(prefix + "eval t = title | where (match(t, \"cat\") and _score > 1.5) == true"));
+        optimize(fullTextAnalyzer().query(prefix + "rename title as t | where (match(t, \"cat\") and _score > 1.5) == true"));
+        optimize(fullTextAnalyzer().query(prefix + "rename title as t | eval u = t | where (match(u, \"cat\") and _score > 1.5) == true"));
+        optimize(fullTextAnalyzer().query(prefix + "eval t = title | sort t | where (match(t, \"cat\") and _score > 1.5) == true"));
+        optimize(
+            fullTextAnalyzer().query(prefix + "eval t = title | where length(t) > 3 | where (match(t, \"cat\") and _score > 1.5) == true")
         );
-        assertThat(
-            error(fullTextAnalyzer().query(prefix + "rename _score as s | where s < 0.5 or match(t, \"cat\") | keep s")),
-            containsString(message)
-        );
+        optimize(fullTextAnalyzer().query(prefix + "eval t = title | where (match_phrase(t, \"cat\") and _score > 1.5) == true"));
     }
 
     /**

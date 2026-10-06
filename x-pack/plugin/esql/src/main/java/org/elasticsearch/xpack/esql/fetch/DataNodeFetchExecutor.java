@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.fetch.lifetime.FetchContextService;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 
 import java.util.ArrayList;
@@ -80,7 +81,7 @@ import java.util.function.Supplier;
 final class DataNodeFetchExecutor {
     private static final Logger logger = LogManager.getLogger(DataNodeFetchExecutor.class);
 
-    static final String DESCRIPTION = "fetch";
+    static final String DESCRIPTION = ComputeService.FETCH_DESCRIPTION;
 
     private final TransportService transportService;
     private final ClusterService clusterService;

@@ -5382,7 +5382,7 @@ public class VerifierTests extends AnalyzerTestCase {
 
     public void testDenseVectorRejectedOnOlderTransportVersion() {
         defaultAnalyzer().addAnalysisTestsInferenceResolution()
-            .minimumTransportVersion(TransportVersionUtils.randomVersionNotSupporting(DenseVector.ESQL_DENSE_VECTOR_COMMAND))
+            .minimumTransportVersion(TransportVersionUtils.randomVersionNotSupporting(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
             .error(
                 Strings.format("FROM test | DENSE_VECTOR first_name WITH { \"inference_id\": \"%s\" }", TEXT_EMBEDDING_INFERENCE_ID),
                 containsString("DENSE_VECTOR is not supported on every participating node")

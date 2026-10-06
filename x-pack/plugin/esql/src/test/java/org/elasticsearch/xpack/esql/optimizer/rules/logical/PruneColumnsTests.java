@@ -3214,9 +3214,9 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         return (DenseVector) nodes.getFirst();
     }
 
-    /** DENSE_VECTOR is rejected below {@link DenseVector#ESQL_DENSE_VECTOR_COMMAND}, so its tests pin a version that supports it. */
+    /** DENSE_VECTOR is rejected below {@link DenseVector#ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION}, so its tests pin a version that supports it. */
     private TestAnalyzer denseVectorAnalyzer() {
-        TransportVersion floor = DenseVector.ESQL_DENSE_VECTOR_COMMAND;
+        TransportVersion floor = DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION;
         return typesAnalyzer().minimumTransportVersion(minimumVersion.supports(floor) ? minimumVersion : floor);
     }
 

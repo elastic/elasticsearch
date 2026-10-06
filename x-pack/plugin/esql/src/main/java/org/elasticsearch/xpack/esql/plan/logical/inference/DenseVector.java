@@ -87,7 +87,7 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
     }
 
     /** Minimum transport version that knows how to deserialize this plan node. */
-    public static final TransportVersion ESQL_DENSE_VECTOR_COMMAND = TransportVersion.fromName("esql_dense_vector_command");
+    public static final TransportVersion ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION = TransportVersion.fromName("esql_dense_vector_command");
 
     public static final String TIMEOUT_OPTION_NAME = "timeout";
 

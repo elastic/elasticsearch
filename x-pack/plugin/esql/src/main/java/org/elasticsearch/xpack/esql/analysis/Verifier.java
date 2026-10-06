@@ -241,7 +241,7 @@ public class Verifier {
 
     /** Fails fast with a 4xx so older recipients never see the node and 5xx on deserialization. */
     private static void checkDenseVectorSupported(LogicalPlan plan, Failures failures, TransportVersion minimumVersion) {
-        if (minimumVersion.supports(DenseVector.ESQL_DENSE_VECTOR_COMMAND)) {
+        if (minimumVersion.supports(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION)) {
             return;
         }
         plan.forEachDown(

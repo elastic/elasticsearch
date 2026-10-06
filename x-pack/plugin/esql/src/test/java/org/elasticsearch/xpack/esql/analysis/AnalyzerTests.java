@@ -4573,9 +4573,9 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
     }
 
-    /** Books analyzer pinned to a version that supports DENSE_VECTOR (rejected below {@link DenseVector#ESQL_DENSE_VECTOR_COMMAND}). */
+    /** Books analyzer pinned to a version that supports DENSE_VECTOR (rejected below {@link DenseVector#ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION}). */
     private TestAnalyzer denseVectorBooks() {
-        return books().minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND));
+        return books().minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION));
     }
 
     public void testDenseVectorResolvesTextField() {
@@ -4615,7 +4615,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     public void testDenseVectorResolvesQualifiedFieldNames() {
         assumeDenseVectorCommandEnabled();
-        LogicalPlan plan = analyzer().minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND))
+        LogicalPlan plan = analyzer().minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
             .addIndex("test", "mapping-multi-field.json")
             .addAnalysisTestsInferenceResolution()
             .query("""
@@ -4634,7 +4634,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     public void testDenseVectorResolvesNestedAndMixedFields() {
         assumeDenseVectorCommandEnabled();
-        LogicalPlan plan = analyzer().minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND))
+        LogicalPlan plan = analyzer().minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
             .addIndex("test", "mapping-multi-field-variation.json")
             .addAnalysisTestsInferenceResolution()
             .query("""

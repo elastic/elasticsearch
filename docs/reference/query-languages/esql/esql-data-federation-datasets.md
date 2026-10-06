@@ -24,8 +24,8 @@ To define a dataset, work through the following decisions:
 1. **Select a data source.** Use a [connected data source](esql-data-federation-sources.md) that provides access to the external storage. One data source can serve multiple datasets.
 2. **Name the dataset.** The name identifies the dataset in an {{esql}} query. Dataset names share a namespace with indices, data streams, aliases, and views, so a dataset cannot use the name of any of these existing objects.
 3. **Select the files.** Use a storage URI and [resource pattern](esql-data-federation-patterns.md) to select files in one [supported file format](esql-data-federation-file-formats.md).
-4. **Determine the schema.** Let {{es}} infer and reconcile the schema, or [declare column names and data types](esql-data-federation-schema.md) explicitly.
-5. **Adjust dataset behavior.** Add [dataset settings](esql-data-federation-dataset-settings.md) when you need to change the defaults for file discovery, parsing, error handling, schema resolution, or query parallelism.
+4. $$$declare-a-dataset-mapping$$$ **Determine the schema.** Let {{es}} infer and reconcile the schema, or [declare column names and data types](esql-data-federation-schema.md) explicitly.
+5. $$$dataset-settings$$$ **Adjust dataset behavior.** Add [dataset settings](esql-data-federation-dataset-settings.md) when you need to change the defaults for file discovery, parsing, error handling, schema resolution, or query parallelism.
 6. **Describe the dataset.** Add an optional description to explain what the dataset contains or how it is used.
 
 ## Create and manage a dataset

@@ -722,7 +722,6 @@ redirects:
           'parquet':
       - to: 'reference/query-languages/esql/esql-data-federation-dataset-settings.md'
         anchors:
-          'dataset-settings':
           'common-settings': 'common-settings'
           'csv-and-tsv-settings': 'csv-and-tsv-settings'
           'ndjson-settings': 'ndjson-settings'
@@ -733,7 +732,6 @@ redirects:
       - to: 'reference/query-languages/esql/esql-data-federation-schema.md'
         anchors:
           'how-schemas-are-inferred':
-          'declare-a-dataset-mapping': 'declare-a-schema-explicitly'
           'schema-merge-strategies': 'choose-a-schema-resolution-strategy'
           'first-file-wins-file-order': 'control-which-file-supplies-the-schema'
           'first-last-declared-file-file_sort_by-list': 'use-resource-declaration-order'

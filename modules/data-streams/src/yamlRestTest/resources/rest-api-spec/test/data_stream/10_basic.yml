@@ -28,6 +28,17 @@ setup:
           data_stream: {}
 
 ---
+teardown:
+  - do:
+      indices.delete_data_stream:
+        name: data-stream-with-index-mode
+        ignore: 404
+  - do:
+      indices.delete_index_template:
+        name: my-template
+        ignore: 404
+
+---
 "Create data stream":
   - requires:
       cluster_features: ["gte_v7.9.0"]
@@ -1326,3 +1337,65 @@ setup:
       indices.delete_data_stream:
         name: data-stream1
   - is_true: acknowledged
+
+---
+"Get data streams returns the index mode of the next backing index":
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [data-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [data-*]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                mode: standard
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: data-stream-with-index-mode
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: data-stream-with-index-mode
+
+  - match: { data_streams.0.name: data-stream-with-index-mode }
+  - match: { data_streams.0.index_mode: standard }
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [data-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [ data-* ]
+          data_stream: { }
+          template:
+            settings:
+              index:
+                mode: time_series
+                routing_path: [ pod_name ]
+                number_of_replicas: 0
+                number_of_shards: 1
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+                pod_name:
+                  type: keyword
+                  time_series_dimension: true
+                cpu_usage:
+                  type: double
+                  time_series_metric: gauge
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: data-stream-with-index-mode
+
+  - match: { data_streams.0.name: data-stream-with-index-mode }
+  - match: { data_streams.0.index_mode: time_series }

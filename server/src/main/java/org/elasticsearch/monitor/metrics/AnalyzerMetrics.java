@@ -13,7 +13,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.io.IOException;
@@ -63,7 +62,7 @@ public class AnalyzerMetrics extends AbstractLifecycleComponent {
                 UNIQUE_ANALYZERS_METRIC,
                 "unique cached analyzer instances on this node (one per distinct recipe)",
                 "1",
-                () -> new LongWithAttributes(analysisRegistry.analyzerCacheSize())
+                analysisRegistry::analyzerCacheSize
             )
         );
         metrics.add(
@@ -72,7 +71,7 @@ public class AnalyzerMetrics extends AbstractLifecycleComponent {
                 "total references to cached analyzers across every index on this node (analyzer cache "
                     + "only; sharing factor = references / unique; 1.0 = no sharing, higher = more sharing)",
                 "1",
-                () -> new LongWithAttributes(analysisRegistry.totalReferences())
+                analysisRegistry::totalReferences
             )
         );
         metrics.add(
@@ -80,7 +79,7 @@ public class AnalyzerMetrics extends AbstractLifecycleComponent {
                 UNIQUE_NORMALIZERS_METRIC,
                 "unique cached normalizer instances on this node (sum of keyword and whitespace variants)",
                 "1",
-                () -> new LongWithAttributes(analysisRegistry.normalizerCacheSize())
+                analysisRegistry::normalizerCacheSize
             )
         );
         // Hits/misses only ever increase (their {@code .total} suffix and monotonic semantics make them
@@ -90,7 +89,7 @@ public class AnalyzerMetrics extends AbstractLifecycleComponent {
                 CACHE_HITS_METRIC,
                 "cumulative analyzer-cache hits since process start",
                 "1",
-                () -> new LongWithAttributes(analysisRegistry.cacheHits())
+                analysisRegistry::cacheHits
             )
         );
         metrics.add(
@@ -98,7 +97,7 @@ public class AnalyzerMetrics extends AbstractLifecycleComponent {
                 CACHE_MISSES_METRIC,
                 "cumulative analyzer-cache misses (fresh builds) since process start",
                 "1",
-                () -> new LongWithAttributes(analysisRegistry.cacheMisses())
+                analysisRegistry::cacheMisses
             )
         );
     }

@@ -584,6 +584,7 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         Set<Setting<?>> registered = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         registered.add(EsqlPlugin.GROK_WATCHDOG_MAX_EXECUTION_TIME);
         registered.add(FetchContextService.MAX_OPEN_CONTEXTS);
+        registered.add(FetchContextService.CONTEXT_KEEP_ALIVE);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, registered);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);

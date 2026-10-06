@@ -21,7 +21,8 @@ public interface FetchPhaseServices {
     FetchOperatorProvider operatorProvider();
 
     /**
-     * Opens, follows and frees the reader contexts of the fetch phase on this node.
+     * The reader contexts of the fetch phase on this node: the ones it keeps open as a data node, and the leases of the
+     * queries it coordinates.
      */
     FetchContextService contextService();
 

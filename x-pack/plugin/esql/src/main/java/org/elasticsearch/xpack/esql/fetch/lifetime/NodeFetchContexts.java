@@ -100,13 +100,27 @@ public final class NodeFetchContexts implements DocRefOriginResolver, Releasable
      * search context the query phase reads it with. Every resource taken so far is released when it fails.
      *
      * @throws org.elasticsearch.ElasticsearchStatusException with status 429 when the node holds too many fetch contexts
+     * @throws IllegalArgumentException when the keep-alive is longer than this node allows
      * @throws TaskCancelledException when the request failed or was cancelled
      */
     public SearchContext open(ShardSearchRequest shardRequest) throws IOException {
         // checked first, so a cancelled request doesn't acquire a searcher for every remaining shard
         ensureOpen();
-        service.reserve();
         SearchService searchService = service.searchService();
+        if (keepAlive.millis() > searchService.getMaxKeepAliveInMillis()) {
+            throw new IllegalArgumentException(
+                "the coordinator asks to keep fetch contexts for ["
+                    + keepAlive
+                    + "], set by ["
+                    + FetchContextService.CONTEXT_KEEP_ALIVE.getKey()
+                    + "], but ["
+                    + SearchService.MAX_KEEPALIVE_SETTING.getKey()
+                    + "] allows at most ["
+                    + TimeValue.timeValueMillis(searchService.getMaxKeepAliveInMillis())
+                    + "] on this node"
+            );
+        }
+        service.reserve();
         FetchContextListener.OpenMarker marker = new FetchContextListener.OpenMarker(this);
         ReaderContext readerContext = null;
         SearchContext querySearchContext = null;

@@ -7,45 +7,26 @@
 
 package org.elasticsearch.xpack.esql.fetch.lifetime;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.DocRefOrigin;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchContextMissingException;
-import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.junit.After;
-import org.junit.Before;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -54,80 +35,12 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
- * The fetch contexts of one data node request, on a real {@link SearchService}. {@link MockSearchService} tracks every
- * registered context, and the check after each test fails on any context a test left open.
+ * The fetch contexts of one data node request.
  */
-public class NodeFetchContextsTests extends ESSingleNodeTestCase {
-    private static final String INDEX = "fetch-contexts";
-    /** Indices whose name starts with this prefix get no {@link FetchContextListener}. */
-    private static final String UNLISTENED_PREFIX = "unlistened";
-    private static final int SHARDS = 3;
-
-    /**
-     * Registers a {@link FetchContextListener} on every index, the way the ES|QL plugin does.
-     */
-    public static class FetchContextListenerPlugin extends Plugin {
-        private final SetOnce<FetchContextListener> listener = new SetOnce<>();
-
-        @Override
-        public Collection<?> createComponents(PluginServices services) {
-            listener.set(new FetchContextListener(services.clusterService().getSettings(), services.threadPool().getThreadContext()));
-            return List.of();
-        }
-
-        @Override
-        public void onIndexModule(IndexModule indexModule) {
-            if (indexModule.getIndex().getName().startsWith(UNLISTENED_PREFIX) == false) {
-                indexModule.addSearchOperationListener(listener.get());
-                indexModule.addIndexEventListener(listener.get());
-            }
-        }
-
-        @Override
-        public List<Setting<?>> getSettings() {
-            return List.of(FetchContextService.MAX_OPEN_CONTEXTS);
-        }
-    }
-
-    /**
-     * A request of the fetch phase, which may look a fetch context up.
-     */
-    private static class FetchRequest extends AbstractTransportRequest implements FetchContextRequest {}
-
-    /**
-     * Any other request, like the fetch phase of a search.
-     */
-    private static class OtherRequest extends AbstractTransportRequest {}
-
-    private final List<SearchContext> querySearchContexts = new ArrayList<>();
-    private FetchContextService service;
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(MockSearchService.TestPlugin.class, FetchContextListenerPlugin.class);
-    }
-
-    @Before
-    public void createService() {
-        service = new FetchContextService(
-            getInstanceFromNode(SearchService.class),
-            getInstanceFromNode(ThreadPool.class),
-            getInstanceFromNode(ClusterService.class).getClusterSettings()
-        );
-    }
-
-    @After
-    public void closeQuerySearchContexts() {
-        querySearchContexts.forEach(SearchContext::close);
-        querySearchContexts.clear();
-        ((MockSearchService) getInstanceFromNode(SearchService.class)).setOnCreateSearchContext(context -> {});
-        ((MockSearchService) getInstanceFromNode(SearchService.class)).setOnPutContext(context -> {});
-    }
-
+public class NodeFetchContextsTests extends FetchContextsTestCase {
     public void testOpensRegisteredContexts() throws Exception {
         createIndexWithDocs(INDEX);
         NodeFetchContexts contexts = newNodeContexts();
@@ -137,7 +50,10 @@ public class NodeFetchContextsTests extends ESSingleNodeTestCase {
         assertThat(service.openContexts(), equalTo(SHARDS));
         for (SearchContext searchContext : opened) {
             ReaderContext readerContext = searchContext.readerContext();
-            assertThat(searchService().findReaderContext(readerContext.id(), new FetchRequest(), null), sameInstance(readerContext));
+            assertThat(
+                searchService().findReaderContext(readerContext.id(), new TestFetchContextRequest(), null),
+                sameInstance(readerContext)
+            );
         }
 
         contexts.freeAll("the test is done");
@@ -168,8 +84,11 @@ public class NodeFetchContextsTests extends ESSingleNodeTestCase {
 
         contexts.responded();
         endRequest(contexts);
-        assertBusy(() -> assertThat(searchService().getActiveContexts(), equalTo(contributing.size())));
-        assertThat(service.openContexts(), equalTo(contributing.size()));
+        // a freed context leaves the registry first and closes when its last reference goes, so both are awaited
+        assertBusy(() -> {
+            assertThat(searchService().getActiveContexts(), equalTo(contributing.size()));
+            assertThat(service.openContexts(), equalTo(contributing.size()));
+        });
 
         // the coordinator owns the rest now, and frees them at the end of the query
         for (OpenContextInfo context : open) {
@@ -179,13 +98,28 @@ public class NodeFetchContextsTests extends ESSingleNodeTestCase {
     }
 
     /**
+     * A cancellation that reaches the request after its response frees the contributing contexts too, because the query
+     * is over.
+     */
+    public void testFreeAllAfterTheResponseFreesEveryContext() throws Exception {
+        createIndexWithDocs(INDEX);
+        NodeFetchContexts contexts = newNodeContexts();
+        openEveryShard(contexts, INDEX).forEach(contexts::originOf);
+        contexts.responded();
+
+        contexts.freeAll("the request was cancelled");
+        endRequest(contexts);
+
+        assertAllFreed();
+    }
+
+    /**
      * The origin names the registered context, so the fetch phase finds it again on this node.
      */
     public void testOriginNamesTheRegisteredContext() throws Exception {
         createIndexWithDocs(INDEX);
         NodeFetchContexts contexts = newNodeContexts();
-        SearchContext searchContext = contexts.open(shardRequest(new ShardId(resolveIndex(INDEX), 0)));
-        querySearchContexts.add(searchContext);
+        SearchContext searchContext = open(contexts, INDEX, 0);
 
         DocRefOrigin origin = contexts.originOf(searchContext);
 
@@ -204,31 +138,30 @@ public class NodeFetchContextsTests extends ESSingleNodeTestCase {
      */
     public void testOnlyTheOwnersFetchRequestsFindTheContext() throws Exception {
         createIndexWithDocs(INDEX);
-        ThreadContext threadContext = getInstanceFromNode(ThreadPool.class).getThreadContext();
         Authentication owner = AuthenticationTestHelper.builder().user(new User("owner")).build();
         Authentication other = AuthenticationTestHelper.builder().user(new User("other")).build();
         NodeFetchContexts contexts = newNodeContexts();
-        ReaderContext readerContext;
-        try (var ignored = threadContext.stashContext()) {
-            owner.writeToContext(threadContext);
-            SearchContext searchContext = contexts.open(shardRequest(new ShardId(resolveIndex(INDEX), 0)));
-            querySearchContexts.add(searchContext);
-            readerContext = searchContext.readerContext();
-            assertThat(readerContext.getFromContext(AuthenticationField.AUTHENTICATION_KEY), equalTo(owner));
+        ReaderContext readerContext = as(owner, () -> open(contexts, INDEX, 0).readerContext());
+        assertThat(readerContext.getFromContext(AuthenticationField.AUTHENTICATION_KEY), equalTo(owner));
 
-            assertThat(searchService().findReaderContext(readerContext.id(), new FetchRequest(), null), sameInstance(readerContext));
+        as(owner, () -> {
+            assertThat(
+                searchService().findReaderContext(readerContext.id(), new TestFetchContextRequest(), null),
+                sameInstance(readerContext)
+            );
             expectThrows(
                 SearchContextMissingException.class,
                 () -> searchService().findReaderContext(readerContext.id(), new OtherRequest(), null)
             );
-        }
-        try (var ignored = threadContext.stashContext()) {
-            other.writeToContext(threadContext);
+            return null;
+        });
+        as(other, () -> {
             expectThrows(
                 SearchContextMissingException.class,
-                () -> searchService().findReaderContext(readerContext.id(), new FetchRequest(), null)
+                () -> searchService().findReaderContext(readerContext.id(), new TestFetchContextRequest(), null)
             );
-        }
+            return null;
+        });
         assertThat("a rejected lookup leaves the context open", searchService().getActiveContexts(), equalTo(1));
         contexts.freeAll("the test is done");
         endRequest(contexts);
@@ -242,8 +175,7 @@ public class NodeFetchContextsTests extends ESSingleNodeTestCase {
     public void testFreeAllFreesEveryContext() throws Exception {
         createIndexWithDocs(INDEX);
         NodeFetchContexts contexts = newNodeContexts();
-        List<SearchContext> opened = openEveryShard(contexts, INDEX);
-        randomSubsetOf(opened).forEach(contexts::originOf);
+        randomSubsetOf(openEveryShard(contexts, INDEX)).forEach(contexts::originOf);
 
         contexts.freeAll("the request failed");
         assertBusy(() -> assertThat(searchService().getActiveContexts(), equalTo(0)));
@@ -275,7 +207,7 @@ public class NodeFetchContextsTests extends ESSingleNodeTestCase {
         NodeFetchContexts contexts = newNodeContexts();
         contexts.freeAll("the request was cancelled");
 
-        expectThrows(TaskCancelledException.class, () -> contexts.open(shardRequest(new ShardId(resolveIndex(INDEX), 0))));
+        expectThrows(TaskCancelledException.class, () -> open(contexts, INDEX, 0));
         endRequest(contexts);
         assertAllFreed();
     }
@@ -288,7 +220,7 @@ public class NodeFetchContextsTests extends ESSingleNodeTestCase {
         NodeFetchContexts contexts = newNodeContexts();
         ((MockSearchService) searchService()).setOnCreateSearchContext(context -> contexts.freeAll("the request was cancelled"));
 
-        expectThrows(TaskCancelledException.class, () -> contexts.open(shardRequest(new ShardId(resolveIndex(INDEX), 0))));
+        expectThrows(TaskCancelledException.class, () -> open(contexts, INDEX, 0));
         endRequest(contexts);
         assertAllFreed();
     }
@@ -303,22 +235,19 @@ public class NodeFetchContextsTests extends ESSingleNodeTestCase {
         ((MockSearchService) searchService()).setOnPutContext(context -> { throw new IndexNotFoundException(index); });
         NodeFetchContexts contexts = newNodeContexts();
 
-        expectThrows(IndexNotFoundException.class, () -> contexts.open(shardRequest(new ShardId(index, 0))));
+        expectThrows(IndexNotFoundException.class, () -> open(contexts, INDEX, 0));
         endRequest(contexts);
         assertAllFreed();
     }
 
     public void testRejectsContextsBeyondTheLimit() throws Exception {
         createIndexWithDocs(INDEX);
-        updateMaxOpenContexts(1);
+        updateSetting(FetchContextService.MAX_OPEN_CONTEXTS, 1);
         try {
             NodeFetchContexts contexts = newNodeContexts();
-            querySearchContexts.add(contexts.open(shardRequest(new ShardId(resolveIndex(INDEX), 0))));
+            open(contexts, INDEX, 0);
 
-            ElasticsearchStatusException e = expectThrows(
-                ElasticsearchStatusException.class,
-                () -> contexts.open(shardRequest(new ShardId(resolveIndex(INDEX), 1)))
-            );
+            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> open(contexts, INDEX, 1));
             assertThat(e.status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
             assertThat(e.getMessage(), containsString("[esql.fetch.max_open_contexts]"));
             assertThat(service.openContexts(), equalTo(1));
@@ -327,8 +256,21 @@ public class NodeFetchContextsTests extends ESSingleNodeTestCase {
             endRequest(contexts);
             assertAllFreed();
         } finally {
-            updateMaxOpenContexts(null);
+            updateSetting(FetchContextService.MAX_OPEN_CONTEXTS, null);
         }
+    }
+
+    /**
+     * Each data node checks the keep-alive the coordinator sends against its own limit, and names both settings.
+     */
+    public void testRejectsAKeepAliveAboveTheLimitOfTheNode() throws Exception {
+        createIndexWithDocs(INDEX);
+        NodeFetchContexts contexts = service.newNodeContexts(TimeValue.timeValueHours(25), null);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> open(contexts, INDEX, 0));
+        assertThat(e.getMessage(), containsString("[esql.fetch.context_keep_alive]"));
+        assertThat(e.getMessage(), containsString("[search.max_keep_alive] allows at most [1d]"));
+        assertAllFreed();
     }
 
     /**
@@ -336,15 +278,12 @@ public class NodeFetchContextsTests extends ESSingleNodeTestCase {
      */
     public void testFailedSearchContextLeavesNothing() throws Exception {
         createIndexWithDocs(INDEX);
-        ((MockSearchService) getInstanceFromNode(SearchService.class)).setOnCreateSearchContext(context -> {
-            throw new IllegalStateException("simulated failure");
-        });
+        ((MockSearchService) searchService()).setOnCreateSearchContext(
+            context -> { throw new IllegalStateException("simulated failure"); }
+        );
         NodeFetchContexts contexts = newNodeContexts();
 
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> contexts.open(shardRequest(new ShardId(resolveIndex(INDEX), 0)))
-        );
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> open(contexts, INDEX, 0));
         assertThat(e.getMessage(), equalTo("simulated failure"));
         assertAllFreed();
     }
@@ -358,10 +297,7 @@ public class NodeFetchContextsTests extends ESSingleNodeTestCase {
         createIndexWithDocs(index);
         NodeFetchContexts contexts = newNodeContexts();
 
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> contexts.open(shardRequest(new ShardId(resolveIndex(index), 0)))
-        );
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> open(contexts, index, 0));
         assertThat(e.getMessage(), containsString("no fetch context listener bound reader context"));
         assertAllFreed();
     }
@@ -374,9 +310,9 @@ public class NodeFetchContextsTests extends ESSingleNodeTestCase {
         NodeFetchContexts contexts = newNodeContexts();
         List<SearchContext> opened = openEveryShard(contexts, INDEX);
         opened.forEach(contexts::originOf);
+        ShardId closed = opened.getFirst().shardTarget().getShardId();
         contexts.responded();
         endRequest(contexts);
-        ShardId closed = opened.getFirst().shardTarget().getShardId();
 
         listener().afterIndexShardClosed(closed, null, Settings.EMPTY);
 
@@ -392,85 +328,15 @@ public class NodeFetchContextsTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * Deleting the index frees its contexts, and the request stops listing them.
+     * Deleting the index frees its contexts.
      */
-    public void testIndexDeletionClosesTheContexts() throws Exception {
+    public void testIndexDeletionFreesTheContexts() throws Exception {
         createIndexWithDocs(INDEX);
-        NodeFetchContexts contexts = newNodeContexts();
-        openEveryShard(contexts, INDEX).forEach(contexts::originOf);
-        contexts.responded();
-        endRequest(contexts);
+        respond(INDEX);
         assertBusy(() -> assertThat(service.openContexts(), equalTo(SHARDS)));
 
         client().admin().indices().prepareDelete(INDEX).get();
 
         assertAllFreed();
-        assertThat(contexts.listOpenContributing(), empty());
-    }
-
-    private NodeFetchContexts newNodeContexts() {
-        return service.newNodeContexts(TimeValue.timeValueMinutes(5), null);
-    }
-
-    private List<SearchContext> openEveryShard(NodeFetchContexts contexts, String index) throws IOException {
-        List<SearchContext> opened = new ArrayList<>();
-        for (int shard = 0; shard < SHARDS; shard++) {
-            SearchContext searchContext = contexts.open(shardRequest(new ShardId(resolveIndex(index), shard)));
-            querySearchContexts.add(searchContext);
-            opened.add(searchContext);
-            assertThat(searchContext.readerContext().getFromContext(FetchContextListener.MARKER_KEY), notNullValue());
-        }
-        return opened;
-    }
-
-    private void createIndexWithDocs(String index) {
-        createIndex(index, Settings.builder().put("index.number_of_shards", SHARDS).put("index.number_of_replicas", 0).build());
-        for (int i = 0; i < 20; i++) {
-            prepareIndex(index).setSource("field", i).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        }
-    }
-
-    private static ShardSearchRequest shardRequest(ShardId shardId) {
-        return new ShardSearchRequest(shardId, System.currentTimeMillis(), AliasFilter.EMPTY, null, SplitShardCountSummary.IRRELEVANT);
-    }
-
-    /**
-     * Ends the request the way a data node does: the search contexts of the query phase close first, then the fetch
-     * contexts.
-     */
-    private void endRequest(NodeFetchContexts contexts) {
-        closeQuerySearchContexts();
-        contexts.close();
-    }
-
-    /**
-     * Waits until no context is registered and no fetch context is open. A context closes when its last user lets go of
-     * it, so the query search contexts close first.
-     */
-    private void assertAllFreed() throws Exception {
-        closeQuerySearchContexts();
-        assertBusy(() -> {
-            assertThat(searchService().getActiveContexts(), equalTo(0));
-            assertThat(service.openContexts(), equalTo(0));
-        });
-    }
-
-    private void updateMaxOpenContexts(Integer max) {
-        Settings.Builder settings = Settings.builder();
-        if (max == null) {
-            settings.putNull(FetchContextService.MAX_OPEN_CONTEXTS.getKey());
-        } else {
-            settings.put(FetchContextService.MAX_OPEN_CONTEXTS.getKey(), max);
-        }
-        clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setPersistentSettings(settings).get();
-    }
-
-    private SearchService searchService() {
-        return getInstanceFromNode(SearchService.class);
-    }
-
-    private FetchContextListener listener() {
-        return getInstanceFromNode(PluginsService.class).filterPlugins(FetchContextListenerPlugin.class).findFirst().orElseThrow().listener
-            .get();
     }
 }

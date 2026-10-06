@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -49,7 +50,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -60,9 +60,8 @@ import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.IdentityHashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -182,6 +181,11 @@ public class TestAnalyzer {
      * Convenience overload of {@link #addLenientResolution(LinkedIndexPattern, IndexResolution)} for the
      * common no-exclusion case: keys the entry by an {@link IndexPattern} built from
      * {@code esIndex.name()} (which the test should match the local view name).
+     * <p>
+     * The shadow rules treat a resolution with no resolved indices as no-match, so a matched
+     * fixture's {@code EsIndex} must carry {@code indexProperties} (build it with the 3-arg
+     * {@code EsIndexGenerator.esIndex(name, mapping, indexNameWithModes)}); otherwise the shadow
+     * is stripped instead of resolved.
      */
     public TestAnalyzer addLenientResolution(EsIndex esIndex) {
         return addLenientResolution(
@@ -578,6 +582,14 @@ public class TestAnalyzer {
     }
 
     /**
+     * Add an inference resolution with the similarity measure used by the endpoint.
+     */
+    public TestAnalyzer addInferenceResolution(String inferenceId, TaskType taskType, SimilarityMeasure similarity) {
+        this.inferenceResolution.withResolvedInference(new ResolvedInference(inferenceId, taskType, similarity));
+        return this;
+    }
+
+    /**
      * Add an error in inference resolution.
      */
     public TestAnalyzer addInferenceResolutionError(String inferenceId, String reason) {
@@ -652,8 +664,6 @@ public class TestAnalyzer {
      * Single traversal that interleaves view expansion and IN-subquery rewriting, mirroring {@code ViewResolver#replaceViews}.
      */
     private LogicalPlan resolveViews(LogicalPlan parsed, Map<String, LogicalPlan> viewDefinitions) {
-        // TODO remove inlineStatsAggregates after in subquery is supported in inline stats where.
-        Set<Aggregate> inlineStatsAggregates = Collections.newSetFromMap(new IdentityHashMap<>());
         return parsed.transformDown(p -> {
             if (p instanceof Filter filter) {
                 LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInFilter(filter);
@@ -666,15 +676,8 @@ public class TestAnalyzer {
                 // EVAL IN subqueries become MarkJoins; recurse so views in their now-exposed subquery plans are resolved too.
                 return resolved == eval ? eval : resolveViews(resolved, viewDefinitions);
             }
-            if (p instanceof InlineStats inlineStats) {
-                // INLINE STATS aggregate filters remain unsupported; remember its owned Aggregate so the case below leaves it intact.
-                inlineStatsAggregates.add(inlineStats.aggregate());
-                return inlineStats;
-            }
             if (p instanceof Aggregate aggregate) {
-                LogicalPlan resolved = inlineStatsAggregates.contains(aggregate)
-                    ? aggregate
-                    : InSubqueryResolver.resolveInSubqueryInAggregate(aggregate);
+                LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInAggregate(aggregate);
                 // Recurse into rewritten joins so views referenced by the newly exposed subquery plans are expanded too.
                 return resolved == aggregate ? aggregate : resolveViews(resolved, viewDefinitions);
             }
@@ -719,13 +722,15 @@ public class TestAnalyzer {
             String indexPattern = unresolvedRelations.stream().map(u -> u.indexPattern().indexPattern()).collect(Collectors.joining(","));
             subplans.put(null, makeUnresolvedRelation(unresolvedRelations.get(0), indexPattern));
         }
+        Set<String> viewBranchKeys = new HashSet<>();
         for (NamedSubquery namedSubquery : namedSubqueries) {
             subplans.put(namedSubquery.name(), namedSubquery.child());
+            viewBranchKeys.add(namedSubquery.name());
         }
         if (subplans.size() == 1) {
-            return namedSubqueries.get(0).child();
+            return subplans.values().iterator().next();
         } else {
-            return new ViewUnionAll(ur.source(), subplans, List.of());
+            return new ViewUnionAll(ur.source(), subplans, viewBranchKeys, List.of());
         }
     }
 
@@ -958,13 +963,20 @@ public class TestAnalyzer {
      * {@link Analyzer} and call {@link Analyzer#analyze} directly, possibly against several different queries.
      */
     public Analyzer buildAnalyzer(Verifier verifier) {
-        return new Analyzer(buildContext(), verifier) {
+        lastAnalyzer = new Analyzer(buildContext(), verifier) {
             @Override
             public LogicalPlan analyze(LogicalPlan plan) {
                 resolveEnrichResolution(plan);
                 return super.analyze(plan);
             }
         };
+        return lastAnalyzer;
+    }
+
+    private Analyzer lastAnalyzer;
+
+    public Analyzer lastAnalyzer() {
+        return lastAnalyzer;
     }
 
     /**
@@ -987,7 +999,8 @@ public class TestAnalyzer {
             minimumTransportVersion.get(),
             unmappedResolution,
             timestampBounds,
-            TEST_IP_LOCATION_RESOLUTION
+            TEST_IP_LOCATION_RESOLUTION,
+            false
         );
     }
 

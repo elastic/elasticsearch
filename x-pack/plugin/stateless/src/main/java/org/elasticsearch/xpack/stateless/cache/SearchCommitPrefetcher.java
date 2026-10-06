@@ -67,7 +67,7 @@ public class SearchCommitPrefetcher {
 
     public static final Setting<Boolean> BACKGROUND_PREFETCH_ENABLED_SETTING = Setting.boolSetting(
         "stateless.search.prefetch_commits.background_prefetch",
-        true,
+        false,
         Setting.Property.NodeScope
     );
     public static final Setting<Boolean> PREFETCH_NON_UPLOADED_COMMITS_SETTING = Setting.boolSetting(

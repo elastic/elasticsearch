@@ -97,7 +97,11 @@
         index: test
         body:
           settings:
+            # Keep this on a single un-replicated shard. The test depends on knowing the exact state the shard (that we
+            # refresh it, update it, and then don't refresh it), and a second shard complicates things.
             index.refresh_interval: -1
+            index.number_of_replicas: 0
+            index.number_of_shards: 1
   - do:
       index:
         index:   test
@@ -149,7 +153,11 @@
         index: test
         body:
           settings:
+            # Keep this on a single un-replicated shard. The test depends on knowing the exact state the shard (that we
+            # refresh it, update it, and then don't refresh it), and a second shard complicates things.
             index.refresh_interval: -1
+            index.number_of_replicas: 0
+            index.number_of_shards: 1
   - do:
       index:
         index:   test
@@ -200,6 +208,8 @@
         index: test
         body:
           settings:
+            # Keep this on a single un-replicated shard. The test depends on knowing the exact state the shard (that we
+            # refresh it, update it, and then don't refresh it), and a second shard complicates things.
             index.refresh_interval: -1
             index.number_of_replicas: 0
             index.number_of_shards: 1

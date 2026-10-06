@@ -1075,6 +1075,14 @@ public final class ServiceUtils {
         throw new UnsupportedOperationException(Strings.format("The %s service does not support %s", serviceName, taskName));
     }
 
+    public static ElasticsearchStatusException createUnsupportedNonStreamingChatCompletionException(String serviceName) {
+        return new ElasticsearchStatusException(
+            "The [{}] service does not support non-streaming for the chat completion task type",
+            RestStatus.BAD_REQUEST,
+            serviceName
+        );
+    }
+
     public static ElasticsearchStatusException createUnsupportedMultimodalRerankException(String serviceName) {
         return new ElasticsearchStatusException(
             Strings.format("The %s service does not support rerank with non-text inputs or queries", serviceName),

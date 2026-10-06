@@ -26,6 +26,12 @@ export interface OutcomeInput {
   // build failure, since the analyze step does not read the job log (a choice we
   // may revisit).
   oomDetected?: boolean;
+  // True when every Test task this batch asked for came back SKIPPED in gradle-runner's
+  // task-status.json. Gradle reports a task rejected by `onlyIf` (bwc's `bwc_tests_enabled`,
+  // the distro architecture check) and a task with no source that way: zero tests, exit 0.
+  // Without this signal that is indistinguishable from a hang, so a target the resolver
+  // could not have known was unrunnable reads as a flakiness-pipeline defect.
+  taskSkipped?: boolean;
 }
 
 export interface DerivedOutcome {
@@ -48,7 +54,15 @@ export interface DerivedOutcome {
  * failure outranks everything, including a concurrent timeout, because that is
  * what matters for the false-positive metric.
  */
-export function deriveOutcome({ rc, durationSec, realFailures, totalCases, timeoutThresholdSec, oomDetected }: OutcomeInput): DerivedOutcome {
+export function deriveOutcome({
+  rc,
+  durationSec,
+  realFailures,
+  totalCases,
+  timeoutThresholdSec,
+  oomDetected,
+  taskSkipped,
+}: OutcomeInput): DerivedOutcome {
   const threshold = timeoutThresholdSec;
   const timedOut = rc === 124 || (rc === 137 && durationSec >= threshold);
 
@@ -70,5 +84,13 @@ export function deriveOutcome({ rc, durationSec, realFailures, totalCases, timeo
       ? { outcome: "infra_fail", timedOut: false, infraSubtype: "oom" }
       : { outcome: "infra_fail", timedOut: false };
   }
-  return totalCases === 0 ? { outcome: "hang", timedOut: false } : { outcome: "clean_pass", timedOut: false };
+  if (totalCases !== 0) {
+    return { outcome: "clean_pass", timedOut: false };
+  }
+  // Zero tests on a clean exit. If Gradle itself reports that every task we asked for was SKIPPED, the
+  // target was never runnable in this environment - an `onlyIf` we cannot introspect at resolve time - so
+  // it is `not_applicable`, not a pipeline defect. Anything else with zero tests stays a hang.
+  return taskSkipped
+    ? { outcome: "not_applicable", timedOut: false }
+    : { outcome: "hang", timedOut: false };
 }

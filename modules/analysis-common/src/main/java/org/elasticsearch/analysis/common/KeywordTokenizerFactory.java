@@ -20,13 +20,23 @@ public class KeywordTokenizerFactory extends AbstractTokenizerFactory {
 
     private final int bufferSize;
 
+    private final Object sharingKey;
+
     KeywordTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
         bufferSize = settings.getAsInt("buffer_size", 256);
+        this.sharingKey = new Key(bufferSize);
     }
 
     @Override
     public Tokenizer create() {
         return new KeywordTokenizer(bufferSize);
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(int bufferSize) {}
 }

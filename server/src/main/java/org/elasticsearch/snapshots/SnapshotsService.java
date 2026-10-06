@@ -1389,6 +1389,28 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     private final Map<ProjectId, Map<String, SnapshotDeletionStartBatcher>> snapshotDeletionStartBatchers = new HashMap<>();
 
     /**
+     * Consulted by every {@link SnapshotDeletionStartBatcher} on each batch of deletions it resolves. Defaults to
+     * {@link RestoreSourceProtection#NOOP}, so an ordinary restore's source snapshot is protected by its
+     * {@link org.elasticsearch.cluster.RestoreInProgress} entry alone.
+     */
+    private volatile RestoreSourceProtection restoreSourceProtection = RestoreSourceProtection.NOOP;
+
+    /**
+     * Registers the {@link RestoreSourceProtection} consulted when resolving snapshot deletions. Takes effect for every batch resolved
+     * after this call, including by batchers that already exist.
+     */
+    public void setRestoreSourceProtection(RestoreSourceProtection restoreSourceProtection) {
+        if (this.restoreSourceProtection != RestoreSourceProtection.NOOP) {
+            throw new IllegalStateException("Restore source protection already set. Cannot change restore source protection");
+        }
+        this.restoreSourceProtection = Objects.requireNonNull(restoreSourceProtection);
+    }
+
+    private Map<SnapshotId, String> protectedRestoreSources(ClusterState state, ProjectId projectId, String repositoryName) {
+        return restoreSourceProtection.protectedSnapshots(state, projectId, repositoryName);
+    }
+
+    /**
      * Deletes snapshots from the repository. In-progress snapshots matched by the delete will be aborted before deleting them.
      *
      * When <code>wait_for_completion</code> is set to true, the passed action listener will only complete when all
@@ -1414,7 +1436,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         this::notifyAbortedByDeletion,
                         this::endSnapshot,
                         this::completeOrAddDeleteListener,
-                        this::enterRepoLoopAndDeleteSnapshots
+                        this::enterRepoLoopAndDeleteSnapshots,
+                        this::protectedRestoreSources
                     )
                 );
         }

@@ -13,8 +13,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator.NodeAllocationStatsAndWeight;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
-import org.elasticsearch.telemetry.metric.ConsumingLongGaugeMetric;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
+import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
@@ -151,7 +151,7 @@ public class DesiredBalanceMetrics {
     private final AtomicReference<Map<DiscoveryNode, NodeAllocationStatsAndWeight>> allocationStatsPerNodeRef = new AtomicReference<>(
         Map.of()
     );
-    private final ConsumingLongGaugeMetric writeLoadDeciderMaxQueueLatencyGauge;
+    private final LongGauge writeLoadDeciderMaxQueueLatencyGauge;
 
     private volatile DesiredBalanceStats desiredBalanceStats = DesiredBalanceStats.ZERO;
 
@@ -173,8 +173,7 @@ public class DesiredBalanceMetrics {
 
     public DesiredBalanceMetrics(MeterRegistry meterRegistry) {
         this.meterRegistry = meterRegistry;
-        this.writeLoadDeciderMaxQueueLatencyGauge = ConsumingLongGaugeMetric.create(
-            meterRegistry,
+        this.writeLoadDeciderMaxQueueLatencyGauge = meterRegistry.registerLongGauge(
             WRITE_LOAD_DECIDER_MAX_LATENCY_VALUE,
             "max latency for write load decider",
             "ms"
@@ -304,7 +303,7 @@ public class DesiredBalanceMetrics {
         );
     }
 
-    public ConsumingLongGaugeMetric getWriteLoadDeciderMaxQueueLatencyGauge() {
+    public LongGauge getWriteLoadDeciderMaxQueueLatencyGauge() {
         return writeLoadDeciderMaxQueueLatencyGauge;
     }
 

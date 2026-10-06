@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
@@ -209,6 +210,28 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
                     Strings.collectionToCommaDelimitedString(unfoundedRoleNames.stream().sorted().toList())
                 )
             )
+        );
+    }
+
+    public void testCloudServiceAccountRolesDescriptionDistinguishesAssignedAndLimitingRoles() {
+        final String assignedRole = "cp4_qa_index_reader";
+        final String limitingRole = "admin";
+        final Authentication authentication = Authentication.newCloudAuthentication(
+            Authentication.AuthenticationType.TOKEN,
+            Subject.Type.CLOUD_SERVICE_ACCOUNT,
+            AuthenticationResult.success(
+                new User("cloud-service-account", assignedRole),
+                Map.of(AuthenticationField.CLOUD_LIMITED_BY_ROLES_KEY, List.of(limitingRole))
+            ),
+            "node",
+            null
+        );
+        final AuthorizationInfo authorizationInfo = mock(AuthorizationInfo.class);
+        when(authorizationInfo.asMap()).thenReturn(Map.of("user.roles", new String[] { limitingRole }));
+
+        assertThat(
+            denialMessages.rolesDescription(authentication.getEffectiveSubject(), authorizationInfo),
+            equalTo(" with assigned roles [" + assignedRole + "], limited by roles [" + limitingRole + "]")
         );
     }
 

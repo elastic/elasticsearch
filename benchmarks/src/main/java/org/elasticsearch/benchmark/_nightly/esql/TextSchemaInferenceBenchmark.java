@@ -8,6 +8,7 @@
 package org.elasticsearch.benchmark._nightly.esql;
 
 import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -91,7 +92,7 @@ public class TextSchemaInferenceBenchmark {
 
     @Setup(Level.Trial)
     public void setup() {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
         blockFactory = DatasourceBenchmarks.newBlockFactory();
         byte[] bytes = generateFixture(format, column, rowCount);
         storageObject = DatasourceBenchmarks.inMemoryStorageObject(bytes, "memory://bench-inference." + format);

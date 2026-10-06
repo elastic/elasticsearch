@@ -11,6 +11,12 @@ import org.elasticsearch.Build;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.transport.RemoteClusterService;
 
+/*
+ * Adding a field: cluster-setting validation runs under a static context (see QuerySettingDef), where only
+ * build-type facts are truthful and crossProjectEnabled is already a placeholder. build() keeps such validators off
+ * that path by refusing withClusterDefault() on serverlessOnly settings — today exactly the set that reads it. A new
+ * field in that category needs that guard extended, not the correlation trusted.
+ */
 public record SettingsValidationContext(boolean crossProjectEnabled, boolean isSnapshot) {
 
     /**

@@ -9,7 +9,6 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
@@ -299,17 +298,15 @@ public class RolesBackwardsCompatibilityIT extends AbstractXpackRollingUpgradeWi
 
     private boolean nodeSupportTransportVersion(NodeInfo testNodeInfo, TransportVersion transportVersion) {
         if (testNodeInfo.transportVersion().equals(TransportVersion.zero())) {
-            // In cases where we were not able to find a TransportVersion, a pre-8.8.0 node answered about a newer (upgraded) node.
-            // In that case, the node will be current (upgraded), and remote indices are supported for sure.
-            var nodeIsCurrent = testNodeInfo.version().equals(Build.current().version());
-            assertTrue(nodeIsCurrent);
-            return true;
+            return testNodeInfo.isUpgradedVersionCluster();
         }
         return testNodeInfo.transportVersion().supports(transportVersion);
     }
 
     private static RoleDescriptor randomRoleDescriptor(boolean includeDescription, boolean includeManageRoles) {
         final Set<String> excludedPrivileges = Set.of(
+            "read_failure_store",
+            "manage_failure_store",
             "cross_cluster_replication",
             "cross_cluster_replication_internal",
             "manage_data_stream_lifecycle"

@@ -48,6 +48,9 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
         Version currentVersion = Version.fromString(versions.getProperty("elasticsearch"));
 
         var resourceRoot = getResourceRoot(project);
+        // Only repositories which have a branch tracking serverless production set this. Where it is unset,
+        // transport versions are never generated or validated as patch ids.
+        Provider<String> patchBranchName = project.getProviders().gradleProperty("org.elasticsearch.transport.patchBranch");
 
         String taskGroup = "Transport Versions";
 
@@ -84,6 +87,7 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
                 t.getShouldValidatePrimaryIdNotPatch().convention(true);
                 t.getCurrentUpperBoundName().convention(currentVersion.getMajor() + "." + currentVersion.getMinor());
                 t.getCI().set(buildParams.get().getCi());
+                t.getPatchBranchName().convention(patchBranchName);
             });
         project.getTasks().named(PrecommitPlugin.PRECOMMIT_TASK_NAME).configure(t -> t.dependsOn(validateTask));
 
@@ -105,6 +109,7 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
         validateTask.configure(t -> {
             t.mustRunAfter(generateDefinitionsTask);
             t.getIncrement().set(generateDefinitionsTask.flatMap(GenerateTransportVersionDefinitionTask::getIncrement));
+            t.getPatchBranch().set(generateDefinitionsTask.flatMap(GenerateTransportVersionDefinitionTask::getPatchBranch));
         });
 
         var resolveConflictTask = project.getTasks()
@@ -118,6 +123,7 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
             t.setGroup(taskGroup);
             t.getIncrement().convention(1000);
             t.getCurrentUpperBoundName().convention(currentVersion.getMajor() + "." + currentVersion.getMinor());
+            t.getPatchBranchName().convention(patchBranchName);
         });
 
         var generateInitialTask = project.getTasks()

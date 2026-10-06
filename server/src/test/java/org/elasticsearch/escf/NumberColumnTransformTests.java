@@ -18,6 +18,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -832,7 +834,10 @@ public class NumberColumnTransformTests extends ESTestCase {
         assertEquals(30L, vals[2]);
     }
 
-    /** Empty strings with coerce=true use the mapper null_value when one is configured. */
+    /**
+     * Empty strings with coerce=true use the mapper null_value when one is configured, whether or not the caller
+     * records an offsets sidecar: the null value is an ordinary output value, so there is no dropped slot to reject.
+     */
     public void testStringToLong_emptyString_coerceTrue_usesNullValue() {
         EscfColumnData src = stringColumnData("10", "", "30");
         EscfColumnData out = NumberColumnTransform.toSortableLongColumn(
@@ -840,12 +845,33 @@ public class NumberColumnTransformTests extends ESTestCase {
             NumberType.LONG,
             true,
             BytesRefRecycler.NON_RECYCLING_INSTANCE,
-            99L
+            99L,
+            randomBoolean()
         );
         long[] vals = readValues(out, 3);
         assertEquals(10L, vals[0]);
         assertEquals(99L, vals[1]);
         assertEquals(30L, vals[2]);
+    }
+
+    /**
+     * Empty strings with coerce=true and no null_value throw when the caller records an offsets sidecar: the row
+     * path records a null slot for them, which the columnar sidecar cannot emit.
+     */
+    public void testStringToLong_emptyString_rejectDroppedValues_throws() {
+        EscfColumnData src = stringColumnData("10", "", "30");
+        UnsupportedOperationException ex = expectThrows(
+            UnsupportedOperationException.class,
+            () -> NumberColumnTransform.toSortableLongColumn(
+                EscfColumn.from(src),
+                NumberType.LONG,
+                true,
+                BytesRefRecycler.NON_RECYCLING_INSTANCE,
+                null,
+                true
+            )
+        );
+        assertTrue("expected offsets message but got: " + ex.getMessage(), ex.getMessage().contains("records a null offsets slot"));
     }
 
     public void testStringToLong_emptyString_coerceFalse_throws() {
@@ -1072,7 +1098,10 @@ public class NumberColumnTransformTests extends ESTestCase {
         assertArrayEquals(new long[] { 4L }, vals[2]);
     }
 
-    /** ARRAY-of-STRING: empty elements use null_value when configured. */
+    /**
+     * ARRAY-of-STRING: empty elements use null_value when configured, whether or not the caller records an offsets
+     * sidecar, since each empty element still produces an output value.
+     */
     public void testStringArray_emptyString_coerceTrue_usesNullValue() {
         EscfColumnData src = stringArrayColumnData(new String[] { "1", "", "3" }, new String[] { "" });
         EscfColumnData out = NumberColumnTransform.toSortableLongColumn(
@@ -1080,11 +1109,29 @@ public class NumberColumnTransformTests extends ESTestCase {
             NumberType.LONG,
             true,
             BytesRefRecycler.NON_RECYCLING_INSTANCE,
-            99L
+            99L,
+            randomBoolean()
         );
         long[][] vals = readArrayValues(out, 2);
         assertArrayEquals(new long[] { 1L, 99L, 3L }, vals[0]);
         assertArrayEquals(new long[] { 99L }, vals[1]);
+    }
+
+    /** ARRAY-of-STRING: an empty element with no null_value throws when the caller records an offsets sidecar. */
+    public void testStringArray_emptyString_rejectDroppedValues_throws() {
+        EscfColumnData src = stringArrayColumnData(new String[] { "1", "2" }, new String[] { "", "3" });
+        UnsupportedOperationException ex = expectThrows(
+            UnsupportedOperationException.class,
+            () -> NumberColumnTransform.toSortableLongColumn(
+                EscfColumn.from(src),
+                NumberType.LONG,
+                true,
+                BytesRefRecycler.NON_RECYCLING_INSTANCE,
+                null,
+                true
+            )
+        );
+        assertTrue("expected offsets message but got: " + ex.getMessage(), ex.getMessage().contains("records a null offsets slot"));
     }
 
     /** ARRAY-of-STRING: BigDecimal elements truncate per element when coerce=true. */
@@ -1120,5 +1167,66 @@ public class NumberColumnTransformTests extends ESTestCase {
             case FLOAT, DOUBLE -> true;
             case HALF_FLOAT -> Float.isFinite(HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort((float) d)));
         };
+    }
+
+    public void testLeakFree_longToFloat() throws Exception {
+        BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+        try (EscfBatch batch = encode("{\"f\": 5}", "{\"f\": -100}")) {
+            EscfColumn src = column(batch, "f");
+            EscfColumnData out = NumberColumnTransform.toSortableLongColumn(src, NumberType.FLOAT, false, recycler);
+            out.close();
+        }
+        MockPageCacheRecycler.ensureAllPagesAreReleased();
+    }
+
+    public void testLeakFree_doubleToDouble() throws Exception {
+        BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+        try (EscfBatch batch = encode("{\"f\": 1.5}", "{\"f\": -2.25}")) {
+            EscfColumn src = column(batch, "f");
+            EscfColumnData out = NumberColumnTransform.toSortableLongColumn(src, NumberType.DOUBLE, false, recycler);
+            out.close();
+        }
+        MockPageCacheRecycler.ensureAllPagesAreReleased();
+    }
+
+    public void testLeakFree_longToHalfFloat() throws Exception {
+        BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+        try (EscfBatch batch = encode("{\"f\": 0}", "{\"f\": 1}", "{\"f\": -1}")) {
+            EscfColumn src = column(batch, "f");
+            EscfColumnData out = NumberColumnTransform.toSortableLongColumn(src, NumberType.HALF_FLOAT, false, recycler);
+            out.close();
+        }
+        MockPageCacheRecycler.ensureAllPagesAreReleased();
+    }
+
+    public void testLeakFree_exceptionPath_midBatch() throws Exception {
+        BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+        try (EscfBatch batch = encode("{\"f\": 1.0}", "{\"f\": 1.0E300}")) {
+            EscfColumn src = column(batch, "f");
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> NumberColumnTransform.toSortableLongColumn(src, NumberType.FLOAT, false, recycler)
+            );
+        }
+        MockPageCacheRecycler.ensureAllPagesAreReleased();
+    }
+
+    public void testLeakFree_stringToLong() throws Exception {
+        BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+        EscfColumnData src = stringColumnData("10", "20", "30");
+        EscfColumnData out = NumberColumnTransform.toSortableLongColumn(EscfColumn.from(src), NumberType.LONG, true, recycler);
+        out.close();
+        MockPageCacheRecycler.ensureAllPagesAreReleased();
+    }
+
+    public void testLeakFree_stringExceptionPath_midBatch() throws Exception {
+        BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+        // "100" is valid; Long.MAX_VALUE + 1 overflows and throws mid-processing.
+        EscfColumnData src = stringColumnData("100", "9223372036854775808");
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> NumberColumnTransform.toSortableLongColumn(EscfColumn.from(src), NumberType.LONG, true, recycler)
+        );
+        MockPageCacheRecycler.ensureAllPagesAreReleased();
     }
 }

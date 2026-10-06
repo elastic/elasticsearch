@@ -2017,6 +2017,72 @@ public class DatafeedManagerTests extends ESTestCase {
         assertThat(manager.currentCallerCredential(threadPool, securityContext), nullValue());
     }
 
+    public void testCarryCallerCredentialWithCredentialShouldHandCredentialToCarrier() {
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", true).build();
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        CloudCredential callerCredential = new CloudCredential(new SecureString("caller-uiam-token".toCharArray()));
+        when(credentialManager.extractCloudManagedCredential(any())).thenReturn(callerCredential);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        DatafeedManager manager = newDatafeedManager(
+            mock(DatafeedConfigProvider.class),
+            mock(JobConfigProvider.class),
+            settings,
+            mock(Client.class),
+            mockMlExtension(credentialManager, mock(InternalCloudApiKeyService.class)),
+            mockAuditor()
+        );
+        AtomicReference<CloudCredential> carried = new AtomicReference<>();
+
+        manager.carryCallerCredential(threadPool, null, carried::set);
+
+        assertThat(carried.get(), equalTo(callerCredential));
+    }
+
+    public void testCarryCallerCredentialWithoutCredentialShouldNotTouchCarrier() {
+        // doExecute runs again on the master, where transient headers are gone and extraction yields null: the credential carried
+        // from the coordinator must not be overwritten.
+        Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", true).build();
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        when(credentialManager.extractCloudManagedCredential(any())).thenReturn(null);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        DatafeedManager manager = newDatafeedManager(
+            mock(DatafeedConfigProvider.class),
+            mock(JobConfigProvider.class),
+            settings,
+            mock(Client.class),
+            mockMlExtension(credentialManager, mock(InternalCloudApiKeyService.class)),
+            mockAuditor()
+        );
+        AtomicBoolean carrierCalled = new AtomicBoolean();
+
+        manager.carryCallerCredential(threadPool, null, credential -> carrierCalled.set(true));
+
+        assertFalse(carrierCalled.get());
+    }
+
+    public void testCarryCallerCredentialWithCrossProjectDisabledShouldNotTouchCarrier() {
+        Settings settings = Settings.builder().put("xpack.security.enabled", true).build();
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        DatafeedManager manager = newDatafeedManager(
+            mock(DatafeedConfigProvider.class),
+            mock(JobConfigProvider.class),
+            settings,
+            mock(Client.class),
+            mockMlExtension(credentialManager, mock(InternalCloudApiKeyService.class)),
+            mockAuditor()
+        );
+        AtomicBoolean carrierCalled = new AtomicBoolean();
+
+        manager.carryCallerCredential(threadPool, null, credential -> carrierCalled.set(true));
+
+        assertFalse(carrierCalled.get());
+        verify(credentialManager, never()).extractCloudManagedCredential(any());
+    }
+
     @SuppressWarnings("unchecked")
     public void testUpdateDatafeedFirstTimeMigrationShouldDefaultProjectRoutingToOrigin() {
         assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
@@ -2344,7 +2410,7 @@ public class DatafeedManagerTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testUpdateDatafeedUserInitiatedScopeChangeWithClosedJobAndNoSnapshotShouldReject() {
+    public void testUpdateDatafeedUserInitiatedScopeChangeWithClosedJobAndNoSnapshotShouldProceedWithoutRetainingSnapshot() {
         assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
         Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
 
@@ -2357,13 +2423,18 @@ public class DatafeedManagerTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
 
+        AnomalyDetectionAuditor auditor = mockAuditor();
+        AnnotationPersister annotationPersister = mock(AnnotationPersister.class);
         DatafeedManager manager = newDatafeedManager(
             datafeedConfigProvider,
             jobConfigProvider,
             settings,
             client,
             mlExtension,
-            mockAuditor()
+            auditor,
+            annotationPersister,
+            threadPool,
+            SCOPE_CHANGE_SIGNAL_DATA_ANCHOR
         );
 
         DatafeedConfig storedConfig = migratedCpsDatafeed("df-scope-nosnap", "job-scope-nosnap");
@@ -2380,25 +2451,22 @@ public class DatafeedManagerTests extends ESTestCase {
         );
         mockGetJobWithSnapshot(jobConfigProvider, "job-scope-nosnap", null);
 
-        AtomicReference<Exception> failure = new AtomicReference<>();
         UpdateDatafeedAction.Request request = new UpdateDatafeedAction.Request(
             new DatafeedUpdate.Builder("df-scope-nosnap").setProjectRouting("_alias:prod-*").build()
         );
-        manager.updateDatafeed(
-            request,
-            mockClusterStateForUpdate(),
-            null,
-            threadPool,
-            ActionListener.wrap(r -> fail("expected failure"), failure::set)
-        );
+        manager.updateDatafeed(request, mockClusterStateForUpdate(), null, threadPool, ActionTestUtils.assertNoFailureListener(r -> {}));
 
-        assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
-        assertThat(((ElasticsearchStatusException) failure.get()).status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(
-            failure.get().getMessage(),
-            containsString(Messages.getMessage(Messages.DATAFEED_SCOPE_CHANGE_REQUIRES_SNAPSHOT, "df-scope-nosnap", "job-scope-nosnap"))
+        assertThat(capturedUpdate.get(), notNullValue());
+        assertThat(capturedUpdate.get().getProjectRouting(), equalTo("_alias:prod-*"));
+        verify(client, never()).execute(same(UpdateModelSnapshotAction.INSTANCE), any(), any());
+        verifyProjectRoutingChangeSignals(
+            auditor,
+            annotationPersister,
+            "job-scope-nosnap",
+            ProjectRoutingResolver.LOCAL_ONLY,
+            "_alias:prod-*",
+            false
         );
-        assertThat(capturedUpdate.get(), nullValue());
     }
 
     @SuppressWarnings("unchecked")

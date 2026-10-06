@@ -248,10 +248,16 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
     }
 
     public void testCanUpdateAccountingModeDynamically() {
-        startMasterOnlyNode();
-        startIndexNode();
-        final var divergentNode = startSearchNode();
-        final var healthyNode = startSearchNode();
+        final var settings = Settings.builder()
+            .put(
+                SharedCacheCapacityAllocationDecider.ACCOUNTING_MODE_SETTING.getKey(),
+                SharedCacheCapacityAllocationDecider.CacheAccountingMode.BOOSTED
+            )
+            .build();
+        startMasterOnlyNode(settings);
+        startIndexNode(settings);
+        final var divergentNode = startSearchNode(settings);
+        final var healthyNode = startSearchNode(settings);
         ensureStableCluster(4);
 
         final String divergentNodeId = getNodeId(divergentNode);

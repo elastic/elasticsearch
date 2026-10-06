@@ -64,14 +64,25 @@ $$$xpack-sa-lf-events-emit-request$$$
 
     The default value is `false`, so request bodies are not printed.
 
+    {applies_to}`stack: ga 9.4` Request bodies are emitted as the `request.body` audit event attribute, except bodies that cannot be represented as JSON (currently requests with a `Content-Type` of `application/x-protobuf`), which are emitted base64-encoded as the `request.raw_body` attribute instead.
+
     ::::{important}
     Be advised that sensitive data may be audited in plain text when including the request body in audit events, even though all the security APIs, such as those that change the user’s password, have the credentials filtered out when audited.
+
+    When `Content-Type` is `application/x-protobuf` (for example OTLP or Prometheus remote-write), the payload is captured verbatim as `request.raw_body`. Base64 encoding is a transport format rather than obfuscation, and such payloads commonly contain tenant identifiers, request headers, or other application-layer data.
     ::::
+
+$$$xpack-sa-lf-events-emit-security-config-change-actor$$$
+
+`xpack.security.audit.logfile.events.emit_security_config_change_actor` {applies_to}`stack: ga 9.6` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Specifies whether to include attribution fields for the actor that initiated the change (such as `user.name`, `user.realm`, and `authentication.type`) in `security_config_change` audit events. Note that this is not related to the target of the request itself.
+
+    The default value is `false`, so `security_config_change` events do not include actor attribution fields and existing audit output is unchanged.
 
 $$$xpack-sa-lf-events-max-request-body-size$$$
 
 `xpack.security.audit.logfile.events.max_request_body_size` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Maximum rendered JSON body size (in characters) that may be included in audit events when [`xpack.security.audit.logfile.events.emit_request_body`](#xpack-sa-lf-events-emit-request) is `true`. The limit is applied to the JSON representation of the request body (after format conversion), so it correctly accounts for formats that expand when converted to JSON. Requests whose rendered body exceeds this limit are rejected with HTTP 413 (Request Entity Too Large), ensuring the audit log is always a complete record of accepted requests. The default value is `2147483647b` (`Integer.MAX_VALUE`). Set to `0` to disable the limit entirely. Lower this value on nodes with limited available memory as needed.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Maximum rendered body size (in bytes) that can be included in audit events when [`xpack.security.audit.logfile.events.emit_request_body`](#xpack-sa-lf-events-emit-request) is `true`. The limit is applied to the representation that is written to the audit log (the UTF-8 JSON representation of the request body for `request.body`, or the base64-encoded form for `request.raw_body`), so it correctly accounts for formats such as SMILE or CBOR that expand when rendered as JSON. The limit is enforced while the body is being rendered, so an oversized body is rejected before the full representation is built in memory. Requests whose rendered body would exceed this limit are rejected with HTTP 413 (Request Entity Too Large), ensuring the audit log is always a complete record of accepted requests. The default value is `2147483647b` (`Integer.MAX_VALUE`). A value of `0` removes the limit entirely. Lower this value on nodes with limited available memory as needed.
 
 ## Local Node Info Settings [node-audit-settings]
 

@@ -31,6 +31,6 @@ these blocks represent (name, type, nullability, etc.)
 
 ## Misc
 
-- QA runs the shared [`external-basic.csv-spec`](../esql/qa/testFixtures/src/main/resources/external-basic.csv-spec) (same standalone scenarios as other external-format datasource QAs).
+- QA runs the shared [`external-basic.csv-spec`](../esql/qa/testFixtures/src/main/resources/datasources/external-basic.csv-spec) (same standalone scenarios as other external-format datasource QAs).
 - Under `iceberg-fixtures/standalone/`, `employees.ndjson`, `web_logs.ndjson`, and `books.ndjson` are generated at Gradle build time from the canonical CSVs in [`esql/qa/testFixtures/.../data/`](../esql/qa/testFixtures/src/main/resources/data/) via
   `NdJsonFixtureGenerator` in `esql:qa:server` (`generateStandaloneNdjsonFixtures` on the `esql-datasource-ndjson:qa` project).

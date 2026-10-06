@@ -17,6 +17,7 @@ import org.elasticsearch.action.bulk.BulkRequestParser;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -143,12 +144,14 @@ public class RestBulkAction extends BaseRestHandler {
         } else {
             request.ensureContent();
             String waitForActiveShards = request.param("wait_for_active_shards");
+            ActiveShardCount activeShardCount = waitForActiveShards == null ? null : ActiveShardCount.parseString(waitForActiveShards);
             TimeValue timeout = request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT);
             String refresh = request.param("refresh");
+            WriteRequest.RefreshPolicy refreshPolicy = refresh == null ? null : WriteRequest.RefreshPolicy.parse(refresh);
             return new ChunkHandler(
                 allowExplicitIndex,
                 request,
-                () -> bulkHandler.newBulkRequest(waitForActiveShards, timeout, refresh, request.params().keySet())
+                () -> bulkHandler.newBulkRequest(activeShardCount, timeout, refreshPolicy, request.params().keySet())
             );
         }
     }

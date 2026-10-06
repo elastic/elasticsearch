@@ -22,30 +22,43 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Block loader for the synthetic {@code _unmapped_fields} column produced by
  * {@code SET unmapped_fields="LOAD_ALL"}.
  *
- * <p>For each document it reads {@code _source}, retains only top-level keys
- * that match the {@link UnmappedFieldsPattern} (matching at least one pattern in every include
- * group and not matching any exclude pattern), and re-serialises the surviving key/value
- * pairs as a JSON object. Documents where nothing survives get a null.
+ * group and not matching any exclude pattern) and hold a value, and re-serialises the surviving key/value
+ * <p>For each document it reads {@code _source} and re-serialises the surviving top-level key/value pairs as a JSON object, which the
+ * coordinator later flattens into per-leaf columns. A scalar key survives when it satisfies the full UnmappedFieldsPattern#matches
+ * and hold a value; an object or array key ships more leniently ({@link UnmappedFieldsPattern#objectSubfieldsCouldMatch})
+ * because it flattens to descendant leaves the coordinator filters per name. Documents where nothing survives get a null.
+ *
+ * <p>Pruning the value-less parts here rather than on the coordinator keeps them off the wire entirely, and is what lets the
+ * coordinator turn every key it receives into an output column without producing one that is null in every row - see
+ * {@link UnmappedFields#prune} and {@code ExpandUnmappedFieldsPostProcessor}.
  *
  * <p>Field-level security needs no handling here: it strips denied fields from the {@code _source} this reads, so they never
  * reach the pattern. {@code EsqlSecurityIT#testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoadAll} holds that down.
+ *
+ * <p>Leaves matching {@code mappedNestedSubfield} - paths this shard's mapping declares under a {@code nested} parent -
+ * are pruned like value-less parts: mapped nested subfields stay null everywhere (see
+ * {@code EsqlCapabilities.Cap#FIX_NESTED_SUBFIELD_EXTRACTION}), and only the shard knows its mapping.
  * <p>TODO: share a cached {@code _source} parse with other field-extraction operators.
  */
 final class UnmappedFieldsBlockLoader implements BlockLoader {
 
     private final UnmappedFieldsPattern pattern;
     private final double sourceReservationFactor;
+    private final Predicate<String> mappedNestedSubfield;
 
-    UnmappedFieldsBlockLoader(UnmappedFieldsPattern pattern, double sourceReservationFactor) {
+    UnmappedFieldsBlockLoader(UnmappedFieldsPattern pattern, double sourceReservationFactor, Predicate<String> mappedNestedSubfield) {
         this.pattern = pattern;
         this.sourceReservationFactor = sourceReservationFactor;
+        this.mappedNestedSubfield = mappedNestedSubfield;
     }
 
     @Override
@@ -60,7 +73,7 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
 
     @Override
     public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        return new UnmappedFields(breaker, pattern, sourceReservationFactor);
+        return new UnmappedFields(breaker, pattern, sourceReservationFactor, mappedNestedSubfield);
     }
 
     @Override
@@ -87,12 +100,19 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
         private final CircuitBreaker breaker;
         private final UnmappedFieldsPattern pattern;
         private final double sourceReservationFactor;
+        private final Predicate<String> mappedNestedSubfield;
 
-        UnmappedFields(CircuitBreaker breaker, UnmappedFieldsPattern pattern, double sourceReservationFactor) {
+        UnmappedFields(
+            CircuitBreaker breaker,
+            UnmappedFieldsPattern pattern,
+            double sourceReservationFactor,
+            Predicate<String> mappedNestedSubfield
+        ) {
             super(breaker);
             this.breaker = breaker;
             this.pattern = pattern;
             this.sourceReservationFactor = sourceReservationFactor;
+            this.mappedNestedSubfield = mappedNestedSubfield;
         }
 
         @Override
@@ -111,9 +131,16 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
                     json.startObject();
                     boolean anyMatch = false;
                     for (Map.Entry<String, Object> entry : sourceMap.entrySet()) {
-                        if (pattern.matches(entry.getKey())) {
+                        // A scalar becomes its own leaf column and must match the full pattern; an object or array can flatten to dotted
+                        // descendant leaves the coordinator filters per name, so it ships leniently (see objectSubfieldsCouldMatch).
+                        Object value = entry.getValue();
+                        boolean matched = value instanceof Map || value instanceof List
+                            ? pattern.objectSubfieldsCouldMatch(entry.getKey())
+                            : pattern.matches(entry.getKey());
+                        // The pattern decides whether the key is wanted; prune decides whether what is under it says anything at all.
+                        if (matched && prune(entry.getKey(), value)) {
                             anyMatch = true;
-                            json.field(entry.getKey(), entry.getValue());
+                            json.field(entry.getKey(), value);
                         }
                     }
                     json.endObject();
@@ -127,6 +154,27 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
             } finally {
                 breaker.addWithoutBreaking(-reservation);
             }
+        }
+
+        /**
+         * Strips nully values out of a {@code _source} value, consistently with how mapped fields do not track nulls in arrays, empty
+         * objects and the like - {@code null}, {@code []}, {@code {}}, {@code [null]}, {@code [{"foo":null},{"bar":[]}]},
+         * {@code {"baz":[null],"inga":{}}}.
+         * <p>{@code path} is the dotted name the value flattens to; leaves matching {@link #mappedNestedSubfield} are
+         * stripped the same way. Arrays do not extend the path, matching how the coordinator derives column names.
+         */
+        private boolean prune(String path, Object value) {
+            if (value instanceof List<?> values) {
+                values.removeIf(element -> prune(path, element) == false);
+                return values.isEmpty() == false;
+            }
+            // Objects are not expanded into columns of their own, but a nully one still says nothing about the field it sits under, so
+            // it must neither keep that field's column alive nor show up in what the field renders as.
+            if (value instanceof Map<?, ?> map) {
+                map.entrySet().removeIf(entry -> prune(path + "." + entry.getKey(), entry.getValue()) == false);
+                return map.isEmpty() == false;
+            }
+            return value != null && mappedNestedSubfield.test(path) == false;
         }
 
         @Override

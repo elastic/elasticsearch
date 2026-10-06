@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.compute.data.BatchMetadata;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SinkOperator;
 
 /**
@@ -135,6 +136,11 @@ public final class PageToBatchPageOperator extends SinkOperator {
         }
         bufferedBatchId = BatchContext.UNDEFINED_BATCH_ID;
         nextPageIndexInBatch = 0;
+    }
+
+    @Override
+    public Operator.Status status() {
+        return delegate.status();
     }
 
     @Override

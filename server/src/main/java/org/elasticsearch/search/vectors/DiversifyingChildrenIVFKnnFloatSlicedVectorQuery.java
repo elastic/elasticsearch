@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.LongAccumulator;
  */
 public class DiversifyingChildrenIVFKnnFloatSlicedVectorQuery extends IVFKnnFloatSlicedVectorQuery {
 
-    private final BitSetProducer parentsFilter;
+    final BitSetProducer parentsFilter;
 
     /**
      * @param field            the vector field to search
@@ -48,7 +48,23 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQuery extends IVFKnnFloa
         String sliceField,
         BytesRef... sliceId
     ) {
-        super(field, query, k, numCands, childFilter, visitRatio, queryConfigResolver, sliceField, sliceId);
+        this(field, query, k, numCands, childFilter, parentsFilter, visitRatio, queryConfigResolver, false, sliceField, sliceId);
+    }
+
+    DiversifyingChildrenIVFKnnFloatSlicedVectorQuery(
+        String field,
+        float[] query,
+        int k,
+        int numCands,
+        Query childFilter,
+        BitSetProducer parentsFilter,
+        float visitRatio,
+        IvfQueryConfigResolver queryConfigResolver,
+        boolean postFilterDelegate,
+        String sliceField,
+        BytesRef... sliceId
+    ) {
+        super(field, query, k, numCands, childFilter, visitRatio, queryConfigResolver, postFilterDelegate, sliceField, sliceId);
         this.parentsFilter = Objects.requireNonNull(parentsFilter);
     }
 

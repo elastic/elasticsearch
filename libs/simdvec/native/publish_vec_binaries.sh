@@ -17,7 +17,7 @@
 
 set -euo pipefail
 
-VERSION="1.0.139"
+VERSION="1.0.153"
 
 LOCAL=false
 FORCE_UPLOAD=false
@@ -47,7 +47,7 @@ if [ "$UPLOAD" = true ] && [ -z "${ARTIFACTORY_API_KEY:-}" ]; then
   exit 1;
 fi
 
-TOOLCHAIN_IMAGE="docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:4"
+TOOLCHAIN_IMAGE="docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:7"
 if [ "$LOCAL" = true ]; then
   TOOLCHAIN_IMAGE="es-native-cross-toolchain:local"
 fi
@@ -61,7 +61,7 @@ if [ "$UPLOAD" = true ]; then
   fi
 fi
 
-echo 'Building all binaries...'
+echo 'Building all binaries (darwin-aarch64 + linux-aarch64 + linux-x64 + windows-x64)...'
 docker run --rm \
   -v "$(pwd)":/workspace \
   -w /workspace \
@@ -71,17 +71,21 @@ docker run --rm \
 mkdir -p "$TEMP/darwin-aarch64"
 mkdir -p "$TEMP/linux-aarch64"
 mkdir -p "$TEMP/linux-x64"
+mkdir -p "$TEMP/windows-x64"
 cp build/libs/vec/shared/aarch64/libvec.dylib "$TEMP/darwin-aarch64/"
 cp build/libs/vec/shared/aarch64/libvec.so    "$TEMP/linux-aarch64/"
 cp build/libs/vec/shared/amd64/libvec.so      "$TEMP/linux-x64/"
+cp build/libs/vec/shared/windows-x64/vec.dll  "$TEMP/windows-x64/"
 
 TEMP_DBG=$(mktemp -d)
 mkdir -p "$TEMP_DBG/darwin-aarch64"
 mkdir -p "$TEMP_DBG/linux-aarch64"
 mkdir -p "$TEMP_DBG/linux-x64"
+mkdir -p "$TEMP_DBG/windows-x64"
 cp -r build/libs/vec/shared/aarch64/libvec.dylib.dSYM  "$TEMP_DBG/darwin-aarch64/"
 cp    build/libs/vec/shared/aarch64/libvec.so.debug   "$TEMP_DBG/linux-aarch64/"
 cp    build/libs/vec/shared/amd64/libvec.so.debug     "$TEMP_DBG/linux-x64/"
+cp    build/libs/vec/shared/windows-x64/vec.pdb       "$TEMP_DBG/windows-x64/"
 
 if [ "$UPLOAD" = true ]; then
   echo 'Uploading to Artifactory...'

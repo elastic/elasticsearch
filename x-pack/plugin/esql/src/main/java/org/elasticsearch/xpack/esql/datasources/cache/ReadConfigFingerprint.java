@@ -29,7 +29,7 @@ import java.util.Map;
  * different one even though nobody configured anything. A fingerprint built from dataset settings would get both
  * cases wrong.
  * <p>
- * It sits beside {@link SchemaCacheKey#buildFormatConfig}, which fingerprints the other half of the same idea — the
+ * It sits beside the identity each format reader vends for its own configuration, which covers the other half of the same idea — the
  * {@code WITH} options. Two components rather than one is an accident of how they arrived; the end state is a single
  * read configuration owning both, so that a new parameter has one place it must be considered.
  * <p>
@@ -62,7 +62,7 @@ import java.util.Map;
  *
  * <h2>Encoding</h2>
  * Every variable-length piece is length-prefixed ({@code len:bytes}). Column names are open vocabulary — an
- * {@code _id.path} rename reaches arbitrary physical names, which may contain the delimiters — so a plain join would
+ * {@code path} rename reaches arbitrary physical names, which may contain the delimiters — so a plain join would
  * let two different read configurations render identically and collide onto one cache entry. Equal encodings must genuinely mean
  * equal read configurations.
  * <p>

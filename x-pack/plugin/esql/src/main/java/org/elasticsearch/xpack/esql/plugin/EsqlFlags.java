@@ -63,6 +63,7 @@ public class EsqlFlags {
 
     /**
      * Cluster-wide cap on the number of leaf branches an independently executed query may use.
+     * View compaction also uses this as the flatten budget for nested view unions.
      * An explicit {@link QueryPragmas#MAX_BRANCH_COUNT} pragma overrides this value for that query.
      */
     public static final Setting<Integer> ESQL_MAX_BRANCH_COUNT = Setting.intSetting(
@@ -87,6 +88,7 @@ public class EsqlFlags {
 
     /**
      * Cluster-wide cap on how many direct children one merge may have.
+     * Applies to {@code FORK}, dataset rewrite, and a top-level PromQL {@code or} chain.
      * An explicit {@link QueryPragmas#MAX_BRANCH_COUNT_PER_MERGE} pragma overrides this value for that query.
      */
     public static final Setting<Integer> ESQL_MAX_BRANCH_COUNT_PER_MERGE = Setting.intSetting(

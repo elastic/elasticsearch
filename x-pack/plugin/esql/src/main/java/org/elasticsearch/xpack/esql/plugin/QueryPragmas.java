@@ -133,7 +133,8 @@ public final class QueryPragmas implements Writeable {
      * run at once, this limits how many there are in total.
      * <p>
      * Each leaf becomes a data node query (or a coordinator-local source). Nested {@code UnionAll}s are merge segments, not leaves, they
-     * are bounded separately by {@link #MAX_BRANCH_LEVEL}.
+     * are bounded separately by {@link #MAX_BRANCH_LEVEL}. View compaction also uses this as the flatten budget: nested view unions are
+     * lifted into one merge only when the flat width is within this cap.
      * <p>
      * When this pragma is not set, {@link EsqlFlags#ESQL_MAX_BRANCH_COUNT} supplies the cap. An explicit value overrides the cluster
      * setting for this query only.
@@ -141,7 +142,7 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<Integer> MAX_BRANCH_COUNT = Setting.intSetting("max_branch_count", 20, 1);
 
     /**
-     * Cap on how many direct children one merge may have. Applies to {@code FORK}, view compaction, dataset rewrite, and a top-level
+     * Cap on how many direct children one merge may have. Applies to {@code FORK}, dataset rewrite, and a top-level
      * PromQL {@code or} chain.
      * <p>
      * When this pragma is not set, {@link EsqlFlags#ESQL_MAX_BRANCH_COUNT_PER_MERGE} supplies the cap. An explicit value overrides the

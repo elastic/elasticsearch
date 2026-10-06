@@ -270,6 +270,15 @@ public class AnalyzerContext {
         return pragmas.maxBranchCountPerMergeLimitSource(EsqlFlags.ESQL_MAX_BRANCH_COUNT_PER_MERGE.getKey());
     }
 
+    /**
+     * Resolved {@code max_branch_count}: a set query pragma overrides {@link EsqlFlags#maxBranchCount()}.
+     * View compaction uses this as the flatten budget for nested view unions.
+     */
+    public int maxBranchCount() {
+        QueryPragmas pragmas = configuration == null ? QueryPragmas.EMPTY : configuration.pragmas();
+        return pragmas.maxBranchCount(flags.maxBranchCount());
+    }
+
     public AnalyzerContext(
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,

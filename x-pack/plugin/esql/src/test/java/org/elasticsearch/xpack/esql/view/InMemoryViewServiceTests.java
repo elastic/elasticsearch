@@ -814,18 +814,25 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_1", "FROM emp1 | WHERE emp.age > 30");
         addView("view_2", "FROM emp2 | WHERE emp.age < 40");
         addView("view_3", "FROM emp3 | WHERE emp.salary > 50000");
-        addView("view_1_2", "FROM view_1, view_2");
-        addView("view_1_3", "FROM view_1, view_3");
-        addView("view_2_1", "FROM view_2, view_1");
-        addView("view_2_3", "FROM view_2, view_3");
-        addView("view_3_1", "FROM view_3, view_1");
-        addView("view_3_2", "FROM view_3, view_2");
-        LogicalPlan plan = query("FROM view_1_*, view_2_*, view_3_*");
+        addView("view_4", "FROM emp4 | WHERE emp.salary < 100000");
+        addView("view_5", "FROM emp5 | WHERE emp.gender == \"M\"");
+        addView("view_6", "FROM emp6 | WHERE emp.gender == \"F\"");
+        int leafCount = 6;
+        List<String> wildcardPatterns = new ArrayList<>();
+        for (int i = 1; i <= leafCount; i++) {
+            for (int j = 1; j <= leafCount; j++) {
+                if (i != j) {
+                    addView("view_" + i + "_" + j, "FROM view_" + i + ", view_" + j);
+                }
+            }
+            wildcardPatterns.add("view_" + i + "_*");
+        }
+        LogicalPlan plan = query("FROM " + String.join(", ", wildcardPatterns));
         LogicalPlan rewritten = replaceViews(plan);
         // We cannot express the expected plan easily, so we check its structure instead
         assertThat(rewritten, instanceOf(ViewUnionAll.class));
         List<LogicalPlan> subqueries = rewritten.children();
-        assertThat(subqueries.size(), equalTo(6));
+        assertThat(subqueries.size(), equalTo(leafCount * (leafCount - 1)));
         for (LogicalPlan child : subqueries) {
             child = (child instanceof Subquery subquery) ? subquery.child() : child;
             assertThat(child, instanceOf(ViewUnionAll.class));
@@ -837,7 +844,10 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
                     2,
                     query("FROM emp1 | WHERE emp.age > 30"),
                     query("FROM emp2 | WHERE emp.age < 40"),
-                    query("FROM emp3 | WHERE emp.salary > 50000")
+                    query("FROM emp3 | WHERE emp.salary > 50000"),
+                    query("FROM emp4 | WHERE emp.salary < 100000"),
+                    query("FROM emp5 | WHERE emp.gender == \"M\""),
+                    query("FROM emp6 | WHERE emp.gender == \"F\"")
                 )
             );
         }
@@ -1994,7 +2004,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     /**
      * Tests a 12x10 matrix with non-compactable views only on the diagonal (where depth == branch).
      * Wrapper views (branch 1 at depth &ge; 2) are always compactable, so the ViewResolver can flatten
-     * nested ViewUnionAlls through them when the flat width is within {@code max_branch_count_per_merge}.
+     * nested ViewUnionAlls through them when the flat width is within {@code max_branch_count}.
      * In that case the result is a single-level ViewUnionAll that accumulates one branch per diagonal
      * view, and nested FORK checks must pass. When flattening would exceed the cap, it is skipped and
      * the nested ViewUnionAlls stay; resolution still succeeds. Nesting above the view-depth limit
@@ -2021,10 +2031,9 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
                     } else {
                         LogicalPlan result = replaceViews(query(queryStr), matrixResolver);
                         assertNotNull("Diagonal resolution should succeed for nesting=" + nesting + ", branching=" + branching, result);
-                        // When flattening stays within max_branch_count_per_merge, nesting is eliminated and no nested FORK errors occur.
-                        // When flattening would exceed max_branch_count_per_merge, it is skipped, keeping nested ViewUnionAlls.
-                        if (branching >= 2
-                            && effectiveDiagonalBranches(nesting, branching) <= EsqlFlags.DEFAULTS.maxBranchCountPerMerge()) {
+                        // When flattening stays within max_branch_count, nesting is eliminated and no nested FORK errors occur.
+                        // When flattening would exceed max_branch_count, it is skipped, keeping nested ViewUnionAlls.
+                        if (branching >= 2 && effectiveDiagonalBranches(nesting, branching) <= EsqlFlags.DEFAULTS.maxBranchCount()) {
                             Failures failures = new Failures();
                             Failures depFailures = new Failures();
                             LogicalVerifier.INSTANCE.checkPlanConsistency(result, failures, depFailures);

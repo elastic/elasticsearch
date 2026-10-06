@@ -70,6 +70,9 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerIgnoredParameter("multi_value");
+        checker.registerIgnoredParameter("nullability");
+        checker.registerIgnoredParameter("on_failure");
         checker.registerConflictCheck("index_options", b -> b.field("index_options", "freqs"));
         checker.registerUpdateCheck("ignore_above", b -> b.field("ignore_above", 5), m -> {});
         checker.registerConflictCheck("norms", b -> b.field("norms", true));

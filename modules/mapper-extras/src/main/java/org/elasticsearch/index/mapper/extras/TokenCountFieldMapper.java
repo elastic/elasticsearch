@@ -85,13 +85,23 @@ public class TokenCountFieldMapper extends FieldMapper {
                     IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS
                 ),
                 m -> toType(m).docValuesParameters(),
-                indexSettings.getMode().isStrictColumnar()
+                indexSettings
             );
         }
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { index, docValuesParameters, store, analyzer, nullValue, enablePositionIncrements, meta };
+            return new Parameter<?>[] {
+                index,
+                docValuesParameters,
+                docValuesParameters.multiValue(),
+                docValuesParameters.nullability(),
+                docValuesParameters.onFailure(),
+                store,
+                analyzer,
+                nullValue,
+                enablePositionIncrements,
+                meta };
         }
 
         @Override

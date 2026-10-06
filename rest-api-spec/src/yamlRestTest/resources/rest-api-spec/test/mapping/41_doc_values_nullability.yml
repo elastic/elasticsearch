@@ -67,8 +67,8 @@
 ---
 "nullability=false mapping serialization roundtrip":
   - requires:
-      cluster_features: ["mapper.doc_values.nullability"]
-      reason: "doc_values nullability parameter"
+      cluster_features: ["mapper.doc_values.nullability", "mapper.doc_values.top_level_attributes"]
+      reason: "nullability emitted at top level since top_level_attributes"
 
   - do:
       indices.create:
@@ -87,7 +87,7 @@
       indices.get_mapping:
         index: test_nullability_roundtrip
 
-  - match: { test_nullability_roundtrip.mappings.properties.kw.doc_values.nullability: false }
+  - match: { test_nullability_roundtrip.mappings.properties.kw.nullability: false }
 
 ---
 "nullability=false is sealed against mapping updates":
@@ -110,7 +110,7 @@
 
   # Flipping nullability back to true is rejected: the parameter is sealed.
   - do:
-      catch: /Cannot update parameter \[doc_values\]/
+      catch: /Cannot update parameter \[nullability\]/
       indices.put_mapping:
         index: test_nullability_sealed
         body:

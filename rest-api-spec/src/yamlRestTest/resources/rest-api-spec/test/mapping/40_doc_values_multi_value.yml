@@ -75,8 +75,8 @@
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.multi_value_rename"]
-      reason: "multi_value doc values parameter uses boolean wire-format; columnar index mode required"
+      cluster_features: ["mapper.doc_values.multi_value_rename", "mapper.doc_values.top_level_attributes"]
+      reason: "multi_value emitted at top level since top_level_attributes"
 
   - do:
       indices.create:
@@ -95,7 +95,7 @@
       indices.get_mapping:
         index: test_roundtrip
 
-  - match: { test_roundtrip.mappings.properties.kw.doc_values.multi_value: false }
+  - match: { test_roundtrip.mappings.properties.kw.multi_value: false }
 
 ---
 "multi_value=false on multi-field sub rejects parent array":

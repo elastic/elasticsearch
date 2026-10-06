@@ -1788,21 +1788,49 @@ public abstract class FieldMapper extends Mapper {
             public static final Values ENABLED_HIGH_CARDINALITY = new Values(true, Cardinality.HIGH, true, true, OnFailure.FAIL);
         }
 
-        public final Parameter<Boolean> multiValueParameter;
-        public final Parameter<Boolean> nullabilityParameter;
+        /**
+         * These three parameters are exposed via accessors rather than public fields so that mappers
+         * registering them in {@code getParameters()} can do so without exposing the raw field.
+         * Each accessor is intended to be called exactly once and placed immediately after
+         * {@code docValuesParameters} in the {@code getParameters()} array.
+         */
+        private final Parameter<Boolean> multiValueParameter;
+        private final Parameter<Boolean> nullabilityParameter;
         private final boolean supportsExtendedDocValues;
-        public final Parameter<Values.OnFailure> onFailureParameter;
+        /** True when this index supports the top-level {@code multi_value}, {@code nullability}, and {@code on_failure} attributes. */
+        private final boolean supportsTopLevelAttributes;
+        private final Parameter<Values.OnFailure> onFailureParameter;
+
+        /**
+         * Returns the {@code multi_value} sub-parameter. Mappers should include the result in their
+         * {@link Builder#getParameters()} array immediately after this {@code DocValuesParameter}.
+         */
+        public Parameter<Boolean> multiValue() {
+            return multiValueParameter;
+        }
+
+        /**
+         * Returns the {@code nullability} sub-parameter. Mappers should include the result in their
+         * {@link Builder#getParameters()} array immediately after this {@code DocValuesParameter}.
+         */
+        public Parameter<Boolean> nullability() {
+            return nullabilityParameter;
+        }
+
+        /**
+         * Returns the {@code on_failure} sub-parameter. Mappers should include the result in their
+         * {@link Builder#getParameters()} array immediately after this {@code DocValuesParameter}.
+         */
+        public Parameter<Values.OnFailure> onFailure() {
+            return onFailureParameter;
+        }
 
         /**
          * Factory for field types whose default doc_values configuration is known eagerly at construction time (numerics, dates, booleans,
          * IP, keyword family, etc.).
          */
-        public static DocValuesParameter of(
-            Values defaultValue,
-            Function<FieldMapper, Values> initializer,
-            boolean supportsExtendedDocValues
-        ) {
-            return new DocValuesParameter(defaultValue, initializer, supportsExtendedDocValues);
+        public static DocValuesParameter of(Values defaultValue, Function<FieldMapper, Values> initializer, IndexSettings indexSettings) {
+            return new DocValuesParameter(defaultValue, initializer, indexSettings);
         }
 
         /**
@@ -1841,39 +1869,125 @@ public abstract class FieldMapper extends Mapper {
             return new Values(true, columnarCardinality, true, true, Values.OnFailure.FAIL);
         }
 
-        private DocValuesParameter(Values defaultValue, Function<FieldMapper, Values> initializer, boolean supportsExtendedDocValues) {
-            this(() -> defaultValue, defaultValue, initializer, supportsExtendedDocValues);
+        private DocValuesParameter(Values defaultValue, Function<FieldMapper, Values> initializer, IndexSettings indexSettings) {
+            this(() -> defaultValue, defaultValue, initializer, indexSettings);
         }
 
         private DocValuesParameter(
             Supplier<Values> defaultValueSupplier,
             Values subParameterDefaults,
             Function<FieldMapper, Values> initializer,
-            boolean supportsExtendedDocValues
+            IndexSettings indexSettings
         ) {
             super(PARAMETER_NAME, false, defaultValueSupplier, null, initializer, null, Values::toString);
-            this.supportsExtendedDocValues = supportsExtendedDocValues;
+            this.supportsExtendedDocValues = indexSettings.getMode().isStrictColumnar();
+            this.supportsTopLevelAttributes = supportsExtendedDocValues
+                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.DOC_VALUES_TOP_LEVEL_ATTRIBUTES);
 
-            multiValueParameter = Parameter.boolParam(
+            // The version gate (supportsTopLevelAttributes) applies to output only — see setSerializerCheck below.
+            // The columnar guard on input lives in each sub-parameter's parse lambda: parse() is only called for
+            // user-supplied mapping JSON; init() calls setValue() directly and bypasses the lambda, so the guard
+            // never fires when values are copied from an existing mapper during a merge.
+            // The nested doc_values:{...} form bypasses these parsers entirely and is accepted on any index version.
+            multiValueParameter = new Parameter<>(
                 "multi_value",
                 false,
+                subParameterDefaults.multiValue ? () -> true : () -> false,
+                (field, context, o) -> {
+                    if (supportsExtendedDocValues == false) {
+                        throw new MapperParsingException("parameter [multi_value] can only be used in columnar index modes");
+                    }
+                    return XContentMapValues.nodeBooleanValue(o);
+                },
                 m -> initializer.apply(m).multiValue,
-                subParameterDefaults.multiValue
+                XContentBuilder::field,
+                Objects::toString
             );
             // nullability is not updateable in order to maintain density guarantees inside segments
-            nullabilityParameter = Parameter.boolParam(
+            nullabilityParameter = new Parameter<>(
                 "nullability",
                 false,
+                subParameterDefaults.nullability ? () -> true : () -> false,
+                (field, context, o) -> {
+                    if (supportsExtendedDocValues == false) {
+                        throw new MapperParsingException("parameter [nullability] can only be used in columnar index modes");
+                    }
+                    return XContentMapValues.nodeBooleanValue(o);
+                },
                 m -> initializer.apply(m).nullability,
-                subParameterDefaults.nullability
+                XContentBuilder::field,
+                Objects::toString
             );
-            onFailureParameter = Parameter.enumParam(
-                "on_failure",
-                false,
-                m -> initializer.apply(m).onFailure,
-                subParameterDefaults.onFailure,
-                Values.OnFailure.class
+            onFailureParameter = new Parameter<>("on_failure", false, () -> subParameterDefaults.onFailure, (field, context, o) -> {
+                if (supportsExtendedDocValues == false) {
+                    throw new MapperParsingException("parameter [on_failure] can only be used in columnar index modes");
+                }
+                if (o == null) {
+                    return subParameterDefaults.onFailure;
+                }
+                for (Values.OnFailure v : Values.OnFailure.values()) {
+                    if (v.toString().equals(o.toString())) {
+                        return v;
+                    }
+                }
+                throw new MapperParsingException(
+                    "Unknown value [" + o + "] for field [on_failure] - accepted values are " + EnumSet.allOf(Values.OnFailure.class)
+                );
+            }, m -> initializer.apply(m).onFailure, XContentBuilder::field, Objects::toString);
+
+            // Sub-params only serialize at top level for new columnar indices (supportsTopLevelAttributes=true).
+            // For old columnar indices they are emitted inside the doc_values object by toXContent().
+            // For non-columnar indices they are never set.
+            multiValueParameter.setSerializerCheck((incl, conf, v) -> supportsTopLevelAttributes && getValue().enabled && (incl || conf));
+            nullabilityParameter.setSerializerCheck((incl, conf, v) -> supportsTopLevelAttributes && getValue().enabled && (incl || conf));
+            onFailureParameter.setSerializerCheck((incl, conf, v) -> supportsTopLevelAttributes && getValue().enabled && (incl || conf));
+
+            // Reject combining doc_values:false with any explicit sub-parameter.
+            this.addValidator(v -> {
+                if (v.enabled == false
+                    && (multiValueParameter.isConfigured() || nullabilityParameter.isConfigured() || onFailureParameter.isConfigured())) {
+                    throw new IllegalArgumentException(
+                        "parameters [multi_value], [nullability], and [on_failure] cannot be set when [doc_values] is disabled"
+                    );
+                }
+            });
+
+            // Merge only arbitrates enabled+cardinality; sub-parameters merge independently via getParameters().
+            this.setMergeValidator((previous, toMerge, mergeConflicts) -> {
+                assert previous != null && toMerge != null;
+                return previous.enabled == toMerge.enabled && previous.cardinality == toMerge.cardinality;
+            });
+        }
+
+        /**
+         * Composes the current {@link Values} from this parameter's enabled/cardinality backing and the three
+         * sub-parameters' own values. This means setting {@code multi_value}, {@code nullability}, or
+         * {@code on_failure} at top level is order-independent with respect to {@code doc_values: true}.
+         */
+        @Override
+        public Values getValue() {
+            Values base = super.getValue();
+            if (base.enabled == false) {
+                return base;
+            }
+            return new Values(
+                true,
+                base.cardinality,
+                multiValueParameter.getValue(),
+                nullabilityParameter.getValue(),
+                onFailureParameter.getValue()
             );
+        }
+
+        /**
+         * Returns {@code true} if this parameter or any of its sub-parameters differs from the default.
+         */
+        @Override
+        public boolean isConfigured() {
+            return super.isConfigured()
+                || multiValueParameter.isConfigured()
+                || nullabilityParameter.isConfigured()
+                || onFailureParameter.isConfigured();
         }
 
         /**
@@ -1883,20 +1997,25 @@ public abstract class FieldMapper extends Mapper {
          * <ul>
          *   <li>{@code "doc_values": false} - doc_values disabled</li>
          *   <li>{@code "doc_values": true} - doc_values enabled with defaults</li>
-         *   <li>{@code "doc_values": { "multi_value": true }} - allow multiple values per document (default)</li>
-         *   <li>{@code "doc_values": { "multi_value": false }} - reject any document that has more than one value for the field</li>
-         *   <li>{@code "doc_values": { "nullability": true }} - allow documents to omit the field or supply null (default)</li>
-         *   <li>{@code "doc_values": { "nullability": false }} - reject any document that omits the field or supplies null (sealed)</li>
-         *   <li>{@code "doc_values": { "on_failure": "fail" }} - reject the document if it violates multi_value/nullability (default)</li>
+         *   <li>{@code "doc_values": { "multi_value": true }} - allow multiple values per document (default; columnar only)</li>
+         *   <li>{@code "doc_values": { "multi_value": false }} - reject any document that has more than one value for the
+         *       field (columnar only)</li>
+         *   <li>{@code "doc_values": { "nullability": true }} - allow documents to omit the field or supply null (default;
+         *       columnar only)</li>
+         *   <li>{@code "doc_values": { "nullability": false }} - reject any document that omits the field or supplies null
+         *       (columnar only)</li>
+         *   <li>{@code "doc_values": { "on_failure": "fail" }} - reject the document if it violates multi_value/nullability
+         *       (default; columnar only)</li>
          *   <li>{@code "doc_values": { "on_failure": "ignore" }} - route the offending value to a per-field failure column
-         *       (see {@link DocumentParserContext#enforceSingleValue}).
-         *       Surfaced in synthetic {@code _source} only; not exposed to block loaders, ESQL, or aggregations.</li>
+         *       (columnar only; see {@link DocumentParserContext#enforceSingleValue}).</li>
+         *   <li>{@code "multi_value": false} - same as the object form but as a top-level attribute (new indices only)</li>
+         *   <li>{@code "nullability": false} - same as the object form but as a top-level attribute (new indices only)</li>
+         *   <li>{@code "on_failure": "ignore"} - same as the object form but as a top-level attribute (new indices only)</li>
          * </ul>
          * <p>
-         * The presence of {@code doc_values} as a map indicates the user wants doc_values enabled. The map format allows specifying
-         * the multi_value, nullability and on_failure settings. Cardinality is decided internally and is not user-configurable.
-         * The object form itself is only available in columnar index modes, so any sub-parameter it may carry (e.g. {@code multi_value})
-         * is rejected together with it.
+         * The map branch (nested {@code doc_values: {...}}) sets sub-parameters via {@code setValue} directly to avoid
+         * triggering the version gate in the sub-parameters' parsers, which is reserved for top-level usage only.
+         * Cardinality is decided internally and is not user-configurable.
          */
         @Override
         public void parse(String field, MappingParserContext context, Object value) {
@@ -1908,42 +2027,64 @@ public abstract class FieldMapper extends Mapper {
                             + "] in non-columnar index; supported values: [true, false]"
                     );
                 }
+                // Set sub-params via setValue (bypassing the top-level-only parser gate).
                 if (valueMap.containsKey(multiValueParameter.name)) {
-                    multiValueParameter.parse(field, context, valueMap.get(multiValueParameter.name));
+                    multiValueParameter.setValue(XContentMapValues.nodeBooleanValue(valueMap.get(multiValueParameter.name)));
                 }
                 if (valueMap.containsKey(nullabilityParameter.name)) {
-                    nullabilityParameter.parse(field, context, valueMap.get(nullabilityParameter.name));
+                    nullabilityParameter.setValue(XContentMapValues.nodeBooleanValue(valueMap.get(nullabilityParameter.name)));
                 }
                 if (valueMap.containsKey(onFailureParameter.name)) {
-                    onFailureParameter.parse(field, context, valueMap.get(onFailureParameter.name));
+                    String s = valueMap.get(onFailureParameter.name).toString();
+                    Values.OnFailure parsed = null;
+                    for (Values.OnFailure v : Values.OnFailure.values()) {
+                        if (v.toString().equals(s)) {
+                            parsed = v;
+                            break;
+                        }
+                    }
+                    if (parsed == null) {
+                        throw new MapperParsingException(
+                            "Unknown value [" + s + "] for field [on_failure] - accepted values are [fail, ignore]"
+                        );
+                    }
+                    onFailureParameter.setValue(parsed);
                 }
-
-                setValue(
+                // Mark doc_values as enabled in the backing field without clobbering sub-params via setValue fan-out.
+                super.setValue(
                     new Values(
                         true,
-                        getDefaultValue().cardinality(),
-                        multiValueParameter.getValue(),
-                        nullabilityParameter.getValue(),
-                        onFailureParameter.getValue()
+                        getDefaultValue().cardinality,
+                        getDefaultValue().multiValue,
+                        getDefaultValue().nullability,
+                        getDefaultValue().onFailure
                     )
                 );
             } else {
                 if (XContentMapValues.nodeBooleanValue(value, name)) {
-                    setValue(
+                    // Mark doc_values as enabled without overwriting top-level sub-params already parsed.
+                    super.setValue(
                         new Values(
                             true,
-                            getDefaultValue().cardinality(),
-                            getDefaultValue().multiValue(),
-                            getDefaultValue().nullability(),
-                            getDefaultValue().onFailure()
+                            getDefaultValue().cardinality,
+                            getDefaultValue().multiValue,
+                            getDefaultValue().nullability,
+                            getDefaultValue().onFailure
                         )
                     );
                 } else {
-                    setValue(Values.DISABLED_LOW_CARDINALITY);
+                    // For disabled, only update the backing field; sub-params are irrelevant when doc_values is off.
+                    super.setValue(Values.DISABLED_LOW_CARDINALITY);
                 }
             }
         }
 
+        /**
+         * Sets this parameter and fans out to the three sub-parameters. Used by programmatic paths
+         * (e.g. {@code KeywordFieldMapper.Builder.docValues(Cardinality)}) and by {@link Builder#init}.
+         * Parse paths use {@code super.setValue} to avoid the fan-out clobbering sub-params already
+         * set from top-level attributes.
+         */
         @Override
         public void setValue(Values value) {
             super.setValue(value);
@@ -1952,9 +2093,42 @@ public abstract class FieldMapper extends Mapper {
             onFailureParameter.setValue(value.onFailure);
         }
 
+        /**
+         * Merges only the {@code enabled} and {@code cardinality} fields; the three sub-parameters
+         * merge independently via {@link Builder#getParameters()}, which reports conflicts under
+         * their own names (e.g. {@code [nullability]}) rather than under {@code [doc_values]}.
+         */
+        @Override
+        void mergeFrom(Parameter<?> other, Conflicts conflicts) {
+            DocValuesParameter otherDV = (DocValuesParameter) other;
+            Values current = getValue();
+            Values incoming = otherDV.getValue();
+            if (current.enabled != incoming.enabled || current.cardinality != incoming.cardinality) {
+                conflicts.addConflict(name, current.toString(), incoming.toString());
+            } else {
+                // Update only the backing field; sub-params handle their own merge.
+                super.setValue(
+                    new Values(
+                        incoming.enabled,
+                        incoming.cardinality,
+                        getDefaultValue().multiValue,
+                        getDefaultValue().nullability,
+                        getDefaultValue().onFailure
+                    )
+                );
+            }
+        }
+
         protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
             Values value = getValue();
-            if (includeDefaults || isConfigured()) {
+            if (supportsTopLevelAttributes) {
+                // New form (new columnar indices): emit only the boolean for doc_values.
+                // Sub-parameters emit themselves at top level via their own toXContent calls.
+                if (includeDefaults || value.enabled != getDefaultValue().enabled) {
+                    builder.field(name, value.enabled);
+                }
+            } else if (includeDefaults || isConfigured()) {
+                // Old form (old columnar indices or non-columnar): boolean or nested object.
                 if (value.enabled == false) {
                     builder.field(name, false);
                 } else if (supportsExtendedDocValues == false) {

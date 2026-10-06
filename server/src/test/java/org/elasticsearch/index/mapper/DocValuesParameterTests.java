@@ -485,7 +485,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
                 fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("nullability", true).endObject())
             )
         );
-        assertThat(e1.getMessage(), containsString("Cannot update parameter [doc_values]"));
+        assertThat(e1.getMessage(), containsString("Cannot update parameter [nullability]"));
         // true -> false is also rejected
         MapperService startTrue = createMapperService(
             settings,
@@ -498,7 +498,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
                 fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("nullability", false).endObject())
             )
         );
-        assertThat(e2.getMessage(), containsString("Cannot update parameter [doc_values]"));
+        assertThat(e2.getMessage(), containsString("Cannot update parameter [nullability]"));
     }
 
     public void testNullabilityFalseExemptedByNullValue() throws Exception {
@@ -695,7 +695,8 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
             fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("on_failure", "ignore").endObject())
         );
         String mapping = mapperService.documentMapper().mappingSource().toString();
-        assertThat(mapping, containsString("\"doc_values\":{"));
+        // New indices emit on_failure at top level, not nested inside doc_values:{...}
+        assertThat(mapping, not(containsString("\"doc_values\":{")));
         assertThat(mapping, containsString("\"on_failure\":\"ignore\""));
 
         MapperService roundTripped = createMapperService(settings, mapping);

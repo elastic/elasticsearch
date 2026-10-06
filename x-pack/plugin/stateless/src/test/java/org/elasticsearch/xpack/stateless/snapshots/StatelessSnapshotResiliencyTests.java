@@ -811,6 +811,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
         private TranslogReplicator translogReplicator;
         private HollowShardsService hollowShardsService;
         private ReshardIndexService reshardIndexService;
+        private SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService;
 
         public TestStatelessPlugin(Settings settings) {
             this.settings = settings;
@@ -851,12 +852,18 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 threadPool,
                 TestUtils.unmeteredFillCacheMemoryPressure(settings, threadPool)
             );
+            this.searchRecoveryTimeoutCalculationService = new SearchRecoveryTimeoutCalculationService(
+                cacheService,
+                threadPool,
+                clusterService.getClusterSettings()
+            );
             this.cacheWarmingService = new SharedBlobCacheWarmingService(
                 cacheService,
                 threadPool,
                 TelemetryProvider.NOOP,
                 clusterService.getClusterSettings(),
-                new DefaultWarmingRatioProviderFactory().create(clusterService.getClusterSettings())
+                new DefaultWarmingRatioProviderFactory().create(clusterService.getClusterSettings()),
+                searchRecoveryTimeoutCalculationService
             ) {
                 @Override
                 public void warmCacheBeforeUpload(VirtualBatchedCompoundCommit vbcc, ActionListener<Void> listener) {

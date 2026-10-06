@@ -437,6 +437,70 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
         assertFetchedOnly(run, "_source");
     }
 
+    /**
+     * A logsdb index sorts by host and time and rebuilds {@code _source} from the fields. Its {@code message} is the shape
+     * the loader finds hardest: a short message loads from the doc values of its keyword subfield, a long one, above
+     * {@code ignore_above}, from the ignored source.
+     */
+    public void testALogsdbIndex() {
+        String index = indexName + "_logsdb";
+        assertAcked(indicesAdmin().prepareCreate(index).setSettings(indexSettings(2, 0).put("index.mode", "logsdb")).setMapping("""
+            {
+              "properties": {
+                "@timestamp": { "type": "date" },
+                "host.name": { "type": "keyword" },
+                "message": { "type": "text", "fields": { "raw": { "type": "keyword", "ignore_above": 16 } } },
+                "payload": { "type": "keyword" }
+              }
+            }
+            """));
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < 12; i++) {
+            String message = i % 3 == 0 ? "a long message that passes ignore_above " + i : "short " + i;
+            bulk.add(
+                prepareIndex(index).setSource(
+                    "@timestamp",
+                    "2026-01-01T00:00:" + (10 + i) + "Z",
+                    "host.name",
+                    "host-" + (i % 3),
+                    "message",
+                    message,
+                    "payload",
+                    "payload-" + i
+                )
+            );
+        }
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        Run run = runBoth(
+            "FROM "
+                + index
+                + " METADATA _id, _source | SORT @timestamp DESC | LIMIT 6 | KEEP @timestamp, host.name, message, payload, _id, _source"
+        );
+        assertThat(run.rows(), hasSize(6));
+        assertThat(
+            run.rows().stream().map(row -> row.get(2)).toList(),
+            equalTo(
+                List.of(
+                    "short 11",
+                    "short 10",
+                    "a long message that passes ignore_above 9",
+                    "short 8",
+                    "short 7",
+                    "a long message that passes ignore_above 6"
+                )
+            )
+        );
+        for (List<Object> row : run.rows()) {
+            Map<?, ?> source = (Map<?, ?>) row.get(5);
+            assertThat(source.get("message"), equalTo(row.get(2)));
+        }
+        assertFetched(run, 6);
+        assertLoadedOnlyBeforeTheCut(run, "@timestamp");
+        assertFetchedOnly(run, "message");
+        assertFetchedOnly(run, "_source");
+    }
+
     public void testNothingToFetchAfterAnAggregation() {
         Run run = runBoth("FROM " + indexName + " | STATS total = SUM(metric) BY category | SORT total DESC | LIMIT 2");
         assertThat(run.rows(), hasSize(2));

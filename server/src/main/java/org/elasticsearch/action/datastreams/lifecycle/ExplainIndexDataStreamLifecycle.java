@@ -62,20 +62,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     private final FrozenTransitionStatus frozenTransitionStatus;
     private Supplier<Long> nowSupplier = System::currentTimeMillis;
 
-    public ExplainIndexDataStreamLifecycle(
-        String index,
-        boolean managedByLifecycle,
-        boolean isInternalDataStream,
-        @Nullable Long indexCreationDate,
-        @Nullable Long rolloverDate,
-        @Nullable TimeValue generationDate,
-        @Nullable DataStreamLifecycle lifecycle,
-        @Nullable ErrorEntry error
-    ) {
-        this(index, managedByLifecycle, isInternalDataStream, indexCreationDate, rolloverDate, generationDate, lifecycle, error, null);
-    }
-
-    public ExplainIndexDataStreamLifecycle(
+    private ExplainIndexDataStreamLifecycle(
         String index,
         boolean managedByLifecycle,
         boolean isInternalDataStream,
@@ -118,6 +105,33 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             this.error = null;
             this.frozenTransitionStatus = null;
         }
+    }
+
+    public static ExplainIndexDataStreamLifecycle unmanagedIndexResponse(String indexName) {
+        return new ExplainIndexDataStreamLifecycle(indexName, false, false, null, null, null, null, null, null);
+    }
+
+    public static ExplainIndexDataStreamLifecycle managedIndexResponse(
+        String index,
+        boolean isInternalDataStream,
+        @Nullable Long indexCreationDate,
+        @Nullable Long rolloverDate,
+        @Nullable TimeValue generationDate,
+        @Nullable DataStreamLifecycle lifecycle,
+        @Nullable ErrorEntry error,
+        @Nullable FrozenTransitionStatus frozenTransitionStatus
+    ) {
+        return new ExplainIndexDataStreamLifecycle(
+            index,
+            true,
+            isInternalDataStream,
+            indexCreationDate,
+            rolloverDate,
+            generationDate,
+            lifecycle,
+            error,
+            frozenTransitionStatus
+        );
     }
 
     @Override

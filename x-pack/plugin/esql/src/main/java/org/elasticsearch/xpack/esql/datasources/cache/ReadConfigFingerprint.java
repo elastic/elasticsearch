@@ -104,12 +104,12 @@ public final class ReadConfigFingerprint {
     }
 
     /**
-     * The two lanes, for {@link ReadDecision}, which keys on them directly. Shares one encoder with {@link #of}
-     * so a key and the metadata entry describing the same read can never disagree about what was hashed.
-     * {@code readSchema} must be non-empty - an empty one has no configuration to describe, which is
-     * {@link #UNKNOWN}, and only the callers above can decide what to return in its place.
+     * The two lanes, shared with {@link #of} so that a caller keying on them and the metadata entry describing
+     * the same read can never disagree about what was hashed. {@code readSchema} must be non-empty - an empty one
+     * has no configuration to describe, which is {@link #UNKNOWN}, and only {@link #of} can decide what to return
+     * in its place.
      */
-    public static MurmurHash3.Hash128 hash128(List<Attribute> readSchema, @Nullable DeclaredReadSpec spec) {
+    private static MurmurHash3.Hash128 hash128(List<Attribute> readSchema, @Nullable DeclaredReadSpec spec) {
         DeclaredReadSpec readSpec = spec == null ? DeclaredReadSpec.NONE : spec;
         Map<String, String> renames = readSpec.renames();
         Map<String, String> dateFormats = readSpec.dateFormats();

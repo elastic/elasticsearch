@@ -204,38 +204,11 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         ByteArrayStreamInput in = new ByteArrayStreamInput(other.bytes);
         in.reset(other.bytes, other.offset, other.length);
         final int precision = in.readVInt();
-        final boolean algorithm = in.readBoolean();
-        if (algorithm == LINEAR_COUNTING && getAlgorithm(bucket) == LINEAR_COUNTING) {
-            final int length = Math.toIntExact(in.readVLong());
-            final long bytesUsed = (long) length * Integer.BYTES;
-            breaker.addEstimateBytesAndMaybeBreak(bytesUsed, "merge linear counting");
-            try {
-                int[] values = new int[length];
-                for (int i = 0; i < length; i++) {
-                    values[i] = in.readInt();
-                }
-                int i = 0;
-                long hllBucket = -1;
-                while (i < length) {
-                    // TODO: bulk
-                    int size = lc.addEncoded(bucket, values[i++]);
-                    if (size > lc.threshold) {
-                        hllBucket = upgradeToHll(bucket);
-                        break;
-                    }
-                }
-                while (i < length) {
-                    hll.collectEncoded(hllBucket, values[i++]);
-                }
-            } finally {
-                breaker.addWithoutBreaking(-bytesUsed);
-            }
-            return;
+        if (precision != precision()) {
+            throw new IllegalArgumentException();
         }
+        final boolean algorithm = in.readBoolean();
         if (algorithm == HYPERLOGLOG) {
-            if (precision != precision()) {
-                throw new IllegalArgumentException();
-            }
             final int registers = 1 << precision;
             if (in.available() < registers) {
                 throw new EOFException("expected " + registers + " registers but only " + in.available() + " bytes remain");
@@ -244,10 +217,37 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             addRunLens(bucket, other.bytes, in.getPosition());
             return;
         }
-        // fallback
-        in.reset(other.bytes, other.offset, other.length);
-        try (AbstractHyperLogLogPlusPlus otherHll = readFrom(in, hll.bigArrays)) {
-            merge(bucket, otherHll, 0);
+        final int length = Math.toIntExact(in.readVLong());
+        if (getAlgorithm(bucket) == HYPERLOGLOG) {
+            // Nothing to deduplicate against, so collect the values as they are read rather than materializing them first.
+            final long hllBucket = hllBuckets.get(bucket) - 1;
+            for (int i = 0; i < length; i++) {
+                hll.collectEncoded(hllBucket, in.readInt());
+            }
+            return;
+        }
+        final long bytesUsed = (long) length * Integer.BYTES;
+        breaker.addEstimateBytesAndMaybeBreak(bytesUsed, "merge linear counting");
+        try {
+            int[] values = new int[length];
+            for (int i = 0; i < length; i++) {
+                values[i] = in.readInt();
+            }
+            int i = 0;
+            long hllBucket = -1;
+            while (i < length) {
+                // TODO: bulk
+                int size = lc.addEncoded(bucket, values[i++]);
+                if (size > lc.threshold) {
+                    hllBucket = upgradeToHll(bucket);
+                    break;
+                }
+            }
+            while (i < length) {
+                hll.collectEncoded(hllBucket, values[i++]);
+            }
+        } finally {
+            breaker.addWithoutBreaking(-bytesUsed);
         }
     }
 

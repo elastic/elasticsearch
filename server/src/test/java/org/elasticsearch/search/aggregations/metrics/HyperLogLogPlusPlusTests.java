@@ -351,6 +351,13 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
             final BytesStreamOutput otherOut = new BytesStreamOutput();
             otherPrecision.writeTo(0, otherOut);
             expectThrows(IllegalArgumentException.class, () -> dest.combine(0, otherOut.bytes().toBytesRef()));
+            // Linear counting values are meaningless at another precision, so those are rejected too.
+            try (HyperLogLogPlusPlus linearCounting = new HyperLogLogPlusPlus(precision + 1, bigArrays, 1)) {
+                linearCounting.collect(0, BitMixer.mix64(randomLong()));
+                final BytesStreamOutput lcOut = new BytesStreamOutput();
+                linearCounting.writeTo(0, lcOut);
+                expectThrows(IllegalArgumentException.class, () -> dest.combine(0, lcOut.bytes().toBytesRef()));
+            }
         }
     }
 }

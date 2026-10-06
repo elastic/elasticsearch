@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.knneval;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,9 +30,6 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
     static final int MAX_QUERIES = 1_000;
     static final int MAX_K = 1_000;
     static final int MAX_KNN_SETTINGS = 32;
-
-    /** Wire format added {@code query_source} as a single discriminated field replacing top-level {@code queries} and {@code sample}. */
-    static final TransportVersion KNN_EVAL_QUERY_SOURCE = TransportVersion.fromName("knn_eval_query_source");
 
     static final ParseField FIELD_FIELD = new ParseField("field");
     static final ParseField K_FIELD = new ParseField("k");
@@ -177,17 +173,13 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
     }
 
     KnnEvalSpec(StreamInput in) throws IOException {
-        this(in.readString(), in.readVInt(), readQuerySource(in), new KnnEvalSettings(in), in.readCollectionAsList(KnnEvalSettings::new));
-    }
-
-    private static KnnEvalQuerySource readQuerySource(StreamInput in) throws IOException {
-        if (in.getTransportVersion().supports(KNN_EVAL_QUERY_SOURCE)) {
-            return KnnEvalQuerySource.read(in);
-        }
-        // Old format: optional collection of explicit queries XOR optional sample
-        List<KnnEvalQuery> queries = in.readOptionalCollectionAsList(KnnEvalQuery::new);
-        KnnEvalSample sample = in.readOptionalWriteable(KnnEvalSample::new);
-        return queries != null ? new KnnEvalQuerySource.VectorsSource(queries) : new KnnEvalQuerySource.DocsSource(sample);
+        this(
+            in.readString(),
+            in.readVInt(),
+            KnnEvalQuerySource.read(in),
+            new KnnEvalSettings(in),
+            in.readCollectionAsList(KnnEvalSettings::new)
+        );
     }
 
     public static KnnEvalSpec parse(XContentParser parser) {
@@ -231,13 +223,7 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
         out.writeVInt(k);
-        if (out.getTransportVersion().supports(KNN_EVAL_QUERY_SOURCE)) {
-            querySource.writeTo(out);
-        } else {
-            // Old format: optional queries XOR optional sample
-            out.writeOptionalCollection(getQueries());
-            out.writeOptionalWriteable(getSample());
-        }
+        querySource.writeTo(out);
         baseline.writeTo(out);
         out.writeCollection(knnSettings);
     }

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 
 import java.util.List;
 
@@ -77,25 +78,28 @@ public class SchemaInternerTests extends ESTestCase {
     public void testOverflowChargesOnlyTheExcessOverTheAllowance() {
         CircuitBreaker breaker = requestBreaker("1mb");
         ExternalPlanningReservation reservation = new ExternalPlanningReservation(breaker);
-        // One column is 128 and its one-column shape is 40. 200 covers the first of each and only part of the next.
-        long allowance = 200L;
+        // A one-character-named column is columnBytes(1) and its one-column shape is 40. The allowance covers the
+        // first of each and only part of the next.
+        long column = HeapEstimates.columnBytes(1);
+        long allowance = column + 40L + 40L;
         SchemaInterner interner = new SchemaInterner(reservation, allowance);
         interner.canonicalize(List.of(attribute("a", DataType.KEYWORD, Nullability.FALSE, false)));
         assertThat(reservation.queryHeld(), equalTo(0L));
 
         interner.canonicalize(List.of(attribute("b", DataType.LONG, Nullability.FALSE, false)));
-        // retained after both shapes: 128+40+128+40 = 336. Overflow above 200 is 136. That is less than the
-        // second canonicalize's full cost (128+40) and is not another 760 credit.
-        long overflow = 336L - allowance;
+        // retained after both shapes: 2 * (column + 40). Overflow above the allowance is less than the second
+        // canonicalize's full cost (column + 40) and is not another 760 credit.
+        long overflow = 2 * (column + 40L) - allowance;
         assertThat(reservation.queryHeld(), equalTo(overflow));
-        assertThat(reservation.queryHeld(), lessThan(128L + 40L));
+        assertThat(reservation.queryHeld(), lessThan(column + 40L));
         assertThat(reservation.queryHeld(), lessThan(760L));
     }
 
     public void testBreakerRejectsTheNextColumnWithoutPublishingIt() {
         CircuitBreaker breaker = requestBreaker("40b");
         ExternalPlanningReservation reservation = new ExternalPlanningReservation(breaker);
-        SchemaInterner interner = new SchemaInterner(reservation, 200L);
+        // Covers the first column and its shape with room to spare, so only the next column's charge can trip.
+        SchemaInterner interner = new SchemaInterner(reservation, HeapEstimates.columnBytes(1) + 40L + 40L);
         List<Attribute> kept = interner.canonicalize(List.of(attribute("a", DataType.KEYWORD, Nullability.FALSE, false)));
         assertThat(reservation.queryHeld(), equalTo(0L));
 
@@ -103,8 +107,8 @@ public class SchemaInternerTests extends ESTestCase {
         expectThrows(CircuitBreakingException.class, () -> interner.canonicalize(List.of(rejected)));
         assertThat(reservation.queryHeld(), equalTo(0L));
 
-        // A published "b" would make this a shape-only charge of 8 bytes (retained 168 + 40 - 200), under the
-        // 40-byte limit. The throw means the rejected instance was not put.
+        // A published "b" would make this a shape-only charge, which the 40-byte limit admits. The throw means the
+        // rejected instance was not put.
         expectThrows(
             CircuitBreakingException.class,
             () -> interner.canonicalize(List.of(attribute("b", DataType.LONG, Nullability.FALSE, false)))
@@ -114,6 +118,29 @@ public class SchemaInternerTests extends ESTestCase {
         List<Attribute> followUp = interner.canonicalize(List.of(attribute("a", DataType.KEYWORD, Nullability.FALSE, false)));
         assertSame(kept, followUp);
         assertNotSame(rejected, followUp.get(0));
+    }
+
+    /**
+     * esql-planning#2143: a flattened nested field is named by its whole dotted path, so a column's cost is its name.
+     * Two schemas of equal column count must not cost the same, and the new name charge alone is what refuses the long one.
+     */
+    public void testColumnNameLengthIsCharged() {
+        String longName = "a.".repeat(1_000);
+        List<Attribute> shortNamed = List.of(attribute("a", DataType.KEYWORD, Nullability.FALSE, false));
+        List<Attribute> longNamed = List.of(attribute(longName, DataType.KEYWORD, Nullability.FALSE, false));
+        assertThat(
+            SchemaInterner.privateListBytes(longNamed) - SchemaInterner.privateListBytes(shortNamed),
+            equalTo(2L * (longName.length() - 1))
+        );
+
+        CircuitBreaker breaker = requestBreaker("1kb");
+        ExternalPlanningReservation reservation = new ExternalPlanningReservation(breaker);
+        // No allowance, so everything retained is charged.
+        new SchemaInterner(reservation, 0L).canonicalize(shortNamed);
+        long baseline = reservation.queryHeld();
+
+        expectThrows(CircuitBreakingException.class, () -> new SchemaInterner(reservation, 0L).canonicalize(longNamed));
+        assertThat(reservation.queryHeld(), equalTo(baseline));
     }
 
     public void testMaxAllowanceChargesNothing() {

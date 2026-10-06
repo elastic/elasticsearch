@@ -32,6 +32,8 @@ import org.apache.lucene.util.quantization.QuantizedVectorsReader;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.Lucene99ScalarQuantizedVectorsWriter;
 import org.elasticsearch.index.codec.vectors.QuantizedAndRawFloatVectorValues;
+import org.elasticsearch.index.codec.vectors.VectorReadHints;
+import org.elasticsearch.index.codec.vectors.VectorWriteHints;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.simdvec.ESVectorizationProvider;
 import org.elasticsearch.simdvec.VectorScorerFactory;
@@ -115,14 +117,14 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
             confidenceInterval,
             bits,
             compress,
-            rawVectorFormat.fieldsWriter(state),
+            rawVectorFormat.fieldsWriter(VectorWriteHints.writtenToRescore(state)),
             flatVectorScorer
         );
     }
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        FlatVectorsReader delegate = rawVectorFormat.fieldsReader(state);
+        FlatVectorsReader delegate = rawVectorFormat.fieldsReader(VectorReadHints.readToRescore(state));
         return new ES93FlatVectorReader(delegate, new Lucene99ScalarQuantizedVectorsReader(state, delegate, flatVectorScorer));
     }
 

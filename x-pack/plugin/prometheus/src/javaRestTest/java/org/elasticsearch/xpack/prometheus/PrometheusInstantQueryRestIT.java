@@ -542,6 +542,22 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertThat(error.getMessage(), containsString("duplicate"));
     }
 
+    /**
+     * Prometheus reads {@code {__name__="tx",host="a"}} the same as {@code tx{host="a"}}: the position of the {@code __name__}
+     * matcher among the label matchers does not change which labels the other matchers filter on.
+     */
+    public void testInstantNameMatcherPositionDoesNotChangeTheResult() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        for (String query : List.of(
+            "tx{host=\"a\"}",
+            "{host=\"a\",__name__=\"tx\"}",
+            "{__name__=\"tx\",host=\"a\"}",
+            "{\"tx\",host=\"a\"}"
+        )) {
+            assertBinopInstantValues(query, 10);
+        }
+    }
+
     /** Prometheus converts k with an integer cast: {@code topk(1.5, tx)} keeps one series and {@code topk(0.5, tx)} none. */
     public void testInstantFractionalKIsTruncated() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_TIME);

@@ -356,7 +356,7 @@ public class IndicesAccessControl {
 
             Map<String, IndexAccessControl> indexPermissionsMap = Maps.newMapWithExpectedSize(commonIndexes.size());
             final Map<IndexAccessControl, Map<IndexAccessControl, IndexAccessControl>> limitedPairs = commonIndexes.size() > 1
-                ? new IdentityHashMap<>()
+                ? new IdentityHashMap<>(1)
                 : null;
             for (String index : commonIndexes) {
                 IndexAccessControl indexAccessControl = getIndexPermissions(index);
@@ -385,7 +385,7 @@ public class IndicesAccessControl {
         }
         final Map<IndexAccessControl, IndexAccessControl> limitedForOwner = limitedPairs.computeIfAbsent(
             indexAccessControl,
-            k -> new IdentityHashMap<>()
+            k -> new IdentityHashMap<>(1)
         );
         IndexAccessControl limited = limitedForOwner.get(limitedByIndexAccessControl);
         if (limited == null) {

@@ -104,6 +104,12 @@ public class ES920DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVecto
     }
 
     @Override
+    protected boolean mergeIsStable() {
+        // flush clusters the original float32 vectors while merges cluster the bfloat16 values read back from the segment
+        return false;
+    }
+
+    @Override
     protected void assertOffHeapByteSize(LeafReader r, String fieldName) throws IOException {
         var fieldInfo = r.getFieldInfos().fieldInfo(fieldName);
 

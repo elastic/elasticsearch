@@ -658,9 +658,6 @@ public class BulkOperationTests extends ESTestCase {
             new CircuitBreakingException("test", randomFrom(CircuitBreaker.Durability.values())),
             new ClusterBlockException(Set.of(NoMasterBlockService.NO_MASTER_BLOCK_WRITES)),
             new ClusterBlockException(Set.of(IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)),
-            // An exception can hold a permanent block and a backpressure block at once. The backpressure block must still win.
-            new ClusterBlockException(Set.of(IndexMetadata.INDEX_WRITE_BLOCK, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)),
-            new ClusterBlockException(Set.of(IndexMetadata.INDEX_WRITE_BLOCK, NoMasterBlockService.NO_MASTER_BLOCK_WRITES)),
             new BulkOperation429Exception("test")
         );
 
@@ -680,7 +677,8 @@ public class BulkOperationTests extends ESTestCase {
 
     /**
      * Non-retryable cluster blocks such as an index write block are a permanent condition of the target index and not backpressure, so
-     * the affected documents must be redirected to the failure store.
+     * the affected documents must be redirected to the failure store. This also holds when the exception mixes a permanent block with a
+     * backpressure block, because retrying cannot succeed while the permanent block remains.
      */
     public void testFailingDocumentRedirectsToFailureStoreOnNonRetryableClusterBlock() throws Exception {
         // Requests that go to two separate shards
@@ -688,15 +686,13 @@ public class BulkOperationTests extends ESTestCase {
         bulkRequest.add(new IndexRequest(fsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
         bulkRequest.add(new IndexRequest(fsDataStreamName).id("3").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
 
-        final ClusterBlockException blockException = new ClusterBlockException(
-            Set.of(
-                randomFrom(
-                    IndexMetadata.INDEX_WRITE_BLOCK,
-                    IndexMetadata.INDEX_READ_ONLY_BLOCK,
-                    MetadataIndexStateService.INDEX_CLOSED_BLOCK,
-                    MetadataIndexStateService.createIndexClosingBlock()
-                )
-            )
+        final ClusterBlockException blockException = randomFrom(
+            new ClusterBlockException(Set.of(IndexMetadata.INDEX_WRITE_BLOCK)),
+            new ClusterBlockException(Set.of(IndexMetadata.INDEX_READ_ONLY_BLOCK)),
+            new ClusterBlockException(Set.of(MetadataIndexStateService.INDEX_CLOSED_BLOCK)),
+            new ClusterBlockException(Set.of(MetadataIndexStateService.createIndexClosingBlock())),
+            new ClusterBlockException(Set.of(IndexMetadata.INDEX_WRITE_BLOCK, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)),
+            new ClusterBlockException(Set.of(IndexMetadata.INDEX_WRITE_BLOCK, NoMasterBlockService.NO_MASTER_BLOCK_WRITES))
         );
 
         NodeClient client = getNodeClient(

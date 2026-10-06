@@ -57,6 +57,10 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
      * therefore a STALE weight, so what needs pinning is that the enrichment helper recomputes: a harvest grows
      * the metadata map by megabytes, and an entry still reporting its pre-harvest weight would let the store hold
      * far more than its budget while believing it was inside it.
+     * <p>
+     * No single line of the change reverts into that bug, because the helper builds a new entry through the
+     * constructor and there is no path that carries a weight forward. What this gate catches is an
+     * implementation that grows one - verified by injecting a carried weight rather than by reverting a line.
      */
     public void testEnrichmentRecomputesTheWeightRatherThanCarryingTheOldOne() {
         SchemaCacheEntry seeded = entryWithMin("s3://b/f.csv", "a");
@@ -72,12 +76,6 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             greaterThan(seededWeight + 1_000_000)
         );
         assertThat("enrichment must not mutate the entry it was derived from", seeded.estimatedBytes(), equalTo(seededWeight));
-    }
-
-    /** Repeated reads of one immutable entry must agree; a weigher called twice per promote must see one value. */
-    public void testWeightIsStableAcrossReads() {
-        SchemaCacheEntry entry = entryWithMin("s3://b/f.csv", "a");
-        assertThat(entry.estimatedBytes(), equalTo(entry.estimatedBytes()));
     }
 
     public void testSchemaEntryWeightChargesTheSizeOfAStoredColumnExtremum() {

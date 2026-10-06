@@ -918,9 +918,12 @@ public class ExternalSourceCacheService implements Closeable {
             }
         }
         if (matches.size() > 1) {
-            Set<DatasetIdentity> identities = new HashSet<>();
+            // Participants only, which is what this compared before the three components were bundled into one
+            // identity. Comparing the whole identity makes two entries over one file that differ only in their
+            // definition version or their credentials refuse each other, and then neither is ever enriched.
+            Set<DatasetIdentity.Participants> identities = new HashSet<>();
             for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> match : matches) {
-                identities.add(match.getKey().dataset());
+                identities.add(match.getKey().dataset().participants());
             }
             if (identities.size() > 1) {
                 logger.debug(

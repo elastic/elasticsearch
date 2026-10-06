@@ -957,6 +957,75 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * The complement of {@link #testStripeDeltaFromAnotherStoreEntersNeitherCover}, and the case that keeps the
+     * reconcile's refusal narrow enough to be useful.
+     * <p>
+     * That refusal exists because a contribution reports which path, mtime and format config it came from and
+     * never which entry it belongs to, so two entries derived under different PARTICIPANTS cannot be told apart.
+     * It must not widen beyond that. Two datasets over one file differing only in their stored definition version
+     * is an ordinary state, and so is one file reachable under two credential sets - and if those refuse each
+     * other then NEITHER is ever enriched, because the schema store has no clock to clear them. That is not a cold
+     * read each: it is a warm path that stays dead for as long as both entries live.
+     */
+    public void testEntriesDifferingOnlyOutsideTheParticipantsAreBothEnriched() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "s3://bucket/data/a.ndjson";
+            long mtime = 1000L;
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.FALSE, null, false)
+            );
+            // Same participants throughout — only the definition version and the credential digest differ, and
+            // neither of those was inside the compared value before the three components became one identity.
+            SchemaCacheKey versionOne = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".ndjson", "endpoint=a", Map.of("format", "ndjson", "_definition_version", "v1")),
+                false
+            );
+            SchemaCacheKey versionTwo = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".ndjson", "endpoint=a", Map.of("format", "ndjson", "_definition_version", "v2")),
+                false
+            );
+            SchemaCacheKey otherCredential = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".ndjson", "endpoint=a", "digest-of-another-secret", Map.of("format", "ndjson")),
+                false
+            );
+            List<SchemaCacheKey> keys = List.of(versionOne, versionTwo, otherCredential);
+            assertEquals("the three must be distinct addresses, or this test proves nothing", 3, Set.copyOf(keys).size());
+
+            for (SchemaCacheKey key : keys) {
+                service.getOrComputeSchema(
+                    key,
+                    k -> SchemaCacheEntry.from(
+                        schema,
+                        "ndjson",
+                        path,
+                        Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp", ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-own"),
+                        Map.of()
+                    )
+                );
+            }
+
+            Map<String, Object> fragment = stripeFragment(mtime, "fp", 30L, 100L, 0, 0, 100, true, true, false);
+            fragment.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-own");
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(fragment)));
+
+            for (SchemaCacheKey key : keys) {
+                SchemaCacheEntry entry = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+                assertNotNull(
+                    "entries that agree on their participants must all be enriched; refusing them all leaves the warm "
+                        + "path dead with no clock to clear it",
+                    entry.safeMetadata().get(ExternalStats.STRIPE_ENTRY_PREFIX + "0")
+                );
+            }
+        }
+    }
+
     public void testStripeFoldKeepsTheReadConfigurationOnTheFoldedResult() throws Exception {
         // The stripe merge keeps only recognised _stats.* keys, so the identity is re-attached by hand afterwards.
         // Drop that and every stripe-rail count arrives configuration-less — which is invisible at the entry (it

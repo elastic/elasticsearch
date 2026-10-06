@@ -18,17 +18,21 @@ import java.util.Map;
  * Which dataset, read through which data source, a cached fact belongs to - the part of every address in
  * these stores that is a property of the dataset rather than of a file or of a read.
  * <p>
- * One instance per resolve, shared by reference across every key that resolve mints, so a glob over ten
- * thousand files holds one of these rather than ten thousand copies of the strings it was folded from.
- * Equality then starts with a reference check that succeeds for every key of the same dataset.
+ * It replaces three strings that every key carried - a folded participant identity, a definition version
+ * and a format name - with six {@code long}s behind one reference. What it does NOT do yet is share one
+ * instance across the keys of a dataset: the resolver derives it per mint site, because the participant
+ * fold includes {@code formatConfigIdentity(objectName, config)} and that resolves a reader per object
+ * name. Hoisting it to one instance per resolve is a separate change, and until it happens the saving
+ * here is the component count and the loss of the string surgery, not instance sharing.
  *
- * <h2>Three pairs, kept apart on purpose</h2>
+ * <h2>Three pairs, and what currently feeds them</h2>
  * <ul>
- *   <li><b>dataset</b> - the dataset's own stored definition: its resource and its settings. Editing a
- *       data source does not move this, so a dataset's own identity is stable across changes it did not
- *       make, and which of the two moved is visible.</li>
- *   <li><b>source</b> - the data source's stored definition, folded with the digest of the declared-secret
- *       settings the provider consumed.</li>
+ *   <li><b>dataset</b> - today this receives {@code DefinitionVersion.of(dataset, parent)}, which folds
+ *       BOTH the dataset's definition and its data source's into one value. So the separation the next
+ *       lane exists for is prepared and not yet real: editing a data source still moves this lane. The
+ *       split needs {@code DefinitionVersion} to vend the two halves separately, which it does not.</li>
+ *   <li><b>source</b> - currently only the digest of the declared-secret settings the provider consumed;
+ *       {@code dataSourceVersion} is null at every call site until that split exists.</li>
  *   <li><b>participants</b> - what the resolved parties say identifies them: the storage provider's own
  *       identity, the format reader's identity for its configuration, and the coordinator's for its own.
  *       Separate from the two definitions because a query can reach these stores with no stored dataset
@@ -44,8 +48,11 @@ import java.util.Map;
  * <p>
  * 128 bits per pair, for the reason {@link org.elasticsearch.xpack.esql.datasources.FileSetFingerprint}
  * gives: a collision serves one dataset's record to another, which is a wrong answer and not a slow path.
- * Non-cryptographic (Murmur3) for the definition and participant folds, matching the file-set and
- * listing-cache precedents - these guard accidental collision, not an adversary. The secret digest folded
+ * Non-cryptographic (Murmur3) for the definition and participant folds, matching the file-set
+ * fingerprint, which guards accidental collision rather than an adversary. Note the listing cache is NOT
+ * that precedent: {@code ListingCacheKey.sha256Truncated} uses SHA-256, because its pre-image carries
+ * identities as plain user-influenced strings. Here the secret arrives already digested, so aiming a
+ * collision would need the target's digest first. The secret digest folded
  * into the source pair arrives already hashed with SHA-256 by
  * {@code StorageIdentity.digestSecret}, so what is stored here is a fold of a digest and never a secret:
  * an address outlives the data source it came from, and records print their fields.
@@ -169,6 +176,53 @@ public final class DatasetIdentity {
     @Override
     public int hashCode() {
         return hash;
+    }
+
+    /**
+     * The participant lanes alone, as an opaque token, for the one caller that must compare only those: the
+     * reconcile refuses to enrich when the entries it matched for one path were derived under more than one
+     * identity, because a contribution says which path, mtime and format config it came from and never which
+     * entry it belongs to.
+     * <p>
+     * It must compare participants and NOT the whole identity. The components this leaves out - the definition
+     * version and the secret digest - were outside the compared value before this type existed, so widening the
+     * comparison to the whole identity makes two entries over one file that differ only in one of those refuse
+     * each other, and then NEITHER is enriched while both live. The schema store has no clock, so that is not a
+     * cold read each: it is a warm path that stays dead. Two datasets over one file differing only in their
+     * definition version is an ordinary state, and so is one file reachable under two credential sets.
+     * <p>
+     * Whether a contribution should enrich an entry whose definition version it cannot confirm is a separate
+     * question this does not answer; it preserves what the comparison did before.
+     */
+    public Participants participants() {
+        return new Participants(participantsHi, participantsLo);
+    }
+
+    /** An opaque equality token over the participant lanes; the lanes stay private to {@link DatasetIdentity}. */
+    public static final class Participants {
+
+        private final long hi;
+        private final long lo;
+
+        private Participants(long hi, long lo) {
+            this.hi = hi;
+            this.lo = lo;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof Participants other && hi == other.hi && lo == other.lo;
+        }
+
+        @Override
+        public int hashCode() {
+            return Long.hashCode(hi * 31 + lo);
+        }
+
+        @Override
+        public String toString() {
+            return ReadConfigFingerprint.render(hi, lo);
+        }
     }
 
     /**

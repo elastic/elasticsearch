@@ -9275,44 +9275,49 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
     }
 
-    public void testSchemaCacheKeyIgnoresDatasetCredentials() {
-        // Schema cache is deliberately credential-independent (shared across users). Credentials inside
-        // _datasource must also be ignored whether the config is raw or pre-flattened via storageConfig.
+    /**
+     * Credentials now separate schema addresses, reversing what this case previously asserted - that the schema
+     * cache is shared across users. Driven through {@code Configured.secretIdentityOf}, which is how the digest is
+     * actually derived, rather than by handing a raw config to the key, which reads nothing from it but the
+     * definition version and would make the assertion unfalsifiable.
+     * <p>
+     * It asserts on the FLATTENED config, because {@code secretIdentityOf} tests top-level keys: credentials still
+     * nested under {@code _datasource} yield an empty digest, which the second half pins so that the distinction
+     * is recorded rather than discovered again. The resolver passes {@code storageConfig(config)} at every mint
+     * site, and the digest itself reaches the key from the provider's own {@code Configured}, so production is on
+     * the flattened side of this.
+     */
+    public void testSchemaCacheKeySeparatesDatasetCredentials() {
         Map<String, Object> dsA = new HashMap<>(Map.of("access_key", "key-a", "endpoint", "http://s3.example.com"));
         Map<String, Object> dsB = new HashMap<>(Map.of("access_key", "key-b", "endpoint", "http://s3.example.com"));
         Map<String, Object> configA = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsA));
         Map<String, Object> configB = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsB));
         long mtime = 1000L;
+        Set<String> secrets = Set.of("access_key");
+        String path = "s3://bucket/file.csv";
 
-        // Raw config: credentials in _datasource are still ignored (schema is user-independent).
-        SchemaCacheKey rawA = SchemaCacheKey.build(
-            "s3://bucket/file.csv",
-            mtime,
-            TestDatasetIdentities.identity("csv", "", configA),
-            false
+        Map<String, Object> flatA = ExternalSourceResolver.storageConfig(configA);
+        Map<String, Object> flatB = ExternalSourceResolver.storageConfig(configB);
+        String digestA = Configured.secretIdentityOf(flatA, secrets);
+        String digestB = Configured.secretIdentityOf(flatB, secrets);
+        assertNotEquals("two access keys must digest differently, or the rest proves nothing", digestA, digestB);
+        assertNotEquals(
+            "schema keys differing only in their credentials must not share an address",
+            SchemaCacheKey.build(path, mtime, TestDatasetIdentities.identity("csv", "", digestA, flatA), false),
+            SchemaCacheKey.build(path, mtime, TestDatasetIdentities.identity("csv", "", digestB, flatB), false)
         );
-        SchemaCacheKey rawB = SchemaCacheKey.build(
-            "s3://bucket/file.csv",
-            mtime,
-            TestDatasetIdentities.identity("csv", "", configB),
-            false
+        assertEquals(
+            "and the same credentials must still share one",
+            SchemaCacheKey.build(path, mtime, TestDatasetIdentities.identity("csv", "", digestA, flatA), false),
+            SchemaCacheKey.build(path, mtime, TestDatasetIdentities.identity("csv", "", digestA, flatA), false)
         );
-        assertEquals("schema keys differing only in _datasource credentials must be equal — cache is shared across users", rawA, rawB);
 
-        // Same invariant holds after storageConfig flattening.
-        SchemaCacheKey flatA = SchemaCacheKey.build(
-            "s3://bucket/file.csv",
-            mtime,
-            TestDatasetIdentities.identity("csv", "", ExternalSourceResolver.storageConfig(configA)),
-            false
+        assertEquals(
+            "a credential still nested under _datasource digests to nothing, because secretIdentityOf tests "
+                + "top-level keys; the resolver flattens before it mints, so production does not rely on this",
+            "",
+            Configured.secretIdentityOf(configA, secrets)
         );
-        SchemaCacheKey flatB = SchemaCacheKey.build(
-            "s3://bucket/file.csv",
-            mtime,
-            TestDatasetIdentities.identity("csv", "", ExternalSourceResolver.storageConfig(configB)),
-            false
-        );
-        assertEquals("flattened config: credential-independent schema cache invariant must still hold", flatA, flatB);
     }
 
     public void testFileMetadataCacheKeyDifferentiatesByStorageIdentity() {

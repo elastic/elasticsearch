@@ -102,6 +102,39 @@ public class SchemaCacheKeyTests extends ESTestCase {
     }
 
     /** The same separation on the per-file rail, which is where the schema and the per-column extrema live. */
+    /**
+     * The strict-declared rail stores a different answer about the same bytes than the inferred rail does: its
+     * record holds the DECLARED schema, where the inferred record holds what inference produced. If the two share
+     * one address the loser is served the other's schema, which is a wrong answer and not a miss.
+     * <p>
+     * This separation used to be carried by a marker suffixed onto the format name and tested with
+     * {@code endsWith}; it is now a compared component. Neither form had a test in this suite that could fail,
+     * which is what this is.
+     */
+    public void testStrictDeclaredRecordDoesNotShareTheInferredAddress() {
+        DatasetIdentity identity = TestDatasetIdentities.identity("csv", "endpoint=a", Map.of());
+        SchemaCacheKey inferred = SchemaCacheKey.build("s3://b/f.csv", 1000L, identity, false);
+        SchemaCacheKey strict = SchemaCacheKey.build("s3://b/f.csv", 1000L, identity, true);
+        assertNotEquals(
+            "the strict-declared record holds the declared schema and the inferred record holds the inferred one; "
+                + "sharing one address serves one of them the other's schema",
+            inferred,
+            strict
+        );
+        assertEquals("and the rail is the only thing that differs", inferred, SchemaCacheKey.build("s3://b/f.csv", 1000L, identity, false));
+        assertEquals(strict, SchemaCacheKey.build("s3://b/f.csv", 1000L, identity, true));
+    }
+
+    /** The rail must survive the derivation to a statistics address, or a strict harvest lands on the inferred record. */
+    public void testTheRailSurvivesTheStatisticsDerivation() {
+        DatasetIdentity identity = TestDatasetIdentities.identity("csv", "endpoint=a", Map.of());
+        SchemaCacheKey strictStats = SchemaCacheKey.build("s3://b/f.csv", 1000L, identity, true).withReadConfig("aaaa1111");
+        SchemaCacheKey inferredStats = SchemaCacheKey.build("s3://b/f.csv", 1000L, identity, false).withReadConfig("aaaa1111");
+        assertTrue(strictStats.declaredStrict());
+        assertFalse(inferredStats.declaredStrict());
+        assertNotEquals(strictStats, inferredStats);
+    }
+
     public void testPerFileKeySeparatesPrincipals() {
         SchemaCacheKey a = SchemaCacheKey.build(
             "s3://bucket/data/a.ndjson",
@@ -139,7 +172,7 @@ public class SchemaCacheKeyTests extends ESTestCase {
         assertEquals(none, SchemaCacheKey.build("s3://b/f.ndjson", 1L, TestDatasetIdentities.identity("ndjson", "", "", Map.of()), false));
     }
 
-    public void testDatasetAggregateKeyChangesWithSourceType() {
+    public void testDatasetAggregateKeyChangesWithTheReaderIdentity() {
         SchemaCacheKey ndjson = SchemaCacheKey.forDatasetAggregate(
             PATTERN,
             new FileSetFingerprint(11, 22),
@@ -192,7 +225,7 @@ public class SchemaCacheKeyTests extends ESTestCase {
     public void testDatasetAggregateKeyDistinctFromPerFileKeys() {
         // Even a per-file key crafted over the same strings cannot equal a dataset key: the file-set
         // fingerprint rides the dedicated fileSetFingerprint component, which every per-file key leaves
-        // null (so a pathological '#dataset-agg'-bearing object name at most loses warm enrichment, never
+        // null (so a pathological its file-set fingerprint-bearing object name at most loses warm enrichment, never
         // collides). canonicalPath stays the plain glob pattern (diagnostics-friendly, no smuggled
         // separators).
         SchemaCacheKey dataset = SchemaCacheKey.forDatasetAggregate(

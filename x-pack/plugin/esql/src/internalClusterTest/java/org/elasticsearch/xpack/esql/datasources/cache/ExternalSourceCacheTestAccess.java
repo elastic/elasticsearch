@@ -65,7 +65,7 @@ public final class ExternalSourceCacheTestAccess {
 
     /**
      * Invalidates every per-file schema-cache entry whose canonical path contains {@code pathSubstring},
-     * leaving dataset-aggregate entries (marker-suffixed formatType) in place — the surgical arms of the
+     * leaving dataset-aggregate entries, which carry a file-set fingerprint, in place — the surgical arms of the
      * warm-fold regression tests must remove FILE entries, never the dataset aggregate under test.
      * Returns the number of entries invalidated.
      */

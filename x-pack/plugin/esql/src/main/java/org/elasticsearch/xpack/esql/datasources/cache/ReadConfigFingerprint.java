@@ -99,6 +99,17 @@ public final class ReadConfigFingerprint {
         if (readSchema == null || readSchema.isEmpty()) {
             return UNKNOWN;
         }
+        MurmurHash3.Hash128 hash = hash128(readSchema, spec);
+        return render(hash.h1, hash.h2);
+    }
+
+    /**
+     * The two lanes, for {@link ReadDecision}, which keys on them directly. Shares one encoder with {@link #of}
+     * so a key and the metadata entry describing the same read can never disagree about what was hashed.
+     * {@code readSchema} must be non-empty - an empty one has no configuration to describe, which is
+     * {@link #UNKNOWN}, and only the callers above can decide what to return in its place.
+     */
+    public static MurmurHash3.Hash128 hash128(List<Attribute> readSchema, @Nullable DeclaredReadSpec spec) {
         DeclaredReadSpec readSpec = spec == null ? DeclaredReadSpec.NONE : spec;
         Map<String, String> renames = readSpec.renames();
         Map<String, String> dateFormats = readSpec.dateFormats();
@@ -115,10 +126,16 @@ public final class ReadConfigFingerprint {
         appendLengthPrefixed(encoded, readSpec.provenance().name());
 
         byte[] bytes = encoded.toString().getBytes(StandardCharsets.UTF_8);
-        MurmurHash3.Hash128 hash = MurmurHash3.hash128(bytes, 0, bytes.length, 0, new MurmurHash3.Hash128());
-        // Zero-padded: Long.toHexString does not pad, so (0x1, 0x23) and (0x12, 0x3) would both render "123" —
-        // a rendering collision in the one place the javadoc above argues a collision is a wrong answer.
-        return String.format(Locale.ROOT, "%016x%016x", hash.h1, hash.h2);
+        return MurmurHash3.hash128(bytes, 0, bytes.length, 0, new MurmurHash3.Hash128());
+    }
+
+    /**
+     * Zero-padded: {@code Long.toHexString} does not pad, so {@code (0x1, 0x23)} and {@code (0x12, 0x3)} would both
+     * render {@code "123"} - a rendering collision in the one place the javadoc above argues a collision is a wrong
+     * answer.
+     */
+    public static String render(long high, long low) {
+        return String.format(Locale.ROOT, "%016x%016x", high, low);
     }
 
     /** Length-prefixed so no user-controlled value can forge a field boundary. */

@@ -314,7 +314,7 @@ Map<String, String> expansions = [
 
 tasks.named("processYamlRestTestResources") {
   inputs.properties(expansions)
-  filter("tokens":expansions, ReplaceTokens.class)
+  filter("tokens": expansions, ReplaceTokens.class)
 }
 
 tasks.named("internalClusterTest") {

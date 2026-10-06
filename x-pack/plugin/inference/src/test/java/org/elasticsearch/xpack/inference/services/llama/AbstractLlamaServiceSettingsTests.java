@@ -88,6 +88,26 @@ public abstract class AbstractLlamaServiceSettingsTests<T extends LlamaServiceSe
         assertThat(serviceSettings, is(createServiceSettings(TEST_MODEL_ID, TEST_URI, new RateLimitSettings(DEFAULT_RATE_LIMIT))));
     }
 
+    public void testFromMap_NullRateLimit_UsesDefaultValue() {
+        var map = buildCommonServiceSettingsMap(TEST_MODEL_ID, TEST_URI.toString(), null);
+        map.put(RateLimitSettings.FIELD_NAME, null);
+
+        var serviceSettings = fromMap(map, randomFrom(ConfigurationParseContext.values()));
+
+        assertThat(serviceSettings, is(createServiceSettings(TEST_MODEL_ID, TEST_URI, new RateLimitSettings(DEFAULT_RATE_LIMIT))));
+    }
+
+    public void testFromMap_NullRequestsPerMinute_UsesDefaultValue() {
+        var map = buildCommonServiceSettingsMap(TEST_MODEL_ID, TEST_URI.toString(), null);
+        var rateLimitMap = new HashMap<String, Object>();
+        rateLimitMap.put(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, null);
+        map.put(RateLimitSettings.FIELD_NAME, rateLimitMap);
+
+        var serviceSettings = fromMap(map, randomFrom(ConfigurationParseContext.values()));
+
+        assertThat(serviceSettings, is(createServiceSettings(TEST_MODEL_ID, TEST_URI, new RateLimitSettings(DEFAULT_RATE_LIMIT))));
+    }
+
     public void testFromMap_NoModelId_ThrowsException() {
         var thrownException = expectThrows(
             IllegalArgumentException.class,
@@ -176,6 +196,24 @@ public abstract class AbstractLlamaServiceSettingsTests<T extends LlamaServiceSe
 
         assertThat(
             originalServiceSettings.updateServiceSettings(settingsMap),
+            is(createServiceSettings(INITIAL_TEST_MODEL_ID, INITIAL_TEST_URI, new RateLimitSettings(DEFAULT_RATE_LIMIT)))
+        );
+    }
+
+    public void testUpdateServiceSettings_NullRequestsPerMinute_RevertsToDefault() {
+        var rateLimitMap = new HashMap<String, Object>();
+        rateLimitMap.put(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, null);
+        var originalServiceSettings = createServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_URI,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
+            new HashMap<>(Map.of(RateLimitSettings.FIELD_NAME, rateLimitMap))
+        );
+
+        assertThat(
+            updatedServiceSettings,
             is(createServiceSettings(INITIAL_TEST_MODEL_ID, INITIAL_TEST_URI, new RateLimitSettings(DEFAULT_RATE_LIMIT)))
         );
     }

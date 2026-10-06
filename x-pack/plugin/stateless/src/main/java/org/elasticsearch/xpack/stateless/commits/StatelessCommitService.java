@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
@@ -376,8 +375,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         if (projectId == null) {
             return Optional.empty();
         }
-        RoutingTable routingTable = clusterState.routingTable(projectId);
-        return routingTable.hasIndex(shardId.getIndex()) ? Optional.of(routingTable.shardRoutingTable(shardId)) : Optional.empty();
+        final var indexRoutingTable = clusterState.routingTable(projectId).index(shardId.getIndex());
+        // A restore can remove a shard while its asynchronous commit work is still completing.
+        return indexRoutingTable == null ? Optional.empty() : Optional.ofNullable(indexRoutingTable.shard(shardId.id()));
     }
 
     /**

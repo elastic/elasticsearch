@@ -15,8 +15,11 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.fs.FsBlobStore;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.test.ESTestCase;
@@ -24,6 +27,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -145,6 +149,120 @@ public class StaleIndicesGCServiceTests extends ESTestCase {
         verify(objectStoreService).getIndexBlobContainer(projectId, indexUUIDToDelete);
         verify(blobContainer).delete(OperationPurpose.INDICES);
         verifyNoMoreInteractions(objectStoreService, blobContainer);
+    }
+
+    public void testRemovedShardCleanupPreservesCurrentAndNewFiles() throws IOException {
+        try (var store = new FsBlobStore(1024, createTempDir(), false)) {
+            final var indexPath = BlobPath.EMPTY.add("indices").add("uuid");
+            final var live = store.blobContainer(indexPath.add("0").add("10"));
+            final var removed = store.blobContainer(indexPath.add("1").add("5"));
+            live.writeBlob(OperationPurpose.INDICES, "live", new BytesArray("live"), true);
+            removed.writeBlob(OperationPurpose.INDICES, "old", new BytesArray("old"), true);
+            // Mock only the service wiring; discovery and deletion operate on a real filesystem blob store.
+            final var objectStore = mock(ObjectStoreService.class);
+            when(objectStore.getIndexBlobContainer(ProjectId.DEFAULT, "uuid")).thenReturn(store.blobContainer(indexPath));
+            final var clusterService = mock(ClusterService.class);
+            final var state = restoredState(1, "history");
+            when(clusterService.state()).thenReturn(state);
+            final var service = new StaleIndicesGCService(() -> objectStore, clusterService, mock(ThreadPool.class), mock(Client.class));
+            final var candidates = service.getStaleShardFiles();
+            assertEquals(1, candidates.size());
+            final var reintroduced = store.blobContainer(indexPath.add("1").add("11"));
+            reintroduced.writeBlob(OperationPurpose.INDICES, "new", new BytesArray("new"), true);
+            final var future = new PlainActionFuture<Void>();
+            service.deleteStaleShardFiles(future, state, candidates);
+            safeGet(future);
+            assertFalse(removed.blobExists(OperationPurpose.INDICES, "old"));
+            assertTrue(live.blobExists(OperationPurpose.INDICES, "live"));
+            assertTrue(reintroduced.blobExists(OperationPurpose.INDICES, "new"));
+        }
+    }
+
+    public void testRemovedShardCleanupUsesBoundedBatches() throws IOException {
+        try (var store = new FsBlobStore(1024, createTempDir(), false)) {
+            final var indexPath = BlobPath.EMPTY.add("indices").add("uuid");
+            final var live = store.blobContainer(indexPath.add("0").add("10"));
+            live.writeBlob(OperationPurpose.INDICES, "live", new BytesArray("live"), true);
+            // Cross both shard and nested-container boundaries, with more than a batch in each container.
+            for (int shard = 1; shard <= 2; shard++) {
+                for (int term = 1; term <= 2; term++) {
+                    final var container = store.blobContainer(indexPath.add(Integer.toString(shard)).add(Integer.toString(term)));
+                    for (int file = 0; file < 5; file++) {
+                        container.writeBlob(OperationPurpose.INDICES, "file-" + file, new BytesArray("old"), true);
+                    }
+                }
+            }
+            // Mock only the service wiring; listing and deletion use the real filesystem blob store.
+            final var objectStore = mock(ObjectStoreService.class);
+            when(objectStore.getIndexBlobContainer(ProjectId.DEFAULT, "uuid")).thenReturn(store.blobContainer(indexPath));
+            final var clusterService = mock(ClusterService.class);
+            final var state = restoredState(1, "history");
+            when(clusterService.state()).thenReturn(state);
+            final var service = new StaleIndicesGCService(() -> objectStore, clusterService, mock(ThreadPool.class), mock(Client.class));
+            final int batchSize = 3;
+            int remaining = 20;
+            while (remaining > 0) {
+                final var candidates = service.getStaleShardFiles(batchSize);
+                final int files = candidates.stream().mapToInt(candidate -> candidate.names().size()).sum();
+                assertEquals(Math.min(batchSize, remaining), files);
+                // A changed history must invalidate the whole batch, without preventing a subsequent cycle from retrying it.
+                final var skipped = new PlainActionFuture<Void>();
+                service.deleteStaleShardFiles(skipped, restoredState(1, "new-history"), candidates);
+                safeGet(skipped);
+                for (var candidate : candidates) {
+                    for (String name : candidate.names()) {
+                        assertTrue(candidate.container().blobExists(OperationPurpose.INDICES, name));
+                    }
+                }
+                final var deleted = new PlainActionFuture<Void>();
+                service.deleteStaleShardFiles(deleted, state, candidates);
+                safeGet(deleted);
+                for (var candidate : candidates) {
+                    for (String name : candidate.names()) {
+                        assertFalse(candidate.container().blobExists(OperationPurpose.INDICES, name));
+                    }
+                }
+                remaining -= files;
+            }
+            assertTrue(service.getStaleShardFiles(batchSize).isEmpty());
+            assertTrue(live.blobExists(OperationPurpose.INDICES, "live"));
+        }
+    }
+
+    public void testRemovedShardCleanupRechecksConsistentState() throws IOException {
+        try (var store = new FsBlobStore(1024, createTempDir(), false)) {
+            final var indexPath = BlobPath.EMPTY.add("indices").add("uuid");
+            final var removed = store.blobContainer(indexPath.add("1").add("5"));
+            removed.writeBlob(OperationPurpose.INDICES, "old", new BytesArray("old"), true);
+            final var objectStore = mock(ObjectStoreService.class);
+            when(objectStore.getIndexBlobContainer(ProjectId.DEFAULT, "uuid")).thenReturn(store.blobContainer(indexPath));
+            final var clusterService = mock(ClusterService.class);
+            when(clusterService.state()).thenReturn(restoredState(1, "history"));
+            final var service = new StaleIndicesGCService(() -> objectStore, clusterService, mock(ThreadPool.class), mock(Client.class));
+            final var candidates = service.getStaleShardFiles();
+            assertEquals(1, candidates.size());
+            for (var state : List.of(restoredState(2, "history"), restoredState(1, "new-history"))) {
+                final var future = new PlainActionFuture<Void>();
+                service.deleteStaleShardFiles(future, state, candidates);
+                safeGet(future);
+                assertTrue(removed.blobExists(OperationPurpose.INDICES, "old"));
+            }
+        }
+    }
+
+    private static ClusterState restoredState(int shards, String history) {
+        return ClusterState.builder(ClusterState.EMPTY_STATE)
+            .putProjectMetadata(
+                ProjectMetadata.builder(ProjectId.DEFAULT)
+                    .put(
+                        IndexMetadata.builder("index")
+                            .settings(
+                                indexSettings(IndexVersion.current(), shards, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
+                                    .put(IndexMetadata.SETTING_HISTORY_UUID, history)
+                            )
+                    )
+            )
+            .build();
     }
 
     private ObjectStoreService createObjectStoreService() throws IOException {

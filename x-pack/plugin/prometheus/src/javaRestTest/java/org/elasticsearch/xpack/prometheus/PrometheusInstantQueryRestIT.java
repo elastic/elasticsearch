@@ -555,6 +555,21 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertThat(error.getMessage(), containsString("duplicate"));
     }
 
+    /**
+     * {@code without} over a binary operator between two closed aggregates regroups its named labels: the per-host ratios
+     * (a: 5, b: 10, c: 3) sum without host into {@code {cluster="prod"} 15} and {@code {cluster="qa"} 3}.
+     */
+    public void testInstantWithoutOverAClosedBinaryOperator() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantGroups(
+            "sum without (host) (sum by (host, cluster) (tx) / sum by (host, cluster) (rx))",
+            "cluster",
+            Map.of("prod", 15.0, "qa", 3.0)
+        );
+        assertBinopInstantValues("sum without (host, cluster) (sum by (host, cluster) (tx) / sum by (host, cluster) (rx))", 18);
+        assertBinopInstantValues("count without (host) (sum by (host) (tx) / sum by (host) (rx))", 3);
+    }
+
     /** Prometheus converts k with an integer cast: {@code topk(1.5, tx)} keeps one series and {@code topk(0.5, tx)} none. */
     public void testInstantFractionalKIsTruncated() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_TIME);

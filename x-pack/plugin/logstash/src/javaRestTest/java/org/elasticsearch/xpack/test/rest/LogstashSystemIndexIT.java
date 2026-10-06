@@ -207,7 +207,7 @@ public class LogstashSystemIndexIT extends ESRestTestCase {
         // Temporarily lower the limit so we don't need to allocate megabytes in the test
         final int smallLimit = 100;
         Request updateSettings = new Request("PUT", "/_cluster/settings");
-        updateSettings.setJsonEntity("{\"persistent\":{\"logstash.pipeline.max_size_in_bytes\":" + smallLimit + "}}");
+        updateSettings.setJsonEntity("{\"persistent\":{\"logstash.pipeline.max_size\":\"" + smallLimit + "b\"}}");
         client().performRequest(updateSettings);
 
         try {
@@ -223,7 +223,7 @@ public class LogstashSystemIndexIT extends ESRestTestCase {
         } finally {
             // Restore the default
             Request restoreSettings = new Request("PUT", "/_cluster/settings");
-            restoreSettings.setJsonEntity("{\"persistent\":{\"logstash.pipeline.max_size_in_bytes\":null}}");
+            restoreSettings.setJsonEntity("{\"persistent\":{\"logstash.pipeline.max_size\":null}}");
             client().performRequest(restoreSettings);
         }
     }

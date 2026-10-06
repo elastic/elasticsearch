@@ -40,7 +40,8 @@ import java.io.IOException;
  * encoding references, and dispatching extractions — is handled by {@code SourceExtractors}
  * ({@code org.elasticsearch.xpack.esql.datasources.SourceExtractors}), not by this SPI.
  * <p>
- * Threading: a single driver thread owns an instance; implementations need not be thread-safe.
+ * Threading: a single driver owns an instance and invokes it serially, although an invocation may
+ * run on an external read executor rather than the driver thread. Implementations need not be thread-safe.
  */
 public interface ColumnExtractor extends Releasable {
 

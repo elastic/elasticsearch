@@ -946,7 +946,7 @@ public class ExternalSourceResolver {
     RuntimeException mapResolveFailure(String path, Exception e) {
         if (e instanceof TaskCancelledException tce) {
             LOGGER.debug("External source resolution cancelled for [{}]", path);
-            return tce;
+            return ExternalFailures.detach(tce);
         }
         if (isCancelled()) {
             LOGGER.debug("External source resolution cancelled for [{}]", path);
@@ -977,7 +977,6 @@ public class ExternalSourceResolver {
         // A permit-acquisition interrupt surfaces as an EsRejectedExecutionException (429). The factory loop wraps it
         // in an IllegalArgumentException (400), so recover it from the cause chain before the IllegalArgumentException
         // branch: a node-level rejection must keep its 429 status instead of being masked as a client error.
-        // Return the original to preserve isExecutorShutdown() and all other fields.
         EsRejectedExecutionException rejected = (EsRejectedExecutionException) ExceptionsHelper.unwrap(
             e,
             EsRejectedExecutionException.class
@@ -985,14 +984,14 @@ public class ExternalSourceResolver {
         if (rejected != null) {
             recordDiscoveryFailure();
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
-            return rejected;
+            return ExternalFailures.detach(rejected);
         }
         // A breaker trip carries its own 429 and must survive a wrapper for the same reason.
         CircuitBreakingException breaking = (CircuitBreakingException) ExceptionsHelper.unwrap(e, CircuitBreakingException.class);
         if (breaking != null) {
             recordDiscoveryFailure();
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, breaking.getMessage(), e);
-            return breaking;
+            return ExternalFailures.detach(breaking);
         }
         // Recover a client error from behind a wrapper, the same way the 503 and 429 arms above do. Resolution
         // may arrive behind an ExecutionException (file-metadata {@code computeIfAbsent}, or other wrappers) —
@@ -1014,14 +1013,14 @@ public class ExternalSourceResolver {
         if (clientError != null) {
             recordDiscoveryFailure();
             logClientResolveFailure(path, clientError.getMessage(), e);
-            String iaeMsg = clientError.getMessage();
-            boolean safe = iaeMsg != null && ExternalFailures.safeForUserMessage(iaeMsg);
-            if (safe && clientError.getCause() == null && clientError.getSuppressed().length == 0) {
+            String forwardable = ExternalFailures.forwardableDetail(clientError);
+            // With no cause, rootCause is clientError itself, so a non-null forwardable is its message.
+            if (forwardable != null && clientError.getCause() == null && clientError.getSuppressed().length == 0) {
                 return clientError;
             }
             // Causes and suppressed failures may name the location, and the REST layer renders both.
-            if (safe) {
-                return new IllegalArgumentException(iaeMsg);
+            if (forwardable != null) {
+                return new IllegalArgumentException(forwardable);
             }
             String objectName = StoragePath.objectName(path);
             return new IllegalArgumentException(
@@ -1052,8 +1051,9 @@ public class ExternalSourceResolver {
                 StoragePath.objectName(path),
                 ""
             );
-            if (ExternalFailures.safeForUserMessage(ioDetail)) {
-                ioEx.setDetail(ioDetail);
+            String forwardable = ExternalFailures.forwardableDetail(ioError);
+            if (forwardable != null) {
+                ioEx.setDetail(forwardable);
             }
             return ioEx;
         }
@@ -1076,7 +1076,12 @@ public class ExternalSourceResolver {
      * its diagnosis, and every query against a misconfigured dataset fails the same way. The stack trace is at DEBUG.
      */
     private static void logClientResolveFailure(String path, String detail, Exception e) {
-        LOGGER.warn("Failed to resolve external source [{}]: {}", path, detail);
+        Throwable withheld = ExternalFailures.withheldCauseToLog(detail, e);
+        if (withheld != null) {
+            LOGGER.warn("Failed to resolve external source [{}]: {} ({})", path, detail, withheld);
+        } else {
+            LOGGER.warn("Failed to resolve external source [{}]: {}", path, detail);
+        }
         LOGGER.debug("Failed to resolve external source [{}]", path, e);
     }
 

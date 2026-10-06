@@ -531,14 +531,19 @@ public final class ParallelParsingCoordinator {
         long minSegment = reader.minimumSegmentSize();
 
         // COUNT(*) and similar: projectedColumns is empty while rows still need structural validation
-        // against the file width. When this read includes the file-leading bytes (and therefore any
-        // header), bind the full on-disk schema before segment workers run. For non-leading macro
-        // splits, rebinding via metadata is unsafe because the split-local first row is data, not header.
+        // against the file width. The coordinator pin is already physical file width; bind it in
+        // memory and skip execution metadata() (an unranged GET from byte 0). Null/empty pin
+        // (mixed-version coordinators; FileSplit collapse) still infers from the file. Non-leading
+        // macro-splits must not rebind via metadata: the split-local first row is data, not header.
         SegmentableFormatReader parallelReader = reader;
         if (projectedColumns != null && projectedColumns.isEmpty() && splitIncludesFileLeader) {
-            var meta = parallelReader.metadata(storageObject);
-            if (meta != null && meta.schema() != null && meta.schema().isEmpty() == false) {
-                parallelReader = (SegmentableFormatReader) parallelReader.withSchema(meta.schema());
+            if (readSchema != null && readSchema.isEmpty() == false) {
+                parallelReader = (SegmentableFormatReader) parallelReader.withSchema(readSchema);
+            } else {
+                var meta = parallelReader.metadata(storageObject);
+                if (meta != null && meta.schema() != null && meta.schema().isEmpty() == false) {
+                    parallelReader = (SegmentableFormatReader) parallelReader.withSchema(meta.schema());
+                }
             }
         }
 
@@ -581,8 +586,20 @@ public final class ParallelParsingCoordinator {
         // Segments 1..N cannot see the header line. With no pinned schema they bind against the schema inferred from
         // that same header and need nothing.
         List<String> segmentHeaderColumns = fileHeaderColumns;
-        if (splitIncludesFileLeader && readSchema != null && segmentHeaderColumns == null && parallelReader.readsHeaderLine()) {
-            segmentHeaderColumns = parallelReader.fileHeaderColumns(storageObject);
+        // An empty pin infers from the file (the read context normalises it to none), so it needs nothing either.
+        if (splitIncludesFileLeader
+            && readSchema != null
+            && readSchema.isEmpty() == false
+            && segmentHeaderColumns == null
+            && parallelReader.readsHeaderLine()) {
+            // The header sits at the front of the leader segment, so a ranged read of that segment finds it without an
+            // unranged GET from byte 0. Finding none there is not an answer (a header run longer than the segment), so
+            // only then is the whole file read.
+            long[] leader = segments.get(0);
+            segmentHeaderColumns = parallelReader.fileHeaderColumns(new RangeStorageObject(storageObject, leader[0], leader[1]));
+            if (segmentHeaderColumns != null && segmentHeaderColumns.isEmpty()) {
+                segmentHeaderColumns = parallelReader.fileHeaderColumns(storageObject);
+            }
         }
 
         AsReadyParallelIterator iterator = new AsReadyParallelIterator(

@@ -2,4 +2,4 @@ area: ES|QL
 issues: []
 pr: 160979
 summary: Introduce `_class` and `_name` METADATA attributes to views and subqueries
-type: feature
+type: enhancement

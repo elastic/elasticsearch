@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.gpu;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -36,7 +37,7 @@ public class GPUClientNotEnabledYamlTestSuiteIT extends ESClientYamlSuiteTestCas
         return builder.build();
     }
 
-    public GPUClientNotEnabledYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
+    public GPUClientNotEnabledYamlTestSuiteIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

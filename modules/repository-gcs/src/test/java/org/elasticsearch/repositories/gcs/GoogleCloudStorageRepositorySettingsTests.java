@@ -34,6 +34,8 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Collections;
 import java.util.List;
@@ -51,9 +53,8 @@ public class GoogleCloudStorageRepositorySettingsTests extends ESTestCase {
     private RepositoriesService repositoriesService;
     private ProjectId repositoryServiceProjectId;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initRepositoriesService() throws Exception {
         repositoryServiceThreadPool = new TestThreadPool(getClass().getName());
         repositoryServiceClusterService = ClusterServiceUtils.createClusterService(repositoryServiceThreadPool);
         repositoryServiceProjectId = randomProjectIdOrDefault();
@@ -73,16 +74,14 @@ public class GoogleCloudStorageRepositorySettingsTests extends ESTestCase {
             Map.of(),
             repositoryServiceThreadPool,
             client,
-            List.of(),
-            SnapshotMetrics.NOOP
+            List.of()
         );
         repositoryServiceClusterService.start();
         repositoriesService.start();
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void cleanup() throws Exception {
         repositoriesService.stop();
         repositoryServiceClusterService.stop();
         repositoryServiceThreadPool.shutdownNow();

@@ -38,6 +38,10 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
+import org.elasticsearch.index.store.StoreMetrics;
+import org.elasticsearch.index.store.StoreMetricsDirectory;
+import org.elasticsearch.index.store.StoreMetricsIndexInput;
+import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
@@ -64,8 +68,10 @@ import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils
 import static org.elasticsearch.xpack.stateless.TestUtils.newCacheService;
 import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.createBlobFileRanges;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class ReopeningIndexInputTests extends ESIndexInputTestCase {
 
@@ -139,6 +145,118 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
         } finally {
             assertTrue(ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS));
         }
+    }
+
+    /**
+     * The bytes a stateless indexing node reads are accounted exactly once, wherever they come from: reads of a file
+     * it has not uploaded yet go to the local copy and are accounted by {@link IndexDirectory.ReopeningIndexInput},
+     * and reads of an uploaded file go through a {@code CacheFileReader} which accounts them itself. An input that is
+     * open across the upload reads both ways, and must not count the second half twice.
+     */
+    public void testAccountsLocalAndCachedReadsExactlyOnce() throws IOException {
+        final Path dataPath = createTempDir();
+        final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
+        final ThreadPool threadPool = getThreadPool("testAccountsLocalAndCachedReadsExactlyOnce");
+        final var settings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(16))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), pageAligned(ByteSizeValue.ofKb(64)))
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), dataPath.toAbsolutePath().toString())
+            .build();
+        final Path indexDataPath = dataPath.resolve("index");
+        final Path blobStorePath = PathUtils.get(createTempDir().toString());
+        try (
+            NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool);
+            FsBlobStore blobStore = new FsBlobStore(8 * 1024, blobStorePath, false);
+            IndexDirectory indexDirectory = new IndexDirectory(
+                newFSDirectory(indexDataPath),
+                new IndexBlobStoreCacheDirectory(sharedBlobCacheService, shardId),
+                null,
+                true
+            )
+        ) {
+            final FsBlobContainer blobContainer = new FsBlobContainer(blobStore, BlobPath.EMPTY, blobStorePath);
+            indexDirectory.getBlobStoreCacheDirectory().setBlobContainer(value -> blobContainer);
+
+            final var metrics = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
+            // as the store does: inputs that account for themselves are handed the holder, the rest are wrapped
+            final var storeDirectory = new StoreMetricsDirectory(indexDirectory, metrics);
+
+            // a whole number of buffers, so that reading the file accounts exactly its length however it is read
+            final int halfLength = 32 * BlobCacheBufferedIndexInput.BUFFER_SIZE;
+            final String fileName = "file_0.cfs";
+            final byte[] bytes = randomByteArrayOfLength(2 * halfLength);
+            try (IndexOutput output = indexDirectory.createOutput(fileName, IOContext.DEFAULT)) {
+                output.writeBytes(bytes, bytes.length);
+            }
+            assertThat("writing accounts nothing", metrics.instance().getBytesRead(), equalTo(0L));
+
+            final byte[] read = new byte[halfLength];
+            try (IndexInput input = storeDirectory.openInput(fileName, IOContext.DEFAULT)) {
+                assertThat("the input accounts for itself", input, not(instanceOf(StoreMetricsIndexInput.class)));
+                input.readBytes(read, 0, halfLength);
+                assertArrayEquals(Arrays.copyOfRange(bytes, 0, halfLength), read);
+                assertThat(
+                    "read from the local copy",
+                    ((IndexDirectory.ReopeningIndexInput) input).getDelegate().isCached(),
+                    equalTo(false)
+                );
+                assertThat(metrics.instance().getBytesRead(), equalTo((long) halfLength));
+
+                // a slice of the local copy is a new input, and accounts to the same holder
+                try (IndexInput slice = input.slice("slice", 0, halfLength)) {
+                    slice.readBytes(read, 0, halfLength);
+                }
+                assertThat(metrics.instance().getBytesRead(), equalTo(2L * halfLength));
+
+                // the upload reads the file straight from the directory, which the store never handed a holder to
+                uploadAndCommit(indexDirectory, blobContainer, fileName, bytes.length);
+                assertThat(metrics.instance().getBytesRead(), equalTo(2L * halfLength));
+
+                final long missesBefore = sharedBlobCacheService.getStats().missCount();
+                input.readBytes(read, 0, halfLength);
+                assertArrayEquals(Arrays.copyOfRange(bytes, halfLength, bytes.length), read);
+                assertThat("read through the cache", ((IndexDirectory.ReopeningIndexInput) input).getDelegate().isCached(), equalTo(true));
+                assertThat(
+                    "nothing is cached yet, so this read took the slow path",
+                    sharedBlobCacheService.getStats().missCount(),
+                    greaterThan(missesBefore)
+                );
+                assertThat("the cached half is accounted once", metrics.instance().getBytesRead(), equalTo(3L * halfLength));
+
+                // a clone taken from the cached delegate escapes this input, and accounts to the same holder
+                try (IndexInput clone = input.clone()) {
+                    clone.seek(0);
+                    clone.readBytes(read, 0, halfLength);
+                }
+                assertThat(metrics.instance().getBytesRead(), equalTo(4L * halfLength));
+            }
+
+            // reopening the uploaded file reads it entirely through the cache
+            final long beforeReopen = metrics.instance().getBytesRead();
+            try (IndexInput input = storeDirectory.openInput(fileName, IOContext.DEFAULT)) {
+                assertThat("the input accounts for itself", input, not(instanceOf(StoreMetricsIndexInput.class)));
+                input.readBytes(new byte[bytes.length], 0, bytes.length);
+            }
+            assertThat(metrics.instance().getBytesRead() - beforeReopen, equalTo((long) bytes.length));
+        } finally {
+            assertTrue(ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS));
+        }
+    }
+
+    private static void uploadAndCommit(IndexDirectory directory, BlobContainer blobContainer, String fileName, long length)
+        throws IOException {
+        try (IndexInput input = directory.openInput(fileName, IOContext.READONCE)) {
+            blobContainer.writeBlob(
+                randomFrom(OperationPurpose.values()),
+                "stateless_commit_0",
+                new InputStreamIndexInput(input, length),
+                length,
+                false
+            );
+        }
+        directory.updateCommit(0, length, Set.of(fileName), Map.of(fileName, createBlobFileRanges(1L, 0, 0L, length)));
     }
 
     public void testReadsAfterDelete() throws IOException {

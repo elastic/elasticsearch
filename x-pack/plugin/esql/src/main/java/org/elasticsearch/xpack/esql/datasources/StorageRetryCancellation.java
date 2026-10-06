@@ -7,10 +7,17 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.tasks.TaskCancelledException;
 
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -26,21 +33,45 @@ import java.util.function.BooleanSupplier;
  * around that read via {@link #runWithCancellation}. Nested scopes restore the enclosing supplier on
  * exit; when no scope is active {@link #isCancelled()} returns {@code false}.
  *
- * <p><b>Scope.</b> Scopes are installed only around coordinator-side split-discovery and source-resolution
- * footer reads. Data-node runtime scan reads hit the same backoff with no scope active and are
- * intentionally not covered here: the driver already checks task cancellation between pages, so only the
- * in-read backoff is uncovered on that path. Extending cancellation to the runtime read path is left as a
- * separate, follow-up change.
+ * <p><b>Scope.</b> Scopes are installed around coordinator-side split-discovery and source-resolution footer
+ * reads (see {@code ExternalSourceResolver}) and around the data-node runtime producer read (see
+ * {@code AsyncExternalSourceOperatorFactory} and {@code ExternalSourceDrainUtils}). The runtime scope is keyed
+ * to {@code AsyncExternalSourceBuffer.readCancelled()} — a hard cut of a still-running producer (task cancel /
+ * async DELETE / LIMIT teardown), but <em>not</em> async STOP, which keeps buffered pages for a partial
+ * response and must therefore let an in-flight read complete cooperatively rather than abort it mid-backoff.
+ * This means a STOP arriving while a read is parked in backoff can lag by up to that read's remaining retry
+ * budget before the producer observes {@code noMoreInputs} between pages and exits — sub-second for a transient
+ * backoff, up to the per-attempt throttle ceiling (tens of seconds) for a throttled read. That bounded lag is
+ * an accepted cost of the STOP contract: arming {@code readCancelled} on STOP would abort the read and degrade
+ * a graceful partial-result stop into a hard failure, so STOP deliberately waits the backoff out.
+ * Between pages the runtime producer already exits on {@code noMoreInputs}; the runtime scope adds the missing
+ * in-read coverage so a page pull parked in retry/throttle backoff aborts promptly on a hard cancel instead of
+ * sleeping out its budget (the cause of long-lived post-cancel reads on slow/throttling object stores).
  *
  * <p><b>Thread affinity.</b> The signal only reaches a backoff sleep that runs on the same thread the scope
  * was installed on. This holds for every synchronous {@code StorageObject} footer read driven from the
- * discovery / resolution worker. It does NOT reach reads outside that synchronous Java retry layer: the
- * bzip2 parallel block-boundary scan runs chunk reads on a separate executor for large files (the
- * thread-local does not propagate to those threads), and the parquet-rs reader performs footer I/O in a
- * native runtime that bypasses the Java retry layer entirely. Both fall back to their own, non-cancellable
+ * discovery / resolution worker, and for the runtime open / drain steps that pull pages on the same thread the
+ * scope wraps. It does NOT reach reads outside that synchronous Java retry layer: the bzip2 parallel
+ * block-boundary scan and other parallel-parse workers run chunk reads on separate executor threads (the
+ * thread-local does not propagate to those threads). These fall back to their own, non-cancellable
  * backoff.
+ *
+ * <p><b>Degenerate-query cancellation (what the scope does NOT fix).</b> The scope only shortcuts the Java
+ * retry/throttle <em>backoff sleep</em> — it never interrupts an in-progress socket read or a native read, and
+ * it never reaches a read running on a thread it does not wrap (a parallel-parse worker, a native reader). For a
+ * degenerate query blocked in one of those — e.g. a single stalled object-store connection with no data flowing,
+ * or a native row-group read — a hard cancel behaves as follows: the driver observes the cancel between loop
+ * iterations and throws {@link TaskCancelledException}, and the task is marked cancelled at the task layer, but
+ * the driver's <em>completion</em> (via {@code DriverContext.waitForAsyncActions}) — and therefore the final
+ * response delivery and full resource release (the held storage connection, buffered blocks) — still waits for
+ * that background read to unwind on its own: its socket/read timeout, a native stall timeout, or natural EOF.
+ * In other words, arming {@code readCancelled} converts the common multi-hour case (a producer sleeping out an
+ * object-store retry/throttle backoff) into a prompt abort, but it does not bound a read wedged in a genuinely
+ * uncancellable operation off the scoped thread; that residual case is bounded only by the underlying layer's
+ * own timeout, not by cancellation. Closing that gap needs interrupt-/stream-abort-based cancellation and is a
+ * separate change.
  */
-final class StorageRetryCancellation {
+public final class StorageRetryCancellation {
 
     private static final ThreadLocal<BooleanSupplier> CURRENT = new ThreadLocal<>();
 
@@ -93,9 +124,46 @@ final class StorageRetryCancellation {
     }
 
     /** Returns {@code true} when an ambient cancellation signal is installed and reports cancelled. */
-    static boolean isCancelled() {
+    public static boolean isCancelled() {
         BooleanSupplier current = CURRENT.get();
         return current != null && current.getAsBoolean();
+    }
+
+    /**
+     * Waits for {@code future} while remaining responsive to {@link #isCancelled()}. The delay is
+     * consumed in {@link #POLL_INTERVAL_MS} chunks so a cancel that arrives while the caller is
+     * blocked aborts instead of waiting for the GET to finish. A cancelled future is surfaced as
+     * {@link TaskCancelledException} so callers do not treat it as a prefetch miss and start a
+     * replacement GET.
+     */
+    public static <T> T getWithCancellationChecks(CompletableFuture<T> future) {
+        while (true) {
+            if (isCancelled()) {
+                FutureUtils.cancel(future);
+                throw new TaskCancelledException(CANCELLED_MESSAGE);
+            }
+            try {
+                return future.get(POLL_INTERVAL_MS, TimeUnit.MILLISECONDS);
+            } catch (TimeoutException ignored) {
+                // poll again
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                FutureUtils.cancel(future);
+                throw new TaskCancelledException(CANCELLED_MESSAGE);
+            } catch (CancellationException e) {
+                FutureUtils.cancel(future);
+                throw new TaskCancelledException(CANCELLED_MESSAGE);
+            } catch (ExecutionException e) {
+                Throwable cause = e.getCause();
+                if (cause instanceof RuntimeException runtimeException) {
+                    throw runtimeException;
+                }
+                if (cause instanceof Error error) {
+                    throw error;
+                }
+                throw new CompletionException(cause);
+            }
+        }
     }
 
     /**

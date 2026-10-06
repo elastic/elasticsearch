@@ -29,6 +29,9 @@ class KMeansIntermediate<V> extends KMeansResult<V> {
         return new KMeansIntermediate<>(ops.newCentroidArray(0, 0), new int[0], IntUnaryOperator.identity());
     }
 
+    /**
+     * Method mapping the vector ordinal to its docID
+     */
     public int ordToDoc(int ord) {
         return assignmentOrds.applyAsInt(ord);
     }

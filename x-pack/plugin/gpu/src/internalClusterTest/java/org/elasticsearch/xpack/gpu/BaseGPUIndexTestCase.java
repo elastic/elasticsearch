@@ -13,6 +13,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gpu.CuVSGPUSupport;
 import org.elasticsearch.gpu.GPUSupport;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
@@ -364,7 +365,7 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
         // Attempt to index a document and expect it to fail
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareIndex(indexName).setId("1").setSource("my_vector", randomNonUnitFloatVector(dims)).get()
+            () -> client().prepareIndex(indexName).setId("1").setSource("my_vector", VectorTestUtils.randomFloatVector(dims)).get()
         );
         assertThat(
             ex.getMessage(),
@@ -429,33 +430,9 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
         );
     }
 
-    protected static float[] randomNonUnitFloatVector(int dims) {
-        float[] vector = new float[dims];
-        for (int i = 0; i < dims; i++) {
-            vector[i] = randomFloat();
-        }
-        return vector;
-    }
-
-    protected static float[] randomUnitVector(int dims) {
-        float[] vector = new float[dims];
-        double sumSquares = 0.0;
-        for (int i = 0; i < dims; i++) {
-            vector[i] = randomFloat() * 2 - 1; // Generate values between -1 and 1 for better distribution
-            sumSquares += vector[i] * vector[i];
-        }
-        float magnitude = (float) Math.sqrt(sumSquares);
-        if (magnitude > 0) {
-            for (int i = 0; i < dims; i++) {
-                vector[i] /= magnitude;
-            }
-        }
-        return vector;
-    }
-
     protected float[] randomFloatVector(int dims, String similarity) {
         boolean useUnitVectors = "dot_product".equals(similarity);
-        return useUnitVectors ? randomUnitVector(dims) : randomNonUnitFloatVector(dims);
+        return useUnitVectors ? VectorTestUtils.randomNormalizedFloatVector(dims) : VectorTestUtils.randomFloatVector(dims);
     }
 
     /**

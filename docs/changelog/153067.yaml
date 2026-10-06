@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 153067
+summary: Add an extension point to suppress and enrich security audit log entries
+type: enhancement

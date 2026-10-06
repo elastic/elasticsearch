@@ -76,6 +76,8 @@ public final class QueryPragmas implements Writeable {
 
     public static final Setting<Boolean> NODE_LEVEL_REDUCTION = Setting.boolSetting("node_level_reduction", true);
 
+    public static final Setting<Boolean> SINGLE_NODE_OPTIMIZATIONS = Setting.boolSetting("single_node_optimizations", true);
+
     public static final Setting<ByteSizeValue> FOLD_LIMIT = Setting.memorySizeSetting("fold_limit", "5%");
 
     public static final Setting<MappedFieldType.FieldExtractPreference> FIELD_EXTRACT_PREFERENCE = Setting.enumSetting(
@@ -126,11 +128,36 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<Integer> BRANCH_PARALLEL_DEGREE = Setting.intSetting("branch_parallel_degree", 2, 1);
 
     /**
+     * The total number of leaf branches an independently executed query may use. The main query and each {@code IN} subquery are checked
+     * separately because each runs through the compute service independently. Where {@link #BRANCH_PARALLEL_DEGREE} limits how many run at
+     * once, this limits how many producer branches there are: each leaf becomes a data node query (or a coordinator-local source). Nested
+     * {@code UnionAll}s are merge segments, not leaves — they are bounded separately by {@link #MAX_BRANCH_LEVEL}. Subqueries nest,
+     * so the per-{@code FROM} limit ({@link org.elasticsearch.xpack.esql.plan.logical.Fork#MAX_BRANCHES}) alone lets the leaf total grow as
+     * a power of the nesting depth.
+     * <p>
+     * When this pragma is not set, {@link EsqlFlags#ESQL_MAX_BRANCH_COUNT} supplies the cap. An explicit value overrides the cluster
+     * setting for this query only.
+     */
+    public static final Setting<Integer> MAX_BRANCH_COUNT = Setting.intSetting("max_branch_count", 20, 1);
+
+    /**
+     * The maximum depth of nested {@code UnionAll}s an independently executed query may use. The main query and each {@code IN} subquery
+     * are checked separately because each runs through the compute service independently. Where {@link #MAX_BRANCH_COUNT} limits how many
+     * branches there are in total, this limits how deeply those unions nest: each nested union becomes a coordinator merge segment that is
+     * wired before any leaf runs. Without a depth limit a skinny chain of two-way unions can grow arbitrarily deep while still staying
+     * under {@link #MAX_BRANCH_COUNT}.
+     * <p>
+     * When this pragma is not set, {@link EsqlFlags#ESQL_MAX_BRANCH_LEVEL} supplies the cap. An explicit value overrides the cluster
+     * setting for this query only.
+     */
+    public static final Setting<Integer> MAX_BRANCH_LEVEL = Setting.intSetting("max_branch_level", 5, 1);
+
+    /**
      * Number of parallel parser threads for intra-file text format parsing (CSV, NDJSON).
      * Defaults to allocated processors. Set to 1 to disable parallel parsing.
      */
     public static final Setting<Integer> PARSING_PARALLELISM = Setting.intSetting(
-        "parsing_parallelism",
+        "external_parsing_parallelism",
         EsExecutors.allocatedProcessors(Settings.EMPTY),
         1
     );
@@ -141,19 +168,19 @@ public final class QueryPragmas implements Writeable {
      * {@code GetObject}) plus, for buffering readers like NDJSON, a per-segment {@code byte[]}; the
      * consumer emits a segment's pages as soon as that segment finishes parsing (completion order, not
      * strict segment order), so this is a shallow read-ahead width, not a parallelism. It is deliberately
-     * not {@code parsing_parallelism}: a file is already split into about
-     * {@code parsing_parallelism} segments and many files read concurrently, so aligning this with the
+     * not {@code external_parsing_parallelism}: a file is already split into about
+     * {@code external_parsing_parallelism} segments and many files read concurrently, so aligning this with the
      * thread count would fan a wide multi-file glob into far too many concurrent object-store reads.
      * A small default bounds that fan-out independent of file count/length. Safeguard in the spirit of
      * {@link #BRANCH_PARALLEL_DEGREE}.
      * <p>
      * This is a <b>per-file</b> cap. The node-wide bound on concurrently-open segment streams is roughly
-     * {@code (data-node driver instances) × max_concurrent_open_segments × (files open per driver)} — tune
+     * {@code (data-node driver instances) × external_max_concurrent_open_segments × (files open per driver)} — tune
      * with that product in mind, not this value alone. The default is sourced from
      * {@link SourceOperatorContext#DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS}.
      */
     public static final Setting<Integer> MAX_CONCURRENT_OPEN_SEGMENTS = Setting.intSetting(
-        "max_concurrent_open_segments",
+        "external_max_concurrent_open_segments",
         SourceOperatorContext.DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
         1
     );
@@ -166,7 +193,7 @@ public final class QueryPragmas implements Writeable {
      * time rather than overflowing later.
      */
     public static final Setting<ByteSizeValue> MAX_RECORD_SIZE = Setting.byteSizeSetting(
-        "max_record_size",
+        "external_max_record_size",
         ByteSizeValue.ofBytes(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES),
         ByteSizeValue.ofBytes(1),
         ByteSizeValue.ofBytes(Integer.MAX_VALUE)
@@ -191,9 +218,9 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<Integer> MIN_DOCS_PER_SLICE = Setting.intSetting("min_docs_per_slice", -1, -1);
 
     /**
-     *  When {@code true}, allows full-text functions to be used with expressions that are not indexed fields.
+     *  When {@code true}, it allows KNN function to be used on runtime expressions and fields.
      */
-    public static final Setting<Boolean> RUNTIME_LEXICAL_SEARCH = Setting.boolSetting("runtime_lexical_search", true);
+    public static final Setting<Boolean> KNN_RUNTIME_FIELD = Setting.boolSetting("knn_runtime_field", false);
 
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
@@ -215,12 +242,17 @@ public final class QueryPragmas implements Writeable {
         EXTERNAL_DISTRIBUTION,
         IN_SUBQUERY_HASH_JOIN_THRESHOLD,
         BRANCH_PARALLEL_DEGREE,
+        MAX_BRANCH_COUNT,
+        MAX_BRANCH_LEVEL,
         PARSING_PARALLELISM,
         MAX_CONCURRENT_OPEN_SEGMENTS,
         MAX_RECORD_SIZE,
         FORCE_DOC_SEQUENCE,
         PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS,
-        RUNTIME_LEXICAL_SEARCH
+        PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD,
+        KNN_RUNTIME_FIELD,
+        SINGLE_NODE_OPTIMIZATIONS
+
     ).map(Setting::getKey).toList();
 
     private final Settings settings;
@@ -325,6 +357,13 @@ public final class QueryPragmas implements Writeable {
     }
 
     /**
+     * Disable or enable the single node optimizations in case the query executes against a single node
+     */
+    public boolean singleNodeOptimizations() {
+        return SINGLE_NODE_OPTIMIZATIONS.get(settings);
+    }
+
+    /**
      * The maximum amount of memory we can use for {@link Expression#fold} during planing. This
      * defaults to 5% of memory available on the current node. If this method is called on the
      * coordinating node, this is 5% of the coordinating node's memory. If it's called on a data
@@ -374,6 +413,38 @@ public final class QueryPragmas implements Writeable {
     }
 
     /**
+     * Effective leaf-branch cap: an explicit {@link #MAX_BRANCH_COUNT} pragma overrides {@code clusterDefault}.
+     */
+    public int maxBranchCount(int clusterDefault) {
+        return settings.hasValue(MAX_BRANCH_COUNT.getKey()) ? MAX_BRANCH_COUNT.get(settings) : clusterDefault;
+    }
+
+    /**
+     * Label for the source of {@link #maxBranchCount(int)}, used in verification messages.
+     */
+    public String maxBranchCountLimitSource(String clusterSettingKey) {
+        return settings.hasValue(MAX_BRANCH_COUNT.getKey())
+            ? "[" + MAX_BRANCH_COUNT.getKey() + "] query pragma"
+            : "[" + clusterSettingKey + "] cluster setting";
+    }
+
+    /**
+     * Effective nesting-level cap: an explicit {@link #MAX_BRANCH_LEVEL} pragma overrides {@code clusterDefault}.
+     */
+    public int maxBranchLevel(int clusterDefault) {
+        return settings.hasValue(MAX_BRANCH_LEVEL.getKey()) ? MAX_BRANCH_LEVEL.get(settings) : clusterDefault;
+    }
+
+    /**
+     * Label for the source of {@link #maxBranchLevel(int)}, used in verification messages.
+     */
+    public String maxBranchLevelLimitSource(String clusterSettingKey) {
+        return settings.hasValue(MAX_BRANCH_LEVEL.getKey())
+            ? "[" + MAX_BRANCH_LEVEL.getKey() + "] query pragma"
+            : "[" + clusterSettingKey + "] cluster setting";
+    }
+
+    /**
      * Returns the effective doc-sequence threshold. When {@link #FORCE_DOC_SEQUENCE} is
      * {@code true}, returns {@code 0} so that all non-single-segment pages use
      * {@code ValuesFromDocSequence}; otherwise returns {@code clusterDefault}.
@@ -395,6 +466,28 @@ public final class QueryPragmas implements Writeable {
     public double partialAggregationEmitUniquenessThreshold(double defaultThreshold) {
         if (settings.hasValue(PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getKey())) {
             return PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.get(settings);
+        }
+        return defaultThreshold;
+    }
+
+    public int aggregationPartitioningCountThreshold(int defaultThreshold) {
+        if (settings.hasValue(PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD.getKey())) {
+            final String v = settings.get(PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD.getKey());
+            try {
+                // allow smaller value for the threshold in tests than the min setting in the production
+                return Integer.parseInt(v);
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("invalid aggregation partitioning threshold [" + v + "]", e);
+            }
+        }
+        return defaultThreshold;
+    }
+
+    public ByteSizeValue aggregationPartitioningMemoryThreshold(ByteSizeValue defaultThreshold) {
+        final String key = PlannerSettings.AGG_PARTITIONING_MEMORY_THRESHOLD.getKey();
+        if (settings.hasValue(key)) {
+            // allow smaller value for the threshold in tests than the min setting in the production
+            return ByteSizeValue.parseBytesSizeValue(settings.get(key), key);
         }
         return defaultThreshold;
     }
@@ -422,8 +515,11 @@ public final class QueryPragmas implements Writeable {
         return override > 0 ? override : defaultMinDocsPerSlice;
     }
 
-    public boolean runtimeLexicalSearch() {
-        return RUNTIME_LEXICAL_SEARCH.get(settings);
+    /**
+     * When {@code true}, it allows KNN function to be used with expressions that are not indexed fields.
+     */
+    public boolean knnRuntimeField() {
+        return KNN_RUNTIME_FIELD.get(settings);
     }
 
     public boolean isEmpty() {

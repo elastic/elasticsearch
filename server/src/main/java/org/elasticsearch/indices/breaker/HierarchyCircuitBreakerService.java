@@ -30,11 +30,13 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.GcNames;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -175,7 +177,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         childCircuitBreakers.put(
             CircuitBreaker.FIELDDATA,
             validateAndCreateBreaker(
-                metrics.getTripCount(),
+                metrics,
                 new BreakerSettings(
                     CircuitBreaker.FIELDDATA,
                     FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
@@ -188,7 +190,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         childCircuitBreakers.put(
             CircuitBreaker.IN_FLIGHT_REQUESTS,
             validateAndCreateBreaker(
-                metrics.getTripCount(),
+                metrics,
                 new BreakerSettings(
                     CircuitBreaker.IN_FLIGHT_REQUESTS,
                     IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
@@ -201,7 +203,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         childCircuitBreakers.put(
             CircuitBreaker.REQUEST,
             validateAndCreateBreaker(
-                metrics.getTripCount(),
+                metrics,
                 new BreakerSettings(
                     CircuitBreaker.REQUEST,
                     REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
@@ -219,7 +221,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                         + "] exists. Circuit breaker names must be unique"
                 );
             }
-            childCircuitBreakers.put(breakerSettings.getName(), validateAndCreateBreaker(metrics.getTripCount(), breakerSettings));
+            childCircuitBreakers.put(breakerSettings.getName(), validateAndCreateBreaker(metrics, breakerSettings));
         }
         this.breakers = Map.copyOf(childCircuitBreakers);
         this.parentSettings = new BreakerSettings(
@@ -264,6 +266,42 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         this.overLimitStrategyFactory = overLimitStrategyFactory;
         this.overLimitStrategy = overLimitStrategyFactory.apply(this.trackRealMemoryUsage);
         this.parentTripCountTotalMetric = metrics.getTripCount();
+
+        metrics.registerMemoryGauges(this::collectMemoryLimits, this::collectMemoryEstimates);
+    }
+
+    private Collection<LongWithAttributes> collectMemoryLimits() {
+        List<LongWithAttributes> out = new ArrayList<>(this.breakers.size() + 1);
+        for (CircuitBreaker breaker : this.breakers.values()) {
+            out.add(
+                new LongWithAttributes(
+                    breaker.getLimit(),
+                    Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, breaker.getName())
+                )
+            );
+        }
+        out.add(
+            new LongWithAttributes(
+                this.parentSettings.getLimit(),
+                Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, CircuitBreaker.PARENT)
+            )
+        );
+        return out;
+    }
+
+    private Collection<LongWithAttributes> collectMemoryEstimates() {
+        List<LongWithAttributes> out = new ArrayList<>(this.breakers.size() + 1);
+        for (CircuitBreaker breaker : this.breakers.values()) {
+            long estimated = (long) (breaker.getUsed() * breaker.getOverhead());
+            out.add(new LongWithAttributes(estimated, Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, breaker.getName())));
+        }
+        out.add(
+            new LongWithAttributes(
+                memoryUsed(0L).totalUsage,
+                Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, CircuitBreaker.PARENT)
+            )
+        );
+        return out;
     }
 
     private void updateCircuitBreakerSettings(String name, ByteSizeValue newLimit, Double newOverhead) {
@@ -409,14 +447,17 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     }
 
     /**
-     * Checks whether the parent breaker has been tripped
+     * Checks whether the parent breaker has been tripped.
      */
     public void checkParentLimit(long newBytesReserved, String label) throws CircuitBreakingException {
         final MemoryUsage memoryUsed = memoryUsed(newBytesReserved);
         long parentLimit = this.parentSettings.getLimit();
         if (memoryUsed.totalUsage > parentLimit && overLimitStrategy.overLimit(memoryUsed).totalUsage > parentLimit) {
             this.parentTripCount.incrementAndGet();
-            this.parentTripCountTotalMetric.increment();
+            this.parentTripCountTotalMetric.incrementBy(
+                1L,
+                Map.of(ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_TYPE_ATTRIBUTE, CircuitBreaker.PARENT)
+            );
             final String messageString = buildParentTripMessage(
                 newBytesReserved,
                 label,
@@ -493,13 +534,13 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         }
     }
 
-    private CircuitBreaker validateAndCreateBreaker(LongCounter trippedCountMeter, BreakerSettings breakerSettings) {
+    private CircuitBreaker validateAndCreateBreaker(CircuitBreakerMetrics metrics, BreakerSettings breakerSettings) {
         // Validate the settings
         validateSettings(new BreakerSettings[] { breakerSettings });
         return breakerSettings.getType() == CircuitBreaker.Type.NOOP
             ? new NoopCircuitBreaker(breakerSettings.getName())
             : new ChildMemoryCircuitBreaker(
-                trippedCountMeter,
+                metrics,
                 breakerSettings,
                 LogManager.getLogger(CHILD_LOGGER_PREFIX + breakerSettings.getName()),
                 this,
@@ -555,6 +596,8 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     }
 
     static class G1OverLimitStrategy implements OverLimitStrategy {
+        private static final int FILLER_ARRAY_HEADER_ALLOWANCE_BYTES = 64;
+
         private final long g1RegionSize;
         private final LongSupplier currentMemoryUsageSupplier;
         private final LongSupplier gcCountSupplier;
@@ -603,6 +646,33 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             } else {
                 this.g1RegionSize = g1RegionSize;
             }
+        }
+
+        /**
+         * At most one humongous allocation, followed by eden fillers under a budget derived from the estimate of free regions plus one.
+         * The fillers go through eden, so G1's own young sizing decides when to collect. Reaching a GC is best-effort: the caller falls
+         * back to a full GC if memory usage was not reduced.
+         */
+        static int triggerAllocationCount(long maxHeap, long baseUsage, long g1RegionSize) {
+            long regions = (maxHeap - baseUsage) / g1RegionSize + 1;
+            if (regions <= 0) {
+                return 0;
+            }
+            return Math.toIntExact(1 + regions * g1RegionSize / fillerAllocationSize(g1RegionSize) + 1);
+        }
+
+        static int triggerAllocationSize(int allocationIndex, long g1RegionSize) {
+            // An array of half a region or more is a humongous allocation in G1, and takes up whole regions directly from the free list.
+            // The first allocation is humongous on purpose: a humongous allocation makes G1 check the IHOP threshold, so when occupancy is
+            // above it G1 starts a concurrent cycle, and with it a young GC, right away. It is also a candidate for eager reclaim.
+            // The rest are regular eden allocations. Further humongous allocations would consume the free regions that G1 needs as
+            // evacuation targets, so the young GC they eventually force can fail evacuation. Eden fillers instead fill eden until G1
+            // decides to start a young GC itself.
+            return allocationIndex == 0 ? (int) (g1RegionSize >> 1) : fillerAllocationSize(g1RegionSize);
+        }
+
+        static int fillerAllocationSize(long g1RegionSize) {
+            return (int) (g1RegionSize >> 2) - FILLER_ARRAY_HEADER_ALLOWANCE_BYTES;
         }
 
         static long fallbackRegionSize(JvmInfo jvmInfo) {
@@ -728,10 +798,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 long initialCollectionCount = gcCountSupplier.getAsLong();
                 logger.info("attempting to trigger G1GC due to high heap usage [{}]", memoryUsed.baseUsage);
                 long localBlackHole = 0;
-                // number of allocations, corresponding to (approximately) number of free regions + 1
-                int allocationCount = Math.toIntExact((maxHeap - memoryUsed.baseUsage) / g1RegionSize + 1);
-                // allocations of half-region size becomes single humongous alloc, thus taking up a full region.
-                int allocationSize = (int) (g1RegionSize >> 1);
+                int allocationCount = triggerAllocationCount(maxHeap, memoryUsed.baseUsage, g1RegionSize);
                 long maxUsageObserved = memoryUsed.baseUsage;
                 for (; allocationIndex < allocationCount; ++allocationIndex) {
                     long current = currentMemoryUsageSupplier.getAsLong();
@@ -745,7 +812,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                         break;
                     }
                     // noinspection ArrayHashCode - prevent array allocation from being optimized away
-                    localBlackHole += new byte[allocationSize].hashCode();
+                    localBlackHole += new byte[triggerAllocationSize(allocationIndex, g1RegionSize)].hashCode();
                 }
 
                 blackHole += localBlackHole;

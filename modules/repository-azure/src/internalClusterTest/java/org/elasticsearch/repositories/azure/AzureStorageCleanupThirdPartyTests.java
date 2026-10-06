@@ -19,7 +19,9 @@ import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.models.AccessTier;
 import com.azure.storage.blob.models.BlobProperties;
 import com.azure.storage.blob.models.BlobStorageException;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -75,7 +77,9 @@ import static org.hamcrest.Matchers.not;
 /**
  * These tests sometimes run against a genuine Azure endpoint with credentials obtained from Vault. These credentials expire periodically
  * and must be manually renewed; the process is in the onboarding/process docs.
+ * Most tests that run against a genuine Azure endpoint can take between 1 and 3 minutes, hence the large suite timeout.
  */
+@TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
     private static final Logger logger = LogManager.getLogger(AzureStorageCleanupThirdPartyTests.class);
     private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("test.azure.fixture", "true"));
@@ -253,7 +257,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
                         }
                         assert channel.position() == offset;
                         return new BufferedInputStream(limitStream(Channels.newInputStream(channel), length));
-                    }, false);
+                    }, false, Runnable::run);
                 }
 
                 long bytesCount = 0L;
@@ -292,7 +296,14 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         assertBusy(() -> assertTrue(sourceBlobContainer.blobExists(randomPurpose(), sourceBlobName)));
 
         final var destinationBlobContainer = repository.blobStore().blobContainer(repository.basePath().add("target"));
-        destinationBlobContainer.copyBlob(randomPurpose(), sourceBlobContainer, sourceBlobName, destinationBlobName, blobBytes.length());
+        destinationBlobContainer.copyBlob(
+            randomPurpose(),
+            sourceBlobContainer,
+            sourceBlobName,
+            destinationBlobName,
+            blobBytes.length(),
+            null
+        );
         assertThat(Streams.readFully(destinationBlobContainer.readBlob(randomPurpose(), destinationBlobName)), equalBytes(blobBytes));
 
         sourceBlobContainer.delete(randomPurpose());
@@ -303,7 +314,8 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
                 sourceBlobContainer,
                 sourceBlobName,
                 destinationBlobName,
-                blobBytes.length()
+                blobBytes.length(),
+                null
             )
         );
         destinationBlobContainer.delete(randomPurpose());
@@ -375,7 +387,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
 
                     // server-side copy (source is the small single-part blob written above)
                     final String copyName = randomIdentifier();
-                    blobContainer.copyBlob(purpose, blobContainer, singlePartName, copyName, singlePartBytes.length());
+                    blobContainer.copyBlob(purpose, blobContainer, singlePartName, copyName, singlePartBytes.length(), null);
                     assertAccessTier(blobStore, keyPrefix + copyName, expectedTier, "server-side copy", purpose);
                 }
             } finally {

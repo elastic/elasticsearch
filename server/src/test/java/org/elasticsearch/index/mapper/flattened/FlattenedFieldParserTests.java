@@ -33,8 +33,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
     private FlattenedFieldParser parser;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initParser() throws Exception {
         parser = new FlattenedFieldParser(
             "field",
             "field._keyed",

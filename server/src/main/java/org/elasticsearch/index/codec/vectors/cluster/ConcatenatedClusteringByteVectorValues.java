@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * Streaming concatenation of multiple {@link ClusteringByteVectorValues} into a single logical
@@ -45,17 +46,11 @@ public final class ConcatenatedClusteringByteVectorValues extends ClusteringByte
 
     private int partFor(int ord) {
         // offsets is sorted ascending; binary search for the largest p with offsets[p] <= ord.
-        int lo = 0;
-        int hi = parts.length - 1;
-        while (lo < hi) {
-            int mid = (lo + hi + 1) >>> 1;
-            if (offsets[mid] <= ord) {
-                lo = mid;
-            } else {
-                hi = mid - 1;
-            }
+        int part = Arrays.binarySearch(offsets, 0, parts.length, ord);
+        if (part < 0) {
+            part = -part - 2;   // go back one from the insertion point
         }
-        return lo;
+        return part;
     }
 
     @Override

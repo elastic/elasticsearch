@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
@@ -38,8 +39,11 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.time.Duration;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 public class AzureStorageService {
@@ -95,7 +99,11 @@ public class AzureStorageService {
         ClusterService clusterService,
         ProjectResolver projectResolver
     ) {
-        this.clientsManager = new AzureStorageClientsManager(settings, projectResolver.supportsMultipleProjects());
+        this.clientsManager = new AzureStorageClientsManager(
+            settings,
+            clusterService.threadPool().generic(),
+            projectResolver.supportsMultipleProjects()
+        );
         this.azureClientProvider = azureClientProvider;
         this.stateless = DiscoveryNode.isStateless(settings);
         this.multipartUploadMaxConcurrency = azureClientProvider.getMultipartUploadMaxConcurrency();
@@ -124,6 +132,8 @@ public class AzureStorageService {
     }
 
     private AzureBlobServiceClient buildClient(
+        @Nullable ProjectId projectId,
+        String clientName,
         LocationMode locationMode,
         OperationPurpose purpose,
         AzureClientProvider.RequestMetricsHandler requestMetricsHandler,
@@ -132,6 +142,8 @@ public class AzureStorageService {
         RequestRetryOptions retryOptions = getRetryOptions(locationMode, azureStorageSettings);
         ProxyOptions proxyOptions = getProxyOptions(azureStorageSettings);
         return azureClientProvider.createClient(
+            projectId,
+            clientName,
             azureStorageSettings,
             locationMode,
             retryOptions,
@@ -209,6 +221,15 @@ public class AzureStorageService {
         clientsManager.refreshClusterClientSettings(clientsSettings);
     }
 
+    public void dropConnectionProviders(Set<AzureClientProvider.ConnectionProviderKey> connectionProvidersToEvict) {
+        azureClientProvider.dropConnectionProviders(connectionProvidersToEvict);
+    }
+
+    // visible for testing
+    Map<AzureClientProvider.ConnectionProviderKey, AzureConnectionProviderReference> getConnectionProvidersCache() {
+        return azureClientProvider.getConnectionProvidersCache();
+    }
+
     /**
      * For Azure repositories, we report the different kinds of credentials in use in the telemetry.
      */
@@ -226,7 +247,7 @@ public class AzureStorageService {
 
     // Package private for testing
     Map<String, AzureStorageSettings> getStorageSettings() {
-        return clientsManager.clusterStorageSettings;
+        return clientsManager.clusterStorageSettings.get();
     }
 
     // Package private for testing
@@ -237,19 +258,23 @@ public class AzureStorageService {
     class AzureStorageClientsManager implements ClusterStateApplier {
         private static final String AZURE_SETTING_PREFIX = "azure.";
 
+        private final Executor executor;
+
         private final Settings nodeAzureSettings;
-        private volatile Map<String, AzureStorageSettings> clusterStorageSettings;
+        private final AtomicReference<Map<String, AzureStorageSettings>> clusterStorageSettings;
         private final Map<ProjectId, Map<String, AzureStorageSettings>> perProjectStorageSettings;
 
-        AzureStorageClientsManager(Settings nodeSettings, boolean supportsMultipleProjects) {
+        AzureStorageClientsManager(Settings nodeSettings, Executor executor, boolean supportsMultipleProjects) {
             // eagerly load client settings so that secure settings are read
             final Map<String, AzureStorageSettings> clientsSettings = AzureStorageSettings.load(nodeSettings);
+            this.clusterStorageSettings = new AtomicReference<>(Map.of());
             refreshClusterClientSettings(clientsSettings);
 
             this.nodeAzureSettings = Settings.builder()
                 .put(nodeSettings.getByPrefix(AZURE_SETTING_PREFIX), false) // not rely on any cluster scoped secrets
                 .normalizePrefix(AZURE_SETTING_PREFIX)
                 .build();
+            this.executor = executor;
             if (supportsMultipleProjects) {
                 this.perProjectStorageSettings = ConcurrentCollections.newConcurrentMap();
             } else {
@@ -260,7 +285,14 @@ public class AzureStorageService {
         @Override
         public void applyClusterState(ClusterChangedEvent event) {
             assert perProjectStorageSettings != null;
+
+            if (!event.metadataChanged()) {
+                return;
+            }
+
             final Map<ProjectId, ProjectMetadata> currentProjects = event.state().metadata().projects();
+
+            final var previousPerProjectStorageSettings = Map.copyOf(perProjectStorageSettings);
 
             for (var project : currentProjects.values()) {
                 // Skip the default project, it is tracked separately with clusterStorageSettings and
@@ -312,8 +344,40 @@ public class AzureStorageService {
             for (var projectId : perProjectStorageSettings.keySet()) {
                 if (currentProjects.containsKey(projectId) == false) {
                     assert ProjectId.DEFAULT.equals(projectId) == false;
+
                     perProjectStorageSettings.remove(projectId);
                 }
+            }
+
+            // get all the connection-provider keys we need to evict from the `connectionProvidersCache`
+            final Set<AzureClientProvider.ConnectionProviderKey> connectionProvidersToEvict = new HashSet<>();
+
+            for (var previousPerProjectSettingsEntry : previousPerProjectStorageSettings.entrySet()) {
+                final var projectId = previousPerProjectSettingsEntry.getKey();
+                final var previousProjectSettings = previousPerProjectSettingsEntry.getValue();
+                final var currentProjectSettings = perProjectStorageSettings.get(projectId);
+
+                connectionProvidersToEvict.addAll(
+                    AzureClientProvider.ConnectionProviderKey.connectionProvidersToEvict(
+                        projectId,
+                        previousProjectSettings,
+                        currentProjectSettings
+                    )
+                );
+            }
+
+            if (!connectionProvidersToEvict.isEmpty()) {
+                executor.execute(new AbstractRunnable() {
+                    @Override
+                    protected void doRun() throws Exception {
+                        dropConnectionProviders(connectionProvidersToEvict);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("Failed to drop connection providers", e);
+                    }
+                });
             }
         }
 
@@ -325,7 +389,7 @@ public class AzureStorageService {
             AzureClientProvider.RequestMetricsHandler requestMetricsHandler
         ) {
             final var azureStorageSettings = getClientSettings(projectId, clientName); // ensure the client exists
-            return buildClient(locationMode, purpose, requestMetricsHandler, azureStorageSettings);
+            return buildClient(projectId, clientName, locationMode, purpose, requestMetricsHandler, azureStorageSettings);
         }
 
         public AzureStorageSettings getClientSettings(@Nullable ProjectId projectId, String clientName) {
@@ -344,7 +408,7 @@ public class AzureStorageService {
 
         Map<String, AzureStorageSettings> getAllClientSettings(@Nullable ProjectId projectId) {
             if (projectId == null || ProjectId.DEFAULT.equals(projectId)) {
-                return clusterStorageSettings;
+                return clusterStorageSettings.get();
             }
             final var projectClientSettings = perProjectStorageSettings.get(projectId);
             if (projectClientSettings == null) {
@@ -358,8 +422,20 @@ public class AzureStorageService {
         }
 
         private void refreshClusterClientSettings(Map<String, AzureStorageSettings> clientsSettings) {
-            this.clusterStorageSettings = Map.copyOf(clientsSettings);
-            // clients are built lazily by {@link client(String, LocationMode)}
+            // We do `getAndSet` here because we might have at least 2 parallel reloads and hence at least 2 refreshes.
+            // This way, we do not lose any previously-set settings that we need to remove from the connection-providers cache.
+            final var previousSettings = clusterStorageSettings.getAndSet(Map.copyOf(clientsSettings));
+            if (previousSettings.isEmpty()) {
+                // nothing to remove from the cache in this case
+                return;
+            }
+
+            final var connectionProvidersToEvict = AzureClientProvider.ConnectionProviderKey.connectionProvidersToEvict(
+                ProjectId.DEFAULT,
+                previousSettings,
+                clientsSettings
+            );
+            dropConnectionProviders(connectionProvidersToEvict);
         }
 
         private boolean newOrUpdated(ProjectId projectId, Map<String, AzureStorageSettings> currentClientSettings) {

@@ -35,7 +35,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
@@ -405,7 +405,8 @@ public class CorruptionIT extends AbstractStatelessPluginIntegTestCase {
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
             ClusterService clusterService,
-            IndicesService indicesService
+            IndicesService indicesService,
+            PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder
         ) {
             TestSharedBlobCacheService testSharedBlobCacheService = new TestSharedBlobCacheService(
                 nodeEnvironment,
@@ -413,9 +414,9 @@ public class CorruptionIT extends AbstractStatelessPluginIntegTestCase {
                 threadPool,
                 blobCacheMetrics,
                 clusterService,
-                indicesService
+                indicesService,
+                metricHolder
             );
-            testSharedBlobCacheService.assertInvariants();
             return testSharedBlobCacheService;
         }
     }
@@ -430,17 +431,10 @@ public class CorruptionIT extends AbstractStatelessPluginIntegTestCase {
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
             ClusterService clusterService,
-            IndicesService indicesService
+            IndicesService indicesService,
+            PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder
         ) {
-            super(
-                environment,
-                settings,
-                threadPool,
-                blobCacheMetrics,
-                clusterService,
-                indicesService,
-                new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
-            );
+            super(environment, settings, threadPool, blobCacheMetrics, clusterService, indicesService, metricHolder);
         }
 
         @Override

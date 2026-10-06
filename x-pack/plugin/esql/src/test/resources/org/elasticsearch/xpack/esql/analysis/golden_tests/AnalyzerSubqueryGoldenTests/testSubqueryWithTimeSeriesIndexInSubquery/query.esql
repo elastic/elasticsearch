@@ -1,0 +1,5 @@
+FROM
+    sample_data,
+    (FROM k8s-downsampled | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1) | INLINE STATS tx_max = MAX(network.eth0.tx) BY pod),
+    (FROM sample_data | WHERE client_ip == "127.0.0.1")
+| WHERE @timestamp > "2025-10-07"

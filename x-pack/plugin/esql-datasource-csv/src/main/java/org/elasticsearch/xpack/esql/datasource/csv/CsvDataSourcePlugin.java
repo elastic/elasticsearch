@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
@@ -48,11 +49,11 @@ public class CsvDataSourcePlugin extends Plugin implements DataSourcePlugin {
      * Must stay in sync with {@code CsvFormatReader.RECOGNIZED_KEYS}; verified
      * by {@code CsvFormatReaderRecognizedKeysTests.testFormatSpecConfigKeysMatchRecognizedKeys}.
      *
-     * <p>Note: {@code schema_sample_size} also appears as a base dataset field in
-     * {@link org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator} —
-     * this duplication is intentional to maintain symmetry with the reader's
-     * {@code RECOGNIZED_KEYS}. At CRUD time, the base-field validation path handles it
-     * (with range checking); it is not passed through as a raw format option.
+     * <p>{@code schema_sample_size} is present here but absent from Parquet's equivalent set —
+     * sampling is only meaningful for text formats. At PUT time,
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator} only admits it
+     * via this format-specific key set: it is rejected for Parquet when the format is known, and
+     * rejected with a pin-the-{@code format} hint when the format cannot be determined.
      */
     static final Set<String> FORMAT_CONFIG_KEYS = Set.of(
         "delimiter",
@@ -68,7 +69,8 @@ public class CsvDataSourcePlugin extends Plugin implements DataSourcePlugin {
         "header_row",
         "column_prefix",
         "trim_spaces",
-        "schema_sample_size"
+        "schema_sample_size",
+        "skip_rows"
     );
 
     /**
@@ -80,19 +82,37 @@ public class CsvDataSourcePlugin extends Plugin implements DataSourcePlugin {
      * a parity regression.
      */
     public static final Setting<Boolean> CSV_DIRECT_BLOCK_ENABLED = Setting.boolSetting(
-        "esql.csv.direct_block.enabled",
+        "esql.external.csv.direct_block.enabled",
         true,
         Setting.Property.NodeScope
     );
 
     @Override
     public Set<FormatSpec> formatSpecs() {
-        return Set.of(FormatSpec.of("csv", ".csv", FORMAT_CONFIG_KEYS), FormatSpec.of("tsv", ".tsv", FORMAT_CONFIG_KEYS));
+        return Set.of(
+            new FormatSpec(
+                "csv",
+                Set.of(".csv"),
+                FORMAT_CONFIG_KEYS,
+                config -> CsvFormatReader.validateConfig(config, CsvFormatOptions.DEFAULT)
+            ),
+            new FormatSpec(
+                "tsv",
+                Set.of(".tsv"),
+                FORMAT_CONFIG_KEYS,
+                config -> CsvFormatReader.validateConfig(config, CsvFormatOptions.TSV)
+            )
+        );
     }
 
+    /**
+     * The CSV read path only exists for external data sources, so this knob follows the federation feature: an
+     * operator who unregistered the feature does not accept configuration for it, and a node whose
+     * {@code elasticsearch.yml} carries the key fails to start with the standard {@code unknown setting} error.
+     */
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(CSV_DIRECT_BLOCK_ENABLED);
+        return Federation.isRegistered() ? List.of(CSV_DIRECT_BLOCK_ENABLED) : List.of();
     }
 
     @Override

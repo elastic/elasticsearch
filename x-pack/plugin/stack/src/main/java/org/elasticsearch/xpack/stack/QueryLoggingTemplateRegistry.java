@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -38,7 +39,8 @@ public class QueryLoggingTemplateRegistry extends IndexTemplateRegistry {
     // version 6: fix dynamic_templates to use one array entry per template
     // version 7: params support
     // version 8: params is indexable
-    public static final int INDEX_TEMPLATE_VERSION = 8;
+    // version 9: lower priority
+    public static final int INDEX_TEMPLATE_VERSION = 9;
 
     public static final String QUERY_LOGGING_TEMPLATE_VERSION_VARIABLE = "xpack.stack.querylog.template.version";
 
@@ -63,9 +65,10 @@ public class QueryLoggingTemplateRegistry extends IndexTemplateRegistry {
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        FeatureService featureService
     ) {
-        super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
+        super(nodeSettings, clusterService, threadPool, client, xContentRegistry, featureService);
         this.queryLoggingRegistryEnabled = QUERY_LOGGING_REGISTRY_ENABLED.get(nodeSettings);
     }
 

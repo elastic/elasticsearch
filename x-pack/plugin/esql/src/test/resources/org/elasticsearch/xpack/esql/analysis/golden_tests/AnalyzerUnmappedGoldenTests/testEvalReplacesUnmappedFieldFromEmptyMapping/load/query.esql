@@ -1,0 +1,2 @@
+SET unmapped_fields="load"; FROM no_mapping_date_extract_fields
+| EVAL date_string = date_string::date

@@ -61,6 +61,12 @@ final class AzureStorageSettings {
         key -> SecureSetting.secureString(key, null)
     );
 
+    public static final AffixSetting<Integer> MAX_CONNECTIONS_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "max_connections",
+        key -> Setting.intSetting(key, AzureClientProvider.MAX_OPEN_CONNECTIONS, 1, Property.NodeScope)
+    );
+
     /** max_retries: Number of retries in case of Azure errors. Defaults to 3 (RequestRetryOptions). */
     public static final AffixSetting<Integer> MAX_RETRIES_SETTING = Setting.affixKeySetting(
         AZURE_CLIENT_PREFIX_KEY,
@@ -106,6 +112,17 @@ final class AzureStorageSettings {
         () -> ACCOUNT_SETTING
     );
 
+    /**
+     * How long an upload may go without any bytes being written to the channel before the request is aborted. Stalls can come from the
+     * network as well as from the producer of the request body (e.g. slow reads of local files). Defaults to the Azure SDK default
+     * (60s, or the {@code AZURE_REQUEST_WRITE_TIMEOUT} environment variable/system property) when unset.
+     */
+    public static final AffixSetting<TimeValue> WRITE_TIMEOUT_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "write_timeout",
+        key -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.NodeScope)
+    );
+
     /** The type of the proxy to connect to azure through. Can be direct (no proxy, default), http or socks */
     public static final AffixSetting<Proxy.Type> PROXY_TYPE_SETTING = Setting.affixKeySetting(
         AZURE_CLIENT_PREFIX_KEY,
@@ -139,6 +156,8 @@ final class AzureStorageSettings {
     private final String endpointSuffix;
     private final TimeValue timeout;
     private final TimeValue readTimeout;
+    private final TimeValue writeTimeout;
+    private final int maxConnections;
     private final int maxRetries;
     private final Proxy proxy;
     private final boolean hasCredentials;
@@ -151,6 +170,8 @@ final class AzureStorageSettings {
         String endpointSuffix,
         TimeValue timeout,
         TimeValue readTimeout,
+        TimeValue writeTimeout,
+        int maxConnections,
         int maxRetries,
         Proxy.Type proxyType,
         String proxyHost,
@@ -165,6 +186,8 @@ final class AzureStorageSettings {
         this.endpointSuffix = endpointSuffix;
         this.timeout = timeout;
         this.readTimeout = readTimeout;
+        this.writeTimeout = writeTimeout;
+        this.maxConnections = maxConnections;
         this.maxRetries = maxRetries;
         this.credentialsUsageFeatures = Strings.hasText(key) ? Set.of("uses_key_credentials")
             : Strings.hasText(sasToken) ? Set.of("uses_sas_token")
@@ -191,6 +214,10 @@ final class AzureStorageSettings {
         }
     }
 
+    public String getAccount() {
+        return account;
+    }
+
     public String getEndpointSuffix() {
         return endpointSuffix;
     }
@@ -201,6 +228,14 @@ final class AzureStorageSettings {
 
     public TimeValue getReadTimeout() {
         return readTimeout;
+    }
+
+    public TimeValue getWriteTimeout() {
+        return writeTimeout;
+    }
+
+    public int getMaxConnections() {
+        return maxConnections;
     }
 
     public int getMaxRetries() {
@@ -278,7 +313,9 @@ final class AzureStorageSettings {
         sb.append("account='").append(account).append('\'');
         sb.append(", timeout=").append(timeout);
         sb.append(", readTimeout=").append(readTimeout);
+        sb.append(", writeTimeout=").append(writeTimeout);
         sb.append(", endpointSuffix='").append(endpointSuffix).append('\'');
+        sb.append(", maxConnections=").append(maxConnections);
         sb.append(", maxRetries=").append(maxRetries);
         sb.append(", proxy=").append(proxy);
         sb.append('}');
@@ -321,6 +358,8 @@ final class AzureStorageSettings {
                 getValue(settings, clientName, ENDPOINT_SUFFIX_SETTING),
                 getValue(settings, clientName, TIMEOUT_SETTING),
                 getValue(settings, clientName, READ_TIMEOUT_SETTING),
+                getValue(settings, clientName, WRITE_TIMEOUT_SETTING),
+                getValue(settings, clientName, MAX_CONNECTIONS_SETTING),
                 getValue(settings, clientName, MAX_RETRIES_SETTING),
                 getValue(settings, clientName, PROXY_TYPE_SETTING),
                 getValue(settings, clientName, PROXY_HOST_SETTING),
@@ -406,13 +445,15 @@ final class AzureStorageSettings {
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         AzureStorageSettings that = (AzureStorageSettings) o;
-        return maxRetries == that.maxRetries
+        return maxConnections == that.maxConnections
+            && maxRetries == that.maxRetries
             && hasCredentials == that.hasCredentials
             && Objects.equals(account, that.account)
             && Objects.equals(connectString, that.connectString)
             && Objects.equals(endpointSuffix, that.endpointSuffix)
             && Objects.equals(timeout, that.timeout)
             && Objects.equals(readTimeout, that.readTimeout)
+            && Objects.equals(writeTimeout, that.writeTimeout)
             && Objects.equals(proxy, that.proxy)
             && Objects.equals(credentialsUsageFeatures, that.credentialsUsageFeatures);
     }
@@ -425,6 +466,8 @@ final class AzureStorageSettings {
             endpointSuffix,
             timeout,
             readTimeout,
+            writeTimeout,
+            maxConnections,
             maxRetries,
             proxy,
             hasCredentials,

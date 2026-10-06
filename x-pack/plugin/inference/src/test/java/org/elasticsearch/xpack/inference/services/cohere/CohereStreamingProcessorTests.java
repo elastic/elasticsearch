@@ -11,7 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
-import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -180,8 +180,8 @@ public class CohereStreamingProcessorTests extends ESTestCase {
 
         verify(upstream, times(0)).request(1);
         verify(downstream, times(1)).onNext(assertArg(chunks -> {
-            assertThat(chunks, isA(StreamingChatCompletionResults.Results.class));
-            var results = (StreamingChatCompletionResults.Results) chunks;
+            assertThat(chunks, isA(StreamingCompletionResults.Results.class));
+            var results = (StreamingCompletionResults.Results) chunks;
             assertThat(results.results().size(), equalTo(1));
             assertThat(results.results().getFirst().delta(), equalTo("hello there"));
         }));

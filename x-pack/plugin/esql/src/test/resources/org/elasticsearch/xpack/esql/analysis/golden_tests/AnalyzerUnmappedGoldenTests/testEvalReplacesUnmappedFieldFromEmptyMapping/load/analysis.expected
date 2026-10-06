@@ -1,0 +1,3 @@
+Limit[1000[INTEGER],false,false]
+\_Eval[[TODATETIME(date_string{f(PotentiallyUnmappedKeywordEsField)}#0) AS date_string#1]]
+  \_EsRelation[no_mapping_date_extract_fields][date_string{f(PotentiallyUnmappedKeywordEsField)}#0]

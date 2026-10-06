@@ -56,9 +56,9 @@ FROM employees
 
 ### Subqueries
 
-The `FROM` command supports [subqueries](/reference/query-languages/esql/esql-subquery.md),
+The `FROM` command supports [`FROM` subqueries](/reference/query-languages/esql/esql-from-subquery.md),
 which are complete ES|QL queries wrapped in parentheses. Each subquery starts
-with a `FROM` source command followed by zero or more piped processing commands.
+with a source command followed by zero or more piped processing commands.
 Multiple subqueries and regular index patterns can be combined in a single
 `FROM` clause, separated by commas.
 
@@ -67,6 +67,8 @@ FROM
     employees,
     (FROM sample_data | WHERE client_ip == "172.21.3.15")
 ```
+
+To learn about other ways to combine and reuse queries, refer to [Combine and reuse ES|QL queries](/reference/query-languages/esql/esql-combine-reuse-queries.md).
 
 ## Examples
 

@@ -39,7 +39,7 @@ public final class SearchContextKeepaliveDeadline {
     }
 
     /**
-     * Updates the deadline after a successful scroll or PIT search response using the effective keep-alive duration for that request.
+     * Updates the deadline after a successful paginated search response using the effective keep-alive duration for that request.
      */
     public void recordSuccessfulExtension(TimeValue effectiveKeepAlive) {
         long extensionMillis = Math.max(0L, effectiveKeepAlive.millis());

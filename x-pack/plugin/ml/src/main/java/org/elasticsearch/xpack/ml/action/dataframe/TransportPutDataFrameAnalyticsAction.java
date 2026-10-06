@@ -116,8 +116,6 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
         this.sourceDestValidator = new SourceDestValidator(
             indexNameExpressionResolver,
             transportService.getRemoteClusterService(),
-            null,
-            null,
             clusterService.getNodeName(),
             License.OperationMode.PLATINUM.description()
         );
@@ -143,7 +141,6 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
             clusterService.state(),
             config.getSource().getIndex(),
             config.getDest().getIndex(),
-            null,
             SourceDestValidations.ALL_VALIDATIONS,
             listener.delegateFailureAndWrap((l, aBoolean) -> putValidatedConfig(config, request.masterNodeTimeout(), l))
         );

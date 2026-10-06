@@ -479,7 +479,8 @@ public class PluginsServiceTests extends ESTestCase {
                         false,
                         false,
                         false,
-                        PluginDescriptor.DeploymentTarget.ALL
+                        PluginDescriptor.DeploymentTarget.ALL,
+                        List.of()
                     ),
                     extensiblePlugin,
                     null
@@ -508,7 +509,8 @@ public class PluginsServiceTests extends ESTestCase {
                         false,
                         false,
                         false,
-                        PluginDescriptor.DeploymentTarget.ALL
+                        PluginDescriptor.DeploymentTarget.ALL,
+                        List.of()
                     ),
                     extensiblePlugin,
                     null
@@ -527,7 +529,8 @@ public class PluginsServiceTests extends ESTestCase {
                         false,
                         false,
                         false,
-                        PluginDescriptor.DeploymentTarget.ALL
+                        PluginDescriptor.DeploymentTarget.ALL,
+                        List.of()
                     ),
                     testPlugin,
                     null

@@ -33,7 +33,8 @@ import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.core.inference.chunking.RecursiveChunkingSettings;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
@@ -55,13 +56,16 @@ import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedMultimodalRerankException;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedNonStreamingChatCompletionException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.resolveInferenceTimeout;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedCacheControlUnifiedCompletionOperation;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedEmbeddingOperation;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedReasoningUnifiedCompletionOperation;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedSessionIdUnifiedCompletionOperation;
 
 public abstract class SenderService<M extends Model> implements InferenceService {
 
@@ -98,6 +102,10 @@ public abstract class SenderService<M extends Model> implements InferenceService
         return serviceComponents;
     }
 
+    protected int getRegexReadLimitFactor() {
+        return clusterService.getClusterSettings().get(RecursiveChunkingSettings.REGEX_READ_LIMIT_FACTOR_SETTING);
+    }
+
     @Override
     public void infer(
         Model model,
@@ -131,7 +139,9 @@ public abstract class SenderService<M extends Model> implements InferenceService
             ChunkingSettings chunkingSettings = null;
             if (CHUNKING_TASK_TYPES.contains(taskType)) {
                 chunkingSettings = ChunkingSettingsBuilder.fromMap(
-                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
+                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS),
+                    true,
+                    true
                 );
             }
 
@@ -227,12 +237,12 @@ public abstract class SenderService<M extends Model> implements InferenceService
         boolean stream
     ) {
         return switch (model.getTaskType()) {
-            case COMPLETION, CHAT_COMPLETION -> new ChatCompletionInput(input, stream);
+            case COMPLETION, CHAT_COMPLETION -> new CompletionInput(input, stream);
             case TEXT_EMBEDDING, SPARSE_EMBEDDING -> {
                 ValidationException validationException = new ValidationException();
                 service.validateInputType(inputType, model, validationException);
                 validationException.throwIfValidationErrorsExist();
-                yield new EmbeddingsInput(input, inputType, stream);
+                yield EmbeddingsInput.fromStrings(input, inputType, stream);
             }
             default -> throw new ElasticsearchStatusException(
                 Strings.format("Invalid task type received when determining input type: [%s]", model.getTaskType().toString()),
@@ -250,16 +260,34 @@ public abstract class SenderService<M extends Model> implements InferenceService
     ) {
         try {
             var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, InputType.UNSPECIFIED, clusterService, CHAT_COMPLETION);
-            if (supportsChatCompletionReasoning() == false && request.containsChatCompletionReasoning()) {
+            var body = request.body();
+            if (supportsChatCompletionReasoning() == false && body.containsChatCompletionReasoning()) {
                 throwUnsupportedReasoningUnifiedCompletionOperation(name());
             }
-            doUnifiedCompletionInfer(model, new UnifiedChatInput(request, true), resolvedInferenceTimeout, listener);
+            if (supportsChatCompletionCacheControl() == false && body.containsChatCompletionCacheControl()) {
+                throwUnsupportedCacheControlUnifiedCompletionOperation(name());
+            }
+            if (supportsChatCompletionSessionId() == false && body.containsSessionId()) {
+                throwUnsupportedSessionIdUnifiedCompletionOperation(name());
+            }
+            if (request.stream() == false && supportsNonStreamingChatCompletion() == false) {
+                throw createUnsupportedNonStreamingChatCompletionException(name());
+            }
+            doUnifiedCompletionInfer(model, new UnifiedChatInput(request), resolvedInferenceTimeout, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }
     }
 
     protected boolean supportsChatCompletionReasoning() {
+        return false;
+    }
+
+    protected boolean supportsChatCompletionCacheControl() {
+        return false;
+    }
+
+    protected boolean supportsChatCompletionSessionId() {
         return false;
     }
 

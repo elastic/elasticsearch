@@ -27,7 +27,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.inference.Model;
@@ -52,6 +51,7 @@ import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicy;
 import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicyDoc;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.inference.InferenceIndex;
+import org.elasticsearch.xpack.inference.InferenceIndexMappingManager;
 import org.elasticsearch.xpack.inference.common.InferencePreferences;
 import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -70,6 +70,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ml.utils.InferenceProcessorInfoExtractor.pipelineIdsForResource;
+import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.common.SemanticTextInfoExtractor.extractIndexesReferencingInferenceEndpoints;
 
 public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRegionPolicyAction.Request, RegionPolicyResponse> {
@@ -84,10 +85,11 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
     private final OriginSettingClient client;
     private final Optional<SecurityContext> securityContext;
     private final ClusterService clusterService;
-    private final FeatureService featureService;
     private final InferencePreferencesCache inferencePreferencesCache;
     private final ElasticInferenceServiceAuthorizationRequestHandler authorizationHandler;
     private final Sender sender;
+    private final ThreadPool threadPool;
+    private final InferenceIndexMappingManager inferenceIndexManager;
 
     @Inject
     public TransportPutRegionPolicyAction(
@@ -97,10 +99,10 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
         ActionFilters actionFilters,
         Client client,
         ClusterService clusterService,
-        FeatureService featureService,
         InferencePreferencesCache inferencePreferencesCache,
         ElasticInferenceServiceAuthorizationRequestHandler authorizationHandler,
-        Sender sender
+        Sender sender,
+        InferenceIndexMappingManager inferenceIndexManager
     ) {
         super(
             PutRegionPolicyAction.NAME,
@@ -114,10 +116,11 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
             ? Optional.of(new SecurityContext(settings, threadPool.getThreadContext()))
             : Optional.empty();
         this.clusterService = clusterService;
-        this.featureService = featureService;
         this.inferencePreferencesCache = inferencePreferencesCache;
         this.authorizationHandler = authorizationHandler;
         this.sender = sender;
+        this.threadPool = threadPool;
+        this.inferenceIndexManager = inferenceIndexManager;
     }
 
     @Override
@@ -141,12 +144,16 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
 
         var preferences = new InferencePreferences(request.regionPolicy());
         authorizationHandler.getAuthorizationWithPreferences(listener.delegateFailureAndWrap((l, authModel) -> {
-            var deniedInUseEndpoints = findDeniedInUseEndpoints(authModel);
-            if (deniedInUseEndpoints.isEmpty()) {
-                l.onResponse(null);
-            } else {
-                l.onFailure(buildDeniedInUseEndpointsException(deniedInUseEndpoints));
-            }
+            // Execute in another thread because finding denied in-use endpoints requires
+            // non-trivial iteration over cluster state metadata
+            threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> {
+                var deniedInUseEndpoints = findDeniedInUseEndpoints(authModel);
+                if (deniedInUseEndpoints.isEmpty()) {
+                    l.onResponse(null);
+                } else {
+                    l.onFailure(buildDeniedInUseEndpointsException(deniedInUseEndpoints));
+                }
+            });
         }), sender, preferences);
     }
 
@@ -226,24 +233,52 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
         RegionPolicy newRegionPolicy,
         ActionListener<RegionPolicyResponse> listener
     ) {
-        RegionPolicyDoc doc = createNewRegionPolicyDoc(
+        RegionPolicyDoc policy = createNewRegionPolicyDoc(
             existingRegionPolicyDoc == null ? null : existingRegionPolicyDoc.regionPolicyDoc(),
             newRegionPolicy
         );
 
+        IndexRequestBuilder indexRequestBuilder;
+        try {
+            indexRequestBuilder = createIndexRequestBuilder(existingRegionPolicyDoc, policy);
+        } catch (IOException e) {
+            listener.onFailure(new IllegalStateException("Failed to serialise region policy", e));
+            return;
+        }
+
+        inferenceIndexManager.withUpToDateMappings(
+            clusterService.state(),
+            listener.delegateFailure((l, v) -> indexRequestBuilder.execute(indexRequestHandler(policy, l)))
+        );
+    }
+
+    private RegionPolicyDoc createNewRegionPolicyDoc(@Nullable RegionPolicyDoc existingRegionPolicy, RegionPolicy newRegionPolicy) {
+        String username = securityContext.map(ctx -> ctx.getUser()).map(user -> user.principal()).orElse(null);
+        if (existingRegionPolicy == null) {
+            return new RegionPolicyDoc(newRegionPolicy, Instant.now(), username, null, null);
+        }
+        return new RegionPolicyDoc(
+            newRegionPolicy,
+            existingRegionPolicy.createdAt(),
+            existingRegionPolicy.createdBy(),
+            Instant.now(),
+            username
+        );
+    }
+
+    private IndexRequestBuilder createIndexRequestBuilder(RegionPolicyDocWithSeqNo existingRegionPolicyDoc, RegionPolicyDoc policyToIndex)
+        throws IOException {
         IndexRequestBuilder indexRequestBuilder = client.prepareIndex(InferenceIndex.INDEX_NAME)
             .setId(RegionPolicyDoc.DOCUMENT_ID)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        boolean includeDocType = InferenceIndex.inferenceIndexHasV4Mappings(clusterService.state(), featureService);
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            ToXContent.Params params = includeDocType
-                ? new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"))
-                : ToXContent.EMPTY_PARAMS;
-            indexRequestBuilder.setSource(doc.toXContent(builder, params));
-        } catch (IOException e) {
-            listener.onFailure(new IllegalStateException("Failed to serialise region policy", e));
-            return;
+            indexRequestBuilder.setSource(
+                policyToIndex.toXContent(
+                    builder,
+                    new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"))
+                )
+            );
         }
 
         if (existingRegionPolicyDoc == null) {
@@ -252,14 +287,17 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
             indexRequestBuilder.setIfSeqNo(existingRegionPolicyDoc.seqNo());
             indexRequestBuilder.setIfPrimaryTerm(existingRegionPolicyDoc.primaryTerm());
         }
+        return indexRequestBuilder;
+    }
 
-        indexRequestBuilder.execute(new ActionListener<>() {
+    private ActionListener<DocWriteResponse> indexRequestHandler(RegionPolicyDoc doc, ActionListener<RegionPolicyResponse> listener) {
+        return new ActionListener<>() {
             @Override
             public void onResponse(DocWriteResponse docWriteResponse) {
                 logger.info(
                     "Region policy [{}] by [{}]: {}",
-                    existingRegionPolicyDoc == null ? "created" : "updated",
-                    existingRegionPolicyDoc == null ? doc.createdBy() : doc.updatedBy(),
+                    doc.updatedAt() == null ? "created" : "updated",
+                    doc.updatedAt() == null ? doc.createdBy() : doc.updatedBy(),
                     Strings.toString(doc.regionPolicy())
                 );
                 inferencePreferencesCache.invalidate(
@@ -287,7 +325,7 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
                     listener.onFailure(e);
                 }
             }
-        });
+        };
     }
 
     private void refreshAuthorizedEndpointsAndRespond(RegionPolicyDoc doc, ActionListener<RegionPolicyResponse> listener) {
@@ -301,20 +339,6 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
                 ),
                 () -> listener.onResponse(new RegionPolicyResponse(doc))
             )
-        );
-    }
-
-    private RegionPolicyDoc createNewRegionPolicyDoc(@Nullable RegionPolicyDoc existingRegionPolicy, RegionPolicy newRegionPolicy) {
-        String username = securityContext.map(ctx -> ctx.getUser()).map(user -> user.principal()).orElse(null);
-        if (existingRegionPolicy == null) {
-            return new RegionPolicyDoc(newRegionPolicy, Instant.now(), username, null, null);
-        }
-        return new RegionPolicyDoc(
-            newRegionPolicy,
-            existingRegionPolicy.createdAt(),
-            existingRegionPolicy.createdBy(),
-            Instant.now(),
-            username
         );
     }
 

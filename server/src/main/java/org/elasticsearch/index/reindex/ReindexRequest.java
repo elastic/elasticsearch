@@ -217,7 +217,7 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
     }
 
     /**
-     * Sets the scroll size for setting how many documents are to be processed in one batch during reindex
+     * Sets the batch size for how many documents are to be processed in one paginated search batch during reindex
      */
     public ReindexRequest setSourceBatchSize(int size) {
         this.getSearchRequest().source().size(size);

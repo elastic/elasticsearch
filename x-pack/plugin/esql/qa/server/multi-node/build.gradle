@@ -108,14 +108,28 @@ tasks.named('processJavaRestTestResources').configure {
 tasks.named('javaRestTest') {
   dependsOn generateParquetFixtures
   usesDefaultDistribution("to be triaged")
-  maxParallelForks = 1
 
   systemProperty 'tests.rest.client_timeout', '60'
   systemProperty 'tests.rest.socket_timeout', '60'
 }
 
+// Not wired into 'check': .buildkite/pipelines/periodic-esql-generative.yml invokes this by name.
+tasks.register('generativeTests', StandaloneRestIntegTestTask) {
+  dependsOn generateParquetFixtures
+  usesDefaultDistribution("to be triaged")
+
+  systemProperty 'tests.rest.client_timeout', '60'
+  systemProperty 'tests.rest.socket_timeout', '60'
+  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+  classpath = sourceSets.javaRestTest.runtimeClasspath
+  filter {
+    includeTestsMatching 'org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT'
+  }
+}
+
 def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
   usesDefaultDistribution("to be triaged")
+  // AbstractEsqlSpecIT declares its cluster with shared(true), which is incompatible with parallel forks
   maxParallelForks = 1
 
   systemProperty 'tests.rest.client_timeout', '60'

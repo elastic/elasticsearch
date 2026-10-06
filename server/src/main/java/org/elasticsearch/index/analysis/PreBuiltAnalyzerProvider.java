@@ -37,4 +37,16 @@ public class PreBuiltAnalyzerProvider implements AnalyzerProvider<NamedAnalyzer>
     public NamedAnalyzer get() {
         return analyzer;
     }
+
+    @Override
+    public Object sharingKey() {
+        // Keys on the bound NamedAnalyzer, whose equals()/hashCode() compare only the analyzer name. For
+        // prebuilt analyzers that is the intended grain: the name is the node-global registration key (one
+        // provider per name), so it uniquely identifies the analyzer. This collapses the per-IndexVersion
+        // instances PreBuiltAnalyzers caches into one slot, which is safe because the server prebuilt
+        // analyzers are version-invariant (PreBuiltAnalyzers#create ignores the version); a
+        // version-sensitive component folds the version into its own factory sharingKey() instead. See
+        // AnalysisRegistryTests#testVersionInvariantAnalyzersShareAcrossVersions.
+        return analyzer;
+    }
 }

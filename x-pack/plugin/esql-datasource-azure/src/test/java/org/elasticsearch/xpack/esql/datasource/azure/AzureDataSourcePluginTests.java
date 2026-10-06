@@ -7,11 +7,15 @@
 
 package org.elasticsearch.xpack.esql.datasource.azure;
 
-import org.elasticsearch.cluster.metadata.DatasetMetadata;
+import com.azure.identity.CredentialUnavailableException;
+import com.azure.storage.blob.models.BlobStorageException;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderServices;
 
@@ -21,16 +25,15 @@ import java.util.Map;
  * Unit tests for AzureDataSourcePlugin.
  * Tests that the plugin correctly registers storage provider factories for wasbs:// and wasb:// schemes.
  * <p>
- * Azure registration is gated on the external-datasources umbrella and the {@code esql_external_azure}
- * sub-flag (snapshot-on, release-off). The provider-shape tests below assume the gate is on; a
- * dedicated test asserts nothing is registered when it is off. Across the snapshot and
- * {@code elasticsearch.esql-release} build variants both branches get exercised.
+ * Azure registration is gated on the {@code esql_external_azure} sub-flag (snapshot-on, release-off).
+ * The provider-shape tests below assume the gate is on; a dedicated test asserts nothing is
+ * registered when it is off. Across the snapshot and {@code elasticsearch.esql-release} build
+ * variants both branches get exercised.
  */
 public class AzureDataSourcePluginTests extends ESTestCase {
 
     private static boolean azureEnabled() {
-        return DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
-            && AzureDataSourcePlugin.ESQL_EXTERNAL_AZURE_FEATURE_FLAG.isEnabled();
+        return AzureDataSourcePlugin.ESQL_EXTERNAL_AZURE_FEATURE_FLAG.isEnabled();
     }
 
     public void testStorageProvidersRegistersWasbsAndWasbSchemes() {
@@ -60,6 +63,15 @@ public class AzureDataSourcePluginTests extends ESTestCase {
 
         assertTrue("should register the azure validator", validators.containsKey("azure"));
         assertEquals("should register exactly 1 validator", 1, validators.size());
+    }
+
+    public void testSchemeFoldAgreesWithTypeId() {
+        assumeTrue("requires Azure feature flag", azureEnabled());
+        AzureDataSourcePlugin plugin = new AzureDataSourcePlugin();
+        String typeId = plugin.datasourceValidators(Settings.EMPTY).keySet().iterator().next();
+        for (String scheme : plugin.supportedSchemes()) {
+            assertSame(Type.fromTypeId(typeId), Type.fromScheme(scheme));
+        }
     }
 
     public void testDisabledWhenFeatureFlagOff() {
@@ -113,5 +125,19 @@ public class AzureDataSourcePluginTests extends ESTestCase {
         assertNotNull(wasbsFactory);
         assertNotNull(wasbFactory);
         assertEquals(wasbsFactory, wasbFactory);
+    }
+
+    public void testSchemesAreRejectedBySafeForUserMessage() {
+        assertFalse(ExternalFailures.safeForUserMessage("wasbs://account.blob.core.windows.net/container/file.parquet"));
+        assertFalse(ExternalFailures.safeForUserMessage("wasb://account.blob.core.windows.net/container/file.parquet"));
+    }
+
+    /**
+     * {@link ExternalFailures#composedByStorageClient} withholds this client's text by package; a client exception it
+     * does not recognise would put the remote's refusal (the tenant and identity it was refused) in the response.
+     */
+    public void testClientExceptionsAreStorageClientText() {
+        assertTrue(ExternalFailures.composedByStorageClient(new BlobStorageException("AuthorizationPermissionMismatch", null, null)));
+        assertTrue(ExternalFailures.composedByStorageClient(new CredentialUnavailableException("no managed identity")));
     }
 }

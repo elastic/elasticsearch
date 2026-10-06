@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 157064
+pr: 157160
+summary: Wildcard/Regex on keyed flattened fields should return 4xx
+type: bug

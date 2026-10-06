@@ -7,11 +7,14 @@
 
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
-import org.elasticsearch.cluster.metadata.DatasetMetadata;
+import com.google.cloud.storage.StorageException;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
 import java.util.Map;
@@ -20,16 +23,15 @@ import java.util.Map;
  * Unit tests for GcsDataSourcePlugin.
  * Tests that the plugin correctly registers storage provider factories for the gs:// scheme.
  * <p>
- * GCS registration is gated on the external-datasources umbrella and the {@code esql_external_gcs}
- * sub-flag (snapshot-on, release-off). The provider-shape tests below assume the gate is on; a
- * dedicated test asserts nothing is registered when it is off. Across the snapshot and
- * {@code elasticsearch.esql-release} build variants both branches get exercised.
+ * GCS registration is gated on the {@code esql_external_gcs} sub-flag (snapshot-on, release-off).
+ * The provider-shape tests below assume the gate is on; a dedicated test asserts nothing is
+ * registered when it is off. Across the snapshot and {@code elasticsearch.esql-release} build
+ * variants both branches get exercised.
  */
 public class GcsDataSourcePluginTests extends ESTestCase {
 
     private static boolean gcsEnabled() {
-        return DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
-            && GcsDataSourcePlugin.ESQL_EXTERNAL_GCS_FEATURE_FLAG.isEnabled();
+        return GcsDataSourcePlugin.ESQL_EXTERNAL_GCS_FEATURE_FLAG.isEnabled();
     }
 
     public void testStorageProvidersRegistersGsScheme() {
@@ -48,6 +50,15 @@ public class GcsDataSourcePluginTests extends ESTestCase {
 
         assertTrue("should register the gcs validator", validators.containsKey("gcs"));
         assertEquals("should register exactly 1 validator", 1, validators.size());
+    }
+
+    public void testSchemeFoldAgreesWithTypeId() {
+        assumeTrue("requires GCS feature flag", gcsEnabled());
+        GcsDataSourcePlugin plugin = new GcsDataSourcePlugin();
+        String typeId = plugin.datasourceValidators(Settings.EMPTY).keySet().iterator().next();
+        for (String scheme : plugin.supportedSchemes()) {
+            assertSame(Type.fromTypeId(typeId), Type.fromScheme(scheme));
+        }
     }
 
     public void testDisabledWhenFeatureFlagOff() {
@@ -127,5 +138,17 @@ public class GcsDataSourcePluginTests extends ESTestCase {
         // Only gs:// is supported (unlike S3 which has s3, s3a, s3n)
         assertNotNull(providers.get("gs"));
         assertNull(providers.get("gcs"));
+    }
+
+    public void testSchemesAreRejectedBySafeForUserMessage() {
+        assertFalse(ExternalFailures.safeForUserMessage("gs://bucket/path/file.parquet"));
+    }
+
+    /**
+     * {@link ExternalFailures#composedByStorageClient} withholds this client's text by package; a client exception it
+     * does not recognise would put the remote's refusal (the service account it was refused) in the response.
+     */
+    public void testClientExceptionsAreStorageClientText() {
+        assertTrue(ExternalFailures.composedByStorageClient(new StorageException(403, "Forbidden")));
     }
 }

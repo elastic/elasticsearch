@@ -59,6 +59,11 @@ public class TextFieldAnalyzerModeTests extends ESTestCase {
             public TokenStream create(TokenStream tokenStream) {
                 return null;
             }
+
+            @Override
+            public Object sharingKey() {
+                return this;
+            }
         };
         return new CustomAnalyzer(null, new CharFilterFactory[0], new TokenFilterFactory[] { tokenFilter });
     }

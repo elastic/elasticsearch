@@ -1,5 +1,0 @@
-area: Mapping
-issues: []
-pr: 152357
-summary: Support nested fields under subobjects:false
-type: enhancement

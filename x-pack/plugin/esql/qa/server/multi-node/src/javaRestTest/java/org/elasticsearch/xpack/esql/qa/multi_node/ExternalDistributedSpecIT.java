@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.esql.qa.multi_node;
 import com.carrotsearch.randomizedtesting.ThreadFilter;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -20,7 +22,6 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
-import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
@@ -35,6 +36,10 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilit
  * three modes produce identical results for every query; divergence flags a split
  * assignment, exchange, or aggregation bug.
  */
+// Monolithic subclass: reads two csv-spec files and multiplies them by storage backend and distribution mode
+// (~1000 parameterized cases), so it needs a longer budget than the 20-minute single-file default it inherits
+// from EsqlSpecTestCase. Matches the 60-minute budget of the other heavy external-source spec suites.
+@TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
 @ThreadLeakFilters(
     filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class, ExternalDistributedSpecIT.AzureSdkThreadFilter.class }
 )
@@ -52,13 +57,16 @@ public class ExternalDistributedSpecIT extends AbstractExternalSourceSpecTestCas
     private static final ElasticsearchCluster CLUSTER_INSTANCE = ExternalDistributedClusters.testCluster(() -> s3Fixture.getAddress());
 
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule((base, description) -> new org.junit.runners.model.Statement() {
-        @Override
-        public void evaluate() throws Throwable {
-            assumeFalse("FIPS mode requires security enabled; this test uses plain HTTP S3 fixtures", inFipsJvm());
-            base.evaluate();
-        }
-    }).around(CLUSTER_INSTANCE);
+    public static TestRule ruleChain = chainOuterRuleBeforeFixturesAndCluster(
+        (base, description) -> new org.junit.runners.model.Statement() {
+            @Override
+            public void evaluate() throws Throwable {
+                assumeFalse("FIPS mode requires security enabled; this test uses plain HTTP S3 fixtures", inFipsJvm());
+                base.evaluate();
+            }
+        },
+        CLUSTER_INSTANCE
+    );
 
     private final String distributionMode;
 
@@ -83,7 +91,10 @@ public class ExternalDistributedSpecIT extends AbstractExternalSourceSpecTestCas
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        List<Object[]> backendTests = readExternalSpecTests("/external-basic.csv-spec", "/external-multivalue.csv-spec");
+        List<Object[]> backendTests = readExternalSpecTests(
+            "/datasources/external-basic.csv-spec",
+            "/datasources/external-multivalue.csv-spec"
+        );
         List<Object[]> parameterizedTests = new ArrayList<>();
         for (Object[] backendTest : backendTests) {
             for (String mode : DISTRIBUTION_MODES) {

@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.threadpool.internal.BuiltInExecutorBuilders;
 
@@ -172,9 +173,15 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
             )
         );
         if (ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.get(settings)) {
+            final double mergeMaxSizeFactor = ThreadPoolMergeExecutorService.INDICES_MERGE_THREAD_POOL_MAX_SIZE_FACTOR_SETTING.get(
+                settings
+            );
+            // Scale the default max size (the number of allocated processors) by the factor, rounding to the nearest integer and
+            // flooring to at least 1 so the pool is always usable. An explicit thread_pool.merge.max still overrides this default.
+            final int mergeMax = Math.min(allocatedProcessors, Math.max(1, (int) Math.round(allocatedProcessors * mergeMaxSizeFactor)));
             result.put(
                 ThreadPool.Names.MERGE,
-                new ScalingExecutorBuilder(ThreadPool.Names.MERGE, 1, allocatedProcessors, TimeValue.timeValueMinutes(5), true)
+                new ScalingExecutorBuilder(ThreadPool.Names.MERGE, 1, mergeMax, TimeValue.timeValueMinutes(5), true)
             );
         }
         result.put(

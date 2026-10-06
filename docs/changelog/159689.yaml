@@ -1,0 +1,6 @@
+area: Engine
+issues: []
+pr: 159689
+summary: Revert "Ensure flush during internal refresh is only performed on stateless
+  realtime get path"
+type: bug

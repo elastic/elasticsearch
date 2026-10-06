@@ -12,7 +12,15 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.SuppressedFailures;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -26,6 +34,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.ToLongFunction;
 
 /**
  * Thread-safe buffer for async external source data.
@@ -39,10 +48,19 @@ import java.util.concurrent.atomic.LongAdder;
  */
 public final class AsyncExternalSourceBuffer {
 
+    private static final Logger logger = LogManager.getLogger(AsyncExternalSourceBuffer.class);
+
     /**
      * Default byte limit for the buffer, preserving the original "10 normal-sized pages" intent.
      */
     public static final long DEFAULT_MAX_BUFFER_BYTES = 10L * Operator.TARGET_PAGE_SIZE;
+
+    /**
+     * Published bytes_read view: committed total plus, while {@code object} is tracked, the live
+     * delta on that object's metrics. One volatile write replaces the record; overlapping
+     * read-then-publish calls can lose an update, so production writers must not overlap.
+     */
+    private record BytesView(long committed, long baseline, @Nullable StorageObject object) {}
 
     private final Queue<Page> queue = new ConcurrentLinkedQueue<>();
     // uses a separate counter for size for CAS; and ConcurrentLinkedQueue#size is not a constant time operation.
@@ -59,7 +77,26 @@ public final class AsyncExternalSourceBuffer {
     private final SubscribableListener<Void> completionFuture = new SubscribableListener<>();
 
     private final AtomicBoolean noMoreInputs = new AtomicBoolean(false);
+    private final Object failureLock = new Object();
     private volatile Throwable failure = null;
+    /** Raw (pre-classify) first failure, kept for same-instance deduplication in {@link #onFailure}. */
+    private volatile Throwable rawFirstFailure = null;
+
+    /**
+     * Set when a live producer is cut by a hard stop — i.e. {@link #finish(boolean) finish(true)} performs the
+     * running→finishing transition (task cancel / async DELETE tearing the operator down, or a LIMIT teardown
+     * closing the source while the producer is still reading). Unlike {@link #noMoreInputs}, this is <em>not</em>
+     * set by async STOP ({@code finish(false)}, which keeps buffered pages for a partial response) nor by natural
+     * EOF (where the producer's own {@code finish(false)} wins the transition, so the driver's later
+     * {@code finish(true)} on close no longer transitions). It is consulted as the ambient
+     * {@link StorageRetryCancellation} signal installed around the runtime producer read so an in-flight storage
+     * retry/throttle backoff aborts promptly instead of sleeping through its budget while the query is already
+     * cancelled. See {@link StorageRetryCancellation} for why STOP must not trip this, and for the
+     * degenerate-query case this does <em>not</em> fix: a read wedged in a genuinely uncancellable operation off
+     * the scoped thread (a parallel-parse worker, a native reader) still unwinds only on its own timeout, so the
+     * driver's completion and final resource release wait for it even though the task is already marked cancelled.
+     */
+    private volatile boolean readCancelled = false;
 
     /**
      * Per-file captured source metadata contributions, populated by the background reader thread as
@@ -73,20 +110,39 @@ public final class AsyncExternalSourceBuffer {
     private volatile int cachedMetadataPathCount = 0;
 
     /**
-     * Client-visible partial-results warnings recorded by the background reader path — currently a
-     * streaming {@code max_record_size} truncation under a non-strict {@code error_mode} (see
-     * {@code StreamingParallelParsingCoordinator}). Producer / parse-worker threads append here off
-     * the driver thread; {@link AsyncExternalSourceOperator#close()} drains and re-emits them via
-     * {@link org.elasticsearch.common.logging.HeaderWarning} on the driver thread, whose response
-     * headers {@code DriverRunner} collects into the client response. Emitting from the forked worker
-     * thread directly would land the header on that worker's {@code ThreadContext}, which is never
-     * merged back into the response — so the warning would be invisible to the client.
+     * Client-visible warnings recorded by the background reader path — both genuine partial-results
+     * signals (currently a streaming {@code external_max_record_size} truncation under a non-strict
+     * {@code error_mode}, see {@code StreamingParallelParsingCoordinator}) and per-record
+     * skip/null-fill warnings relayed from format-reader {@code SkipWarnings} sinks (see
+     * {@code FormatReadContext#informationalWarningSink()} / {@code RangeReadContext#informationalWarningSink()}),
+     * which do not necessarily imply a dropped record. See {@link #recordWarning} vs {@link
+     * #recordInformationalWarning}. Producer / parse-worker threads append here off the driver thread;
+     * {@link AsyncExternalSourceOperator#close()} drains them into the driver's
+     * {@link org.elasticsearch.compute.operator.DriverContext} sink, which {@code DriverCompletionInfo} carries back
+     * from whatever node ran the scan for the coordinator to re-emit. Depositing from the forked worker thread
+     * directly is not an option: that thread's sink is not this driver's, and the {@code ThreadContext} alternative
+     * only reaches the client when the scan happens to run on the coordinator.
      */
     private final Queue<String> pendingWarnings = new ConcurrentLinkedQueue<>();
 
     /**
+     * Cap on informational warning lines a single query may emit via {@link #recordInformationalWarning}
+     * across every concurrently-parsed segment/chunk. Each {@code SkipWarnings} instance already caps its
+     * own detail count at {@link SkipWarnings#MAX_ADDED_WARNINGS}, but that cap is per reader instance, not
+     * per query — a parallel or macro-split read constructs one instance per chunk/segment, so without a
+     * cap here a single read could add far more than that to {@link #pendingWarnings}, multiplying response
+     * header count by chunk/segment count. The {@code +2} mirrors the 1 summary + 1 overflow line a single
+     * {@code SkipWarnings} instance adds around its own cap.
+     */
+    private static final int MAX_INFORMATIONAL_WARNINGS = SkipWarnings.MAX_ADDED_WARNINGS + 2;
+
+    // Each caller gets a unique count, so exactly one caller ever sees count == MAX_INFORMATIONAL_WARNINGS
+    // and adds the overflow line — no separate overflow flag needed.
+    private final AtomicInteger informationalWarningsAdded = new AtomicInteger();
+
+    /**
      * Set when the background reader path drops data under a lenient policy — currently a streaming
-     * {@code max_record_size} truncation under a non-strict {@code error_mode}. Surfaced through the
+     * {@code external_max_record_size} truncation under a non-strict {@code error_mode}. Surfaced through the
      * operator's {@code Status} into {@link org.elasticsearch.compute.operator.DriverCompletionInfo} so the
      * coordinator can flip the response's {@code is_partial} flag (the structured counterpart of the
      * client-visible {@link #pendingWarnings} message). {@code volatile}: written on the parse-worker thread,
@@ -95,11 +151,12 @@ public final class AsyncExternalSourceBuffer {
     private volatile boolean partial = false;
 
     private volatile FormatReaderStatus formatReaderStatus = null;
-    // LongAdder (rather than the AtomicLong used for {@link #bytesInBuffer}) because every read
-    // iteration adds a delta to bytesRead, so contention between concurrent producer threads on
-    // multi-file paths would dominate AtomicLong's CAS cost. bytesInBuffer is a single producer /
-    // single consumer counter and stays AtomicLong.
-    private final LongAdder bytesRead = new LongAdder();
+    private final ExternalReadCounters readCounters = new ExternalReadCounters();
+    private volatile BytesView bytesView = new BytesView(0L, 0L, null);
+    private final LongAdder requestCount = new LongAdder();
+    private final LongAdder retryCount = new LongAdder();
+    private volatile long requestBaseline;
+    private volatile long retryBaseline;
     private volatile int splitsTotal = 0;
     private final AtomicInteger splitsProcessed = new AtomicInteger();
     private volatile int currentSplit = 0;
@@ -118,17 +175,60 @@ public final class AsyncExternalSourceBuffer {
 
     /**
      * Records a client-visible partial-results warning to be re-emitted on the driver thread when the
-     * operator closes. Thread-safe: called from the background reader / parse-worker thread.
+     * operator closes, and flips {@link #partial}. Thread-safe: called from the background reader /
+     * parse-worker thread.
      * <p>
-     * This sink is currently wired exclusively to the lenient {@code max_record_size} truncation path
-     * (see {@code StreamingParallelParsingCoordinator#emitTruncationWarning}), so it also flips
-     * {@link #partial}: a recorded warning here always means the read returned fewer records than the
-     * source held. If a future caller routes a non-partial warning through this method, split the
-     * partial signal out into its own entry point.
+     * This sink is wired exclusively to the lenient {@code external_max_record_size} truncation path (see
+     * {@code StreamingParallelParsingCoordinator#emitTruncationWarning}): a recorded warning here
+     * always means the read returned fewer records than the source held. Per-record {@code SkipWarnings}
+     * warnings (row skipped or field null-filled under a lenient {@code ErrorPolicy}) must use
+     * {@link #recordInformationalWarning} instead — not because a skipped row is never a "real" partial
+     * result, but because {@link #partial} has never tracked that case (this predates warning-sink
+     * relaying entirely: on the driver thread such warnings always emitted straight to
+     * {@link org.elasticsearch.common.logging.HeaderWarning} without touching this flag). Overloading
+     * {@link #partial}'s meaning to also cover {@code SKIP_ROW} drops is a separate, pre-existing
+     * question and out of scope here.
      */
     public void recordWarning(String warning) {
         pendingWarnings.add(warning);
         partial = true;
+    }
+
+    /**
+     * Records a client-visible warning to be re-emitted on the driver thread when the operator closes,
+     * without affecting {@link #partial}. Thread-safe: called from the background reader / parse-worker
+     * thread.
+     * <p>
+     * Use this for warnings relayed from format-reader {@code SkipWarnings} sinks (see {@code
+     * FormatReadContext#informationalWarningSink()} / {@code RangeReadContext#informationalWarningSink()})
+     * — e.g. CSV/NDJSON per-record skip/null-fill handling or Parquet on-disk/planner type mismatches.
+     * These warnings never flip {@link #partial} ({@link #partial} tracks only the {@code external_max_record_size}
+     * truncation, not per-record null-fills); this method relays them so they are re-emitted on the driver
+     * thread rather than lost on a background reader thread, without changing what they signal. See
+     * {@link #recordWarning} for the one warning that maps to {@link #partial}.
+     * <p>
+     * Each {@code SkipWarnings} instance caps its own per-event details at
+     * {@code SkipWarnings.MAX_ADDED_WARNINGS} (20), but that cap is per reader instance, not per query:
+     * a parallel or macro-split read constructs one {@code SkipWarnings} per chunk/segment. This method
+     * applies {@link #MAX_INFORMATIONAL_WARNINGS} as a single cap across every caller so that a read
+     * split into many chunks/segments cannot multiply {@link #pendingWarnings}'s size by chunk/segment
+     * count — otherwise a large enough split count can grow response headers past what the client (or
+     * an intermediate proxy) is willing to accept.
+     * <p>
+     * That cap bounds a single driver's contribution, because one buffer is created per driver. To bound
+     * the channel per source per node rather than only per driver (a multi-file glob or macro-split read
+     * fans across parallel drivers, each with its own buffer), {@code AsyncExternalSourceOperatorFactory}
+     * additionally gates every informational sink through one shared {@code InformationalWarningBudget}
+     * before it reaches this method; the per-source and per-buffer bounds compose.
+     */
+    public void recordInformationalWarning(String warning) {
+        int count = informationalWarningsAdded.incrementAndGet();
+        if (count < MAX_INFORMATIONAL_WARNINGS) {
+            pendingWarnings.add(warning);
+        } else if (count == MAX_INFORMATIONAL_WARNINGS) {
+            // The standard overflow line: the client learns that warnings were suppressed, not a second count.
+            pendingWarnings.add(SkipWarnings.overflowMessage());
+        }
     }
 
     /** Removes and returns the next recorded warning, or {@code null} if none remain. */
@@ -183,37 +283,47 @@ public final class AsyncExternalSourceBuffer {
 
     /**
      * Add a page to the buffer. Called by the background reader thread.
+     * Always consumes {@code page}: the caller must not {@link Page#releaseBlocks()} after this
+     * returns or throws. A throw after the page is queued (for example from a
+     * {@link #waitForReading()} listener) does not return ownership.
      */
     public void addPage(Page page) {
-        if (failure != null) {
-            // Reject the page without touching buffer state, so the trailing invariantsHold()
-            // call is intentionally bypassed: nothing was mutated for it to check.
-            page.releaseBlocks();
-            return;
-        }
-        long pageBytes = page.ramBytesUsedByBlocks();
-        bytesInBuffer.addAndGet(pageBytes);
-        queue.add(page);
-        queueSize.incrementAndGet();
-        // Always notify: the conditional guard on prevBytes==0 previously caused a lost-wakeup race
-        // when a consumer drained and blocked on notEmptyFuture between our getAndAdd and queue.add.
-        // notifyNotEmpty() is a no-op when no listener is registered, so unconditional fire is cheap.
-        notifyNotEmpty();
-        if (noMoreInputs.get()) {
-            // O(N) but acceptable because it only occurs with finish(), and the queue size should be very small.
-            if (queue.removeIf(p -> p == page)) {
-                page.releaseBlocks();
-                queueSize.decrementAndGet();
-                long afterRemove = bytesInBuffer.addAndGet(-pageBytes);
-                if (afterRemove < maxBufferBytes) {
-                    notifyNotFull();
-                }
-                if (queueSize.get() == 0) {
-                    completionFuture.onResponse(null);
+        Page owned = page;
+        try {
+            if (failure != null) {
+                // Reject the page without touching buffer state, so the trailing invariantsHold()
+                // call is intentionally bypassed: nothing was mutated for it to check.
+                return;
+            }
+            long pageBytes = page.ramBytesUsedByBlocks();
+            bytesInBuffer.addAndGet(pageBytes);
+            queue.add(page);
+            owned = null;
+            queueSize.incrementAndGet();
+            // Always notify: the conditional guard on prevBytes==0 previously caused a lost-wakeup race
+            // when a consumer drained and blocked on notEmptyFuture between our getAndAdd and queue.add.
+            // notifyNotEmpty() is a no-op when no listener is registered, so unconditional fire is cheap.
+            notifyNotEmpty();
+            if (noMoreInputs.get()) {
+                // O(N) but acceptable because it only occurs with finish(), and the queue size should be very small.
+                if (queue.removeIf(p -> p == page)) {
+                    page.releaseBlocks();
+                    queueSize.decrementAndGet();
+                    long afterRemove = bytesInBuffer.addAndGet(-pageBytes);
+                    if (afterRemove < maxBufferBytes) {
+                        notifyNotFull();
+                    }
+                    if (queueSize.get() == 0) {
+                        completionFuture.onResponse(null);
+                    }
                 }
             }
+            assert invariantsHold() : "buffer invariants violated after addPage";
+        } finally {
+            if (owned != null) {
+                owned.releaseBlocks();
+            }
         }
-        assert invariantsHold() : "buffer invariants violated after addPage";
     }
 
     /**
@@ -333,6 +443,16 @@ public final class AsyncExternalSourceBuffer {
 
     /**
      * Mark the buffer as finished. Called when reading is done or an error occurs.
+     * <p>
+     * {@code drainingPages} is honored regardless of whether this call wins the {@code noMoreInputs}
+     * transition: {@link AsyncExternalSourceOperator#close()} always calls {@code finish(true)}, and
+     * by the time a driver closes its operator {@code noMoreInputs} has very often already been set
+     * by the producer's own {@link #onFailure} or an earlier {@code finish(false)} — e.g. the producer
+     * reached natural EOF, or the read failed, before the driver got a chance to drain every page via
+     * {@code getOutput()}/{@link #pollPage()}. Gating {@link #discardPages()} behind the transition
+     * used to skip it entirely in that (common) case, leaking whatever the producer had already
+     * buffered when the driver's close is not preceded by a full drain (e.g. cross-driver task
+     * cancellation cutting this operator before its own poll loop ever ran).
      *
      * @return {@code true} if this call performed the running→finishing transition; {@code false} if the buffer had
      *         already been finished (e.g. producer reached natural EOF, or a concurrent {@code finish}/{@code onFailure}
@@ -341,9 +461,15 @@ public final class AsyncExternalSourceBuffer {
      *         (honestly complete result).
      */
     public boolean finish(boolean drainingPages) {
-        if (noMoreInputs.compareAndSet(false, true) == false) {
-            return false;
+        boolean transitioned = noMoreInputs.compareAndSet(false, true);
+        // A draining finish that actually made the transition is a hard cut of a still-running producer
+        // (cancel / DELETE / LIMIT teardown), never natural EOF (producer's own finish(false) wins first) nor
+        // STOP (drainingPages == false). Only then arm the read-cancellation signal so an in-flight storage
+        // backoff aborts; see the readCancelled javadoc.
+        if (drainingPages && transitioned) {
+            readCancelled = true;
         }
+        // See the javadoc above for why this must not be gated on `transitioned`.
         if (drainingPages) {
             discardPages();
         }
@@ -351,7 +477,7 @@ public final class AsyncExternalSourceBuffer {
         notifyNotFull(); // wake producers so they observe noMoreInputs and exit
         signalCompletionIfDrained();
         assert invariantsHold() : "buffer invariants violated after finish";
-        return true;
+        return transitioned;
     }
 
     /**
@@ -361,7 +487,22 @@ public final class AsyncExternalSourceBuffer {
      * surfaces the failure via {@link org.elasticsearch.compute.operator.SourceOperator#getOutput()}.
      */
     public void onFailure(Throwable t) {
-        this.failure = t;
+        synchronized (failureLock) {
+            if (failure != null) {
+                // rawFirstFailure tracks the raw winner so same-instance re-reports are silently
+                // ignored even when classify() wrapped the winner into a new object.
+                // Classify the loser before suppressing so storage-URI messages in raw SDK
+                // exceptions cannot surface through the suppressed[] array on the wire.
+                if (rawFirstFailure != t) {
+                    SuppressedFailures.attach(failure, (t instanceof Error) ? t : ExternalFailures.classifySuppressed(t));
+                }
+                return;
+            }
+            rawFirstFailure = t;
+            // Classify once here so classify()'s side effects (WARN logging for IAE) fire
+            // exactly once and status() / propagateFailure() read an already-typed exception.
+            failure = (t instanceof Error) ? t : ExternalFailures.classify(t);
+        }
         noMoreInputs.set(true);
         notifyNotEmpty();
         notifyNotFull();
@@ -375,6 +516,15 @@ public final class AsyncExternalSourceBuffer {
 
     public boolean noMoreInputs() {
         return noMoreInputs.get();
+    }
+
+    /**
+     * Whether a live producer was hard-cut (see {@link #readCancelled}). Used as the ambient
+     * {@link StorageRetryCancellation} signal around the runtime producer read so a parked storage
+     * retry/throttle backoff aborts on cancel rather than sleeping out its budget.
+     */
+    public boolean readCancelled() {
+        return readCancelled;
     }
 
     public int size() {
@@ -404,10 +554,89 @@ public final class AsyncExternalSourceBuffer {
         this.formatReaderStatus = snapshot;
     }
 
-    /** Adds {@code delta} cumulative pre-decompression bytes read from the storage layer. */
+    /**
+     * Adds {@code delta} to the committed total without dropping a tracked object.
+     * COUNT(*) schema folds use this while {@link #trackStorageObject} is following the split.
+     */
     public void addBytesRead(long delta) {
-        if (delta > 0) {
-            bytesRead.add(delta);
+        if (delta <= 0) {
+            return;
+        }
+        BytesView view = bytesView;
+        bytesView = new BytesView(view.committed() + delta, view.baseline(), view.object());
+    }
+
+    /**
+     * Starts following {@code object}'s live {@code metrics().bytesRead()} after folding any
+     * previously tracked object into committed bytes. Must run before that object is read.
+     */
+    void trackStorageObject(StorageObject object) {
+        finishInFlightBytes();
+        long baseline = 0L;
+        try {
+            StorageObjectMetrics metrics = object.metrics();
+            if (metrics != null) {
+                baseline = metrics.bytesRead();
+            }
+        } catch (Exception e) {
+            baseline = 0L;
+        }
+        BytesView view = bytesView;
+        bytesView = new BytesView(view.committed(), baseline, object);
+        StorageObjectMetrics metrics = metricsOrZero(object);
+        requestBaseline = metrics.requestCount();
+        retryBaseline = metrics.retryCount();
+    }
+
+    /**
+     * Folds the live delta into committed bytes while keeping the same object tracked. A throw or
+     * null metrics snapshot is a no-op so a failed read cannot reset the baseline.
+     */
+    void commitInFlightBytes() {
+        BytesView view = bytesView;
+        StorageObject object = view.object();
+        if (object == null) {
+            return;
+        }
+        try {
+            StorageObjectMetrics metrics = object.metrics();
+            if (metrics == null) {
+                logger.trace("telemetry: bytesRead snapshot failed");
+                return;
+            }
+            long current = metrics.bytesRead();
+            long delta = Math.max(0L, current - view.baseline());
+            bytesView = new BytesView(view.committed() + delta, current, object);
+            foldRequestRetry(metrics, false);
+        } catch (Exception e) {
+            logger.trace(() -> "telemetry: bytesRead snapshot failed", e);
+        }
+    }
+
+    /**
+     * Folds the live delta into committed bytes and drops the tracked object so later increments
+     * on that object are not counted.
+     */
+    void finishInFlightBytes() {
+        BytesView view = bytesView;
+        StorageObject object = view.object();
+        long delta = 0L;
+        if (object != null) {
+            try {
+                StorageObjectMetrics metrics = object.metrics();
+                if (metrics != null) {
+                    delta = Math.max(0L, metrics.bytesRead() - view.baseline());
+                    foldRequestRetry(metrics, true);
+                }
+            } catch (Exception e) {
+                logger.trace(() -> "telemetry: bytesRead snapshot failed", e);
+                delta = 0L;
+            }
+        }
+        bytesView = new BytesView(view.committed() + delta, 0L, null);
+        if (object == null) {
+            requestBaseline = 0L;
+            retryBaseline = 0L;
         }
     }
 
@@ -431,9 +660,87 @@ public final class AsyncExternalSourceBuffer {
         return formatReaderStatus;
     }
 
-    /** Returns cumulative pre-decompression bytes read from the storage layer. */
+    /** Returns the operator-level read counters accumulating wall and CPU time for this buffer's reads. */
+    public ExternalReadCounters readCounters() {
+        return readCounters;
+    }
+
+    /**
+     * Returns cumulative pre-decompression bytes read from the storage layer. While an object is
+     * tracked this includes the live delta on that object's metrics, so a LIMIT close can copy a
+     * non-zero value before the producer commits.
+     */
     public long bytesRead() {
-        return bytesRead.sum();
+        BytesView view = bytesView;
+        StorageObject object = view.object();
+        if (object == null) {
+            return view.committed();
+        }
+        try {
+            StorageObjectMetrics metrics = object.metrics();
+            if (metrics == null) {
+                return view.committed();
+            }
+            return view.committed() + Math.max(0L, metrics.bytesRead() - view.baseline());
+        } catch (Exception e) {
+            return view.committed();
+        }
+    }
+
+    /** Adds {@code delta} completed storage requests observed off the tracked object. */
+    public void addRequestCount(long delta) {
+        if (delta > 0) {
+            requestCount.add(delta);
+        }
+    }
+
+    /** Adds {@code delta} storage retries observed off the tracked object. */
+    public void addRetryCount(long delta) {
+        if (delta > 0) {
+            retryCount.add(delta);
+        }
+    }
+
+    /** Returns completed storage requests, including the live delta on the tracked object. */
+    public long requestCount() {
+        return requestCount.sum() + liveExtra(StorageObjectMetrics::requestCount, requestBaseline);
+    }
+
+    /** Returns storage retries, including the live delta on the tracked object. */
+    public long retryCount() {
+        return retryCount.sum() + liveExtra(StorageObjectMetrics::retryCount, retryBaseline);
+    }
+
+    private void foldRequestRetry(StorageObjectMetrics metrics, boolean clearBaseline) {
+        long requests = metrics.requestCount();
+        long retries = metrics.retryCount();
+        addRequestCount(requests - requestBaseline);
+        addRetryCount(retries - retryBaseline);
+        if (clearBaseline) {
+            requestBaseline = 0L;
+            retryBaseline = 0L;
+        } else {
+            requestBaseline = requests;
+            retryBaseline = retries;
+        }
+    }
+
+    private long liveExtra(ToLongFunction<StorageObjectMetrics> field, long baseline) {
+        StorageObject object = bytesView.object();
+        if (object == null) {
+            return 0L;
+        }
+        long delta = field.applyAsLong(metricsOrZero(object)) - baseline;
+        return delta > 0 ? delta : 0L;
+    }
+
+    private static StorageObjectMetrics metricsOrZero(StorageObject obj) {
+        try {
+            StorageObjectMetrics metrics = obj == null ? null : obj.metrics();
+            return metrics == null ? StorageObjectMetrics.ZERO : metrics;
+        } catch (Exception e) {
+            return StorageObjectMetrics.ZERO;
+        }
     }
 
     /** Returns the total number of splits the producer expects to process. */

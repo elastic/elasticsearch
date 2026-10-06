@@ -1,0 +1,5 @@
+area: "ES|QL"
+issues: []
+pr: 158780
+summary: Support ST_UNION with one argument that can combine multi-value geometries
+type: enhancement

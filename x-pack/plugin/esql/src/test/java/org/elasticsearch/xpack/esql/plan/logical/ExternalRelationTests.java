@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -368,7 +369,12 @@ public class ExternalRelationTests extends ESTestCase {
         Attribute name = attr("name", DataType.KEYWORD);
         Attribute year = attr("year", DataType.INTEGER); // partition column
 
-        SourceMetadata partitionedMetadata = createMetadataWithSchema(List.of(id, name, year));
+        // Coordinator shape: partition identity comes from the serialized stamp (written at resolution
+        // alongside the resolved fileList), which is what dataOnlyUnifiedSchema now reads.
+        SourceMetadata partitionedMetadata = createMetadataWithSchema(
+            List.of(id, name, year),
+            Map.of(SourceStatisticsSerializer.PARTITION_COLUMNS_KEY, List.of("year"))
+        );
         FileList partitionedFiles = createPartitionedFileList(Map.of("year", DataType.INTEGER));
         ExternalRelation relation = new ExternalRelation(
             Source.EMPTY,
@@ -388,7 +394,38 @@ public class ExternalRelationTests extends ESTestCase {
         assertTrue("data columns preserved", exec.unifiedSchema().names().contains("name"));
     }
 
+    public void testToPhysicalExecStripsPartitionAttributesOnDataNodeShape() {
+        // Data-node shape: the relation deserializes with FileList.UNRESOLVED, so the OLD fileList-based
+        // strip kept the wider, partition-inclusive unifiedSchema here (the P6 latent inconsistency). Reading
+        // the serialized stamp strips partition attributes identically to the coordinator.
+        Attribute id = attr("id", DataType.LONG);
+        Attribute name = attr("name", DataType.KEYWORD);
+        Attribute year = attr("year", DataType.INTEGER); // partition column
+
+        SourceMetadata partitionedMetadata = createMetadataWithSchema(
+            List.of(id, name, year),
+            Map.of(SourceStatisticsSerializer.PARTITION_COLUMNS_KEY, List.of("year"))
+        );
+        ExternalRelation relation = new ExternalRelation(
+            Source.EMPTY,
+            "s3://bucket/year=*/*.parquet",
+            partitionedMetadata,
+            List.of(id, name, year),
+            FileList.UNRESOLVED,
+            Map.of()
+        );
+
+        ExternalSourceExec exec = relation.toPhysicalExec();
+
+        assertEquals("partition attr stripped from the stamp even with an UNRESOLVED fileList", 2, exec.unifiedSchema().size());
+        assertFalse("partition column not present in seeded unified", exec.unifiedSchema().names().contains("year"));
+    }
+
     private static SourceMetadata createMetadataWithSchema(List<Attribute> schema) {
+        return createMetadataWithSchema(schema, Map.of());
+    }
+
+    private static SourceMetadata createMetadataWithSchema(List<Attribute> schema, Map<String, Object> sourceMetadata) {
         return new SourceMetadata() {
             @Override
             public List<Attribute> schema() {
@@ -403,6 +440,11 @@ public class ExternalRelationTests extends ESTestCase {
             @Override
             public String location() {
                 return "s3://bucket/data/*.parquet";
+            }
+
+            @Override
+            public Map<String, Object> sourceMetadata() {
+                return sourceMetadata;
             }
 
             @Override

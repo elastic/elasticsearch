@@ -44,6 +44,7 @@ public class BlockValueAsserter {
                         expectedRowValues
                     );
                     case LONG_RANGE -> assertLongRangeValues((LongRangeBlock) block, firstValueIndex, valueCount, expectedRowValues);
+                    case DOUBLE_RANGE -> assertDoubleRangeValues((DoubleRangeBlock) block, firstValueIndex, valueCount, expectedRowValues);
                     default -> throw new IllegalArgumentException("Unsupported element type [" + block.elementType() + "]");
                 }
             }
@@ -129,6 +130,20 @@ public class BlockValueAsserter {
 
             LongRangeBlockBuilder.LongRange got = block.getLongRange(firstValueIdx + idx, scratch);
             assertThat("getLongRange must return the scratch instance", got, sameInstance(scratch));
+            assertThat(got.from(), equalTo(expectedValue.from()));
+            assertThat(got.to(), equalTo(expectedValue.to()));
+        }
+    }
+
+    private static void assertDoubleRangeValues(DoubleRangeBlock block, int firstValueIdx, int valueCount, List<Object> expectedRowValues) {
+        DoubleRangeBlockBuilder.DoubleRange scratch = new DoubleRangeBlockBuilder.DoubleRange();
+        for (int idx = 0; idx < valueCount; idx++) {
+            var expectedValue = (DoubleRangeBlockBuilder.DoubleRange) expectedRowValues.get(idx);
+            assertThat(block.getDoubleFromBlock().getDouble(firstValueIdx + idx), equalTo(expectedValue.from()));
+            assertThat(block.getDoubleToBlock().getDouble(firstValueIdx + idx), equalTo(expectedValue.to()));
+
+            DoubleRangeBlockBuilder.DoubleRange got = block.getDoubleRange(firstValueIdx + idx, scratch);
+            assertThat("getDoubleRange must return the scratch instance", got, sameInstance(scratch));
             assertThat(got.from(), equalTo(expectedValue.from()));
             assertThat(got.to(), equalTo(expectedValue.to()));
         }

@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 147502
-summary: Widen numeric stats values during merge for UNION_BY_NAME
-type: enhancement

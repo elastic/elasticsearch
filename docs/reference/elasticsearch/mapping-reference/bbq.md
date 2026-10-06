@@ -353,7 +353,7 @@ GET bbq-index/_search
 By default, oversampling is set to 3×, meaning if you request k:10, {{es}} retrieves 30 candidates for re-ranking. You don’t need to configure this behavior; it’s applied automatically for BBQ searches.
 
 :::{note}
-You can change oversampling from the default 3× to another value. Refer to [Oversampling and rescoring for quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details.
+You can change oversampling from the default 3× to another value. Refer to [Oversampling and rescoring for quantized vectors](docs-content://solutions/search/vector/knn/optimize-performance-accuracy.md#dense-vector-knn-search-rescoring) for details.
 :::
 
 ## Learn more [bbq-learn-more]

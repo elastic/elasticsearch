@@ -21,7 +21,7 @@ class MutedTestPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         buildFile << """
             apply plugin: 'java'
             repositories { mavenCentral() }
-            dependencies { testImplementation 'junit:junit:4.13.1' }
+            dependencies { testImplementation 'junit:junit:4.13.2' }
             tasks.named("test").configure {
                 testLogging { events "started" }
             }

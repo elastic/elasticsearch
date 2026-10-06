@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.client.Request;
@@ -15,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.RetryRule;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
@@ -36,7 +36,6 @@ public class InferenceRestIT extends ESClientYamlSuiteTestCase {
         .setting("xpack.security.http.ssl.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .plugin("inference-service-test")
-        .feature(FeatureFlag.INFERENCE_REGION_POLICY)
         .distribution(DistributionType.DEFAULT)
         .build();
 
@@ -48,7 +47,7 @@ public class InferenceRestIT extends ESClientYamlSuiteTestCase {
     @Rule
     public RetryRule retryRule = new RetryRule(3, TimeValue.timeValueSeconds(1));
 
-    public InferenceRestIT(final ClientYamlTestCandidate testCandidate) {
+    public InferenceRestIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

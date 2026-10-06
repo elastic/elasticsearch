@@ -145,7 +145,7 @@ public class ExternalDistributedResilienceIT extends AbstractExternalDistributed
     /**
      * End-to-end coverage of the <b>multi-segment</b> uncompressed external-read path (the path whose
      * idle-socket reset this change fixes). The file is sized above twice NDJSON's 4 MiB minimum segment size, so
-     * {@code parsing_parallelism >= 2} splits it into several byte-range segments and the read goes
+     * {@code external_parsing_parallelism >= 2} splits it into several byte-range segments and the read goes
      * through {@code ParallelParsingCoordinator}'s multi-segment as-ready iterator rather than the
      * single-stream fallback. With the S3 fixture injecting connection resets on the data object's
      * reads, the query must still return every row exactly once through the real
@@ -161,7 +161,7 @@ public class ExternalDistributedResilienceIT extends AbstractExternalDistributed
     public void testMultiSegmentNdjsonReadRecoversFromConnectionReset() throws Exception {
         int rows = 200_000;
         // ~16 MiB of uncompressed NDJSON: comfortably above 2x the 4 MiB minimum segment size, so a
-        // parsing_parallelism of 4 yields multiple segments.
+        // external_parsing_parallelism of 4 yields multiple segments.
         byte[] ndjson = generateNdjson(rows);
         for (String mode : DISTRIBUTION_MODES) {
             // A distinct object per mode so every read is a cold multi-segment scan: external-text aggregate
@@ -241,7 +241,7 @@ public class ExternalDistributedResilienceIT extends AbstractExternalDistributed
      */
     public void testMultiSegmentNdjsonReadRecoversFromMidReadReset() throws Exception {
         int rows = 500_000;
-        // ~42 MiB so parsing_parallelism=4 yields ~10 MiB segments — each segment read streams far more than
+        // ~42 MiB so external_parsing_parallelism=4 yields ~10 MiB segments — each segment read streams far more than
         // the 1 MiB reset threshold, while record-boundary probes (a few KiB) stay under it.
         byte[] ndjson = generateNdjson(rows);
         for (String mode : DISTRIBUTION_MODES) {

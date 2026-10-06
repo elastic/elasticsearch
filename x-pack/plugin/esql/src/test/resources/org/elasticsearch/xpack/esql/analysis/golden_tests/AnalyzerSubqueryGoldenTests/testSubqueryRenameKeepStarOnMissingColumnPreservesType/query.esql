@@ -1,0 +1,4 @@
+FROM employees, (FROM languages)
+| KEEP emp_no
+| RENAME emp_no AS x
+| KEEP *

@@ -1,0 +1,2 @@
+FROM employees
+| INLINE STATS c = COUNT(*) WHERE (first_name IN (TS k8s | KEEP cluster)) IS NULL

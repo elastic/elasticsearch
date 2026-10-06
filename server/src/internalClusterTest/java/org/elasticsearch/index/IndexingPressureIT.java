@@ -37,9 +37,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
@@ -65,11 +67,14 @@ import java.util.Iterator;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -701,7 +706,8 @@ public class IndexingPressureIT extends ESIntegTestCase {
             updateRequest,
             primaryShard,
             primaryThreadPool::absoluteTimeInMillis,
-            FetchSourceContext.FETCH_ALL_SOURCE
+            FetchSourceContext.FETCH_ALL_SOURCE,
+            SplitShardCountSummary.IRRELEVANT
         );
         final DocWriteRequest<?> preparedWrite = prepared.action();
         final long expansionDeltaBytes = Math.max(0L, preparedWrite.ramBytesUsed() - updateRequest.ramBytesUsed());
@@ -732,10 +738,84 @@ public class IndexingPressureIT extends ESIntegTestCase {
 
         final BulkResponse responses = client(coordinatingOnlyNode).bulk(clientBulk).actionGet();
         assertTrue(responses.hasFailures());
-        assertThat(responses.getItems()[0].getFailure().getCause().getCause().getCause(), instanceOf(EsRejectedExecutionException.class));
+        assertThat(responses.getItems()[0].getFailure().getCause(), instanceOf(EsRejectedExecutionException.class));
 
         IndexingPressure primaryWriteLimits = internalCluster().getInstance(IndexingPressure.class, primaryName);
         assertEquals(1L, primaryWriteLimits.stats().getPrimaryRejections());
+    }
+
+    /**
+     * An update rejected midway through a bulk because its translation goes over the primary limit must
+     * fail alone; the surrounding operations must succeed and replicate.
+     */
+    public void testUpdateExpansionRejectedMidBulkOnlyFailsThatUpdate() throws Exception {
+        // High enough to admit the bulk; the listener below trips the limit right before the update translates
+        final long primaryLimitBytes = ByteSizeValue.ofMb(10).getBytes();
+        restartNodesWithSettings(
+            Settings.builder()
+                .put(IndexingPressure.MAX_PRIMARY_BYTES.getKey(), ByteSizeValue.ofBytes(primaryLimitBytes).getStringRep())
+                .build()
+        );
+        assertAcked(prepareCreate(INDEX_NAME, indexSettings(1, 1)));
+        ensureGreen(INDEX_NAME);
+
+        // Large existing doc: translating the update into a full index request expands tracked bytes
+        final String docId = "update-doc";
+        client().prepareIndex(INDEX_NAME).setId(docId).setSource(Collections.singletonMap("big", randomAlphaOfLength(4096))).get();
+
+        final int itemsBeforeUpdate = randomIntBetween(1, 5);
+        final String lastDocBeforeUpdate = "before-" + (itemsBeforeUpdate - 1);
+        final BulkRequest bulk = new BulkRequest();
+        for (int i = 0; i < itemsBeforeUpdate; i++) {
+            bulk.add(
+                client().prepareIndex(INDEX_NAME)
+                    .setId("before-" + i)
+                    .setSource(Collections.singletonMap("key", randomAlphaOfLength(50)))
+                    .request()
+            );
+        }
+        bulk.add(client().prepareUpdate(INDEX_NAME, docId).setDoc(Collections.singletonMap("patch", randomAlphaOfLength(8))).request());
+        for (int i = 0; i < randomIntBetween(1, 5); i++) {
+            bulk.add(
+                client().prepareIndex(INDEX_NAME)
+                    .setId("after-" + i)
+                    .setSource(Collections.singletonMap("key", randomAlphaOfLength(50)))
+                    .request()
+            );
+        }
+
+        final IndexingPressure primaryPressure = internalCluster().getInstance(IndexingPressure.class, getPrimaryReplicaNodeNames().v1());
+        final AtomicReference<Releasable> heldReplicaBytes = new AtomicReference<>();
+        final BulkResponse response;
+        try {
+            PreIndexListenerInstallerPlugin.installPreIndexListener((shardId, index) -> {
+                if (index.origin() == Engine.Operation.Origin.PRIMARY
+                    && index.id().equals(lastDocBeforeUpdate)
+                    && heldReplicaBytes.get() == null) {
+                    // Replica bytes count against the primary limit (the coordinating limit is 1.5 x primary limit)
+                    heldReplicaBytes.set(primaryPressure.markReplicaOperationStarted(1, primaryLimitBytes * 2, true));
+                }
+            });
+
+            response = client(getCoordinatingOnlyNode()).bulk(bulk).actionGet();
+        } finally {
+            PreIndexListenerInstallerPlugin.resetPreIndexListener();
+            Releasables.close(heldReplicaBytes.get());
+        }
+        assertThat("the limit must trip before the update translates", heldReplicaBytes.get(), notNullValue());
+
+        assertTrue(response.hasFailures());
+        for (BulkItemResponse item : response.getItems()) {
+            if (item.getOpType() == DocWriteRequest.OpType.UPDATE) {
+                assertTrue("the update must be rejected", item.isFailed());
+                assertThat(item.getFailure().getCause(), instanceOf(EsRejectedExecutionException.class));
+            } else {
+                assertFalse("only the update must fail: " + item.getFailure(), item.isFailed());
+            }
+        }
+        assertEquals(1L, primaryPressure.stats().getPrimaryRejections());
+
+        assertLocalCheckpointsReachMaxSeqNo();
     }
 
     public void testWriteCanRejectOnReplicaBasedOnMaxDocumentSize() throws Exception {
@@ -827,6 +907,67 @@ public class IndexingPressureIT extends ESIntegTestCase {
         assertEquals(1L, primaryWriteLimits.stats().getPrimaryRejections());
         assertEquals(1L, primaryWriteLimits.stats().getLargeOpsRejections());
         assertThat(primaryWriteLimits.stats().getTotalLargeRejectedOpsBytes(), is(greaterThanOrEqualTo(50L)));
+    }
+
+    /**
+     * Going over the primary limit midway through a bulk of index requests must not abort the bulk:
+     * already-applied operations would never replicate, stranding the replica's local checkpoint.
+     */
+    public void testPrimaryRejectionMidBulkDoesNotStrandReplicaCheckpoint() throws Exception {
+        // High enough to admit the bulk; the listener below trips the limit mid-bulk
+        final long primaryLimitBytes = ByteSizeValue.ofMb(10).getBytes();
+        restartNodesWithSettings(
+            Settings.builder()
+                .put(IndexingPressure.MAX_PRIMARY_BYTES.getKey(), ByteSizeValue.ofBytes(primaryLimitBytes).getStringRep())
+                .build()
+        );
+        assertAcked(prepareCreate(INDEX_NAME, indexSettings(1, 1)));
+        ensureGreen(INDEX_NAME);
+
+        final BulkRequest bulk = new BulkRequest();
+        for (int i = 0; i < 20; i++) {
+            bulk.add(
+                client().prepareIndex(INDEX_NAME)
+                    .setId("doc-" + i)
+                    .setSource(Collections.singletonMap("f", randomAlphaOfLength(64)))
+                    .request()
+            );
+        }
+
+        final int tripAfterItems = 5;
+        final IndexingPressure primaryPressure = internalCluster().getInstance(IndexingPressure.class, getPrimaryReplicaNodeNames().v1());
+        final AtomicInteger appliedOnPrimary = new AtomicInteger();
+        final AtomicReference<Releasable> heldReplicaBytes = new AtomicReference<>();
+        try {
+            PreIndexListenerInstallerPlugin.installPreIndexListener((shardId, index) -> {
+                if (index.origin() == Engine.Operation.Origin.PRIMARY && appliedOnPrimary.incrementAndGet() == tripAfterItems) {
+                    // Replica bytes count against the primary limit (the replica limit is 1.5 x primary limit)
+                    heldReplicaBytes.set(primaryPressure.markReplicaOperationStarted(1, primaryLimitBytes * 2, true));
+                }
+            });
+
+            assertNoFailures(client(getCoordinatingOnlyNode()).bulk(bulk).actionGet());
+        } finally {
+            PreIndexListenerInstallerPlugin.resetPreIndexListener();
+            Releasables.close(heldReplicaBytes.get());
+        }
+
+        assertThat("the limit must trip mid-bulk", appliedOnPrimary.get(), greaterThanOrEqualTo(tripAfterItems));
+
+        assertLocalCheckpointsReachMaxSeqNo();
+    }
+
+    private void assertLocalCheckpointsReachMaxSeqNo() throws Exception {
+        assertBusy(() -> {
+            for (ShardStats shardStats : indicesAdmin().prepareStats(INDEX_NAME).get().getShards()) {
+                final SeqNoStats seqNoStats = shardStats.getSeqNoStats();
+                assertThat(
+                    "copy is missing operations: " + shardStats.getShardRouting() + " " + seqNoStats,
+                    seqNoStats.getLocalCheckpoint(),
+                    equalTo(seqNoStats.getMaxSeqNo())
+                );
+            }
+        }, 30, TimeUnit.SECONDS);
     }
 
     private void restartNodesWithSettings(Settings settings) throws Exception {

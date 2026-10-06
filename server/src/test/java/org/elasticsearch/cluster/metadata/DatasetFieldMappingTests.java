@@ -15,7 +15,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -35,21 +34,11 @@ public class DatasetFieldMappingTests extends AbstractXContentSerializingTestCas
 
     @Override
     protected DatasetFieldMapping createTestInstance() {
-        return new DatasetFieldMapping(
+        return DatasetFieldMapping.withFormat(
             randomFrom("keyword", "long", "integer", "double", "boolean", "date"),
             randomBoolean() ? null : randomAlphaOfLength(6).toLowerCase(Locale.ROOT),
-            randomCopyTo(),
             randomFormat()
         );
-    }
-
-    private static List<String> randomCopyTo() {
-        int n = randomIntBetween(0, 2);
-        List<String> targets = new ArrayList<>(n);
-        for (int i = 0; i < n; i++) {
-            targets.add(randomAlphaOfLength(5).toLowerCase(Locale.ROOT));
-        }
-        return targets;
     }
 
     // This is the shape-only model layer, so it round-trips `format` as an opaque optional string regardless of type;
@@ -60,29 +49,20 @@ public class DatasetFieldMappingTests extends AbstractXContentSerializingTestCas
 
     @Override
     protected DatasetFieldMapping mutateInstance(DatasetFieldMapping instance) {
-        return switch (randomIntBetween(0, 3)) {
-            case 0 -> new DatasetFieldMapping(
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> DatasetFieldMapping.withFormat(
                 randomValueOtherThan(instance.type(), () -> randomFrom("keyword", "long", "integer", "double", "boolean", "date")),
                 instance.path(),
-                instance.copyTo(),
                 instance.format()
             );
-            case 1 -> new DatasetFieldMapping(
+            case 1 -> DatasetFieldMapping.withFormat(
                 instance.type(),
                 randomValueOtherThan(instance.path(), () -> randomBoolean() ? null : randomAlphaOfLength(7).toLowerCase(Locale.ROOT)),
-                instance.copyTo(),
                 instance.format()
             );
-            case 2 -> new DatasetFieldMapping(
+            default -> DatasetFieldMapping.withFormat(
                 instance.type(),
                 instance.path(),
-                randomValueOtherThan(instance.copyTo(), DatasetFieldMappingTests::randomCopyTo),
-                instance.format()
-            );
-            default -> new DatasetFieldMapping(
-                instance.type(),
-                instance.path(),
-                instance.copyTo(),
                 randomValueOtherThan(instance.format(), DatasetFieldMappingTests::randomFormat)
             );
         };
@@ -105,8 +85,8 @@ public class DatasetFieldMappingTests extends AbstractXContentSerializingTestCas
 
     /**
      * A declared field deliberately supports only {@code type}, {@code path} (the index {@code alias}-style rename),
-     * {@code copy_to} (the index copy), and {@code format} (the date parse-pattern, on {@code date} columns). Every
-     * other core field-mapper parameter must be rejected at parse time. This guards against silently diverging from the
+     * and {@code format} (the date parse-pattern, on {@code date} columns). Every other core field-mapper parameter
+     * must be rejected at parse time. This guards against silently diverging from the
      * core mapping: a parameter we don't model can't creep in or be quietly dropped — adding support for one has to be
      * a deliberate change that breaks this test.
      */

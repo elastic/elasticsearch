@@ -365,7 +365,27 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         return baseRefName.get();
     }
 
-    private String findUpstreamRef() {
+    /**
+     * Return whether the change being built targets the branch tracking serverless production.
+     * This is detected from the branch the pull request targets, or stated by the caller when
+     * running outside of CI, where there is no branch to detect it from.
+     *
+     * @param patchBranchName the patch branch, or null if this repository does not have one
+     * @param explicit whether the caller knows this is a patch branch change, or null to detect it
+     */
+    public boolean resolveTargetsPatchBranch(String patchBranchName, Boolean explicit) {
+        if (patchBranchName == null) {
+            return false;
+        }
+        return explicit != null ? explicit : patchBranchName.equals(getTargetBranchName());
+    }
+
+    /**
+     * Return the name of the branch this change targets, ie the branch the current work will
+     * eventually be merged into. This is the base branch of the pull request in CI, and main
+     * when running outside of CI.
+     */
+    public String getTargetBranchName() {
         // default the branch name to look at to that which a PR in CI is targeting
         String branchName = System.getenv("BUILDKITE_PULL_REQUEST_BASE_BRANCH");
         if (branchName == null || branchName.strip().isEmpty()) {
@@ -376,6 +396,11 @@ public abstract class TransportVersionResourcesService implements BuildService<T
                 branchName = "main";
             }
         }
+        return branchName.strip();
+    }
+
+    private String findUpstreamRef() {
+        String branchName = getTargetBranchName();
         String elasticRemote = findElasticRemoteName();
         if (elasticRemote == null) {
             logger.warn("No elastic github remotes found. Using 'main' branch as upstream ref for transport version resources");

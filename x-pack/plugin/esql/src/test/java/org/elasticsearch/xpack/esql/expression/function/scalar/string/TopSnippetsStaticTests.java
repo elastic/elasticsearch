@@ -246,8 +246,7 @@ public class TopSnippetsStaticTests extends ESTestCase {
             InvalidArgumentException.class,
             () -> processWithHighlight(text, "text", 5, 300, null, null, null, null, null, "nonexistent_analyzer")
         );
-        assertThat(e.getMessage(), containsString("'analyzer' must be a registered analyzer"));
-        assertThat(e.getMessage(), containsString("nonexistent_analyzer"));
+        assertThat(e.getMessage(), containsString("[nonexistent_analyzer] is not a registered analyzer"));
     }
 
     /**
@@ -328,10 +327,7 @@ public class TopSnippetsStaticTests extends ESTestCase {
         Failures failures = new Failures();
         topSnippetsWithAnalyzer("no_such_analyzer").postAnalysisVerification(analysisRegistry, failures);
         assertThat(failures.failures(), hasSize(1));
-        assertThat(
-            failures.failures().iterator().next().message(),
-            equalTo("'analyzer' must be a registered analyzer, found [no_such_analyzer]")
-        );
+        assertThat(failures.failures().iterator().next().message(), equalTo("[no_such_analyzer] is not a registered analyzer"));
     }
 
     public void testValidateAnalyzersMissingAnalyzerOptionPasses() {

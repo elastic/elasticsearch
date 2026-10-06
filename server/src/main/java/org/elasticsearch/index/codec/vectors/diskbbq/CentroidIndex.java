@@ -9,6 +9,9 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
+/**
+ * Centroid indexing information
+ */
 public interface CentroidIndex {
     CentroidIndex NO_INDEX = new CentroidIndex() {
         @Override

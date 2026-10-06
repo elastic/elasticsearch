@@ -805,6 +805,36 @@ ul:ul
 null
 ;
 
+roundIntOverflowAtNegativePrecision
+required_capability: fn_round_int_overflow_warns
+row n = round(2147483647, -1);
+
+warning:Line 1:9: evaluation of [round(2147483647, -1)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:9: java.lang.ArithmeticException: integer overflow
+
+n:integer
+null
+;
+
+roundIntOverflowNoFold
+required_capability: fn_round_int_overflow_warns
+row n = 2145000000 | eval n = round(n, -7);
+
+warning:Line 1:31: evaluation of [round(n, -7)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:31: java.lang.ArithmeticException: integer overflow
+
+n:integer
+null
+;
+
+roundIntNoOverflowAtEvenPrecision
+required_capability: fn_round_int_overflow_warns
+row n = round(2147483647, -2);
+
+n:integer
+2147483600
+;
+
 roundToInt
 required_capability: round_to
 ROW v = 1
@@ -911,6 +941,93 @@ FROM employees
 ;
 
 COUNT(*):long | salary:integer
+            9 | 25000
+           27 | 30000
+           22 | 40000
+           34 | 50000
+            8 | 70000
+;
+
+
+roundToOverFunctionArgument
+required_capability: round_to
+required_capability: fix_round_to_query_and_tags_over_function
+FROM employees
+| STATS COUNT(*) BY salary=ROUND_TO(
+    ABS(salary),
+    0,
+    20000,
+    25000,
+    30000,
+    40000,
+    50000,
+    70000,
+    90000
+)
+| SORT salary ASC
+;
+
+COUNT(*):long | salary:integer
+            9 | 25000
+           27 | 30000
+           22 | 40000
+           34 | 50000
+            8 | 70000
+;
+
+roundToOverFunctionArgumentInsideAggFunction
+required_capability: round_to
+required_capability: fix_round_to_query_and_tags_over_function
+FROM employees
+| STATS s = SUM(ROUND_TO(
+    ABS(salary),
+    0,
+    20000,
+    25000,
+    30000,
+    40000,
+    50000,
+    70000,
+    90000
+))
+;
+
+s:long
+4175000
+;
+
+roundToOverFunctionArgumentInsideMinMax
+required_capability: round_to
+required_capability: fix_round_to_query_and_tags_over_function
+FROM employees
+| STATS mn = MIN(ROUND_TO(ABS(salary), 0, 20000, 25000, 30000, 40000, 50000, 70000, 90000)),
+        mx = MAX(ROUND_TO(ABS(salary), 0, 20000, 25000, 30000, 40000, 50000, 70000, 90000))
+;
+
+mn:integer | mx:integer
+     25000 | 70000
+;
+
+roundToOverFunctionArgumentInEval
+required_capability: round_to
+required_capability: fix_round_to_query_and_tags_over_function
+FROM employees
+| EVAL bucket = ROUND_TO(
+    GREATEST(salary, 0),
+    0,
+    20000,
+    25000,
+    30000,
+    40000,
+    50000,
+    70000,
+    90000
+)
+| STATS COUNT(*) BY bucket
+| SORT bucket ASC
+;
+
+COUNT(*):long | bucket:integer
             9 | 25000
            27 | 30000
            22 | 40000
@@ -1853,6 +1970,34 @@ emp_no:integer | l1:double | l2:double
 10001          | 1.19      | null     
 10002          | -7.23     | null     
 10003          | 4.0       | null     
+;
+
+greatestWithKeywordFields
+FROM employees
+| EVAL g = GREATEST(first_name, last_name)
+| KEEP emp_no, g
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | g:keyword
+10001          | Georgi
+10002          | Simmel
+10003          | Parto
+;
+
+leastWithKeywordFields
+FROM employees
+| EVAL l = LEAST(first_name, last_name)
+| KEEP emp_no, l
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | l:keyword
+10001          | Facello
+10002          | Bezalel
+10003          | Bamford
 ;
 
 copySignWithMixedNumericValues

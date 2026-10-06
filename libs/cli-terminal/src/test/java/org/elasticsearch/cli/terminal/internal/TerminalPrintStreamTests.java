@@ -14,6 +14,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.util.List;
 import java.util.concurrent.CyclicBarrier;
@@ -41,9 +42,8 @@ public class TerminalPrintStreamTests extends ESTestCase {
         this.isError = isError;
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initStream() throws Exception {
         mockTerminal = MockTerminal.create();
         stream = new TerminalPrintStream(mockTerminal, isError);
     }

@@ -36,8 +36,8 @@ public class ShardDocSortField extends SortField {
     }
 
     @Override
-    public FieldComparator<?> getComparator(int numHits, Pruning enableSkipping) {
-        final DocComparator delegate = new DocComparator(numHits, getReverse(), Pruning.NONE);
+    public FieldComparator<?> getComparator(int numHits, Pruning pruning) {
+        final DocComparator delegate = new DocComparator(numHits, getReverse(), pruning);
 
         return new FieldComparator<Long>() {
             @Override

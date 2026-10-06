@@ -12,7 +12,9 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -22,6 +24,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 public class CsvRecordSplitterMaxRecordSizeTests extends ESTestCase {
 
@@ -35,7 +38,9 @@ public class CsvRecordSplitterMaxRecordSizeTests extends ESTestCase {
 
     public void testQuotedFieldsOnlyReturnsRecordTooLargeForUnclosedQuote() throws IOException {
         int maxRecordBytes = 32;
-        RecordSplitter splitter = new CsvRecordSplitter(CsvFormatOptions.TSV, maxRecordBytes);
+        // Quoting on (DEFAULT): the leading quote opens a field that never closes, so no unquoted terminator
+        // is ever seen and the scan hits the cap. TSV is now a plain preset and would not open a quote here.
+        RecordSplitter splitter = new CsvRecordSplitter(CsvFormatOptions.DEFAULT, maxRecordBytes);
         byte[] bytes = bytes("\"" + "x".repeat(maxRecordBytes + 1));
 
         assertEquals(RecordSplitter.RECORD_TOO_LARGE, splitter.findNextRecordBoundary(new ByteArrayInputStream(bytes)));
@@ -95,9 +100,13 @@ public class CsvRecordSplitterMaxRecordSizeTests extends ESTestCase {
 
     public void testComputeSegmentsFallsBackWhenBoundaryProbeExceedsMaxRecordSize() throws IOException {
         int maxRecordBytes = 32;
-        String csv = "a,b\n1,\"" + "x".repeat(1024) + "\n";
+        String csv = "a,b\n1," + "x".repeat(1024) + "\n";
         byte[] bytes = bytes(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory());
+        // Plain mode: computeSegments now refuses non-strided splitters (default/quoted CSV), which are read
+        // whole-file instead. Plain CSV keeps strided probing, so the oversized-record fallback is still
+        // reachable here: the single 1024-byte run has no newline within maxRecordBytes, so the boundary probe
+        // exceeds the cap and computeSegments falls back to one whole-file segment.
+        SegmentableFormatReader reader = (SegmentableFormatReader) new CsvFormatReader(blockFactory()).withConfig(Map.of("mode", "plain"));
         StorageObject object = new ByteArrayStorageObject(bytes);
 
         List<long[]> segments = ParallelParsingCoordinator.computeSegments(reader, object, bytes.length, 4, 1, maxRecordBytes);
@@ -120,7 +129,7 @@ public class CsvRecordSplitterMaxRecordSizeTests extends ESTestCase {
             '"',
             '\\',
             "//",
-            "",
+            null,
             StandardCharsets.UTF_8,
             null,
             CsvFormatOptions.DEFAULT_MAX_FIELD_SIZE,
@@ -130,7 +139,7 @@ public class CsvRecordSplitterMaxRecordSizeTests extends ESTestCase {
         );
     }
 
-    private static class ByteArrayStorageObject implements StorageObject {
+    private static class ByteArrayStorageObject extends AbstractTestStorageObject {
         private final byte[] bytes;
 
         ByteArrayStorageObject(byte[] bytes) {

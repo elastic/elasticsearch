@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.action.TimeSpan;
 import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
@@ -111,7 +112,7 @@ public class EsqlQueryLogTests extends ESTestCase {
             EsqlExecutionInfo warnQuery = getEsqlExecutionInfo(actualTook[i]);
             queryLog.onQueryPhase(
                 new Versioned<>(
-                    new Result(List.of(), List.of(), null, EsqlTestUtils.TEST_CFG, DriverCompletionInfo.EMPTY, warnQuery),
+                    new Result(List.of(), List.of(), null, EsqlTestUtils.TEST_CFG, DriverCompletionInfo.EMPTY, warnQuery, null),
                     TransportVersion.current()
                 ),
                 query
@@ -208,7 +209,10 @@ public class EsqlQueryLogTests extends ESTestCase {
                     randomIntBetween(0, 100),
                     randomIntBetween(0, 1000),
                     randomNonNegativeLong(),
-                    randomIntBetween(0, 100)
+                    randomFrom(UnmappedResolution.values()),
+                    randomIntBetween(0, 100),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong()
                 );
             }
         };

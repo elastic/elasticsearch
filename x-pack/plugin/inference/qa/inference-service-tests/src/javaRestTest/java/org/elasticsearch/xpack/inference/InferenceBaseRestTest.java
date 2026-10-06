@@ -385,7 +385,11 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     }
 
     protected Map<String, Object> putE5TrainedModels() throws IOException {
-        var request = new Request("PUT", "_ml/trained_models/.multilingual-e5-small?wait_for_completion=true");
+        return putE5TrainedModels(".multilingual-e5-small");
+    }
+
+    protected Map<String, Object> putE5TrainedModels(String deploymentId) throws IOException {
+        var request = new Request("PUT", Strings.format("_ml/trained_models/%s?wait_for_completion=true", deploymentId));
 
         String body = """
                 {
@@ -402,7 +406,11 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     }
 
     protected Map<String, Object> deployE5TrainedModels() throws IOException {
-        var request = new Request("POST", "_ml/trained_models/.multilingual-e5-small/deployment/_start?wait_for=fully_allocated");
+        return deployE5TrainedModels(".multilingual-e5-small");
+    }
+
+    protected Map<String, Object> deployE5TrainedModels(String deploymentId) throws IOException {
+        var request = new Request("POST", Strings.format("_ml/trained_models/%s/deployment/_start?wait_for=fully_allocated", deploymentId));
 
         var response = client().performRequest(request);
         assertStatusOkOrCreated(response);

@@ -35,16 +35,13 @@ public class PrometheusQueryRestActionTests extends ESTestCase {
     private CapturingNodeClient client;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initClient() throws Exception {
         threadPool = createThreadPool();
         client = new CapturingNodeClient(threadPool);
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void terminateThreadPool() throws Exception {
         terminate(threadPool);
     }
 

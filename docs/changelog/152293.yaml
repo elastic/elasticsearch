@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 152293
-summary: Fix aggregation filters in TS group by all queries
-type: bug

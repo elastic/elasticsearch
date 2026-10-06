@@ -72,7 +72,7 @@ public class TransportValidateQueryActionTests extends ESSingleNodeTestCase {
             listener -> client().admin().indices().validateQuery(request, listener)
         );
         assertThat(failure, instanceOf(IllegalArgumentException.class));
-        assertThat(failure.getMessage(), containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
+        assertThat(failure.getMessage(), containsString("[slice] is not allowed when [index.slice.enabled] is false"));
     }
 
     public void testSliceAcceptedWhenSliceEnabledIndex() {

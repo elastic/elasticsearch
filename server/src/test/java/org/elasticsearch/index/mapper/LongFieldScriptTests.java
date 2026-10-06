@@ -106,7 +106,7 @@ public class LongFieldScriptTests extends FieldScriptTestCase<LongFieldScript.Fa
                     new SearchLookup(
                         field -> null,
                         (ft, lookup, fdt) -> null,
-                        SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP)
+                        SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP, null)
                     ),
                     OnScriptError.FAIL
                 );

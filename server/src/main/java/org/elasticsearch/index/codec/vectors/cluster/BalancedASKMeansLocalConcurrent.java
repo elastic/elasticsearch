@@ -11,7 +11,6 @@ package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.index.codec.vectors.diskbbq.OverspillAssignments;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,20 +27,11 @@ class BalancedASKMeansLocalConcurrent<V> extends BalancedASKMeansLocal<V> {
 
     final TaskExecutor executor;
     final int numWorkers;
-    final Soar<V> soar;
 
-    BalancedASKMeansLocalConcurrent(
-        CentroidOps<V> ops,
-        TaskExecutor executor,
-        int numWorkers,
-        int sampleSize,
-        int maxIterations,
-        float soarLambda
-    ) {
+    BalancedASKMeansLocalConcurrent(CentroidOps<V> ops, TaskExecutor executor, int numWorkers, int sampleSize, int maxIterations) {
         super(ops, sampleSize, maxIterations);
         this.executor = executor;
         this.numWorkers = numWorkers;
-        this.soar = soarLambda < 0 ? Soar.none() : Soar.ofConcurrent(executor, numWorkers, ops, soarLambda);
     }
 
     @Override
@@ -80,15 +70,6 @@ class BalancedASKMeansLocalConcurrent<V> extends BalancedASKMeansLocal<V> {
             );
         }
         executor.invokeAll(runners);
-    }
-
-    @Override
-    protected OverspillAssignments assignSpilled(
-        ClusteringVectorValues<V> vectors,
-        KMeansResult<V> kMeansResult,
-        NeighborHood[] neighborhoods
-    ) throws IOException {
-        return soar.assignSpilled(vectors, kMeansResult, neighborhoods);
     }
 
     @Override

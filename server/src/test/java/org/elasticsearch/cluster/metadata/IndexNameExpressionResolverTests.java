@@ -41,6 +41,7 @@ import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
+import org.junit.Before;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -97,9 +98,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         return TestIndexNameExpressionResolver.newInstance(threadContext);
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initIndexNameExpressionResolver() throws Exception {
         threadContext = createThreadContext();
         indexNameExpressionResolver = createIndexNameExpressionResolver(threadContext);
         epochMillis = randomLongBetween(1580536800000L, 1583042400000L);

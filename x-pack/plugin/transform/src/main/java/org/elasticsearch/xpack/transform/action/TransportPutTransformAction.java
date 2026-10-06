@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
@@ -38,6 +37,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
@@ -116,6 +116,17 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     }
 
     @Override
+    protected void doExecute(Task task, Request request, ActionListener<AcknowledgedResponse> listener) {
+        // Extract on the coordinating node, before the request is forwarded to master — the
+        // AUTHENTICATING_CLOUD_TOKEN_THREAD_CONTEXT transient does not survive master forwarding.
+        CloudCredential callerCredential = cloudCredentialManager.currentCallerCredential();
+        if (callerCredential != null) {
+            request.setCloudCredential(callerCredential);
+        }
+        super.doExecute(task, request, ActionListener.releaseAfter(listener, request));
+    }
+
+    @Override
     protected void masterOperation(Task task, Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener) {
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
         if (request.isDeferValidation() == false && TransformNodes.hasNoTransformNodes(clusterState)) {
@@ -146,16 +157,24 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             return;
         }
 
-        // <5> Create the transform, stamping the minted tokenId (if any) onto the config so the
-        // running task and indexer can later load the credential by id.
-        ActionListener<String> mintCredentialListener = listener.delegateFailureAndWrap(
-            (l, mintedTokenId) -> putTransform(config.withCredentialId(mintedTokenId), mintedTokenId, l)
+        // <5> Write the (possibly credential-stamped) config returned by <4>. mintAndPersist stamps
+        // the minted token id and replaces the caller's security headers atomically, so the config
+        // either arrives here as-is (no UIAM) or fully rewritten (UIAM). loadRevokeAndDeleteByTokenId
+        // is null-safe: the rollback is a no-op when getCredentialId() is null (no mint happened).
+        ActionListener<TransformConfig> mintCredentialListener = listener.delegateFailureAndWrap(
+            (l, configToWrite) -> putTransform(configToWrite, l)
         );
 
         // <4> Mint cloud credential if UIAM is present (no-op when the feature is off: mintAndPersist
-        // sees no caller credential and responds with a null tokenId).
+        // returns the config unchanged). Passes the request's own credential directly (no copy needed):
+        // mint runs after <3> below, which already dispatched and closed its own independent copy, so
+        // nothing else still needs this reference. The outer doExecute-level releaseAfter(listener,
+        // request) closing the same instance again once the whole PUT resolves is a safe, idempotent
+        // no-op.
         ActionListener<ValidateTransformAction.Response> validateTransformListener = mintCredentialListener
-            .delegateFailureIgnoreResponseAndWrap(l -> cloudCredentialManager.mintAndPersist(transformId, l));
+            .delegateFailureIgnoreResponseAndWrap(
+                l -> cloudCredentialManager.mintAndPersist(config, request.getCloudCredential(), clusterState.getMinTransportVersion(), l)
+            );
 
         // <3> Validate source and destination indices
         var parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
@@ -166,11 +185,16 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             // dispatch listener fires. Plugs the leak when the request is forwarded to a remote node
             // or when dispatch fails synchronously before the receiver-side releaseAfter is set up.
             // Request.close() is null-safe so this path is identical for non-UIAM callers.
+            //
+            // Uses an independent copy of the credential: TransportValidateTransformAction
+            // unconditionally closes whatever credential this request carries once validate resolves
+            // (it has to, to cover the redirect-to-another-node case), which would zero out the
+            // request's own credential before <4> above gets to mint with it.
             var validateRequest = new ValidateTransformAction.Request(
                 config,
                 request.isDeferValidation(),
                 request.ackTimeout(),
-                cloudCredentialManager.currentCallerCredential()
+                CloudCredential.copyOf(request.getCloudCredential())
             );
             ClientHelper.executeAsyncWithOrigin(
                 parentTaskClient,
@@ -246,13 +270,13 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
-    private void putTransform(
-        TransformConfig originalConfig,
-        @Nullable String mintedTokenId,
-        ActionListener<AcknowledgedResponse> listener
-    ) {
+    private void putTransform(TransformConfig originalConfig, ActionListener<AcknowledgedResponse> listener) {
         var config = transformConfigAutoMigration.migrate(originalConfig);
         var transformId = config.getId();
+        // credentialId on the config identifies a fresh mint iff this is a PUT (strict parsing
+        // rejects any inbound credential_id, so it can only be non-null if mintAndPersist set it).
+        // loadRevokeAndDeleteByTokenId is null-safe — no guard needed for non-UIAM callers.
+        var mintedTokenId = config.getCredentialId();
         transformConfigManager.putTransformConfiguration(config, ActionListener.wrap(unused -> {
             logger.info("[{}] created transform", transformId);
             auditor.info(transformId, "Created transform.");
@@ -266,8 +290,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             listener.onResponse(AcknowledgedResponse.TRUE);
         }, configWriteFailure -> {
             // Roll back the just-minted credential so we never leave an orphan at UIAM nor an
-            // empty/leaked storage doc. mintedTokenId is null when no UIAM context was present (the
-            // helper short-circuits in that case).
+            // empty/leaked storage doc. No-op when mintedTokenId is null (non-UIAM callers).
             logger.debug("[{}] config write failed after credential mint [{}], compensating revoke + delete", transformId, mintedTokenId);
             cloudCredentialManager.loadRevokeAndDeleteByTokenId(
                 transformId,

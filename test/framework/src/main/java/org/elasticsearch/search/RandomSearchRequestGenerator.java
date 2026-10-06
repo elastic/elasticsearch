@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -260,10 +261,7 @@ public class RandomSearchRequestGenerator {
             for (int j = 0; j < numKClauses; j++) {
                 String field = randomAlphaOfLength(6);
                 int dim = randomIntBetween(2, 30);
-                float[] vector = new float[dim];
-                for (int i = 0; i < vector.length; i++) {
-                    vector[i] = randomFloat();
-                }
+                float[] vector = VectorTestUtils.randomFloatVector(dim);
                 int k = randomIntBetween(1, 100);
                 int numCands = randomIntBetween(k, 1000);
                 Float visitPercentage = randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true);

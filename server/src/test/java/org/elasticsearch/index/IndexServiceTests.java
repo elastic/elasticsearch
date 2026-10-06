@@ -71,6 +71,44 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertNull(closedIndexService.getNodeMappingStats());
     }
 
+    public void testCannotCreateSearchExecutionContextWithoutSearchInfrastructure() throws Exception {
+        final IndexService indexService = createIndex("test", Settings.EMPTY);
+        ensureGreen("test");
+
+        final Index index = indexService.index();
+        assertAcked(indicesAdmin().prepareClose(index.getName()));
+        assertBusy(() -> assertTrue("Index not found: " + index.getName(), getInstanceFromNode(IndicesService.class).hasIndex(index)));
+
+        final IndexService closedIndexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
+        assertNotSame(indexService, closedIndexService);
+        assertNull(closedIndexService.mapperService());
+        assertNull(closedIndexService.cache());
+
+        final IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
+            () -> closedIndexService.newSearchExecutionContext(
+                0,
+                0,
+                null,
+                System::currentTimeMillis,
+                null,
+                Collections.emptyMap(),
+                null,
+                null
+            )
+        );
+
+        assertThat(
+            exception.getMessage(),
+            equalTo(
+                "cannot create a search execution context for index "
+                    + index
+                    + ": this IndexService was created for a closed index and therefore has no mapper service or caches "
+                    + "(current index state [CLOSE])"
+            )
+        );
+    }
+
     public void testBaseAsyncTask() throws Exception {
         IndexService indexService = createIndex("test", Settings.EMPTY);
         AtomicReference<CountDownLatch> latch = new AtomicReference<>(new CountDownLatch(1));

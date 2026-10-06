@@ -15,9 +15,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -29,13 +31,15 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class WindowFilter extends EsqlScalarFunction implements TimestampAware, VersionedNamedWriteable {
+public class WindowFilter extends EsqlScalarFunction implements TimestampAware, VersionedNamedWriteable, AnyNullIsNull {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -48,7 +52,9 @@ public class WindowFilter extends EsqlScalarFunction implements TimestampAware, 
     private final Expression window, bucket, timestamp;
 
     public WindowFilter(Source source, Expression window, Expression bucket, Expression timestamp) {
-        super(source, List.of(window, bucket, timestamp));
+        // bucket is intentionally excluded from the children list so that optimizer rewrites on children
+        // cannot replace it with an Attribute, preserving the Bucket instance that toEvaluator() casts.
+        super(source, List.of(window, timestamp));
         this.window = window;
         this.bucket = bucket;
         this.timestamp = timestamp;
@@ -98,7 +104,7 @@ public class WindowFilter extends EsqlScalarFunction implements TimestampAware, 
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new WindowFilter(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new WindowFilter(source(), newChildren.get(0), bucket, newChildren.get(1));
     }
 
     @Override
@@ -115,6 +121,15 @@ public class WindowFilter extends EsqlScalarFunction implements TimestampAware, 
         Duration foldedWindow = (Duration) window.fold(toEvaluator.foldCtx());
         Rounding.Prepared preparedRounding = bucketBucket.getDateRoundingOrNull(toEvaluator.foldCtx());
         var timestampFactory = toEvaluator.apply(timestamp);
+        if (timestamp.dataType() == DataType.DATE_NANOS) {
+            return new WindowFilterDateNanosEvaluator.Factory(
+                source(),
+                foldedWindow.toMillis(),
+                preparedRounding,
+                driverContext -> new LongLongHashMap(),
+                timestampFactory
+            );
+        }
         return new WindowFilterEvaluator.Factory(
             source(),
             foldedWindow.toMillis(),
@@ -122,6 +137,20 @@ public class WindowFilter extends EsqlScalarFunction implements TimestampAware, 
             driverContext -> new LongLongHashMap(),
             timestampFactory
         );
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getClass(), children(), bucket);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
+        }
+        WindowFilter other = (WindowFilter) obj;
+        return Objects.equals(bucket, other.bucket);
     }
 
     @Override
@@ -162,5 +191,41 @@ public class WindowFilter extends EsqlScalarFunction implements TimestampAware, 
         long nextBucketId = lo == bucketId ? hi - window : hi - window + 1;
         nextTimestamps.indexInsert(idx, bucketId, nextBucketId);
         return timestamp >= nextBucketId;
+    }
+
+    @Evaluator(extraName = "DateNanos")
+    static boolean processDateNanos(
+        @Fixed long window,
+        @Fixed Rounding.Prepared bucket,
+        @Fixed(scope = Fixed.Scope.THREAD_LOCAL) LongLongHashMap nextTimestamps,
+        long timestamp
+    ) {
+        // The rounding operates on milliseconds while the timestamp is in nanoseconds. The bucket edges are whole
+        // milliseconds, so the boundary is derived exactly like in process() and only the comparison moves to the
+        // nanosecond domain. The map is keyed by the millisecond bucket label and stores the nanosecond boundary.
+        long timestampMillis = DateUtils.toMilliSeconds(timestamp);
+        long bucketId = bucket.round(timestampMillis);
+        int idx = nextTimestamps.indexOf(bucketId);
+        if (nextTimestamps.indexExists(idx)) {
+            return timestamp >= nextTimestamps.indexGet(idx);
+        }
+
+        long lo = bucket.roundingFloor(bucketId);
+        long hi = bucket.roundingCeiling(bucketId);
+        long windowStartMillis = hi - window;
+        // TimeUnit saturates an upper out-of-range boundary to Long.MAX_VALUE. That would incorrectly include the
+        // maximum date_nanos timestamp, so reject the bucket before converting the boundary to nanoseconds.
+        if (windowStartMillis > DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli()) {
+            return false;
+        }
+        long windowStartNanos = TimeUnit.MILLISECONDS.toNanos(windowStartMillis);
+        long nextTimestamp;
+        if (lo == bucketId) {
+            nextTimestamp = windowStartNanos;
+        } else {
+            nextTimestamp = windowStartNanos + 1;
+        }
+        nextTimestamps.indexInsert(idx, bucketId, nextTimestamp);
+        return timestamp >= nextTimestamp;
     }
 }

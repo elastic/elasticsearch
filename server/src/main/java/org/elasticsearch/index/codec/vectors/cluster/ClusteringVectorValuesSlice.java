@@ -9,11 +9,10 @@
 
 package org.elasticsearch.index.codec.vectors.cluster;
 
-import org.apache.lucene.util.hnsw.IntToIntFunction;
-
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
+import java.util.function.IntUnaryOperator;
 
 /**
  * A slice (subset) of a {@link ClusteringVectorValues} that maps ordinals through a translation function.
@@ -24,10 +23,10 @@ import java.util.Random;
 public final class ClusteringVectorValuesSlice<V> implements ClusteringVectorValues<V> {
 
     private final ClusteringVectorValues<V> allValues;
-    private final IntToIntFunction ordTranslator;
+    private final IntUnaryOperator ordTranslator;
     private final int size;
 
-    public ClusteringVectorValuesSlice(ClusteringVectorValues<V> allValues, IntToIntFunction ordTranslator, int size) {
+    public ClusteringVectorValuesSlice(ClusteringVectorValues<V> allValues, IntUnaryOperator ordTranslator, int size) {
         assert ordTranslator != null;
         assert allValues.size() >= size;
         this.allValues = allValues;
@@ -37,7 +36,7 @@ public final class ClusteringVectorValuesSlice<V> implements ClusteringVectorVal
 
     @Override
     public V vectorValue(int ord) throws IOException {
-        return this.allValues.vectorValue(ordTranslator.apply(ord));
+        return this.allValues.vectorValue(ordTranslator.applyAsInt(ord));
     }
 
     @Override
@@ -52,7 +51,7 @@ public final class ClusteringVectorValuesSlice<V> implements ClusteringVectorVal
 
     @Override
     public int ordToDoc(int ord) {
-        return ordTranslator.apply(ord);
+        return ordTranslator.applyAsInt(ord);
     }
 
     @Override

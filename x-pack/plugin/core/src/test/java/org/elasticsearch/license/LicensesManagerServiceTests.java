@@ -13,6 +13,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.internal.MutableLicenseService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -53,7 +54,10 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
 
     @Before
     public void waitForTrialLicenseToBeGenerated() throws Exception {
-        assertBusy(() -> assertNotNull(getInstanceFromNode(ClusterService.class).state().metadata().custom(LicensesMetadata.TYPE)));
+        ClusterServiceUtils.awaitClusterState(
+            state -> state.metadata().custom(LicensesMetadata.TYPE) != null,
+            getInstanceFromNode(ClusterService.class)
+        );
     }
 
     public void testStoreAndGetLicenses() throws Exception {

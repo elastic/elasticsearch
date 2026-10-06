@@ -32,8 +32,7 @@ public class VectorReleasableTests extends ESTestCase {
     BlockFactory blockFactory;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initBlockFactory() throws Exception {
         breakerService = newLimitedBreakerService(ByteSizeValue.ofGb(1));
         breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
         blockFactory = BlockFactory.builder(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService)).build();
@@ -138,7 +137,7 @@ public class VectorReleasableTests extends ESTestCase {
         assertTrue(closed[0]);
     }
 
-    /** OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted directly — the hook must still fire. */
+    /** OrdinalBytesRefVector extends AbstractBlockRefCounted directly — the hook must still fire. */
     public void testOrdinalBytesRefVector() {
         var closed = new boolean[1];
         IntVector ordinals = blockFactory.newIntArrayVector(new int[] { 0, 0, 1 }, 3);

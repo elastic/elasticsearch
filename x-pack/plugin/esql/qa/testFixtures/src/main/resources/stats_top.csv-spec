@@ -509,3 +509,149 @@ F              | [Eugenio, Meriste, Sullins]
 M              | [Nyanchama, Rosen, Berztiss]
 null           | [Bridgland, Sluis, Haddadi]
 ;
+
+outputFieldCastExpression
+required_capability: aggs_more_inputs_via_eval
+
+FROM employees
+| STATS top_salaries = TOP(salary, 3, "desc", salary::string)
+;
+
+top_salaries:keyword
+[74999, 74970, 74572]
+;
+
+outputFieldComputedExpressionGrouping
+required_capability: aggs_more_inputs_via_eval
+
+FROM employees
+| STATS top_names = TOP(salary, 2, "ASC", CONCAT(first_name, " ", last_name)) BY gender
+| SORT gender
+| KEEP gender, top_names
+;
+
+gender:keyword | top_names:keyword
+F              | [Valdiodio Niizuma, Ebbe Callaway]
+M              | [Florian Syrotiuk, Tuval Kalloufi]
+null           | [Guoxiang Nooteboom, Mary Sluis]
+;
+
+outputFieldConstantGrouping
+required_capability: aggs_more_inputs_via_eval
+
+FROM employees
+| STATS top = TOP(salary, 11, "ASC", "test") BY gender
+| SORT gender
+| KEEP gender, top
+;
+
+gender:keyword | top:keyword
+F              | [test, test, test, test, test, test, test, test, test, test, test]
+M              | [test, test, test, test, test, test, test, test, test, test, test]
+null           | [test, test, test, test, test, test, test, test, test, test]
+;
+
+constantField
+required_capability: aggs_more_inputs_via_eval
+
+FROM employees
+| STATS top = TOP(42, 2, "ASC")
+;
+
+top:integer
+[42, 42]
+;
+
+constantFieldGrouping
+required_capability: aggs_more_inputs_via_eval
+
+FROM employees
+| STATS top = TOP(42, 2, "ASC") BY gender
+| SORT gender
+| KEEP gender, top
+;
+
+gender:keyword | top:integer
+F              | [42, 42]
+M              | [42, 42]
+null           | [42, 42]
+;
+
+constantOutputFieldSharedAcrossAggs
+required_capability: aggs_more_inputs_via_eval
+
+FROM employees | STATS t = TOP("k", 2, "asc", "k"), u = TOP(salary, 2, "asc", "k")
+;
+
+t:keyword | u:keyword
+[k, k]    | [k, k]
+;
+
+constantFieldAndOutputFieldSharedAcrossAggs
+required_capability: aggs_more_inputs_via_eval
+
+FROM employees | STATS t = TOP(42, 2, "asc", 42), u = TOP(42, 3, "desc")
+;
+
+t:integer | u:integer
+[42, 42]  | [42, 42, 42]
+;
+
+constantFieldWithFilterSharedAcrossAggs
+required_capability: aggs_more_inputs_via_eval
+
+FROM employees | STATS t = TOP(42, 2, "asc", 42) WHERE gender == "Z", u = TOP(42, 2, "asc") WHERE gender == "Z"
+;
+
+t:integer | u:integer
+null      | null
+;
+
+outputFieldEqualsFieldWithFilter
+required_capability: aggs_more_inputs_via_eval
+
+FROM employees | STATS t = TOP(salary, 2, "asc", salary) WHERE gender == "M"
+;
+
+t:integer
+[25945, 26436]
+;
+
+constantFieldLimitOne
+required_capability: aggs_more_inputs_via_eval
+
+FROM employees | STATS a = TOP(42, 1, "asc", 42)
+;
+
+a:integer
+42
+;
+
+computedFieldAndOutputFieldWithFilter
+required_capability: aggs_more_inputs_via_eval
+
+FROM employees | STATS t = TOP(salary + 1, 2, "asc", salary + 1) WHERE gender == "M"
+;
+
+t:integer
+[25946, 26437]
+;
+
+nullOutputField
+required_capability: aggs_more_inputs_via_eval
+FROM employees | STATS a = TOP(salary, 2, "asc", null)
+;
+
+a:null
+null
+;
+
+constantFieldWithAttributeOutputField
+required_capability: aggs_more_inputs_via_eval
+ROW field = 5
+| STATS t = TOP(5, 1, "ASC", field)
+;
+
+t:integer
+5
+;

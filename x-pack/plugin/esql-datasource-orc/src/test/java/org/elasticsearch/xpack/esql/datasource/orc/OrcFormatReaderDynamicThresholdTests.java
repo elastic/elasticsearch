@@ -34,8 +34,10 @@ import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -55,12 +57,12 @@ import static org.hamcrest.Matchers.lessThan;
 
 public class OrcFormatReaderDynamicThresholdTests extends ESTestCase {
 
+    private static final StorageIdentity NOOP_IDENTITY = new StorageIdentity() {};
+
     private BlockFactory blockFactory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        OrcStorageObjectAdapter.clearCacheForTests();
+    @Before
+    public void initBlockFactory() {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 
@@ -362,6 +364,11 @@ public class OrcFormatReaderDynamicThresholdTests extends ESTestCase {
 
     private static StorageObject storageObject(byte[] data) {
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return NOOP_IDENTITY;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);

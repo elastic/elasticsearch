@@ -1,0 +1,2 @@
+SET unmapped_fields="LOAD_ALL"; FROM employees
+| KEEP emp_no, first_name

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.HexLiteralContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.IntegerLiteralContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.LabelListContext;
+import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.LabelListItemContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.LabelNameContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.StringContext;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
@@ -36,6 +37,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.PATTERN;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.AtContext;
@@ -94,7 +96,36 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
 
     @Override
     public List<String> visitLabelList(LabelListContext ctx) {
-        return ctx != null ? visitList(this, ctx.labelName(), String.class) : emptyList();
+        return ctx != null ? visitList(this, ctx.labelListItem(), String.class) : emptyList();
+    }
+
+    @Override
+    public String visitLabelListItem(LabelListItemContext ctx) {
+        if (ctx.labelName() != null) {
+            return visitLabelName(ctx.labelName());
+        }
+
+        TerminalNode paramNode = ctx.NAMED_OR_POSITIONAL_DOUBLE_PARAMS();
+        Source paramSource = source(paramNode);
+        QueryParam param = ExpressionBuilder.paramByNameOrPosition(paramNode, paramSource, params);
+        if (param == null) {
+            throw new ParsingException(paramSource, "Parameter [{}] value not found", paramNode.getText());
+        }
+        if (param.classification() == PATTERN) {
+            throw new ParsingException(
+                paramSource,
+                "Query parameter [{}]{}, cannot be used as an identifier",
+                paramNode.getText(),
+                "[" + param.name() + "] declared as a pattern"
+            );
+        }
+        if (param.value() == null) {
+            throw new ParsingException(paramSource, "Query parameter [{}] is null", paramNode.getText());
+        }
+        if (param.value() instanceof List<?>) {
+            throw new ParsingException(paramSource, "Query parameter [{}] is a list; expected a single label name", paramNode.getText());
+        }
+        return String.valueOf(param.value());
     }
 
     @Override

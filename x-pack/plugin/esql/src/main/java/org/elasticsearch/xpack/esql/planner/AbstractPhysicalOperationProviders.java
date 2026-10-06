@@ -31,18 +31,26 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.First;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.InsertPartialWindowAggregates;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExternalSourceAggregatePushdown;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.ReadDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -55,8 +63,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
-
-import static java.util.Collections.emptyList;
+import java.util.stream.Stream;
 
 public abstract class AbstractPhysicalOperationProviders {
 
@@ -76,6 +83,12 @@ public abstract class AbstractPhysicalOperationProviders {
         LocalExecutionPlannerContext context
     );
 
+    public abstract PhysicalOperation readDimsPhysicalOperation(
+        ReadDimsExec readDimsExec,
+        PhysicalOperation source,
+        LocalExecutionPlannerContext context
+    );
+
     public AnalysisRegistry analysisRegistry() {
         return analysisRegistry;
     }
@@ -83,6 +96,8 @@ public abstract class AbstractPhysicalOperationProviders {
     public final PhysicalOperation groupingPhysicalOperation(
         AggregateExec aggregateExec,
         PhysicalOperation source,
+        HashAggregationOperator.ParallelConfig parallelConfig,
+        boolean allowPartitionedOutput,
         LocalExecutionPlannerContext context
     ) {
         // The layout this operation will produce.
@@ -204,7 +219,7 @@ public abstract class AbstractPhysicalOperationProviders {
                 );
             } else {
                 QueryPragmas pragmas = context.queryPragmas();
-                operatorFactory = new HashAggregationOperator.Builder().groups(groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList())
+                var builder = new HashAggregationOperator.Builder().groups(groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList())
                     .mode(aggregatorMode)
                     .aggregators(aggregatorFactories)
                     .partialEmit(
@@ -213,8 +228,14 @@ public abstract class AbstractPhysicalOperationProviders {
                     )
                     .maxPageSize(maxPageSize)
                     .aggregationBatchSize(aggregationBatchSize)
+                    .parallelConfig(parallelConfig)
                     .analysisRegistry(analysisRegistry)
-                    .build();
+                    .allowPartitionedOutput(allowPartitionedOutput);
+                HashAggregationOperator.TopAggregation topAggregation = extractTopAggregation(aggregateExec, context);
+                if (topAggregation != null) {
+                    builder.topAggregation(topAggregation);
+                }
+                operatorFactory = builder.build();
             }
         }
         if (operatorFactory != null) {
@@ -280,21 +301,27 @@ public abstract class AbstractPhysicalOperationProviders {
 
     private static class IntermediateInputs {
         private final List<Attribute> inputAttributes;
-        private int nextOffset;
+        private final boolean grouping;
         private final Map<AggregateFunction, Integer> offsets = new HashMap<>();
 
-        IntermediateInputs(AggregateExec aggregateExec) {
-            inputAttributes = aggregateExec.child().output();
-            nextOffset = aggregateExec.groupings().size(); // skip grouping attributes
+        IntermediateInputs(AggregateExec aggregateExec, boolean grouping) {
+            this.inputAttributes = aggregateExec.child().output();
+            this.grouping = grouping;
+            int nextOffset = aggregateExec.groupings().size(); // skip grouping attributes
+            for (NamedExpression ne : aggregateExec.aggregates()) {
+                if (ne instanceof Alias alias && alias.child() instanceof AggregateFunction af && offsets.containsKey(af) == false) {
+                    offsets.put(af, nextOffset);
+                    nextOffset += AggregateMapper.intermediateStateDesc(af, grouping).size();
+                }
+            }
         }
 
-        List<Attribute> nextInputAttributes(AggregateFunction af, boolean grouping) {
+        List<Attribute> inputAttributes(AggregateFunction af) {
+            Integer offset = offsets.get(af);
+            if (offset == null) {
+                throw new EsqlIllegalArgumentException("no intermediate state for aggregate function [{}]", af);
+            }
             int intermediateStateSize = AggregateMapper.intermediateStateDesc(af, grouping).size();
-            int offset = offsets.computeIfAbsent(af, unused -> {
-                int v = nextOffset;
-                nextOffset += intermediateStateSize;
-                return v;
-            });
             return inputAttributes.subList(offset, offset + intermediateStateSize);
         }
     }
@@ -308,7 +335,7 @@ public abstract class AbstractPhysicalOperationProviders {
         Consumer<AggFunctionSupplierContext> consumer,
         LocalExecutionPlannerContext context
     ) {
-        IntermediateInputs intermediateInputs = mode.isInputPartial() ? new IntermediateInputs(aggregateExec) : null;
+        IntermediateInputs intermediateInputs = mode.isInputPartial() ? new IntermediateInputs(aggregateExec, grouping) : null;
         // extract filtering channels - and wrap the aggregation with the new evaluator expression only during the init phase
         for (NamedExpression ne : aggregates) {
             // a filter can only appear on aggregate function, not on the grouping columns
@@ -317,23 +344,22 @@ public abstract class AbstractPhysicalOperationProviders {
                 if (child instanceof AggregateFunction aggregateFunction) {
                     final List<Attribute> sourceAttr;
                     if (mode.isInputPartial()) {
-                        sourceAttr = intermediateInputs.nextInputAttributes(aggregateFunction, grouping);
+                        sourceAttr = intermediateInputs.inputAttributes(aggregateFunction);
                     } else {
                         // TODO: this needs to be made more reliable - use casting to blow up when dealing with expressions (e+1)
-                        Expression field = aggregateFunction.field();
-                        // Only count can now support literals - all the other aggs should be optimized away
-                        if (field.foldable()) {
-                            if (aggregateFunction instanceof Count || aggregateFunction instanceof CountApproximate) {
-                                sourceAttr = emptyList();
-                            } else {
-                                throw new InvalidArgumentException(
-                                    "Does not support yet aggregations over constants - [{}]",
-                                    aggregateFunction.sourceText()
-                                );
-                            }
-                        } else {
-                            sourceAttr = aggregateFunction.aggregateInputReferences(aggregateExec.child()::output);
+                        // count supports literals, and first/last support literals in the sort field.
+                        boolean constantInputAllowed = aggregateFunction instanceof Count
+                            || aggregateFunction instanceof CountApproximate
+                            || (aggregateFunction instanceof First first && first.field().foldable() == false)
+                            || (aggregateFunction instanceof Last last && last.field().foldable() == false)
+                            || aggregateFunction.fields().stream().noneMatch(Expression::foldable);
+                        if (constantInputAllowed == false) {
+                            throw new InvalidArgumentException(
+                                "Does not support yet aggregations over constants - [{}]",
+                                aggregateFunction.sourceText()
+                            );
                         }
+                        sourceAttr = aggregateFunction.aggregateInputReferences(aggregateExec.child()::output);
                     }
 
                     List<Integer> inputChannels = sourceAttr.stream().map(attr -> layout.get(attr.id()).channel()).toList();
@@ -357,10 +383,51 @@ public abstract class AbstractPhysicalOperationProviders {
                     } else {
                         aggSupplier = supplier(aggregateFunction);
                     }
-                    // apply the grouping window in the final phase
+                    // apply the window only in the phase that emits final values: it merges the per-bucket states of
+                    // the buckets the window covers. A window that is not an exact multiple of the bucket also merges
+                    // the boundary bucket's state from its partial sibling aggregate - see InsertPartialWindowAggregates.
                     if (mode.isOutputPartial() == false && aggregateFunction.hasWindow()) {
                         Duration windowInterval = (Duration) aggregateFunction.window().fold(foldContext);
-                        aggSupplier = new WindowAggregatorFunctionSupplier(aggSupplier, windowInterval);
+                        Duration remainder = aggregateExec instanceof TimeSeriesAggregateExec ts
+                            ? InsertPartialWindowAggregates.windowRemainder(aggregateFunction, ts.timeBucket(), foldContext)
+                            : null;
+                        if (remainder == null) {
+                            aggSupplier = new WindowAggregatorFunctionSupplier(aggSupplier, windowInterval);
+                        } else {
+                            AggregateFunction sibling = InsertPartialWindowAggregates.findPartialSibling(
+                                aggregates,
+                                aggregateFunction,
+                                remainder,
+                                foldContext
+                            );
+                            if (sibling == null) {
+                                // InsertPartialWindowAggregates plants the sibling on the coordinator before local
+                                // execution planning. A time-series aggregate always maps to the FINAL-over-fragment
+                                // shape the rule matches, so a missing sibling is a planner bug. Failing beats the
+                                // plain-window merge, which would silently truncate the window to whole buckets.
+                                throw new EsqlIllegalArgumentException(
+                                    "no partial aggregate planned for window [{}] over a non-multiple time bucket in [{}]",
+                                    aggregateFunction.window().sourceText(),
+                                    aggregateFunction.sourceText()
+                                );
+                            }
+                            AggregatorFunctionSupplier partialSupplier;
+                            if (mode.isInputPartial()) {
+                                // full state channels followed by the sibling's state channels. The sibling's state
+                                // arrives pre-filtered to the trailing remainder of each bucket
+                                List<Attribute> partialAttrs = intermediateInputs.inputAttributes(sibling);
+                                List<Integer> partialChannels = partialAttrs.stream().map(attr -> layout.get(attr.id()).channel()).toList();
+                                inputChannels = Stream.concat(inputChannels.stream(), partialChannels.stream()).toList();
+                                partialSupplier = supplier(aggregateFunction);
+                            } else {
+                                // raw input (single phase): the partial side filters the trailing remainder rows itself
+                                partialSupplier = new FilteredAggregatorFunctionSupplier(
+                                    supplier(aggregateFunction),
+                                    EvalMapper.toEvaluator(foldContext, sibling.filter(), layout, context.shardContexts())
+                                );
+                            }
+                            aggSupplier = new WindowAggregatorFunctionSupplier(aggSupplier, partialSupplier, windowInterval, remainder);
+                        }
                     }
                     consumer.accept(new AggFunctionSupplierContext(aggSupplier, inputChannels, mode));
                 }
@@ -411,6 +478,65 @@ public abstract class AbstractPhysicalOperationProviders {
     private static BlockHash.TopNDef extractPushedTopN(PhysicalPlan child) {
         ExternalSourceExec ext = ExternalSourceAggregatePushdown.findExternalSource(child);
         return ext == null ? null : ext.pushedTopN();
+    }
+
+    /**
+     * Extract the TopN that follows the aggregation, for example: {@code FROM .. | STATS c=COUNT(*), AVG(f) BY k | SORT c | LIMIT 10}.
+     * It's hard for the current optimization rules to keep these two nodes, {@link TopNExec} and {@link AggregateExec}, in sync as they
+     * can be rewritten independently; hence we detect the relation here instead, at the last step, when creating operators.
+     */
+    private static HashAggregationOperator.TopAggregation extractTopAggregation(
+        AggregateExec aggregateExec,
+        LocalExecutionPlannerContext context
+    ) {
+        if (aggregateExec.getMode().isOutputPartial()) {
+            return null;
+        }
+        TopNExec topN = context.lastVisitedTopN().get();
+        if (topN == null || topN.order().size() != 1) {
+            return null;
+        }
+        PhysicalPlan child = topN.child();
+        while (child != aggregateExec) {
+            if (child instanceof EvalExec eval) {
+                child = eval.child();
+            } else if (child instanceof ProjectExec project) {
+                child = project.child();
+            } else {
+                return null;
+            }
+        }
+        int limit = -1;
+        if (topN.limit().fold(context.foldCtx()) instanceof Number number) {
+            try {
+                limit = Math.toIntExact(number.longValue());
+            } catch (Exception e) {
+                return null;
+            }
+        }
+        if (limit < 0) {
+            return null;
+        }
+        Order order = topN.order().getFirst();
+        if (topN.limit().foldable() == false) {
+            return null;
+        }
+        Attribute sortAttribute = Expressions.attribute(order.child());
+        if (sortAttribute == null) {
+            return null;
+        }
+        int aggregatorIndex = 0;
+        for (NamedExpression aggregate : aggregateExec.aggregates()) {
+            Expression unwrapped = Alias.unwrap(aggregate);
+            if (unwrapped instanceof AggregateFunction == false) {
+                continue;
+            }
+            if (aggregate.toAttribute().semanticEquals(sortAttribute)) {
+                return new HashAggregationOperator.TopAggregation(aggregatorIndex, order.direction() == Order.OrderDirection.ASC, limit);
+            }
+            aggregatorIndex++;
+        }
+        return null;
     }
 
     public abstract Operator.OperatorFactory timeSeriesAggregatorOperatorFactory(

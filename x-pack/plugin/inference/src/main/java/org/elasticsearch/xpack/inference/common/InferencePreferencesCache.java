@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.inference.action.GetRegionPolicyAction;
 import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicy;
 import org.elasticsearch.xpack.inference.InferenceFeatures;
-import org.elasticsearch.xpack.inference.InferencePlugin;
 
 import java.util.Objects;
 
@@ -103,10 +102,6 @@ public class InferencePreferencesCache {
     }
 
     private void fetchRegionPolicy(ActionListener<RegionPolicy> listener) {
-        if (InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled() == false) {
-            listener.onResponse(null);
-            return;
-        }
         client.execute(
             GetRegionPolicyAction.INSTANCE,
             new GetRegionPolicyAction.Request(),

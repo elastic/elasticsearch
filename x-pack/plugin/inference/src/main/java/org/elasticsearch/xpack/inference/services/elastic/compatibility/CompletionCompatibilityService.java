@@ -8,10 +8,11 @@
 package org.elasticsearch.xpack.inference.services.elastic.compatibility;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.completion.Reasoning;
 import org.elasticsearch.xpack.inference.InferenceFeatures;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceChatCompletionTaskSettings;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.inference.services.settings.ImmutableEmptyTaskSet
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Service that provides compatibility strategies for task settings based on the task type and feature availability.
@@ -52,18 +54,11 @@ public class CompletionCompatibilityService {
          * Creates the appropriate {@link TaskSettings} based on the provided task settings map and context.
          */
         public abstract TaskSettings createTaskSettings(Map<String, Object> taskSettings, ConfigurationParseContext context);
-    }
 
-    /**
-     * Returns the empty {@link TaskSettings} instance to use for system-generated (preconfigured) completion/chat_completion
-     * endpoints. Until the reasoning feature is available cluster-wide we must emit settings that serialize like
-     * {@link EmptyTaskSettings} so that a not-yet-upgraded master can deserialize the persisted model; once the cluster is
-     * fully upgraded we can emit {@link ImmutableEmptyTaskSettings}.
-     */
-    public TaskSettings emptyCompletionTaskSettings() {
-        return featureService.clusterHasFeature(clusterService.state(), InferenceFeatures.INFERENCE_ELASTIC_REASONING_TASK_SETTINGS)
-            ? ImmutableEmptyTaskSettings.INSTANCE
-            : EnforcingEmptyTaskSettings.INSTANCE;
+        /**
+         * Creates the appropriate {@link TaskSettings} based on the provided reasoning configuration and the state of the cluster.
+         */
+        public abstract Optional<TaskSettings> createTaskSettings(@Nullable Reasoning reasoning);
     }
 
     /**
@@ -81,21 +76,21 @@ public class CompletionCompatibilityService {
             clusterService.state(),
             InferenceFeatures.INFERENCE_ELASTIC_REASONING_TASK_SETTINGS
         ) == false) {
-            return new EnforceEmptyTaskSettingsStrategy(taskType);
+            return new MixedClusterTaskSettingsStrategy(taskType);
         }
 
         return switch (taskType) {
-            case CHAT_COMPLETION -> new ReasoningTaskSettingsStrategy(taskType);
-            case COMPLETION -> new ImmutableEmptyTaskSettingsStrategy(taskType);
+            case CHAT_COMPLETION -> new ChatCompletionTaskSettingsStrategy(taskType);
+            case COMPLETION -> new CompletionTaskSettingsStrategy(taskType);
             default -> throw new IllegalArgumentException("Unsupported task type: " + taskType);
         };
     }
 
     /**
-     * A strategy that enforces that task settings are empty. If it is non-empty, it throws an exception.
+     * A strategy to handle a mixed cluster.
      */
-    static class EnforceEmptyTaskSettingsStrategy extends TaskSettingsStrategy {
-        EnforceEmptyTaskSettingsStrategy(TaskType taskType) {
+    static class MixedClusterTaskSettingsStrategy extends TaskSettingsStrategy {
+        MixedClusterTaskSettingsStrategy(TaskType taskType) {
             super(taskType);
         }
 
@@ -103,13 +98,26 @@ public class CompletionCompatibilityService {
         public TaskSettings createTaskSettings(Map<String, Object> taskSettings, ConfigurationParseContext context) {
             return EnforcingEmptyTaskSettings.fromMap(taskSettings, context);
         }
+
+        /**
+         * A mixed cluster cannot support reasoning settings, so return empty if the reasoning field was provided or the
+         * {@link EnforcingEmptyTaskSettings} to ensure backwards compatibility and that unknown fields are rejected.
+         */
+        @Override
+        public Optional<TaskSettings> createTaskSettings(@Nullable Reasoning reasoning) {
+            if (reasoning == null) {
+                return Optional.of(EnforcingEmptyTaskSettings.INSTANCE);
+            }
+
+            return Optional.empty();
+        }
     }
 
     /**
      * A strategy that creates {@link ElasticInferenceServiceChatCompletionTaskSettings} for chat completion tasks.
      */
-    static class ReasoningTaskSettingsStrategy extends TaskSettingsStrategy {
-        ReasoningTaskSettingsStrategy(TaskType taskType) {
+    static class ChatCompletionTaskSettingsStrategy extends TaskSettingsStrategy {
+        ChatCompletionTaskSettingsStrategy(TaskType taskType) {
             super(taskType);
         }
 
@@ -117,19 +125,40 @@ public class CompletionCompatibilityService {
         public TaskSettings createTaskSettings(Map<String, Object> taskSettings, ConfigurationParseContext context) {
             return ElasticInferenceServiceChatCompletionTaskSettings.fromMap(taskSettings, taskType, context);
         }
+
+        /**
+         * Reasoning settings are supported so create the task settings.
+         */
+        @Override
+        public Optional<TaskSettings> createTaskSettings(@Nullable Reasoning reasoning) {
+            return Optional.of(new ElasticInferenceServiceChatCompletionTaskSettings(reasoning));
+        }
     }
 
     /**
      * A strategy that creates {@link ImmutableEmptyTaskSettings} to enforce that creation and update do not provide any settings.
      */
-    static class ImmutableEmptyTaskSettingsStrategy extends TaskSettingsStrategy {
-        ImmutableEmptyTaskSettingsStrategy(TaskType taskType) {
+    static class CompletionTaskSettingsStrategy extends TaskSettingsStrategy {
+        CompletionTaskSettingsStrategy(TaskType taskType) {
             super(taskType);
         }
 
         @Override
         public TaskSettings createTaskSettings(Map<String, Object> taskSettings, ConfigurationParseContext context) {
             return ImmutableEmptyTaskSettings.fromMap(taskSettings, context);
+        }
+
+        /**
+         * Reasoning settings are supported by the cluster but not by the completion task,
+         * so return the ImmutableEmptyTaskSettings instance.
+         */
+        @Override
+        public Optional<TaskSettings> createTaskSettings(@Nullable Reasoning reasoning) {
+            if (reasoning == null) {
+                return Optional.of(ImmutableEmptyTaskSettings.INSTANCE);
+            }
+
+            return Optional.empty();
         }
     }
 }

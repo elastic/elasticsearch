@@ -37,8 +37,7 @@ public abstract class SageMakerSchemaPayloadTestCase<T extends SageMakerSchemaPa
     protected T payload;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createPayload() throws Exception {
         payload = payload();
     }
 

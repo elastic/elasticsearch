@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -77,13 +78,18 @@ public class TransportPutCCMConfigurationActionTests extends ESTestCase {
     private TransportPutCCMConfigurationAction action;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createAction() throws Exception {
         webServer.start();
         var webServerUrl = getUrl(webServer);
 
         threadPool = createThreadPool(inferenceUtilityExecutors());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
+        clientManager = HttpClientManager.create(
+            Settings.EMPTY,
+            threadPool,
+            mockClusterServiceEmpty(),
+            mock(ThrottlerManager.class),
+            new TestCircuitBreaker()
+        );
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         ccmFeature = mock(CCMFeature.class);
 
@@ -122,8 +128,7 @@ public class TransportPutCCMConfigurationActionTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void shutdownResources() throws Exception {
         clientManager.close();
         terminate(threadPool);
         webServer.close();

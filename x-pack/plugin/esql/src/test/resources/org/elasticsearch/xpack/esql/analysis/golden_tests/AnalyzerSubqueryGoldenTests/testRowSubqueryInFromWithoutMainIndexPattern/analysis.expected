@@ -1,0 +1,4 @@
+Limit[1000[INTEGER],false,false]
+\_Filter[y{r}#0 > 0[INTEGER]]
+  \_Eval[[x{r}#1 + 1[INTEGER] AS y#0]]
+    \_Row[[1[INTEGER] AS x#1]]

@@ -67,6 +67,14 @@ setup:
           settings:
             index.lifecycle.name: "a_policy_that_doesnt_exist"
 
+  - do:
+      indices.create:
+        index: hidden_index
+        body:
+          settings:
+            index.hidden: true
+            index.lifecycle.name: "my_moveable_timeseries_lifecycle"
+
 ---
 teardown:
 
@@ -90,6 +98,10 @@ teardown:
   - do:
       indices.delete:
         index: index_with_policy_that_doesnt_exist
+
+  - do:
+      indices.delete:
+        index: hidden_index
 
   - do:
       ilm.delete_lifecycle:
@@ -153,3 +165,13 @@ teardown:
   - is_false: indices.my_index
   - is_false: indices.my_index2
   - is_false: indices.another_index
+
+---
+"Test expand_wildcards supports hidden indices":
+
+  - do:
+      ilm.explain_lifecycle:
+        index: "hidden_*"
+        expand_wildcards: open,hidden
+
+  - match: { indices.hidden_index.index: "hidden_index" }

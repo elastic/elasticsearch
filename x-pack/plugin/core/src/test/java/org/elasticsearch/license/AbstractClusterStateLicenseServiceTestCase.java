@@ -94,8 +94,7 @@ public abstract class AbstractClusterStateLicenseServiceTestCase extends ESTestC
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void stopLicenseService() throws Exception {
         licenseService.stop();
     }
 }

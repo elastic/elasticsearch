@@ -20,6 +20,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.search.crossproject.ProjectRoutingRequestInfo;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -69,6 +70,12 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public static final ParseField TOOK = new ParseField("took");
     public static final ParseField IS_PARTIAL_FIELD = new ParseField("is_partial");
 
+    /**
+     * Request-breaker label for coordinator memory reserved while planning an external data source.
+     * Admit and release must share it so the held-memory gauge balances.
+     */
+    public static final String EXTERNAL_PLANNING_LABEL = "esql-external-planning";
+
     private static final TransportVersion ESQL_QUERY_PLANNING_DURATION = TransportVersion.fromName("esql_query_planning_duration");
     public static final TransportVersion EXECUTION_METADATA_VERSION = TransportVersion.fromName("esql_execution_metadata");
     public static final TransportVersion EXECUTION_CLUSTER_NAME_VERSION = TransportVersion.fromName("esql_cluster_name");
@@ -109,6 +116,16 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      * concurrently with late registrations.
      */
     private final transient List<BooleanSupplier> stopHooks = new CopyOnWriteArrayList<>();
+
+    // Project routing telemetry — coordinator-only, not serialized
+    private transient ProjectRoutingRequestInfo projectRoutingInfo;
+    /**
+     * Request-breaker reservation for external-datasource planning. Coordinator-only, like the other transient
+     * fields on this class: {@link #writeTo} does not write it and {@link #EsqlExecutionInfo(StreamInput)} does
+     * not read it. The query listener closes it once.
+     */
+    private transient ExternalPlanningReservation externalPlanning;
+    private transient boolean hasLinkedProjects;
 
     private final EsqlQueryProfile queryProfile;
 
@@ -181,6 +198,21 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         return includeExecutionMetadata;
     }
 
+    /** Stores routing metadata captured from the first field-caps round. */
+    public void setProjectRoutingInfo(@Nullable ProjectRoutingRequestInfo info, boolean hasLinkedProjects) {
+        this.projectRoutingInfo = info;
+        this.hasLinkedProjects = hasLinkedProjects;
+    }
+
+    @Nullable
+    public ProjectRoutingRequestInfo getProjectRoutingInfo() {
+        return projectRoutingInfo;
+    }
+
+    public boolean isHasLinkedProjects() {
+        return hasLinkedProjects;
+    }
+
     /**
      * Call when ES|QL execution is complete in order to set the overall took time for an ES|QL query.
      */
@@ -200,6 +232,20 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     public EsqlQueryProfile queryProfile() {
         return queryProfile;
+    }
+
+    /**
+     * Installs the query's external-planning reservation. One query, one reservation, set from
+     * {@code EsqlSession.execute} before resolution. Not serialized.
+     */
+    public void externalPlanning(ExternalPlanningReservation reservation) {
+        this.externalPlanning = reservation;
+    }
+
+    /** @return the reservation installed for this query, or {@code null} when planning has nothing to charge */
+    @Nullable
+    public ExternalPlanningReservation externalPlanning() {
+        return externalPlanning;
     }
 
     /**
@@ -276,8 +322,8 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public Cluster swapCluster(String clusterAlias, BiFunction<String, Cluster, Cluster> remappingFunction) {
         return clusterInfo.compute(clusterAlias, (unused, oldCluster) -> {
             final Cluster newCluster = remappingFunction.apply(clusterAlias, oldCluster);
-            if (newCluster != null && isPartial == false) {
-                isPartial = newCluster.isPartial();
+            if (newCluster != null && newCluster.isPartial()) {
+                isPartial = true;
             }
             return newCluster;
         });
@@ -365,7 +411,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      * Marks the overall result as partial directly, independent of the per-cluster status path used for
      * shard/node failures. This is required for pure external-source queries (e.g. {@code EXTERNAL "file://..."}),
      * which carry no {@code clusterInfo} entry to drive {@link #swapCluster} — so a lenient external read that
-     * drops data (e.g. a {@code max_record_size} truncation under a non-strict {@code error_mode}) has no cluster
+     * drops data (e.g. a {@code external_max_record_size} truncation under a non-strict {@code error_mode}) has no cluster
      * to flip. Sticky like the cluster-driven path: once partial, always partial.
      */
     public void markPartial() {

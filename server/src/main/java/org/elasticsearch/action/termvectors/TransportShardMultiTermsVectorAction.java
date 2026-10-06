@@ -130,7 +130,7 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
                     splitShardCountSummary
                 );
                 ensureDocsSearchableRequest.setParentTask(clusterService.localNode().getId(), request.getParentTask().getId());
-                client.executeLocally(
+                client.execute(
                     EnsureDocsSearchableAction.TYPE,
                     ensureDocsSearchableRequest,
                     listener.delegateFailureAndWrap((l, r) -> super.asyncShardOperation(request, shardId, l))

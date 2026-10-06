@@ -55,7 +55,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure;
-import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.utils.StatelessCommitServiceProvider;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -81,7 +81,7 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
         IndicesService indicesService,
         ClusterService clusterService,
         GetVirtualBatchedCompoundCommitChunksPressure vbccChunksPressure,
-        StatelessCommitService statelessCommitService,
+        StatelessCommitServiceProvider statelessCommitServiceProvider,
         ProjectResolver projectResolver
     ) {
         super(NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -104,12 +104,13 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
                     final Index index = shardId.getIndex();
                     final IndexShard shard = indicesService.indexServiceSafe(index).getShard(request.getShardId().id());
                     assert shard.routingEntry().primary() : shard + " not primary on node " + transportService.getLocalNode();
+                    final var commitService = statelessCommitServiceProvider.get();
                     primaryShardOperation(
                         request,
                         shard,
                         bigArrays,
                         vbccChunksPressure,
-                        statelessCommitService::readVirtualBatchedCompoundCommitChunk,
+                        commitService::readVirtualBatchedCompoundCommitChunk,
                         l
                     );
                 });

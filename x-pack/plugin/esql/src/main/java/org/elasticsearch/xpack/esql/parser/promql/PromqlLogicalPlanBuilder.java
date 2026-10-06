@@ -101,7 +101,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             if (def == null) {
                 throw new IllegalArgumentException("unknown PromQL function [" + unresolved.functionName() + "]");
             }
-            return def.functionType().outputType();
+            return def.functionType().outputType;
         }
         if (plan instanceof VectorBinaryOperator binary) {
             PromqlDataType leftType = returnType(binary.left());
@@ -125,7 +125,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         if (step.value() instanceof Duration duration) {
             return duration;
         }
-        Bucket autoBucket = new Bucket(buckets.source(), timestamp, buckets, start, end, ConfigurationAware.CONFIGURATION_MARKER);
+        Bucket autoBucket = new Bucket(buckets.source(), timestamp, buckets, start, end, null, ConfigurationAware.CONFIGURATION_MARKER);
         long rangeStart = ((Number) start.value()).longValue();
         long rangeEnd = ((Number) end.value()).longValue();
         var rounding = autoBucket.getDateRounding(FoldContext.small(), rangeStart, rangeEnd);
@@ -557,7 +557,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             List<String> groupingKeyNames = visitLabelList(labelListCtx);
             groupings = new ArrayList<>(groupingKeyNames.size());
             for (int i = 0; i < groupingKeyNames.size(); i++) {
-                groupings.add(new UnresolvedAttribute(source(labelListCtx.labelName(i)), groupingKeyNames.get(i)));
+                groupings.add(new UnresolvedAttribute(source(labelListCtx.labelListItem(i)), groupingKeyNames.get(i)));
             }
         }
         return new UnresolvedPromqlFunction(source, name, rawParams, grouping, groupings);

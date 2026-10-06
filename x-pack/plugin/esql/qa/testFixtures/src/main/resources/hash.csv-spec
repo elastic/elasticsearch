@@ -47,6 +47,22 @@ input:keyword | md5:keyword                      | sha256:keyword
               | d41d8cd98f00b204e9800998ecf8427e | e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 ;
 
+hashWithAlgorithmFromField
+required_capability: hash_function
+
+FROM hash_algorithms
+| EVAL hash = hash(algorithm, input)
+| KEEP algorithm, input, hash
+| SORT algorithm
+;
+
+algorithm:keyword | input:keyword | hash:keyword
+MD5               | foo           | acbd18db4cc2f85cedef654fccc4a4d8
+SHA-1             | bar           | 62cdb7020ff920e5aa642c3d4066950dd1f01f4d
+SHA-256           | baz           | baa5a0964d3320fbc0c6a922140453c8513ea24ab8fd0577034804a967248096
+;
+
+
 hashOfNullInput
 required_capability: hash_function
 

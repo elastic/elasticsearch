@@ -71,10 +71,11 @@ public final class MvPercentileDoubleEvaluator implements ExpressionEvaluator {
         if (!valuesBlock.isNull(p)) {
           allBlocksAreNulls = false;
         }
+        if (percentileBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (percentileBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -110,7 +111,7 @@ public final class MvPercentileDoubleEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

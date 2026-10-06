@@ -14,6 +14,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -35,6 +36,10 @@ import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -57,6 +62,7 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -64,6 +70,8 @@ import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.lucene.grouping.TopFieldGroups;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -75,10 +83,12 @@ import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.Suggester;
@@ -101,6 +111,8 @@ import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUC
 
 public class QueryPhaseTimeoutTests extends IndexShardTestCase {
 
+    private static final String COLLAPSE_FIELD = "collapse_field";
+
     private static Directory dir;
     private static IndexReader reader;
     private static int numDocs;
@@ -118,6 +130,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
             Document doc = new Document();
             doc.add(new StringField("field", Integer.toString(i), Field.Store.NO));
             doc.add(new LongPoint("long", i));
+            doc.add(new NumericDocValuesField(COLLAPSE_FIELD, i % 10));
             doc.add(new KnnByteVectorField("byte_vector", new byte[] { 1, 2, 3 }));
             doc.add(new KnnFloatVectorField("float_vector", new float[] { 1, 2, 3 }));
             w.addDocument(doc);
@@ -403,7 +416,263 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         };
     }
 
+    public void testRewriteTimeout() throws IOException {
+        int size = randomBoolean() ? 0 : randomIntBetween(100, 500);
+        {
+            TimeoutQuery query = newMatchAllRewriteTimeoutQuery(false);
+            try (SearchContext context = createSearchContext(query, size)) {
+                QueryPhase.executeQuery(context);
+                assertFalse(context.queryResult().searchTimedOut());
+                assertEquals(numDocs, context.queryResult().topDocs().topDocs.totalHits.value());
+                assertEquals(size, context.queryResult().topDocs().topDocs.scoreDocs.length);
+            }
+        }
+        {
+            TimeoutQuery query = newMatchAllRewriteTimeoutQuery(true);
+            try (SearchContext context = createSearchContextWithTimeout(query, size)) {
+                QueryPhase.executeQuery(context);
+                assertTrue(context.queryResult().searchTimedOut());
+                assertEquals(0, context.queryResult().topDocs().topDocs.totalHits.value());
+                assertEquals(0, context.queryResult().topDocs().topDocs.scoreDocs.length);
+            }
+        }
+    }
+
+    public void testRewriteTimeoutResultShape() throws IOException {
+        // a shard that times out has to report the same top docs type, sort fields and formats it would have without the timeout:
+        // those are what the coordinating node merges on, and a shard that disagrees breaks the reduce of the shards that did not
+        // time out. Total hits are not compared, they are accumulated per result rather than taken from the merge
+        CollapseContext collapseContext = new CollapseContext(
+            COLLAPSE_FIELD,
+            new NumberFieldMapper.NumberFieldType(COLLAPSE_FIELD, NumberFieldMapper.NumberType.LONG)
+        );
+        for (boolean sorted : new boolean[] { false, true }) {
+            for (boolean collapsed : new boolean[] { false, true }) {
+                for (int size : new int[] { 0, randomIntBetween(100, 500) }) {
+                    SortAndFormats sort = sorted
+                        ? new SortAndFormats(new Sort(SortField.FIELD_DOC), new DocValueFormat[] { DocValueFormat.RAW })
+                        : null;
+                    TopDocs collected = null;
+                    DocValueFormat[] collectedFormats = null;
+                    for (boolean shouldTimeout : new boolean[] { false, true }) {
+                        TimeoutQuery query = newMatchAllRewriteTimeoutQuery(shouldTimeout);
+                        try (TestSearchContext context = createSearchContextWithTimeout(query, size)) {
+                            context.sort(sort);
+                            context.collapse(collapsed ? collapseContext : null);
+                            QueryPhase.executeQuery(context);
+                            assertEquals(shouldTimeout, context.queryResult().searchTimedOut());
+                            TopDocs topDocs = context.queryResult().topDocs().topDocs;
+                            if (shouldTimeout == false) {
+                                collected = topDocs;
+                                collectedFormats = context.queryResult().sortValueFormats();
+                                continue;
+                            }
+                            assertEquals(collected.getClass(), topDocs.getClass());
+                            assertArrayEquals(collectedFormats, context.queryResult().sortValueFormats());
+                            if (collected instanceof TopFieldDocs collectedFieldDocs) {
+                                assertArrayEquals(collectedFieldDocs.fields, ((TopFieldDocs) topDocs).fields);
+                            }
+                            if (collected instanceof TopFieldGroups collectedGroups) {
+                                assertEquals(collectedGroups.field, ((TopFieldGroups) topDocs).field);
+                            }
+                            assertEquals(0, topDocs.scoreDocs.length);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public void testRewriteTimeoutDisallowPartialResults() throws IOException {
+        int size = randomBoolean() ? 0 : randomIntBetween(100, 500);
+        TimeoutQuery query = newMatchAllRewriteTimeoutQuery(true);
+        try (SearchContext context = createSearchContextWithTimeout(query, size, false)) {
+            QueryPhaseExecutionException ex = expectThrows(QueryPhaseExecutionException.class, () -> QueryPhase.executeQuery(context));
+            assertThat(ex.getCause(), Matchers.instanceOf(SearchTimeoutException.class));
+        }
+    }
+
+    public void testRewriteTimeoutWithInSortOrderAggregation() throws IOException {
+        int size = randomBoolean() ? 0 : randomIntBetween(100, 500);
+        TimeoutQuery query = newMatchAllRewriteTimeoutQuery(true);
+        try (TestSearchContext context = createSearchContextWithTimeout(query, size)) {
+            context.aggregations(inSortOrderAggregations());
+            QueryPhase.executeQuery(context);
+            assertTrue(context.queryResult().searchTimedOut());
+            assertEquals(0, context.queryResult().topDocs().topDocs.totalHits.value());
+            assertEquals(0, context.queryResult().topDocs().topDocs.scoreDocs.length);
+        }
+    }
+
+    public void testRewriteTimeoutWithInSortOrderAggregationDisallowPartialResults() throws IOException {
+        int size = randomBoolean() ? 0 : randomIntBetween(100, 500);
+        TimeoutQuery query = newMatchAllRewriteTimeoutQuery(true);
+        try (TestSearchContext context = createSearchContextWithTimeout(query, size, false)) {
+            context.aggregations(inSortOrderAggregations());
+            QueryPhaseExecutionException ex = expectThrows(QueryPhaseExecutionException.class, () -> QueryPhase.executeQuery(context));
+            assertThat(ex.getCause(), Matchers.instanceOf(SearchTimeoutException.class));
+        }
+    }
+
+    private static SearchContextAggregations inSortOrderAggregations() {
+        return new SearchContextAggregations(
+            AggregatorFactories.EMPTY,
+            () -> { throw new AssertionError("reduce should not be called"); }
+        ) {
+            @Override
+            public boolean isInSortOrderExecutionRequired() {
+                return true;
+            }
+
+            @Override
+            public AggregatorFactories factories() {
+                throw new AssertionError("AggregationPhase.preProcess must not be called after a rewrite timeout");
+            }
+        };
+    }
+
+    public void testRewriteTimeoutWithAggregation() throws IOException {
+        int size = randomBoolean() ? 0 : randomIntBetween(100, 500);
+        TimeoutQuery query = newMatchAllRewriteTimeoutQuery(true);
+        try (TestSearchContext context = createSearchContextWithTimeout(query, size)) {
+            context.aggregations(regularAggregations());
+            QueryPhase.executeQuery(context);
+            assertTrue(context.queryResult().searchTimedOut());
+            assertEquals(0, context.queryResult().topDocs().topDocs.totalHits.value());
+            assertEquals(0, context.queryResult().topDocs().topDocs.scoreDocs.length);
+            assertNotNull(context.queryResult().aggregations());
+            assertTrue(context.queryResult().aggregations().expand().asList().isEmpty());
+        }
+    }
+
+    public void testRewriteTimeoutWithAggregationDisallowPartialResults() throws IOException {
+        int size = randomBoolean() ? 0 : randomIntBetween(100, 500);
+        TimeoutQuery query = newMatchAllRewriteTimeoutQuery(true);
+        try (TestSearchContext context = createSearchContextWithTimeout(query, size, false)) {
+            context.aggregations(regularAggregations());
+            QueryPhaseExecutionException ex = expectThrows(QueryPhaseExecutionException.class, () -> QueryPhase.executeQuery(context));
+            assertThat(ex.getCause(), Matchers.instanceOf(SearchTimeoutException.class));
+        }
+    }
+
+    private static SearchContextAggregations regularAggregations() {
+        return new SearchContextAggregations(
+            AggregatorFactories.EMPTY,
+            () -> { throw new AssertionError("reduce should not be called"); }
+        ) {
+            @Override
+            public AggregatorFactories factories() {
+                throw new AssertionError("AggregationPhase.preProcess must not be called after a rewrite timeout");
+            }
+        };
+    }
+
+    public void testPostFilterCreateWeightTimeout() throws IOException {
+        int size = randomBoolean() ? 0 : randomIntBetween(100, 500);
+        TimeoutQuery mainQuery = new TimeoutQuery() {
+            @Override
+            public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
+                return new MatchAllWeight(this, boost, scoreMode) {};
+            }
+        };
+        try (SearchContext context = createSearchContextWithTimeout(mainQuery, size)) {
+            context.parsedPostFilter(new ParsedQuery(newThrowOnCreateWeightQuery()));
+            QueryPhase.executeQuery(context);
+            assertTrue(context.queryResult().searchTimedOut());
+            assertEquals(0, context.queryResult().topDocs().topDocs.totalHits.value());
+            assertEquals(0, context.queryResult().topDocs().topDocs.scoreDocs.length);
+        }
+    }
+
+    public void testPostFilterCreateWeightTimeoutDisallowPartialResults() throws IOException {
+        int size = randomBoolean() ? 0 : randomIntBetween(100, 500);
+        TimeoutQuery mainQuery = new TimeoutQuery() {
+            @Override
+            public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
+                return new MatchAllWeight(this, boost, scoreMode) {};
+            }
+        };
+        try (SearchContext context = createSearchContextWithTimeout(mainQuery, size, false)) {
+            context.parsedPostFilter(new ParsedQuery(newThrowOnCreateWeightQuery()));
+            QueryPhaseExecutionException ex = expectThrows(QueryPhaseExecutionException.class, () -> QueryPhase.executeQuery(context));
+            assertThat(ex.getCause(), Matchers.instanceOf(SearchTimeoutException.class));
+        }
+    }
+
+    private static Query newThrowOnCreateWeightQuery() {
+        return new Query() {
+            @Override
+            public Query rewrite(IndexSearcher searcher) {
+                return this;
+            }
+
+            @Override
+            public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
+                ((ContextIndexSearcher) searcher).throwTimeExceededException();
+                throw new AssertionError("should have thrown TimeExceededException");
+            }
+
+            @Override
+            public String toString(String field) {
+                return "throw on create weight query";
+            }
+
+            @Override
+            public void visit(QueryVisitor visitor) {
+                visitor.visitLeaf(this);
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                return sameClassAs(obj);
+            }
+
+            @Override
+            public int hashCode() {
+                return classHash();
+            }
+        };
+    }
+
+    private static TimeoutQuery newMatchAllRewriteTimeoutQuery(boolean isTimeoutExpected) {
+        return new TimeoutQuery() {
+            @Override
+            public Query rewrite(IndexSearcher searcher) {
+                if (isTimeoutExpected) {
+                    shouldTimeout = true;
+                }
+
+                ((ContextIndexSearcher) searcher).checkCancelled();
+                assert shouldTimeout == false : "should have already timed out";
+                return this;
+            }
+
+            @Override
+            public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
+                return new MatchAllWeight(this, boost, scoreMode) {};
+            }
+        };
+    }
+
     private TestSearchContext createSearchContextWithTimeout(TimeoutQuery query, int size) throws IOException {
+        return createSearchContextWithTimeout(query, size, true);
+    }
+
+    private TestSearchContext createSearchContextWithTimeout(TimeoutQuery query, int size, boolean allowPartialSearchResults)
+        throws IOException {
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.allowPartialSearchResults(allowPartialSearchResults);
+        final ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            indexShard.shardId(),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1F,
+            0,
+            null
+        );
         TestSearchContext context = new TestSearchContext(createSearchExecutionContext(), indexShard, newContextSearcher(reader)) {
             @Override
             public long getRelativeTimeInMillis() {
@@ -411,6 +680,11 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
                 // when a timeout is not expected. The tiniest increment to relative time in millis triggers a timeout.
                 // See QueryPhase#getTimeoutCheck
                 return query.shouldTimeout ? 1L : 0L;
+            }
+
+            @Override
+            public ShardSearchRequest request() {
+                return shardSearchRequest;
             }
         };
         context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
@@ -435,7 +709,6 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
             .creationDate(System.currentTimeMillis())
             .build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
-        // final SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
         final long nowInMillis = randomNonNegativeLong();
         return new SearchExecutionContext(
             0,
@@ -718,8 +991,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
 
             // expect QueryPhase to propagate a failure instead of marking timed_out=true
             QueryPhaseExecutionException ex = expectThrows(QueryPhaseExecutionException.class, () -> QueryPhase.execute(context));
-            assertNotNull("expected a root cause", ex.getCause());
-            assertTrue("expected the cause to be a SearchTimeoutException", ex.getCause() instanceof SearchTimeoutException);
+            assertThat(ex.getCause(), Matchers.instanceOf(SearchTimeoutException.class));
         }
     }
 
@@ -792,10 +1064,6 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
      * aggregation contexts in tests. Handles plugin setup and resource cleanup.
      */
     private static final class AggregationTestHelper extends AggregatorTestCase implements AutoCloseable {
-        void intiPlugins() {
-            super.initPlugins();
-        }
-
         @Override
         public void close() {
             super.cleanupReleasables();
@@ -873,11 +1141,6 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         @Override
         public TransportVersion getMinimalSupportedVersion() {
             return TransportVersion.zero();
-        }
-
-        @Override
-        public boolean supportsVersion(TransportVersion version) {
-            return super.supportsVersion(version);
         }
     }
 }

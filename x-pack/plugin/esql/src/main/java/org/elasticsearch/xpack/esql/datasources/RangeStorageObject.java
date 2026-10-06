@@ -8,10 +8,13 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -27,7 +30,7 @@ import java.util.concurrent.Executor;
  * Used for every {@link FileSplit} so format readers and splittable decompressors
  * only see the split's compressed byte span (including offset {@code 0}).
  */
-class RangeStorageObject implements StorageObject {
+class RangeStorageObject implements StorageObject, ResumeBypassingStorageObject {
 
     private final StorageObject delegate;
     private final long offset;
@@ -95,6 +98,26 @@ class RangeStorageObject implements StorageObject {
     }
 
     @Override
+    public long knownLength() {
+        return length;
+    }
+
+    @Override
+    public String contentGeneration() {
+        return delegate.contentGeneration();
+    }
+
+    @Override
+    public long lengthForFooterCacheKey() throws IOException {
+        return delegate.lengthForFooterCacheKey();
+    }
+
+    @Override
+    public long offsetForFooterCache(long position) {
+        return Math.addExact(offset, position);
+    }
+
+    @Override
     public Instant lastModified() throws IOException {
         return delegate.lastModified();
     }
@@ -110,6 +133,11 @@ class RangeStorageObject implements StorageObject {
     }
 
     @Override
+    public StorageIdentity storageIdentity() {
+        return delegate.storageIdentity();
+    }
+
+    @Override
     public void abortStream(InputStream stream) throws IOException {
         // Forward to the underlying StorageObject so providers like S3 can perform a
         // non-draining abort (e.g. Abortable.abort()). Falling through to the SPI default
@@ -118,7 +146,24 @@ class RangeStorageObject implements StorageObject {
     }
 
     @Override
+    public InputStream withoutResume(InputStream stream) {
+        // Streams pass through unwrapped, so route to the delegate the same way abortStream does.
+        return ResumeBypassingStorageObject.withoutResume(delegate, stream);
+    }
+
+    @Override
     public void readBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
+        startReadBytesAsync(position, length, factory, executor, listener);
+    }
+
+    @Override
+    public Releasable startReadBytesAsync(
         long position,
         long length,
         DirectBufferFactory factory,
@@ -130,14 +175,14 @@ class RangeStorageObject implements StorageObject {
             // is direct and allocator-owned, consistent with the StorageObject.readBytesAsync
             // contract.
             try {
-                listener.onResponse(factory.allocate(0));
+                listener.onResponse(factory.allocateWritableWindow(0));
             } catch (IOException e) {
                 listener.onFailure(e);
             }
-            return;
+            return () -> {};
         }
         long cappedLength = Math.min(length, this.length - position);
-        delegate.readBytesAsync(Math.addExact(offset, position), cappedLength, factory, executor, listener);
+        return delegate.startReadBytesAsync(Math.addExact(offset, position), cappedLength, factory, executor, listener);
     }
 
     @Override
@@ -169,6 +214,11 @@ class RangeStorageObject implements StorageObject {
     }
 
     @Override
+    public boolean readBytesAsyncReleasesExecutor() {
+        return delegate.readBytesAsyncReleasesExecutor();
+    }
+
+    @Override
     public StorageObjectMetrics metrics() {
         return delegate.metrics();
     }
@@ -176,6 +226,16 @@ class RangeStorageObject implements StorageObject {
     @Override
     public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {
         delegate.attachMetrics(metrics, scheme);
+    }
+
+    @Override
+    public void bindRowGroup(RowGroupIo io) {
+        delegate.bindRowGroup(io);
+    }
+
+    @Override
+    public long admissionWaitTimeoutMs() {
+        return delegate.admissionWaitTimeoutMs();
     }
 
     StorageObject rawDelegate() {

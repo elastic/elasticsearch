@@ -15,7 +15,7 @@ import org.apache.lucene.index.ReaderUtil;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.store.StoreMetrics;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -25,7 +25,7 @@ import org.elasticsearch.search.query.SearchTimeoutException;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
-import java.util.concurrent.atomic.LongAdder;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 /**
@@ -46,12 +46,12 @@ abstract class FetchPhaseDocsIterator {
      */
     private long requestBreakerBytes;
 
-    private final Supplier<StoreMetrics> storeMetricsSupplier;
+    private final AtomicReference<DirectoryMetrics> fetchMetricsDelta = new AtomicReference<>(DirectoryMetrics.EMPTY);
 
-    private final LongAdder storeBytesRead = new LongAdder();
+    private final DirectoryMetrics.Capture metricsCapture;
 
-    protected FetchPhaseDocsIterator(Supplier<StoreMetrics> storeMetricsSupplier) {
-        this.storeMetricsSupplier = storeMetricsSupplier;
+    protected FetchPhaseDocsIterator(DirectoryMetrics.Capture metricsCapture) {
+        this.metricsCapture = metricsCapture;
     }
 
     public void addRequestBreakerBytes(long delta) {
@@ -62,20 +62,12 @@ abstract class FetchPhaseDocsIterator {
         return requestBreakerBytes;
     }
 
-    final long getStoreBytesRead() {
-        return storeBytesRead.sum();
+    protected DirectoryMetrics getFetchMetricsDelta() {
+        return fetchMetricsDelta.get();
     }
 
     protected final <T> T measure(Supplier<T> readOperation) {
-        if (storeMetricsSupplier == null) {
-            return readOperation.get();
-        }
-        final long baseline = storeMetricsSupplier.get().getBytesRead();
-        try {
-            return readOperation.get();
-        } finally {
-            storeBytesRead.add(storeMetricsSupplier.get().getBytesRead() - baseline);
-        }
+        return metricsCapture.measure(readOperation, fetchMetricsDelta);
     }
 
     /**
@@ -93,6 +85,14 @@ abstract class FetchPhaseDocsIterator {
      * @return a {@link SearchHit} for the document
      */
     protected abstract SearchHit nextDoc(int doc) throws IOException;
+
+    /**
+     * Called after all documents have been successfully iterated in non-streaming mode.
+     * Subclasses can override this to flush any tail-buffered bytes to the circuit breaker.
+     * May throw {@link org.elasticsearch.common.breaker.CircuitBreakingException} — the caller
+     * ensures that already-fetched hits are released before propagating the exception.
+     */
+    protected void onAllHitsIterated() {}
 
     /**
      * Synchronous iteration for non-streaming mode.
@@ -171,9 +171,11 @@ abstract class FetchPhaseDocsIterator {
                     }
                     SearchTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
                     assert allowPartialResults;
+                    onAllHitsIterated();
                     return new IterateResult(stripNulls(searchHits));
                 }
             }
+            onAllHitsIterated();
         } catch (SearchTimeoutException e) {
             throw e;
         } catch (CircuitBreakingException e) {

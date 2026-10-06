@@ -23,7 +23,8 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchResponseUtils;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -35,8 +36,8 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -65,17 +66,15 @@ public class MultiSearchActionTookTests extends ESTestCase {
     public static void afterClass() {}
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initServices() throws Exception {
         threadPool = new TestThreadPool("MultiSearchActionTookTests");
         clusterService = createClusterService(threadPool);
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeServices() throws Exception {
         clusterService.close();
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
-        super.tearDown();
     }
 
     // test unit conversion using a controller clock
@@ -94,7 +93,8 @@ public class MultiSearchActionTookTests extends ESTestCase {
 
         TransportMultiSearchAction action = createTransportMultiSearchAction(controlledClock, expected);
 
-        action.doExecute(mock(Task.class), multiSearchRequest, new ActionListener<>() {
+        CancellableTask task = new CancellableTask(1, "test", "test", "", TaskId.EMPTY_TASK_ID, Map.of());
+        action.doExecute(task, multiSearchRequest, new ActionListener<>() {
             @Override
             public void onResponse(MultiSearchResponse multiSearchResponse) {
                 if (controlledClock) {
@@ -131,7 +131,7 @@ public class MultiSearchActionTookTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
-        ActionFilters actionFilters = new ActionFilters(new HashSet<>());
+        ActionFilters actionFilters = ActionFilters.EMPTY;
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("test")).build());
 

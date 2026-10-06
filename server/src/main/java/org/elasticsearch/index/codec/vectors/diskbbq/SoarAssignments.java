@@ -30,18 +30,6 @@ public record SoarAssignments(int[] assignments) implements OverspillAssignments
         }
     }
 
-    private static final PrimitiveIterator.OfInt EMPTY_ITERATOR = new PrimitiveIterator.OfInt() {
-        @Override
-        public boolean hasNext() {
-            return false;
-        }
-
-        @Override
-        public int nextInt() {
-            throw new NoSuchElementException();
-        }
-    };
-
     private static class SingleIterator implements PrimitiveIterator.OfInt {
         private final int value;
         private boolean consumed;

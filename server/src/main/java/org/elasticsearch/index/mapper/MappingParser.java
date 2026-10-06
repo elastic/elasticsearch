@@ -15,6 +15,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
@@ -29,14 +30,14 @@ import java.util.function.Supplier;
  * Parser for {@link Mapping} provided in {@link CompressedXContent} format
  */
 public final class MappingParser {
-    private final Supplier<MappingParserContext> mappingParserContextSupplier;
+    private final Function<MergeReason, MappingParserContext> mappingParserContextSupplier;
     private final Supplier<Map<String, MetadataFieldMapper.Builder>> metadataBuildersSupplier;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
     private final Function<String, String> documentTypeResolver;
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MappingParser.class);
 
     MappingParser(
-        Supplier<MappingParserContext> mappingParserContextSupplier,
+        Function<MergeReason, MappingParserContext> mappingParserContextSupplier,
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
         Supplier<Map<String, MetadataFieldMapper.Builder>> metadataBuildersSupplier,
         Function<String, String> documentTypeResolver
@@ -145,9 +146,17 @@ public final class MappingParser {
             throw new MapperParsingException("type cannot be an empty string");
         }
 
-        final MappingParserContext mappingParserContext = mappingParserContextSupplier.get();
+        MappingParserContext mappingParserContext = mappingParserContextSupplier.apply(reason);
 
         RootObjectMapper.Builder rootObjectMapper = RootObjectMapper.parse(type, mappingSource, mappingParserContext);
+
+        // The _unmapped sink is derived state, not user mapping: its entire config is a function of index settings, and it carries no
+        // user-settable parameters. So it is never serialized and is instead re-injected here on every mapping-source parse.
+        if (mappingParserContext.getIndexSettings().isFlattenedUnmappedFieldsEnabled()) {
+            rootObjectMapper.add(
+                FlattenedFieldMapper.PARSER.parse(FlattenedFieldMapper.UNMAPPED_SINK_NAME, new HashMap<>(), mappingParserContext)
+            );
+        }
 
         Map<String, MetadataFieldMapper.Builder> metadataBuilders = metadataBuildersSupplier.get();
         Map<String, Object> meta = null;

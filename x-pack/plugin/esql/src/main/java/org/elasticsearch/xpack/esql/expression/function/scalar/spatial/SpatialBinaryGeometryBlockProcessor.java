@@ -19,6 +19,7 @@ import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.MultiLineString;
 import org.locationtech.jts.geom.MultiPoint;
 import org.locationtech.jts.geom.MultiPolygon;
+import org.locationtech.jts.geom.TopologyException;
 import org.locationtech.jts.io.ParseException;
 import org.locationtech.jts.operation.union.UnaryUnionOp;
 
@@ -46,14 +47,14 @@ class SpatialBinaryGeometryBlockProcessor {
      * Process two source (WKB) blocks at position {@code p}.
      */
     void processSourceAndSource(BytesRefBlock.Builder builder, int p, BytesRefBlock left, BytesRefBlock right) {
-        if (left.getValueCount(p) < 1 || right.getValueCount(p) < 1) {
+        if (left.isNull(p) || right.isNull(p)) {
             builder.appendNull();
             return;
         }
         try {
             Geometry leftJts = fromBytesRefBlock(left, p);
             Geometry rightJts = fromBytesRefBlock(right, p);
-            builder.appendBytesRef(UNSPECIFIED.jtsGeometryToWkb(operation.apply(leftJts, rightJts)));
+            builder.appendBytesRef(UNSPECIFIED.jtsGeometryToWkb(applyOperation(leftJts, rightJts)));
         } catch (ParseException e) {
             throw new IllegalArgumentException("could not parse the geometry expression: " + e.getMessage(), e);
         }
@@ -63,14 +64,14 @@ class SpatialBinaryGeometryBlockProcessor {
      * Process a doc-values (long-encoded) point block on the left and a source (WKB) block on the right.
      */
     void processDocValuesAndSource(BytesRefBlock.Builder builder, int p, LongBlock left, BytesRefBlock right) {
-        if (left.getValueCount(p) < 1 || right.getValueCount(p) < 1) {
+        if (left.isNull(p) || right.isNull(p)) {
             builder.appendNull();
             return;
         }
         try {
             Geometry leftJts = fromLongBlock(left, p);
             Geometry rightJts = fromBytesRefBlock(right, p);
-            builder.appendBytesRef(UNSPECIFIED.jtsGeometryToWkb(operation.apply(leftJts, rightJts)));
+            builder.appendBytesRef(UNSPECIFIED.jtsGeometryToWkb(applyOperation(leftJts, rightJts)));
         } catch (ParseException e) {
             throw new IllegalArgumentException("could not parse the geometry expression: " + e.getMessage(), e);
         }
@@ -80,14 +81,14 @@ class SpatialBinaryGeometryBlockProcessor {
      * Process a source (WKB) block on the left and a doc-values (long-encoded) point block on the right.
      */
     void processSourceAndDocValues(BytesRefBlock.Builder builder, int p, BytesRefBlock left, LongBlock right) {
-        if (left.getValueCount(p) < 1 || right.getValueCount(p) < 1) {
+        if (left.isNull(p) || right.isNull(p)) {
             builder.appendNull();
             return;
         }
         try {
             Geometry leftJts = fromBytesRefBlock(left, p);
             Geometry rightJts = fromLongBlock(right, p);
-            builder.appendBytesRef(UNSPECIFIED.jtsGeometryToWkb(operation.apply(leftJts, rightJts)));
+            builder.appendBytesRef(UNSPECIFIED.jtsGeometryToWkb(applyOperation(leftJts, rightJts)));
         } catch (ParseException e) {
             throw new IllegalArgumentException("could not parse the geometry expression: " + e.getMessage(), e);
         }
@@ -97,13 +98,29 @@ class SpatialBinaryGeometryBlockProcessor {
      * Process two doc-values (long-encoded) point blocks at position {@code p}.
      */
     void processBothDocValues(BytesRefBlock.Builder builder, int p, LongBlock left, LongBlock right) {
-        if (left.getValueCount(p) < 1 || right.getValueCount(p) < 1) {
+        if (left.isNull(p) || right.isNull(p)) {
             builder.appendNull();
             return;
         }
         Geometry leftJts = fromLongBlock(left, p);
         Geometry rightJts = fromLongBlock(right, p);
-        builder.appendBytesRef(UNSPECIFIED.jtsGeometryToWkb(operation.apply(leftJts, rightJts)));
+        builder.appendBytesRef(UNSPECIFIED.jtsGeometryToWkb(applyOperation(leftJts, rightJts)));
+    }
+
+    /**
+     * Apply the JTS overlay operation, converting a {@link TopologyException} into an
+     * {@link IllegalArgumentException}. JTS overlay operations (union, intersection, difference,
+     * symDifference) can throw a TopologyException for numerically degenerate geometries (e.g.
+     * extreme coordinate values), even though the geometries themselves are valid. The evaluators
+     * built on top of this processor treat IllegalArgumentException as a per-row warning, so this
+     * surfaces as a null result with a warning instead of failing the whole query.
+     */
+    private Geometry applyOperation(Geometry leftJts, Geometry rightJts) {
+        try {
+            return operation.apply(leftJts, rightJts);
+        } catch (TopologyException e) {
+            throw new IllegalArgumentException("could not compute the geometry operation: " + e.getMessage(), e);
+        }
     }
 
     private Geometry fromBytesRefBlock(BytesRefBlock block, int p) throws ParseException {

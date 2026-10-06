@@ -121,6 +121,7 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                 } else {
                     assertThat(explainIndexMap.get("error"), is(nullValue()));
                 }
+                assertFrozenTransitionXContent(explainIndex, explainIndexMap);
             }
         }
 
@@ -204,6 +205,8 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                 Map<String, Object> lifecycleRollover = (Map<String, Object>) lifecycleMap.get("rollover");
                 assertThat(lifecycleRollover.get("min_primary_shard_docs"), is(4));
                 assertThat(lifecycleRollover.get("max_primary_shard_docs"), is(9));
+
+                assertFrozenTransitionXContent(explainIndex, explainIndexMap);
             }
         }
         {
@@ -246,6 +249,15 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
         }
     }
 
+    private void assertFrozenTransitionXContent(ExplainIndexDataStreamLifecycle explainIndex, Map<String, Object> explainIndexMap) {
+        FrozenTransitionStatus frozenTransitionStatus = explainIndex.getFrozenTransitionStatus();
+        if (frozenTransitionStatus != null) {
+            assertThat(explainIndexMap.get("frozen_transition_status"), is(frozenTransitionStatus.toString()));
+        } else {
+            assertThat(explainIndexMap.get("frozen_transition_status"), is(nullValue()));
+        }
+    }
+
     public void testChunkCount() {
         long now = System.currentTimeMillis();
         DataStreamLifecycle lifecycle = DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE;
@@ -285,7 +297,8 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                     System.currentTimeMillis(),
                     randomIntBetween(0, 30)
                 )
-                : null
+                : null,
+            randomBoolean() ? randomFrom(FrozenTransitionStatus.values()) : null
         );
     }
 

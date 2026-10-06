@@ -12,6 +12,7 @@ package org.elasticsearch.benchmark._nightly.esql;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.benchmark.ExtraParam;
 import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.common.util.BigArrays;
@@ -25,6 +26,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.GroupKeyEncoder;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
+import org.elasticsearch.compute.operator.topn.GroupedTopNOperator.OutputOrdering;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.core.Releasables;
@@ -47,8 +49,8 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
-@Warmup(iterations = 5)
-@Measurement(iterations = 7)
+@Warmup(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
+@Measurement(iterations = 7, time = 1, timeUnit = TimeUnit.SECONDS)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Thread)
@@ -56,7 +58,7 @@ import java.util.stream.IntStream;
 public class GroupedTopNBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
@@ -90,7 +92,16 @@ public class GroupedTopNBenchmark {
             for (String topCount : Utils.possibleValues(GroupedTopNBenchmark.class, "topCount")) {
                 for (String groupCount : Utils.possibleValues(GroupedTopNBenchmark.class, "groupCount")) {
                     for (String gk : Utils.possibleValues(GroupedTopNBenchmark.class, "groupKeys")) {
-                        run(data, Integer.parseInt(topCount), Integer.parseInt(groupCount), gk, SELF_TEST_PAGES);
+                        for (String sortedOutput : Utils.possibleValues(GroupedTopNBenchmark.class, "sortedOutput")) {
+                            run(
+                                data,
+                                Integer.parseInt(topCount),
+                                Integer.parseInt(groupCount),
+                                gk,
+                                Boolean.parseBoolean(sortedOutput),
+                                SELF_TEST_PAGES
+                            );
+                        }
                     }
                 }
             }
@@ -113,7 +124,10 @@ public class GroupedTopNBenchmark {
     @ExtraParam({ BYTES_REFS + AND + BYTES_REFS, LONGS + AND + BYTES_REFS })
     public String groupKeys;
 
-    private static Operator operator(String data, int topCount, String groupKeys) {
+    @Param({ "true", "false" })
+    public boolean sortedOutput;
+
+    private static Operator operator(String data, int topCount, String groupKeys, boolean sortedOutput) {
         String[] dataSpec = data.split(AND);
         List<ElementType> elementTypes = new ArrayList<>(Arrays.stream(dataSpec).map(GroupedTopNBenchmark::elementType).toList());
         List<TopNEncoder> encoders = new ArrayList<>(Arrays.stream(dataSpec).map(GroupedTopNBenchmark::encoder).toList());
@@ -140,7 +154,8 @@ public class GroupedTopNBenchmark {
                 new PagedBytesBuilder(PageCacheRecycler.NON_RECYCLING_INSTANCE, blockFactory.breaker(), "group-key-encoder", 64)
             ),
             8 * 1024,
-            Long.MAX_VALUE
+            Long.MAX_VALUE,
+            sortedOutput ? OutputOrdering.SORTED : OutputOrdering.NOT_SORTED
         );
     }
 
@@ -266,11 +281,11 @@ public class GroupedTopNBenchmark {
     @Benchmark
     @OperationsPerInvocation(NUM_PAGES * BLOCK_LENGTH)
     public void run() {
-        run(data, topCount, groupCount, groupKeys, NUM_PAGES);
+        run(data, topCount, groupCount, groupKeys, sortedOutput, NUM_PAGES);
     }
 
-    private static void run(String data, int topCount, int groupCount, String groupKeys, int numPages) {
-        try (Operator operator = operator(data, topCount, groupKeys)) {
+    private static void run(String data, int topCount, int groupCount, String groupKeys, boolean sortedOutput, int numPages) {
+        try (Operator operator = operator(data, topCount, groupKeys, sortedOutput)) {
             Page page = page(data, groupCount, groupKeys);
             for (int i = 0; i < numPages; i++) {
                 operator.addInput(page.shallowCopy());

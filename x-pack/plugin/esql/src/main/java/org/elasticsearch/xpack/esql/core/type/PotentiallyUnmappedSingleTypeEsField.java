@@ -44,9 +44,14 @@ public final class PotentiallyUnmappedSingleTypeEsField extends TypeConflictedFi
         return mappedField;
     }
 
+    // Visible for testing.
+    public Set<String> mappedIndices() {
+        return mappedIndices;
+    }
+
     @Override
     public void writeContent(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException("PotentiallyUnmappedSingleTypeEsField shouldn't be transported");
+        throw new UnsupportedOperationException("PotentiallyUnmappedSingleTypeEsField [" + getName() + "] shouldn't be transported");
     }
 
     @Override

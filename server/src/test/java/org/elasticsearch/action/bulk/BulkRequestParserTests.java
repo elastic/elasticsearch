@@ -342,7 +342,7 @@ public class BulkRequestParserTests extends ESTestCase {
     public void testIndexRequestParsesSliceMetadataAsRouting() throws IOException {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         BytesArray request = new BytesArray("""
-            { "index":{ "_id": "bar", "_slice": "s1" } }
+            { "index":{ "_id": "bar", "slice": "s1" } }
             {}
             """);
         BulkRequestParser parser = new BulkRequestParser(randomBoolean(), true, RestApiVersion.current());
@@ -422,13 +422,13 @@ public class BulkRequestParserTests extends ESTestCase {
                 req -> fail()
             )
         );
-        assertThat(ex.getMessage(), equalTo("Action/metadata line [1] contains both [routing] and [_slice]"));
+        assertThat(ex.getMessage(), equalTo("Action/metadata line [1] contains both [routing] and [slice]"));
     }
 
     public void testIndexRequestRejectsRoutingAndSliceMetadataTogether() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         BytesArray request = new BytesArray("""
-            { "index":{ "_id": "bar", "routing": "r1", "_slice": "s1" } }
+            { "index":{ "_id": "bar", "routing": "r1", "slice": "s1" } }
             {}
             """);
         BulkRequestParser parser = new BulkRequestParser(randomBoolean(), true, RestApiVersion.current());
@@ -450,13 +450,13 @@ public class BulkRequestParserTests extends ESTestCase {
                 req -> fail()
             )
         );
-        assertThat(ex.getMessage(), equalTo("Action/metadata line [1] contains both [routing] and [_slice]"));
+        assertThat(ex.getMessage(), equalTo("Action/metadata line [1] contains both [routing] and [slice]"));
     }
 
     public void testIndexRequestRejectsInvalidSliceMetadata() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         BytesArray request = new BytesArray("""
-            { "index":{ "_id": "bar", "_slice": "_all" } }
+            { "index":{ "_id": "bar", "slice": "_all" } }
             {}
             """);
         BulkRequestParser parser = new BulkRequestParser(randomBoolean(), true, RestApiVersion.current());
@@ -478,7 +478,7 @@ public class BulkRequestParserTests extends ESTestCase {
                 req -> fail()
             )
         );
-        assertThat(ex.getMessage(), Matchers.containsString("invalid [_slice] value"));
+        assertThat(ex.getMessage(), Matchers.containsString("invalid [slice] value"));
     }
 
     public void testFailOnInvalidAction() {

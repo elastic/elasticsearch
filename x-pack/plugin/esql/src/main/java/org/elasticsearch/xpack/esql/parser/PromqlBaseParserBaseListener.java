@@ -205,6 +205,18 @@ public class PromqlBaseParserBaseListener implements PromqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterLabelListItem(PromqlBaseParser.LabelListItemContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitLabelListItem(PromqlBaseParser.LabelListItemContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterLabels(PromqlBaseParser.LabelsContext ctx) { }
   /**
    * {@inheritDoc}

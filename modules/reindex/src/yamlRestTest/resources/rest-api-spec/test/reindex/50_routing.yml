@@ -88,7 +88,7 @@
             index: source_keep
           dest:
             index: dest_keep
-            _slice: keep
+            slice: keep
   - match: {created: 2}
   - match: {noops: 0}
 
@@ -96,15 +96,15 @@
       get:
         index:   dest_keep
         id:      "1"
-        _slice: r1
-  - match: { _routing: r1 }
+        slice: r1
+  - match: { _slice: r1 }
 
   - do:
       get:
         index:   dest_keep
         id:      "2"
-        _slice: r2
-  - match: { _routing: r2 }
+        slice: r2
+  - match: { _slice: r2 }
 
 ---
 "Slice alias equals command":
@@ -140,7 +140,7 @@
             index: source_equals
           dest:
             index: dest_equals
-            _slice: =s1
+            slice: =s1
   - match: {created: 2}
   - match: {noops: 0}
 
@@ -148,13 +148,13 @@
       get:
         index:   dest_equals
         id:      "1"
-        _slice: s1
-  - match: { _routing: s1 }
+        slice: s1
+  - match: { _slice: s1 }
 
   - do:
       get:
         index:   dest_equals
         id:      "2"
-        _slice: s1
-  - match: { _routing: s1 }
+        slice: s1
+  - match: { _slice: s1 }
 

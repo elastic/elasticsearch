@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 158910
+summary: Avoid nested listeners in doc-partitioning cache
+type: bug

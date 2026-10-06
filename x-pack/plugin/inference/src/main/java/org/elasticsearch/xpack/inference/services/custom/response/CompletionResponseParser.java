@@ -12,7 +12,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.inference.common.MapPathExtractor;
 
 import java.io.IOException;
@@ -91,7 +91,7 @@ public class CompletionResponseParser extends BaseCustomResponseParser {
     }
 
     @Override
-    public ChatCompletionResults transform(Map<String, Object> map) {
+    public CompletionResults transform(Map<String, Object> map) {
         var result = MapPathExtractor.extract(map, completionResultPath);
         var extractedField = result.extractedObject();
 
@@ -99,9 +99,9 @@ public class CompletionResponseParser extends BaseCustomResponseParser {
 
         if (extractedField instanceof List<?> extractedList) {
             var completionList = castList(extractedList, (obj, fieldName) -> toType(obj, String.class, fieldName), completionResultPath);
-            return new ChatCompletionResults(completionList.stream().map(ChatCompletionResults.Result::new).toList());
+            return new CompletionResults(completionList.stream().map(CompletionResults.Result::new).toList());
         } else if (extractedField instanceof String extractedString) {
-            return new ChatCompletionResults(List.of(new ChatCompletionResults.Result(extractedString)));
+            return new CompletionResults(List.of(new CompletionResults.Result(extractedString)));
         } else {
             throw new IllegalArgumentException(
                 Strings.format(

@@ -359,6 +359,40 @@ public class OrcPushedExpressionsTests extends ESTestCase {
             );
     }
 
+    /**
+     * IS NULL must NOT push over a column whose declared coercion can decode a present cell to null (a format parse
+     * failure). ORC prunes IS NULL against the raw nullCount, which does not count decode-minted nulls, so pushing
+     * it drops the matching rows — the same hole closed on parquet.
+     */
+    public void testIsNullDeclinesOverDecodeCanNullColumn() {
+        TypeDescription schema = TypeDescription.createStruct().addField("ts", TypeDescription.createLong());
+        SearchArgument sarg = new OrcPushedExpressions(List.of(new IsNull(SOURCE, field("ts", DataType.DATETIME)))).toSearchArgument(
+            schema,
+            java.util.Set.of("ts")
+        );
+        assertNull("IS NULL over a declared-coerced column must decline", sarg);
+    }
+
+    /** IS NOT NULL only over-includes (decode never turns a physical null into a value), so it still pushes. */
+    public void testIsNotNullStillPushesOverDecodeCanNullColumn() {
+        TypeDescription schema = TypeDescription.createStruct().addField("ts", TypeDescription.createLong());
+        SearchArgument sarg = new OrcPushedExpressions(List.of(new IsNotNull(SOURCE, field("ts", DataType.DATETIME)))).toSearchArgument(
+            schema,
+            java.util.Set.of("ts")
+        );
+        assertNotNull("IS NOT NULL over a declared-coerced column stays pushable", sarg);
+    }
+
+    /** A plain column (not decode-can-null) keeps its IS NULL pushdown. */
+    public void testIsNullStillPushesOverPlainColumn() {
+        TypeDescription schema = TypeDescription.createStruct().addField("ts", TypeDescription.createLong());
+        SearchArgument sarg = new OrcPushedExpressions(List.of(new IsNull(SOURCE, field("ts", DataType.LONG)))).toSearchArgument(
+            schema,
+            java.util.Set.of()
+        );
+        assertNotNull("IS NULL over a plain column still pushes", sarg);
+    }
+
     private static SearchArgument toSearchArgument(TypeDescription schema, Expression... exprs) {
         return new OrcPushedExpressions(List.of(exprs)).toSearchArgument(schema);
     }

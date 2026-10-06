@@ -10,7 +10,6 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.index.codec.vectors.diskbbq.OverspillAssignments;
 
 import java.io.IOException;
 import java.util.function.IntUnaryOperator;
@@ -22,11 +21,8 @@ import java.util.function.IntUnaryOperator;
  */
 class LloydKMeansLocalSerial<V> extends LloydKMeansLocal<V> {
 
-    final Soar<V> soar;
-
-    LloydKMeansLocalSerial(CentroidOps<V> ops, int sampleSize, int maxIterations, float soarLambda) {
+    LloydKMeansLocalSerial(CentroidOps<V> ops, int sampleSize, int maxIterations) {
         super(ops, sampleSize, maxIterations);
-        this.soar = soarLambda < 0 ? Soar.none() : Soar.ofSerial(ops, soarLambda);
     }
 
     @Override
@@ -55,15 +51,6 @@ class LloydKMeansLocalSerial<V> extends LloydKMeansLocal<V> {
             0,
             vectors.size()
         );
-    }
-
-    @Override
-    protected OverspillAssignments assignSpilled(
-        ClusteringVectorValues<V> vectors,
-        KMeansResult<V> kMeansResult,
-        NeighborHood[] neighborhoods
-    ) throws IOException {
-        return soar.assignSpilled(vectors, kMeansResult, neighborhoods);
     }
 
     @Override

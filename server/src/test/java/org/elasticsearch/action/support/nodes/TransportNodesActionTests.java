@@ -271,7 +271,7 @@ public class TransportNodesActionTests extends ESTestCase {
                 "indices:admin/test",
                 clusterService,
                 transportService,
-                new ActionFilters(Collections.emptySet()),
+                ActionFilters.EMPTY,
                 TestNodeRequest::new,
                 THREAD_POOL.executor(ThreadPool.Names.GENERIC)
             ) {
@@ -326,7 +326,7 @@ public class TransportNodesActionTests extends ESTestCase {
         final var action = new TestTransportNodesAction(
             clusterService,
             transportService,
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             TestNodeRequest::new,
             THREAD_POOL.executor(ThreadPool.Names.GENERIC)
         ) {
@@ -475,8 +475,7 @@ public class TransportNodesActionTests extends ESTestCase {
     }
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initServices() throws Exception {
         transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
         transportService = transport.createTransportService(
@@ -511,8 +510,7 @@ public class TransportNodesActionTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeServices() throws Exception {
         clusterService.close();
         transport.close();
     }
@@ -521,7 +519,7 @@ public class TransportNodesActionTests extends ESTestCase {
         return new TestTransportNodesAction(
             clusterService,
             transportService,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             TestNodeRequest::new,
             THREAD_POOL.executor(ThreadPool.Names.GENERIC)
         );
@@ -531,7 +529,7 @@ public class TransportNodesActionTests extends ESTestCase {
         return new DataNodesOnlyTransportNodesAction(
             clusterService,
             transportService,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             TestNodeRequest::new,
             THREAD_POOL.executor(ThreadPool.Names.GENERIC)
         );

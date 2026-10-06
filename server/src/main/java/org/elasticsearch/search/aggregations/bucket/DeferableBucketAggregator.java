@@ -91,7 +91,12 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
      * {#link {@link DeferringBucketCollector#prepareSelectedBuckets(LongArray)}.
      */
     protected DeferringBucketCollector buildDeferringCollector() {
-        return new BestBucketsDeferringCollector(topLevelQuery(), searcher(), descendsFromGlobalAggregator(parent()));
+        return new BestBucketsDeferringCollector(
+            topLevelQuery(),
+            searcher(),
+            descendsFromGlobalAggregator(parent()),
+            this::addRequestCircuitBreakerBytes
+        );
     }
 
     /**

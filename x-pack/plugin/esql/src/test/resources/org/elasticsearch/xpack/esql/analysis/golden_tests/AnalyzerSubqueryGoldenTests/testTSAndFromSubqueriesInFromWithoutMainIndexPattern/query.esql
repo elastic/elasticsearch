@@ -1,0 +1,1 @@
+FROM (TS k8s-downsampled | WHERE @timestamp > "2025-10-07"), (FROM sample_data)

@@ -12,10 +12,12 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
+import org.elasticsearch.xpack.esql.qa.rest.EsqlDataSourceMixedClusterTestSupport;
 
 import java.nio.file.Path;
 
 public class Clusters {
+
     public static ElasticsearchCluster mixedVersionCluster() {
         return mixedVersionCluster(CsvTestUtils.createCsvDataDirectory(), false);
     }
@@ -23,13 +25,48 @@ public class Clusters {
     public static ElasticsearchCluster mixedVersionCluster(Path csvDataPath, boolean shared) {
         String oldVersionString = System.getProperty("tests.old_cluster_version");
         Version oldVersion = Version.fromString(oldVersionString);
+        org.elasticsearch.Version oldServerVersion = org.elasticsearch.Version.fromString(oldVersionString.replace("-SNAPSHOT", ""));
         boolean isDetachedVersion = System.getProperty("tests.bwc.refspec.main") != null;
         var cluster = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .withNode(node -> node.version(oldVersionString, isDetachedVersion))
-            .withNode(node -> node.version(Version.CURRENT).setting("esql.datasource.local_allowed_paths", csvDataPath::toString))
-            .withNode(node -> node.version(oldVersionString, isDetachedVersion))
-            .withNode(node -> node.version(Version.CURRENT).setting("esql.datasource.local_allowed_paths", csvDataPath::toString))
+            .withNode(
+                node -> EsqlDataSourceMixedClusterTestSupport.configureOldNode(
+                    node,
+                    "old-node-0",
+                    oldVersionString,
+                    oldServerVersion,
+                    isDetachedVersion,
+                    csvDataPath::toString,
+                    (configuredNode, version, current) -> {}
+                )
+            )
+            .withNode(
+                node -> EsqlDataSourceMixedClusterTestSupport.configureCurrentNode(
+                    node,
+                    "current-node-0",
+                    csvDataPath::toString,
+                    (configuredNode, version, current) -> {}
+                )
+            )
+            .withNode(
+                node -> EsqlDataSourceMixedClusterTestSupport.configureOldNode(
+                    node,
+                    "old-node-1",
+                    oldVersionString,
+                    oldServerVersion,
+                    isDetachedVersion,
+                    csvDataPath::toString,
+                    (configuredNode, version, current) -> {}
+                )
+            )
+            .withNode(
+                node -> EsqlDataSourceMixedClusterTestSupport.configureCurrentNode(
+                    node,
+                    "current-node-1",
+                    csvDataPath::toString,
+                    (configuredNode, version, current) -> {}
+                )
+            )
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("path.repo", csvDataPath::toString)

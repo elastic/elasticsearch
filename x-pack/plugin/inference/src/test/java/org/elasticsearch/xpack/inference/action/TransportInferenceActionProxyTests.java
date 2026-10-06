@@ -52,8 +52,7 @@ public class TransportInferenceActionProxyTests extends ESTestCase {
     private ModelRegistry modelRegistry;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createAction() throws Exception {
         client = mock(Client.class);
         threadPool = new TestThreadPool("test");
         when(client.threadPool()).thenReturn(threadPool);
@@ -63,8 +62,7 @@ public class TransportInferenceActionProxyTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void shutdownThreadPool() throws Exception {
         terminate(threadPool);
     }
 

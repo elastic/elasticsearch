@@ -184,6 +184,56 @@ public class OpenAiStreamingProcessorTests extends ESTestCase {
         verify(downstream, times(0)).onNext(any());
     }
 
+    public void testMultipleJsonObjectsInSingleEventAreParsed() throws IOException {
+        var firstChunkData = """
+            {
+                "id":"1",
+                "object":"chat.completion.chunk",
+                "choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]
+            }\
+            """;
+        var secondChunkData = """
+            {
+                "id":"2",
+                "object":"chat.completion.chunk",
+                "choices":[{"index":0,"delta":{"content":"World"},"finish_reason":null}]
+            }\
+            """;
+        var item = new ArrayDeque<ServerSentEvent>();
+        item.offer(new ServerSentEvent(firstChunkData + "\n" + secondChunkData));
+
+        var response = onNext(new OpenAiStreamingProcessor(), item);
+        var json = toJsonString(response);
+
+        assertThat(json, equalTo("""
+            {"completion":[{"delta":"Hello"},{"delta":"World"}]}"""));
+    }
+
+    public void testMultipleJsonObjectsInSingleEvent_FinishChunkIsSkipped() throws IOException {
+        var contentChunkData = """
+            {
+                "id":"1",
+                "object":"chat.completion.chunk",
+                "choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]
+            }\
+            """;
+        var stopChunkData = """
+            {
+                "id":"2",
+                "object":"chat.completion.chunk",
+                "choices":[{"index":1,"delta":{},"finish_reason":"stop"}]
+            }\
+            """;
+        var item = new ArrayDeque<ServerSentEvent>();
+        item.offer(new ServerSentEvent(contentChunkData + "\n" + stopChunkData));
+
+        var response = onNext(new OpenAiStreamingProcessor(), item);
+        var json = toJsonString(response);
+
+        assertThat(json, equalTo("""
+            {"completion":[{"delta":"Hello"}]}"""));
+    }
+
     private String toJsonString(ChunkedToXContent chunkedToXContent) throws IOException {
         try (var builder = XContentFactory.jsonBuilder()) {
             chunkedToXContent.toXContentChunked(EMPTY_PARAMS).forEachRemaining(xContent -> {

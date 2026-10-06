@@ -31,6 +31,13 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
         resolve("double", TimeSeriesParams.MetricType.COUNTER, DataType.COUNTER_DOUBLE);
     }
 
+    public void testInvalidCounter() {
+        // unsigned_long mappers accept time_series_metric: counter, but ESQL has no counter variant for it.
+        // It should resolve to UNSUPPORTED rather than NPE'ing during field resolution.
+        // See https://github.com/elastic/elasticsearch/issues/148032
+        resolve("unsigned_long", TimeSeriesParams.MetricType.COUNTER, DataType.UNSUPPORTED);
+    }
+
     public void testGauge() {
         resolve("long", TimeSeriesParams.MetricType.GAUGE, DataType.LONG);
     }
@@ -73,7 +80,7 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
         IndexResolution resolution = IndexResolver.mergedMappings(
             "idx-*",
             false,
-            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, flattenedDataTypeEnabled),
+            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, false, flattenedDataTypeEnabled),
             false,
             IndexResolver.DO_NOT_GROUP
         );
@@ -98,7 +105,7 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
         IndexResolution resolution = IndexResolver.mergedMappings(
             "idx-*",
             false,
-            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, true),
+            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, false, true),
             false,
             IndexResolver.DO_NOT_GROUP
         );

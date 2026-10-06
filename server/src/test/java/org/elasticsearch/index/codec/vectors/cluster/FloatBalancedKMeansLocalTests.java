@@ -70,11 +70,10 @@ public class FloatBalancedKMeansLocalTests extends AbstractBalancedKMeansLocalTe
         final int sampleSize = nClusters * 64;
         int dims = 256;
         int maxIterations = 20;
-        float soarLambda = -1;
 
         var methods = List.of(
-            new LloydKMeansLocalSerial<>(CentroidOps.FLOAT, sampleSize, maxIterations, soarLambda), // reference method
-            new BalancedOTKMeansLocalSerial<>(CentroidOps.FLOAT, sampleSize, maxIterations, soarLambda)
+            new LloydKMeansLocalSerial<>(CentroidOps.FLOAT, sampleSize, maxIterations), // reference method
+            new BalancedOTKMeansLocalSerial<>(CentroidOps.FLOAT, sampleSize, maxIterations)
         );
 
         float[] inertias = new float[methods.size()];
@@ -120,7 +119,6 @@ public class FloatBalancedKMeansLocalTests extends AbstractBalancedKMeansLocalTe
         final int nSamples = nClusters * 256;
         final int dims = 1024;
         final int maxIterations = 10;
-        final float soarLambda = -1;
         final int numThreads = randomIntBetween(2, 8);
 
         KMeansFloatVectorValues vectors = KMeansTestData.generateFloatDataWithStdDev(nVectors, dims, 1, 0.2f);
@@ -129,8 +127,8 @@ public class FloatBalancedKMeansLocalTests extends AbstractBalancedKMeansLocalTe
             TaskExecutor taskExecutor = new TaskExecutor(executorService);
 
             var methods = List.of(
-                new BalancedOTKMeansLocalSerial<>(CentroidOps.FLOAT, nSamples / 2, maxIterations, soarLambda),
-                new BalancedOTKMeansLocalConcurrent<>(CentroidOps.FLOAT, taskExecutor, numThreads, nSamples / 2, maxIterations, soarLambda)
+                new BalancedOTKMeansLocalSerial<>(CentroidOps.FLOAT, nSamples / 2, maxIterations),
+                new BalancedOTKMeansLocalConcurrent<>(CentroidOps.FLOAT, taskExecutor, numThreads, nSamples / 2, maxIterations)
             );
 
             double[] inertias = new double[methods.size()];

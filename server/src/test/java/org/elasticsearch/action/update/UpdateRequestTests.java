@@ -72,10 +72,8 @@ public class UpdateRequestTests extends ESTestCase {
 
     private UpdateHelper updateHelper;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initUpdateHelper() throws Exception {
         final Settings baseSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         final Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
         scripts.put("ctx._source.update_timestamp = ctx._now", vars -> {

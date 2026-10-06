@@ -55,15 +55,17 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.ReanalyzingIntervalsSource;
+import org.elasticsearch.index.mapper.ReanalyzingTextQuery;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.blockloader.DelegatingBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.mapper.extras.MatchOnlyTextFieldMapper.MatchOnlyTextFieldType;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesAutomatonQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
-import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesWildcardQuery;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
@@ -88,7 +90,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         false,
         FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
         true,
-        true
+        true,
+        FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
     );
 
     public void testTermQuery() {
@@ -164,7 +167,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
 
     private Query unwrapPositionalQuery(Query query) {
         query = ((ConstantScoreQuery) query).getQuery();
-        query = ((SourceConfirmedTextQuery) query).getQuery();
+        query = ((ReanalyzingTextQuery) query).getQuery();
         return query;
     }
 
@@ -174,7 +177,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         Query query = ft.phraseQuery(ts, 0, true, MOCK_CONTEXT);
         Query delegate = unwrapPositionalQuery(query);
         assertEquals(new PhraseQuery("field", "a", "b"), delegate);
-        assertNotEquals(Queries.ALL_DOCS_INSTANCE, SourceConfirmedTextQuery.approximate(delegate));
+        assertNotEquals(Queries.ALL_DOCS_INSTANCE, ReanalyzingTextQuery.approximate(delegate));
     }
 
     public void testMultiPhraseQuery() throws IOException {
@@ -186,7 +189,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             .add(new Term("field", "c"))
             .build();
         assertEquals(expected, delegate);
-        assertNotEquals(Queries.ALL_DOCS_INSTANCE, SourceConfirmedTextQuery.approximate(delegate));
+        assertNotEquals(Queries.ALL_DOCS_INSTANCE, ReanalyzingTextQuery.approximate(delegate));
     }
 
     public void testPhrasePrefixQuery() throws IOException {
@@ -198,59 +201,59 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         expected.add(new Term[] { new Term("field", "a"), new Term("field", "b") });
         expected.add(new Term("field", "c"));
         assertEquals(expected, delegate);
-        assertNotEquals(Queries.ALL_DOCS_INSTANCE, SourceConfirmedTextQuery.approximate(delegate));
+        assertNotEquals(Queries.ALL_DOCS_INSTANCE, ReanalyzingTextQuery.approximate(delegate));
     }
 
     public void testTermIntervals() {
         MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType("field");
         IntervalsSource termIntervals = ft.termIntervals(new BytesRef("foo"), MOCK_CONTEXT);
-        assertThat(termIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
-        assertEquals(Intervals.term(new BytesRef("foo")), ((SourceIntervalsSource) termIntervals).getIntervalsSource());
+        assertThat(termIntervals, Matchers.instanceOf(ReanalyzingIntervalsSource.class));
+        assertEquals(Intervals.term(new BytesRef("foo")), ((ReanalyzingIntervalsSource) termIntervals).getIntervalsSource());
     }
 
     public void testPrefixIntervals() {
         MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType("field");
         IntervalsSource prefixIntervals = ft.prefixIntervals(new BytesRef("foo"), MOCK_CONTEXT);
-        assertThat(prefixIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
+        assertThat(prefixIntervals, Matchers.instanceOf(ReanalyzingIntervalsSource.class));
         assertEquals(
             Intervals.prefix(new BytesRef("foo"), IndexSearcher.getMaxClauseCount()),
-            ((SourceIntervalsSource) prefixIntervals).getIntervalsSource()
+            ((ReanalyzingIntervalsSource) prefixIntervals).getIntervalsSource()
         );
     }
 
     public void testWildcardIntervals() {
         MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType("field");
         IntervalsSource wildcardIntervals = ft.wildcardIntervals(new BytesRef("foo"), MOCK_CONTEXT);
-        assertThat(wildcardIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
+        assertThat(wildcardIntervals, Matchers.instanceOf(ReanalyzingIntervalsSource.class));
         assertEquals(
             Intervals.wildcard(new BytesRef("foo"), IndexSearcher.getMaxClauseCount()),
-            ((SourceIntervalsSource) wildcardIntervals).getIntervalsSource()
+            ((ReanalyzingIntervalsSource) wildcardIntervals).getIntervalsSource()
         );
     }
 
     public void testRegexpIntervals() {
         MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType("field");
         IntervalsSource regexpIntervals = ft.regexpIntervals(new BytesRef("foo"), MOCK_CONTEXT);
-        assertThat(regexpIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
+        assertThat(regexpIntervals, Matchers.instanceOf(ReanalyzingIntervalsSource.class));
         assertEquals(
             Intervals.regexp(new BytesRef("foo"), IndexSearcher.getMaxClauseCount()),
-            ((SourceIntervalsSource) regexpIntervals).getIntervalsSource()
+            ((ReanalyzingIntervalsSource) regexpIntervals).getIntervalsSource()
         );
     }
 
     public void testFuzzyIntervals() {
         MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType("field");
         IntervalsSource fuzzyIntervals = ft.fuzzyIntervals("foo", 1, 2, true, MOCK_CONTEXT);
-        assertThat(fuzzyIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
+        assertThat(fuzzyIntervals, Matchers.instanceOf(ReanalyzingIntervalsSource.class));
     }
 
     public void testRangeIntervals() {
         MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType("field");
         IntervalsSource rangeIntervals = ft.rangeIntervals(new BytesRef("foo"), new BytesRef("foo1"), true, true, MOCK_CONTEXT);
-        assertThat(rangeIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
+        assertThat(rangeIntervals, Matchers.instanceOf(ReanalyzingIntervalsSource.class));
         assertEquals(
             Intervals.range(new BytesRef("foo"), new BytesRef("foo1"), true, true, IndexSearcher.getMaxClauseCount()),
-            ((SourceIntervalsSource) rangeIntervals).getIntervalsSource()
+            ((ReanalyzingIntervalsSource) rangeIntervals).getIntervalsSource()
         );
     }
 
@@ -627,10 +630,10 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         // SortedSet DV, case-insensitive: script-backed query
         assertThat(sortedSet.wildcardQuery("foo*", null, true, MOCK_CONTEXT), Matchers.instanceOf(StringScriptFieldWildcardQuery.class));
 
-        // Binary DV: ScanningBinaryDocValuesWildcardQuery
+        // Binary DV: ScanningBinaryDocValuesAutomatonQuery
         assertThat(
             binary.wildcardQuery("foo*", null, false, MOCK_CONTEXT),
-            Matchers.instanceOf(ScanningBinaryDocValuesWildcardQuery.class)
+            Matchers.instanceOf(ScanningBinaryDocValuesAutomatonQuery.class)
         );
 
         // Doc-values only, expensive queries disabled
@@ -694,7 +697,14 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             IndexVersion.current(),
             false,
             false,
-            new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true, true),
+            new FieldMapper.DocValuesParameter.Values(
+                true,
+                FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
+                true,
+                true,
+                FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
+            ),
+            false,
             false
         );
     }
@@ -713,7 +723,14 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             IndexVersion.current(),
             false,
             true,
-            new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true, true),
+            new FieldMapper.DocValuesParameter.Values(
+                true,
+                FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
+                true,
+                true,
+                FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
+            ),
+            false,
             false
         );
     }

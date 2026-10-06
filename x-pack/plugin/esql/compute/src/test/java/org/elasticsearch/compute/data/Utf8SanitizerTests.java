@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 public class Utf8SanitizerTests extends ESTestCase {
 
@@ -75,6 +76,36 @@ public class Utf8SanitizerTests extends ESTestCase {
             BytesRef out = Utf8Sanitizer.sanitize(new BytesRef(random, 0, random.length));
             assertTrue("sanitized output must be valid UTF-8", Utf8Sanitizer.isWellFormed(out.bytes, out.offset, out.length));
         }
+    }
+
+    public void testLongAsciiRunIsWellFormed() {
+        // Exercises the word-wide fast path over several full 8-byte words plus a partial tail.
+        for (int len : new int[] { 7, 8, 9, 15, 16, 17, 63, 64, 65 }) {
+            byte[] ascii = new byte[len];
+            Arrays.fill(ascii, (byte) 'a');
+            BytesRef in = new BytesRef(ascii);
+            assertTrue("len=" + len, Utf8Sanitizer.isWellFormed(in.bytes, in.offset, in.length));
+            assertSame(in, Utf8Sanitizer.sanitize(in));
+        }
+    }
+
+    public void testMalformedByteAtEveryWordPosition() {
+        // A single ill-formed lead byte is detected (and repaired) no matter where it falls
+        // relative to an 8-byte fast-path word, including exactly on a word boundary.
+        int len = 20;
+        for (int pos = 0; pos < len; pos++) {
+            byte[] bytes = new byte[len];
+            Arrays.fill(bytes, (byte) 'a');
+            bytes[pos] = (byte) 0xFF;
+            byte[] expected = concat(repeat((byte) 'a', pos), FFFD, repeat((byte) 'a', len - pos - 1));
+            assertSanitized(bytes, expected);
+        }
+    }
+
+    private static byte[] repeat(byte b, int count) {
+        byte[] out = new byte[count];
+        Arrays.fill(out, b);
+        return out;
     }
 
     public void testRespectsOffsetAndLength() {

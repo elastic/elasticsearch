@@ -15,12 +15,14 @@ import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.StatusHeuristic;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.completion.Reasoning;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsOptions;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.compatibility.CompletionCompatibilityService;
+import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
@@ -39,6 +41,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.inference.completion.Reasoning.ReasoningEffort;
+import static org.elasticsearch.inference.completion.Reasoning.ReasoningSummary;
 import static org.elasticsearch.xpack.inference.services.elastic.authorization.EndpointSchemaMigration.ENDPOINT_SCHEMA_VERSION;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.EIS_CHAT_PATH;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.EIS_MULTIMODAL_EMBED_PATH;
@@ -49,7 +53,6 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -61,8 +64,10 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
     private static final LocalDate TEST_RELEASE_DATE_PARSED = LocalDate.parse(TEST_RELEASE_DATE);
     private static final LocalDate TEST_END_OF_LIFE_DATE_PARSED = LocalDate.parse(TEST_END_OF_LIFE_DATE);
     private static final String STATUS_GA = "ga";
+    private static final Reasoning MEDIUM_DETAILED_REASONING = new Reasoning(ReasoningEffort.MEDIUM, ReasoningSummary.DETAILED, null, null);
 
     private static final EndpointMetadata DEFAULT_ENDPOINT_METADATA = new EndpointMetadata(
+        EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
         new EndpointMetadata.Heuristics(
             List.of(),
             StatusHeuristic.fromString(STATUS_GA),
@@ -75,8 +80,10 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         false
     );
 
-    // Most tests in this class build expected endpoints with ImmutableEmptyTaskSettings, so a fully-upgraded
-    // feature service is used by default to match. Mixed-cluster-specific tests use a feature-absent one instead.
+    // Most tests in this class build expected endpoints assuming a fully-upgraded cluster: CHAT_COMPLETION
+    // endpoints get ElasticInferenceServiceChatCompletionTaskSettings.EMPTY and COMPLETION endpoints get
+    // ImmutableEmptyTaskSettings, so a fully-upgraded feature service is used by default to match.
+    // Mixed-cluster-specific tests use a feature-absent one instead.
     private static final CompletionCompatibilityService FULLY_UPGRADED_COMPAT_SERVICE = createCompatibilityService(true);
     private static final CompletionCompatibilityService MIXED_CLUSTER_COMPAT_SERVICE = createCompatibilityService(false);
 
@@ -87,14 +94,14 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         return new CompletionCompatibilityService(clusterService, featureService);
     }
 
-    public void testOf_ChatCompletionEndpoint_FullyUpgraded_UsesImmutableEmptyTaskSettings() {
+    public void testOf_ChatCompletionEndpoint_FullyUpgraded_UsesEmptyChatCompletionTaskSettings() {
         var id = "chat-completion-id";
         var response = singleEndpointResponse(id, "model-name", TaskType.CHAT_COMPLETION);
 
         var auth = ElasticInferenceServiceAuthorizationModel.of(response, "url", FULLY_UPGRADED_COMPAT_SERVICE);
 
         var taskSettings = auth.getEndpoints(Set.of(id)).get(0).getTaskSettings();
-        assertThat(taskSettings, sameInstance(ImmutableEmptyTaskSettings.INSTANCE));
+        assertThat(taskSettings, is(ElasticInferenceServiceChatCompletionTaskSettings.EMPTY));
     }
 
     public void testOf_ChatCompletionEndpoint_MixedCluster_UsesEnforcingEmptyTaskSettings() {
@@ -118,7 +125,72 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         assertThat(taskSettings, instanceOf(EnforcingEmptyTaskSettings.class));
     }
 
+    public void testOf_ChatCompletionEndpointWithReasoning_FullyUpgraded_UsesReasoningTaskSettings() {
+        var id = "chat-completion-reasoning-id";
+        var configuration = new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(
+            null,
+            null,
+            null,
+            null,
+            MEDIUM_DETAILED_REASONING
+        );
+        var response = singleEndpointResponse(id, "model-name", TaskType.CHAT_COMPLETION, configuration);
+
+        var auth = ElasticInferenceServiceAuthorizationModel.of(response, "url", FULLY_UPGRADED_COMPAT_SERVICE);
+
+        var taskSettings = auth.getEndpoints(Set.of(id)).get(0).getTaskSettings();
+        assertThat(taskSettings, is(new ElasticInferenceServiceChatCompletionTaskSettings(MEDIUM_DETAILED_REASONING)));
+    }
+
+    public void testOf_ChatCompletionEndpointWithReasoning_MixedCluster_SkipsEndpoint() {
+        var id = "chat-completion-reasoning-id";
+        var configuration = new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(
+            null,
+            null,
+            null,
+            null,
+            MEDIUM_DETAILED_REASONING
+        );
+        var response = singleEndpointResponse(id, "model-name", TaskType.CHAT_COMPLETION, configuration);
+
+        var auth = ElasticInferenceServiceAuthorizationModel.of(response, "url", MIXED_CLUSTER_COMPAT_SERVICE);
+
+        // A mixed cluster cannot yet support reasoning task settings, so the endpoint is skipped until a
+        // future poll after the cluster finishes upgrading.
+        assertThat(auth.getEndpoints(Set.of(id)), empty());
+        assertFalse(auth.isAuthorized());
+    }
+
+    public void testOf_CompletionEndpointWithReasoning_SkipsEndpoint() {
+        var id = "completion-reasoning-id";
+        var configuration = new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(
+            null,
+            null,
+            null,
+            null,
+            MEDIUM_DETAILED_REASONING
+        );
+        var response = singleEndpointResponse(id, "model-name", TaskType.COMPLETION, configuration);
+
+        var auth = ElasticInferenceServiceAuthorizationModel.of(response, "url", FULLY_UPGRADED_COMPAT_SERVICE);
+
+        // Reasoning is only supported for CHAT_COMPLETION; validateCompletionAuthorizedEndpoint throws for
+        // COMPLETION, which createModel's catch-all swallows and logs, so the endpoint is skipped rather
+        // than the exception propagating.
+        assertThat(auth.getEndpoints(Set.of(id)), empty());
+        assertFalse(auth.isAuthorized());
+    }
+
     private static ElasticInferenceServiceAuthorizationResponseEntity singleEndpointResponse(String id, String name, TaskType taskType) {
+        return singleEndpointResponse(id, name, taskType, null);
+    }
+
+    private static ElasticInferenceServiceAuthorizationResponseEntity singleEndpointResponse(
+        String id,
+        String name,
+        TaskType taskType,
+        ElasticInferenceServiceAuthorizationResponseEntity.Configuration configuration
+    ) {
         return new ElasticInferenceServiceAuthorizationResponseEntity(
             List.of(
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -129,6 +201,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     TEST_RELEASE_DATE,
                     TEST_END_OF_LIFE_DATE,
+                    configuration,
                     null,
                     null,
                     null,
@@ -174,6 +247,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 ),
@@ -185,6 +259,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     TEST_RELEASE_DATE,
                     TEST_END_OF_LIFE_DATE,
+                    null,
                     null,
                     null,
                     null,
@@ -216,6 +291,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 ),
@@ -227,6 +303,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     TEST_RELEASE_DATE,
                     TEST_END_OF_LIFE_DATE,
+                    null,
                     null,
                     null,
                     null,
@@ -260,6 +337,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 ),
@@ -271,6 +349,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     TEST_RELEASE_DATE,
                     TEST_END_OF_LIFE_DATE,
+                    null,
                     null,
                     null,
                     null,
@@ -293,7 +372,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new ElasticInferenceServiceCompletionServiceSettings(name1),
             new ElasticInferenceServiceComponents(url),
             DEFAULT_ENDPOINT_METADATA,
-            ImmutableEmptyTaskSettings.INSTANCE
+            ElasticInferenceServiceChatCompletionTaskSettings.EMPTY
         );
 
         assertThat(auth.getEndpoints(Set.of(id1)), is(List.of(chatCompletionEndpoint)));
@@ -325,6 +404,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 ),
@@ -340,8 +420,10 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         similarity.toString(),
                         dimensions,
                         DenseVectorFieldMapper.ElementType.FLOAT.toString(),
+                        null,
                         null
                     ),
+                    null,
                     null,
                     null,
                     List.of(),
@@ -364,7 +446,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new ElasticInferenceServiceCompletionServiceSettings(name1),
             new ElasticInferenceServiceComponents(url),
             DEFAULT_ENDPOINT_METADATA,
-            ImmutableEmptyTaskSettings.INSTANCE
+            ElasticInferenceServiceChatCompletionTaskSettings.EMPTY
         );
         var textEmbeddingEndpoint = new ElasticInferenceServiceDenseEmbeddingsModel(
             id2,
@@ -403,6 +485,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 ),
@@ -418,8 +501,10 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         similarity.toString(),
                         dimensions,
                         DenseVectorFieldMapper.ElementType.FLOAT.toString(),
+                        null,
                         null
                     ),
+                    null,
                     null,
                     null,
                     List.of(),
@@ -447,7 +532,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new ElasticInferenceServiceCompletionServiceSettings(name1),
             new ElasticInferenceServiceComponents(url),
             DEFAULT_ENDPOINT_METADATA,
-            ImmutableEmptyTaskSettings.INSTANCE
+            ElasticInferenceServiceChatCompletionTaskSettings.EMPTY
         );
 
         assertThat(auth.getEndpoints(Set.of(id1)), is(List.of(chatCompletionEndpoint)));
@@ -483,6 +568,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 ),
@@ -499,8 +585,10 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         null,
                         dimensions,
                         DenseVectorFieldMapper.ElementType.FLOAT.toString(),
+                        null,
                         null
                     ),
+                    null,
                     null,
                     null,
                     List.of(),
@@ -519,8 +607,10 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         SimilarityMeasure.DOT_PRODUCT.toString(),
                         dimensions,
                         DenseVectorFieldMapper.ElementType.FLOAT.toString(),
-                        Map.of("unexpected_field", "unexpected_value")
+                        Map.of("unexpected_field", "unexpected_value"),
+                        null
                     ),
+                    null,
                     null,
                     null,
                     List.of(),
@@ -539,8 +629,10 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         "invalid_similarity",
                         dimensions,
                         DenseVectorFieldMapper.ElementType.FLOAT.toString(),
+                        null,
                         null
                     ),
+                    null,
                     null,
                     null,
                     List.of(),
@@ -559,8 +651,10 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         SimilarityMeasure.COSINE.toString(),
                         null,
                         DenseVectorFieldMapper.ElementType.FLOAT.toString(),
+                        null,
                         null
                     ),
+                    null,
                     null,
                     null,
                     List.of(),
@@ -579,8 +673,10 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         SimilarityMeasure.COSINE.toString(),
                         123,
                         null,
+                        null,
                         null
                     ),
+                    null,
                     null,
                     null,
                     List.of(),
@@ -603,7 +699,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new ElasticInferenceServiceCompletionServiceSettings(name),
             new ElasticInferenceServiceComponents(url),
             DEFAULT_ENDPOINT_METADATA,
-            ImmutableEmptyTaskSettings.INSTANCE
+            ElasticInferenceServiceChatCompletionTaskSettings.EMPTY
         );
 
         assertThat(
@@ -642,8 +738,10 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         dimensions,
                         // Valid element type as it should be converted to lower case
                         "fLoaT",
+                        null,
                         null
                     ),
+                    null,
                     null,
                     null,
                     List.of(),
@@ -663,8 +761,10 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         dimensions,
                         // Valid element type as it should be converted to lower case
                         "FLOAT",
+                        null,
                         null
                     ),
+                    null,
                     null,
                     null,
                     List.of(),
@@ -683,8 +783,10 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         similarityMeasure.toString(),
                         dimensions,
                         "float",
+                        null,
                         null
                     ),
+                    null,
                     null,
                     null,
                     List.of(),
@@ -703,8 +805,10 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         similarityMeasure.toString(),
                         dimensions,
                         DenseVectorFieldMapper.ElementType.BYTE.toString(),
+                        null,
                         null
                     ),
+                    null,
                     null,
                     null,
                     List.of(),
@@ -723,8 +827,10 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         similarityMeasure.toString(),
                         dimensions,
                         "invalid-element-type",
+                        null,
                         null
                     ),
+                    null,
                     null,
                     null,
                     List.of(),
@@ -801,6 +907,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             similarity.toString(),
             dimensions,
             elementType,
+            null,
             null
         );
         var response = new ElasticInferenceServiceAuthorizationResponseEntity(
@@ -813,6 +920,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     TEST_RELEASE_DATE,
                     TEST_END_OF_LIFE_DATE,
+                    null,
                     null,
                     null,
                     null,
@@ -830,6 +938,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 ),
@@ -841,6 +950,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     TEST_RELEASE_DATE,
                     TEST_END_OF_LIFE_DATE,
+                    null,
                     null,
                     null,
                     null,
@@ -858,6 +968,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     denseEmbeddingConfiguration,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 ),
@@ -872,6 +983,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     denseEmbeddingConfiguration,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 ),
@@ -883,6 +995,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     TEST_RELEASE_DATE,
                     TEST_END_OF_LIFE_DATE,
+                    null,
                     null,
                     null,
                     null,
@@ -915,7 +1028,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     new ElasticInferenceServiceCompletionServiceSettings(nameChat),
                     new ElasticInferenceServiceComponents(url),
                     DEFAULT_ENDPOINT_METADATA,
-                    ImmutableEmptyTaskSettings.INSTANCE
+                    ElasticInferenceServiceChatCompletionTaskSettings.EMPTY
                 ),
                 new ElasticInferenceServiceSparseEmbeddingsModel(
                     idSparse,
@@ -972,6 +1085,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 )
@@ -988,13 +1102,14 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new ElasticInferenceServiceCompletionServiceSettings(name),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(properties, statusHeuristic, TEST_RELEASE_DATE_PARSED, TEST_END_OF_LIFE_DATE_PARSED),
                 new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
                 EndpointMetadata.Display.EMPTY_INSTANCE,
                 List.of(),
                 false
             ),
-            ImmutableEmptyTaskSettings.INSTANCE
+            ElasticInferenceServiceChatCompletionTaskSettings.EMPTY
         );
 
         assertThat(auth.getEndpoints(Set.of(id)).get(0), is(expectedEndpoint));
@@ -1019,6 +1134,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE,
                     null,
                     null,
+                    null,
                     fingerprint,
                     List.of(),
                     false
@@ -1036,6 +1152,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new ElasticInferenceServiceCompletionServiceSettings(name),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(
                     List.of(),
                     StatusHeuristic.fromString(status),
@@ -1047,7 +1164,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                 List.of(),
                 false
             ),
-            ImmutableEmptyTaskSettings.INSTANCE
+            ElasticInferenceServiceChatCompletionTaskSettings.EMPTY
         );
 
         assertThat(auth.getEndpoints(Set.of(id)).get(0), is(expectedEndpoint));
@@ -1073,6 +1190,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     display,
                     null,
+                    null,
                     List.of(),
                     false
                 )
@@ -1089,6 +1207,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new ElasticInferenceServiceCompletionServiceSettings(name),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(
                     List.of(),
                     StatusHeuristic.fromString(status),
@@ -1100,7 +1219,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                 List.of(),
                 false
             ),
-            ImmutableEmptyTaskSettings.INSTANCE
+            ElasticInferenceServiceChatCompletionTaskSettings.EMPTY
         );
 
         assertThat(auth.getEndpoints(Set.of(id)).get(0), is(expectedEndpoint));
@@ -1126,6 +1245,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 )
@@ -1142,13 +1262,14 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new ElasticInferenceServiceCompletionServiceSettings(name),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(List.of(), statusHeuristic, TEST_RELEASE_DATE_PARSED, TEST_END_OF_LIFE_DATE_PARSED),
                 new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
                 EndpointMetadata.Display.EMPTY_INSTANCE,
                 List.of(),
                 false
             ),
-            ImmutableEmptyTaskSettings.INSTANCE
+            ElasticInferenceServiceChatCompletionTaskSettings.EMPTY
         );
 
         assertThat(auth.getEndpoints(Set.of(id)).get(0), is(expectedEndpoint));
@@ -1174,6 +1295,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 )
@@ -1190,13 +1312,14 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new ElasticInferenceServiceCompletionServiceSettings(name),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(List.of(), statusHeuristic, TEST_RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
                 EndpointMetadata.Display.EMPTY_INSTANCE,
                 List.of(),
                 false
             ),
-            ImmutableEmptyTaskSettings.INSTANCE
+            ElasticInferenceServiceChatCompletionTaskSettings.EMPTY
         );
 
         assertThat(auth.getEndpoints(Set.of(id)).get(0), is(expectedEndpoint));
@@ -1221,6 +1344,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 ),
@@ -1235,6 +1359,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 ),
@@ -1245,6 +1370,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     status,
                     null,
                     "  ",
+                    null,
                     null,
                     null,
                     null,
@@ -1280,6 +1406,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 ),
@@ -1294,6 +1421,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 ),
@@ -1305,6 +1433,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     TEST_RELEASE_DATE,
                     " ",
+                    null,
                     null,
                     null,
                     null,
@@ -1337,7 +1466,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     TEST_RELEASE_DATE,
                     TEST_END_OF_LIFE_DATE,
-                    new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(null, null, null, chunkingSettings),
+                    new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(null, null, null, chunkingSettings, null),
+                    null,
                     null,
                     null,
                     List.of(),
@@ -1357,6 +1487,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.fromMap(chunkingSettings),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(
                     List.of(),
                     StatusHeuristic.fromString(status),
@@ -1403,8 +1534,10 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         similarity.toString(),
                         dimensions,
                         DenseVectorFieldMapper.ElementType.FLOAT.toString(),
-                        chunkingSettings
+                        chunkingSettings,
+                        null
                     ),
+                    null,
                     null,
                     null,
                     List.of(),
@@ -1424,6 +1557,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.fromMap(chunkingSettings),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(
                     List.of(),
                     StatusHeuristic.fromString(status),
@@ -1456,7 +1590,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     TEST_RELEASE_DATE,
                     TEST_END_OF_LIFE_DATE,
-                    new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(null, null, null, Map.of()),
+                    new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(null, null, null, Map.of(), null),
+                    null,
                     null,
                     null,
                     List.of(),
@@ -1476,6 +1611,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.fromMap(Map.of()),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(
                     List.of(),
                     StatusHeuristic.fromString(status),
@@ -1511,6 +1647,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 )
@@ -1525,6 +1662,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new ElasticInferenceServiceCompletionServiceSettings(name),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(
                     List.of(),
                     StatusHeuristic.fromString(STATUS_GA),
@@ -1536,7 +1674,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                 List.of(),
                 false
             ),
-            ImmutableEmptyTaskSettings.INSTANCE
+            ElasticInferenceServiceChatCompletionTaskSettings.EMPTY
         );
         assertThat(auth.getEndpoints(Set.of(id1, id2, "nonexistent")).get(0), is(expectedEndpoint));
     }
@@ -1556,6 +1694,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     TEST_RELEASE_DATE,
                     TEST_END_OF_LIFE_DATE,
+                    null,
                     null,
                     null,
                     null,
@@ -1593,6 +1732,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     fingerprint,
                     List.of(),
                     false
@@ -1609,8 +1749,10 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         SimilarityMeasure.COSINE.toString(),
                         256,
                         DenseVectorFieldMapper.ElementType.FLOAT.toString(),
+                        null,
                         null
                     ),
+                    null,
                     null,
                     null,
                     List.of(),
@@ -1629,13 +1771,14 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new ElasticInferenceServiceCompletionServiceSettings(name1),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(properties, StatusHeuristic.fromString(status), TEST_RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal(fingerprint, ENDPOINT_SCHEMA_VERSION),
                 EndpointMetadata.Display.EMPTY_INSTANCE,
                 List.of(),
                 false
             ),
-            ImmutableEmptyTaskSettings.INSTANCE
+            ElasticInferenceServiceChatCompletionTaskSettings.EMPTY
         );
 
         assertThat(scoped.getEndpoints(Set.of(id1, id2)).get(0), is(expectedEndpoint));
@@ -1660,8 +1803,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         var name = "model1";
         var url = "base_url";
         var regions = List.of(
-            new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us"),
-            new EndpointMetadata.EndpointRegion("gcp", "europe-west1", "eu")
+            new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us", null),
+            new EndpointMetadata.EndpointRegion("gcp", "europe-west1", "eu", null)
         );
 
         var response = new ElasticInferenceServiceAuthorizationResponseEntity(
@@ -1674,6 +1817,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     TEST_RELEASE_DATE,
                     TEST_END_OF_LIFE_DATE,
+                    null,
                     null,
                     null,
                     null,
@@ -1693,6 +1837,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new ElasticInferenceServiceCompletionServiceSettings(name),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(
                     List.of(),
                     StatusHeuristic.fromString(STATUS_GA),
@@ -1704,7 +1849,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                 regions,
                 false
             ),
-            ImmutableEmptyTaskSettings.INSTANCE
+            ElasticInferenceServiceChatCompletionTaskSettings.EMPTY
         );
 
         assertThat(auth.getEndpoints(Set.of(id)).get(0), is(expectedEndpoint));
@@ -1728,6 +1873,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     true
                 )
@@ -1744,6 +1890,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new ElasticInferenceServiceCompletionServiceSettings(name),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(
                     List.of(),
                     StatusHeuristic.fromString(STATUS_GA),
@@ -1755,7 +1902,69 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                 List.of(),
                 true
             ),
-            ImmutableEmptyTaskSettings.INSTANCE
+            ElasticInferenceServiceChatCompletionTaskSettings.EMPTY
+        );
+
+        assertThat(auth.getEndpoints(Set.of(id)).get(0), is(expectedEndpoint));
+    }
+
+    public void testCreatesEndpointMetadataWithCapabilities() {
+        var id = "id1";
+        var name = "model1";
+        var url = "base_url";
+        var capabilities = new EndpointMetadata.Capabilities(
+            new EndpointMetadata.ReasoningCapability(
+                List.of(ReasoningEffort.HIGH, ReasoningEffort.MEDIUM, ReasoningEffort.LOW, ReasoningEffort.NONE),
+                ReasoningEffort.HIGH
+            ),
+            new EndpointMetadata.ContextWindow(1050000, 128000)
+        );
+
+        var response = new ElasticInferenceServiceAuthorizationResponseEntity(
+            List.of(
+                new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                    id,
+                    name,
+                    createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
+                    STATUS_GA,
+                    null,
+                    TEST_RELEASE_DATE,
+                    TEST_END_OF_LIFE_DATE,
+                    null,
+                    null,
+                    null,
+                    null,
+                    List.of(),
+                    false,
+                    capabilities
+                )
+            ),
+            Set.of()
+        );
+
+        var auth = ElasticInferenceServiceAuthorizationModel.of(response, url, FULLY_UPGRADED_COMPAT_SERVICE);
+        assertTrue(auth.isAuthorized());
+
+        var expectedEndpoint = new ElasticInferenceServiceCompletionModel(
+            id,
+            TaskType.CHAT_COMPLETION,
+            new ElasticInferenceServiceCompletionServiceSettings(name),
+            new ElasticInferenceServiceComponents(url),
+            new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
+                new EndpointMetadata.Heuristics(
+                    List.of(),
+                    StatusHeuristic.fromString(STATUS_GA),
+                    TEST_RELEASE_DATE_PARSED,
+                    TEST_END_OF_LIFE_DATE_PARSED
+                ),
+                new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
+                EndpointMetadata.Display.EMPTY_INSTANCE,
+                List.of(),
+                false,
+                capabilities
+            ),
+            ElasticInferenceServiceChatCompletionTaskSettings.EMPTY
         );
 
         assertThat(auth.getEndpoints(Set.of(id)).get(0), is(expectedEndpoint));

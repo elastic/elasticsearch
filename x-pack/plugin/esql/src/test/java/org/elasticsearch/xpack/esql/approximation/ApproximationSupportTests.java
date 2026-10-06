@@ -43,9 +43,11 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.MaxOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MinOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.NumericAggregate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PackDimsAgg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramFraction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Scalar;
@@ -59,6 +61,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SumSerializati
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.UnaryAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTime;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
@@ -73,25 +76,35 @@ import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
+import org.elasticsearch.xpack.esql.plan.logical.RemoteFetchSource;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.SparklineGenerateEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
+import org.elasticsearch.xpack.esql.plan.logical.TopNPreFilter;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesReduction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramFraction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramFunctionCall;
 import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramQuantile;
+import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
@@ -154,7 +167,11 @@ public class ApproximationSupportTests extends ESTestCase {
         PromqlFunctionCall.class,
         WithinSeriesAggregate.class,
         AcrossSeriesAggregate.class,
+        AcrossSeriesReduction.class,
+        HistogramFunctionCall.class,
+        HistogramFraction.class,
         HistogramQuantile.class,
+        MetadataManipulationFunction.class,
         PlaceholderRelation.class,
         ScalarConversionFunction.class,
         ScalarFunction.class,
@@ -185,25 +202,34 @@ public class ApproximationSupportTests extends ESTestCase {
         InferencePlan.class,
         CompoundOutputEval.class,
         AbstractSubqueryJoin.class,
+        MergePlan.class,
 
         // These plans don't occur in a correct analyzed/optimzed query.
         AntiJoin.class,
         Dedup.class,
         Drop.class,
+        InnerJoin.class,
         InlineStats.class,
         Keep.class,
         MarkJoin.class,
         Lookup.class,
         LookupJoin.class,
         ParameterizedQuery.class,
+        RemoteFetchSource.class,
         Rename.class,
         ResolvingProject.class,
         SemiJoin.class,
-        SparklineGenerateEmptyBuckets.class
+        SparklineGenerateEmptyBuckets.class,
+
+        // internals
+        PackDims.class,
+        UnpackDims.class,
+        TopNPreFilter.class
     );
 
     private static final Set<Class<? extends AggregateFunction>> UNSUPPORTED_AGGS = Set.of(
-        // A quantile interpolated across cumulative histogram buckets is not amenable to sampling-based approximation.
+        // PromQL classic histogram functions (implemented as aggs) are not supported
+        PromqlHistogramFraction.class,
         PromqlHistogramQuantile.class,
 
         // Counting distinct values is hard to approximate.
@@ -235,6 +261,7 @@ public class ApproximationSupportTests extends ESTestCase {
         // These multivalued aggs are not suitable for approximation.
         DimensionValues.class,
         Values.class,
+        PackDimsAgg.class,
 
         // Histograms are not suitable for approximation.
         HistogramMerge.class,
@@ -244,6 +271,7 @@ public class ApproximationSupportTests extends ESTestCase {
         NumericAggregate.class,
         TimeSeriesAggregateFunction.class,
         SpatialAggregateFunction.class,
+        UnaryAggregateFunction.class,
 
         // These aggs don't occur in a correct query.
         SumSerializationTests.OldSum.class,

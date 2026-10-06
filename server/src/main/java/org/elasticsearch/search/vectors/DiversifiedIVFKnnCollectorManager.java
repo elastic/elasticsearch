@@ -10,19 +10,19 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.BitSet;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.LongAccumulator;
 
 public class DiversifiedIVFKnnCollectorManager extends AbstractIVFKnnVectorQuery.IVFCollectorManager {
     private final int k;
     private final BitSetProducer parentsFilter;
 
-    DiversifiedIVFKnnCollectorManager(int k, IndexSearcher searcher, BitSetProducer parentsFilter) {
-        super(k, searcher);
+    DiversifiedIVFKnnCollectorManager(int k, LongAccumulator longAccumulator, BitSetProducer parentsFilter) {
+        super(k, longAccumulator);
         this.k = k;
         this.parentsFilter = parentsFilter;
     }

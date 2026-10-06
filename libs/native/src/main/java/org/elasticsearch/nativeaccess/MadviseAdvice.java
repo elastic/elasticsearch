@@ -12,7 +12,7 @@ package org.elasticsearch.nativeaccess;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 /**
- * Constants for use with {@link CloseableMappedByteBuffer#madvise}.
+ * Constants for use with {@link MappedSegment#madvise}.
  * Values correspond to the POSIX {@code posix_madvise} advice constants.
  */
 public final class MadviseAdvice {

@@ -706,7 +706,10 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         final var abortThreshold = TimeValue.timeValueMillis(50);
         final var settings = Settings.builder()
             .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
-            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(), abortThreshold)
+            .put(
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(),
+                abortThreshold
+            )
             .build();
 
         try (var threadPool = new ReEvaluationThreadPool(getTestName())) {
@@ -757,7 +760,10 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         final var abortThreshold = TimeValue.timeValueMillis(50);
         final var settings = Settings.builder()
             .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
-            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(), abortThreshold)
+            .put(
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(),
+                abortThreshold
+            )
             .build();
 
         final var planRef = new AtomicReference<>(SearchRecoveryTimeout.fixed(sliceSize, "context-before-switch"));
@@ -874,7 +880,10 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         final var abortThreshold = TimeValue.timeValueMillis(50);
         final var settings = Settings.builder()
             .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
-            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(), abortThreshold)
+            .put(
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(),
+                abortThreshold
+            )
             .build();
 
         try (var threadPool = new ReEvaluationThreadPool(getTestName())) {

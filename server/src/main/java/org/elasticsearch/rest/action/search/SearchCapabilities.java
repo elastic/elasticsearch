@@ -89,6 +89,9 @@ public final class SearchCapabilities {
      */
     private static final String REGEXP_QUERY_CHARGED = "regexp_query_charged";
 
+    /** A text field that indexes no positions answers positional queries from the values it keeps. */
+    private static final String POSITIONAL_QUERIES_ON_TEXT_WITHOUT_POSITIONS = "positional_queries_on_text_without_positions";
+
     public static final Set<String> CAPABILITIES;
     static {
         HashSet<String> capabilities = new HashSet<>();
@@ -130,6 +133,7 @@ public final class SearchCapabilities {
         capabilities.add(AGGREGATION_INCLUDE_EXCLUDE_REGEX_LENGTH_LIMIT);
         capabilities.add(AGGREGATION_INCLUDE_EXCLUDE_REGEX_CHARGED);
         capabilities.add(REGEXP_QUERY_CHARGED);
+        capabilities.add(POSITIONAL_QUERIES_ON_TEXT_WITHOUT_POSITIONS);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

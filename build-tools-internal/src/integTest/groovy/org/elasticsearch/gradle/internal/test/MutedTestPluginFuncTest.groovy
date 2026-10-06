@@ -102,12 +102,21 @@ class MutedTestPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
         when:
         def mainTaskResult = gradleRunner("test").build()
-        def scopedTaskResult = gradleRunner("otherTest").buildAndFail()
+        def scopedTaskResult = runsWithCiSemantics() ? gradleRunner("otherTest").build() : gradleRunner("otherTest").buildAndFail()
 
         then:
         mainTaskResult.task(":test").outcome == TaskOutcome.SUCCESS
         mainTaskResult.output.contains("someMutedTest STARTED")
-        scopedTaskResult.output.contains("No tests found for given includes")
+        scopedTaskResult.output.contains("someMutedTest STARTED") == false
+        if (runsWithCiSemantics()) {
+            scopedTaskResult.task(":otherTest").outcome == TaskOutcome.SUCCESS
+        } else {
+            scopedTaskResult.output.contains("No tests found for given includes")
+        }
+    }
+
+    private boolean runsWithCiSemantics() {
+        return System.getenv("JENKINS_URL") != null || System.getenv("BUILDKITE_BUILD_URL") != null || System.getProperty("isCI") != null
     }
 
     def "adding a scoped mute only reexecutes the affected test task"() {

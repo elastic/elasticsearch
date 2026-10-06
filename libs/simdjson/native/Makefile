@@ -15,7 +15,7 @@
 # so we compile a single source file per platform — no tier-1/tier-2 split.
 #
 # Intended to be run inside the shared cross-compilation toolchain container
-# (es-native-cross-toolchain:7 — clang-21, GCC 8 libstdc++ cross libs, and llvm-mingw;
+# (es-native-cross-toolchain:8 — clang-21, GCC 8 libstdc++ cross libs, and llvm-mingw;
 # the open-source Darwin sysroot baked in). See publish_simdjson_binaries.sh.
 #
 # Linux cross builds pin libstdc++ to GCC 8 (GLIBCXX_3.4.25) while keeping

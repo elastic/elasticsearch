@@ -460,9 +460,11 @@ public interface StorageObject {
     default void bindRowGroup(RowGroupIo io) {}
 
     /**
-     * Wait budget, in milliseconds, for a caller that must block on admission before issuing a
-     * GET. Decorators that wrap a query budget return that budget's timeout; the default is
-     * {@link QueryAdmission#DEFAULT_ACQUIRE_TIMEOUT_MS}.
+     * Timeout in milliseconds exposed by query-budget decorators for permit-acquire waits.
+     * Parquet coalesced PER_GET byte admission no longer reads this; that wait is
+     * {@code ParquetIoWatermark.DEFAULT_ADMIT_WAIT_MS}. Decorators that wrap a query budget still
+     * return {@link QueryAdmission#DEFAULT_ACQUIRE_TIMEOUT_MS} (or the budget acquire timeout)
+     * so tests and any remaining permit-wait callers can observe it.
      */
     default long admissionWaitTimeoutMs() {
         return QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS;

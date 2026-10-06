@@ -109,7 +109,9 @@ $$$schema-resolution$$$
 `schema_resolution`
 :   The strategy for reconciling schemas across multiple files.
 
-    - **Default:** `first_file_wins`
+    - **Default:**
+      - {applies_to}`stack: experimental 9.6+` `first_file_wins`
+      - {applies_to}`stack: experimental =9.5` `union_by_name`
     - **Valid values:** `first_file_wins`, `union_by_name`, `strict`
     - **Related:** `file_sort_by`, `file_order`
 
@@ -206,7 +208,7 @@ $$$target-split-size$$$
 
 $$$split-probe-window$$$
 
-`split_probe_window`
+`split_probe_window` {applies_to}`stack: experimental 9.6+`
 :   The number of bytes that each record-boundary search can read while files are split.
 
     - **Formats:** NDJSON, and CSV and TSV without quoting or escaping
@@ -223,7 +225,7 @@ $$$split-probe-window$$$
 
 $$$max-split-probes$$$
 
-`max_split_probes`
+`max_split_probes` {applies_to}`stack: experimental 9.6+`
 :   The maximum number of record-boundary searches that a query can perform, which limits how many splits its files are cut into.
 
     - **Formats:** NDJSON, and CSV and TSV without quoting or escaping
@@ -248,7 +250,7 @@ These settings apply to datasets whose data source uses Amazon S3 or an S3-compa
 
 $$$amazon-s3-region$$$
 
-`region`
+`region` {applies_to}`stack: experimental 9.6+`
 :   The AWS region used for the S3 client, for example `eu-central-1`.
 
     - **Default:** Auto-detected
@@ -315,7 +317,7 @@ $$$csv-header-row$$$
 
 $$$csv-skip-rows$$$
 
-`skip_rows`
+`skip_rows` {applies_to}`stack: experimental 9.6+`
 :   The number of leading content records to discard from each file.
 
     - **Default:** `0`
@@ -330,7 +332,9 @@ $$$csv-null-value$$$
 :   The token that reads as null.
 
     - **Default:** None. No token reads as null.
-    - **Valid values:** A string, for example `NULL`, `NA`, or `\N`. An empty string `""` makes empty fields read as null.
+    - **Valid values:** A string, for example `NULL`, `NA`, or `\N`.
+
+    {applies_to}`stack: experimental 9.6+` An empty string `""` makes empty fields read as null.
 
 $$$csv-encoding$$$
 
@@ -346,11 +350,13 @@ These settings tune schema sampling, quoting characters, column naming, value pa
 
 $$$csv-schema-sample-size$$$
 
-`schema_sample_size` {applies_to}`stack: experimental 9.6+`
+`schema_sample_size`
 :   The number of rows sampled to infer the schema.
 
     - **Default:** `20000`
-    - **Valid values:** An integer from `1` through `20000`
+    - **Valid values:**
+      - {applies_to}`stack: experimental 9.6+` An integer from `1` through `20000`
+      - {applies_to}`stack: experimental =9.5` An integer from `1` through `1000`
 
     The sample determines whether sparse or late-appearing fields get a column. To learn how schemas are inferred, refer to [schema inference](esql-data-federation-schema.md).
 
@@ -456,17 +462,19 @@ This setting controls how much of each file is sampled to infer the schema.
 
 $$$ndjson-schema-sample-size$$$
 
-`schema_sample_size` {applies_to}`stack: experimental 9.6+`
+`schema_sample_size`
 :   The number of lines sampled to infer the schema.
 
     - **Default:** `20000`
-    - **Valid values:** An integer from `1` through `20000`
+    - **Valid values:**
+      - {applies_to}`stack: experimental 9.6+` An integer from `1` through `20000`
+      - {applies_to}`stack: experimental =9.5` An integer from `1` through `1000`
 
     The sample determines whether sparse or late-appearing fields get a column. To learn how schemas are inferred, refer to [schema inference](esql-data-federation-schema.md).
 
 ### Advanced NDJSON settings
 
-These settings tune parallel reading and date parsing for NDJSON files.
+These settings tune parallel reading, date parsing, and schema size limits for NDJSON files.
 
 $$$ndjson-segment-size$$$
 
@@ -483,6 +491,16 @@ $$$ndjson-datetime-format$$$
 
     - **Default:** `strict_date_optional_time`
     - **Valid values:** A [date format](/reference/elasticsearch/mapping-reference/mapping-date-format.md) pattern or built-in format name. Combine formats with `||`.
+
+$$$ndjson-schema-max-fields$$$
+
+`schema_max_fields` {applies_to}`stack: experimental 9.6+`
+:   The maximum number of fields that schema inference can create from a file.
+
+    - **Default:** `1000`, or the value of the `esql.external.schema_max_fields` [cluster setting](esql-data-federation-cluster-settings.md)
+    - **Valid values:** An integer from `1` through `100000`
+
+    Objects count as fields, as well as leaf fields, and each segment of a dotted key counts as a field. If a file's inferred schema exceeds the limit, the query fails.
 
 ## Parquet settings
 

@@ -34,15 +34,17 @@ Parquet metadata can also contain column statistics and bloom filters that let q
 
 ## Choose a schema resolution strategy
 
-When a dataset spans multiple files, [`schema_resolution`](esql-data-federation-dataset-settings.md#schema-resolution) controls how differences between their schemas are reconciled. The default is `first_file_wins`.
+When a dataset spans multiple files, [`schema_resolution`](esql-data-federation-dataset-settings.md#schema-resolution) controls how differences between their schemas are reconciled.
 
-{applies_to}`stack: experimental 9.6+` Datasets created before `first_file_wins` became the default keep using `union_by_name` when they have no stored `schema_resolution` value.
+{applies_to}`stack: experimental 9.6+` The default is `first_file_wins`. Datasets created before `first_file_wins` became the default keep using `union_by_name` when they have no stored `schema_resolution` value.
+
+{applies_to}`stack: experimental =9.5` The default is `union_by_name`.
 
 The following table compares the available strategies:
 
 | Strategy | Behavior | Use when |
 |---|---|---|
-| `first_file_wins` | Reads the schema from the first file after [file ordering](#control-which-file-supplies-the-schema), and reads later files with that schema. Only one file's schema is inspected. | Files share a schema, and you want the least schema-discovery work. |
+| `first_file_wins` | Reads the schema from the first file after [file ordering](#control-which-file-supplies-the-schema), and reads later files with that schema. Columns that exist only in later files aren't included. Only one file's schema is inspected. | Files share a schema, and you want the least schema-discovery work. |
 | `union_by_name` | Inspects every file and merges columns by name. Missing columns contain null values. Compatible types are widened, and incompatible types become `keyword`. | Files can gain or lose columns, and those differences shouldn't fail the query. |
 | `strict` | Inspects every file and requires the same schema, apart from nullability. | Schema drift should fail the query. |
 
@@ -55,7 +57,7 @@ A type mismatch in a later Parquet file doesn't fail the query. If a column's ty
 stack: experimental 9.6+
 ```
 
-When [`schema_resolution`](esql-data-federation-dataset-settings.md#schema-resolution) is `first_file_wins`, the schema comes from the first file after the discovered files are ordered. Use [`file_sort_by`](esql-data-federation-dataset-settings.md#file-sort-by) to choose how files are ordered, and [`file_order`](esql-data-federation-dataset-settings.md#file-order) to take the first or last file. The other strategies reject these settings, because they inspect every file.
+When [`schema_resolution`](esql-data-federation-dataset-settings.md#schema-resolution) is `first_file_wins`, the schema comes from the first file after the discovered files are ordered. Files are ordered after any partition filters prune the listing. Use [`file_sort_by`](esql-data-federation-dataset-settings.md#file-sort-by) to choose how files are ordered, and [`file_order`](esql-data-federation-dataset-settings.md#file-order) to take the first or last file. The other strategies reject these settings, because they inspect every file.
 
 The following table shows which `file_sort_by` value to use:
 

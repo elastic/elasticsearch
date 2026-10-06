@@ -21,10 +21,11 @@ creating a dataset, [connect a data source](esql-data-federation-sources.md) and
 
 In {{kib}}, you create and manage datasets from the **Datasets** tab under **Data management** > **{{esql}} Data Federation**.
 
-The **Datasets** tab lists each dataset including:
-- its data source and data source type
-- its resource
-- its description
+The **Datasets** tab lists each dataset with its:
+
+- Data source and data source type
+- Resource
+- Description
 
 From this tab you can search your datasets, filter by data source, add a new one, and edit or delete an existing one.
 

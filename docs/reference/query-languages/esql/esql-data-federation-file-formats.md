@@ -19,7 +19,7 @@ The following table compares the supported file formats:
 
 | Format | Recognized extensions | Schema source | Compression |
 |---|---|---|---|
-| Parquet | `.parquet`, `.parq` | File metadata | Internal per column chunk |
+| Parquet | `.parquet`<br>{applies_to}`stack: experimental 9.6+` `.parq` | File metadata | Internal per column chunk |
 | NDJSON | `.ndjson`, `.jsonl`, `.json` | Sampled rows | Uncompressed, gzip, or zstd |
 | CSV | `.csv` | Sampled rows | Uncompressed, gzip, or zstd |
 | TSV | `.tsv` | Sampled rows | Uncompressed, gzip, or zstd |
@@ -31,7 +31,7 @@ Scope each dataset to one file format. {{es}} infers the format when the resourc
 Set [`format`](esql-data-federation-dataset-settings.md#format) explicitly for extensionless resources such as `hits/*` and for mixed patterns such as `*.{parquet,csv}`. Alternatively, use a [resource pattern](esql-data-federation-patterns.md) that selects one format, and create another dataset for files in a different format.
 
 :::{important}
-When set, the `format` setting selects the reader for every file the resource pattern matches. Unrecognized extensions (for example `.log.gz`) are still read with that reader. An object whose name maps to a **different registered** format than the dataset is rejected; the query does not skip the file or return garbled rows.
+An explicit `format` selects the reader for every file that the resource pattern matches, including files with unrecognized extensions such as `.log.gz`. A file whose extension maps to a different registered format is rejected rather than skipped. For details, refer to [`format`](esql-data-federation-dataset-settings.md#format).
 :::
 
 ## Compression

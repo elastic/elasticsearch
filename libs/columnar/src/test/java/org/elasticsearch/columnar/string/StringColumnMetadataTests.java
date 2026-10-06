@@ -17,6 +17,8 @@ import org.elasticsearch.columnar.substrate.MonotonicWriter;
 
 import java.io.IOException;
 
+import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
+
 /** What a string column records about itself, written and read back on its own. */
 public class StringColumnMetadataTests extends ColumnarStringTestCase {
 
@@ -74,16 +76,31 @@ public class StringColumnMetadataTests extends ColumnarStringTestCase {
         });
     }
 
-    /** A column holds more slots than it has documents exactly when a document holds more than one. */
-    public void testMultiValuedFollowsFromTheCounts() throws IOException {
+    /** A column records whether one of its documents holds more than one slot, rather than deriving it. */
+    public void testMultiValuedIsWhatTheColumnRecorded() throws IOException {
         final BytesRef[][] docSlots = randomDocSlots(between(2, 50), 1, false, false);
-        withColumn(docSlots, (metadata, reader) -> assertFalse("as many slots as documents", metadata.multiValued()));
+        withColumn(docSlots, (metadata, reader) -> assertFalse("one slot a document", metadata.multiValued()));
 
         final BytesRef[][] several = randomDocSlots(between(2, 50), 1, false, false);
         several[between(0, several.length - 1)] = new BytesRef[] { new BytesRef("a"), new BytesRef("b") };
         withColumn(several, (metadata, reader) -> {
-            assertTrue("more slots than documents", metadata.multiValued());
+            assertTrue("a document holds two", metadata.multiValued());
             assertEquals("numValues counts slots", numValues(several), metadata.numValues());
+        });
+    }
+
+    /**
+     * The counts cannot answer it: a document holding none and a document holding two leave as many slots as
+     * documents, so multivaluedness is what the column recorded of the documents it wrote rather than what its
+     * totals imply.
+     */
+    public void testMultiValuedWhereTheCountsCancel() throws IOException {
+        final BytesRef[][] docSlots = randomDocSlots(between(4, 50), 1, false, false);
+        docSlots[0] = new BytesRef[0];
+        docSlots[1] = new BytesRef[] { new BytesRef("a"), new BytesRef("b") };
+        withColumn(docSlots, (metadata, reader) -> {
+            assertEquals("the counts cancel", metadata.numValues(), metadata.numDocsWithField());
+            assertTrue("a document holds two", metadata.multiValued());
         });
     }
 
@@ -102,6 +119,72 @@ public class StringColumnMetadataTests extends ColumnarStringTestCase {
             assertEquals("every slot is null", numValues(docSlots), metadata.numNullSlots());
             assertRoundTrips(metadata, docSlots.length);
         });
+    }
+
+    /** The bound a column records, and the cap that says when it still holds, survive the round trip. */
+    public void testTheCoverageBoundRoundTrips() throws IOException {
+        final BytesRef[] docValues = new BytesRef[between(50, 400)];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = new BytesRef(randomBoolean() ? "head" : "tail-" + d);
+        }
+        withColumn(
+            docValues,
+            randomValidBlockSize(),
+            randomChunkCodec(),
+            randomTargetChunkBytes(),
+            StringColumnOptions.DEFAULT_DICTIONARY,
+            (metadata, reader) -> {
+                assertTrue("the column recorded something for a merge", metadata.hasSummary());
+                final BestCoverage written = metadata.summary().bestCoverage();
+                assertTrue("including a bound", written.known());
+                final StringColumnMetadata read = roundTrip(metadata, docValues.length);
+                assertEquals("the bound", written, read.summary().bestCoverage());
+                assertEquals("the values it is a share of", written.numValues(), read.summary().bestCoverage().numValues());
+                assertEquals("and the cap it holds under", written.cap(), read.summary().bestCoverage().cap());
+            }
+        );
+    }
+
+    // NOTE: only a column whose dictionary policy is enabled surveys, and a survey always takes a bound, so
+    // nothing the writer produces today carries an unknown one. The shape is still readable and still has to
+    // read back as unknown rather than as a bound of zero, which would refuse every later dictionary.
+    public void testAnUnrecordedBoundReadsBackUnknown() throws IOException {
+        final BytesRef[] docValues = new BytesRef[between(50, 400)];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = new BytesRef(randomBoolean() ? "head" : "tail-" + d);
+        }
+        withColumn(
+            docValues,
+            randomValidBlockSize(),
+            randomChunkCodec(),
+            randomTargetChunkBytes(),
+            StringColumnOptions.DEFAULT_DICTIONARY,
+            (metadata, reader) -> {
+                final StringColumnMetadata.Summary recorded = metadata.summary();
+                assertTrue("the column took a bound", recorded.bestCoverage().known());
+
+                final StringColumnMetadata metadataWithUnknownBound = metadata.withSummary(
+                    new StringColumnMetadata.Summary(
+                        recorded.terms(),
+                        recorded.countsOffset(),
+                        recorded.countsLength(),
+                        recorded.numValues(),
+                        BestCoverage.UNKNOWN
+                    )
+                );
+                final StringColumnMetadata read = roundTrip(metadataWithUnknownBound, docValues.length);
+
+                assertFalse("which reads back unknown", read.summary().bestCoverage().known());
+                assertFalse("and never bounds a dictionary away", read.summary().bestCoverage().validFor(1));
+                assertEquals("while its non-null value count survives", recorded.numValues(), read.summary().numValues());
+                assertEquals("as do the terms it recorded", recorded.countsOffset(), read.summary().countsOffset());
+                assertEquals(recorded.countsLength(), read.summary().countsLength());
+                assertFalse(
+                    "and an unknown bound rules no later dictionary out",
+                    StringColumnOptions.DEFAULT_DICTIONARY.rulesOut(read.summary().bestCoverage())
+                );
+            }
+        );
     }
 
     private static void assertRoundTrips(StringColumnMetadata metadata, int maxDoc) throws IOException {

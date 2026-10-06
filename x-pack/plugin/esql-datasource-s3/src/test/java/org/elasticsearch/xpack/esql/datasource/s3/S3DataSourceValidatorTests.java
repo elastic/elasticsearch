@@ -1079,7 +1079,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             ValidationException.class,
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("delimiter", "|"))
         );
-        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage("s3://test")), e.validationErrors());
+        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage()), e.validationErrors());
     }
 
     public void testUnknownFormatGenuineTypoReportedAsUnknownSetting() {
@@ -1088,7 +1088,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             ValidationException.class,
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("not_a_setting", "x"))
         );
-        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage("s3://test")), e.validationErrors());
+        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage()), e.validationErrors());
     }
 
     public void testUnknownFormatMixedKeysReportBothDiagnoses() {
@@ -1096,7 +1096,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             ValidationException.class,
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("delimiter", "|", "not_a_setting", "x"))
         );
-        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage("s3://test")), e.validationErrors());
+        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage()), e.validationErrors());
     }
 
     public void testUnknownFormatBaseSettingsOnlyAccepted() {
@@ -1104,7 +1104,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             ValidationException.class,
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("partition_detection", "hive"))
         );
-        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage("s3://test")), e.validationErrors());
+        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage()), e.validationErrors());
     }
 
     public void testFormatAutoFallsBackToExtension() {

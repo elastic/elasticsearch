@@ -820,24 +820,21 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
     }
 
     public void testSubqueryWithFork() {
-        // fork after subqueries is not supported yet
-        VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
+        try (EsqlQueryResponse resp = runQuery("""
             FROM logs-*,(FROM c*:logs-*), (FROM r*:logs-*)
-            | FORK
-              (WHERE v > 5)
-              (WHERE v < 3)
-            """, randomBoolean()));
-        assertThat(ex.getMessage(), containsString("FORK after subquery is not supported"));
+            | FORK (WHERE v > 5) (WHERE v < 3)
+            """, randomBoolean())) {
+            assertThat(getValuesList(resp), hasSize(25));
+        }
 
-        // fork inside subquery is not supported yet
-        ex = expectThrows(VerificationException.class, () -> runQuery("""
+        try (EsqlQueryResponse resp = runQuery("""
             FROM
                 logs-*,
                 (FROM c*:logs-*),
-                (FROM r*:logs-*
-                 | FORK (WHERE v > 5) (WHERE v < 3))
-            """, randomBoolean()));
-        assertThat(ex.getMessage(), containsString("FORK inside subquery is not supported"));
+                (FROM r*:logs-* | FORK (WHERE v > 5) (WHERE v < 3))
+            """, randomBoolean())) {
+            assertThat(getValuesList(resp), hasSize(29));
+        }
     }
 
     public void testSubqueryWithRow() {
@@ -1770,6 +1767,128 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
         } finally {
             deleteViewOnCluster(viewA);
             deleteViewOnCluster(viewB);
+        }
+    }
+
+    // nested subqueries and views with fork
+
+    public void testForkAfterNestedSubquery() {
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM (FROM logs-*),
+                 (FROM c*:logs-*, (FROM r*:logs-*))
+            | FORK (WHERE v > 5) (WHERE v < 3)
+            | STATS c = COUNT(*) BY _fork, tag
+            | SORT _fork, tag
+            """, randomBoolean())) {
+            assertEquals(
+                List.of(
+                    List.of(4L, "fork1", "local"),
+                    List.of(14L, "fork1", "remote"),
+                    List.of(3L, "fork2", "local"),
+                    List.of(4L, "fork2", "remote")
+                ),
+                getValuesList(resp)
+            );
+            assertCCSExecutionInfoDetails(resp.getExecutionInfo());
+        }
+    }
+
+    public void testForkInSubqueries() {
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM (FROM logs-* | FORK (WHERE v > 5) (WHERE v < 3)),
+                 (FROM *:logs-* | FORK (WHERE v > 16) (WHERE v < 4))
+            | STATS c = COUNT(*) BY _fork, tag
+            | SORT _fork, tag
+            """, randomBoolean())) {
+            assertEquals(
+                List.of(
+                    List.of(4L, "fork1", "local"),
+                    List.of(10L, "fork1", "remote"),
+                    List.of(3L, "fork2", "local"),
+                    List.of(4L, "fork2", "remote")
+                ),
+                getValuesList(resp)
+            );
+            assertCCSExecutionInfoDetails(resp.getExecutionInfo());
+        }
+    }
+
+    public void testForkAfterView() {
+        String view = "ccs_remote_view_" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        try {
+            createViewOnCluster(LOCAL_CLUSTER, view, "FROM *:logs-*");
+            try (
+                EsqlQueryResponse resp = runQuery(
+                    "FROM " + view + " | FORK (WHERE v > 16) (WHERE v < 4) | STATS c = COUNT(*) BY _fork | SORT _fork",
+                    randomBoolean()
+                )
+            ) {
+                assertEquals(List.of(List.of(10L, "fork1"), List.of(4L, "fork2")), getValuesList(resp));
+                assertCCSExecutionInfoDetails(resp.getExecutionInfo());
+            }
+        } finally {
+            deleteViewOnCluster(view);
+        }
+    }
+
+    public void testForkReferencedInView() {
+        String view = "ccs_remote_fork_view_" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        try {
+            createViewOnCluster(LOCAL_CLUSTER, view, "FROM *:logs-* | FORK (WHERE v > 16) (WHERE v < 4)");
+            try (EsqlQueryResponse resp = runQuery("FROM " + view + " | STATS c = COUNT(*) BY _fork | SORT _fork", randomBoolean())) {
+                assertEquals(List.of(List.of(10L, "fork1"), List.of(4L, "fork2")), getValuesList(resp));
+                assertCCSExecutionInfoDetails(resp.getExecutionInfo());
+            }
+        } finally {
+            deleteViewOnCluster(view);
+        }
+    }
+
+    public void testForkAfterSubqueryAndView() {
+        String view = "ccs_remote_view_" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        try {
+            createViewOnCluster(LOCAL_CLUSTER, view, "FROM *:logs-*");
+            try (
+                EsqlQueryResponse resp = runQuery(
+                    "FROM (FROM logs-*), "
+                        + view
+                        + " | FORK (WHERE v > 5) (WHERE v < 3) | STATS c = COUNT(*) BY _fork, tag | SORT _fork, tag",
+                    randomBoolean()
+                )
+            ) {
+                assertEquals(
+                    List.of(
+                        List.of(4L, "fork1", "local"),
+                        List.of(14L, "fork1", "remote"),
+                        List.of(3L, "fork2", "local"),
+                        List.of(4L, "fork2", "remote")
+                    ),
+                    getValuesList(resp)
+                );
+                assertCCSExecutionInfoDetails(resp.getExecutionInfo());
+            }
+        } finally {
+            deleteViewOnCluster(view);
+        }
+    }
+
+    public void testForkReferencedInViewInSubquery() {
+        String view = "ccs_local_fork_view_" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        try {
+            createViewOnCluster(LOCAL_CLUSTER, view, "FROM logs-* | FORK (WHERE v > 5) (WHERE v < 3)");
+            try (
+                EsqlQueryResponse resp = runQuery(
+                    "FROM (FROM "
+                        + view
+                        + "), (FROM *:logs-* | WHERE v == 0 | EVAL _fork = \"fork2\") | STATS c = COUNT(*) BY _fork | SORT _fork",
+                    randomBoolean()
+                )
+            ) {
+                assertEquals(List.of(List.of(4L, "fork1"), List.of(5L, "fork2")), getValuesList(resp));
+                assertCCSExecutionInfoDetails(resp.getExecutionInfo());
+            }
+        } finally {
+            deleteViewOnCluster(view);
         }
     }
 

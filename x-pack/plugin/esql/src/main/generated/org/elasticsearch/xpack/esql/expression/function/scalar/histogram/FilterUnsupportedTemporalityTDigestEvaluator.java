@@ -35,17 +35,20 @@ public final class FilterUnsupportedTemporalityTDigestEvaluator implements Expre
 
   private final TemporalityAccessor[] accessor;
 
+  private final Warnings cumulativeWarnings;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public FilterUnsupportedTemporalityTDigestEvaluator(Source source, ExpressionEvaluator histogram,
-      ExpressionEvaluator temporality, TemporalityAccessor[] accessor,
+      ExpressionEvaluator temporality, TemporalityAccessor[] accessor, Warnings cumulativeWarnings,
       DriverContext driverContext) {
     this.source = source;
     this.histogram = histogram;
     this.temporality = temporality;
     this.accessor = accessor;
+    this.cumulativeWarnings = cumulativeWarnings;
     this.driverContext = driverContext;
   }
 
@@ -71,7 +74,7 @@ public final class FilterUnsupportedTemporalityTDigestEvaluator implements Expre
     try(TDigestBlock.Builder result = driverContext.blockFactory().newTDigestBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          FilterUnsupportedTemporality.processTDigest(result, p, histogramBlock, temporalityBlock, this.accessor);
+          FilterUnsupportedTemporality.processTDigest(result, p, histogramBlock, temporalityBlock, this.accessor, this.cumulativeWarnings);
         } catch (InvalidTemporalityException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -107,18 +110,22 @@ public final class FilterUnsupportedTemporalityTDigestEvaluator implements Expre
 
     private final Function<DriverContext, TemporalityAccessor[]> accessor;
 
+    private final Function<DriverContext, Warnings> cumulativeWarnings;
+
     public Factory(Source source, ExpressionEvaluator.Factory histogram,
         ExpressionEvaluator.Factory temporality,
-        Function<DriverContext, TemporalityAccessor[]> accessor) {
+        Function<DriverContext, TemporalityAccessor[]> accessor,
+        Function<DriverContext, Warnings> cumulativeWarnings) {
       this.source = source;
       this.histogram = histogram;
       this.temporality = temporality;
       this.accessor = accessor;
+      this.cumulativeWarnings = cumulativeWarnings;
     }
 
     @Override
     public FilterUnsupportedTemporalityTDigestEvaluator get(DriverContext context) {
-      return new FilterUnsupportedTemporalityTDigestEvaluator(source, histogram.get(context), temporality.get(context), accessor.apply(context), context);
+      return new FilterUnsupportedTemporalityTDigestEvaluator(source, histogram.get(context), temporality.get(context), accessor.apply(context), cumulativeWarnings.apply(context), context);
     }
 
     @Override

@@ -21,6 +21,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -152,6 +154,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             ClusterState.EMPTY_STATE,
             null,
             new ArraySearchPhaseResults<>(filteredShardsIter.size()),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
             mock(SearchResponseMetrics.class),
@@ -264,6 +267,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 ClusterState.EMPTY_STATE,
                 null,
                 results,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
                 mock(SearchResponseMetrics.class),
@@ -385,6 +389,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 ClusterState.EMPTY_STATE,
                 null,
                 results,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
                 mock(SearchResponseMetrics.class),
@@ -527,6 +532,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                     Map.of()
                 ),
                 new ArraySearchPhaseResults<>(shardsIter.size()),
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
                 mock(SearchResponseMetrics.class),
@@ -640,6 +646,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 ClusterState.EMPTY_STATE,
                 null,
                 results,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
                 mock(SearchResponseMetrics.class),
@@ -730,6 +737,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             ClusterState.EMPTY_STATE,
             null,
             new ArraySearchPhaseResults<>(0),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
             mock(SearchResponseMetrics.class),

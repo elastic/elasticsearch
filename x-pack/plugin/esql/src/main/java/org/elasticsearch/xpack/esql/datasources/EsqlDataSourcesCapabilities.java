@@ -29,7 +29,11 @@ public final class EsqlDataSourcesCapabilities {
      */
     public static final String DATA_SOURCES_SERVERLESS_SCOPE = "data_sources_serverless_scope";
 
-    /** Advertises that this node exposes {@code POST /_query/data_source/_test}. */
+    /**
+     * Advertises that this node exposes {@code POST /_query/data_source/_test}.
+     * Only reported when the handler is registered (federation available and
+     * {@code esql_data_source_test_connection} FeatureFlag enabled).
+     */
     public static final String DATA_SOURCE_TEST_CONNECTION = "data_source_test_connection";
 
     /**
@@ -56,6 +60,13 @@ public final class EsqlDataSourcesCapabilities {
      * runs mixed-cluster, where a node without this capability parses the block and answers on the data source instead.
      */
     public static final String DATASET_ID_NOT_DECLARABLE = "dataset_id_not_declarable";
+
+    /**
+     * Data source and dataset PUTs reject a {@code description} longer than {@link DataSourceLimits#MAX_DESCRIPTION_LENGTH}.
+     * Gates the yaml pins on that rejection, because the suite also runs mixed-cluster, where a node without this capability
+     * does not reject it.
+     */
+    public static final String DATA_SOURCE_DESCRIPTION_LENGTH_LIMIT = "data_source_description_length_limit";
 
     private EsqlDataSourcesCapabilities() {}
 }

@@ -6,12 +6,14 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
@@ -19,8 +21,11 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -28,6 +33,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * Schema reconciliation algorithms for multi-file external sources.
@@ -148,6 +154,75 @@ public final class SchemaReconciliation {
     }
 
     /**
+     * A per-file schema map covering every file in {@code files}, given one keyed by whichever listing resolution
+     * held.
+     * <p>
+     * The map tells each file's reader what schema to parse it under, and a file with no entry is read under its
+     * own instead. Where the dataset's schema came from one file — an anchor under {@code first_file_wins}, a
+     * declared mapping under {@code strict} — that is the wrong answer twice over: the pin is the point of those
+     * modes, and a file whose columns differ from the anchor would be read in its own shape and emitted into
+     * blocks the plan built in the anchor's. Resolution cannot key an entry for a file it never listed, so the
+     * gap is filled here, once the scan knows which files those are.
+     * <p>
+     * Both modes that can answer a schema from part of a dataset build every entry from one read contract — one
+     * file schema, one mapping — and differ per file only in the harvest each carries: statistics and footer
+     * types, cache-derived, absent on a miss. So an unlisted file reads under that same contract with no harvest,
+     * and a map whose entries disagree about the contract cannot have come from a listing that was a prefix,
+     * which is why that is an error rather than a fallback.
+     */
+    public static Map<StoragePath, FileSchemaInfo> pinnedOver(Map<StoragePath, FileSchemaInfo> known, FileList files) {
+        if (known.isEmpty()) {
+            // No map at all: no file is pinned, so there is no contract to extend to the ones resolution missed.
+            return known;
+        }
+        List<StoragePath> unlisted = new ArrayList<>(0);
+        for (int i = 0; i < files.fileCount(); i++) {
+            StoragePath path = files.path(i);
+            if (known.containsKey(path) == false) {
+                unlisted.add(path);
+            }
+        }
+        if (unlisted.isEmpty()) {
+            return known;
+        }
+        FileSchemaInfo pin = sharedReadContract(known);
+        Map<StoragePath, FileSchemaInfo> pinned = Maps.newHashMapWithExpectedSize(known.size() + unlisted.size());
+        pinned.putAll(known);
+        for (StoragePath path : unlisted) {
+            pinned.put(path, pin);
+        }
+        return Collections.unmodifiableMap(pinned);
+    }
+
+    /**
+     * The one read contract every entry of {@code known} was built from, carrying no harvest: statistics and
+     * footer types are the individual file's, and a file nobody listed has neither.
+     */
+    private static FileSchemaInfo sharedReadContract(Map<StoragePath, FileSchemaInfo> known) {
+        Iterator<FileSchemaInfo> entries = known.values().iterator();
+        FileSchemaInfo first = entries.next();
+        while (entries.hasNext()) {
+            FileSchemaInfo other = entries.next();
+            if (sameContract(first, other) == false) {
+                throw new IllegalStateException(
+                    "["
+                        + known.size()
+                        + "] files were resolved under per-file read schemas, so there is no dataset-wide schema to "
+                        + "read the files resolution did not list under"
+                );
+            }
+        }
+        return new FileSchemaInfo(first.fileSchema(), first.mapping(), null, null);
+    }
+
+    private static boolean sameContract(FileSchemaInfo a, FileSchemaInfo b) {
+        // The rails that build one contract put the same two instances in every entry, so identity answers first
+        // and the equality walk over attribute lists is the fallback rather than the cost of each comparison.
+        return (a.fileSchema() == b.fileSchema() || a.fileSchema().equals(b.fileSchema()))
+            && (a.mapping() == b.mapping() || Objects.equals(a.mapping(), b.mapping()));
+    }
+
+    /**
      * Safe type widening for schema reconciliation: the common supertype when one exists without
      * loss, else {@code null}.
      * <p>
@@ -189,12 +264,33 @@ public final class SchemaReconciliation {
      * @throws IllegalArgumentException if any file's schema doesn't match
      */
     public static Result reconcileStrict(StoragePath referenceFile, Map<StoragePath, SourceMetadata> fileMetadata) {
+        return reconcileStrict(referenceFile, fileMetadata, new SchemaInterner(null, 0));
+    }
+
+    /**
+     * Same as {@link #reconcileStrict(StoragePath, Map)}, sharing file schemas and mappings through {@code interner}.
+     * The reference schema on the result is not interned.
+     *
+     * @param referenceFile path of the first (reference) file
+     * @param fileMetadata ordered map of file path → metadata (first entry is the reference)
+     * @param interner shares file schemas and mappings inside this resolve. Callers that do not have a planning
+     *                 reservation pass {@code new SchemaInterner(null, 0)}, which shares without charging.
+     * @return reconciliation result with the reference schema and per-file info
+     * @throws IllegalArgumentException if any file's schema doesn't match
+     */
+    public static Result reconcileStrict(
+        StoragePath referenceFile,
+        Map<StoragePath, SourceMetadata> fileMetadata,
+        SchemaInterner interner
+    ) {
+        Objects.requireNonNull(interner, "interner");
         SourceMetadata refMeta = fileMetadata.get(referenceFile);
         if (refMeta == null) {
-            throw new IllegalArgumentException("Reference file not found in metadata: " + referenceFile);
+            throw new IllegalArgumentException("Reference file not found in metadata: " + referenceFile.objectName());
         }
         List<Attribute> refSchema = refMeta.schema();
         boolean compareByName = fileMetadata.values().stream().allMatch(meta -> "ndjson".equals(meta.sourceType()));
+        FileLabels label = new FileLabels(fileMetadata.keySet());
 
         Map<StoragePath, FileSchemaInfo> perFileInfo = new LinkedHashMap<>();
 
@@ -204,23 +300,24 @@ public final class SchemaReconciliation {
             List<Attribute> fileSchema = meta.schema();
             SourceStatistics stats = SourceStatisticsSerializer.fromSource(meta);
 
-            validateNoDuplicateColumns(filePath, fileSchema);
+            validateNoDuplicateColumns(filePath, fileSchema, label);
 
             if (filePath.equals(referenceFile) == false) {
-                validateStrictMatch(referenceFile, refSchema, filePath, fileSchema, compareByName);
+                validateStrictMatch(referenceFile, refSchema, filePath, fileSchema, compareByName, label);
             }
 
+            List<Attribute> canonical = interner.canonicalize(fileSchema);
             ColumnMapping mapping;
             if (compareByName) {
-                mapping = computeMapping(refSchema, fileSchema);
+                mapping = interner.intern(computeMapping(refSchema, canonical));
             } else {
-                int[] identity = new int[refSchema.size()];
+                int[] identity = new int[canonical.size()];
                 for (int i = 0; i < identity.length; i++) {
                     identity[i] = i;
                 }
-                mapping = new ColumnMapping(identity, null);
+                mapping = interner.intern(new ColumnMapping(identity, null));
             }
-            perFileInfo.put(filePath, new FileSchemaInfo(new ExternalSchema(fileSchema), mapping, stats));
+            perFileInfo.put(filePath, new FileSchemaInfo(interner.intern(canonical), mapping, stats));
         }
 
         return new Result(new ExternalSchema(refSchema), Map.copyOf(perFileInfo));
@@ -231,16 +328,17 @@ public final class SchemaReconciliation {
         List<Attribute> refSchema,
         StoragePath filePath,
         List<Attribute> fileSchema,
-        boolean compareByName
+        boolean compareByName,
+        Function<StoragePath, String> label
     ) {
         if (refSchema.size() != fileSchema.size()) {
             throw new IllegalArgumentException(
                 "["
-                    + filePath
+                    + label.apply(filePath)
                     + "] has ["
                     + fileSchema.size()
                     + "] columns, ["
-                    + refPath
+                    + label.apply(refPath)
                     + "] has ["
                     + refSchema.size()
                     + "]"
@@ -248,7 +346,7 @@ public final class SchemaReconciliation {
             );
         }
         if (compareByName) {
-            validateStrictMatchByName(refPath, refSchema, filePath, fileSchema);
+            validateStrictMatchByName(refPath, refSchema, filePath, fileSchema, label);
             return;
         }
         for (int i = 0; i < refSchema.size(); i++) {
@@ -257,20 +355,20 @@ public final class SchemaReconciliation {
             if (refAttr.name().equals(fileAttr.name()) == false) {
                 throw new IllegalArgumentException(
                     "["
-                        + filePath
+                        + label.apply(filePath)
                         + "]: column "
                         + i
                         + " is ["
                         + fileAttr.name()
                         + "], in ["
-                        + refPath
+                        + label.apply(refPath)
                         + "] it is ["
                         + refAttr.name()
                         + "]"
                         + STRICT_MISMATCH_FIX
                 );
             }
-            validateStrictTypeMatch(refPath, refAttr, filePath, fileAttr);
+            validateStrictTypeMatch(refPath, refAttr, filePath, fileAttr, label);
         }
     }
 
@@ -278,7 +376,8 @@ public final class SchemaReconciliation {
         StoragePath refPath,
         List<Attribute> refSchema,
         StoragePath filePath,
-        List<Attribute> fileSchema
+        List<Attribute> fileSchema,
+        Function<StoragePath, String> label
     ) {
         Map<String, Attribute> fileAttributes = new HashMap<>();
         for (Attribute fileAttr : fileSchema) {
@@ -288,24 +387,37 @@ public final class SchemaReconciliation {
             Attribute fileAttr = fileAttributes.get(refAttr.name());
             if (fileAttr == null) {
                 throw new IllegalArgumentException(
-                    "[" + filePath + "] has no column [" + refAttr.name() + "], which [" + refPath + "] has" + STRICT_MISMATCH_FIX
+                    "["
+                        + label.apply(filePath)
+                        + "] has no column ["
+                        + refAttr.name()
+                        + "], which ["
+                        + label.apply(refPath)
+                        + "] has"
+                        + STRICT_MISMATCH_FIX
                 );
             }
-            validateStrictTypeMatch(refPath, refAttr, filePath, fileAttr);
+            validateStrictTypeMatch(refPath, refAttr, filePath, fileAttr, label);
         }
     }
 
-    private static void validateStrictTypeMatch(StoragePath refPath, Attribute refAttr, StoragePath filePath, Attribute fileAttr) {
+    private static void validateStrictTypeMatch(
+        StoragePath refPath,
+        Attribute refAttr,
+        StoragePath filePath,
+        Attribute fileAttr,
+        Function<StoragePath, String> label
+    ) {
         if (refAttr.dataType() != fileAttr.dataType()) {
             throw new IllegalArgumentException(
                 "["
-                    + filePath
+                    + label.apply(filePath)
                     + "]: column ["
                     + fileAttr.name()
                     + "] is ["
                     + fileAttr.dataType().typeName()
                     + "], in ["
-                    + refPath
+                    + label.apply(refPath)
                     + "] it is ["
                     + refAttr.dataType().typeName()
                     + "]"
@@ -332,20 +444,43 @@ public final class SchemaReconciliation {
      * @return reconciliation result with unified schema and per-file mappings
      */
     public static Result reconcileUnionByName(Map<StoragePath, SourceMetadata> fileMetadata, Consumer<String> warningSink) {
+        return reconcileUnionByName(fileMetadata, warningSink, new SchemaInterner(null, 0));
+    }
+
+    /**
+     * Same as {@link #reconcileUnionByName(Map, Consumer)}, sharing file schemas and mappings through {@code interner}.
+     * The unified output schema is not interned: its {@code NameId}s belong to the plan.
+     *
+     * @param fileMetadata ordered map of file path → metadata (insertion order = file sort order)
+     * @param warningSink where the widening notices (keyword fallback, long/double precision loss) go
+     * @param interner shares file schemas and mappings inside this resolve. Callers without a planning reservation pass
+     *                 {@code new SchemaInterner(null, 0)}
+     * @return reconciliation result with unified schema and per-file mappings
+     */
+    public static Result reconcileUnionByName(
+        Map<StoragePath, SourceMetadata> fileMetadata,
+        Consumer<String> warningSink,
+        SchemaInterner interner
+    ) {
+        Objects.requireNonNull(interner, "interner");
         Objects.requireNonNull(warningSink, "warningSink: a null sink would fall back to HeaderWarning off the request thread");
         LinkedHashMap<String, MergeEntry> unified = new LinkedHashMap<>();
-        // Per-column accumulator. We record *every* file's inferred type for every column up
-        // front (it's cheap and gives the warning emitters a complete contributor list), then
-        // decide at the end which warning, if any, the unified type warrants. Building this
-        // lazily inside the merge branch would lose pre-merge files when a column finally
-        // changes type on its third or later file.
+        // Warning detail quotes at most MAX_FILES_IN_WARNING_DETAIL paths, then "+N more", then the
+        // distinct types in first-seen order. Later files still update the type set and the count, so a
+        // type change after the third file is not lost, but their paths are never stored: the printer
+        // does not quote them, and a columns × files map is a heap spike discarded when this method
+        // returns. The scratch is O(columns) and dead before return, so it is not charged on
+        // ExternalPlanningReservation. chargeQuery holds until query close; reserving this scratch would
+        // sit on the breaker after the objects are gone. The 760 × files credit is for the retained
+        // schema map, not this.
         LinkedHashMap<String, ColumnContributions> contributions = new LinkedHashMap<>();
+        FileLabels label = new FileLabels(fileMetadata.keySet());
 
         for (Map.Entry<StoragePath, SourceMetadata> entry : fileMetadata.entrySet()) {
             StoragePath filePath = entry.getKey();
             List<Attribute> fileSchema = entry.getValue().schema();
 
-            validateNoDuplicateColumns(filePath, fileSchema);
+            validateNoDuplicateColumns(filePath, fileSchema, label);
 
             for (Attribute attr : fileSchema) {
                 String name = attr.name();
@@ -364,8 +499,8 @@ public final class SchemaReconciliation {
             }
         }
 
-        emitKeywordFallbackWarnings(unified, contributions, warningSink);
-        emitPrecisionLossWarnings(unified, contributions, warningSink);
+        emitKeywordFallbackWarnings(unified, contributions, warningSink, label);
+        emitPrecisionLossWarnings(unified, contributions, warningSink, label);
 
         // Mark columns as nullable when missing from any file
         for (Map.Entry<StoragePath, SourceMetadata> entry : fileMetadata.entrySet()) {
@@ -408,13 +543,16 @@ public final class SchemaReconciliation {
                     // so the resolve-side stats boundary can identify the pinned columns: their per-file stats were
                     // harvested at the narrower read type but the cache identity is read-schema-blind, so they must
                     // safe-miss rather than fold a stale count/extremum.
+                    // The fan-out already interned the inferred shape. The pinned list is a second shape charge.
+                    // That extra charge is not refunded.
                     inferredTypes = typeMap(prePin);
                 }
             }
             SourceStatistics stats = SourceStatisticsSerializer.fromSource(meta);
 
-            ColumnMapping mapping = computeMapping(unifiedSchema, fileSchema);
-            perFileInfo.put(filePath, new FileSchemaInfo(new ExternalSchema(fileSchema), mapping, stats, inferredTypes));
+            List<Attribute> canonical = interner.canonicalize(fileSchema);
+            ColumnMapping mapping = interner.intern(computeMapping(unifiedSchema, canonical));
+            perFileInfo.put(filePath, new FileSchemaInfo(interner.intern(canonical), mapping, stats, inferredTypes));
         }
 
         return new Result(new ExternalSchema(unifiedSchema), Map.copyOf(perFileInfo));
@@ -536,12 +674,69 @@ public final class SchemaReconciliation {
         return reconciled == DataType.KEYWORD || reconciled == DataType.LONG || reconciled == DataType.DOUBLE;
     }
 
-    private static void validateNoDuplicateColumns(StoragePath filePath, List<Attribute> schema) {
+    private static void validateNoDuplicateColumns(StoragePath filePath, List<Attribute> schema, Function<StoragePath, String> label) {
         Set<String> seen = new HashSet<>();
         for (Attribute attr : schema) {
             if (seen.add(attr.name()) == false) {
-                throw new IllegalArgumentException("File [" + filePath + "] contains duplicate column name [" + attr.name() + "].");
+                throw new IllegalArgumentException(
+                    "File [" + label.apply(filePath) + "] contains duplicate column name [" + attr.name() + "]."
+                );
             }
+        }
+    }
+
+    /**
+     * Names files in reconciliation errors and warnings, which reach users who may not know the storage location.
+     * A file is named by its path below the directory all reconciled files share, so same-named files in different
+     * partition directories stay distinguishable while the bucket and dataset prefix stay hidden. Falls back to the
+     * object name when there is a single file or the files do not share a scheme and authority. The common directory
+     * is only computed when a message is built.
+     */
+    private static final class FileLabels implements Function<StoragePath, String> {
+        private final Collection<StoragePath> files;
+        private String commonDirectory;
+        private boolean computed;
+
+        FileLabels(Collection<StoragePath> files) {
+            this.files = files;
+        }
+
+        @Override
+        public String apply(StoragePath file) {
+            if (computed == false) {
+                commonDirectory = commonDirectory(files);
+                computed = true;
+            }
+            if (commonDirectory == null || file.path().startsWith(commonDirectory) == false) {
+                return file.objectName();
+            }
+            String relative = file.path().substring(commonDirectory.length());
+            return relative.isEmpty() ? file.objectName() : relative;
+        }
+
+        private static String commonDirectory(Collection<StoragePath> files) {
+            if (files.size() < 2) {
+                return null;
+            }
+            StoragePath first = files.iterator().next();
+            String common = first.path();
+            for (StoragePath file : files) {
+                if (Objects.equals(first.scheme(), file.scheme()) == false
+                    || Objects.equals(first.userInfo(), file.userInfo()) == false
+                    || Objects.equals(first.host(), file.host()) == false
+                    || first.port() != file.port()) {
+                    return null;
+                }
+                String path = file.path();
+                int i = 0;
+                int max = Math.min(common.length(), path.length());
+                while (i < max && common.charAt(i) == path.charAt(i)) {
+                    i++;
+                }
+                common = common.substring(0, i);
+            }
+            int lastSlash = common.lastIndexOf('/');
+            return lastSlash >= 0 ? common.substring(0, lastSlash + 1) : null;
         }
     }
 
@@ -562,7 +757,7 @@ public final class SchemaReconciliation {
     }
 
     /**
-     * Maximum number of contributing file paths quoted in a single per-column warning detail.
+     * Maximum number of contributing files named in a single per-column warning detail.
      * Keeps the notice from blowing up on glob-of-thousands queries; the "+N more" suffix
      * preserves the cardinality so users know the warning applies to more files than shown.
      */
@@ -571,7 +766,8 @@ public final class SchemaReconciliation {
     private static void emitKeywordFallbackWarnings(
         LinkedHashMap<String, MergeEntry> unified,
         LinkedHashMap<String, ColumnContributions> contributions,
-        Consumer<String> warningSink
+        Consumer<String> warningSink,
+        Function<StoragePath, String> label
     ) {
         // Column unified to KEYWORD and at least one contributing file inferred a non-string type.
         // A column that was KEYWORD in every file (and stayed KEYWORD) is not a degradation: the
@@ -595,14 +791,15 @@ public final class SchemaReconciliation {
             warningSink
         );
         for (ColumnContributions fb : warned) {
-            warnings.add(fb.buildDetail());
+            warnings.add(fb.buildDetail(label));
         }
     }
 
     private static void emitPrecisionLossWarnings(
         LinkedHashMap<String, MergeEntry> unified,
         LinkedHashMap<String, ColumnContributions> contributions,
-        Consumer<String> warningSink
+        Consumer<String> warningSink,
+        Function<StoragePath, String> label
     ) {
         // Unified DOUBLE and both LONG and DOUBLE contributed. INTEGER + DOUBLE is a lossless
         // promotion and stays silent. LONG + DOUBLE + KEYWORD unifies to KEYWORD, so this gate
@@ -626,33 +823,41 @@ public final class SchemaReconciliation {
             warningSink
         );
         for (ColumnContributions fb : warned) {
-            warnings.add(fb.buildDetail());
+            warnings.add(fb.buildDetail(label));
         }
     }
 
     /**
-     * Per-column accumulator: every file that contributed a value for the column, together with
-     * that file's inferred type. Insertion-ordered so the emitted message reflects the user's
-     * glob order. Recording is unconditional during merge; the emit step decides whether the
-     * unified type warrants a warning.
+     * Per-column warning scratch. Keeps the first {@link #MAX_FILES_IN_WARNING_DETAIL} contributing
+     * files in glob order, the contributor count for the "+N more" suffix, and the distinct inferred
+     * types in first-seen order. A file that lacks the column is not a contributor. Discarded when
+     * {@link #reconcileUnionByName} returns, so it is not charged on the planning breaker.
      */
     private static final class ColumnContributions {
         private final String columnName;
-        private final LinkedHashMap<StoragePath, DataType> contributions = new LinkedHashMap<>();
+        private final StoragePath[] sampleFiles = new StoragePath[MAX_FILES_IN_WARNING_DETAIL];
+        private final DataType[] sampleTypes = new DataType[MAX_FILES_IN_WARNING_DETAIL];
+        private int contributorCount;
+        // LinkedHashSet, not EnumSet: warning text must follow first-seen order, and EnumSet would reorder it.
+        private final LinkedHashSet<DataType> distinctTypes = new LinkedHashSet<>();
 
         ColumnContributions(String columnName) {
             this.columnName = columnName;
         }
 
         void add(StoragePath file, DataType inferredType) {
-            // First inference wins per (column, file). A single file can't contribute two
-            // different types for the same column (validateNoDuplicateColumns guarantees
-            // unique names within a file), so putIfAbsent and put are equivalent here.
-            contributions.putIfAbsent(file, inferredType);
+            // One pass per file, and validateNoDuplicateColumns already rejects two types for the same
+            // name in one file, so there is no per-file dedup to do here.
+            if (contributorCount < MAX_FILES_IN_WARNING_DETAIL) {
+                sampleFiles[contributorCount] = file;
+                sampleTypes[contributorCount] = inferredType;
+            }
+            contributorCount++;
+            distinctTypes.add(inferredType);
         }
 
         boolean hasNonStringContributor() {
-            for (DataType type : contributions.values()) {
+            for (DataType type : distinctTypes) {
                 if (isStringType(type) == false) {
                     return true;
                 }
@@ -661,37 +866,24 @@ public final class SchemaReconciliation {
         }
 
         boolean hasLongAndDoubleContributor() {
-            boolean sawLong = false;
-            boolean sawDouble = false;
-            for (DataType type : contributions.values()) {
-                if (type == DataType.LONG) {
-                    sawLong = true;
-                } else if (type == DataType.DOUBLE) {
-                    sawDouble = true;
-                }
-            }
-            return sawLong && sawDouble;
+            return distinctTypes.contains(DataType.LONG) && distinctTypes.contains(DataType.DOUBLE);
         }
 
-        String buildDetail() {
-            // Pair each file with its inferred type so users can tell which file disagreed; the type the
-            // column is read as is in the summary. Long file lists are truncated with a "+N more" suffix;
-            // the distinct-type roll-up at the end keeps an at-a-glance type picture even when files are truncated.
+        String buildDetail(Function<StoragePath, String> label) {
+            // Pair each sampled file with its inferred type so users can tell which file disagreed; the type
+            // the column is read as is in the summary. Lists longer than the sample cap get a "+N more" suffix;
+            // the distinct-type roll-up keeps an at-a-glance type picture even when files are truncated.
             StringBuilder sb = new StringBuilder("column [").append(columnName).append("]: ");
-            int shown = 0;
-            int total = contributions.size();
-            for (Map.Entry<StoragePath, DataType> e : contributions.entrySet()) {
-                if (shown == MAX_FILES_IN_WARNING_DETAIL && total > MAX_FILES_IN_WARNING_DETAIL) {
-                    sb.append(", +").append(total - shown).append(" more");
-                    break;
-                }
-                if (shown > 0) {
+            int shown = Math.min(contributorCount, MAX_FILES_IN_WARNING_DETAIL);
+            for (int i = 0; i < shown; i++) {
+                if (i > 0) {
                     sb.append(", ");
                 }
-                sb.append(e.getKey()).append(" (").append(e.getValue().typeName()).append(")");
-                shown++;
+                sb.append(label.apply(sampleFiles[i])).append(" (").append(sampleTypes[i].typeName()).append(")");
             }
-            LinkedHashSet<DataType> distinctTypes = new LinkedHashSet<>(contributions.values());
+            if (contributorCount > MAX_FILES_IN_WARNING_DETAIL) {
+                sb.append(", +").append(contributorCount - shown).append(" more");
+            }
             if (distinctTypes.size() > 1) {
                 sb.append("; types [");
                 int t = 0;

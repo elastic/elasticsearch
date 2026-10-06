@@ -60,6 +60,23 @@ public class ComputeServiceBranchStatusTests extends ESTestCase {
         assertStatusAfterBranch(EsqlExecutionInfo.Cluster.Status.SKIPPED, true, false, EsqlExecutionInfo.Cluster.Status.SKIPPED);
     }
 
+    /**
+     * Planning can mark a cluster SKIPPED (e.g. field-caps found only an unallocated local index). Coordinator finalization must not treat
+     * that as a later branch report and promote to PARTIAL.
+     */
+    public void testPlanningSkipStaysSkippedOnCoordinatorFinalization() {
+        EsqlExecutionInfo.Cluster existing = cluster(
+            EsqlExecutionInfo.Cluster.Status.SKIPPED,
+            0,
+            0,
+            0,
+            List.of(new ShardSearchFailure(new IllegalStateException("index [unavailable-local] has no active shard copy")))
+        );
+        var builder = new EsqlExecutionInfo.Cluster.Builder(existing);
+        ComputeService.applyClusterStatusAfterBranch(builder, existing, true, false);
+        assertThat(builder.build().getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+    }
+
     public void testPartialIsNeverDemoted() {
         assertStatusAfterBranch(EsqlExecutionInfo.Cluster.Status.PARTIAL, false, true, EsqlExecutionInfo.Cluster.Status.PARTIAL);
         assertStatusAfterBranch(EsqlExecutionInfo.Cluster.Status.PARTIAL, true, false, EsqlExecutionInfo.Cluster.Status.PARTIAL);

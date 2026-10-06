@@ -1479,11 +1479,13 @@ public class ComputeService {
                                     var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(tookTime);
                                     if (execInfo.isMainPlan()) {
                                         // Later merge branches can add failures after an earlier leaf set SUCCESSFUL; promote to PARTIAL
-                                        // and never demote PARTIAL.
+                                        // and never demote PARTIAL. receivedResults is false: this is coordinator finalization, not a
+                                        // data-node/remote compute report. Passing true would promote a planning-time SKIPPED (no local
+                                        // indices to search) to PARTIAL.
                                         boolean failed = localClusterWasInterrupted.get()
                                             || (v.getFailedShards() != null && v.getFailedShards() > 0)
                                             || v.getFailures().isEmpty() == false;
-                                        applyClusterStatusAfterBranch(builder, v, failed, true);
+                                        applyClusterStatusAfterBranch(builder, v, failed, false);
                                     }
                                     return builder.build();
                                 });
@@ -1762,8 +1764,9 @@ public class ComputeService {
      * produced results) promotes runtime {@code SKIPPED} to {@code PARTIAL} — the earlier skip still prevents the cluster from being fully
      * {@code SUCCESSFUL}. {@code PARTIAL} and {@code FAILED} are never demoted.
      * <p>
-     * {@code receivedResults} is true when this branch produced a {@link ComputeResponse} or fetched pages. A first-branch failure with no
-     * results and no prior shard counts stays {@code SKIPPED}.
+     * {@code receivedResults} is true when this branch produced a {@link ComputeResponse} or fetched pages. Coordinator finalization must
+     * pass {@code false} so a planning-time {@code SKIPPED} is not promoted. A first-branch failure with no results and no prior shard
+     * counts stays {@code SKIPPED}.
      */
     static void applyClusterStatusAfterBranch(
         EsqlExecutionInfo.Cluster.Builder builder,
@@ -1789,8 +1792,9 @@ public class ComputeService {
             case SKIPPED -> {
                 // Runtime SKIPPED is not terminal for shared execInfo: a later branch can still dispatch (planning-time
                 // initialClusterStatuses stays RUNNING). Promote so successful shard counts are not reported under SKIPPED.
+                // Planning-time SKIPPED already has a failure recorded; that must not count as a later report.
                 // Another empty skip stays SKIPPED.
-                if (failed == false || receivedResults || hasAccumulatedResults(existing)) {
+                if (failed == false || receivedResults || hasAccumulatedShards(existing)) {
                     builder.setStatus(EsqlExecutionInfo.Cluster.Status.PARTIAL);
                 }
             }
@@ -1826,11 +1830,14 @@ public class ComputeService {
     }
 
     private static boolean hasAccumulatedResults(EsqlExecutionInfo.Cluster existing) {
+        return hasAccumulatedShards(existing) || existing.getFailures().isEmpty() == false;
+    }
+
+    private static boolean hasAccumulatedShards(EsqlExecutionInfo.Cluster existing) {
         return zeroIfNull(existing.getTotalShards()) > 0
             || zeroIfNull(existing.getSuccessfulShards()) > 0
             || zeroIfNull(existing.getSkippedShards()) > 0
-            || zeroIfNull(existing.getFailedShards()) > 0
-            || existing.getFailures().isEmpty() == false;
+            || zeroIfNull(existing.getFailedShards()) > 0;
     }
 
     /**

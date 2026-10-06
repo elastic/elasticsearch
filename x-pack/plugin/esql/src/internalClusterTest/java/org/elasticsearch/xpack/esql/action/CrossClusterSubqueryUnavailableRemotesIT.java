@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase.canUseQueryPragmas;
 import static org.elasticsearch.xpack.esql.action.CrossClusterSubqueryIT.assertClusterEsqlExecutionInfo;
 import static org.elasticsearch.xpack.esql.action.CrossClusterSubqueryIT.assertClusterEsqlExecutionInfoFailureReason;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
@@ -303,6 +304,7 @@ public class CrossClusterSubqueryUnavailableRemotesIT extends AbstractCrossClust
      * PARTIAL, not stay SKIPPED.
      */
     public void testSameRemoteSkipThenSuccessIsPartial() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         assertSameRemoteRuntimeMergeStatus(
             LoggerMessageFormat.format(
                 null,
@@ -320,6 +322,7 @@ public class CrossClusterSubqueryUnavailableRemotesIT extends AbstractCrossClust
      * failure must not overwrite the cluster as SKIPPED.
      */
     public void testSameRemoteSuccessThenFailureIsPartial() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         assertSameRemoteRuntimeMergeStatus(
             LoggerMessageFormat.format(
                 null,

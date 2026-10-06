@@ -1458,16 +1458,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
         final ShardRouting contextRouting = context.routing();
         final ShardId shardId = contextRouting.shardId();
-        if (retryingShards.containsKey(shardId) == false) {
-            return null;
-        }
+        assert retryingShards.containsKey(shardId) : "retryingShards did not contain shard";
 
         RoutingNode localNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
-        if (localNode == null) {
-            logger.debug("{} gave up while retrying shard creation because local node is not in routing table", shardId);
-            retryingShards.remove(shardId);
-            return null;
-        }
+        assert localNode != null : "local node is not in routing table";
         Index index = contextRouting.index();
 
         // Ignore retry if shard is no longer allocated to this node or the allocation id has changed

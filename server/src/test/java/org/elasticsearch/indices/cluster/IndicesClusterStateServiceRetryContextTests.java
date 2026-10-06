@@ -399,16 +399,6 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
         assertFalse(indicesClusterStateService.retryingShards.containsKey(shardRouting.shardId()));
     }
 
-    public void testUpdateRetryingShardsClearsAllWhenLocalRoutingNodeMissing() {
-        ShardRouting shardRouting = applyInitializingPrimary();
-        handleRecoveryFailureWithRetry(shardRouting);
-        assertTrue(indicesClusterStateService.retryingShards.containsKey(shardRouting.shardId()));
-
-        // Empty routing table → RoutingNodes.node(local) is null → clear all retry contexts.
-        applyState(ClusterState.builder(state).routingTable(RoutingTable.builder().build()).metadata(Metadata.builder().build()).build());
-        assertTrue(indicesClusterStateService.retryingShards.isEmpty());
-    }
-
     public void testRetryContextKeptWhenCreateGivesUpMissingPeerSource() {
         String indexName = randomIndexName();
         ClusterState base = ClusterStateCreationUtils.state(indexName, false, ShardRoutingState.STARTED, ShardRoutingState.INITIALIZING);

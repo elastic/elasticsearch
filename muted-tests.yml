@@ -685,9 +685,6 @@ tests:
 - class: org.elasticsearch.workloadidentity.HttpsWorkloadIdentityIssuerClientTests
   method: testTokenIssuanceSurvivesSslReload
   issue: https://github.com/elastic/elasticsearch/issues/161088
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardFlushIT
-  method: testPreFlushWaitsForOngoingFlushes
-  issue: https://github.com/elastic/elasticsearch/issues/161089
 - class: org.elasticsearch.index.reindex.RestoringShardReindexIT
   method: testReindexFromRestoringSourceFailsFastWithServiceUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/161090
@@ -703,3 +700,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecMatchFunctionIT
   method: test {csv-spec:match-function.matchWithScoreSortAscending}
   issue: https://github.com/elastic/elasticsearch/issues/161131
+- class: org.elasticsearch.xpack.esql.datasources.StreamingPermitCycleSmallTests
+  method: testEightGzipStreamsCompleteUnderTinyLimiterBudget
+  issue: https://github.com/elastic/elasticsearch/issues/161165

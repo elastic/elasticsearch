@@ -8,11 +8,17 @@
 package org.elasticsearch.xpack.esql.fetch;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -22,12 +28,16 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.fetch.FetchGather;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
+import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -110,6 +120,10 @@ public final class FetchOperator implements Operator {
     @Nullable
     private FetchBatchPlanner.Batch batch;
     private boolean gathered;
+    private long rowsReceived;
+    private int pagesEmitted;
+    private long planNanos;
+    private long gatherNanos;
 
     // shared with the threads that receive the responses
     private final FailureCollector failures = new FailureCollector();
@@ -122,6 +136,15 @@ public final class FetchOperator implements Operator {
      */
     @Nullable
     private AtomicReferenceArray<List<Page>> fetchedByNode;
+    /**
+     * The request of each node of {@link #batch} that answered, set by the thread that receives its response.
+     */
+    @Nullable
+    private AtomicReferenceArray<NodeRequest> nodeRequests;
+    /**
+     * From sending the first request to receiving the last response. Set by the thread that receives the last one.
+     */
+    private volatile long waitNanos;
     private final Object lock = new Object();
     /**
      * Set once the operator is closed. A response that arrives later releases its own pages. Guarded by {@link #lock}.
@@ -151,6 +174,7 @@ public final class FetchOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
+        rowsReceived += page.getPositionCount();
         input.add(page);
     }
 
@@ -167,7 +191,9 @@ public final class FetchOperator implements Operator {
      * Sends one request to each node that holds documents of the cut.
      */
     private void sendRequests() {
+        long planStart = System.nanoTime();
         batch = FetchBatchPlanner.plan(input, docRefChannel);
+        planNanos = System.nanoTime() - planStart;
         if (batch.nodes().isEmpty()) {
             responded.onResponse(null);
             return;
@@ -182,9 +208,11 @@ public final class FetchOperator implements Operator {
             );
         }
         fetchedByNode = new AtomicReferenceArray<>(batch.nodes().size());
+        nodeRequests = new AtomicReferenceArray<>(batch.nodes().size());
         // the driver waits for the responses before it completes, so a late response finds the operator closed
         driverContext.addAsyncAction();
-        try (RefCountingRunnable refs = new RefCountingRunnable(this::onResponded)) {
+        long sentNanos = System.nanoTime();
+        try (RefCountingRunnable refs = new RefCountingRunnable(() -> onResponded(sentNanos))) {
             for (int n = 0; n < batch.nodes().size(); n++) {
                 if (failures.hasFailure()) {
                     // the failure fails the query, so the other nodes have nothing to load
@@ -199,7 +227,9 @@ public final class FetchOperator implements Operator {
                 // a later fetch of the query would read the same contexts, so only the last one frees them
                 List<ShardSearchContextId> releaseAfter = finalStage ? node.contextIds() : List.of();
                 // a second completion would release the reference of the node twice and wake the driver too early
-                ActionListener<FetchResponse> listener = ActionListener.notifyOnce(new NodeListener(n, node, refs.acquire()));
+                ActionListener<FetchResponse> listener = ActionListener.notifyOnce(
+                    new NodeListener(n, node, target.getName(), refs.acquire())
+                );
                 try {
                     client.fetch(target, node.clusterAlias(), node.shards(), fetchPlan, releaseAfter, listener);
                 } catch (Exception e) {
@@ -209,7 +239,8 @@ public final class FetchOperator implements Operator {
         }
     }
 
-    private void onResponded() {
+    private void onResponded(long sentNanos) {
+        waitNanos = System.nanoTime() - sentNanos;
         driverContext.removeAsyncAction();
         responded.onResponse(null);
     }
@@ -224,9 +255,13 @@ public final class FetchOperator implements Operator {
         private final FetchBatchPlanner.NodeBatch node;
         private final Releasable ref;
 
-        NodeListener(int index, FetchBatchPlanner.NodeBatch node, Releasable ref) {
+        private final String nodeName;
+        private final long sentNanos = System.nanoTime();
+
+        NodeListener(int index, FetchBatchPlanner.NodeBatch node, String nodeName, Releasable ref) {
             this.index = index;
             this.node = node;
+            this.nodeName = nodeName;
             this.ref = ref;
         }
 
@@ -234,6 +269,17 @@ public final class FetchOperator implements Operator {
         public void onResponse(FetchResponse response) {
             List<Page> unclaimed = List.of();
             try {
+                nodeRequests.set(
+                    index,
+                    new NodeRequest(
+                        nodeName,
+                        node.shards().size(),
+                        node.docCount(),
+                        System.nanoTime() - sentNanos,
+                        response.tookNanos(),
+                        response.setupNanos()
+                    )
+                );
                 List<Page> pages = response.takePages();
                 unclaimed = pages;
                 Exception failure = failureOf(response);
@@ -309,7 +355,11 @@ public final class FetchOperator implements Operator {
         if (gathered == false && finished && responded.isDone()) {
             gather();
         }
-        return output.pollFirst();
+        Page page = output.pollFirst();
+        if (page != null) {
+            pagesEmitted++;
+        }
+        return page;
     }
 
     /**
@@ -335,9 +385,11 @@ public final class FetchOperator implements Operator {
         gathered = true;
         List<Page> cut = new ArrayList<>(input);
         input.clear();
+        long gatherStart = System.nanoTime();
         output.addAll(
             FetchGather.gather(driverContext.blockFactory(), cut, fetched, fetchedTypes, batch.responseRows(), batch.deduplicated())
         );
+        gatherNanos = System.nanoTime() - gatherStart;
     }
 
     @Override
@@ -374,7 +426,157 @@ public final class FetchOperator implements Operator {
     }
 
     @Override
+    public Status status() {
+        List<NodeRequest> answered = new ArrayList<>();
+        if (nodeRequests != null) {
+            for (int n = 0; n < nodeRequests.length(); n++) {
+                NodeRequest request = nodeRequests.get(n);
+                if (request != null) {
+                    answered.add(request);
+                }
+            }
+        }
+        int documents = batch == null ? 0 : batch.nodes().stream().mapToInt(FetchBatchPlanner.NodeBatch::docCount).sum();
+        return new Status(rowsReceived, documents, pagesEmitted, planNanos, waitNanos, gatherNanos, answered);
+    }
+
+    @Override
     public String toString() {
         return "FetchOperator[docRefChannel=" + docRefChannel + ", fetchedTypes=" + fetchedTypes + "]";
+    }
+
+    /**
+     * What one fetch did and where its time went. The query phase already counted the documents, so the totals of a
+     * profile don't count them again.
+     *
+     * @param rowsReceived rows of the cut
+     * @param documents    documents the requests asked for, fewer than the rows when rows share documents
+     * @param pagesEmitted pages of rows with their fetched columns
+     * @param planNanos    grouping the documents of the cut into requests
+     * @param waitNanos    from sending the first request to receiving the last response
+     * @param gatherNanos  appending the fetched columns to the rows
+     * @param nodes        the request of each node that answered
+     */
+    public record Status(
+        long rowsReceived,
+        long documents,
+        int pagesEmitted,
+        long planNanos,
+        long waitNanos,
+        long gatherNanos,
+        List<NodeRequest> nodes
+    ) implements Operator.Status {
+        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            Operator.Status.class,
+            "fetch",
+            Status::new
+        );
+
+        public Status {
+            nodes = List.copyOf(nodes);
+        }
+
+        Status(StreamInput in) throws IOException {
+            this(
+                in.readVLong(),
+                in.readVLong(),
+                in.readVInt(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readCollectionAsList(NodeRequest::new)
+            );
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(rowsReceived);
+            out.writeVLong(documents);
+            out.writeVInt(pagesEmitted);
+            out.writeVLong(planNanos);
+            out.writeVLong(waitNanos);
+            out.writeVLong(gatherNanos);
+            out.writeCollection(nodes);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("rows_received", rowsReceived);
+            builder.field("documents", documents);
+            builder.field("pages_emitted", pagesEmitted);
+            nanos(builder, "plan", planNanos);
+            nanos(builder, "wait", waitNanos);
+            nanos(builder, "gather", gatherNanos);
+            builder.startArray("nodes");
+            for (NodeRequest node : nodes) {
+                node.toXContent(builder, params);
+            }
+            builder.endArray();
+            return builder.endObject();
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            // only nodes that run the fetch phase plan a fetch
+            return FetchRequest.ESQL_FETCH;
+        }
+    }
+
+    /**
+     * The request to one node, as the coordinator saw it and as the node reported it.
+     *
+     * @param requestNanos from sending the request to receiving its response, on the coordinator. Without
+     *                     {@code tookNanos}, it is the transport, the authorization and the time the request queued
+     * @param tookNanos    from receiving the request to building the response, on the node
+     * @param setupNanos   the part of {@code tookNanos} before the drivers started: contexts, access checks, planning
+     */
+    public record NodeRequest(String node, int shards, int documents, long requestNanos, long tookNanos, long setupNanos)
+        implements
+            Writeable,
+            ToXContentObject {
+
+        NodeRequest(StreamInput in) throws IOException {
+            this(in.readString(), in.readVInt(), in.readVInt(), in.readVLong(), in.readVLong(), in.readVLong());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(node);
+            out.writeVInt(shards);
+            out.writeVInt(documents);
+            out.writeVLong(requestNanos);
+            out.writeVLong(tookNanos);
+            out.writeVLong(setupNanos);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("node", node);
+            builder.field("shards", shards);
+            builder.field("documents", documents);
+            nanos(builder, "request", requestNanos);
+            nanos(builder, "took", tookNanos);
+            nanos(builder, "setup", setupNanos);
+            return builder.endObject();
+        }
+    }
+
+    private static void nanos(XContentBuilder builder, String name, long nanos) throws IOException {
+        builder.field(name + "_nanos", nanos);
+        if (builder.humanReadable()) {
+            builder.field(name + "_time", TimeValue.timeValueNanos(nanos));
+        }
     }
 }

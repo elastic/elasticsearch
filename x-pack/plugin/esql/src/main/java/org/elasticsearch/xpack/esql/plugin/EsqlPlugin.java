@@ -149,6 +149,7 @@ import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.fetch.FetchOperator;
 import org.elasticsearch.xpack.esql.fetch.FetchService;
 import org.elasticsearch.xpack.esql.fetch.lifetime.FetchContextListener;
 import org.elasticsearch.xpack.esql.fetch.lifetime.FetchContextService;
@@ -856,6 +857,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(DriverStatus.ENTRY);
         entries.add(AbstractPageMappingOperator.Status.ENTRY);
         entries.add(FetchDocsSourceOperator.Status.ENTRY);
+        entries.add(FetchOperator.Status.ENTRY);
         entries.add(AbstractPageMappingToIteratorOperator.Status.ENTRY);
         entries.add(AggregationOperator.Status.ENTRY);
         entries.add(EsqlQueryStatus.ENTRY);

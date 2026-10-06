@@ -300,9 +300,15 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
         String name = getArtifactName().get();
         byte[] archive = pack(outputDir, getTemporaryDir().toPath().resolve("to-publish.zip"));
 
-        NativeArtifactRepository repository = repository();
-        repository.publish(name, hash, archive, getPublishApiKey().get());
-        repository.verifyPublished(name, hash, archive);
+        repository().publish(name, hash, archive, getPublishApiKey().get(), this::checkCorrectness);
+    }
+
+    /** Throws unless {@code archive} unpacks to every supported platform. */
+    void checkCorrectness(byte[] archive) {
+        File unpacked = new File(getTemporaryDir(), "already-published");
+        getFileSystemOperations().delete(spec -> spec.delete(unpacked));
+        unpack(archive, unpacked);
+        verifyOutput(unpacked, getSupportedPlatforms().get());
     }
 
     private Map<String, String> identityProperties() {
@@ -430,11 +436,7 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
 
     /**
      * Fails if the build produced nothing for a platform it was expected to. External build commands
-     * can report success without writing anything, which would otherwise surface much later as a
-     * missing library rather than as a build failure.
-     *
-     * <p>The expected platforms are passed in rather than derived from the host, so a container build
-     * verifies the same way wherever it runs.
+     * can report success without writing anything.
      */
     static void verifyOutput(File outputDir, Collection<String> expectedPlatforms) {
         if (expectedPlatforms.isEmpty()) {

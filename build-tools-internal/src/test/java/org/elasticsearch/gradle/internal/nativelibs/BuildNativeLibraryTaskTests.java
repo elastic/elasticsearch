@@ -20,6 +20,7 @@ import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Set;
@@ -249,6 +250,38 @@ public class BuildNativeLibraryTaskTests {
         var host = publishingBuild("host");
         host.getMode().set(BuildNativeLibraryTask.HOST_MODE);
         assertFalse(host.buildsWithoutPublishing());
+    }
+
+    @Test
+    public void testCheckCorrectnessPassWhenArchiveCoversEveryPlatform() throws IOException {
+        task.getSupportedPlatforms().set(Set.of("linux-x64", "darwin-aarch64"));
+
+        task.checkCorrectness(archiveOf("linux-x64", "darwin-aarch64"));
+    }
+
+    @Test
+    public void testCheckCorrectnessFailsWhenMissingPlatform() throws IOException {
+        task.getSupportedPlatforms().set(Set.of("linux-x64", "darwin-aarch64"));
+
+        GradleException e = assertThrows(GradleException.class, () -> task.checkCorrectness(archiveOf("linux-x64")));
+        assertTrue(e.getMessage().contains("darwin-aarch64"));
+    }
+
+    @Test
+    public void testCheckCorrectnessFailsWhenNotAnArchive() {
+        task.getSupportedPlatforms().set(Set.of("linux-x64"));
+
+        assertThrows(RuntimeException.class, () -> task.checkCorrectness("truncated".getBytes(StandardCharsets.UTF_8)));
+    }
+
+    private byte[] archiveOf(String... platforms) throws IOException {
+        File tree = temporaryFolder.newFolder();
+        for (String platform : platforms) {
+            Path library = tree.toPath().resolve(platform).resolve("libtest.so");
+            Files.createDirectories(library.getParent());
+            Files.writeString(library, "binary-content");
+        }
+        return BuildNativeLibraryTask.pack(tree, temporaryFolder.newFile().toPath());
     }
 
     /** A container build with everything it needs to upload: somewhere to put it, a credential, a network. */

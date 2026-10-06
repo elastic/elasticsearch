@@ -81,44 +81,63 @@ class NativeArtifactRepositorySpec extends Specification {
         }
 
         when:
-        repository.publish(NAME, HASH, CONTENT, "secret-key")
+        repository.publish(NAME, HASH, CONTENT, "secret-key", {})
 
         then:
         received.toByteArray() == CONTENT
         apiKeys == ["secret-key"]
     }
 
-    def "publish succeeds when the hash already holds the same content"() {
+    def "publish rejects a corrupted upload"() {
+        given:
+        def repository = repositoryServing { exchange ->
+            if (exchange.requestMethod == "PUT") {
+                exchange.requestBody.bytes
+                respond(exchange, 201, new byte[0])
+            } else {
+                respond(exchange, 200, "zip-by".getBytes("UTF-8"))
+            }
+        }
+
+        when:
+        repository.publish(NAME, HASH, CONTENT, "secret-key", {})
+
+        then:
+        def e = thrown(GradleException)
+        e.message.contains("truncated")
+    }
+
+    def "publish accepts a refused upload when another build already published a usable artifact"() {
         given:
         def repository = repositoryServing { exchange ->
             if (exchange.requestMethod == "PUT") {
                 exchange.requestBody.bytes
                 respond(exchange, 403, new byte[0])
             } else {
-                respond(exchange, 200, CONTENT)
+                respond(exchange, 200, "built-elsewhere".getBytes("UTF-8"))
             }
         }
 
         when:
-        repository.publish(NAME, HASH, CONTENT, "secret-key")
+        repository.publish(NAME, HASH, CONTENT, "secret-key", {})
 
         then:
         noExceptionThrown()
     }
 
-    def "publish fails when the upload is rejected and the hash holds something else"() {
+    def "publish fails when the artifact already published is unusable"() {
         given:
         def repository = repositoryServing { exchange ->
             if (exchange.requestMethod == "PUT") {
                 exchange.requestBody.bytes
                 respond(exchange, 403, new byte[0])
             } else {
-                respond(exchange, 200, "different".getBytes("UTF-8"))
+                respond(exchange, 200, "built-elsewhere".getBytes("UTF-8"))
             }
         }
 
         when:
-        repository.publish(NAME, HASH, CONTENT, "secret-key")
+        repository.publish(NAME, HASH, CONTENT, "secret-key", { throw new GradleException("no linux-x64") })
 
         then:
         def e = thrown(GradleException)
@@ -137,10 +156,11 @@ class NativeArtifactRepositorySpec extends Specification {
         }
 
         when:
-        repository.publish(NAME, HASH, CONTENT, "secret-key")
+        repository.publish(NAME, HASH, CONTENT, "secret-key", {})
 
         then:
-        thrown(GradleException)
+        def e = thrown(GradleException)
+        e.message.contains("403")
     }
 
     def "verifyPublished rejects a truncated artifact"() {

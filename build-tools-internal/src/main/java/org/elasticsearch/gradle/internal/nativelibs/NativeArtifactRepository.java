@@ -20,6 +20,7 @@ import java.net.HttpURLConnection;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 /**
  * Reads and writes native library artifacts, addressed by the hash of the sources they were built
@@ -68,26 +69,35 @@ class NativeArtifactRepository {
     }
 
     /**
-     * Uploads the artifact for {@code hash}. Publishing a hash that already exists succeeds: the same
-     * hash means the same sources.
+     * Uploads the artifact for {@code hash}. Publishing a hash that already exists succeeds
+     * as long as the artifact there is correct.
+     *
+     * @param checkCorrectness throws if a published archive cannot serve as this library's artifact
      */
-    void publish(String artifactName, String hash, byte[] content, String apiKey) {
+    void publish(String artifactName, String hash, byte[] content, String apiKey, Consumer<byte[]> checkCorrectness) {
         String url = artifactUrl(artifactName, hash);
         int status = put(url, content, apiKey);
 
         if (status / 100 == 2) {
+            verifyPublished(artifactName, hash, content);
             LOGGER.lifecycle("Published {} for hash {}", artifactName, hash);
-        } else {
-            // Rather than interpreting the status — whether a repository rejects an existing path, and
-            // with which code, is a server-side configuration — ask what actually matters: is the
-            // right artifact there now? Another build publishing the same hash is agreement, since the
-            // same hash means the same sources.
-            LOGGER.info("Publishing {} for hash {} returned status {}; checking what is published", artifactName, hash, status);
-            if (matchesPublished(artifactName, hash, content) == false) {
-                throw new GradleException("Failed to publish " + url + ": status " + status);
-            }
-            LOGGER.lifecycle("{} for hash {} was already published with the same content", artifactName, hash);
+            return;
         }
+
+        // Rather than interpreting the status, check if the published artifact is present and correct.
+        LOGGER.lifecycle("Publishing {} for hash {} was refused with status {}; checking what is published", artifactName, hash, status);
+        byte[] published = download(artifactName, hash).orElseThrow(
+            () -> new GradleException("Failed to publish " + url + ": status " + status + ", and nothing is published for this hash")
+        );
+        try {
+            checkCorrectness.accept(published);
+        } catch (RuntimeException e) {
+            throw new GradleException(
+                "Failed to publish " + url + ": status " + status + ". The artifact already published for this hash is not usable.",
+                e
+            );
+        }
+        LOGGER.lifecycle("{} for hash {} was already published by another build", artifactName, hash);
     }
 
     private int put(String url, byte[] content, String apiKey) {
@@ -105,10 +115,6 @@ class NativeArtifactRepository {
         } finally {
             connection.disconnect();
         }
-    }
-
-    private boolean matchesPublished(String artifactName, String hash, byte[] expected) {
-        return download(artifactName, hash).map(actual -> Arrays.equals(expected, actual)).orElse(false);
     }
 
     /**

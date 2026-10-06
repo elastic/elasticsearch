@@ -50,7 +50,7 @@ import java.util.function.BooleanSupplier;
  *        empty set: an empty schema means "do not narrow the file read", not "keep nothing".
  * @param minTransportVersion the minimum transport version of the nodes that will read the splits, so a split provider
  *        never emits a split shape an older node cannot read. The convenience constructors default it to
- *        {@link TransportVersion#current()}.
+ *        {@link TransportVersion#current()} and are for tests only: production callers must pass the cluster's minimum.
  */
 public record SplitDiscoveryContext(
     SourceMetadata metadata,
@@ -83,7 +83,10 @@ public record SplitDiscoveryContext(
     TransportVersion minTransportVersion
 ) {
     /**
-     * As the canonical constructor, for a cluster where every node runs this build.
+     * As the canonical constructor, with {@link TransportVersion#current()} as the minimum transport version.
+     * <p>
+     * Tests only: assumes every node runs this build. Production callers must use the canonical constructor and pass
+     * the cluster's minimum transport version.
      */
     public SplitDiscoveryContext(
         SourceMetadata metadata,
@@ -124,6 +127,10 @@ public record SplitDiscoveryContext(
         );
     }
 
+    /**
+     * Tests only: assumes every node runs this build. Production callers must use the canonical constructor and pass
+     * the cluster's minimum transport version.
+     */
     public SplitDiscoveryContext(
         SourceMetadata metadata,
         FileList fileList,
@@ -146,6 +153,10 @@ public record SplitDiscoveryContext(
         );
     }
 
+    /**
+     * Tests only: assumes every node runs this build. Production callers must use the canonical constructor and pass
+     * the cluster's minimum transport version.
+     */
     public SplitDiscoveryContext(
         SourceMetadata metadata,
         FileList fileList,
@@ -203,7 +214,12 @@ public record SplitDiscoveryContext(
         );
     }
 
-    /** Without a row demand: the shape every caller had before a limit could reach split discovery. */
+    /**
+     * Without a row demand: the shape every caller had before a limit could reach split discovery.
+     * <p>
+     * Tests only: assumes every node runs this build. Production callers must use the canonical constructor and pass
+     * the cluster's minimum transport version.
+     */
     public SplitDiscoveryContext(
         SourceMetadata metadata,
         FileList fileList,
@@ -239,7 +255,12 @@ public record SplitDiscoveryContext(
         );
     }
 
-    /** Row demand without a query-pragma driver cap; discovery uses the search-pool default. */
+    /**
+     * Row demand without a query-pragma driver cap; discovery uses the search-pool default.
+     * <p>
+     * Tests only: assumes every node runs this build. Production callers must use the canonical constructor and pass
+     * the cluster's minimum transport version.
+     */
     public SplitDiscoveryContext(
         SourceMetadata metadata,
         FileList fileList,
@@ -277,6 +298,10 @@ public record SplitDiscoveryContext(
         );
     }
 
+    /**
+     * Tests only: assumes every node runs this build. Production callers must use the canonical constructor and pass
+     * the cluster's minimum transport version.
+     */
     public SplitDiscoveryContext(
         SourceMetadata metadata,
         FileList fileList,
@@ -291,6 +316,9 @@ public record SplitDiscoveryContext(
 
     /**
      * Carries resolved metadata bindings without requiring file-splitting or schema-reconciliation options.
+     * <p>
+     * Tests only: assumes every node runs this build. Production callers must use the canonical constructor and pass
+     * the cluster's minimum transport version.
      */
     public SplitDiscoveryContext(
         SourceMetadata metadata,
@@ -321,6 +349,9 @@ public record SplitDiscoveryContext(
 
     /**
      * Builds a context for a relation with no engine-generated metadata columns.
+     * <p>
+     * Tests only: assumes every node runs this build. Production callers must use the canonical constructor and pass
+     * the cluster's minimum transport version.
      */
     public SplitDiscoveryContext(
         SourceMetadata metadata,

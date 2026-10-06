@@ -2157,11 +2157,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // stream here or the file handle leaks (caught by LeakFS in CI). It is aborted rather than closed: a failure
             // such as a duplicate header name says nothing about the rest of the file, which a close may drain.
             try {
+                if (context.firstSplit() == false && context.recordAligned() == false) {
+                    // Byte-range split (bzip2 / zstd-indexed): its leading partial record was emitted by the prior split,
+                    // headered or not.
+                    skipLeadingPartialRecord(recordReader, effective);
+                }
                 if (options.headerRow()) {
-                    if (context.firstSplit() == false && context.recordAligned() == false) {
-                        // Byte-range split (bzip2 / zstd-indexed): its leading partial record was emitted by the prior split.
-                        skipLeadingPartialRecord(recordReader, effective);
-                    }
                     if (context.firstSplit()) {
                         // The header columns were read above; the data path still has to step over the header line.
                         consumeHeaderLine(recordReader);

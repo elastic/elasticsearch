@@ -419,6 +419,48 @@ public class ExternalProvenanceParityIT extends AbstractExternalDataSourceIT {
         );
     }
 
+    /**
+     * A headerless bzip2 file is cut the same way, and a split past the first starts inside a record the previous split
+     * already read. Under a pinned schema that partial record must be dropped, as it is for a headered file: read as a row
+     * it fails the query, or under a lenient policy adds a row that is not in the file.
+     */
+    public void testHeaderlessBzip2CsvLargerThanOneSplitReadsEveryRowOnce() throws Exception {
+        assumeTrue("bzip2 is available on snapshot builds only", Build.current().isSnapshot());
+        Path dir = createTempDir();
+        int rows = 500_000;
+        String withHeader = largeCsv(rows, 96, new Random(randomLong()));
+        Path file = dir.resolve("large.csv.bz2");
+        writeBzip2(file, withHeader.substring(withHeader.indexOf('\n') + 1));
+        assertThat("the compressed file must exceed one 32 MiB split", Files.size(file), greaterThan(34L * 1024 * 1024));
+        Map<String, Object> settings = Map.of("format", "csv", "mode", "plain", "header_row", false, "target_split_size", "1mb");
+
+        LinkedHashMap<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("salary", new DatasetFieldMapping("long", "col2"));
+        properties.put("name", new DatasetFieldMapping("keyword", "col1"));
+        properties.put("id", new DatasetFieldMapping("long", "col0"));
+        String declared = registerStrictDataset("headerless_bz2_declared", StoragePath.fileUri(file), properties, settings);
+
+        var request = syncEsqlQueryRequest(
+            "FROM " + declared + " | WHERE name == CONCAT(\"name\", TO_STRING(id)) AND salary == 2 * id | STATS c = COUNT(*)"
+        );
+        request.profile(true);
+        try (var response = run(request, TimeValue.timeValueMinutes(5))) {
+            assertThat(
+                "every row read exactly once, none from a partial record",
+                ((Number) getValuesList(response).get(0).get(0)).longValue(),
+                equalTo((long) rows)
+            );
+            assertThat(
+                "the file must be read as more than one split",
+                response.getExecutionInfo().queryProfile().splitsScanned(),
+                greaterThan(1)
+            );
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM " + declared + " | STATS c = COUNT(*)"), TimeValue.timeValueMinutes(5))) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo((long) rows));
+        }
+    }
+
     /** {@code id,name,salary[,pad]} rows where {@code name == "name" + id} and {@code salary == 2 * id}. */
     private static String largeCsv(int rows, int padChars, Random random) {
         StringBuilder csv = new StringBuilder(rows * (32 + padChars));

@@ -7544,6 +7544,67 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * A headerless file read in byte ranges has the same leading partial record, and a declared schema binding
+     * {@code col<N>} to field N must drop it too: read as a row it would be a record the previous split already emitted.
+     */
+    public void testNonRecordAlignedHeaderlessSplitDropsLeadingPartialRecordUnderDeclaredSchema() throws Exception {
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.LONG)
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
+            .withDeclaredProvenanceBinding(true);
+        assertNonAlignedSplitReadsOnlyWholeRecords(reader, readSchema, 1, 0);
+    }
+
+    /** As above, for a headerless schema inferred from the file, which binds by position. */
+    public void testNonRecordAlignedHeaderlessSplitDropsLeadingPartialRecordUnderInferredSchema() throws Exception {
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.KEYWORD)
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+        assertNonAlignedSplitReadsOnlyWholeRecords(reader, readSchema, 0, 1);
+    }
+
+    /**
+     * Reads a byte-range split starting inside {@code "1,alice"} (the previous split's record) under a strict policy, so
+     * a partial record read as a row would fail the read rather than be skipped quietly.
+     */
+    private void assertNonAlignedSplitReadsOnlyWholeRecords(CsvFormatReader reader, List<Attribute> readSchema, int idBlock, int nameBlock)
+        throws Exception {
+        StorageObject object = createStorageObject("ice\n2,bob\n3,carol\n");
+        List<String> names = new ArrayList<>();
+        List<Long> ids = new ArrayList<>();
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .firstSplit(false)
+                    .recordAligned(false)
+                    .batchSize(10)
+                    .errorPolicy(ErrorPolicy.STRICT)
+                    .readSchema(readSchema)
+                    .build()
+            )
+        ) {
+            while (it.hasNext()) {
+                Page page = it.next();
+                try {
+                    for (int p = 0; p < page.getPositionCount(); p++) {
+                        ids.add(((LongBlock) page.getBlock(idBlock)).getLong(p));
+                        names.add(((BytesRefBlock) page.getBlock(nameBlock)).getBytesRef(p, new BytesRef()).utf8ToString());
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+        assertEquals(List.of(2L, 3L), ids);
+        assertEquals(List.of("bob", "carol"), names);
+    }
+
+    /**
      * With no header columns to bind against there is nothing to fall back on but position, which would shift
      * every column. Failing loudly is the correct outcome, and stays so.
      */

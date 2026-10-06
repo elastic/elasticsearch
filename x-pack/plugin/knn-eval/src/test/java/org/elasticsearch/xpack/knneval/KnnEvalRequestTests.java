@@ -74,7 +74,7 @@ public class KnnEvalRequestTests extends AbstractWireSerializingTestCase<KnnEval
                 )
             );
             case 2 -> {
-                // the spec is immutable once constructed, so mutating it means building a new request around it
+                // the spec is immutable, so mutating means building a new request
                 mutation = new KnnEvalRequest(KnnEvalSpecTests.mutateTestItem(instance.getKnnEvalSpec()), instance.indices());
                 mutation.indicesOptions(instance.indicesOptions());
             }

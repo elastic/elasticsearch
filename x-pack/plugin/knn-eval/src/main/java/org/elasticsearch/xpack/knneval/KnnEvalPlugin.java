@@ -24,9 +24,7 @@ public class KnnEvalPlugin extends Plugin implements ActionPlugin {
 
     static final ActionType<KnnEvalResponse> KNN_EVAL_ACTION = new ActionType<>("indices:data/read/knn_eval");
 
-    /**
-     * Lets operators refuse new evaluations without a release. Evaluations already running are stopped through the task API.
-     */
+    /** Lets operators refuse new evaluations; running ones are cancelled through the task API. */
     static final Setting<Boolean> ENABLED = Setting.boolSetting(
         "search.knn_eval.enabled",
         true,

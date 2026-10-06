@@ -23,7 +23,7 @@ import java.io.IOException;
 /** Selects indexed query vectors. An optional seed makes the sample reproducible. */
 record KnnEvalSample(int size, @Nullable Integer seed) implements Writeable, ToXContentObject {
 
-    /** Each sampled query costs one baseline plus one search per settings entry, so this bounds fan-out. */
+    /** Each sampled query costs a baseline plus one search per settings entry; bounds fan-out. */
     static final int MAX_SAMPLE_SIZE = 1_000;
 
     static final ParseField SIZE_FIELD = new ParseField("size");

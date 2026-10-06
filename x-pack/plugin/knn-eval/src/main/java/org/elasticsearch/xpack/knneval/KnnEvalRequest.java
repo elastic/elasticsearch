@@ -24,7 +24,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 
-/** Request to estimate the recall of approximate kNN configurations against a more thorough one over the same field. */
+/** Estimates recall of approximate kNN configurations against a more thorough one on the same field. */
 final class KnnEvalRequest extends UntypedActionRequest implements IndicesRequest.Replaceable {
 
     private final KnnEvalSpec knnEvalSpec;

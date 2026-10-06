@@ -162,7 +162,7 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
         return Objects.hash(queryFrom, baseline, baselineTookMs, baselineVectorOps, baselineVectorOpsKind, results, failureMessages());
     }
 
-    // Exceptions lack value equality, so failures compare by message.
+    // exceptions lack equality; compare by message
     private Map<String, String> failureMessages() {
         return failures.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> String.valueOf(e.getValue().getMessage())));
     }
@@ -222,14 +222,14 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
         }
     }
 
-    /** The requested settings plus whether full-precision rescoring hit its 10,000-vector limit. */
+    /** Requested settings, whether the 10,000-vector rescore limit was hit, and whether scores are quantized. */
     public record ReportedSettings(KnnEvalSettings knnSettings, boolean rescoreWindowCapped, boolean quantizedScores)
         implements
             Writeable,
             ToXContentObject {
 
         static final ParseField RESCORE_WINDOW_CAPPED_FIELD = new ParseField("rescore_window_capped");
-        /** Nothing rescored these hits, so their scores are estimates and no query is excluded for scoring above the baseline cutoff. */
+        /** Nothing rescored these hits, so scores are estimates and no query is excluded by the cutoff comparison. */
         static final ParseField QUANTIZED_SCORES_FIELD = new ParseField("quantized_scores");
 
         public static ReportedSettings of(KnnEvalSettings knnSettings) {

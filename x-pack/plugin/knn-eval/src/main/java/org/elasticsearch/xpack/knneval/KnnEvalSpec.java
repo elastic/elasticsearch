@@ -37,7 +37,7 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
     static final ParseField BASELINE_FIELD = new ParseField("baseline");
     static final ParseField KNN_SETTINGS_FIELD = new ParseField("knn_settings");
 
-    /** Bounded so an omitted baseline cannot unexpectedly scan every full-precision vector; exact stays available explicitly. */
+    /** Bounded, so an omitted baseline can't scan every vector; exact must be explicit. */
     private static final KnnEvalSettings DEFAULT_BASELINE = new KnnEvalSettings(20.0f, null, 100.0f, false);
 
     @SuppressWarnings("unchecked")
@@ -72,7 +72,7 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
         validateVectorsSource(querySource, k);
         baseline = normalizeBaseline(baseline);
         boolean sampling = querySource instanceof KnnEvalQuerySource.DocsSource;
-        // a sampled query also retrieves its own document, so it searches one extra candidate
+        // a sampled query also retrieves its own document: one extra candidate
         int maxNumCandidates = sampling ? KnnEvalRescore.MAX_NUM_CANDIDATES - 1 : KnnEvalRescore.MAX_NUM_CANDIDATES;
         validateNumCandidates(baseline, k, maxNumCandidates, sampling);
         validateCandidates(knnSettings, k, maxNumCandidates, sampling);
@@ -136,7 +136,7 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
                 throw new IllegalArgumentException("duplicate entry in [" + KNN_SETTINGS_FIELD.getPreferredName() + "]: " + candidate);
             }
             if (candidate.isExact()) {
-                // it would be measuring the reference against itself
+                // would compare the reference with itself
                 throw new IllegalArgumentException(
                     "[" + KnnEvalSettings.EXACT_FIELD.getPreferredName() + "] is only supported on the baseline, not in [knn_settings]"
                 );
@@ -144,7 +144,7 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
         }
     }
 
-    /** The kNN query rejects this too, but here the error can name the offending settings entry rather than one failed query. */
+    /** The kNN query rejects this too, but here the error names the settings entry. */
     private static void validateNumCandidates(KnnEvalSettings knnSettings, int k, int maxNumCandidates, boolean sampling) {
         Integer numCandidates = knnSettings.getNumCandidates();
         if (numCandidates != null && numCandidates < k) {
@@ -196,19 +196,19 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
         return querySource;
     }
 
-    /** The caller-supplied query set, or {@code null} when queries are sampled server-side. */
+    /** The supplied queries, or {@code null} when sampled. */
     @Nullable
     public List<KnnEvalQuery> getQueries() {
         return querySource instanceof KnnEvalQuerySource.VectorsSource vs ? vs.vectors() : null;
     }
 
-    /** The server-side sampling parameters, or {@code null} when the caller supplied queries directly. */
+    /** Sampling parameters, or {@code null} when queries are supplied. */
     @Nullable
     public KnnEvalSample getSample() {
         return querySource instanceof KnnEvalQuerySource.DocsSource ds ? ds.sample() : null;
     }
 
-    /** Never {@code null}: an omitted baseline uses the bounded DiskBBQ proxy. */
+    /** Never {@code null}: an omitted baseline is the bounded default. */
     public KnnEvalSettings getBaseline() {
         return baseline;
     }

@@ -33,14 +33,14 @@ final class KnnEvalSearches {
 
     private KnnEvalSearches() {}
 
-    /** Any positive value makes an exact query score on the real vectors rather than the quantized ones. */
+    /** Any positive value makes an exact query score full-precision vectors. */
     private static final float EXACT_SCORING_OVERSAMPLE = 1.0f;
 
-    /** Matching on the vector field keeps the query distribution matched to the corpus; the shared PIT keeps samples searchable. */
+    /** Samples the vector field so queries match the corpus; the shared PIT keeps them searchable. */
     static SearchRequest buildSampleRequest(KnnEvalSpec spec, KnnEvalSample sample, BytesReference pointInTimeId) {
         RandomScoreFunctionBuilder randomScore = new RandomScoreFunctionBuilder();
         if (sample.getSeed() != null) {
-            // `field` is compulsory once a seed is set, and `_seq_no` is unique per document within a shard
+            // a seeded random_score needs a field; _seq_no is unique per shard document
             randomScore.seed(sample.getSeed()).setField(SeqNoFieldMapper.NAME);
         }
         SearchSourceBuilder source = new SearchSourceBuilder().query(
@@ -62,7 +62,7 @@ final class KnnEvalSearches {
         return searchRequest(source);
     }
 
-    /** Copies sampled vectors before the pooled search response is released. */
+    /** Copies vectors out before the pooled response is released. */
     static List<KnnEvalQuery> extractSampledQueries(SearchResponse searchResponse, String field) {
         SearchHit[] hits = searchResponse.getHits().getHits();
         List<KnnEvalQuery> queries = new ArrayList<>(hits.length);
@@ -98,7 +98,7 @@ final class KnnEvalSearches {
         return vector;
     }
 
-    /** Builds a point-in-time search without indices, which PIT searches reject. */
+    /** PIT searches reject explicit indices, so none are set. */
     static SearchRequest buildSearch(
         KnnEvalSpec spec,
         KnnEvalQuery query,
@@ -115,7 +115,7 @@ final class KnnEvalSearches {
         SearchSourceBuilder source = new SearchSourceBuilder().query(exactQuery(spec, query))
             .size(searchSize)
             .fetchSource(false)
-            // exact_knn is not profiled, so matched documents are the full-precision operation count
+            // exact_knn isn't profiled; matched docs are the vector op count
             .trackTotalHits(true)
             .pointInTimeBuilder(new PointInTimeBuilder(pointInTimeId));
         return searchRequest(source);
@@ -128,7 +128,7 @@ final class KnnEvalSearches {
         int searchSize,
         BytesReference pointInTimeId
     ) {
-        // A sampled query drops its own document, so it searches one extra hit and candidate to keep k results from N useful candidates
+        // a sampled query drops its own hit, so search one extra hit and candidate
         int extra = searchSize - spec.getK();
         Integer numCandidates = knnSettings.getNumCandidates() == null ? null : knnSettings.getNumCandidates() + extra;
         KnnSearchBuilder.Builder knnSearch = new KnnSearchBuilder.Builder().field(spec.getField())
@@ -136,12 +136,12 @@ final class KnnEvalSearches {
             .k(searchSize)
             .numCandidates(numCandidates)
             .visitPercentage(knnSettings.getVisitPercentage())
-            // null leaves the field mapping's own rescoring in force
+            // null keeps the mapping's rescoring
             .rescoreVectorBuilder(
                 knnSettings.getRescoreOversample() == null ? null : new RescoreVectorBuilder(knnSettings.getRescoreOversample())
             );
-        // The knn section rather than the equivalent knn query: only the dfs-phase path records vector_operations_count, which is why
-        // profile is on. Builder.build(size) applies the same 1.5 * k num_candidates default the query form would.
+        // knn section, not the knn query: only the dfs path records vector_operations_count, hence profile(true)
+        // build(size) applies the query form's 1.5 * k num_candidates default
         SearchSourceBuilder source = new SearchSourceBuilder().knnSearch(List.of(knnSearch.build(searchSize)))
             .size(searchSize)
             .fetchSource(false)
@@ -150,12 +150,12 @@ final class KnnEvalSearches {
         return searchRequest(source);
     }
 
-    /** A dropped shard must fail its search: partial results would silently shrink the corpus the recall describes. */
+    /** A dropped shard fails the search: partial results would silently shrink the corpus recall describes. */
     private static SearchRequest searchRequest(SearchSourceBuilder source) {
         return new SearchRequest().source(source).allowPartialSearchResults(false);
     }
 
-    /** Builds a full-precision brute-force query even when mapping-level rescoring is disabled. */
+    /** Brute-force full-precision query, even if the mapping disables rescoring. */
     private static QueryBuilder exactQuery(KnnEvalSpec spec, KnnEvalQuery query) {
         return new ExactKnnQueryBuilder(query.getQueryVector(), spec.getField(), null, EXACT_SCORING_OVERSAMPLE);
     }

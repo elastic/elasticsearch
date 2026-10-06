@@ -97,10 +97,10 @@ public class TransportKnnEvalActionTests extends ESTestCase {
 
     private static final int K = 5;
 
-    /** The stub's total hit count, which is what an exact baseline counts as its vector operations. */
+    /** The stub's total hit count, which an exact baseline counts as vector operations. */
     private static final long TOTAL_HITS = 30;
 
-    /** A real {@link ClusterSettings}, since the action reading it is the point; only {@link ClusterService} is mocked. */
+    /** Real {@link ClusterSettings}, since the action reads them; only {@link ClusterService} is mocked. */
     private static ClusterService clusterService(boolean allowExpensiveQueries) {
         return clusterService(allowExpensiveQueries, true);
     }
@@ -174,7 +174,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         }
     }
 
-    /** A shard that cannot return k documents should not look like a recall failure. */
+    /** A shard that can't return k documents isn't a recall failure. */
     public void testRecallIsRelativeToWhatTheBaselineCouldReturn() {
         SearchHit[] baselineHits = searchHits("a", "b");
         SearchHit[] candidateHits = searchHits("a", "b");
@@ -207,7 +207,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         SearchHit[] candidateHits = searchHits("a", "b", "x");
         candidateHits[2].score(2);
         try {
-            // an estimate above the cutoff proves nothing, so the query keeps its overlap recall
+            // an estimate above the cutoff proves nothing; the query keeps its overlap recall
             KnnEvalRecall.RecallResult detail = KnnEvalRecall.recallOf(candidateHits, KnnEvalRecall.baselineOf(baselineHits), false, 0, 0);
             assertEquals(2.0 / 3.0, detail.recall(), 0.0);
             assertEquals(0, detail.baselineMissedBetter());
@@ -233,13 +233,13 @@ public class TransportKnnEvalActionTests extends ESTestCase {
     public void testTopKExcludingDropsTheQueryDocumentAndTruncates() {
         SearchHit[] hits = searchHits("q", "a", "b", "c", "d", "e");
         try {
-            // dropping the sampled document from the k + 1 requested hits still leaves a full window of k
+            // dropping the sampled document from k + 1 hits leaves a full k
             assertEquals(List.of("a", "b", "c", "d", "e"), hitIds(KnnEvalRecall.topKExcluding(hits, "index/q", 5)));
-            // ... and with nothing excluded the extra hit is truncated
+            // with nothing excluded the extra hit is truncated
             assertEquals(List.of("q", "a", "b", "c", "d"), hitIds(KnnEvalRecall.topKExcluding(hits, null, 5)));
-            // exclusion can also happen part way down the list
+            // exclusion can happen mid-list
             assertEquals(List.of("q", "a", "b", "d", "e"), hitIds(KnnEvalRecall.topKExcluding(hits, "index/c", 5)));
-            // a shorter list than k comes back unchanged
+            // a list shorter than k is unchanged
             assertEquals(List.of("q", "a", "b", "c", "d", "e"), hitIds(KnnEvalRecall.topKExcluding(hits, null, 10)));
         } finally {
             releaseScratchHits(hits);
@@ -296,7 +296,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         assertEquals("array", request.source().fetchFields().getFirst().format);
     }
 
-    /** A sampled query spends one hit and one candidate on its own document, so both grow by one to leave it the requested budget. */
+    /** A sampled query spends one hit and one candidate on its own document, so both grow by one. */
     public void testSampledQuerySearchesOneExtraCandidate() {
         KnnEvalSettings settings = new KnnEvalSettings(5.0f, 50, null, false);
         KnnEvalSpec spec = new KnnEvalSpec(
@@ -318,7 +318,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         assertEquals(51, sampled.getNumCands());
     }
 
-    /** A shard dropped from a pass would change the corpus the recall number describes, so partial results are refused. */
+    /** A dropped shard would change the corpus recall describes, so partial results are refused. */
     public void testEverySearchRefusesPartialResults() {
         KnnEvalSample sample = new KnnEvalSample(10, 42);
         KnnEvalSpec approximate = new KnnEvalSpec(
@@ -353,7 +353,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         RecordingClient client = new RecordingClient();
         run(client, 12, 5.0f, 20.0f);
 
-        // every query of one settings entry runs before the next settings entry starts
+        // all queries of one settings entry run before the next entry starts
         assertThat(client.passes(), contains(new Pass(BASELINE_VISIT_PERCENTAGE, 12), new Pass(5.0f, 12), new Pass(20.0f, 12)));
     }
 
@@ -375,7 +375,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
 
     /** The mean is over queries, not over passes. */
     public void testMeanRecallIsOverQueries() {
-        // the stub's recall cycles 1.0, 0.8, 0.6, so the mean is (40 * 2.4) / 120
+        // the stub's recall cycles 1.0, 0.8, 0.6: mean (40 * 2.4) / 120
         assertEquals(0.8, runAndGetScore(120), 1e-9);
     }
 
@@ -450,7 +450,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
         assertThat(e.getMessage(), containsString("[exact] baseline requires [search.allow_expensive_queries] to be true"));
 
-        // a non-exact baseline is an ordinary kNN search, so the setting does not apply
+        // a non-exact baseline is an ordinary kNN search; the setting does not apply
         RecordingClient client = new RecordingClient();
         TransportKnnEvalAction allowed = new TransportKnnEvalAction(ActionFilters.EMPTY, client, transportService, clusterService(false));
         PlainActionFuture<KnnEvalResponse> ok = new PlainActionFuture<>();
@@ -525,7 +525,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
                 .getMessage()
         );
         TransportKnnEvalAction.validateQueryDimensions("emb", 3, queries.subList(0, 1));
-        // sampled queries come from the field and encoded vectors are only decodable per search
+        // sampled queries come from the field; encoded vectors decode per search
         TransportKnnEvalAction.validateQueryDimensions("emb", 3, null);
         TransportKnnEvalAction.validateQueryDimensions("emb", 3, List.of(new KnnEvalQuery("enc", VectorData.fromStringVector("AAAA"))));
     }
@@ -598,7 +598,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         );
     }
 
-    /** An exact baseline brute-forces every document, so it uses the exact_knn query rather than the approximate knn section. */
+    /** An exact baseline brute-forces every document, so it uses exact_knn, not the knn section. */
     public void testExactBaselineUsesTheExactKnnQuery() {
         boolean allowExpensiveQueries = true;
         RecordingClient client = new RecordingClient();
@@ -624,12 +624,12 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         assertTrue(client.vectorCountRequested);
         assertThat(client.baselineQuery, instanceOf(ExactKnnQueryBuilder.class));
         assertTrue("the exact baseline sets no knn section", client.baselineKnnSearchEmpty);
-        // exact_knn is not profiled, so the scan's own hit count is the operation count
+        // exact_knn isn't profiled; the scan's hit count is the op count
         assertFalse(client.baselineProfiled);
         KnnEvalResponse response = safeGet(future);
         assertEquals(KnnEvalResponse.FULL_PRECISION_SCAN, response.getBaselineVectorOpsKind());
         assertEquals(TOTAL_HITS, response.getBaselineVectorOps());
-        // the settings entries are unaffected: they are what is being measured
+        // settings entries are unaffected: they are what is measured
         assertNull(client.candidateQuery);
         assertFalse(client.candidateKnnSearchEmpty);
     }
@@ -694,7 +694,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         assertTrue(explicit.rescoreWindowCapped());
     }
 
-    /** The caller never invoked the mapping action, so the refusal has to name this endpoint and the privilege it needs. */
+    /** The caller never invoked the mapping action, so the refusal must name this endpoint and the privilege. */
     public void testMappingLookupAuthorizationFailureNamesThisEndpoint() {
         RecordingClient client = new RecordingClient();
         client.failFieldMappings = true;
@@ -705,7 +705,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("[_knn_eval] reads the mapping of field [emb]"));
         assertThat(exception.getMessage(), containsString("[view_index_metadata]"));
         assertEquals(RestStatus.FORBIDDEN, exception.status());
-        // the original refusal is still reachable for anyone debugging the privilege
+        // the original refusal stays reachable for debugging the privilege
         assertEquals("no view_index_metadata", exception.getCause().getMessage());
         assertFalse(client.pointInTimeOpened);
     }
@@ -723,7 +723,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         assertFalse(client.pointInTimeOpened);
     }
 
-    /** A failed search is attributed to its own query, and the point-in-time is still released. */
+    /** A failed search is attributed to its query, and the PIT is still released. */
     public void testFailedSearchesAreReportedPerQueryAndReleaseThePointInTime() {
         RecordingClient client = new RecordingClient();
         client.failSearch = true;
@@ -737,7 +737,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         assertTrue(client.pointInTimeClosed);
     }
 
-    /** The stub answers on the calling thread, so a full-size sweep must not become one deep chain of nested callbacks. */
+    /** The stub answers on the calling thread, so a full sweep must not nest callbacks deeply. */
     public void testFullSizeSweepDoesNotGrowTheStack() {
         float[] candidates = new float[KnnEvalSpec.MAX_KNN_SETTINGS];
         for (int i = 0; i < candidates.length; i++) {
@@ -749,7 +749,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         assertEquals(KnnEvalSpec.MAX_QUERIES, response.getResults().getLast().includedQueries());
     }
 
-    /** A failure that would repeat for every query stops the evaluation and surfaces its cause, instead of a 200 full of failures. */
+    /** A failure repeating for every query stops the evaluation with its cause, not a 200 of failures. */
     public void testEvaluationLevelFailuresStopTheSweep() {
         Exception cause = randomFrom(
             new SearchContextMissingException(new ShardSearchContextId("session", 1)),
@@ -822,7 +822,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         client.baselineSearchesRemaining = numQueries;
         List<KnnEvalQuery> queries = new ArrayList<>(numQueries);
         for (int q = 0; q < numQueries; q++) {
-            // the stub reads the ordinal back out of the vector to identify a query in any pass
+            // the stub reads the ordinal from the vector to identify a query in any pass
             queries.add(new KnnEvalQuery("q" + q, VectorData.fromFloats(new float[] { q })));
         }
         List<KnnEvalSettings> candidates = new ArrayList<>(candidateVisitPercentages.length);
@@ -845,14 +845,14 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         );
         PlainActionFuture<KnnEvalResponse> future = new PlainActionFuture<>();
         action.doExecute(null, new KnnEvalRequest(spec, new String[] { "index" }), future);
-        // the stub answers inline, so the whole chain has already completed
+        // the stub answers inline, so the chain has completed
         return future;
     }
 
-    /** One run of consecutive searches sharing a settings entry: which settings entry, and how many queries it covered. */
+    /** Consecutive searches sharing a settings entry: which entry, and how many queries. */
     private record Pass(Float visitPercentage, int queries) {}
 
-    /** Records generated requests and answers inline; request ordering is observable only at the client boundary. */
+    /** Records requests and answers inline; ordering is observable only at the client boundary. */
     private static class RecordingClient extends NodeClient {
 
         private static final BytesReference POINT_IN_TIME_ID = new BytesArray("knn-eval-test-pit");
@@ -886,7 +886,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         private int candidateSearches;
         private int evaluationSearchesAttempted;
 
-        /** Consecutive searches sharing a settings entry, collapsed into one entry per pass. */
+        /** Consecutive searches sharing a settings entry, collapsed to one per pass. */
         private List<Pass> passes() {
             List<Pass> passes = new ArrayList<>();
             for (Float visitPercentage : searches) {
@@ -929,7 +929,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
                 BytesReference mapping = new BytesArray("""
                     {"emb":{"type":"dense_vector","similarity":"l2_norm","element_type":"float",
                     "index_options":{"type":"bbq_disk","rescore_vector":{"oversample":3.0}}}}""");
-                // the source is keyed by leaf name whatever the path, as the real action does
+                // keyed by leaf name whatever the path, as the real action does
                 Map<String, GetFieldMappingsResponse.FieldMappingMetadata> indexMapping = Map.of(
                     field,
                     new GetFieldMappingsResponse.FieldMappingMetadata(field, mapping)
@@ -948,7 +948,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
                 } else {
                     mappings = Map.of("index", indexMapping);
                 }
-                // The map constructor is package-private, so only this response envelope is mocked.
+                // the map constructor is package-private, so only this envelope is mocked
                 GetFieldMappingsResponse response = mock(GetFieldMappingsResponse.class);
                 when(response.mappings()).thenReturn(mappings);
                 listener.onResponse((Response) response);
@@ -986,7 +986,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             return new FieldCapabilities(name, type, false, true, true, false, null, null, null, null, Map.of());
         }
 
-        /** Answers one evaluation search, recording which settings entry it belonged to. */
+        /** Answers one search, recording its settings entry. */
         private void evaluationSearch(SearchRequest request, ActionListener<SearchResponse> listener) {
             evaluationSearchesAttempted++;
             searchParentTask = request.getParentTask();
@@ -994,7 +994,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
                 listener.onFailure(searchFailure == null ? new ElasticsearchException("search rejected") : searchFailure);
                 return;
             }
-            // SearchRequest#validate rejects indices alongside a point-in-time
+            // SearchRequest#validate rejects indices with a PIT
             assertEquals(0, request.indices().length);
             SearchSourceBuilder source = request.source();
             assertEquals(new PointInTimeBuilder(POINT_IN_TIME_ID), source.pointInTimeBuilder());
@@ -1004,7 +1004,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
                 // an exact run has no knn section
                 assertTrue(exactBaseline);
             } else {
-                // the knn section rather than the knn query: only the dfs-phase path profiles vector_operations_count
+                // knn section, not the knn query: only the dfs path profiles vector_operations_count
                 assertNull(source.query());
                 assertEquals(1, source.knnSearch().size());
                 assertEquals("emb", source.knnSearch().get(0).getField());
@@ -1037,7 +1037,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             return source.knnSearch().isEmpty() ? null : source.knnSearch().get(0).getRescoreVectorBuilder();
         }
 
-        /** The last {@code misses} hits are renamed so they fall outside the baseline's top-k. */
+        /** Renames the last {@code misses} hits so they fall outside the baseline's top-k. */
         private static SearchResponse response(int misses, boolean missesAreBetter, int hitCount) {
             SearchHit[] hits = new SearchHit[hitCount];
             for (int i = 0; i < hitCount; i++) {

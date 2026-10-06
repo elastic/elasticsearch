@@ -20,9 +20,8 @@ setup:
                 index_options:
                   type: bbq_disk
 
-  # Every vector is base + id * step, so all 30 sit on a line and the L2 distance between i and j is exactly |i - j| * |step|. The
-  # nearest neighbour of document 1 is therefore document 2 with a clear margin over 3, so the expected hit ids below do not depend on
-  # tie breaking.
+  # Vector i is base + i * step: all 30 sit on a line, so the L2 distance between i and j is exactly |i - j| * |step|. Document 1's
+  # nearest neighbour is clearly document 2, so expected ids don't depend on tie breaking.
   - do:
       bulk:
         index: knn_eval_test
@@ -91,7 +90,7 @@ setup:
 
 ---
 teardown:
-  # runs whatever the outcome, so a failed assertion cannot leave expensive queries switched off
+  # runs whatever the outcome, so a failed assertion cannot leave settings changed
   - do:
       cluster.put_settings:
         body:
@@ -101,8 +100,7 @@ teardown:
 
 ---
 "The corpus the other sections sample from is fully indexed":
-  # guards the rest of this file: a bbq_disk field silently rejects documents when its licensed plugin is missing, which would leave
-  # the sampled query set empty
+  # guards the file: without its licensed plugin a bbq_disk field silently rejects documents, leaving the sampled set empty
   - do:
       indices.stats:
         index: knn_eval_test
@@ -137,7 +135,7 @@ teardown:
   - set: { baseline_vector_ops: baseline_vector_ops }
   - gt: { results.0.vector_ops: 0 }
   - gt: { baseline_vector_ops: 0 }
-  # the settings entry re-runs the baseline, so it must do exactly the same work
+  # the entry re-runs the baseline, so it must do the same work
   - match: { results.0.vector_ops: $baseline_vector_ops }
 
 ---
@@ -340,8 +338,8 @@ teardown:
 
 ---
 "A rescore_vector setting makes the baseline an exact reference":
-  # The mapping's oversample of 3 rescores only the quantized top 3k, which can drop a document whose true rank is inside k. Raising
-  # it on the baseline alone turns the reference into exact search without a brute-force script_score.
+  # the mapping's oversample of 3 rescores only the quantized top 3k, which can drop a true top-k document; raising it on the
+  # baseline alone makes the reference exact without a brute-force script_score
   - do:
       knn_eval:
         index: knn_eval_test
@@ -360,7 +358,7 @@ teardown:
 
   - match: { baseline.visit_percentage: 100.0 }
   - match: { baseline.rescore_vector.oversample: 10.0 }
-  # the settings entry leaves rescore_vector unset, so the mapping's own setting applies
+  # the entry leaves rescore_vector unset, so the mapping's applies
   - is_false: results.0.knn_settings.rescore_vector
   - lte: { results.0.recall: 1.0 }
   - gte: { results.0.recall: 0.0 }
@@ -386,14 +384,13 @@ teardown:
 
   - match: { baseline.exact: true }
   - is_false: baseline.visit_percentage
-  # 30 documents is small enough that an approximate search is exhaustive, so both entries recover the exact answer
+  # 30 documents is small enough for approximate search to be exhaustive, so both entries recover the exact answer
   - match: { results.0.recall: 1.0 }
   - match: { results.1.recall: 1.0 }
-  # An exact scan's operation count is its own hit count: 30 documents per query. The sampled query document is scanned like any
-  # other; the exclusion is post-hoc.
+  # an exact scan's op count is its hit count: 30 per query; the sampled document is scanned like any other (exclusion is post-hoc)
   - match: { baseline_vector_ops_kind: "full_precision_scan" }
   - match: { baseline_vector_ops: 300 }
-  # a settings entry is an ordinary knn search, whose mostly 1-bit operations the codec counts
+  # an entry is an ordinary knn search; the codec counts its mostly 1-bit operations
   - gt: { results.0.vector_ops: 0 }
 
 ---
@@ -501,7 +498,7 @@ teardown:
           knn_settings:
             - visit_percentage: 100
 
-  # a non-exact baseline is an ordinary kNN search, so the setting does not apply
+  # a non-exact baseline is an ordinary kNN search; the setting does not apply
   - do:
       knn_eval:
         index: knn_eval_test
@@ -569,7 +566,7 @@ teardown:
         body:
           field: emb
           k: 10
-          # caller supplied queries, so the search size is exactly k rather than k + 1
+          # supplied queries, so the search size is k, not k + 1
           query_source:
             from: vectors
             vectors:
@@ -587,7 +584,7 @@ teardown:
                 oversample: 1001
 
   - is_false: baseline.rescore_window_capped
-  # the default bbq_disk mapping rescores, so these scores are full precision
+  # the default bbq_disk mapping rescores: full-precision scores
   - is_false: baseline.quantized_scores
   - is_false: results.0.knn_settings.quantized_scores
   - is_false: results.0.knn_settings.rescore_window_capped
@@ -649,7 +646,7 @@ teardown:
               rescore_vector:
                 oversample: 3
 
-  # mapping bits 4 has no rescore_vector, so only the entry that sets one is rescored
+  # bits 4 has no rescore_vector, so only the entry that sets one is rescored
   - is_false: baseline.quantized_scores
   - match: { results.0.knn_settings.quantized_scores: true }
   - is_false: results.1.knn_settings.quantized_scores
@@ -676,7 +673,7 @@ teardown:
 
 ---
 "Base64 encoded query vectors":
-  # document 1's vector as big-endian float32 base64, which is what the encoded forms exist for
+  # document 1's vector as big-endian float32 base64
   - do:
       knn_eval:
         index: knn_eval_test
@@ -763,7 +760,7 @@ teardown:
           knn_settings:
             - visit_percentage: 100
 
-  # the decode happens per search, so one bad vector costs only its own query
+  # decoding is per search, so one bad vector costs only its query
   - match: { results.0.recall: 1.0 }
   - match: { results.0.included_queries: 1 }
   - length: { failures: 1 }
@@ -790,8 +787,8 @@ teardown:
 
 ---
 "Results across several shards match what was indexed":
-  # Vector i is base + i * step, so all 24 sit on a line and the L2 distance between i and j is |i - j| * step whichever shard holds them.
-  # The queries lie at 3.2 and 17.7 on that line, so the four nearest documents are unambiguous: 3, 4, 2, 5 and 18, 17, 19, 16.
+  # Vector i is base + i * step: all 24 sit on a line, so the L2 distance is |i - j| * step whichever shard holds them. Queries at
+  # 3.2 and 17.7 make the four nearest unambiguous: 3, 4, 2, 5 and 18, 17, 19, 16.
   - do:
       indices.create:
         index: knn_eval_sharded
@@ -884,17 +881,17 @@ teardown:
               rescore_vector:
                 oversample: 10
 
-  # the exact baseline compares every one of the 24 documents, on every shard, for each of the 2 queries
+  # the exact baseline compares all 24 documents on every shard for each of the 2 queries
   - match: { baseline_vector_ops: 48 }
   - match: { baseline_vector_ops_kind: full_precision_scan }
   - length: { failures: 0 }
   - match: { results.0.included_queries: 2 }
   - match: { results.0.excluded_queries: 0 }
-  # a search that visits everything and merges the shards' hits finds the same four documents as the exact one
+  # visiting everything and merging shard hits finds the exact four
   - match: { results.0.recall: 1.0 }
   - gte: { results.0.vector_ops: 48 }
 
-  # every document has a vector, so asking for at least that many samples uses all 24 as queries
+  # every document has a vector, so size 30 samples all 24
   - do:
       knn_eval:
         index: knn_eval_sharded

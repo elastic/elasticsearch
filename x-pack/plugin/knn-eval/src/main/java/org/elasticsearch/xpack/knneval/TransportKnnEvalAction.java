@@ -62,19 +62,16 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 
-/**
- * Compares each candidate's top-k with an exact or approximate baseline. One shared point-in-time and strictly sequential passes keep
- * index changes and inter-setting contention out of the measurement.
- */
+/** Compares each candidate's top-k with the baseline's, using one PIT and sequential passes to keep changes and contention out. */
 public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalRequest, KnnEvalResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportKnnEvalAction.class);
 
-    /** Bounds the idle gap between consecutive searches, not the sweep: each search through the point in time renews it. */
+    /** Idle gap between searches, not the sweep length: each PIT search renews it. */
     static final TimeValue POINT_IN_TIME_KEEP_ALIVE = TimeValue.timeValueMinutes(5);
     static final long MAX_EXACT_VECTOR_COMPARISONS = 100_000_000L;
 
-    /** Failures about the cluster or this evaluation rather than one query; every remaining search would fail the same way. */
+    /** Cluster or evaluation failures, not one query's: every remaining search would fail alike. */
     private static final Class<?>[] EVALUATION_FAILURES = {
         SearchContextMissingException.class,
         NoShardAvailableActionException.class,
@@ -121,7 +118,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         }
         if (request.getKnnEvalSpec().getBaseline().isExact()
             && clusterService.getClusterSettings().get(SearchService.ALLOW_EXPENSIVE_QUERIES) == false) {
-            // a full scan is what that setting exists to keep off a cluster; an approximate baseline is an ordinary kNN search
+            // a full scan is what that setting guards; approximate baselines are ordinary kNN searches
             listener.onFailure(
                 new IllegalArgumentException(
                     "["
@@ -141,7 +138,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         );
     }
 
-    /** Nested vectors need nested-wrapped sampling and exact queries, plus parent-level recall; refuse them until that exists. */
+    /** Nested vectors need nested sampling, exact queries and parent-level recall; refused until supported. */
     private void rejectNestedField(Task task, KnnEvalRequest request, KnnEvalRescore rescore, ActionListener<KnnEvalResponse> listener) {
         String field = request.getKnnEvalSpec().getField();
         FieldCapabilitiesRequest capabilitiesRequest = new FieldCapabilitiesRequest().indices(request.indices())
@@ -165,7 +162,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         }));
     }
 
-    /** Field caps lists a field's ancestors by type, so a nested one appears as [nested] under some prefix of the path. */
+    /** Field caps reports a nested ancestor as [nested] under a prefix of the path. */
     @Nullable
     static String nestedAncestor(String field, Map<String, Map<String, FieldCapabilities>> capabilities) {
         for (int dot = field.lastIndexOf('.'); dot > 0; dot = field.lastIndexOf('.', dot - 1)) {
@@ -177,7 +174,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         return null;
     }
 
-    /** Validates that the field resolves consistently to a supported DiskBBQ mapping across all target indices. */
+    /** Checks the field maps to one supported DiskBBQ config across all indices. */
     private void resolveField(Task task, KnnEvalRequest request, ActionListener<KnnEvalRescore> listener) {
         KnnEvalSpec spec = request.getKnnEvalSpec();
         String field = spec.getField();
@@ -193,7 +190,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         );
     }
 
-    /** The lookup runs as the caller, so a [read]-only caller is refused by an action they never invoked. Name this one instead. */
+    /** A [read]-only caller is refused by an action they never invoked; name this one. */
     private static Exception mappingLookupFailure(String field, Exception e) {
         if (ExceptionsHelper.unwrap(e, ElasticsearchSecurityException.class) instanceof ElasticsearchSecurityException security
             && security.status() == RestStatus.FORBIDDEN) {
@@ -216,7 +213,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         for (Map<String, FieldMappingMetadata> indexMappings : response.mappings().values()) {
             FieldMappingMetadata metadata = indexMappings.get(field);
             FieldResolution resolution = FieldResolution.UNMAPPED;
-            // keyed by leaf name (`emb` for `obj.emb`), so take the sole entry rather than looking up the full path
+            // keyed by leaf name (emb for obj.emb): take the sole entry
             Map<String, Object> source = metadata == null ? Map.of() : metadata.sourceAsMap();
             if (source.size() == 1 && source.values().iterator().next() instanceof Map<?, ?> mapping) {
                 @SuppressWarnings("unchecked") // a field mapping body is always a string-keyed object
@@ -237,7 +234,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         return rescore;
     }
 
-    /** Every search would fail the same way, so say so once instead of reporting each query. Encoded vectors are only decodable later. */
+    /** Fails once up front, since every search would fail alike; encoded vectors can't be checked here. */
     static void validateQueryDimensions(String field, @Nullable Integer dims, @Nullable List<KnnEvalQuery> queries) {
         if (dims == null || queries == null) {
             return;
@@ -266,7 +263,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         setParentTask(task, openRequest);
         client.execute(TransportOpenPointInTimeAction.TYPE, openRequest, listener.delegateFailureAndWrap((delegate, openResponse) -> {
             BytesReference pointInTimeId = openResponse.getPointInTimeId();
-            // runAfter fires either way and ActionListener.run funnels throws into onFailure: no path leaves the PIT open
+            // runAfter always fires and run() routes throws to onFailure, so the PIT always closes
             ActionListener<KnnEvalResponse> closingListener = ActionListener.runAfter(delegate, () -> closePointInTime(pointInTimeId));
             ActionListener.run(closingListener, l -> countVectors(task, request, rescore, pointInTimeId, l));
         }));
@@ -317,7 +314,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
             TransportClosePointInTimeAction.TYPE,
             new ClosePointInTimeRequest(pointInTimeId),
             ActionListener.wrap(ignored -> {}, e -> {
-                // the keep-alive expires anyway, so this costs search context memory and nothing else
+                // the keep-alive expires anyway; costs only search context memory
                 logger.warn("failed to close the point in time opened for kNN evaluation", e);
             })
         );
@@ -339,7 +336,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
                 client.search(sampleRequest, listener.delegateFailureAndWrap((delegate, searchResponse) -> {
                     List<KnnEvalQuery> sampledQueries = KnnEvalSearches.extractSampledQueries(searchResponse, spec.getField());
                     if (sampledQueries.isEmpty()) {
-                        // a recall of zero would read as a catastrophic candidate rather than an empty index or a wrong field name
+                        // zero recall would look like a terrible candidate, not an empty index or wrong field
                         throw new IllegalArgumentException(
                             "sampling query vectors from field ["
                                 + spec.getField()
@@ -366,7 +363,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
 
     private final class EvaluationRunner {
 
-        /** Set once the listener has been failed, on cancellation or an evaluation-level failure: no further pass or search may start. */
+        /** Set once the listener fails (cancellation or evaluation-level failure): nothing further starts. */
         private volatile boolean stopped;
         private final Task task;
         private final KnnEvalState state;
@@ -402,9 +399,8 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         }
 
         /**
-         * Searches run one at a time so each reported took is one search's shard time rather than contention with its siblings.
-         * ThrottledIterator loops rather than recurses when a search answers on the calling thread, so a full sweep cannot overflow
-         * the stack.
+         * One search at a time, so each took is shard time without sibling contention. ThrottledIterator loops instead of
+         * recursing, so a full sweep can't overflow the stack.
          */
         private void runQueries(
             List<KnnEvalQuery> queries,
@@ -444,7 +440,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
                             )
                         );
                     } else {
-                        // one query's search failing is reported against that query; the rest of the sweep still has to run
+                        // a query's own failure is reported against it; the sweep continues
                         state.addFailure(query, e);
                     }
                 }), ref));
@@ -461,7 +457,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         }
     }
 
-    /** Whether a search failed for a reason that is not specific to its query, so that reporting it per query would hide it. */
+    /** Whether a failure is not specific to its query, so per-query reporting would hide it. */
     static boolean failsTheEvaluation(Exception e) {
         if (ExceptionsHelper.unwrap(e, EVALUATION_FAILURES) != null) {
             return true;

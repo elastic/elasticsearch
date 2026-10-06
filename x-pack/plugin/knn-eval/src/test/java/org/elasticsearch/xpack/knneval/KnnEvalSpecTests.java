@@ -38,7 +38,7 @@ public class KnnEvalSpecTests extends ESTestCase {
         );
     }
 
-    /** Covers both accepted {@code query_vector} forms: a plain float array and an encoded (base64 or hex) string. */
+    /** Covers both {@code query_vector} forms: a float array and an encoded (base64 or hex) string. */
     static KnnEvalQuery createTestQuery(String id) {
         if (randomBoolean()) {
             float[] vector = new float[randomIntBetween(1, 8)];
@@ -47,7 +47,7 @@ public class KnnEvalSpecTests extends ESTestCase {
             }
             return new KnnEvalQuery(id, VectorData.fromFloats(vector));
         }
-        // hex rather than base64 so that the encoded form also survives a write to a transport version predating base64 support
+        // hex, not base64, so it survives a write to a transport version predating base64
         return new KnnEvalQuery(
             id,
             VectorData.fromStringVector(HexFormat.of().formatHex(randomByteArrayOfLength(randomIntBetween(4, 32))))
@@ -55,7 +55,7 @@ public class KnnEvalSpecTests extends ESTestCase {
     }
 
     static KnnEvalSpec createTestItem() {
-        // num_candidates must be at least k, and createTestSettings() draws it from [50, 200]. Leave room for mutateTestItem's k + 1.
+        // num_candidates must be at least k; createTestSettings() draws [50, 200], so leave room for mutateTestItem's k + 1
         int k = randomIntBetween(1, 40);
         KnnEvalQuerySource querySource;
         if (randomBoolean()) {
@@ -216,7 +216,7 @@ public class KnnEvalSpecTests extends ESTestCase {
             expectThrows(IllegalArgumentException.class, () -> new KnnEvalSettings(null, null, 0.5f, false)).getMessage(),
             containsString("[rescore_vector.oversample] must be at least 1.0")
         );
-        // 0 is what the mapping uses to turn rescoring off, but a reference run with quantized scores is not useful
+        // 0 turns rescoring off in the mapping, but a quantized reference is useless
         assertThat(
             expectThrows(IllegalArgumentException.class, () -> new KnnEvalSettings(null, null, 0.0f, false)).getMessage(),
             containsString("[rescore_vector.oversample] must be at least 1.0")
@@ -343,7 +343,7 @@ public class KnnEvalSpecTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             KnnEvalSpec spec = KnnEvalSpec.parse(parser);
             assertEquals(VectorData.fromFloats(new float[] { 1.5f, -2.5f }), spec.getQueries().get(0).getQueryVector());
-            // the encoded form is carried through verbatim; only the mapper can decode it, once dims and element type are known
+            // carried verbatim; only the mapper can decode it, knowing dims and element type
             assertEquals(VectorData.fromStringVector("P8AAAMAgAAA="), spec.getQueries().get(1).getQueryVector());
             assertTrue(spec.getQueries().get(1).getQueryVector().isStringVector());
         }

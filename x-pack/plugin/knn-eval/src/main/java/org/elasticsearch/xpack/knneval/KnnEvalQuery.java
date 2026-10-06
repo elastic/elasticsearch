@@ -22,7 +22,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
-/** Associates a stable identifier with a query vector. A sampled identifier also marks the self-hit to exclude. */
+/** A query vector with a stable id; a sampled id also marks the self-hit to exclude. */
 record KnnEvalQuery(String id, VectorData queryVector) implements Writeable, ToXContentObject {
 
     static final ParseField ID_FIELD = new ParseField("id");
@@ -49,7 +49,7 @@ record KnnEvalQuery(String id, VectorData queryVector) implements Writeable, ToX
         if (Strings.hasText(id) == false) {
             throw new IllegalArgumentException("[" + ID_FIELD.getPreferredName() + "] must not be empty");
         }
-        // an encoded string has no length to check here; the mapper's decode failure surfaces against that one query
+        // an encoded string has no length here; its decode failure surfaces on that query
         if (queryVector.isStringVector() == false && queryVector.size() == 0) {
             throw new IllegalArgumentException("[" + QUERY_VECTOR_FIELD.getPreferredName() + "] must not be empty for query [" + id + "]");
         }

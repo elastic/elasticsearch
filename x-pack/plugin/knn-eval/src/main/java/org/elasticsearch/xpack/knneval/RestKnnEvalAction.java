@@ -51,7 +51,7 @@ final class RestKnnEvalAction extends BaseRestHandler {
         KnnEvalRequest knnEvalRequest = new KnnEvalRequest(spec, Strings.splitStringByCommaToArray(request.param("index")));
         knnEvalRequest.indicesOptions(IndicesOptions.fromRequest(request, knnEvalRequest.indicesOptions()));
         if (request.paramAsBoolean("wait_for_completion", true)) {
-            // a sweep can run for minutes, so a client that gives up must not leave it running
+            // sweeps run for minutes; cancel if the client disconnects
             return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
                 KnnEvalPlugin.KNN_EVAL_ACTION,
                 knnEvalRequest,

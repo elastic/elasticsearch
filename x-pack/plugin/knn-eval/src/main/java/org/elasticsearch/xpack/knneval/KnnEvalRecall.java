@@ -21,7 +21,7 @@ final class KnnEvalRecall {
 
     private KnnEvalRecall() {}
 
-    /** A query's reference document keys and lowest top-k score, copied before the pooled search hits are released. */
+    /** A query's reference keys and lowest top-k score, copied before pooled hits are released. */
     record BaselineResult(Set<String> keys, float lowestScore) {}
 
     record RecallResult(@Nullable Double recall, int baselineMissedBetter, long tookMs, long vectorOps) {}
@@ -40,10 +40,7 @@ final class KnnEvalRecall {
         return hit.getIndex() + "/" + hit.getId();
     }
 
-    /**
-     * @param scoresComparable whether candidate and baseline scores are both full precision; if not, a candidate hit scoring above the
-     *                         baseline cutoff says nothing, so no query is excluded for it
-     */
+    /** @param scoresComparable both scores are full precision; if not, a hit above the baseline cutoff proves nothing and excludes nothing */
     static RecallResult recallOf(
         SearchHit[] candidateHits,
         BaselineResult baseline,
@@ -69,10 +66,10 @@ final class KnnEvalRecall {
         );
     }
 
-    /** Both runs are trimmed identically, so the overlap is over comparable windows. */
+    /** Both runs are trimmed identically so overlap compares like windows. */
     static SearchHit[] topKExcluding(SearchHit[] hits, @Nullable String excludedKey, int k) {
         if (excludedKey == null) {
-            // nothing to drop, so the top k is simply the first k hits
+            // nothing to drop
             return hits.length <= k ? hits : Arrays.copyOf(hits, k);
         }
         List<SearchHit> kept = new ArrayList<>(Math.min(hits.length, k));

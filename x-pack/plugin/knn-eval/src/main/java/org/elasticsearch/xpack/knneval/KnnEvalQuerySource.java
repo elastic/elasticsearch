@@ -21,13 +21,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-/**
- * Discriminated union: where evaluation queries come from. The {@code from} field selects the sub-type:
- * <ul>
- *   <li>{@code "docs"} — sample vectors from stored documents server-side ({@link DocsSource}).</li>
- *   <li>{@code "vectors"} — caller supplies explicit query vectors ({@link VectorsSource}).</li>
- * </ul>
- */
+/** Where queries come from, selected by {@code from}: {@code docs} samples stored vectors, {@code vectors} takes the caller's. */
 sealed interface KnnEvalQuerySource extends Writeable, ToXContentObject permits KnnEvalQuerySource.DocsSource,
     KnnEvalQuerySource.VectorsSource {
 
@@ -37,9 +31,7 @@ sealed interface KnnEvalQuerySource extends Writeable, ToXContentObject permits 
     ParseField SEED_FIELD = new ParseField("seed");
     ParseField VECTORS_FIELD = new ParseField("vectors");
 
-    /**
-     * The kinds of query source. Serialized by ordinal, so new kinds must be appended and existing ones never reordered.
-     */
+    /** Serialized by ordinal: append new kinds, never reorder. */
     enum Kind {
         DOCS("docs"),
         VECTORS("vectors");
@@ -50,7 +42,7 @@ sealed interface KnnEvalQuerySource extends Writeable, ToXContentObject permits 
             this.from = from;
         }
 
-        /** The {@code from} value that selects this kind in a request. */
+        /** The {@code from} value selecting this kind. */
         String from() {
             return from;
         }
@@ -69,7 +61,7 @@ sealed interface KnnEvalQuerySource extends Writeable, ToXContentObject permits 
 
     Kind kind();
 
-    /** The {@code from} value this source was parsed from, echoed in responses so results record how their queries were chosen. */
+    /** The {@code from} value, echoed in responses so results record how queries were chosen. */
     default String from() {
         return kind().from();
     }

@@ -24,7 +24,7 @@ import java.util.Map;
 final class KnnEvalState {
 
     final KnnEvalSpec spec;
-    /** Whether each query vector is a stored document's own vector, so that document is its own nearest neighbour and must be dropped. */
+    /** Whether each query is a stored document's vector, so that document must be dropped from its own results. */
     final boolean queryIsSampledFromDocuments;
     final List<KnnEvalQuery> queries;
     final int searchSize;
@@ -43,7 +43,7 @@ final class KnnEvalState {
         this.queryIsSampledFromDocuments = queryIsSampledFromDocuments;
         this.queries = List.copyOf(queries);
         this.rescore = rescore;
-        // one extra hit, because the sampled document itself comes back and is dropped, leaving k real neighbours
+        // the sampled document comes back and is dropped, so fetch one extra to leave k
         this.searchSize = queryIsSampledFromDocuments ? spec.getK() + 1 : spec.getK();
         this.settings = new ArrayList<>(spec.getKnnSettings().size());
         for (int setting = 0; setting < spec.getKnnSettings().size(); setting++) {
@@ -51,7 +51,7 @@ final class KnnEvalState {
         }
     }
 
-    /** Records a search failure for one query. The sweep continues, so one bad vector does not discard the rest of the run. */
+    /** Records one query's failure; the sweep continues. */
     void addFailure(KnnEvalQuery query, Exception failure) {
         failures.putIfAbsent(query.getId(), failure);
     }
@@ -80,7 +80,7 @@ final class KnnEvalState {
         baselines.put(query.getId(), KnnEvalRecall.baselineOf(baselineHits));
     }
 
-    /** The queries with a reference result, in request order. */
+    /** Queries with a baseline result, in request order. */
     List<KnnEvalQuery> evaluableQueries() {
         if (evaluableQueries == null) {
             List<KnnEvalQuery> surviving = new ArrayList<>(baselines.size());
@@ -137,7 +137,7 @@ final class KnnEvalState {
         return new KnnEvalResponse.ReportedSettings(knnSettings, capped, rescore.returnsQuantizedScores(knnSettings));
     }
 
-    /** An exact run counts the documents it scanned; an approximate one is profiled. */
+    /** Exact counts scanned docs; approximate is profiled. */
     private long baselineVectorOperations(SearchResponse searchResponse) {
         if (spec.getBaseline().isExact() == false) {
             return vectorOperationsCount(searchResponse);

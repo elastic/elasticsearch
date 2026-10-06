@@ -62,7 +62,7 @@ record KnnEvalSettings(@Nullable Float visitPercentage, @Nullable Integer numCan
             throw new IllegalArgumentException("[" + NUM_CANDIDATES_FIELD.getPreferredName() + "] must be greater than 0");
         }
         if (rescoreOversample != null && rescoreOversample < RescoreVectorBuilder.MIN_OVERSAMPLE) {
-            // RescoreVectorBuilder also accepts 0 ("no rescoring"), but a run scoring quantized estimates is no use as a reference
+            // RescoreVectorBuilder reads 0 as "no rescoring", but quantized estimates are useless as a reference
             throw new IllegalArgumentException(
                 "["
                     + RESCORE_VECTOR_FIELD.getPreferredName()
@@ -95,7 +95,7 @@ record KnnEvalSettings(@Nullable Float visitPercentage, @Nullable Integer numCan
         return PARSER.apply(parser, null);
     }
 
-    /** Percentage of DiskBBQ postings to visit. An explicit {@code 0} selects the codec's automatic calculation, not "visit none". */
+    /** Percent of DiskBBQ postings to visit; an explicit {@code 0} means the codec's automatic choice, not none. */
     @Nullable
     public Float getVisitPercentage() {
         return visitPercentage;
@@ -106,7 +106,7 @@ record KnnEvalSettings(@Nullable Float visitPercentage, @Nullable Integer numCan
         return numCandidates;
     }
 
-    /** Returns the oversampling factor, or {@code null} to preserve the mapping setting. */
+    /** The oversample, or {@code null} for the mapping's. */
     @Nullable
     public Float getRescoreOversample() {
         return rescoreOversample;
@@ -132,7 +132,7 @@ record KnnEvalSettings(@Nullable Float visitPercentage, @Nullable Integer numCan
         return builder;
     }
 
-    /** Without the enclosing object, so a response can render these alongside derived fields. */
+    /** Without the enclosing object, so responses can add derived fields. */
     XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         if (visitPercentage != null) {
             builder.field(VISIT_PERCENTAGE_FIELD.getPreferredName(), visitPercentage);

@@ -59,7 +59,7 @@ public class KnnEvalRescoreTests extends ESTestCase {
         Map<String, Object> noRescore = Map.of("type", "dense_vector", "index_options", Map.of("type", "bbq_disk", "bits", 4));
         KnnEvalRescore unrescored = KnnEvalRescore.fromFieldMapping("emb", noRescore);
         assertTrue(unrescored.returnsQuantizedScores(new KnnEvalSettings(5.0f, null, null, false)));
-        // a request-level oversample, an exact search, or a mapping-level oversample each give full-precision scores
+        // a request or mapping oversample, or an exact search, gives full-precision scores
         assertFalse(unrescored.returnsQuantizedScores(new KnnEvalSettings(5.0f, null, 3.0f, false)));
         assertFalse(unrescored.returnsQuantizedScores(new KnnEvalSettings(null, null, null, true)));
         assertFalse(rescoreFor("bbq_disk").returnsQuantizedScores(new KnnEvalSettings(5.0f, null, null, false)));

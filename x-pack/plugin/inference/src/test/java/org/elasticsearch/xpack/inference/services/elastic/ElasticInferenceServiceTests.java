@@ -16,7 +16,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -72,6 +71,7 @@ import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults
 import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResultsTests;
+import org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.InferenceFeatures;
@@ -562,40 +562,6 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
         assertThat(sparseEmbeddingsModel.getSecretSettings(), is(EmptySecretSettings.INSTANCE));
     }
 
-    public void testRerankInfer_ThrowsValidationErrorForInvalidRerankParams() throws IOException {
-        try (var service = createServiceWithMockSender()) {
-            var model = ElasticInferenceServiceRerankModelTests.createModel(getUrl(webServer), "my-rerank-model-id");
-            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
-
-            var returnDocuments = randomBoolean();
-            service.rerankInfer(
-                model,
-                new RerankRequest(
-                    InferenceString.fromStringList(List.of("doc1")),
-                    InferenceString.ofText("search query"),
-                    randomNonNegativeIntOrNull(),
-                    returnDocuments,
-                    Map.of()
-                ),
-                null,
-                listener
-            );
-
-            var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
-
-            assertThat(
-                thrownException.getMessage(),
-                is(
-                    Strings.format(
-                        "Validation Failed: 1: Invalid return_documents [%s]. "
-                            + "The return_documents option is not supported by this service;",
-                        returnDocuments
-                    )
-                )
-            );
-        }
-    }
-
     public void testInfer_ThrowsErrorWhenTaskTypeIsNotValid_ChatCompletion() throws IOException {
         var sender = createMockSender();
 
@@ -822,6 +788,66 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                 expectedRequestMap.put("top_n", topN);
             }
             assertThat(requestMap, is(expectedRequestMap));
+        }
+    }
+
+    public void testRerankInfer_SendsReturnDocuments_AndReturnsDocuments() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var elasticInferenceServiceURL = getUrl(webServer);
+
+        try (var service = createService(senderFactory, elasticInferenceServiceURL)) {
+            var docOne = randomAlphaOfLength(8);
+            var docTwo = randomAlphaOfLength(8);
+            String responseJson = Strings.format("""
+                {
+                    "results": [
+                        {"index": 1, "relevance_score": 0.95, "document": {"text": "%s"}},
+                        {"index": 0, "relevance_score": 0.85, "document": {"text": "%s"}}
+                    ]
+                }
+                """, docTwo, docOne);
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var modelId = randomAlphaOfLength(8);
+            var model = ElasticInferenceServiceRerankModelTests.createModel(elasticInferenceServiceURL, modelId);
+
+            var docs = InferenceString.fromStringList(List.of(docOne, docTwo));
+            var query = ofText(randomAlphaOfLength(8));
+
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            service.rerankInfer(model, new RerankRequest(docs, query, null, true, Map.of()), null, listener);
+
+            var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
+
+            assertThat(
+                result.asMap(),
+                is(
+                    RankedDocsResultsTests.buildExpectationRerank(
+                        List.of(
+                            new RankedDocsResultsTests.RerankExpectation(Map.of("index", 1, "relevance_score", 0.95f, "text", docTwo)),
+                            new RankedDocsResultsTests.RerankExpectation(Map.of("index", 0, "relevance_score", 0.85f, "text", docOne))
+                        )
+                    )
+                )
+            );
+
+            Map<String, Object> requestMap = entityAsMap(webServer.requests().getFirst().getBody());
+            assertThat(
+                requestMap,
+                is(
+                    Map.of(
+                        "query",
+                        inferenceStringToMap(query),
+                        "model",
+                        modelId,
+                        "documents",
+                        docs.stream().map(InferenceStringTests::inferenceStringToMap).toList(),
+                        "return_documents",
+                        true
+                    )
+                )
+            );
         }
     }
 

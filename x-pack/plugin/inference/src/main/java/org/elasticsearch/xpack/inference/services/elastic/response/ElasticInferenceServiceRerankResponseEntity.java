@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.elastic.response;
 
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -22,6 +23,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class ElasticInferenceServiceRerankResponseEntity {
 
@@ -38,20 +40,36 @@ public class ElasticInferenceServiceRerankResponseEntity {
             PARSER.declareObjectArray(constructorArg(), RerankResultEntry.PARSER::apply, new ParseField("results"));
         }
 
-        record RerankResultEntry(Integer index, Float relevanceScore) {
+        record RerankResultEntry(Integer index, Float relevanceScore, @Nullable Document document) {
 
             public static final ConstructingObjectParser<RerankResultEntry, Void> PARSER = new ConstructingObjectParser<>(
                 RerankResultEntry.class.getSimpleName(),
-                args -> new RerankResultEntry((Integer) args[0], (Float) args[1])
+                args -> new RerankResultEntry((Integer) args[0], (Float) args[1], (Document) args[2])
             );
 
             static {
                 PARSER.declareInt(constructorArg(), new ParseField("index"));
                 PARSER.declareFloat(constructorArg(), new ParseField("relevance_score"));
+                PARSER.declareObject(optionalConstructorArg(), Document.PARSER::apply, new ParseField("document"));
             }
 
             public RankedDocsResults.RankedDoc toRankedDoc() {
-                return new RankedDocsResults.RankedDoc(index, relevanceScore, null);
+                return new RankedDocsResults.RankedDoc(index, relevanceScore, document == null ? null : document.text());
+            }
+        }
+
+        /**
+         * The reranked document, only returned by the upstream provider if {@code return_documents} was set to {@code true}.
+         */
+        record Document(String text) {
+
+            public static final ConstructingObjectParser<Document, Void> PARSER = new ConstructingObjectParser<>(
+                Document.class.getSimpleName(),
+                args -> new Document((String) args[0])
+            );
+
+            static {
+                PARSER.declareString(constructorArg(), new ParseField("text"));
             }
         }
     }

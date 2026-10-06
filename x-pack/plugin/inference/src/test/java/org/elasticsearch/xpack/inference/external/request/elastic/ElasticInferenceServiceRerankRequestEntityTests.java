@@ -49,7 +49,13 @@ public class ElasticInferenceServiceRerankRequestEntityTests extends ESTestCase 
     }
 
     public void testToXContent_SingleDocument_NoTopN() throws IOException {
-        var entity = new ElasticInferenceServiceRerankRequestEntity(ofText(textQueryValue), List.of(ofText(textDocValue1)), modelId, null);
+        var entity = new ElasticInferenceServiceRerankRequestEntity(
+            ofText(textQueryValue),
+            List.of(ofText(textDocValue1)),
+            modelId,
+            null,
+            null
+        );
         String xContentString = xContentEntityToString(entity);
         assertThat(xContentString, equalToIgnoringWhitespaceInJsonString(Strings.format("""
             {
@@ -64,6 +70,7 @@ public class ElasticInferenceServiceRerankRequestEntityTests extends ESTestCase 
             ofText(textQueryValue),
             InferenceString.fromStringList(List.of(textDocValue1, textDocValue2, textDocValue3)),
             modelId,
+            null,
             null
         );
         String xContentString = xContentEntityToString(entity);
@@ -85,7 +92,8 @@ public class ElasticInferenceServiceRerankRequestEntityTests extends ESTestCase 
             ofText(textQueryValue),
             List.of(ofText(textDocValue1)),
             modelId,
-            topNValue
+            topNValue,
+            null
         );
         String xContentString = xContentEntityToString(entity);
         assertThat(xContentString, equalToIgnoringWhitespaceInJsonString(Strings.format("""
@@ -103,7 +111,8 @@ public class ElasticInferenceServiceRerankRequestEntityTests extends ESTestCase 
             ofText(textQueryValue),
             InferenceString.fromStringList(List.of(textDocValue1, textDocValue2, textDocValue3)),
             modelId,
-            topNValue
+            topNValue,
+            null
         );
         String xContentString = xContentEntityToString(entity);
         assertThat(xContentString, equalToIgnoringWhitespaceInJsonString(Strings.format("""
@@ -130,7 +139,8 @@ public class ElasticInferenceServiceRerankRequestEntityTests extends ESTestCase 
             new InferenceString(DataType.IMAGE, DataFormat.BASE64, imageQueryValue),
             documents,
             modelId,
-            topNValue
+            topNValue,
+            null
         );
         String xContentString = xContentEntityToString(entity);
         assertThat(xContentString, equalToIgnoringWhitespaceInJsonString(Strings.format("""
@@ -147,10 +157,31 @@ public class ElasticInferenceServiceRerankRequestEntityTests extends ESTestCase 
             """, imageQueryValue, modelId, topNValue, textDocValue1, imageDocValue, textDocValue3)));
     }
 
+    public void testToXContent_WithReturnDocuments() throws IOException {
+        var returnDocuments = randomBoolean();
+        var entity = new ElasticInferenceServiceRerankRequestEntity(
+            ofText(textQueryValue),
+            List.of(ofText(textDocValue1)),
+            modelId,
+            topNValue,
+            returnDocuments
+        );
+        String xContentString = xContentEntityToString(entity);
+        assertThat(xContentString, equalToIgnoringWhitespaceInJsonString(Strings.format("""
+            {
+                "query": {"type":"text","format":"text","value":"%s"},
+                "model": "%s",
+                "top_n": %d,
+                "return_documents": %s,
+                "documents": [{"type":"text","format":"text","value":"%s"}]
+            }
+            """, textQueryValue, modelId, topNValue, returnDocuments, textDocValue1)));
+    }
+
     public void testNullQueryThrowsException() {
         NullPointerException e = expectThrows(
             NullPointerException.class,
-            () -> new ElasticInferenceServiceRerankRequestEntity(null, List.of(ofText(textDocValue1)), modelId, null)
+            () -> new ElasticInferenceServiceRerankRequestEntity(null, List.of(ofText(textDocValue1)), modelId, null, null)
         );
         assertNotNull(e);
     }
@@ -158,7 +189,7 @@ public class ElasticInferenceServiceRerankRequestEntityTests extends ESTestCase 
     public void testNullDocumentsThrowsException() {
         NullPointerException e = expectThrows(
             NullPointerException.class,
-            () -> new ElasticInferenceServiceRerankRequestEntity(ofText(textQueryValue), null, modelId, null)
+            () -> new ElasticInferenceServiceRerankRequestEntity(ofText(textQueryValue), null, modelId, null, null)
         );
         assertNotNull(e);
     }
@@ -166,7 +197,7 @@ public class ElasticInferenceServiceRerankRequestEntityTests extends ESTestCase 
     public void testNullModelIdThrowsException() {
         NullPointerException e = expectThrows(
             NullPointerException.class,
-            () -> new ElasticInferenceServiceRerankRequestEntity(ofText(textQueryValue), List.of(ofText(textDocValue1)), null, null)
+            () -> new ElasticInferenceServiceRerankRequestEntity(ofText(textQueryValue), List.of(ofText(textDocValue1)), null, null, null)
         );
         assertNotNull(e);
     }

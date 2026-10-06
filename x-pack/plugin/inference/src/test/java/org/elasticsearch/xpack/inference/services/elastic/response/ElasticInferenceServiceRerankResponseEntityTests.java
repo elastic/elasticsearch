@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.elastic.response;
 
 import org.apache.http.HttpResponse;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 
@@ -144,5 +145,87 @@ public class ElasticInferenceServiceRerankResponseEntityTests extends ESTestCase
         );
 
         assertThat(parsedResults.getRankedDocs(), is(List.of()));
+    }
+
+    public void testFromResponse_CreatesResultsWithDocuments() throws IOException {
+        String responseJson = """
+            {
+                "results": [
+                    {
+                        "index": 1,
+                        "relevance_score": 0.94,
+                        "document": {
+                            "text": "document 1"
+                        }
+                    },
+                    {
+                        "index": 0,
+                        "relevance_score": 0.78,
+                        "document": {
+                            "text": "document 0"
+                        }
+                    }
+                ]
+            }
+            """;
+
+        RankedDocsResults parsedResults = (RankedDocsResults) ElasticInferenceServiceRerankResponseEntity.fromResponse(
+            new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+        );
+
+        assertThat(
+            parsedResults.getRankedDocs(),
+            is(List.of(new RankedDocsResults.RankedDoc(1, 0.94F, "document 1"), new RankedDocsResults.RankedDoc(0, 0.78F, "document 0")))
+        );
+    }
+
+    public void testFromResponse_CreatesResultsWithAndWithoutDocuments() throws IOException {
+        String responseJson = """
+            {
+                "results": [
+                    {
+                        "index": 0,
+                        "relevance_score": 0.94,
+                        "document": {
+                            "text": "document 0"
+                        }
+                    },
+                    {
+                        "index": 1,
+                        "relevance_score": 0.78
+                    }
+                ]
+            }
+            """;
+
+        RankedDocsResults parsedResults = (RankedDocsResults) ElasticInferenceServiceRerankResponseEntity.fromResponse(
+            new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+        );
+
+        assertThat(
+            parsedResults.getRankedDocs(),
+            is(List.of(new RankedDocsResults.RankedDoc(0, 0.94F, "document 0"), new RankedDocsResults.RankedDoc(1, 0.78F, null)))
+        );
+    }
+
+    public void testFromResponse_FailsWhenDocumentIsMissingText() {
+        String responseJson = """
+            {
+                "results": [
+                    {
+                        "index": 0,
+                        "relevance_score": 0.94,
+                        "document": {}
+                    }
+                ]
+            }
+            """;
+
+        expectThrows(
+            XContentParseException.class,
+            () -> ElasticInferenceServiceRerankResponseEntity.fromResponse(
+                new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+            )
+        );
     }
 }

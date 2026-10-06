@@ -124,6 +124,7 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
                     rerankInput.getQuery(),
                     rerankInput.getDocs(),
                     rerankInput.getTopN(),
+                    rerankInput.getReturnDocuments(),
                     model,
                     traceContext,
                     metadata,

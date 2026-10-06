@@ -17,7 +17,7 @@ BLAS_NATIVE_BUILD=host ./gradlew :libs:blas:compileJava
 BLAS_NATIVE_BUILD=docker ./gradlew :libs:native:native-libraries:extractLibs
 ```
 
-The Docker cross-build requires `docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:7`.
+The Docker cross-build requires `docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:8`.
 The Makefile fetches the OpenBLAS source tarball from GitHub and verifies its SHA-256 before building.
 
 ## Publishing

@@ -41,11 +41,12 @@ nativeLibraryBuild {
   modeEnvironmentVariable = 'BLAS_NATIVE_BUILD'
   sourceDir = layout.projectDirectory.dir('native')
   sources = ['Makefile', 'publish_blas_binaries.sh']
-  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:7'
+  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:8'
   forwardedEnvironment = ['CLANG_CXX', 'CLANG_CC']
 
   dockerCommand = ['make', 'fetch', 'all']
   collect = [
+    'build/libs/openblas/shared/aarch64/libopenblas.dylib' : 'darwin-aarch64/libopenblas.dylib',
     'build/libs/openblas/shared/aarch64/libopenblas.so'    : 'linux-aarch64/libopenblas.so',
     'build/libs/openblas/shared/amd64/libopenblas.so'      : 'linux-x64/libopenblas.so',
     'build/libs/openblas/shared/windows-x64/openblas.dll'  : 'windows-x64/openblas.dll',

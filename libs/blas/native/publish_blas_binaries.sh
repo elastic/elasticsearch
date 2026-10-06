@@ -18,7 +18,7 @@
 # Environment:
 #   TOOLCHAIN_IMAGE      Docker image for cross-compilation
 #                        (default: es-native-cross-toolchain:local with --local, built on demand;
-#                         or docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:7)
+#                         or docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:8)
 #   ARTIFACTORY_API_KEY  Required for upload (non --local, or --force-upload)
 
 set -euo pipefail
@@ -27,7 +27,7 @@ VERSION="0.3.34-1"
 ARTIFACT_ID="openblas"
 VEC_NATIVE_DIR="$(cd "$(dirname "$0")/../../simdvec/native" && pwd)"
 LOCAL_TOOLCHAIN_IMAGE="es-native-cross-toolchain:local"
-REMOTE_TOOLCHAIN_IMAGE="docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:7"
+REMOTE_TOOLCHAIN_IMAGE="docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:8"
 
 LOCAL=false
 FORCE_UPLOAD=false
@@ -95,8 +95,9 @@ docker run --rm \
 
 echo "Packaging artifacts ..."
 
-for platform in linux-aarch64 linux-x64 windows-x64; do
+for platform in darwin-aarch64 linux-aarch64 linux-x64 windows-x64; do
   case "$platform" in
+    darwin-aarch64) lib_dir=aarch64 lib_name=libopenblas.dylib ;;
     linux-aarch64)  lib_dir=aarch64 lib_name=libopenblas.so ;;
     linux-x64)      lib_dir=amd64   lib_name=libopenblas.so ;;
     windows-x64)    lib_dir=windows-x64 lib_name=openblas.dll ;;
@@ -112,7 +113,7 @@ done
 
 ZIP_NAME="${ARTIFACT_ID}-${VERSION}.zip"
 ZIP_PATH="${DIST_DIR}/${ZIP_NAME}"
-(cd "$DIST_DIR" && zip -r "$ZIP_NAME" linux-aarch64 linux-x64 windows-x64)
+(cd "$DIST_DIR" && zip -r "$ZIP_NAME" darwin-aarch64 linux-aarch64 linux-x64 windows-x64)
 echo "Created: ${ZIP_PATH}"
 
 if [ "$UPLOAD" = false ]; then

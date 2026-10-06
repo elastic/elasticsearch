@@ -5,7 +5,8 @@
 # your election, the "Elastic License 2.0", the "GNU Affero General Public
 # License v3.0 only", or the "Server Side Public License, v 1".
 
-# Builds libopenblas for three targets:
+# Builds libopenblas for all four targets:
+#   build/libs/openblas/shared/aarch64/libopenblas.dylib     (darwin-aarch64)
 #   build/libs/openblas/shared/aarch64/libopenblas.so        (linux-aarch64)
 #   build/libs/openblas/shared/amd64/libopenblas.so          (linux-x64)
 #   build/libs/openblas/shared/windows-x64/openblas.dll      (windows-x64)
@@ -13,13 +14,9 @@
 # OpenBLAS is built with DYNAMIC_ARCH=1 so one binary handles all ISA variants
 # at runtime. Threads are disabled (USE_THREAD=0 USE_LOCKING=1).
 #
-# There is no darwin target. The toolchain's darwin sysroot holds only the xnu headers
-# that simdvec and simdjson need, and OpenBLAS also needs sys/shm.h, sys/ipc.h,
-# sys/sysctl.h and sys/time.h.
-#
 # Intended to be run inside the shared cross-compilation toolchain container
-# (es-native-cross-toolchain:7 — clang-21, GCC 8 libstdc++ cross libs, and llvm-mingw).
-# See publish_blas_binaries.sh.
+# (es-native-cross-toolchain:8 — clang-21, GCC 8 libstdc++ cross libs, and llvm-mingw;
+# the open-source Darwin sysroot baked in). See publish_blas_binaries.sh.
 #
 # Sources are fetched from GitHub at build time and verified via SHA-256. They
 # are not vendored because the OpenBLAS tree is large (tens of MB of kernels).
@@ -66,6 +63,10 @@ OPENBLAS_COMMON_FLAGS = \
     NO_STATIC=1 \
     NUM_THREADS=1
 
+# Darwin cross-compilation settings (reuse the sysroot from simdvec/native).
+MACOS_SYSROOT ?= /opt/darwin-sysroot
+CLANG_RESOURCE = $(shell $(CLANG_CXX) -print-resource-dir)
+
 # Linux ABI settings
 CLANG_RESOURCE_ARM = $(shell $(CLANG_CXX) --target=aarch64-linux-gnu -print-resource-dir)
 CLANG_RESOURCE_X64 = $(shell $(CLANG_CXX) --target=x86_64-linux-gnu -print-resource-dir)
@@ -88,6 +89,11 @@ LINUX_LDFLAGS_X64 = -L/usr/lib/gcc-cross/x86_64-linux-gnu/$(LINUX_STDCXX_MAJOR) 
 # Per-platform CC and LDFLAGS passed to OpenBLAS's sub-make.
 # For host (local) builds the local target overrides these to $(CLANG_CC) without
 # the cross-compilation flags, and empty LDFLAGS.
+CC_DARWIN   = $(CLANG_CC) --target=arm64-apple-macos14 -nostdinc \
+                  -isystem $(MACOS_SYSROOT)/usr/include/c++/v1 \
+                  -isystem $(CLANG_RESOURCE)/include \
+                  -isystem $(MACOS_SYSROOT)/usr/include
+LDFLAGS_DARWIN = -fuse-ld=lld --target=arm64-apple-macos14 -nostdlib -Wl,-undefined,dynamic_lookup
 CC_ARM      = $(CLANG_CC) --target=aarch64-linux-gnu $(LINUX_CFLAGS_ARM)
 CC_X64      = $(CLANG_CC) --target=x86_64-linux-gnu $(LINUX_CFLAGS_X64)
 LDFLAGS_ARM = -fuse-ld=lld $(LINUX_LDFLAGS_ARM)
@@ -99,18 +105,22 @@ OUT_DIR_AMD64    = build/libs/openblas/shared/amd64
 OUT_DIR_WIN_X64  = build/libs/openblas/shared/windows-x64
 
 # Build trees (one per platform — OpenBLAS embeds arch detection results)
+BUILD_DARWIN     = build/openblas-darwin-aarch64
 BUILD_LINUX_ARM  = build/openblas-linux-aarch64
 BUILD_LINUX_X64  = build/openblas-linux-x64
 BUILD_WIN_X64    = build/openblas-windows-x64
 
 # Final outputs
+DYLIB    = $(OUT_DIR_AARCH64)/libopenblas.dylib
 SO_ARM   = $(OUT_DIR_AARCH64)/libopenblas.so
 SO_X64   = $(OUT_DIR_AMD64)/libopenblas.so
 DLL_WIN  = $(OUT_DIR_WIN_X64)/openblas.dll
 
 # Strip tools
+DARWIN_STRIP    = llvm-strip$(LLVM_SUFFIX) --strip-debug
 LINUX_STRIP     = llvm-strip$(LLVM_SUFFIX) --strip-unneeded
 LINUX_OBJCOPY   = llvm-objcopy$(LLVM_SUFFIX)
+DARWIN_DSYMUTIL = $(shell llvm-config$(LLVM_SUFFIX) --bindir 2>/dev/null)/dsymutil
 
 .PHONY: all fetch clean local local-install verify-linux-abi
 
@@ -127,9 +137,36 @@ $(SRC_DIR): $(TARBALL)
 
 fetch: $(SRC_DIR)
 
-# --- all: cross-compile all three targets (inside Docker) ---
+# --- all: cross-compile all four targets (inside Docker) ---
 
-all: $(SO_ARM) $(SO_X64) $(DLL_WIN)
+all: $(DYLIB) $(SO_ARM) $(SO_X64) $(DLL_WIN)
+
+# --- darwin-aarch64 ---
+
+$(BUILD_DARWIN)/.done: $(SRC_DIR) | $(BUILD_DARWIN)
+	cp -a $(SRC_DIR)/. $(BUILD_DARWIN)/
+	touch $@
+
+$(DYLIB): $(BUILD_DARWIN)/.done | $(OUT_DIR_AARCH64)
+	$(MAKE) -C $(BUILD_DARWIN) \
+	    CC="$(CC_DARWIN)" \
+	    HOSTCC=$(CLANG_CC) \
+	    TARGET=ARMV8 \
+	    $(OPENBLAS_COMMON_FLAGS) \
+	    LDFLAGS="$(LDFLAGS_DARWIN)" \
+	    SONAME_PREFIX=""
+	$(MAKE) -C $(BUILD_DARWIN) \
+	    CC="$(CC_DARWIN)" \
+	    HOSTCC=$(CLANG_CC) \
+	    TARGET=ARMV8 \
+	    $(OPENBLAS_COMMON_FLAGS) \
+	    LDFLAGS="$(LDFLAGS_DARWIN)" \
+	    SONAME_PREFIX="" \
+	    PREFIX=$(abspath $(BUILD_DARWIN)/install) \
+	    install
+	cp $(BUILD_DARWIN)/install/lib/libopenblas.dylib $@
+	-$(DARWIN_DSYMUTIL) $@ -o $@.dSYM 2>/dev/null || true
+	$(DARWIN_STRIP) $@
 
 # --- linux-aarch64 ---
 
@@ -212,8 +249,14 @@ $(DLL_WIN): $(BUILD_WIN_X64)/.done | $(OUT_DIR_WIN_X64)
 UNAME_S := $(shell uname -s)
 
 ifeq ($(UNAME_S),Darwin)
-local:
-	$(error OpenBLAS is not built for darwin; see the comment at the top of this Makefile)
+  LOCAL_PLATFORM = darwin-aarch64
+  LOCAL_OUTPUT   = $(DYLIB)
+  # Host build: use the native compiler and the Xcode SDK; drop cross-specific flags and LLVM tools.
+  local: CC_DARWIN       = $(CLANG_CC)
+  local: LDFLAGS_DARWIN  =
+  local: DARWIN_STRIP    = strip -x
+  local: DARWIN_DSYMUTIL = dsymutil
+  local: $(DYLIB)
 else ifneq (,$(or $(findstring MINGW,$(UNAME_S)),$(findstring MSYS,$(UNAME_S)),$(findstring CYGWIN,$(UNAME_S))))
   LOCAL_PLATFORM = windows-x64
   LOCAL_OUTPUT   = $(DLL_WIN)
@@ -267,7 +310,7 @@ verify-linux-abi: $(SO_ARM) $(SO_X64)
 
 # --- directories ---
 
-$(BUILD_LINUX_ARM) $(BUILD_LINUX_X64) $(BUILD_WIN_X64) \
+$(BUILD_DARWIN) $(BUILD_LINUX_ARM) $(BUILD_LINUX_X64) $(BUILD_WIN_X64) \
 $(OUT_DIR_AARCH64) $(OUT_DIR_AMD64) $(OUT_DIR_WIN_X64):
 	mkdir -p $@
 

@@ -1416,13 +1416,22 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                                 createShard(currentRouting, currentState);
                             } catch (Exception e) {
                                 // should not be possible
-                                retryingShards.remove(shardRouting.shardId());
                                 final var wrappedException = new IllegalStateException(
                                     "unexpected failure in handleRecoveryFailure on " + shardRouting,
                                     e
                                 );
                                 logger.error(wrappedException.getMessage(), e);
                                 assert false : e;
+                                failAndRemoveShard(
+                                    shardRouting,
+                                    primaryTerm,
+                                    true,
+                                    "unexpected failure during recovery retry",
+                                    wrappedException,
+                                    currentState,
+                                    shardCloseExecutor,
+                                    ActionListener.noop()
+                                );
                             }
                         }
                     }, ActionListener.noop());

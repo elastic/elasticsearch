@@ -44,6 +44,16 @@ public final class FetchDocsSourceOperator extends SourceOperator {
      */
     public record ShardDocs(int shard, int[] segments, int[] docs) {
         public ShardDocs {
+            checkSorted(segments, docs);
+        }
+
+        /**
+         * Checks that {@code segments} and {@code docs} list documents sorted by segment and then by doc, without duplicates
+         * and without negative values, the order every fetch keeps from the request to the loaded rows.
+         *
+         * @throws IllegalArgumentException when they don't
+         */
+        public static void checkSorted(int[] segments, int[] docs) {
             if (segments.length != docs.length) {
                 throw new IllegalArgumentException("[" + segments.length + "] segments for [" + docs.length + "] docs");
             }

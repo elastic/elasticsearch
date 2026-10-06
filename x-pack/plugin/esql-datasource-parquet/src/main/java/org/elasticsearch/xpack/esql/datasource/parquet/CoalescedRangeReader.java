@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.compute.operator.SuppressedFailures;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -18,6 +19,8 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIoAffinity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
@@ -167,6 +170,32 @@ final class CoalescedRangeReader {
         Executor executor,
         ActionListener<CoalescedRangeResult> listener
     ) {
+        return readCoalesced(
+            storageObject,
+            ranges,
+            maxCoalesceGap,
+            breaker,
+            ioWatermark,
+            admitHold,
+            footerBytes,
+            admitHold != null ? ParquetIoWatermark.ByteGate.GROUP_HOLD : ParquetIoWatermark.ByteGate.UNGATED,
+            executor,
+            listener
+        );
+    }
+
+    static Releasable readCoalesced(
+        StorageObject storageObject,
+        List<ByteRange> ranges,
+        long maxCoalesceGap,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark,
+        @Nullable ParquetIoWatermark.AdmitHold admitHold,
+        @Nullable FooterByteCache footerBytes,
+        ParquetIoWatermark.ByteGate byteGate,
+        Executor executor,
+        ActionListener<CoalescedRangeResult> listener
+    ) {
         if (ranges.isEmpty()) {
             listener.onResponse(new CoalescedRangeResult(Map.of(), () -> {}));
             return () -> {};
@@ -184,82 +213,133 @@ final class CoalescedRangeReader {
         AtomicInteger remaining = new AtomicInteger(merged.size());
         AtomicReference<Exception> firstFailure = new AtomicReference<>();
 
-        // Bridge the circuit breaker to the SPI's factory once, here at the boundary, so
-        // backends do not need to know about CircuitBreaker at all. The watermark wrapper
-        // charges actual allocated bytes beside REQUEST so footer estimates cannot drift.
-        DirectBufferFactory factory = ParquetIoWatermark.bufferFactory(breaker, ioWatermark, admitHold);
+        // GROUP_HOLD reuses the caller's footer-estimate hold. UNGATED forceAdds. PER_GET
+        // waits per miss; a null hold is never treated as PER_GET.
+        DirectBufferFactory factory = byteGate == ParquetIoWatermark.ByteGate.GROUP_HOLD
+            ? ParquetIoWatermark.bufferFactory(breaker, ioWatermark, admitHold)
+            : ParquetIoWatermark.bufferFactory(breaker, ioWatermark, null);
         // Cache hits copy into a breaker buffer only: they are not a GET, so they must not
         // charge the I/O watermark or consume admit-hold GET budget.
         DirectBufferFactory cacheFactory = DirectBufferFactory.forBreaker(breaker);
 
+        List<MergedRange> gets = new ArrayList<>();
+        List<MergedRange> hitRanges = new ArrayList<>();
+        List<FooterCacheHit> hits = new ArrayList<>();
         for (MergedRange mr : merged) {
             FooterCacheHit hit = lookupFooterCacheHit(storageObject, mr, footerBytes);
             if (hit != null) {
-                inflight.add(() -> {});
-                try {
-                    executor.execute(() -> {
-                        try {
-                            DirectReadBuffer copied = copyFooterCacheHit(hit, cacheFactory);
-                            try {
-                                synchronized (results) {
-                                    buffers.add(copied);
-                                    DirectReadBuffer owned = copied;
-                                    copied = null;
-                                    sliceConstituents(owned.buffer(), mr, results);
-                                }
-                            } finally {
-                                if (copied != null) {
-                                    copied.close();
-                                }
-                            }
-                        } catch (Throwable t) {
-                            Exception e = t instanceof Exception ex ? ex : new ElasticsearchException(t);
-                            recordFailure(firstFailure, e, inflight);
-                        } finally {
-                            complete(remaining, firstFailure, buffers, results, listener);
-                        }
-                    });
-                } catch (Exception e) {
-                    recordFailure(firstFailure, e, inflight);
-                    complete(remaining, firstFailure, buffers, results, listener);
-                }
-                continue;
+                hitRanges.add(mr);
+                hits.add(hit);
+            } else {
+                gets.add(mr);
             }
-            Releasable handle = storageObject.startReadBytesAsync(mr.offset, mr.length, factory, executor, new ActionListener<>() {
-                @Override
-                public void onResponse(DirectReadBuffer result) {
+        }
+        StorageIoAffinity.Scope scope = StorageIoAffinity.current();
+        if (scope != null && scope.countGets) {
+            scope.lease().addUnissued(gets.size());
+        }
+
+        for (int i = 0; i < hitRanges.size(); i++) {
+            MergedRange mr = hitRanges.get(i);
+            FooterCacheHit hit = hits.get(i);
+            inflight.add(() -> {});
+            try {
+                executor.execute(() -> {
                     try {
-                        synchronized (results) {
-                            // Track the buffer before slicing so a short-read (or any slice) failure
-                            // still hands ownership to the terminal complete(), which closes it
-                            // along with its siblings.
-                            buffers.add(result);
-                            sliceConstituents(result.buffer(), mr, results);
+                        DirectReadBuffer copied = copyFooterCacheHit(hit, cacheFactory);
+                        try {
+                            synchronized (results) {
+                                buffers.add(copied);
+                                DirectReadBuffer owned = copied;
+                                copied = null;
+                                sliceConstituents(owned.buffer(), mr, results);
+                            }
+                        } finally {
+                            if (copied != null) {
+                                copied.close();
+                            }
                         }
                     } catch (Throwable t) {
-                        // Do not rethrow. {@code result} is already in {@code buffers}, so the terminal
-                        // complete() will close it. Rethrowing would let the SPI's default readBytesAsync
-                        // catch also close {@code result}, double-releasing the buffer. Folding
-                        // every throwable (not just Exception) into firstFailure guarantees a failure is
-                        // delivered: with the finally below already calling complete(), letting an Error
-                        // through instead would deliver a spurious success with truncated slices.
                         Exception e = t instanceof Exception ex ? ex : new ElasticsearchException(t);
                         recordFailure(firstFailure, e, inflight);
                     } finally {
                         complete(remaining, firstFailure, buffers, results, listener);
                     }
+                });
+            } catch (Exception e) {
+                recordFailure(firstFailure, e, inflight);
+                complete(remaining, firstFailure, buffers, results, listener);
+            }
+        }
+        boolean abortUnissued = false;
+        int startedGets = 0;
+        for (MergedRange mr : gets) {
+            if (abortUnissued) {
+                complete(remaining, firstFailure, buffers, results, listener);
+                continue;
+            }
+            DirectBufferFactory rangeFactory = factory;
+            ParquetIoWatermark.AdmitHold assignedHold = null;
+            Releasable handle;
+            try {
+                if (byteGate == ParquetIoWatermark.ByteGate.PER_GET && ioWatermark != null) {
+                    assignedHold = ioWatermark.admitWait(mr.length(), requireLease(scope), storageObject.admissionWaitTimeoutMs());
+                    rangeFactory = ParquetIoWatermark.bufferFactory(breaker, ioWatermark, assignedHold);
                 }
+                final ParquetIoWatermark.AdmitHold holdForGet = assignedHold;
+                handle = storageObject.startReadBytesAsync(mr.offset, mr.length, rangeFactory, executor, new ActionListener<>() {
+                    @Override
+                    public void onResponse(DirectReadBuffer result) {
+                        try {
+                            synchronized (results) {
+                                // Track the buffer before slicing so a short-read (or any slice) failure
+                                // still hands ownership to the terminal complete(), which closes it
+                                // along with its siblings.
+                                buffers.add(result);
+                                sliceConstituents(result.buffer(), mr, results);
+                            }
+                        } catch (Throwable t) {
+                            // Do not rethrow. {@code result} is already in {@code buffers}, so the terminal
+                            // complete() will close it. Rethrowing would let the SPI's default readBytesAsync
+                            // catch also close {@code result}, double-releasing the buffer. Folding
+                            // every throwable (not just Exception) into firstFailure guarantees a failure is
+                            // delivered: with the finally below already calling complete(), letting an Error
+                            // through instead would deliver a spurious success with truncated slices.
+                            Exception e = t instanceof Exception ex ? ex : new ElasticsearchException(t);
+                            recordFailure(firstFailure, e, inflight);
+                        } finally {
+                            complete(remaining, firstFailure, buffers, results, listener);
+                        }
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    // The backend has already released its buffer on the failure path; nothing
-                    // to clean up for this merged range. Siblings that succeeded are released by
-                    // complete() below. The first failure also closes remaining inflight handles so
-                    // sibling GETs do not keep Netty slots and storage permits until they finish.
-                    recordFailure(firstFailure, e, inflight);
-                    complete(remaining, firstFailure, buffers, results, listener);
+                    @Override
+                    public void onFailure(Exception e) {
+                        // Native async may fail before alloc, so leftover admitWait bytes would
+                        // otherwise stay on the node watermark. After a successful alloc, drop is
+                        // a no-op. The backend has already released its buffer on this path.
+                        if (holdForGet != null) {
+                            holdForGet.drop();
+                        }
+                        recordFailure(firstFailure, e, inflight);
+                        complete(remaining, firstFailure, buffers, results, listener);
+                    }
+                });
+            } catch (RuntimeException e) {
+                if (assignedHold != null) {
+                    assignedHold.drop();
                 }
-            });
+                // admitWait throws; startReadBytesAsync does not on a permit failure. Do not throw
+                // out of this loop: remaining would stay > 0, already-stored buffers would never
+                // close, and the listener would never fire.
+                recordFailure(firstFailure, e, inflight);
+                complete(remaining, firstFailure, buffers, results, listener);
+                if (scope != null && scope.countGets) {
+                    scope.lease().forgetUnissued(gets.size() - startedGets);
+                }
+                abortUnissued = true;
+                continue;
+            }
+            startedGets++;
             inflight.add(handle);
             if (firstFailure.get() != null) {
                 // This GET was started after a sibling already failed (typically a synchronous
@@ -305,6 +385,26 @@ final class CoalescedRangeReader {
         @Nullable ParquetIoWatermark ioWatermark,
         @Nullable FooterByteCache footerBytes
     ) throws IOException {
+        return readCoalescedSync(
+            storageObject,
+            ranges,
+            maxCoalesceGap,
+            breaker,
+            ioWatermark,
+            footerBytes,
+            ParquetIoWatermark.ByteGate.UNGATED
+        );
+    }
+
+    static CoalescedRangeResult readCoalescedSync(
+        StorageObject storageObject,
+        List<ByteRange> ranges,
+        long maxCoalesceGap,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark,
+        @Nullable FooterByteCache footerBytes,
+        ParquetIoWatermark.ByteGate byteGate
+    ) throws IOException {
         if (ranges.isEmpty()) {
             return new CoalescedRangeResult(Map.of(), () -> {});
         }
@@ -320,6 +420,7 @@ final class CoalescedRangeReader {
         List<Releasable> buffers = new ArrayList<>(merged.size());
         DirectBufferFactory factory = ParquetIoWatermark.bufferFactory(breaker, ioWatermark);
         DirectBufferFactory cacheFactory = DirectBufferFactory.forBreaker(breaker);
+        StorageIoAffinity.Scope scope = StorageIoAffinity.current();
         try {
             for (MergedRange mr : merged) {
                 FooterCacheHit hit = lookupFooterCacheHit(storageObject, mr, footerBytes);
@@ -330,28 +431,41 @@ final class CoalescedRangeReader {
                     continue;
                 }
                 int length = (int) mr.length();
-                DirectReadBuffer result = factory.allocateWritableWindow(length);
-                buffers.add(result);
-                ByteBuffer buffer = result.buffer();
-                int read = 0;
-                while (read < length) {
-                    int currentRead = storageObject.readBytes(mr.offset() + read, buffer);
-                    if (currentRead < 0) {
-                        break;
+                ParquetIoWatermark.AdmitHold perGetHold = null;
+                DirectBufferFactory rangeFactory = factory;
+                try {
+                    if (byteGate == ParquetIoWatermark.ByteGate.PER_GET && ioWatermark != null) {
+                        perGetHold = ioWatermark.admitWait(mr.length(), requireLease(scope), storageObject.admissionWaitTimeoutMs());
+                        rangeFactory = ParquetIoWatermark.bufferFactory(breaker, ioWatermark, perGetHold);
                     }
-                    if (currentRead == 0) {
-                        throw new IOException(
-                            "Read made no progress at offset ["
-                                + (mr.offset() + read)
-                                + "] with ["
-                                + buffer.remaining()
-                                + "] bytes remaining"
-                        );
+                    DirectReadBuffer result = rangeFactory.allocateWritableWindow(length);
+                    buffers.add(result);
+                    ByteBuffer buffer = result.buffer();
+                    int read = 0;
+                    while (read < length) {
+                        int currentRead = storageObject.readBytes(mr.offset() + read, buffer);
+                        if (currentRead < 0) {
+                            break;
+                        }
+                        if (currentRead == 0) {
+                            throw new IOException(
+                                "Read made no progress at offset ["
+                                    + (mr.offset() + read)
+                                    + "] with ["
+                                    + buffer.remaining()
+                                    + "] bytes remaining"
+                            );
+                        }
+                        read += currentRead;
                     }
-                    read += currentRead;
+                    buffer.position(0).limit(read);
+                    sliceConstituents(buffer, mr, results);
+                } catch (Throwable t) {
+                    if (perGetHold != null) {
+                        perGetHold.drop();
+                    }
+                    throw t;
                 }
-                buffer.position(0).limit(read);
-                sliceConstituents(buffer, mr, results);
             }
         } catch (Throwable t) {
             try {
@@ -362,6 +476,13 @@ final class CoalescedRangeReader {
             throw t;
         }
         return new CoalescedRangeResult(results, () -> Releasables.close(buffers));
+    }
+
+    private static RowGroupIo requireLease(StorageIoAffinity.Scope scope) {
+        if (scope == null) {
+            throw new IllegalStateException("PER_GET admission requires a row-group lease");
+        }
+        return scope.lease();
     }
 
     /**
@@ -401,8 +522,8 @@ final class CoalescedRangeReader {
             }
         } else {
             Exception first = firstFailure.get();
-            if (first != null && first != e) {
-                first.addSuppressed(e);
+            if (first != null) {
+                SuppressedFailures.attach(first, e);
             }
         }
     }

@@ -31,11 +31,11 @@ Aggregations:
 * Limits the `multi_terms` aggregation to a maximum of 128 fields [#157906](https://github.com/elastic/elasticsearch/pull/157906)
 
 Authorization:
-* Grants the `kibana_system` role the `manage`, `create_index`, `read`, `index`, `write`, and `delete` privileges on the XM Cyber indices (`logs-xm_cyber.device-*`, `logs-xm_cyber.product-*`, and `logs-xm_cyber.vulnerability_index-*`). This lets the ILM delete step succeed for these indices [#160185](https://github.com/elastic/elasticsearch/pull/160185)
+* Grants the `kibana_system` role the `manage`, `create_index`, `read`, `index`, `write`, and `delete` privileges on the XM Cyber indices (`logs-xm_cyber.device-*`, `logs-xm_cyber.product-*`, and `logs-xm_cyber.vulnerability_index-*`), so the index lifecycle management (ILM) delete step can succeed for these indices [#160185](https://github.com/elastic/elasticsearch/pull/160185)
 
 ES|QL:
 * Upgrades the Parquet Hadoop bundle [#158981](https://github.com/elastic/elasticsearch/pull/158981)
-* Upgrades `OpenTelemetry` to 1.62.0 in the Google Cloud Storage (GCS) modules [#152499](https://github.com/elastic/elasticsearch/pull/152499)
+* Upgrades OpenTelemetry to 1.62.0 in the Google Cloud Storage (GCS) modules [#152499](https://github.com/elastic/elasticsearch/pull/152499)
 * Upgrades zstd-jni to 1.5.7-16 [#159621](https://github.com/elastic/elasticsearch/pull/159621)
 
 Inference:
@@ -58,24 +58,24 @@ Distributed:
 
 ES|QL:
 * Fixes a `NullPointerException` that occurred when ES|QL folded a regular expression that evaluated to `null` [#158768](https://github.com/elastic/elasticsearch/pull/158768) (issue: [#158748](https://github.com/elastic/elasticsearch/issues/158748))
-* Fixes an analyzer loop that occurred when a query contained repeated conversions [#159257](https://github.com/elastic/elasticsearch/pull/159257)
-* Fixes ES|QL queries on indices where a nested field conflicts with an object field [#158573](https://github.com/elastic/elasticsearch/pull/158573) (issue: [#154011](https://github.com/elastic/elasticsearch/issues/154011))
+* Fixes a failure (`Rule execution limit [100] reached`) when a query that reads from multiple sources, such as `FROM (FROM a), (FROM b)`, applies the same conversion function to a field more than once [#159257](https://github.com/elastic/elasticsearch/pull/159257)
+* Fixes ES|QL queries that fail on indices where a `nested` field conflicts with an `object` field [#158573](https://github.com/elastic/elasticsearch/pull/158573) (issue: [#154011](https://github.com/elastic/elasticsearch/issues/154011))
 * Makes the ES|QL `TO_BASE64`, `FROM_BASE64`, `MV_ZIP`, and `MV_CONCAT` functions respect the circuit breaker, so large inputs return a circuit breaker error instead of exhausting memory [#159659](https://github.com/elastic/elasticsearch/pull/159659)
 * Rejects `TRANGE` queries that have a `null` start or offset [#159125](https://github.com/elastic/elasticsearch/pull/159125)
 * Returns `null` values and a warning, rather than failing the query, when a typed `GROK` capture such as `%{NUMBER:n:int}` matches a value that can't be converted to the requested type [#160574](https://github.com/elastic/elasticsearch/pull/160574)
 
 Engine:
-* Handles exceptions thrown by refreshes in `ensureShardSearchActive` [#159526](https://github.com/elastic/elasticsearch/pull/159526)
+* Prevents spurious `ERROR` log entries when a shard closes while a refresh triggered by a search on a search-idle shard is still queued [#159526](https://github.com/elastic/elasticsearch/pull/159526)
 
 Extract&Transform:
 * Limits the length of a connector description to 8192 characters [#159638](https://github.com/elastic/elasticsearch/pull/159638)
 
 Geo:
-* Fixes the latitude correction in H3 cell bounds calculations so that it checks both edges adjacent to the extreme-latitude vertex [#160228](https://github.com/elastic/elasticsearch/pull/160228) (issue: [#159682](https://github.com/elastic/elasticsearch/issues/159682))
+* Fixes incorrect H3 cell bounds. The latitude correction now checks both edges next to the extreme-latitude vertex instead of only one [#160228](https://github.com/elastic/elasticsearch/pull/160228) (issue: [#159682](https://github.com/elastic/elasticsearch/issues/159682))
 * Limits the nesting depth of geometry collections when a geometry is created, preventing excessive recursion when a `geo_shape` runtime field emits deeply nested geometries [#160004](https://github.com/elastic/elasticsearch/pull/160004)
 
 Inference:
-* Converts `RecursiveChunker` to an iterative implementation and caps the size of the separator list [#158589](https://github.com/elastic/elasticsearch/pull/158589)
+* Makes recursive chunking use constant stack depth regardless of input size, and limits the number of separators it accepts [#158589](https://github.com/elastic/elasticsearch/pull/158589)
 
 Infra/Core:
 * Ignores unrelated files when scanning the configuration directory for `log4j2.properties` [#150016](https://github.com/elastic/elasticsearch/pull/150016)
@@ -87,22 +87,22 @@ Machine Learning:
 * Stabilizes forecasts for time series with an uncertain trend [#3189](https://github.com/elastic/ml-cpp/pull/3189) (issue: [#2772](https://github.com/elastic/ml-cpp/issues/2772))
 
 SQL:
-* Fixes a `NullPointerException` and `ClassCastException` in `ReplaceSumWithStats` when a `SUM` is nested [#159256](https://github.com/elastic/elasticsearch/pull/159256) (issue: [#159250](https://github.com/elastic/elasticsearch/issues/159250))
+* Fixes a `NullPointerException` and `ClassCastException` when an aggregate function is nested inside another aggregate, for example `HAVING SUM(s) > 10` where `s` is an alias of `SUM(int)` [#159256](https://github.com/elastic/elasticsearch/pull/159256) (issue: [#159250](https://github.com/elastic/elasticsearch/issues/159250))
 
 Search:
 * Fixes a memory leak where shard results that arrived after a search phase failed were never released [#160439](https://github.com/elastic/elasticsearch/pull/160439) (issue: [#160321](https://github.com/elastic/elasticsearch/issues/160321))
 * Fixes a request circuit breaker leak in the rank feature phase [#158951](https://github.com/elastic/elasticsearch/pull/158951)
 * Fixes an `IllegalArgumentException` (unknown transport version) when using a point in time (PIT) in cross-cluster search on mixed-version clusters [#159248](https://github.com/elastic/elasticsearch/pull/159248) (issue: [#158991](https://github.com/elastic/elasticsearch/issues/158991))
 * Fixes failures in sorted searches when a shard returns an empty result after timing out [#160132](https://github.com/elastic/elasticsearch/pull/160132)
-* Improves consistency checks for point in time (PIT) IDs [#160179](https://github.com/elastic/elasticsearch/pull/160179)
+* Adds validation that the shards in a point in time (PIT) ID match their reader contexts, so a corrupted PIT ID no longer returns unreliable search results [#160179](https://github.com/elastic/elasticsearch/pull/160179)
 * Releases `top_hits` results when the cross-cluster search merge reduce fails [#160363](https://github.com/elastic/elasticsearch/pull/160363)
-* Tolerates missing remote indices during the inference rewrite [#160207](https://github.com/elastic/elasticsearch/pull/160207) (issue: [#160203](https://github.com/elastic/elasticsearch/issues/160203))
+* Fixes searches that return a `404` error when a remote cluster is missing the queried index during the inference rewrite and `ccs_minimize_roundtrips` is `false` or a scroll is used [#160207](https://github.com/elastic/elasticsearch/pull/160207) (issue: [#160203](https://github.com/elastic/elasticsearch/issues/160203))
 
 Security:
-* Improves consistency checks for shard-level requests [#159691](https://github.com/elastic/elasticsearch/pull/159691)
+* Adds a check that shard IDs in cross-cluster requests that target specific shards match the current cluster state [#159691](https://github.com/elastic/elasticsearch/pull/159691)
 
 TSDB:
-* Rejects Prometheus remote write 2.0 requests [#159987](https://github.com/elastic/elasticsearch/pull/159987)
+* Rejects Prometheus remote write 2.0 requests with an HTTP `415` response so senders can fall back to 1.0, instead of returning `204` and silently dropping the samples [#159987](https://github.com/elastic/elasticsearch/pull/159987)
 
 
 

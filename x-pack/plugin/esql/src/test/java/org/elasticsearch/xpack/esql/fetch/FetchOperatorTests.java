@@ -48,6 +48,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -59,6 +60,8 @@ public class FetchOperatorTests extends ComputeTestCase {
     private static final List<DocRefOrigin> ORIGINS = List.of(origin("n1", 0), origin("n1", 1), origin("n2", 2), origin("n3", 3));
 
     private ThreadPool threadPool;
+    /** The status of the operator the last {@link #run} drove, read just before it closed. */
+    private FetchOperator.Status lastStatus;
 
     @Before
     public void startThreadPool() {
@@ -242,6 +245,34 @@ public class FetchOperatorTests extends ComputeTestCase {
         // the test case checks that the response released its pages
     }
 
+    /**
+     * The status shows how the cut became requests, and the time each node reported.
+     */
+    public void testStatusShowsTheRequests() throws Exception {
+        BlockFactory blockFactory = blockFactory();
+        FakeClient client = new FakeClient(blockFactory);
+        List<List<Ref>> input = List.of(
+            List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(1), 0, 2), new Ref(ORIGINS.get(0), 0, 1)),
+            List.of(new Ref(ORIGINS.get(2), 3, 4))
+        );
+        run(blockFactory, client, true, input).forEach(Page::releaseBlocks);
+
+        assertThat(lastStatus.rowsReceived(), equalTo(4L));
+        assertThat("rows of the same document fetch it once", lastStatus.documents(), equalTo(3L));
+        assertThat(lastStatus.pagesEmitted(), equalTo(2));
+        assertThat(lastStatus.nodes().stream().map(FetchOperator.NodeRequest::node).toList(), containsInAnyOrder("n1", "n2"));
+        for (FetchOperator.NodeRequest node : lastStatus.nodes()) {
+            assertThat(node.shards(), equalTo(node.node().equals("n1") ? 2 : 1));
+            assertThat(node.documents(), equalTo(node.node().equals("n1") ? 2 : 1));
+            assertThat(node.tookNanos(), equalTo(FakeClient.TOOK_NANOS));
+            assertThat(node.setupNanos(), equalTo(FakeClient.SETUP_NANOS));
+            assertThat(node.requestNanos(), greaterThan(0L));
+        }
+        assertThat(lastStatus.waitNanos(), greaterThan(0L));
+        assertThat(lastStatus.planNanos(), greaterThan(0L));
+        assertThat(lastStatus.gatherNanos(), greaterThan(0L));
+    }
+
     public void testDescribe() {
         assertThat(
             factory(new FakeClient(blockFactory()), true).describe(),
@@ -281,6 +312,7 @@ public class FetchOperatorTests extends ComputeTestCase {
             output.forEach(Page::releaseBlocks);
             throw e;
         } finally {
+            lastStatus = (FetchOperator.Status) operator.status();
             operator.close();
             awaitResponses(driverContext);
         }
@@ -322,6 +354,8 @@ public class FetchOperatorTests extends ComputeTestCase {
      * Answers like a data node, on another thread.
      */
     private class FakeClient implements FetchOperator.Client {
+        static final long TOOK_NANOS = 5_000;
+        static final long SETUP_NANOS = 1_000;
         private final BlockFactory blockFactory;
         private final List<Request> requests = new CopyOnWriteArrayList<>();
         private ShardSearchContextId failingShard;
@@ -340,7 +374,7 @@ public class FetchOperatorTests extends ComputeTestCase {
 
         @Override
         public DiscoveryNode node(String clusterAlias, String nodeId) {
-            return nodeId.equals(goneNode) ? null : DiscoveryNodeUtils.create(nodeId);
+            return nodeId.equals(goneNode) ? null : DiscoveryNodeUtils.builder(nodeId).name(nodeId).build();
         }
 
         @Override
@@ -406,7 +440,7 @@ public class FetchOperatorTests extends ComputeTestCase {
                 }
                 results.add(ShardResult.succeeded(shard.shardId(), shard.docCount()));
             }
-            return new FetchResponse(blockFactory, results, pages, DriverCompletionInfo.EMPTY, 0, 0);
+            return new FetchResponse(blockFactory, results, pages, DriverCompletionInfo.EMPTY, TOOK_NANOS, SETUP_NANOS);
         }
     }
 

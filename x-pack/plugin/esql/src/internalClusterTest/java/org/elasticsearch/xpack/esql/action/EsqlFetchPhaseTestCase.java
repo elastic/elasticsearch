@@ -15,6 +15,7 @@ import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.fetch.FetchOperator;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.PlanFetch;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
@@ -678,6 +679,22 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
             .mapToLong(status -> ((FetchDocsSourceOperator.Status) status).docsEmitted())
             .sum();
         assertThat("documents the fetch loaded", documents, equalTo((long) rows));
+
+        List<FetchOperator.Status> coordinator = run.drivers()
+            .stream()
+            .flatMap(driver -> driver.operators().stream())
+            .map(OperatorStatus::status)
+            .filter(FetchOperator.Status.class::isInstance)
+            .map(FetchOperator.Status.class::cast)
+            .toList();
+        assertThat("one fetch on the coordinator", coordinator, hasSize(1));
+        FetchOperator.Status status = coordinator.getFirst();
+        assertThat("documents the coordinator asked for", status.documents(), equalTo((long) rows));
+        assertThat(
+            "documents the nodes answered",
+            status.nodes().stream().mapToLong(FetchOperator.NodeRequest::documents).sum(),
+            equalTo((long) rows)
+        );
     }
 
     protected static void assertNotFetched(Run run) {

@@ -442,15 +442,20 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     /// The caller owns `uploadBoundListener` and must fail it if the handoff is abandoned before [#markRelocating]
     /// completes it.
     ///
+    /// @throws AlreadyClosedException if the shard commit state is already closed
     public void installUploadBoundListener(ShardId shardId, SubscribableListener<Long> uploadBoundListener) {
-        if (Assertions.ENABLED) {
-            // So that FakeStatelessNode + unit tests don't have to always stub indexService
-            final var shard = Optional.ofNullable(indicesService.indexService(shardId.getIndex()))
-                .map(indexService -> indexService.getShardOrNull(shardId.id()));
-            assert shard.map(s -> s.getActiveOperationsCount() == IndexShard.OPERATIONS_BLOCKED).orElse(true)
-                : shardId + " installUploadBoundListener must be called while holding all operation permits";
-        }
+        assert assertIndexingBlocked(shardId);
         getSafe(shardsCommitsStates, shardId).installUploadBoundListener(uploadBoundListener);
+    }
+
+    private boolean assertIndexingBlocked(ShardId shardId) {
+        // So that FakeStatelessNode + unit tests don't have to always stub indexService
+        // TODO: stub indexService in FakeStatelessNode-based tests so to make this assertion unconditional
+        final var shard = Optional.ofNullable(indicesService.indexService(shardId.getIndex()))
+            .map(indexService -> indexService.getShardOrNull(shardId.id()));
+        assert shard.map(s -> s.getActiveOperationsCount() == IndexShard.OPERATIONS_BLOCKED).orElse(true)
+            : shardId + " installUploadBoundListener must be called while holding all operation permits";
+        return true;
     }
 
     /// This method will mark the shard as relocating. It will calculate the max(minRelocatedGeneration, all pending uploads, max
@@ -1236,6 +1241,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     public long getMaxGenerationToUpload(ShardId shardId) {
         final ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         return commitState.maxGenerationToUpload;
+    }
+
+    // visible for testing
+    public boolean relocationUploadBoundIsPendingOrSet(ShardId shardId) {
+        final ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        return commitState.relocationUploadBoundListener != null;
     }
 
     /**
@@ -2901,8 +2912,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 assert relocationUploadBoundListener == null
                     : "existing relocation upload bound listener during installUploadBoundListener";
                 if (state == State.CLOSED) {
-                    // shard was closed, markRelocating will throw and the relocation source fails the listener.
-                    return;
+                    // Shard was concurrently closed. Throw and let the relocation source fail the upload bound listener.
+                    throw new AlreadyClosedException("shard [" + shardId + "] has already been closed");
                 }
                 relocationUploadBoundListener = uploadBoundListener;
             }

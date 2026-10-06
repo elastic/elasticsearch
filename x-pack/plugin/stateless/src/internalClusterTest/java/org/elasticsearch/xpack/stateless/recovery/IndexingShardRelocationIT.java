@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.stateless.recovery;
 
 import org.apache.logging.log4j.Level;
-import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -55,6 +54,7 @@ import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
@@ -122,6 +122,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
@@ -139,7 +140,6 @@ import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrima
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationPrewarmAction.PREWARM_RELOCATION_ACTION_NAME;
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -147,8 +147,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestCase {
 
@@ -482,9 +482,10 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
     }
 
     /// A primary relocation can fail after [StatelessCommitService#installUploadBoundListener] has installed the upload bound
-    /// listener but before `markRelocating` pins the bound. Here the source shard fails while the handoff consumer
-    /// is parked in `installUploadBoundListener`, so the consumer then throws synchronously. The upload bound listener passed to
-    /// `installUploadBoundListener` must be cleared on that path too, before `IndexShard#relocated` releases the operation permits.
+    /// listener but before `markRelocating` pins the bound. Here `markRelocating` throws on the first attempt, which fails the
+    /// relocation but not the source shard, so the handoff consumer fails the upload bound listener before `IndexShard#relocated`
+    /// releases the operation permits. The listener must then be cleared from the same shard commit state, so that the retried
+    /// relocation of the same shard instance can install its own listener and succeed.
     public void testRelocationFailureBeforeMarkRelocating() throws Exception {
         final Settings nodeSettings = disableIndexingDiskAndMemoryControllersNodeSettings();
         startMasterOnlyNode(nodeSettings);
@@ -496,35 +497,48 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
         ensureGreen(indexName);
 
-        int docCount = randomIntBetween(10, 100);
+        final int docCount = randomIntBetween(10, 100);
         indexDocs(indexName, docCount);
         flush(indexName);
 
         final IndexShard indexShard = findIndexShard(indexName);
-        final ShardId shardId = indexShard.shardId();
         final var commitService = (TestStatelessCommitService) ((IndexEngine) indexShard.getEngineOrNull()).getStatelessCommitService();
 
-        // Park inside the handoff consumer at installUploadBoundListener, before markRelocating pins the bound, and record how
-        // the upload bound listener is resolved.
-        final var enteredInstallUploadBoundListener = new CountDownLatch(1);
-        final var resumeRelocation = new CountDownLatch(1);
-        final var relocationDone = new CountDownLatch(1);
-        final var unwindException = new AtomicReference<Exception>();
-        final var firstAttempt = new AtomicBoolean(true);
+        // Fail markRelocating on the first attempt only, before it completes the upload bound listener. The allocator then retries
+        // the relocation, and its installUploadBoundListener records the state left behind by the first attempt.
+        final var simulatedFailure = new ElasticsearchException("simulated markRelocating failure");
+        final var firstUploadBoundListener = new SubscribableListener<SubscribableListener<Long>>();
+        final var retriedOnSameShard = new SubscribableListener<Boolean>();
+        final var uploadBoundWasNotClearedBeforeRetry = new SubscribableListener<Boolean>();
+        final var installUploadBoundAttempts = new AtomicInteger();
+        final var firstMarkRelocatingAttempt = new AtomicBoolean(true);
         commitService.setStrategy(new TestStatelessCommitService.Strategy() {
             @Override
-            public void installUploadBoundListener(Runnable originalRunnable, ShardId sid, SubscribableListener<Long> uploadBoundListener) {
-                originalRunnable.run();
-                if (firstAttempt.compareAndSet(true, false)) {
-                    uploadBoundListener.addListener(
-                        ActionListener.runAfter(
-                            ActionListener.wrap(bound -> fail("unexpected bound [" + bound + "]"), unwindException::set),
-                            relocationDone::countDown
-                        )
-                    );
-                    enteredInstallUploadBoundListener.countDown();
-                    safeAwait(resumeRelocation);
+            public void installUploadBoundListener(
+                Runnable originalRunnable,
+                ShardId shardId,
+                SubscribableListener<Long> uploadBoundListener
+            ) {
+                if (installUploadBoundAttempts.incrementAndGet() == 1) {
+                    firstUploadBoundListener.onResponse(uploadBoundListener);
+                } else {
+                    retriedOnSameShard.onResponse(indexShard.state() != IndexShardState.CLOSED);
+                    uploadBoundWasNotClearedBeforeRetry.onResponse(commitService.relocationUploadBoundIsPendingOrSet(shardId));
                 }
+                originalRunnable.run();
+            }
+
+            @Override
+            public ActionListener<Void> markRelocating(
+                Supplier<ActionListener<Void>> originalSupplier,
+                ShardId shardId,
+                long minRelocatedGeneration,
+                ActionListener<Void> listener
+            ) {
+                if (firstMarkRelocatingAttempt.compareAndSet(true, false)) {
+                    throw simulatedFailure;
+                }
+                return originalSupplier.get();
             }
         });
 
@@ -533,38 +547,19 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
 
         try {
             ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, indexNode, newIndexNode));
-            safeAwait(enteredInstallUploadBoundListener);
-            assertThat(
-                "markRelocating has not run, so no bound is pinned yet",
-                commitService.getMaxGenerationToUpload(shardId),
-                equalTo(Long.MAX_VALUE)
+            assertThat(safeAwaitFailure(safeAwait(firstUploadBoundListener)), sameInstance(simulatedFailure));
+
+            assertTrue("the relocation is retried from the same shard instance", safeAwait(retriedOnSameShard));
+            assertFalse(
+                "the failed upload bound listener must be cleared before the retry",
+                safeAwait(uploadBoundWasNotClearedBeforeRetry)
             );
 
-            indexShard.failShard("test", new ElasticsearchException("simulated failure"));
-            assertBusy(() -> assertThat(indexShard.getEngineOrNull(), nullValue()));
+            ensureGreen(indexName);
+            assertThat(findIndexShard(indexName).routingEntry().currentNodeId(), equalTo(getNodeId(newIndexNode)));
         } finally {
             commitService.setStrategy(new TestStatelessCommitService.Strategy());
-            resumeRelocation.countDown();
         }
-
-        safeAwait(relocationDone);
-        assertThat(unwindException.get(), instanceOf(AlreadyClosedException.class));
-        assertThat(unwindException.get().getMessage(), containsString("source shard closed before recovery started"));
-
-        // The failed primary is reallocated and recovers from the object store.
-        ensureGreen(indexName);
-
-        final int afterRelocationFailedDocs = randomIntBetween(1, 100);
-        indexDocs(indexName, afterRelocationFailedDocs);
-        docCount += afterRelocationFailedDocs;
-
-        // A new relocation succeeds from the reallocated primary.
-        final String primaryNode = findIndexShard(indexName).routingEntry().currentNodeId();
-        final String sourceNode = primaryNode.equals(getNodeId(indexNode)) ? indexNode : newIndexNode;
-        final String targetNode = sourceNode.equals(indexNode) ? newIndexNode : indexNode;
-        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, sourceNode, targetNode));
-        ensureGreen(indexName);
-        assertThat(findIndexShard(indexName).routingEntry().currentNodeId(), equalTo(getNodeId(targetNode)));
 
         // A search shard recovering from the new primary still sees every document.
         setReplicaCount(1, indexName);

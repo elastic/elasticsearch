@@ -2819,7 +2819,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
-    public void testMarkRelocatingAssertsWithoutAnUndecidedUploadBoundListener() throws Exception {
+    public void testMarkRelocatingWithoutAnUndecidedUploadBoundListener() throws Exception {
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm)) {
             final var shardId = testHarness.shardId;
             final var commitService = testHarness.commitService;
@@ -2842,6 +2842,26 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 () -> commitService.markRelocating(shardId, commit.getGeneration(), new PlainActionFuture<>())
             );
             assertThat(abandoned.getMessage(), containsString("upload bound listener [absent]"));
+            assertThat(commitService.getMaxGenerationToUpload(shardId), equalTo(Long.MAX_VALUE));
+        }
+    }
+
+    public void testInstallUploadBoundListenerThrowsOnClosedShard() throws Exception {
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm)) {
+            final var shardId = testHarness.shardId;
+            final var commitService = testHarness.commitService;
+            final var commit = uploadSingleCommit(testHarness);
+            commitService.closeShard(shardId);
+
+            final var uploadBoundListener = new SubscribableListener<Long>();
+            expectThrows(AlreadyClosedException.class, () -> commitService.installUploadBoundListener(shardId, uploadBoundListener));
+            assertFalse("the caller owns the upload bound listener and fails it", uploadBoundListener.isDone());
+
+            // markRelocating also throws on a closed shard, without pinning a bound
+            expectThrows(
+                AlreadyClosedException.class,
+                () -> commitService.markRelocating(shardId, commit.getGeneration(), new PlainActionFuture<>())
+            );
             assertThat(commitService.getMaxGenerationToUpload(shardId), equalTo(Long.MAX_VALUE));
         }
     }

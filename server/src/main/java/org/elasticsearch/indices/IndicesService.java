@@ -1015,7 +1015,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final DiscoveryNode localNode,
         @Nullable final DiscoveryNode sourceNode,
         long clusterStateVersion,
-        int localRetries
+        int localRecoveryRetries
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         ensureChangesAllowed();
@@ -1027,7 +1027,7 @@ public class IndicesService extends AbstractLifecycleComponent
             sourceNode,
             globalCheckpointSyncer,
             retentionLeaseSyncer,
-            localRetries
+            localRecoveryRetries
         );
         indexShard.addShardFailureCallback(onShardFailure);
 

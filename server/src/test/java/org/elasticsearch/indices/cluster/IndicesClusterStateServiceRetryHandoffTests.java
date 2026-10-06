@@ -79,7 +79,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for local recovery-retry handoff ({@code retryingShards}): the marker carries
- * {@code localRetries} (and routing) so either the retry applier or cluster-state application may
+ * {@code localRecoveryRetries} (and routing) so either the retry applier or cluster-state application may
  * recreate the shard with the same count.
  */
 public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndicesClusterStateServiceTestCase {
@@ -208,7 +208,7 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
         drainApplierTasks();
         assertThat(indicesService.getShardOrNull(shardRouting.shardId()).recoveryState().getLocalRetries(), equalTo(1));
 
-        // New allocation id → handoff cleared; cluster-state create owns recreate with localRetries=0.
+        // New allocation id → handoff cleared; cluster-state create owns recreate with localRecoveryRetries=0.
         ShardRouting newAllocation = TestShardRouting.newShardRouting(
             shardRouting.shardId(),
             shardRouting.currentNodeId(),
@@ -247,7 +247,7 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
         assertTrue(indicesClusterStateService.retryingShards.containsKey(shardRouting.shardId()));
         assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
 
-        // Intervening cluster-state apply may recreate; handoff supplies localRetries.
+        // Intervening cluster-state apply may recreate; handoff supplies localRecoveryRetries.
         applyState(ClusterState.builder(state).version(state.version() + 1).build());
         assertNotNull(indicesService.getShardOrNull(shardRouting.shardId()));
         assertThat(indicesService.getShardOrNull(shardRouting.shardId()).recoveryState().getLocalRetries(), equalTo(1));
@@ -442,7 +442,7 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
                 )
                 .build()
         );
-        // CS apply may attempt create; missing peer source → early return, keep marker for localRetries.
+        // CS apply may attempt create; missing peer source → early return, keep marker for localRecoveryRetries.
         assertTrue(indicesClusterStateService.retryingShards.containsKey(replica.shardId()));
 
         int createsBefore = indicesService.createShardCalls.get();
@@ -720,7 +720,7 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
             DiscoveryNode targetNode,
             DiscoveryNode sourceNode,
             long clusterStateVersion,
-            int localRetries
+            int localRecoveryRetries
         ) throws IOException {
             createShardCalls.incrementAndGet();
             lastRecoveryListener = recoveryListener;
@@ -748,7 +748,7 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
                 targetNode,
                 sourceNode,
                 clusterStateVersion,
-                localRetries
+                localRecoveryRetries
             );
         }
     }

@@ -165,13 +165,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     record FailedShardCacheEntry(ShardRouting routing, long primaryTerm, ShardFailureType failureType) {}
 
     /// Local-retry context: cached routing plus the {@link RecoveryState#getLocalRetries()} for the next create.
-    record RetryHandoff(ShardRouting routing, int localRetries) {}
+    record RetryHandoff(ShardRouting routing, int localRecoveryRetries) {}
 
     // A list of shards that failed during recovery.
     // We keep track of these shards in order to prevent repeated recovery of these shards on each cluster state update.
     final ConcurrentMap<ShardId, FailedShardCacheEntry> failedShardsCache = ConcurrentCollections.newConcurrentMap();
     /// Handoff markers for local recovery retry. Put on [FailureStrategy#RETRY] in ([handleRecoveryFailure]).
-    /// Carries localRetries (and routing) so whichever path recreates the shard applies the same retry count.
+    /// Carries localRecoveryRetries (and routing) so whichever path recreates the shard applies the same retry count.
     /// Cleared on successful create, when [updateRetryHandoff] invalidates and when shard failure is sent to master.
     /// Package private for testing.
     final ConcurrentMap<ShardId, RetryHandoff> retryingShards = ConcurrentCollections.newConcurrentMap();
@@ -919,7 +919,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final RetryHandoff handoff = retryingShards.get(shardRouting.shardId());
         assert handoff == null || handoff.routing().isSameAllocation(shardRouting)
             : "retry handoff allocation mismatch for " + shardRouting + ": " + handoff.routing();
-        int localRetries = handoff != null ? handoff.localRetries() : 0;
+        int localRecoveryRetries = handoff != null ? handoff.localRecoveryRetries() : 0;
 
         try {
             final DiscoveryNode sourceNode;
@@ -946,7 +946,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 state,
                 sourceNode,
                 primaryTerm,
-                localRetries,
+                localRecoveryRetries,
                 0,
                 0L,
                 new RunOnce(
@@ -962,11 +962,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     public void onResponse(Boolean success) {
                         if (Boolean.TRUE.equals(success)) {
                             logger.debug("{} created shard with primary term [{}]", shardId, primaryTerm);
-                            // Shard was created with the localRetries; drop context.
+                            // Shard was created with the localRecoveryRetries; drop context.
                             retryingShards.remove(shardId);
                         } else {
                             // Gave up while creating shard (e.g. Lock-wait gave up due to UUID mismatch).
-                            // Keep retry marker so a fresher CS/retry create still sees localRetries.
+                            // Keep retry marker so a fresher CS/retry create still sees localRecoveryRetries.
                             logger.debug("{} gave up while trying to create shard", shardId);
                         }
                     }
@@ -1021,7 +1021,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         ClusterState originalState,
         @Nullable DiscoveryNode sourceNode,
         long primaryTerm,
-        int localRetries,
+        int localRecoveryRetries,
         int iteration,
         long delayMillis,
         RunOnce dumpHotThreads,
@@ -1041,7 +1041,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 originalState.nodes().getLocalNode(),
                 sourceNode,
                 originalState.version(),
-                localRetries
+                localRecoveryRetries
             );
             listener.onResponse(true);
         } catch (ShardLockObtainFailedException e) {
@@ -1131,7 +1131,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             originalState,
                             sourceNode,
                             primaryTerm,
-                            localRetries,
+                            localRecoveryRetries,
                             iteration + 1,
                             newDelayMillis,
                             dumpHotThreads,
@@ -1379,7 +1379,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             );
             if (finalStrategy == FailureStrategy.RETRY) {
                 logger.warn(() -> "retry recovery for shard after failure [" + shardRouting + "]", failure);
-                // Mark handoff before scheduling so createShard (retry or CS) can read localRetries.
+                // Mark handoff before scheduling so createShard (retry or CS) can read localRecoveryRetries.
                 assert retryingShards.containsKey(shardRouting.shardId()) == false
                     : "retry handoff already present for " + shardRouting.shardId();
                 retryingShards.put(shardRouting.shardId(), new RetryHandoff(shardRouting, recoveryState.getLocalRetries() + 1));
@@ -1397,7 +1397,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                                     return;
                                 }
                                 if (pendingShardCreations.containsKey(shardRouting.shardId())) {
-                                    // Creation already in flight (e.g. CS refreshed pending); leave marker for localRetries.
+                                    // Creation already in flight (e.g. CS refreshed pending); leave marker for localRecoveryRetries.
                                     return;
                                 }
                                 createShard(currentRouting, currentState);
@@ -1423,7 +1423,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     /// Drops local-retry handoff markers that are no longer valid for the applied cluster state.
-    /// Valid markers are left unchanged so {@link #createShard} can still read localRetries.
+    /// Valid markers are left unchanged so {@link #createShard} can still read localRecoveryRetries.
     private void updateRetryingShards(final ClusterState state) {
         RoutingNode localRoutingNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
         if (localRoutingNode == null) {
@@ -1438,7 +1438,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     /// Validates a single local-retry handoff against cluster state.
     ///
     /// If the handoff is no longer valid, removes the marker.
-    /// If the handoff is still valid, leaves the cached routing/localRetries unchanged and returns the
+    /// If the handoff is still valid, leaves the cached routing/localRecoveryRetries unchanged and returns the
     /// currentRouting from state for the retry path to pass to [createShard].
     ///
     /// Why should we use the currentRouting instead of the cached routing on creation?
@@ -1776,7 +1776,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * @param targetNode             the node where this shard will be recovered
          * @param sourceNode             the source node to recover this shard from (it might be null)
          * @param clusterStateVersion    the cluster state version in which the shard was created
-         * @param localRetries           how many times this shard's recovery has already failed and been retried locally
+         * @param localRecoveryRetries   how many times this shard's recovery has already failed and been retried locally
          * @throws IOException if an I/O exception occurs when creating the shard
          */
         void createShard(
@@ -1791,7 +1791,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             DiscoveryNode targetNode,
             @Nullable DiscoveryNode sourceNode,
             long clusterStateVersion,
-            int localRetries
+            int localRecoveryRetries
         ) throws IOException;
 
         /**

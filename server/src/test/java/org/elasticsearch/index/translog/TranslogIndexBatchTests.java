@@ -1021,13 +1021,25 @@ public class TranslogIndexBatchTests extends ESTestCase {
     }
 
     public void testConstructorAssertsStartSeqNoRange() throws IOException {
-        // Every replayable row derives its seqNo from startSeqNo, so the start must be a real seqNo
-        // and the derived range must not wrap around Long.MAX_VALUE.
-        final BytesReference batchData = encodeBatchData(List.of(new BytesArray("{\"k\":\"v\"}")));
+        // Every replayable row derives its seqNo from startSeqNo, so the start must be a real seqNo and
+        // the derived range [startSeqNo, startSeqNo + replayable rows - 1] must not wrap around
+        // Long.MAX_VALUE. Only replayable rows count: a single operation at Long.MAX_VALUE is legal and
+        // preflight rows consume no seqNo.
+        final BytesReference oneRow = encodeBatchData(List.of(new BytesArray("{\"k\":\"v\"}")));
+        final BytesReference twoRows = encodeBatchData(List.of(new BytesArray("{\"k\":\"v0\"}"), new BytesArray("{\"k\":\"v1\"}")));
         final long term = primaryTerm.get();
-        final AssertionError negative = expectThrows(AssertionError.class, () -> allIndexedRecord(term, -1L, null, batchData));
+        final AssertionError negative = expectThrows(AssertionError.class, () -> allIndexedRecord(term, -1L, null, oneRow));
         assertTrue("unexpected exception message: " + negative.getMessage(), negative.getMessage().contains("non-negative"));
-        final AssertionError overflow = expectThrows(AssertionError.class, () -> allIndexedRecord(term, Long.MAX_VALUE, null, batchData));
+
+        assertEquals(Long.MAX_VALUE, allIndexedRecord(term, Long.MAX_VALUE, null, oneRow).maxSeqNo());
+        final IndexOperationBatch.TranslogRecord preflightThenMax = new RecordBuilder(2).skipped(0)
+            .indexed(1, Long.MAX_VALUE, 1L, 101L, XContentType.JSON, "doc-1", null)
+            .build(term, twoRows);
+        assertEquals(Long.MAX_VALUE, preflightThenMax.maxSeqNo());
+
+        final RecordBuilder twoOps = new RecordBuilder(2).indexed(0, Long.MAX_VALUE, 1L, 100L, XContentType.JSON, "doc-0", null)
+            .noOp(1, Long.MIN_VALUE, "second operation wraps past Long.MAX_VALUE");
+        final AssertionError overflow = expectThrows(AssertionError.class, () -> twoOps.build(term, twoRows));
         assertTrue("unexpected exception message: " + overflow.getMessage(), overflow.getMessage().contains("overflows"));
     }
 

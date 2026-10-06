@@ -2,6 +2,8 @@
 
 # Compares PromQL compliance with Prometheus between the PR and its merge base, using promcheck
 # (https://github.com/elastic/promcheck), and reports the queries whose result changed on the build and the PR.
+# The elasticsearch-pull-request-validate-prometheus-compliance pipeline (catalog-info.yaml) runs it with the PR's
+# GITHUB_PR_* variables, so that the build bot also posts the report as a PR comment.
 #
 # The step never fails on the result. Buildkite's GitHub commit status mirrors the step state and ignores
 # soft_fail (see flakiness-detection/runners/never-fail.sh), so a regression, or a comparison that could not
@@ -14,7 +16,7 @@ set -euo pipefail
 
 readonly DATASET="${1:?Usage: validate-prometheus-compliance.sh <dataset>}"
 
-for var in PROMCHECK_VER PROMCHECK_TEST_INSTANCE_TIMEOUT BUILDKITE_PULL_REQUEST_BASE_BRANCH; do
+for var in PROMCHECK_VER PROMCHECK_TEST_INSTANCE_TIMEOUT GITHUB_PR_TARGET_BRANCH; do
   [[ -n "${!var:-}" ]] || { echo "$var must be set" >&2; exit 1; }
 done
 for cmd in awk curl find git jq tar tee uv; do
@@ -64,8 +66,8 @@ readonly BUILD_URL="$build_url"
 
 control_dir=""
 
-# Shows the report on the build and hands it to the build bot for the PR comment. The PR comment only appears in
-# pipelines that enable build bot comments (ELASTIC_PR_COMMENTS_ENABLED).
+# Shows the report on the build and sets it as pr_comment meta-data, which the Buildkite build bot posts in its PR
+# comment for pipelines that enable it (ELASTIC_PR_COMMENTS_ENABLED).
 annotate() {
   local style="$1"
   local annotation="$2"
@@ -240,13 +242,13 @@ done < <(find "$DATA_DIR" -type f -path '*/data/results/*' -name '*.jsonl' -prin
 (( corpus_files > 0 )) || not_compared "promcheck-data-$PROMCHECK_VER.tar.gz has no query corpus under data/results"
 [[ -f "$FIXTURE" ]] || not_compared "promcheck-data-$PROMCHECK_VER.tar.gz has no $DATASET query corpus"
 
-echo "--- Checking out the merge base with $BUILDKITE_PULL_REQUEST_BASE_BRANCH"
-git fetch --no-tags origin "$BUILDKITE_PULL_REQUEST_BASE_BRANCH" \
-  || not_compared "Could not fetch $BUILDKITE_PULL_REQUEST_BASE_BRANCH"
+echo "--- Checking out the merge base with $GITHUB_PR_TARGET_BRANCH"
+git fetch --no-tags origin "$GITHUB_PR_TARGET_BRANCH" \
+  || not_compared "Could not fetch $GITHUB_PR_TARGET_BRANCH"
 # The control is where this PR branched off, not the tip of the target branch: a PromQL change that landed there
 # since would otherwise count as this PR's regression or fix.
-base=$(git merge-base "origin/$BUILDKITE_PULL_REQUEST_BASE_BRANCH" HEAD) \
-  || not_compared "This PR has no merge base with $BUILDKITE_PULL_REQUEST_BASE_BRANCH"
+base=$(git merge-base "origin/$GITHUB_PR_TARGET_BRANCH" HEAD) \
+  || not_compared "This PR has no merge base with $GITHUB_PR_TARGET_BRANCH"
 revision=$(git rev-parse HEAD)
 control_dir=$(mktemp -d "$TMP_ROOT/validate-prometheus-compliance-control-XXXXXX")
 trap cleanup EXIT

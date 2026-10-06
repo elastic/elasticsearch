@@ -130,7 +130,7 @@ exit "$(cat "${dir}/$run.rc" 2>/dev/null || echo 0)"
         GH_TOKEN: "token",
         PROMCHECK_VER: VERSION,
         PROMCHECK_TEST_INSTANCE_TIMEOUT: "900",
-        BUILDKITE_PULL_REQUEST_BASE_BRANCH: "main",
+        GITHUB_PR_TARGET_BRANCH: "main",
         BUILDKITE_BUILD_URL: "",
         BUILDKITE_JOB_ID: "",
         ...opts.env,

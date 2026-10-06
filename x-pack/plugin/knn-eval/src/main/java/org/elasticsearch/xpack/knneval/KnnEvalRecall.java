@@ -40,7 +40,9 @@ final class KnnEvalRecall {
         return hit.getIndex() + "/" + hit.getId();
     }
 
-    /** @param scoresComparable both scores are full precision; if not, a hit above the baseline cutoff proves nothing and excludes nothing */
+    /**
+     * @param scoresComparable both scores are full precision; if not, a hit above the baseline cutoff proves nothing and excludes nothing
+     */
     static RecallResult recallOf(
         SearchHit[] candidateHits,
         BaselineResult baseline,

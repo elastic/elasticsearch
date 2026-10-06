@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 161113
+summary: "Fix(promql): matchers after a braced __name__ filter the wrong label"
+type: bug

@@ -21,7 +21,9 @@ import org.elasticsearch.columnar.substrate.MonotonicReader;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.NavigableSet;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -612,6 +614,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         }
         final ColumnIterator presence = iterator();
         final BytesRef value = new BytesRef();
+        final Set<BytesRef> membership = new HashSet<>(terms);
         final OrdinalBlockMask mask = new OrdinalBlockMask(matching, escapeCount > 0);
         final SlotFold fold = new SlotFold();
         return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(presence) {
@@ -630,7 +633,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
                     }
                     if (mask.escaped(address)) {
                         escapes.get(escapeRankOf(address), value);
-                        if (terms.contains(value)) {
+                        if (membership.contains(value)) {
                             return true;
                         }
                     }

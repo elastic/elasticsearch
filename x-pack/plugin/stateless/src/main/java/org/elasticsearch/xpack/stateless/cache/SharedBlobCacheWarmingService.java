@@ -852,8 +852,6 @@ public class SharedBlobCacheWarmingService {
         }
     }
 
-    /// Delegates to [SearchRecoveryTimeoutCalculationService#searchRecoveryTimeout]. This indirection is for test purposes (tests observe
-    /// or stub the plans computed for the initial calculation and for each re-evaluation).
     protected SearchRecoveryTimeout searchRecoveryTimeout(
         ClusterState state,
         IndexShard indexShard,

@@ -100,12 +100,12 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING,
-                SearchRecoveryTimeoutCalculationService.SEARCH_RECOVERY_WARMING_TOTAL_TIMEOUT_CAP_SETTING,
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TOTAL_TIMEOUT_CAP_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING,
-                SearchRecoveryTimeoutCalculationService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING,
-                SearchRecoveryTimeoutCalculationService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING,
-                SearchRecoveryTimeoutCalculationService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_MIN_BUDGET_PER_PENDING_SHARD_SETTING,
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING,
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING,
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_MIN_BUDGET_PER_PENDING_SHARD_SETTING,
                 DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING,
                 SharedBlobCacheWarmingService.UPLOAD_PREWARM_MAX_SIZE_SETTING,
                 SharedBlobCacheWarmingService.WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING,
@@ -705,11 +705,8 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         final var sliceSize = TimeValue.timeValueMillis(200);
         final var abortThreshold = TimeValue.timeValueMillis(50);
         final var settings = Settings.builder()
-            .put(SearchRecoveryTimeoutCalculationService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
-            .put(
-                SearchRecoveryTimeoutCalculationService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(),
-                abortThreshold
-            )
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(), abortThreshold)
             .build();
 
         try (var threadPool = new ReEvaluationThreadPool(getTestName())) {
@@ -759,11 +756,8 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         final var sliceSize = TimeValue.timeValueMillis(300);
         final var abortThreshold = TimeValue.timeValueMillis(50);
         final var settings = Settings.builder()
-            .put(SearchRecoveryTimeoutCalculationService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
-            .put(
-                SearchRecoveryTimeoutCalculationService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(),
-                abortThreshold
-            )
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(), abortThreshold)
             .build();
 
         final var planRef = new AtomicReference<>(SearchRecoveryTimeout.fixed(sliceSize, "context-before-switch"));
@@ -807,9 +801,9 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         final var budget = TimeValue.timeValueMillis(1_000);
         final var sliceSize = TimeValue.timeValueMillis(200);
         final var settings = Settings.builder()
-            .put(SearchRecoveryTimeoutCalculationService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
             .put(
-                SearchRecoveryTimeoutCalculationService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(),
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(),
                 TimeValue.timeValueMillis(50)
             )
             .build();
@@ -879,11 +873,8 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         final var sliceSize = TimeValue.timeValueMillis(200);
         final var abortThreshold = TimeValue.timeValueMillis(50);
         final var settings = Settings.builder()
-            .put(SearchRecoveryTimeoutCalculationService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
-            .put(
-                SearchRecoveryTimeoutCalculationService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(),
-                abortThreshold
-            )
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(), abortThreshold)
             .build();
 
         try (var threadPool = new ReEvaluationThreadPool(getTestName())) {

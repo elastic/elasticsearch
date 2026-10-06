@@ -400,7 +400,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         }
         if (randomBoolean()) {
             builder.put(
-                SearchRecoveryTimeoutCalculationService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(),
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(),
                 randomBoolean()
             );
         }

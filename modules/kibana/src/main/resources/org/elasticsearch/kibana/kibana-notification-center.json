@@ -1,0 +1,53 @@
+{
+  "index_patterns": [
+    ".kibana-notification-center*"
+  ],
+  "data_stream": {
+    "allow_custom_routing": false
+  },
+  "template": {
+    "lifecycle": {
+      "data_retention": "180d"
+    },
+    "settings": {
+      "index.auto_expand_replicas": "0-1",
+      "index.hidden": true
+    },
+    "mappings": {
+      "_meta": {
+        "version": "${kibana.notification.center.version}",
+        "managed_index_mappings_version": ${kibana.notification.center.managed.index.version}
+      },
+      "dynamic": false,
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "notification_id": {
+          "type": "keyword"
+        },
+        "event_timestamp": {
+          "type": "date"
+        },
+        "namespace": {
+          "type": "keyword"
+        },
+        "type": {
+          "type": "keyword"
+        },
+        "severity": {
+          "type": "keyword"
+        },
+        "profile_uid": {
+          "type": "keyword"
+        },
+        "space_id": {
+          "type": "keyword"
+        }
+      }
+    }
+  },
+  "composed_of": [],
+  "priority": 500,
+  "version": 1
+}

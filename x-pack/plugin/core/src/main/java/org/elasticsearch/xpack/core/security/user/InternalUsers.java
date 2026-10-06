@@ -192,7 +192,9 @@ public class InternalUsers {
                         // System data stream for kibana workflows
                         ".workflows*",
                         // System data stream for kibana saved objects change history
-                        ".kibana_change_history*"
+                        ".kibana_change_history*",
+                        // System data stream for the kibana notification center
+                        ".kibana-notification-center*"
                     )
                     .privileges(
                         filterNonNull(

@@ -54,11 +54,13 @@ import java.util.List;
  *
  * <h2>Threading</h2>
  * {@link #register} is invoked from source executor threads (one at a time per driver; the source
- * loop is single-producer within a driver). {@link #get} and {@link #materialize} are invoked
- * from the driver thread. The data-flow invariant — the source publishes a page only after the
- * file's extractor has been registered — establishes the necessary happens-before via the page
- * buffer's internal synchronization. We use a synchronized {@link ArrayList} as a defensive
- * choice; the cost is negligible for the few-dozen registrations per driver in practice.
+ * loop is single-producer within a driver). {@link #get} is invoked from the driver thread, while
+ * {@link #materialize} is invoked from the external read executor after the source has finished.
+ * Each paired extract operator permits only one materialization at a time, so extractors remain
+ * serially accessed. The data-flow invariant — the source publishes a page only after the file's
+ * extractor has been registered — establishes the necessary happens-before via the page buffer's
+ * internal synchronization. We use a synchronized {@link ArrayList} as a defensive choice; the
+ * cost is negligible for the few-dozen registrations per driver in practice.
  */
 public final class SourceExtractors implements Releasable {
 

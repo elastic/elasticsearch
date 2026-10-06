@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -32,9 +33,15 @@ public final class ExternalPlanningReservation implements Releasable {
     private final AtomicLong queryHeld = new AtomicLong();
     private final ConcurrentLinkedQueue<Run> runs = new ConcurrentLinkedQueue<>();
     private final AtomicBoolean closed = new AtomicBoolean();
+    private final ExternalPlanningIo planningIo = new ExternalPlanningIo();
 
     public ExternalPlanningReservation(CircuitBreaker breaker) {
         this.breaker = breaker;
+    }
+
+    /** Query-scoped received-byte / request tally for coordinator planning I/O. */
+    public ExternalPlanningIo planningIo() {
+        return planningIo;
     }
 
     /** Listing plus schema-map bytes. Held until {@link #close()}. A trip leaves {@link #queryHeld()} unchanged. */

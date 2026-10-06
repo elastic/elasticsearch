@@ -36,7 +36,9 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.operator.exchange.LocalExchange;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.SliceSelection;
@@ -65,6 +67,9 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceAuthorizer;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceDatasets;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.fetch.lifetime.DocRefOriginResolver;
+import org.elasticsearch.xpack.esql.fetch.lifetime.NodeFetchContexts;
+import org.elasticsearch.xpack.esql.fetch.lifetime.OpenContextInfo;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlanConcurrencyCalculator;
@@ -631,6 +636,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         private final boolean singleNodeOptimizations;
         private final Map<ShardId, Exception> shardLevelFailures;
         private final AcquiredSearchContexts searchContexts;
+        @Nullable
+        private final NodeFetchContexts fetchContexts;
         private final PlanTimeProfile planTimeProfile;
 
         DataNodeRequestExecutor(
@@ -645,7 +652,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             boolean singleNodeOptimizations,
             Map<ShardId, Exception> shardLevelFailures,
             ComputeListener computeListener,
-            AcquiredSearchContexts searchContexts
+            AcquiredSearchContexts searchContexts,
+            @Nullable NodeFetchContexts fetchContexts
         ) {
             assert (internalExchange == null) != (externalSink == null) : "exactly one exchange must be provided";
             this.flags = flags;
@@ -661,6 +669,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             this.shardLevelFailures = shardLevelFailures;
             this.blockingSink = exchangeSink(() -> {});
             this.searchContexts = searchContexts;
+            this.fetchContexts = fetchContexts;
             this.planTimeProfile = new PlanTimeProfile();
         }
 
@@ -789,14 +798,20 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             clusterAlias,
                             targetShard.v2()
                         );
-                        // TODO: `searchService.createSearchContext` allows opening search contexts without limits,
-                        // we need to limit the number of active search contexts here or in SearchService
-                        context = searchService.createSearchContext(shardRequest, SearchService.NO_TIMEOUT);
+                        if (fetchContexts != null) {
+                            // a registered context that the fetch phase can find again after the response
+                            context = fetchContexts.open(shardRequest);
+                        } else {
+                            // TODO: `searchService.createSearchContext` allows opening search contexts without limits,
+                            // we need to limit the number of active search contexts here or in SearchService
+                            context = searchService.createSearchContext(shardRequest, SearchService.NO_TIMEOUT);
+                        }
                         // The slices the plan reads, for the field mappers that build its queries.
                         context.getSearchExecutionContext().setSliceSelection(slices);
                         context.preProcess();
                         newContexts.add(context);
-                    } catch (RuntimeException e) {
+                    } catch (Exception e) {
+                        // opening a context can also fail with an IOException, which must close the contexts opened so far
                         IOUtils.close(context);
                         if (addShardLevelFailure(indexShard.shardId(), e) == false) {
                             IOUtils.closeWhileHandlingException(newContexts);
@@ -860,6 +875,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         DataNodeRequest request,
         boolean failFastOnShardFailure,
         AcquiredSearchContexts searchContexts,
+        @Nullable NodeFetchContexts fetchContexts,
         PlannerSettings plannerSettings,
         PlanTimeProfile planTimeProfile,
         ActionListener<DataNodeComputeResponse> listener
@@ -905,7 +921,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     request.singleNodeOptimizations(),
                     shardLevelFailures,
                     computeListener,
-                    searchContexts
+                    searchContexts,
+                    fetchContexts
                 );
                 dataNodeRequestExecutor.start();
                 if (runNodeReduce == false) {
@@ -1061,7 +1078,36 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         );
         // the sender doesn't support retry on shard failures, so we need to fail fast here.
         final boolean failFastOnShardFailures = supportShardLevelRetryFailure(channelVersion) == false;
-        var computeSearchContexts = new AcquiredSearchContexts(request.shards().size());
+        final NodeFetchContexts fetchContexts = request.fetchContextKeepAlive() == null
+            ? null
+            : computeService.fetchPhaseServices().contextService().newNodeContexts(request.fetchContextKeepAlive(), task);
+        var computeSearchContexts = new AcquiredSearchContexts(
+            request.shards().size(),
+            fetchContexts == null ? DocRefOriginResolver.NONE : fetchContexts
+        );
+        ActionListener<DataNodeComputeResponse> responseListener;
+        if (fetchContexts != null) {
+            task.addListener(() -> fetchContexts.freeAll("the request was cancelled"));
+            // the search contexts of the query phase close before the fetch contexts, so the request drops the last
+            // reference to each reader on the generic pool
+            responseListener = ActionListener.releaseAfter(new ActionListener<>() {
+                @Override
+                public void onResponse(DataNodeComputeResponse response) {
+                    // the response lists the contexts the coordinator owns from now on
+                    List<OpenContextInfo> open = fetchContexts.listOpenContributing();
+                    listener.onResponse(response.withOpenContexts(open));
+                    fetchContexts.responded();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fetchContexts.freeAll("the request failed");
+                    listener.onFailure(e);
+                }
+            }, Releasables.wrap(computeSearchContexts, fetchContexts));
+        } else {
+            responseListener = ActionListener.releaseAfter(listener, computeSearchContexts);
+        }
         runComputeOnDataNode(
             task,
             sessionId,
@@ -1069,9 +1115,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             request.withPlan(reductionPlan.dataNodePlan()),
             failFastOnShardFailures,
             computeSearchContexts,
+            fetchContexts,
             computeService.plannerSettings().get(),
             planTimeProfile,
-            ActionListener.releaseAfter(listener, computeSearchContexts)
+            responseListener
         );
     }
 

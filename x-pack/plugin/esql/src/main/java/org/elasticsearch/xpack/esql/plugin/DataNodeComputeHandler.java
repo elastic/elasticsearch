@@ -397,7 +397,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             false,
                             false,
                             false,
-                            nodeSplits
+                            nodeSplits,
+                            null
                         );
                         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
                         transportService.sendChildRequest(
@@ -1036,7 +1037,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             request.reductionLateMaterialization(),
             request.retainSearchContexts(),
             request.singleNodeOptimizations(),
-            request.externalSplits()
+            request.externalSplits(),
+            request.fetchContextKeepAlive()
         );
         // the sender doesn't support retry on shard failures, so we need to fail fast here.
         final boolean failFastOnShardFailures = supportShardLevelRetryFailure(channel.getVersion()) == false;

@@ -19,6 +19,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexReshardService;
 import org.elasticsearch.index.shard.ShardId;
@@ -57,6 +59,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
     );
 
     private static final TransportVersion SINGLE_NODE_OPTIMIZATION = TransportVersion.fromName("esql_single_node_optimization");
+    static final TransportVersion ESQL_FETCH_CONTEXTS = TransportVersion.fromName("esql_fetch_phase_plan");
 
     private static final Logger logger = LogManager.getLogger(DataNodeRequest.class);
 
@@ -73,9 +76,15 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
     private final boolean retainSearchContexts;
     private final boolean singleNodeOptimizations;
     private final List<ExternalSplit> externalSplits;
+    @Nullable
+    private final TimeValue fetchContextKeepAlive;
 
     /**
-     * Constructor with all parameters including externalSplits.
+     * Constructor with all parameters.
+     *
+     * @param fetchContextKeepAlive when not {@code null}, the data node opens a registered reader context per shard and keeps
+     *                              the ones whose rows survive its node cut open for the fetch phase, this long after their
+     *                              last use
      */
     DataNodeRequest(
         String sessionId,
@@ -90,7 +99,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         boolean reductionLateMaterialization,
         boolean retainSearchContexts,
         boolean singleNodeOptimizations,
-        List<ExternalSplit> externalSplits
+        List<ExternalSplit> externalSplits,
+        @Nullable TimeValue fetchContextKeepAlive
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
@@ -105,10 +115,11 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         this.retainSearchContexts = retainSearchContexts;
         this.singleNodeOptimizations = singleNodeOptimizations;
         this.externalSplits = externalSplits != null ? List.copyOf(externalSplits) : List.of();
+        this.fetchContextKeepAlive = fetchContextKeepAlive;
     }
 
     /**
-     * Constructor without externalSplits (defaults to empty list).
+     * Constructor without external splits and without fetch contexts.
      */
     DataNodeRequest(
         String sessionId,
@@ -137,7 +148,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             reductionLateMaterialization,
             retainSearchContexts,
             singleNodeOptimizations,
-            List.of()
+            List.of(),
+            null
         );
     }
 
@@ -187,6 +199,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         } else {
             this.externalSplits = List.of();
         }
+        this.fetchContextKeepAlive = in.getTransportVersion().supports(ESQL_FETCH_CONTEXTS) ? in.readOptionalTimeValue() : null;
     }
 
     @Override
@@ -216,6 +229,12 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         }
         if (out.getTransportVersion().supports(EXTERNAL_SPLITS_IN_DATA_NODE_REQUEST)) {
             out.writeNamedWriteableCollection(externalSplits);
+        }
+        if (out.getTransportVersion().supports(ESQL_FETCH_CONTEXTS)) {
+            out.writeOptionalTimeValue(fetchContextKeepAlive);
+        } else if (fetchContextKeepAlive != null) {
+            // the plan carries document references that only fetch contexts can serve
+            throw new IllegalStateException("can't ask a node on [" + out.getTransportVersion() + "] for fetch contexts");
         }
     }
 
@@ -309,6 +328,14 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         return externalSplits;
     }
 
+    /**
+     * How long the data node keeps a fetch context after its last use, {@code null} when the query opens none.
+     */
+    @Nullable
+    TimeValue fetchContextKeepAlive() {
+        return fetchContextKeepAlive;
+    }
+
     @Override
     public String getDescription() {
         String desc = "shards=" + shards + " plan=" + plan;
@@ -320,6 +347,9 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         }
         if (singleNodeOptimizations) {
             desc += " singleNodeOptimizations=true";
+        }
+        if (fetchContextKeepAlive != null) {
+            desc += " fetchContextKeepAlive=" + fetchContextKeepAlive;
         }
         return desc;
     }
@@ -347,7 +377,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             && reductionLateMaterialization == request.reductionLateMaterialization
             && retainSearchContexts == request.retainSearchContexts
             && singleNodeOptimizations == request.singleNodeOptimizations
-            && externalSplits.equals(request.externalSplits);
+            && externalSplits.equals(request.externalSplits)
+            && Objects.equals(fetchContextKeepAlive, request.fetchContextKeepAlive);
     }
 
     @Override
@@ -365,7 +396,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             reductionLateMaterialization,
             retainSearchContexts,
             singleNodeOptimizations,
-            externalSplits
+            externalSplits,
+            fetchContextKeepAlive
         );
     }
 
@@ -383,7 +415,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             reductionLateMaterialization,
             retainSearchContexts,
             singleNodeOptimizations,
-            externalSplits
+            externalSplits,
+            fetchContextKeepAlive
         );
     }
 

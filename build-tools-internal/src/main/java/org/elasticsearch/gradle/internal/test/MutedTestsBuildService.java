@@ -31,69 +31,70 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 public abstract class MutedTestsBuildService implements BuildService<MutedTestsBuildService.Params> {
-    private final Set<String> excludePatterns = new LinkedHashSet<>();
+    private final List<MutedTest> mutedTests = new ArrayList<>();
     private final ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
 
     public MutedTestsBuildService() {
         File infoPath = getParameters().getInfoPath().get().getAsFile();
-        File mutedTestsFile = new File(infoPath, "muted-tests.yml");
-        excludePatterns.addAll(buildExcludePatterns(mutedTestsFile));
+        mutedTests.addAll(parseMutedTests(new File(infoPath, "muted-tests.yml")));
         for (RegularFile regularFile : getParameters().getAdditionalFiles().get()) {
-            excludePatterns.addAll(buildExcludePatterns(regularFile.getAsFile()));
+            mutedTests.addAll(parseMutedTests(regularFile.getAsFile()));
         }
     }
 
-    public Set<String> getExcludePatterns() {
-        return excludePatterns;
+    public Set<String> getExcludePatternsForTask(String taskPath) {
+        Set<String> excludes = new TreeSet<>();
+        for (MutedTest mutedTest : mutedTests) {
+            if (mutedTest.appliesToTask(taskPath)) {
+                addExcludePatterns(mutedTest, excludes);
+            }
+        }
+        return Collections.unmodifiableSet(excludes);
     }
 
-    private Set<String> buildExcludePatterns(File file) {
-        List<MutedTest> mutedTests;
-
+    private List<MutedTest> parseMutedTests(File file) {
         try (InputStream is = new BufferedInputStream(new FileInputStream(file))) {
-            mutedTests = objectMapper.readValue(is, MutedTests.class).getTests();
-            if (mutedTests == null) {
-                return Collections.emptySet();
+            MutedTests parsedMutedTests = objectMapper.readValue(is, MutedTests.class);
+            if (parsedMutedTests == null || parsedMutedTests.getTests() == null) {
+                return Collections.emptyList();
             }
+            return parsedMutedTests.getTests();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
 
-        Set<String> excludes = new LinkedHashSet<>();
-        if (mutedTests.isEmpty() == false) {
-            for (MutedTestsBuildService.MutedTest mutedTest : mutedTests) {
-                if (mutedTest.getClassName() != null && mutedTest.getMethods().isEmpty() == false) {
-                    for (String method : mutedTest.getMethods()) {
-                        // Tests that use the randomized runner and parameters end up looking like this:
-                        // test {yaml=analysis-common/30_tokenizers/letter}
-                        // We need to detect this and handle them a little bit different than non-parameterized tests, because of some
-                        // quirks in the randomized runner
-                        int index = method.indexOf(" {");
-                        String methodWithoutParams = index >= 0 ? method.substring(0, index) : method;
-                        String paramString = index >= 0 ? method.substring(index) : null;
+    private static void addExcludePatterns(MutedTest mutedTest, Set<String> excludes) {
+        if (mutedTest.getClassName() != null && mutedTest.getMethods().isEmpty() == false) {
+            for (String method : mutedTest.getMethods()) {
+                // Tests that use the randomized runner and parameters end up looking like this:
+                // test {yaml=analysis-common/30_tokenizers/letter}
+                // We need to detect this and handle them a little bit different than non-parameterized tests, because of some
+                // quirks in the randomized runner
+                int index = method.indexOf(" {");
+                String methodWithoutParams = index >= 0 ? method.substring(0, index) : method;
+                String paramString = index >= 0 ? method.substring(index) : null;
 
-                        excludes.add(mutedTest.getClassName() + "." + method);
+                excludes.add(mutedTest.getClassName() + "." + method);
 
-                        if (paramString != null) {
-                            // Because of randomized runner quirks, we need skip the test method by itself whenever we want to skip a test
-                            // that has parameters
-                            // This is because the runner has *two* separate checks that can cause the test to end up getting executed, so
-                            // we need filters that cover both checks
-                            excludes.add(mutedTest.getClassName() + "." + methodWithoutParams);
-                        } else {
-                            // We need to add the following, in case we're skipping an entire class of parameterized tests
-                            excludes.add(mutedTest.getClassName() + "." + method + " *");
-                        }
-                    }
-                } else if (mutedTest.getClassName() != null) {
-                    excludes.add(mutedTest.getClassName() + ".*");
+                if (paramString != null) {
+                    // Because of randomized runner quirks, we need skip the test method by itself whenever we want to skip a test
+                    // that has parameters
+                    // This is because the runner has *two* separate checks that can cause the test to end up getting executed, so
+                    // we need filters that cover both checks
+                    excludes.add(mutedTest.getClassName() + "." + methodWithoutParams);
+                } else {
+                    // We need to add the following, in case we're skipping an entire class of parameterized tests
+                    excludes.add(mutedTest.getClassName() + "." + method + " *");
                 }
             }
+        } else if (mutedTest.getClassName() != null) {
+            excludes.add(mutedTest.getClassName() + ".*");
         }
-
-        return excludes;
     }
 
     public interface Params extends BuildServiceParameters {
@@ -107,18 +108,21 @@ public abstract class MutedTestsBuildService implements BuildService<MutedTestsB
         private final String method;
         private final List<String> methods;
         private final String issue;
+        private final List<String> tasks;
 
         @JsonCreator
         public MutedTest(
             @JsonProperty("class") String className,
             @JsonProperty("method") String method,
             @JsonProperty("methods") List<String> methods,
-            @JsonProperty("issue") String issue
+            @JsonProperty("issue") String issue,
+            @JsonProperty("tasks") List<?> tasks
         ) {
             this.className = className;
             this.method = method;
             this.methods = methods;
             this.issue = issue;
+            this.tasks = validateTasks(tasks);
         }
 
         public List<String> getMethods() {
@@ -139,6 +143,36 @@ public abstract class MutedTestsBuildService implements BuildService<MutedTestsB
 
         public String getIssue() {
             return issue;
+        }
+
+        public boolean appliesToTask(String taskPath) {
+            return tasks.isEmpty() || tasks.contains(taskPath);
+        }
+
+        private static List<String> validateTasks(List<?> tasks) {
+            if (tasks == null) {
+                return List.of();
+            }
+            if (tasks.isEmpty()) {
+                throw new IllegalArgumentException("muted test tasks must not be empty");
+            }
+
+            Set<String> uniqueTasks = new LinkedHashSet<>();
+            for (Object task : tasks) {
+                if ((task instanceof String) == false) {
+                    throw new IllegalArgumentException("muted test tasks must be strings");
+                }
+                String taskPath = (String) task;
+                if (taskPath.isBlank()) {
+                    throw new IllegalArgumentException("muted test tasks must not be blank");
+                }
+                if (taskPath.startsWith(":") == false) {
+                    throw new IllegalArgumentException("muted test tasks must start with ':'");
+                }
+                uniqueTasks.add(taskPath);
+            }
+
+            return uniqueTasks.stream().sorted().collect(Collectors.toUnmodifiableList());
         }
     }
 

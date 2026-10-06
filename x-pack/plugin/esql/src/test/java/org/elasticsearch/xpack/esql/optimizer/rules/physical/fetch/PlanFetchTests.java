@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.plugin.ReductionPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -184,6 +185,20 @@ public class PlanFetchTests extends ESTestCase {
         );
         assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
         assertThat(names(fetch.left().output()), equalTo(List.of(PlanFetch.DOC_REF_NAME, "_score")));
+    }
+
+    /** An index can have a field with the name of the document reference. The reference takes another name. */
+    public void testAFieldNamedLikeTheDocumentReference() {
+        Map<String, EsField> mapping = new HashMap<>(mapping());
+        mapping.put(
+            PlanFetch.DOC_REF_NAME,
+            new EsField(PlanFetch.DOC_REF_NAME, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        Planned planned = plan("FROM employees | SORT hire_date | LIMIT 10 | KEEP `" + PlanFetch.DOC_REF_NAME + "`, first_name", mapping);
+        FetchExec fetch = single(planned.plan(), FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of(PlanFetch.DOC_REF_NAME, "first_name")));
+        assertThat(fetch.docRef().name(), equalTo(PlanFetch.DOC_REF_NAME + "$1"));
+        assertThat(names(fetch.left().output()), equalTo(List.of(PlanFetch.DOC_REF_NAME + "$1", "hire_date")));
     }
 
     public void testSourceIsFetched() {
@@ -363,9 +378,23 @@ public class PlanFetchTests extends ESTestCase {
         return plan(query, flags, configuration(Settings.EMPTY), TransportVersion.current());
     }
 
+    private static Planned plan(String query, Map<String, EsField> mapping) {
+        return plan(query, EsqlFlags.withFetchPhase(true), configuration(Settings.EMPTY), TransportVersion.current(), mapping);
+    }
+
     private static Planned plan(String query, EsqlFlags flags, Configuration configuration, TransportVersion minimumVersion) {
+        return plan(query, flags, configuration, minimumVersion, mapping());
+    }
+
+    private static Planned plan(
+        String query,
+        EsqlFlags flags,
+        Configuration configuration,
+        TransportVersion minimumVersion,
+        Map<String, EsField> mapping
+    ) {
         Analyzer analyzer = EsqlTestUtils.analyzer()
-            .addIndex(EsIndexGenerator.esIndex("employees", mapping(), Map.of("employees", IndexMode.STANDARD)))
+            .addIndex(EsIndexGenerator.esIndex("employees", mapping, Map.of("employees", IndexMode.STANDARD)))
             .minimumTransportVersion(minimumVersion)
             .buildAnalyzer();
         TestPlannerOptimizer optimizer = new TestPlannerOptimizer(configuration, analyzer, flags);

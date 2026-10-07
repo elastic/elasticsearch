@@ -669,7 +669,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     }
 
     protected static void mergeDynamicUpdate(MapperService mapperService, CompressedXContent dynamicUpdate) {
-        mapperService.merge("_doc", dynamicUpdate, MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge("_doc", dynamicUpdate, MapperService.MergeReason.MAPPING_AUTO_UPDATE);
     }
 
     public static XContentBuilder fieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField) throws IOException {

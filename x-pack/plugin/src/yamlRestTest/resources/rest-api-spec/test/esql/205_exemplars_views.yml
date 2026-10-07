@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ exemplars_setting_development_v2 ]
+          capabilities: [ exemplars_setting_development_v3 ]
         - method: GET
           path: /_query/view
           capabilities: [ view_index_abstraction ]

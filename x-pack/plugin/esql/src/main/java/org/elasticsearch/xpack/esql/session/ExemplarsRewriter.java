@@ -15,12 +15,19 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
@@ -95,7 +102,16 @@ public final class ExemplarsRewriter {
         @Nullable IndexResolution exemplarsResolution,
         ExemplarsSettings settings
     ) {
-        return exemplarsRelation(analyzedMetricsQuery, exemplarsResolution);
+        Source source = analyzedMetricsQuery.source();
+        LogicalPlan exemplars = exemplarsRelation(analyzedMetricsQuery, exemplarsResolution);
+        Order mostRecentFirst = new Order(
+            source,
+            new UnresolvedAttribute(source, MetadataAttribute.TIMESTAMP_FIELD),
+            Order.OrderDirection.DESC,
+            Order.NullsPosition.LAST
+        );
+        exemplars = new OrderBy(source, exemplars, List.of(mostRecentFirst));
+        return settings.limit() == null ? exemplars : new Limit(source, new Literal(source, settings.limit(), DataType.INTEGER), exemplars);
     }
 
     /**

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.integration;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -201,8 +202,8 @@ abstract class AbstractInferenceFieldHighlighterIT extends ESIntegTestCase {
     private void createChainedCopyToIndex() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties");
         addInferenceFieldsToMapping(mapping, Map.of("inference_field", inferenceId));
-        mapping.startObject("source_field").field("type", "text").field("copy_to", "inference_field").endObject();
-        mapping.startObject("chained_source_field").field("type", "text").field("copy_to", "source_field").endObject();
+        addTextField(mapping, "source_field", b -> b.field("copy_to", "inference_field"));
+        addTextField(mapping, "chained_source_field", b -> b.field("copy_to", "source_field"));
         mapping.endObject().endObject();
 
         createIndex(mapping);
@@ -214,10 +215,12 @@ abstract class AbstractInferenceFieldHighlighterIT extends ESIntegTestCase {
      */
     private void createMultiFieldCopyToIndex() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties");
-        mapping.startObject("text_field").field("type", "text").startObject("fields");
-        addInferenceFieldsToMapping(mapping, Map.of("inference_field", inferenceId));
-        mapping.endObject().endObject();
-        mapping.startObject("source_field").field("type", "text").field("copy_to", "text_field").endObject();
+        addTextField(mapping, "text_field", b -> {
+            b.startObject("fields");
+            addInferenceFieldsToMapping(b, Map.of("inference_field", inferenceId));
+            b.endObject();
+        });
+        addTextField(mapping, "source_field", b -> b.field("copy_to", "text_field"));
         mapping.endObject().endObject();
 
         createIndex(mapping);
@@ -227,6 +230,16 @@ abstract class AbstractInferenceFieldHighlighterIT extends ESIntegTestCase {
         indexName = randomIdentifier();
         assertAcked(prepareCreate(indexName).setMapping(mapping));
         ensureGreen(indexName);
+    }
+
+    /**
+     * Adds a text field with randomly enabled {@code store}, so that stored copy_to sources are also covered.
+     */
+    private static void addTextField(XContentBuilder mapping, String name, CheckedConsumer<XContentBuilder, IOException> fieldBuilder)
+        throws IOException {
+        mapping.startObject(name).field("type", "text").field("store", randomBoolean());
+        fieldBuilder.accept(mapping);
+        mapping.endObject();
     }
 
     private static Map<String, Object> generateDenseServiceSettings(DenseVectorFieldMapper.ElementType elementType) {

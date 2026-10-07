@@ -589,9 +589,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
   method: testEsqlSource
   issue: https://github.com/elastic/elasticsearch/issues/160368
-- class: org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingIT
-  method: testShardPrewarming
-  issue: https://github.com/elastic/elasticsearch/issues/160379
 - class: org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceIT
   method: testErrorRecordingOnRollover
   issue: https://github.com/elastic/elasticsearch/issues/160410
@@ -688,15 +685,6 @@ tests:
 - class: org.elasticsearch.index.reindex.RestoringShardReindexIT
   method: testDeleteByQueryWhileRestoringParks
   issue: https://github.com/elastic/elasticsearch/issues/161091
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecMatchFunctionIT
-  method: test {csv-spec:match-function.matchWithScoreSortAscending}
-  issue: https://github.com/elastic/elasticsearch/issues/161124
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecMatchFunctionIT
-  method: test {csv-spec:match-function.matchWithScoreSortAscending}
-  issue: https://github.com/elastic/elasticsearch/issues/161125
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecMatchFunctionIT
-  method: test {csv-spec:match-function.matchWithScoreSortAscending}
-  issue: https://github.com/elastic/elasticsearch/issues/161131
 - class: org.elasticsearch.xpack.esql.datasources.StreamingPermitCycleSmallTests
   method: testEightGzipStreamsCompleteUnderTinyLimiterBudget
   issue: https://github.com/elastic/elasticsearch/issues/161165

@@ -28,7 +28,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertArrayEquals;
 
 @SuppressForbidden(reason = "uses System.out and System.err")
 public class CliToolLauncherTests extends ESTestCase {

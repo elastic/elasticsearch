@@ -83,6 +83,11 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
                 // format violations on Windows CI agents and making the spotless cache platform-specific.
                 java.setLineEndings(LineEnding.UNIX);
                 java.removeUnusedImports();
+                // google-java-format only drops imports whose simple name is absent as a token.
+                // That misses redundant inherited static imports, nested-type imports already in
+                // scope via extends/implements, and unused static methods whose names collide
+                // with local identifiers (e.g. Matchers.in vs StreamInput in).
+                java.custom("redundantJavaImports", new RedundantJavaImportsFormatter());
 
                 // We enforce a standard order for imports
                 java.importOrderFile(new File(elasticsearchWorkspace, importOrderPath));

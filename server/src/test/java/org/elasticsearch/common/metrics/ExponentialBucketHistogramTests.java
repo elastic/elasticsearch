@@ -17,7 +17,6 @@ import java.util.Arrays;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.junit.Assert.assertThrows;
 
 public class ExponentialBucketHistogramTests extends ESTestCase {
 

@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.Plugin.PluginServices;
 
 import java.util.Collection;
 import java.util.List;

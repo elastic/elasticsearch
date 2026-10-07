@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
@@ -58,11 +57,6 @@ import static org.hamcrest.Matchers.equalTo;
  * extremum to the dataset-wide {@code MIN}/{@code MAX} instead of poisoning it. This end-to-end IT is the
  * multi-FILE coverage the single-file fold ITs lacked.
  */
-@TestLogging(
-    value = "org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver:DEBUG,"
-        + "org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService:DEBUG",
-    reason = "which file refuses the aggregate, and which rail served it"
-)
 public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSourceIT {
 
     private static final int FILE_COUNT = 25;

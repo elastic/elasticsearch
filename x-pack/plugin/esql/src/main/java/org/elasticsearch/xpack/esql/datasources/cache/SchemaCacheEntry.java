@@ -115,9 +115,12 @@ public final class SchemaCacheEntry {
     }
 
     /**
-     * Component-wise, matching what the record this replaced generated - which compares the four arrays by
-     * reference, not by content. Nothing in production compares two entries; preserved so the conversion
-     * moves no behaviour.
+     * Component-wise, which compares the four arrays by reference and not by content - the semantics a
+     * component-wise {@code Objects.equals} gives. Two entries holding equal column names in different arrays
+     * are therefore unequal.
+     * <p>
+     * Nothing in production or test compares two entries. This is written out so that the comparison is a
+     * decision on the page rather than a property of a declaration form.
      */
     @Override
     public boolean equals(Object o) {

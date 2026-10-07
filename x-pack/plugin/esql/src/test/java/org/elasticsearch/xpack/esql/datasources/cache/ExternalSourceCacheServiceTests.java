@@ -1940,6 +1940,75 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * A stripe delta must not land on a statistics record. The record holds no types of its own - it carries the
+     * columns of the schema record it was built beside, which belong to a DIFFERENT read - and the per-stripe
+     * coercion normalises each extremum against those types. Landing there marks the column unservable on the one
+     * record that actually measured it.
+     * <p>
+     * Shape: read "own" resolves the file and its schema record types {@code v} as KEYWORD. A whole-file harvest
+     * from read "other" files a statistics record under "other" (carrying the schema record's KEYWORD type for
+     * {@code v}). A stripe delta from read "other" then arrives. Both records match the path and mtime, and the
+     * statistics record passes the read-shape gate because its own stamp IS "other" - so without the guard the
+     * delta lands on it and coerces a numeric min against KEYWORD.
+     * <p>
+     * Inject the defect by deleting the {@code isStatisticsRecord()} continue in {@code applyStripeDelta}: the
+     * unservable marker appears on the statistics record and the assertion below turns red.
+     */
+    public void testAStripeDeltaDoesNotLandOnAStatisticsRecord() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/v.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, TestDatasetIdentities.identity(".csv", "id", Map.of()), false);
+            // The schema record resolves v as KEYWORD - the anchor's resolution, not this file's own.
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "v", DataType.KEYWORD, Nullability.TRUE, null, false)
+            );
+            service.getOrComputeSchema(
+                key,
+                k -> SchemaCacheEntry.from(
+                    schema,
+                    "csv",
+                    path,
+                    Map.of(
+                        ExternalStats.CONFIG_FINGERPRINT_KEY,
+                        "fp",
+                        ExternalStats.MTIME_MILLIS_KEY,
+                        mtime,
+                        ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
+                        "own"
+                    ),
+                    Map.of()
+                )
+            );
+
+            // A foreign read's whole-file harvest, which files a statistics record addressed by "other".
+            Map<String, Object> foreign = new LinkedHashMap<>();
+            foreign.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
+            foreign.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
+            foreign.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "other");
+            foreign.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "v.min", 7L);
+            service.reconcileSourceStats(Map.of(path, foreign));
+
+            SchemaCacheKey statsKey = key.withReadConfig("other");
+            assertNotNull("the foreign read must have its own record", service.getSchemaIfPresent(statsKey));
+
+            // Now a stripe delta from that same read. It passes the read-shape gate on the statistics record.
+            Map<String, Object> delta = stripeFragment(mtime, "fp", 30L, 100L, 0, 0, 100, true, true, false);
+            delta.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "other");
+            delta.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "v.min", 7L);
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(delta)));
+
+            SchemaCacheEntry stats = service.getSchemaIfPresent(statsKey);
+            assertNotNull(stats);
+            assertNull(
+                "a stripe delta must not coerce the statistics record against the schema record's types",
+                stats.safeMetadata().get(SourceStatisticsSerializer.columnMinUnservableKey("v"))
+            );
+            assertNull("and must not fold stripe state onto it", stats.safeMetadata().get(ExternalStats.STRIPE_ENTRY_PREFIX + "0"));
+        }
+    }
+
     public void testReconcileAccumulatesStripesAcrossQueries() throws Exception {
         // Stripe knowledge composes across queries: query A commits stripe 0 (no EOF observed), query B
         // commits stripe 1 + EOF; the whole-file fold fires only once the union is complete.
@@ -3317,6 +3386,74 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
      * Without the read check, the second one lands on the first one's address and is coerced through the schema
      * record's types, which belong to neither.
      */
+    /**
+     * A statistics record accumulates across queries rather than being replaced. Different cold queries harvest
+     * different columns under PROJECTED scope, so a harvest of MIN(a) followed by one of MIN(b) must leave both:
+     * if the second replaces the first, a divergent file queried with alternating projections re-reads every
+     * time, which is the cost this addressing exists to remove. The schema-record arm accumulates by copying its
+     * own metadata first; this pins that the read-addressed arm does too.
+     * <p>
+     * Inject the defect by dropping the {@code prior} seed in {@code statisticsRecordMetadata}: column a is gone
+     * after the second harvest and the first assertion turns red.
+     */
+    public void testAStatisticsRecordAccumulatesAcrossHarvestsOfOneRead() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/two-cols.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, TestDatasetIdentities.identity(".csv", "id", Map.of()), false);
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "a", DataType.LONG, Nullability.TRUE, null, false),
+                new ReferenceAttribute(Source.EMPTY, null, "b", DataType.LONG, Nullability.TRUE, null, false)
+            );
+            service.getOrComputeSchema(
+                key,
+                k -> SchemaCacheEntry.from(
+                    schema,
+                    "csv",
+                    path,
+                    Map.of(
+                        ExternalStats.CONFIG_FINGERPRINT_KEY,
+                        "fp",
+                        ExternalStats.MTIME_MILLIS_KEY,
+                        mtime,
+                        ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
+                        "own"
+                    ),
+                    Map.of()
+                )
+            );
+
+            // Query 1 of read "bound" projects a: its extremum is filed under "bound".
+            Map<String, Object> q1 = new LinkedHashMap<>();
+            q1.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
+            q1.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
+            q1.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "bound");
+            q1.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "a.min", 1L);
+            service.reconcileSourceStats(Map.of(path, q1));
+
+            // Query 2 of the SAME read projects b only.
+            Map<String, Object> q2 = new LinkedHashMap<>();
+            q2.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
+            q2.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
+            q2.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "bound");
+            q2.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "b.min", 2L);
+            service.reconcileSourceStats(Map.of(path, q2));
+
+            SchemaCacheEntry stats = service.getSchemaIfPresent(key.withReadConfig("bound"));
+            assertNotNull(stats);
+            assertEquals(
+                "query 1's column must survive query 2's harvest, or alternating projections re-read every time",
+                1L,
+                stats.safeMetadata().get(SourceStatisticsSerializer.STATS_COL_PREFIX + "a.min")
+            );
+            assertEquals(
+                "and query 2's own measurement must be there",
+                2L,
+                stats.safeMetadata().get(SourceStatisticsSerializer.STATS_COL_PREFIX + "b.min")
+            );
+        }
+    }
+
     public void testAForeignReadDoesNotEnrichAStatisticsRecord() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "s3://bucket/data/a.csv";

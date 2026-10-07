@@ -19,12 +19,10 @@ import java.util.Map;
  * Which dataset, read through which data source, a cached fact belongs to - the part of every address in
  * these stores that is a property of the dataset rather than of a file or of a read.
  * <p>
- * It replaces three strings that every key carried - a folded participant identity, a definition version
- * and a format name - with six {@code long}s behind one reference. What it does NOT do yet is share one
- * instance across the keys of a dataset: the resolver derives it per mint site, because the participant
- * fold includes {@code formatConfigIdentity(objectName, config)} and that resolves a reader per object
- * name. Hoisting it to one instance per resolve is a separate change, and until it happens the saving
- * here is the component count and the loss of the string surgery, not instance sharing.
+ * Six {@code long}s behind one reference. It is NOT shared one instance across the keys of a dataset: the
+ * resolver derives it per mint site, because the participant fold includes
+ * {@code formatConfigIdentity(objectName, config)} and that resolves a reader per object name. Hoisting it
+ * to one instance per resolve is a separate change.
  *
  * <h2>Three pairs, and what currently feeds them</h2>
  * <ul>

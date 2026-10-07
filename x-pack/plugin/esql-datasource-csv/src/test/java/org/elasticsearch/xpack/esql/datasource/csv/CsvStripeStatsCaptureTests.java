@@ -1519,8 +1519,9 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
 
     /**
      * The identity these cases need is any identity: they exercise the stripe-capture path, not addressing, and
-     * only require that the key they mint and the key they read back agree. The format slot carries the reader
-     * identity, which is where a format name reaches a key now that it is not a component of its own.
+     * only require that the key they mint and the key they read back agree. The extension in the reader slot is
+     * a label for readability, not the mechanism: production separates two formats through the coordinator lane,
+     * not this one.
      */
     private static DatasetIdentity testIdentity() {
         return DatasetIdentity.of("", null, "", ".csv", "");

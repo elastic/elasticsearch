@@ -15,7 +15,7 @@ import java.util.Map;
 
 /**
  * Cache key for file listing results. A listing is what a principal can <i>see</i>, so it is isolated by
- * credential. The schema key is isolated too, as of {@link DatasetIdentity}, though for a weaker reason: what a
+ * credential. The schema key is isolated too, through {@link DatasetIdentity}, though for a weaker reason: what a
  * file contains does not depend on who read it, and separating those addresses is a second layer of defence
  * rather than a statement about the content. The file-metadata key still shares across principals. The storage
  * identity is included because the same bucket on different endpoints contains different objects.

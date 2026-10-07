@@ -153,10 +153,9 @@ public record Configured<T>(T value, Set<String> consumedKeys, String identity, 
      * can *see*, which depends on who asked, while a schema or a row count describes what a file *contains*,
      * which does not.
      * <p>
-     * That difference used to decide who carried this. The listing key did; the schema, statistics, aggregate and
-     * file-metadata addresses did not, on the reasoning that a credential must not fragment an address describing
-     * content. <b>That is no longer the arrangement.</b> {@code DatasetIdentity} folds this digest, so two data
-     * sources differing only in their credentials now address different records. It is a second layer of defence
+     * The listing key carries it for that reason, and so does {@code DatasetIdentity}, which folds this digest so
+     * that two data sources differing only in their credentials address different records. The file-metadata key
+     * does not. Folding it into an address that describes content is a second layer of defence
      * rather than the authorization control - it cannot see a principal who may list but not read within one data
      * source, a revoked credential, which digests to the value it had while valid, or a federated token, which
      * arrives at read time and belongs to no definition - and it costs sharing that is legitimately correct,

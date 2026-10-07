@@ -16,32 +16,32 @@ import java.util.Objects;
  * Cache key for schema inference results. Includes mtime-in-key for invalidation.
  * <p>
  * {@code dataset} is which dataset, read through which data source, this record belongs to - see
- * {@link DatasetIdentity}. It replaces three strings this key used to carry; it is NOT yet shared one
- * instance per resolve, because the resolver derives it per mint site - the participant fold resolves a
- * reader per object name - so what this saves is the component count rather than instance sharing.
+ * {@link DatasetIdentity}. One reference in place of the dataset's share of the address. It is NOT shared
+ * one instance per resolve: the resolver derives it per mint site, because the participant fold resolves a
+ * reader per object name.
  * <p>
  * {@code fileSetFingerprint} carries the 128-bit fingerprint of the resolved file set for a
  * dataset-level aggregate key (see {@link #forDatasetAggregate}); it is {@code null} for every
- * per-file key, and that is what {@link #isDatasetAggregate} tests. It used to be tested by an
- * {@code endsWith} against a marker suffix smuggled into the format name, with the fingerprint saying
- * the same thing a second time and a {@code requireNonNull} keeping the two encodings in agreement. One
- * encoding is enough.
+ * per-file key, and that is what {@link #isDatasetAggregate} tests. One encoding of the distinction, so
+ * there is nothing for a second one to disagree with.
  * <p>
  * {@code declaredStrict} separates a per-file record on the strict-declared warm rail from the inferred
- * record for the same file, which is a different answer about the same bytes. A named boolean rather
- * than the second marker suffix: the reconcile's contribution matching MUST still reach these records,
- * so the distinction has to be a component the key compares. Nothing ever parsed that suffix - only
- * {@code isDatasetAggregate} parsed one, and it parsed the other marker - but concatenating it onto the
- * format name made that field mean two things at once, which is what this removes.
+ * record for the same file, which is a different answer about the same bytes. A component the key
+ * compares, rather than anything encoded inside another field, because the reconcile's contribution
+ * matching must still reach these records.
  * <p>
  * {@code readConfig} addresses a STATISTICS record by the read that produced it, and is {@code null} on
  * every schema record. A statistic measures the rows one read produced, so two reads of one file that
  * resolved different schemas measured different things and must not share an address; a schema record
  * describes the file itself and is the same answer whoever asks, so it keeps the address it has.
  * <p>
- * The format name is gone from the key entirely. Nothing read it for its value, and it is derivable from
- * the path and the config by {@code detectFormatType}; what it actually did here was carry two unrelated
- * things, which reader produced the record and which kind of record it was.
+ * The key carries no format name, and what separates two reads of one object as different formats is not
+ * a component of its own. A
+ * reader's identity renders the recognized settings its config carries and nothing else, so it holds no
+ * format name and two readers over a config carrying no format-specific setting vend the same string.
+ * The discriminator is the coordinator lane: {@code format} is one of
+ * {@code FileSourceFactory#COORDINATOR_KEYS} and deliberately not inert, so an explicit format separates
+ * the addresses there, and an implied one is separated by the path's own extension.
  */
 public record SchemaCacheKey(
     DatasetIdentity dataset,

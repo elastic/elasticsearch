@@ -859,29 +859,31 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * The identities of every participant that decides what a cached record about this object holds, folded into the
-     * one component a key carries: what the storage provider says identifies the object, what the format reader says
-     * identifies its own configuration, and what the coordinator says identifies its own.
+     * Which dataset, read through which data source, a record minted here belongs to: what the storage provider says
+     * identifies the object, what the format reader says identifies its own configuration, and what the coordinator
+     * says identifies its own, folded into the components a key carries.
      * <p>
      * Folded here rather than in the key, because none of the three is the cache's to derive. A key deriving them
      * itself needs a hand-written list of setting names for the format and coordinator halves and a literal for the
      * storage half, and both go stale silently: a name missing from the list, or a literal that names nothing for a
      * provider addressed by an account rather than an endpoint, puts two different reads on one entry.
-     */
-    /**
-     * Which dataset, read through which data source, a record minted here belongs to. Called per mint site, not
-     * once per resolve: the participant fold goes through {@link #formatConfigIdentity}, which resolves a reader
-     * for the object name, so hoisting this to one instance per resolve is a separate change.
+     * <p>
+     * Called per mint site, not once per resolve: the participant fold goes through {@link #formatConfigIdentity},
+     * which resolves a reader for the object name, so hoisting this to one instance per resolve is a separate change.
      *
      * @param secretIdentity the digest of the declared-secret settings the provider consumed, from
-     *                       {@code Configured#secretIdentity}. A second layer of defence and not the authorization
-     *                       control: it stops two data sources differing in their credentials from sharing one
-     *                       address, which is what the listing and footer-byte stores already had and these did not.
-     *                       It cannot see a principal who may list but not read within one data source, a revoked
-     *                       credential, which digests to the value it had while valid, or a federated token, which
-     *                       arrives at read time and belongs to no definition.
+     *                       {@code Configured#secretIdentity}. It separates two data sources differing only in their
+     *                       credentials <em>at lookup</em>: each addresses its own record, which is what the listing
+     *                       and footer-byte stores already had and these did not. It does not partition writes —
+     *                       {@code ExternalSourceCacheService} matches a harvest to an entry on the participants
+     *                       alone, so a harvest produced under one data source's credentials also enriches the other's
+     *                       record over the same file. That is the same bytes measured either way, and it is why this
+     *                       is a second layer of defence rather than the authorization control. It cannot see a
+     *                       principal who may list but not read within one data source, a revoked credential, which
+     *                       digests to the value it had while valid, or a federated token, which arrives at read time
+     *                       and belongs to no definition.
      */
-    private DatasetIdentity datasetIdentity(String objectName, String storageIdentity, String secretIdentity, Map<String, Object> config) {
+    DatasetIdentity datasetIdentity(String objectName, String storageIdentity, String secretIdentity, Map<String, Object> config) {
         return DatasetIdentity.of(
             DatasetIdentity.definitionVersionOf(config),
             secretIdentity,
@@ -1198,7 +1200,6 @@ public class ExternalSourceResolver {
                 // single-file resolve never touches a live object (fileMetadataOf). mtime is the cache key's version token;
                 // length + mtime rebuild the singleton FileList.
                 FileMetadata meta = fileMetadataOf(storagePath, provider, storageIdentity);
-                String formatType = detectFormatType(storagePath, fileConfig);
                 SchemaCacheKey schemaKey = SchemaCacheKey.build(
                     storagePath.toString(),
                     meta.mtimeMillis(),
@@ -1692,8 +1693,7 @@ public class ExternalSourceResolver {
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingSchemaWarnings::add);
         }
 
-        // _file.* columns are request-driven now; no auto-attach to the schema. See
-        // ResolveExternalRelations / the EXTERNAL shim.
+        // _file.* columns are request-driven now; no auto-attach to the schema.
 
         // FFW: every file's readSchema is the anchor's physical schema; the mapping is identity unless a partition
         // key shadows a physical column, in which case it narrows the output to the data-only columns (the shadowed
@@ -2232,11 +2232,12 @@ public class ExternalSourceResolver {
      * {@code FILE_TYPED_FORMATS} on its warm rail for the same reason family.)
      * <p>
      * Keyed on the listing's file-set fingerprint (see {@link SchemaCacheKey#forDatasetAggregate}), so it
-     * needs no invalidation: any add/remove/mtime/size change in the set derives a different key. The
-     * {@code formatType} slot is the registry format name from {@link FormatNameResolver#datasetFormat}
-     * ({@code csv}, {@code ndjson}), not a last-dot of {@code listing.path(0)}. Listing order and
-     * compression/alias suffixes ({@code a.csv}+{@code b.csv.gz}) therefore cannot mint two identities
-     * for one file set. Parquet aliases ({@code *.{parquet,parq}}) still refuse under either listing
+     * needs no invalidation: any add/remove/mtime/size change in the set derives a different key. Listing
+     * order and compression/alias suffixes ({@code a.csv}+{@code b.csv.gz}) cannot mint two identities for
+     * one file set, because the reader lane is derived from {@code listing.path(0)} through
+     * {@link CompressionDelegatingFormatReader#withConfigTrackingConsumedKeys}, which forwards the inner
+     * reader's identity verbatim — so a compressed and an uncompressed member of one set fold identically.
+     * Parquet aliases ({@code *.{parquet,parq}}) still refuse under either listing
      * order. The logical source type may only diverge from it via
      * config keys that are already part of the key's config fingerprint, with one benign exception: the
      * {@code reader} override is absent from the fingerprint but can only select footer-format
@@ -2553,8 +2554,7 @@ public class ExternalSourceResolver {
                         extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingSchemaWarnings::add);
                     }
 
-                    // _file.* columns are request-driven now; no auto-attach to the schema. See
-                    // ResolveExternalRelations / the EXTERNAL shim.
+                    // _file.* columns are request-driven now; no auto-attach to the schema.
 
                     Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = result.perFileInfo();
                     resolved = new ExternalSourceResolution.ResolvedSource(extMetadata, fileList, schemaMap);
@@ -2940,18 +2940,30 @@ public class ExternalSourceResolver {
         @Nullable String boundReadConfig,
         ActionListener<SourceMetadata> listener
     ) {
-        String formatType = detectFormatType(filePath, config);
         SchemaCacheKey schemaKey = SchemaCacheKey.build(
             filePath.toString(),
             hint.lastModifiedMillis(),
             datasetIdentity(filePath.objectName(), storageIdentity, secretIdentity, storageConfig(config)),
             false
         );
-        // Statistics first, addressed by the read this resolve is about to do. The schema record beside it
-        // describes the file and is the same answer whoever asks; a statistic describes one read, so it is
-        // only this read's if it was harvested under this read's configuration. A hit here is the warm answer
-        // for a file whose own schema differs from the one the query binds, which the schema record alone
-        // cannot carry — it holds whatever the last matching read left, and for such a file nothing matches.
+        // The schema record first, and the statistics address only if it cannot answer. The schema record
+        // describes the file and is the same answer whoever asks, so when it already carries THIS read's
+        // measurements there is nothing a read-addressed record could add.
+        //
+        // The order is what keeps the second lookup off the common path. Under first_file_wins a file whose own
+        // schema IS the one the query binds is stamped with this very read, so for the non-divergent majority
+        // the statistics get never happens. Asking for it first cost a guaranteed miss per file: Cache#get
+        // counts every absent lookup, so it both doubled the segment traffic across N files and reported a
+        // miss per file in schema_cache.misses, which is the ratio an operator reads to size this cache.
+        SchemaCacheEntry cached = cacheService.getSchemaIfPresent(schemaKey);
+        if (cached != null && committedUnderRead(cached, boundReadConfig)) {
+            pendingMetadataWarnings.addAll(cached.warnings());
+            listener.onResponse(buildMetadataFromCache(cached, cached.toAttributes(), config));
+            return;
+        }
+        // Otherwise the schema record holds whatever the last matching read left, and for a file whose own
+        // schema differs from the bound one that is another read's measurement. A statistic describes one read,
+        // so this read's live at their own address — a hit here is the warm answer the schema record cannot carry.
         if (boundReadConfig != null) {
             SchemaCacheEntry stats = cacheService.getSchemaIfPresent(schemaKey.withReadConfig(boundReadConfig));
             if (stats != null) {
@@ -2960,7 +2972,7 @@ public class ExternalSourceResolver {
                 return;
             }
         }
-        SchemaCacheEntry cached = cacheService.getSchemaIfPresent(schemaKey);
+        // The schema record is still a correct schema answer even when its statistics belong to another read.
         if (cached != null) {
             pendingMetadataWarnings.addAll(cached.warnings());
             listener.onResponse(buildMetadataFromCache(cached, cached.toAttributes(), config));
@@ -2973,6 +2985,21 @@ public class ExternalSourceResolver {
             }
             return buildMetadataFromCache(entry, entry.toAttributes(), config, meta.statistics().orElse(null));
         }));
+    }
+
+    /**
+     * Whether a schema record's committed statistics were harvested under the read this resolve binds, which is
+     * what decides if the read-addressed statistics record needs consulting at all.
+     * <p>
+     * A record carries the stamp of the read that produced it. Enrichment does not move it: a licensed subset
+     * contributes a row count and no stamp, so a record enriched by a foreign read still reports its own. An
+     * unbound resolve (no bound read) is served by any record, because nothing pins what it must have measured.
+     */
+    private static boolean committedUnderRead(SchemaCacheEntry entry, @Nullable String boundReadConfig) {
+        if (boundReadConfig == null) {
+            return true;
+        }
+        return boundReadConfig.equals(entry.safeMetadata().get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY));
     }
 
     /** Sequential {@code 0..count} iterator for {@link ThrottledIterator}; avoids a stream in production code. */
@@ -3003,6 +3030,14 @@ public class ExternalSourceResolver {
      * size estimate. A narrower first file can still admit a wider listing, and those puts can evict
      * other datasets. An estimate just under the whole schema budget is still admitted and can flush
      * other datasets on its own. Single-file resolves do not use this gate.
+     * <p>
+     * <b>The estimate counts schema records only.</b> The reconcile may later file a read-addressed statistics
+     * record beside a schema record whose own stamp does not match the harvest, and that record copies the schema
+     * record's columns, so it weighs about as much. Those puts go through the per-entry ceiling and not through
+     * this gate, so a listing admitted here can end up holding up to one extra entry per divergent file and
+     * evicting its own schema records through the LRU to do it. It is bounded by the schema budget, so it costs
+     * warmth rather than heap, and the overhead scales with the divergent minority rather than the file count.
+     * Counting them needs the value split so a statistics record stops carrying a copy of the columns.
      */
     private final class SchemaFanOutAdmission {
         private final int fileCount;
@@ -5143,7 +5178,6 @@ public class ExternalSourceResolver {
         String secretIdentity,
         Map<String, Object> config
     ) throws Exception {
-        String formatType = detectFormatType(filePath, config);
         SchemaCacheKey schemaKey = SchemaCacheKey.build(
             filePath.toString(),
             mtime,

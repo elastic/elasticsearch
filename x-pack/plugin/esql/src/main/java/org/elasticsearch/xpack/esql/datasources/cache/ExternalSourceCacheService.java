@@ -846,7 +846,7 @@ public class ExternalSourceCacheService implements Closeable {
             return Map.of(); // no sibling to evict — the fallback is never consulted; skip the whole-cache sweep
         }
         // One whole-cache forEach, filtered to the contribution paths. This cannot be a set of per-path
-        // get()s: SchemaCacheKey is a multi-component record (path, mtime, formatType, formatConfig, endpoint,
+        // get()s: SchemaCacheKey is a multi-component record (dataset identity, path, mtime, file-set fingerprint,
         // region, fileSetFingerprint, definitionVersion), so a contribution path alone does not reconstruct a
         // key, and forEach
         // is the only path-agnostic enumeration the Cache exposes that is safe against concurrent LRU
@@ -991,7 +991,7 @@ public class ExternalSourceCacheService implements Closeable {
      * explicitly: their canonicalPath is a multi-file glob pattern and their mtime is 0, so a per-file
      * contribution can never match one structurally, but a per-file enrichment landing on a dataset entry
      * would corrupt its row-count-only contract — enforce it rather than rely on the structural accident.
-     * (Strict-declared per-file entries, the other reserved suffix, MUST remain matchable.)
+     * (Declared-strict per-file entries, which carry the {@code declaredStrict} component, MUST remain matchable.)
      * <p>
      * <b>It does not compare the key's identity or its definition version</b>, because a contribution carries
      * neither. On its own that makes every entry for this path at this mtime under this format config a match,
@@ -1283,6 +1283,13 @@ public class ExternalSourceCacheService implements Closeable {
         for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> match : matchingEntries) {
             SchemaCacheKey key = match.getKey();
             SchemaCacheEntry existing = match.getValue();
+            // A statistics record holds no types of its own — it carries the columns of the schema record it was built
+            // beside, which belong to a different read. The per-stripe coercion below targets those types, so a delta
+            // landing here would normalise this read's extrema against another read's resolution and mark the column
+            // unservable on the very record that measured it. Stripe state belongs on the schema record for this read.
+            if (key.isStatisticsRecord()) {
+                continue;
+            }
             // Read-shape gate, stricter than the whole-file path's: stripe state is an accumulating per-entry fold,
             // so a foreign-configured delta cannot contribute even its row count without mixing two reads' stripes into
             // one cover. Same-shape only; anything else safe-misses to a scan.
@@ -1669,7 +1676,10 @@ public class ExternalSourceCacheService implements Closeable {
                         // so without this a foreign read's harvest lands here — and it is stored as harvested, because the
                         // coercion below targets the schema record's resolved types, which belong to a different read.
                         if (Objects.equals(key.readConfig(), contributionReadConfig)) {
-                            putSchemaIfWithinCeiling(key, existing.withSafeMetadata(statisticsRecordMetadata(existing, mergedStats)));
+                            putSchemaIfWithinCeiling(
+                                key,
+                                existing.withSafeMetadata(statisticsRecordMetadata(existing, existing, mergedStats))
+                            );
                         }
                         continue;
                     }
@@ -1681,9 +1691,17 @@ public class ExternalSourceCacheService implements Closeable {
                     // this the per-column extrema harvested under the other read went nowhere, which is the default error mode.
                     // A reference compare is the discriminator, because applicableStats returns the contribution itself when the
                     // stamps agree and a fresh map when it is licensing a subset.
-                    if (applicable != mergedStats && contributionReadConfig != null) {
+                    // Not for a declared-strict key: strictSingleFileMetadata is the only site that mints one, and
+                    // every lookup builds its key with declaredStrict=false, so a statistics record derived from it
+                    // can never be read. Filing it would charge the schema budget and evict live entries through the
+                    // LRU to hold an address nothing asks for. Wiring that rail is a separate change.
+                    if (applicable != mergedStats && contributionReadConfig != null && key.declaredStrict() == false) {
                         SchemaCacheKey statsKey = key.withReadConfig(contributionReadConfig);
-                        putSchemaIfWithinCeiling(statsKey, existing.withSafeMetadata(statisticsRecordMetadata(existing, mergedStats)));
+                        SchemaCacheEntry priorStats = schemaCache.get(statsKey);
+                        putSchemaIfWithinCeiling(
+                            statsKey,
+                            existing.withSafeMetadata(statisticsRecordMetadata(existing, priorStats, mergedStats))
+                        );
                     }
                     if (applicable == null) {
                         continue;
@@ -1706,8 +1724,28 @@ public class ExternalSourceCacheService implements Closeable {
      * carries another read's measurements, and inheriting them is how a record filed under one read came to answer with
      * another's extrema.
      */
-    private static Map<String, Object> statisticsRecordMetadata(SchemaCacheEntry existing, Map<String, Object> contribution) {
+    /**
+     * The metadata a statistics record carries: the identity it is matched by, plus every measurement this read
+     * has committed for the file.
+     * <p>
+     * {@code prior} is the statistics record already at this address, when there is one, and seeding from it is
+     * what makes the record accumulate rather than replace. Different cold queries harvest different columns
+     * under PROJECTED scope, so a harvest of {@code MIN(a)} followed by one of {@code MIN(b)} must leave both —
+     * otherwise a file queried with alternating projections re-reads every time, which is the cost this
+     * addressing exists to remove. The schema-record arm does the same thing by copying its own metadata first.
+     * <p>
+     * Only the measurements are inherited. The identity keys below are re-taken from {@code existing} every
+     * time, so a record cannot carry a stale mtime or format fingerprint forward.
+     */
+    private static Map<String, Object> statisticsRecordMetadata(
+        SchemaCacheEntry existing,
+        @Nullable SchemaCacheEntry prior,
+        Map<String, Object> contribution
+    ) {
         Map<String, Object> metadata = new HashMap<>();
+        if (prior != null) {
+            metadata.putAll(prior.safeMetadata());
+        }
         Object mtime = existing.safeMetadata().get(ExternalStats.MTIME_MILLIS_KEY);
         if (mtime != null) {
             metadata.put(ExternalStats.MTIME_MILLIS_KEY, mtime);

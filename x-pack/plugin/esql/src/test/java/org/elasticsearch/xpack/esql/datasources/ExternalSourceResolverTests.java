@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
+import org.elasticsearch.xpack.esql.datasources.cache.DatasetIdentity;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.FileMetadataCacheKey;
@@ -3724,7 +3725,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
     // ===== Default schema resolution strategy =====
 
     /**
-     * Query/FROM EXTERNAL omit-key fallback ({@code effectiveSchemaResolution(null/missing)})
+     * Query omit-key fallback ({@code effectiveSchemaResolution(null/missing)})
      * must equal {@link FormatReader#DEFAULT_SCHEMA_RESOLUTION}.
      */
     public void testDefaultSchemaResolutionIsSingleSourceOfTruth() {
@@ -4432,6 +4433,38 @@ public class ExternalSourceResolverTests extends ESTestCase {
             count++;
         }
         return count;
+    }
+
+    // ===== Dataset identity: what actually separates two formats =====
+
+    /**
+     * Two datasets over ONE object read as different formats must not share an address, and the component that
+     * separates them is not the one a reader would guess. A reader's identity renders only the recognized
+     * settings its config carries, so it holds no format name: over a config carrying no format-specific
+     * setting, the CSV and NDJSON readers vend the identical string. What separates the two addresses is the
+     * coordinator lane, because {@code format} is one of {@code FileSourceFactory#COORDINATOR_KEYS} and is
+     * deliberately not in {@code COORDINATOR_IDENTITY_INERT_KEYS}.
+     * <p>
+     * Both halves are asserted. If the format key is ever moved into the inert set — as
+     * {@code FormatNameResolver#CONFIG_READER} already is, on reasoning that does not hold for the format
+     * itself — this fails, and that is the point: without it, dataset A over an object as csv and dataset B
+     * over the same object as ndjson collapse to one {@code SchemaCacheKey} and B is served A's columns.
+     */
+    public void testDatasetIdentitySeparatesTwoFormatsOverOneObject() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        String object = "s3://bucket/data";
+        Map<String, Object> asCsv = Map.of(FormatNameResolver.CONFIG_FORMAT, "csv");
+        Map<String, Object> asNdjson = Map.of(FormatNameResolver.CONFIG_FORMAT, "ndjson");
+
+        DatasetIdentity csv = resolver.datasetIdentity(object, "s3|eu-west-1", "", asCsv);
+        DatasetIdentity ndjson = resolver.datasetIdentity(object, "s3|eu-west-1", "", asNdjson);
+        assertThat("two formats over one object must not share a dataset identity", csv, not(equalTo(ndjson)));
+
+        // The lane that does the work, named explicitly so a future reader does not have to re-derive it.
+        assertThat(FileSourceFactory.coordinatorIdentity(asCsv), not(equalTo(FileSourceFactory.coordinatorIdentity(asNdjson))));
+        // And the lane that does NOT: the reader slot is blind to the format here, which is why the key cannot
+        // lean on it. Pinned so that moving the format key into the inert set cannot pass quietly.
+        assertThat(resolver.formatConfigIdentity(object, asCsv), equalTo(resolver.formatConfigIdentity(object, asNdjson)));
     }
 
     // ===== Empty resolution =====

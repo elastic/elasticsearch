@@ -12,6 +12,11 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -243,6 +248,7 @@ public final class RuntimeSearch {
         if (luceneQuery instanceof MatchNoDocsQuery) {
             return ConstantEvaluators.CONSTANT_FALSE_FACTORY;
         }
+        luceneQuery = prebuildFuzzyAutomata(luceneQuery);
         return new RuntimeSearchTextWithLuceneQueryEvaluator.Factory(
             source,
             fieldEvaluator,
@@ -274,6 +280,7 @@ public final class RuntimeSearch {
         if (luceneQuery instanceof MatchNoDocsQuery) {
             return ConstantEvaluators.constantDouble(0.0);
         }
+        luceneQuery = prebuildFuzzyAutomata(luceneQuery);
         return new RuntimeSearchScoreLuceneQueryEvaluator.Factory(
             source,
             fieldEvaluator,
@@ -295,6 +302,31 @@ public final class RuntimeSearch {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    /**
+     * Replaces each {@link FuzzyQuery} in the compiled query with a {@link PrebuiltFuzzyQuery}, so the per-row
+     * rewrite against the {@link MemoryIndex} doesn't rebuild the Levenshtein automata. Walks the wrappers a
+     * compiled {@code match} query can contain and leaves every other query as is.
+     */
+    static Query prebuildFuzzyAutomata(Query query) {
+        if (query instanceof FuzzyQuery fuzzy && fuzzy.getMaxEdits() > 0) {
+            return new PrebuiltFuzzyQuery(fuzzy);
+        }
+        if (query instanceof BooleanQuery bool) {
+            BooleanQuery.Builder builder = new BooleanQuery.Builder().setMinimumNumberShouldMatch(bool.getMinimumNumberShouldMatch());
+            for (BooleanClause clause : bool.clauses()) {
+                builder.add(prebuildFuzzyAutomata(clause.query()), clause.occur());
+            }
+            return builder.build();
+        }
+        if (query instanceof BoostQuery boost) {
+            return new BoostQuery(prebuildFuzzyAutomata(boost.getQuery()), boost.getBoost());
+        }
+        if (query instanceof ConstantScoreQuery constantScore) {
+            return new ConstantScoreQuery(prebuildFuzzyAutomata(constantScore.getQuery()));
+        }
+        return query;
     }
 
     /**

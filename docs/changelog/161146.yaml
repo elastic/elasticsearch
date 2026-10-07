@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161146
+summary: Add failure reasons to datasource telemetry
+type: enhancement

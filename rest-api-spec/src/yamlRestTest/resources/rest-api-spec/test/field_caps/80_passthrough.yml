@@ -71,7 +71,7 @@ setup:
                       host.name:
                         type: keyword
 
-  # An index with different mappings, which should not interfere with passthrough resoultion
+  # An index with different mappings, which should not interfere with passthrough resolution
   - do:
       indices.create:
         index: unrelated_index4

@@ -20,10 +20,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.mapper.PassThroughFieldSource;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -233,7 +230,7 @@ class FieldCapabilitiesFetcher {
                     isTimeSeriesIndex ? ft.getMetricType() : null,
                     // Look up by the field caps key rather than ft.name(): a passthrough alias (e.g. host.name) shares the
                     // field type of its target and must not be flagged, and neither must an explicit alias field.
-                    passthroughStatus(context.getMappingLookup().getMapper(field)),
+                    context.getMappingLookup().isPassthrough(field),
                     ft.meta(),
                     reported == null ? null : reported.name(),
                     reported == null ? TextFieldMapper.Defaults.POSITION_INCREMENT_GAP : reported.getPositionIncrementGap(ft.name()),
@@ -261,11 +258,12 @@ class FieldCapabilitiesFetcher {
                         String type = context.nestedLookup().getNestedMappers().get(parentField) != null ? "nested" : "object";
                         // A synthesized object may have no backing ObjectMapper, e.g. for a dotted leaf under a root-level
                         // subobjects:false mapping. It is reported as a plain object nonetheless, so it must carry the
-                        // same passthrough status as one, or indices with and without subobjects would conflict.
-                        ObjectMapper parentMapper = objectMappers.get(parentField);
-                        Boolean isPassthrough = parentMapper == null && "object".equals(type)
-                            ? Boolean.FALSE
-                            : passthroughStatus(parentMapper);
+                        // same passthrough status as one, unless prefix properties identify it as an auto-flattened
+                        // passthrough object in a strict columnar index.
+                        Boolean isPassthrough = context.getMappingLookup().isPassthrough(parentField);
+                        if (isPassthrough == null && "object".equals(type)) {
+                            isPassthrough = false;
+                        }
                         IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                             parentField,
                             type,
@@ -327,27 +325,6 @@ class FieldCapabilitiesFetcher {
             }
         }
         return false;
-    }
-
-    /**
-     * Determines the passthrough status reported for a field, so that the {@code passthrough} flag is only emitted for
-     * field types that can be passthrough sources at all, and is omitted ({@code null}) for everything else (e.g. leaf
-     * fields). Whether a type can be a passthrough source is decided here, where the mapper is known, rather than by a
-     * type name list on the coordinator: any new {@link PassThroughFieldSource} implementer is picked up automatically.
-     *
-     * @return {@code true} for an enabled passthrough source, {@code false} for a mapper that could be a passthrough source
-     *         but is not (a plain object, or a flattened field without passthrough), {@code null} if not applicable
-     */
-    @Nullable
-    static Boolean passthroughStatus(@Nullable Mapper mapper) {
-        if (mapper instanceof PassThroughFieldSource passThroughFieldSource) {
-            return passThroughFieldSource.isPassthrough();
-        }
-        if (mapper instanceof ObjectMapper && mapper instanceof NestedObjectMapper == false) {
-            // a plain object could have been mapped as a passthrough object instead
-            return false;
-        }
-        return null;
     }
 
     /**

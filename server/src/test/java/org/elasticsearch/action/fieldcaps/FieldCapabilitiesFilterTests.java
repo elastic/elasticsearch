@@ -12,6 +12,8 @@ package org.elasticsearch.action.fieldcaps;
 import org.apache.lucene.index.FieldInfos;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -367,6 +369,38 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         assertEquals("object", host.type());
         assertEquals(Boolean.FALSE, host.isPassthrough());
         assertNull(response.get("host.name").isPassthrough());
+    }
+
+    public void testAutoFlattenedPassthroughObjectIsFlagged() throws IOException {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, topMapping(b -> {
+                b.field("subobjects", false);
+                b.startObject("properties");
+                b.startObject("resource.attributes").field("type", "passthrough").field("priority", 10);
+                b.startObject("properties").startObject("host.name").field("type", "keyword").endObject().endObject();
+                b.endObject();
+                b.endObject();
+            }));
+            SearchExecutionContext sec = createSearchExecutionContext(mapperService);
+
+            Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
+                sec,
+                s -> true,
+                Strings.EMPTY_ARRAY,
+                Strings.EMPTY_ARRAY,
+                FieldPredicate.ACCEPT_ALL,
+                getMockIndexShard(),
+                true
+            );
+
+            IndexFieldCapabilities attributes = response.get("resource.attributes");
+            assertNotNull(attributes);
+            assertEquals("object", attributes.type());
+            assertEquals(Boolean.TRUE, attributes.isPassthrough());
+            assertEquals(Boolean.FALSE, response.get("resource").isPassthrough());
+            assertNull(response.get("resource.attributes.host.name").isPassthrough());
+        }
     }
 
     public void testPassthroughObjectIsFlagged() throws IOException {

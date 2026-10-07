@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -200,7 +201,7 @@ public class XContentMeteringParserDecoratorIT extends ESIntegTestCase {
                         config().getMapperService(),
                         DocumentSizeAccumulator.EMPTY_INSTANCE
                     );
-                    documentParsingReporter.onIndexingCompleted(parsedDocument);
+                    documentParsingReporter.onIndexingCompleted(parsedDocument, Engine.Operation.Origin.PRIMARY);
                 }
             });
         }
@@ -214,7 +215,7 @@ public class XContentMeteringParserDecoratorIT extends ESIntegTestCase {
         public DocumentParsingProvider getDocumentParsingProvider() {
             return new DocumentParsingProvider() {
                 @Override
-                public <T> XContentMeteringParserDecorator newMeteringParserDecorator(IndexRequest request) {
+                public XContentMeteringParserDecorator newMeteringParserDecorator() {
                     return new TestXContentMeteringParserDecorator(0L);
                 }
 
@@ -239,7 +240,7 @@ public class XContentMeteringParserDecoratorIT extends ESIntegTestCase {
         }
 
         @Override
-        public void onIndexingCompleted(ParsedDocument parsedDocument) {
+        public void onIndexingCompleted(ParsedDocument parsedDocument, Engine.Operation.Origin origin) {
             long delta = parsedDocument.getNormalizedSize();
             if (delta > XContentMeteringParserDecorator.UNKNOWN_SIZE) {
                 COUNTER.addAndGet(delta);

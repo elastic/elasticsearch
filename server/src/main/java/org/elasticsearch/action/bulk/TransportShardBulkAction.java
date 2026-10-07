@@ -539,7 +539,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         } else {
             final IndexRequest request = context.getRequestToExecute();
 
-            XContentMeteringParserDecorator meteringParserDecorator = documentParsingProvider.newMeteringParserDecorator(request);
+            XContentMeteringParserDecorator meteringParserDecorator = documentParsingProvider.newMeteringParserDecorator();
             final SourceToParse sourceToParse = sourceToParse(
                 request,
                 context.getBulkShardRequest().getBulkShardBatch(),

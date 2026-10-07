@@ -292,7 +292,9 @@ public final class DocumentParser {
         for (RuntimeField runtimeField : context.getDynamicRuntimeFields()) {
             rootBuilder.addRuntimeField(runtimeField);
         }
-        return new MappingBuilder(rootBuilder, Map.of(), null).build(MapperService.MergeReason.MAPPING_UPDATE).toCompressedXContent();
+        MappingBuilder mappingBuilder = new MappingBuilder(rootBuilder, Map.of(), null);
+        mappingBuilder.normalize(MapperService.MergeReason.MAPPING_AUTO_UPDATE);
+        return mappingBuilder.toCompressedXContent();
     }
 
     static void parseObjectOrNested(DocumentParserContext context) throws IOException {

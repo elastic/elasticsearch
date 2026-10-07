@@ -626,10 +626,17 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return builder.endObject().endObject().endObject();
     }
 
-    protected static XContentBuilder dynamicMapping(Mapping dynamicMapping) throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-        dynamicMapping.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        return builder.endObject();
+    /**
+     * The mapping a mapper service holds, as a builder parsed from its source. That is how a mapping is read back, for Get Field Mappings
+     * or for anything else that is not the source as it was stored.
+     */
+    protected static MappingBuilder parsedMapping(MapperService mapperService) {
+        return mapperService.parseMappings(mapperService.documentMapper().mappingSource(), MapperService.MergeReason.MAPPING_RECOVERY);
+    }
+
+    protected static void mappingToXContent(MapperService mapperService, XContentBuilder builder, ToXContent.Params params)
+        throws IOException {
+        parsedMapping(mapperService).toXContent(builder, params);
     }
 
     protected static void mergeDynamicUpdate(MapperService mapperService, CompressedXContent dynamicUpdate) {

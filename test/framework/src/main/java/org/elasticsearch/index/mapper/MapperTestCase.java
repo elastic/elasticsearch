@@ -626,10 +626,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testMinimalSerializesToItself() throws IOException {
         XContentBuilder orig = JsonXContent.contentBuilder().startObject();
-        createMapperService(fieldMapping(this::minimalMapping)).documentMapper().mapping().toXContent(orig, ToXContent.EMPTY_PARAMS);
+        mappingToXContent(createMapperService(fieldMapping(this::minimalMapping)), orig, ToXContent.EMPTY_PARAMS);
         orig.endObject();
         XContentBuilder parsedFromOrig = JsonXContent.contentBuilder().startObject();
-        createMapperService(orig).documentMapper().mapping().toXContent(parsedFromOrig, ToXContent.EMPTY_PARAMS);
+        mappingToXContent(createMapperService(orig), parsedFromOrig, ToXContent.EMPTY_PARAMS);
         parsedFromOrig.endObject();
         assertEquals(Strings.toString(orig), Strings.toString(parsedFromOrig));
         assertParseMinimalWarnings();
@@ -637,10 +637,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testMinimalToMaximal() throws IOException {
         XContentBuilder orig = JsonXContent.contentBuilder().startObject();
-        createMapperService(fieldMapping(this::minimalMapping)).documentMapper().mapping().toXContent(orig, INCLUDE_DEFAULTS);
+        mappingToXContent(createMapperService(fieldMapping(this::minimalMapping)), orig, INCLUDE_DEFAULTS);
         orig.endObject();
         XContentBuilder parsedFromOrig = JsonXContent.contentBuilder().startObject();
-        createMapperService(orig).documentMapper().mapping().toXContent(parsedFromOrig, INCLUDE_DEFAULTS);
+        mappingToXContent(createMapperService(orig), parsedFromOrig, INCLUDE_DEFAULTS);
         parsedFromOrig.endObject();
         assertEquals(Strings.toString(orig), Strings.toString(parsedFromOrig));
         assertParseMaximalWarnings();
@@ -1089,7 +1089,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     private static String serializeMapping(MapperService mapperService) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
-        mapperService.documentMapper().mapping().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        mappingToXContent(mapperService, builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         return Strings.toString(builder);
     }

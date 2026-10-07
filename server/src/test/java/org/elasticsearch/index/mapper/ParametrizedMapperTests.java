@@ -570,10 +570,10 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             }""");
 
         MapperService mapperService = createMapperService(mapping);
-        assertEquals(mapping, Strings.toString(mapperService.documentMapper().mapping()));
+        assertEquals(mapping, mapperService.documentMapper().mappingSource().string());
 
         mapperService.merge("_doc", new CompressedXContent(mapping), MAPPING_UPDATE);
-        assertEquals(mapping, Strings.toString(mapperService.documentMapper().mapping()));
+        assertEquals(mapping, mapperService.documentMapper().mappingSource().string());
     }
 
     // test custom serializer

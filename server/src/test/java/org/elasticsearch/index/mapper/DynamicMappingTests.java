@@ -967,7 +967,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         assertNotNull(doc.rootDoc().getFields("host.name"));
         assertNotNull(doc.rootDoc().getFields("host.id"));
 
-        merge(mapperService, dynamicMapping(mappingsUpdate));
+        merge(mapperService, doc.dynamicMappingsUpdate().string());
 
         assertNotNull(mapperService.fieldType("time"));
         assertNotNull(mapperService.fieldType("time.max"));

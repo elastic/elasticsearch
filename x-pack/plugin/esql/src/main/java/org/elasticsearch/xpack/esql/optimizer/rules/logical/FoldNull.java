@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -39,18 +41,32 @@ public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression>
             if (Expressions.isGuaranteedNull(in.value())) {
                 return Literal.of(in, null);
             }
-        } else if (e instanceof Alias == false && e.nullable() == Nullability.TRUE
-        // Non-evaluatable functions stay as a STATS grouping (It isn't moved to an early EVAL like other groupings),
-        // so folding it to null would currently break the plan, as we don't create an attribute/channel for that null value.
+        } else if (e instanceof Alias == false
+            // Non-evaluatable functions stay as a STATS grouping (It isn't moved to an early EVAL like other groupings),
+            // so folding it to null would currently break the plan, as we don't create an attribute/channel for that null value.
             && e instanceof GroupingFunction.NonEvaluatableGroupingFunction == false
             // We cannot fold aggregate functions until we resolve https://github.com/elastic/elasticsearch/issues/100634.
             // AggregateMapper cannot handle aggregate functions with literal values. Aggregates over null inputs are instead
             // replaced with a literal by ReplaceStatsFilteredOrNullAggWithEval.
             && e instanceof AggregateFunction == false
-            && e.children().stream().anyMatch(FoldNull::isNull)) {
+            && (nullableWithNullChild(e) || nullPropagatingWithNullChild(e))) {
                 return Literal.of(e, null);
             }
         return e;
+    }
+
+    private static boolean nullableWithNullChild(Expression e) {
+        return e.nullable() == Nullability.TRUE && e.children().stream().anyMatch(FoldNull::isNull);
+    }
+
+    /**
+     * An {@link AnyNullIsNull} expression is null whenever any argument is, so a guaranteed-null child is enough to fold it,
+     * whatever {@link Expression#nullable()} reports. {@code COALESCE} and {@code CASE} report {@link Nullability#UNKNOWN} even
+     * when NULL-typed, and that propagates to every parent; without this, such a parent reaches {@code toEvaluator} with a
+     * NULL-typed argument it has no evaluator for. Limited to {@link EvaluatorMapper}s, since that is where it would throw.
+     */
+    private static boolean nullPropagatingWithNullChild(Expression e) {
+        return e instanceof AnyNullIsNull && e instanceof EvaluatorMapper && e.children().stream().anyMatch(Expressions::isGuaranteedNull);
     }
 
     private static boolean isNull(Expression e) {

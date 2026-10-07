@@ -308,6 +308,59 @@ public class FoldNullTests extends ESTestCase {
         assertEquals(add.dataType(), folded.dataType());
     }
 
+    // COALESCE, CASE and MV_UNION report UNKNOWN nullability even when NULL-typed, and that propagates to the parent. A
+    // null-propagating parent must still fold: its evaluator has no NULL branch, so leaving it in the plan throws.
+    public void testNullPropagatingFunctionOverNullTypedCoalesceIsFolded() {
+        Coalesce coalesce = nullTypedCoalesce();
+        assertNullLiteral(foldNull(new Mul(EMPTY, coalesce, L(2))));
+        assertNullLiteral(foldNull(new Div(EMPTY, coalesce, L(2))));
+        assertNullLiteral(foldNull(new Add(EMPTY, L(randomInt()), coalesce, TEST_CFG)));
+        assertNullLiteral(foldNull(new DateExtract(EMPTY, Literal.keyword(EMPTY, "year"), coalesce, TEST_CFG)));
+        assertNullLiteral(foldNull(new ToString(EMPTY, coalesce, TEST_CFG)));
+        assertNullLiteral(foldNull(new MvSlice(EMPTY, coalesce, L(0), L(1))));
+        assertNullLiteral(foldNull(new Bucket(EMPTY, coalesce, NULL, NULL, NULL, NULL, TEST_CFG)));
+    }
+
+    public void testNullPropagatingFunctionOverNullTypedCaseIsFolded() {
+        Case caseExpr = new Case(EMPTY, TRUE, List.of(NULL, NULL));
+        assertNullLiteral(foldNull(new Mul(EMPTY, caseExpr, L(2))));
+    }
+
+    public void testNullPropagatingFunctionOverNullTypedMvUnionIsFolded() {
+        MvUnion union = new MvUnion(EMPTY, NULL, NULL);
+        assertNullLiteral(foldNull(new Mul(EMPTY, union, L(2))));
+    }
+
+    public void testNullPropagatingFunctionOverNullTypedCoalesceKeepsExpressionType() {
+        Mul mul = new Mul(EMPTY, nullTypedCoalesce(), L(2));
+        Literal folded = as(foldNull(mul), Literal.class);
+        assertNull(folded.value());
+        assertEquals(INTEGER, folded.dataType());
+    }
+
+    // Only a NULL-typed argument proves the result is null; a COALESCE with a typed branch can still produce a value.
+    public void testNullPropagatingFunctionOverTypedCoalesceIsNotFolded() {
+        Mul mul = new Mul(EMPTY, new Coalesce(EMPTY, NULL, List.of(getFieldAttribute("a", INTEGER))), L(2));
+        assertEquals(mul, foldNull(mul));
+    }
+
+    // COALESCE is not null-propagating and evaluates a NULL-typed result fine on its own; only its parent needs folding.
+    public void testNullTypedCoalesceIsNotFoldedItself() {
+        Coalesce coalesce = nullTypedCoalesce();
+        assertEquals(coalesce, foldNull(coalesce));
+    }
+
+    public void testNullTypedCoalesceDoesNotFoldAggregateOrCategorize() {
+        Max max = new Max(EMPTY, nullTypedCoalesce());
+        assertEquals(max, foldNull(max));
+        Categorize categorize = new Categorize(EMPTY, nullTypedCoalesce(), NULL);
+        assertEquals(categorize, foldNull(categorize));
+    }
+
+    private static Coalesce nullTypedCoalesce() {
+        return new Coalesce(EMPTY, NULL, List.of(NULL));
+    }
+
     private void assertNullLiteral(Expression expression) {
         assertNull(as(expression, Literal.class).value());
     }

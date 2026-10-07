@@ -1132,3 +1132,31 @@ emp_no:integer|gender:keyword
 10008         |M
 10009         |F
 ;
+
+// A NULL-typed COALESCE reports unknown nullability, yet the arithmetic around it must still fold to null: the
+// arithmetic evaluator has no NULL branch.
+arithmeticOverNullTypedCoalesce
+required_capability: fold_null_args_to_null_propagating_functions
+
+ROW m = COALESCE(null, null) * 2, d = COALESCE(null, null) / 2
+;
+
+m:integer | d:integer
+null      | null
+;
+
+arithmeticOverNullTypedCoalesceOfNullAggregateUnderSort
+required_capability: fold_null_args_to_null_propagating_functions
+
+FROM employees
+| STATS m = MAX(null) BY languages
+| EVAL x = COALESCE(m, m) * 2
+| SORT languages
+| LIMIT 3
+;
+
+m:null | languages:integer | x:integer
+null   | 1                 | null
+null   | 2                 | null
+null   | 3                 | null
+;

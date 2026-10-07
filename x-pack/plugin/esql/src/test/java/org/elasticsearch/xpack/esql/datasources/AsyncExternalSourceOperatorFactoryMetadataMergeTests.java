@@ -61,7 +61,7 @@ import static org.mockito.Mockito.when;
 public class AsyncExternalSourceOperatorFactoryMetadataMergeTests extends ESTestCase {
 
     private static final BlockFactory TEST_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("test"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     /**

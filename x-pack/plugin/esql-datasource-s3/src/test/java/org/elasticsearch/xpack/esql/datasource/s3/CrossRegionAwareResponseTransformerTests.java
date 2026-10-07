@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.instanceOf;
  */
 public class CrossRegionAwareResponseTransformerTests extends ESTestCase {
 
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
     private static final StoragePath PATH = StoragePath.of("s3://test-bucket/data/file.parquet");
 
     public void testRejectsNegativeExpectedLength() {

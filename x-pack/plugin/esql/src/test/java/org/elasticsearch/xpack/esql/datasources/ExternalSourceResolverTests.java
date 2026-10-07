@@ -166,7 +166,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     /**
@@ -9207,7 +9207,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolver resolver = createMeteredNdjsonResolver(path, payload, executor);
         assertNull("ctor must not see a reservation", ExternalPlanningIo.current());
 
-        ExternalPlanningReservation reservation = new ExternalPlanningReservation(new NoopCircuitBreaker("test"));
+        ExternalPlanningReservation reservation = new ExternalPlanningReservation(NoopCircuitBreaker.INSTANCE);
         resolver.planning(reservation);
 
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();

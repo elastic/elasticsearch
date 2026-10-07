@@ -67,7 +67,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ColumnMappingTests extends ESTestCase {
 
     private final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("test"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     public void testPruneToPerFileQueryKeptZero() {

@@ -78,7 +78,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     /**
@@ -1700,7 +1700,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testMixedValuesToString() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         String ndjson = """
             {"id": 1, "data": "a"}
@@ -1731,7 +1731,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testNestedObject() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         String ndjson = """
             {"address": {"city": "NYC", "zip": "10001"}}
@@ -1756,7 +1756,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testNestedObjectSometimesNull() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         // "address" is a nested-object prefix in the schema (address.city / address.zip), but in one row it is a JSON null.
         // Reproduces https://github.com/elastic/elasticsearch/issues/152574 (NPE on structural decoder nodes).
@@ -1784,7 +1784,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testDeeplyNestedObjectSometimesNull() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         // Intermediate prefix "user.sessionContext" is an object in one row and JSON null in another.
         String ndjson = """
@@ -1818,7 +1818,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      * mismatched rows null-filled and every column staying row-aligned.
      */
     public void testCloudTrailNestedObjectsWithInferredSchema() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         String ndjson = """
             {"eventSource":"s3.amazonaws.com","userIdentity":{"type":"Root","arn":"arn:1"},"responseElements":{"code":"200"}}
@@ -1984,7 +1984,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             {"id":1,"ts":"2023-10-23T12:15:03.360103847Z"}
             {"id":2,"ts":"2023-10-23T12:15:03.360Z"}
             """;
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         var reader = new NdJsonFormatReader(null, blockFactory);
         var object = new BytesStorageObject("file:///temporal.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
 
@@ -2013,7 +2013,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testArrayOfObjects() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         String ndjson = """
             {"events": [{"type": "click", "page": 1}, {"type": "view", "page": 2}], "id": 1}
@@ -2040,7 +2040,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testNullsInArray() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         String ndjson = """
             {"tags": ["a", null, "b"], "id": 1}
@@ -2067,7 +2067,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testNullsInArray2() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         String ndjson = """
             {"id":1,"name":null,"age":null,"active":null}
@@ -2094,7 +2094,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testNestedArraysMisalignment() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         String ndjson = """
             {"matrix": [[1,2],[3,4]], "id": 1}
@@ -2113,7 +2113,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testNonNullValueForNullTypedColumn() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         String ndjson = """
             {"data": null, "id": 0}
@@ -2140,7 +2140,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testDateParsing() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         String ndjson = """
             {"timestamp": "2025-03-26T18:12:34Z"}
@@ -2167,7 +2167,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testBigInteger() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         String ndjson = """
             {"id": 1, "big": 18446744073709551615}
@@ -2190,7 +2190,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testBigDecimal() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         // Extra large numeric values convert to Infinity
         // DOUBLE.MAX_VALUE is 1.7976931348623157e+308
@@ -2848,7 +2848,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      * formatter must preserve millisecond precision when decoding to epoch-milliseconds.
      */
     public void testDatetimeWithMilliseconds() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         String ndjson = """
             {"ts":"2024-03-10T15:30:45.123Z"}
             {"ts":"2024-03-10T15:30:45.999Z"}
@@ -2876,7 +2876,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      * normalised to their UTC equivalent epoch-milliseconds.
      */
     public void testDatetimeWithTimezoneOffset() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         String ndjson = """
             {"ts":"2024-06-15T12:00:00+05:30"}
             {"ts":"2024-06-15T10:00:00-08:00"}
@@ -2904,7 +2904,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      * widen to KEYWORD — the resulting block is a {@link BytesRefBlock} with the raw string values.
      */
     public void testDatetimeMixedWithNonDatetimeStringFallsBackToKeyword() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         String ndjson = """
             {"tag":"2024-01-01T00:00:00Z"}
             {"tag":"not-a-date"}

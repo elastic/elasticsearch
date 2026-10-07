@@ -75,7 +75,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
     @Before
     public void initBreaker() {
-        breaker = new NoopCircuitBreaker("test");
+        breaker = NoopCircuitBreaker.INSTANCE;
     }
 
     public void testNullStorageObjectThrowsException() {

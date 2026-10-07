@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.instanceOf;
  */
 public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
 
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
     private static final StoragePath PATH = StoragePath.of("s3://test-bucket/data/file.parquet");
 
     /** Arbitrary non-zero slack, so a factory buffer that is larger than requested is not a rounding coincidence. */

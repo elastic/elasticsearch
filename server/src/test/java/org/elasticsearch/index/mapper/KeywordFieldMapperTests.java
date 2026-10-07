@@ -21,6 +21,11 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.analysis.MockLowerCaseFilter;
 import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.util.BytesRef;
@@ -30,8 +35,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
@@ -48,6 +55,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
@@ -75,8 +83,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class KeywordFieldMapperTests extends MapperTestCase {
@@ -2054,5 +2064,143 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     private DocumentMapper columnarKeywordMapper(String fieldName) throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         return createMapperService(settings, mapping(b -> b.startObject(fieldName).field("type", "keyword").endObject())).documentMapper();
+    }
+
+    /**
+     * A field that promises a value for every document gets none from an empty string the index reads as a null, so
+     * the document is rejected exactly as one holding an explicit null is.
+     */
+    public void testEmptyStringDoesNotSatisfyNullabilityFalse() throws IOException {
+        final DocumentMapper mapper = emptyStringAsNullColumnar(b -> {
+            b.field("type", "keyword");
+            b.startObject("doc_values").field("nullability", false).endObject();
+        }).documentMapper();
+
+        final DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", "")))
+        );
+        assertThat(e.getMessage(), containsString("configured with [nullability=false] but no value was provided"));
+
+        // A value the index keeps satisfies it, and so does an empty string where the setting is off.
+        assertNotNull(mapper.parse(source(b -> b.field("field", "a"))));
+    }
+
+    /** With {@code on_failure: ignore} the document is kept and the field ignored, as it is for an explicit null. */
+    public void testEmptyStringUnderNullabilityFalseCanBeIgnored() throws IOException {
+        final DocumentMapper mapper = emptyStringAsNullColumnar(b -> {
+            b.field("type", "keyword");
+            b.startObject("doc_values").field("nullability", false).field("on_failure", "ignore").endObject();
+        }).documentMapper();
+
+        final ParsedDocument doc = mapper.parse(source(b -> b.field("field", "")));
+        assertThat(fieldsOf(doc), not(hasItem(containsString("field"))));
+    }
+
+    private MapperService emptyStringAsNullColumnar(CheckedConsumer<XContentBuilder, IOException> field) throws IOException {
+        return createMapperService(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                .put(FieldMapper.EMPTY_KEYWORD_STRING_AS_NULL_SETTING.getKey(), true)
+                .build(),
+            fieldMapping(field)
+        );
+    }
+
+    private MapperService emptyStringAsNull(CheckedConsumer<XContentBuilder, IOException> field) throws IOException {
+        return createMapperService(
+            Settings.builder().put(FieldMapper.EMPTY_KEYWORD_STRING_AS_NULL_SETTING.getKey(), true).build(),
+            fieldMapping(field)
+        );
+    }
+
+    /** The fields a document holds for {@code field}, as text, so two documents can be compared by what they index. */
+    private static List<String> fieldsOf(ParsedDocument doc) {
+        return doc.rootDoc()
+            .getFields("field")
+            .stream()
+            .map(f -> f.fieldType().docValuesType() + ":" + (f.binaryValue() != null ? f.binaryValue().utf8ToString() : f.stringValue()))
+            .toList();
+    }
+
+    public void testEmptyStringAsNullReadsAsNull() throws IOException {
+        final DocumentMapper mapper = emptyStringAsNull(b -> b.field("type", "keyword")).documentMapper();
+        final ParsedDocument empty = mapper.parse(source(b -> b.field("field", "")));
+        assertEquals(fieldsOf(mapper.parse(source(b -> b.nullField("field")))), fieldsOf(empty));
+        assertTrue(empty.rootDoc().getFields("field").isEmpty());
+    }
+
+    public void testEmptyStringIsAValueWhenTheSettingIsOff() throws IOException {
+        final DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "keyword")));
+        final ParsedDocument doc = mapper.parse(source(b -> b.field("field", "")));
+        assertFalse(fieldsOf(doc).isEmpty());
+        assertNotEquals(fieldsOf(mapper.parse(source(b -> b.nullField("field")))), fieldsOf(doc));
+    }
+
+    public void testEmptyStringAsNullTakesTheNullValue() throws IOException {
+        final DocumentMapper mapper = emptyStringAsNull(b -> b.field("type", "keyword").field("null_value", "NA")).documentMapper();
+        assertEquals(fieldsOf(mapper.parse(source(b -> b.nullField("field")))), fieldsOf(mapper.parse(source(b -> b.field("field", "")))));
+        assertThat(
+            mapper.parse(source(b -> b.field("field", ""))).rootDoc().getFields("field").get(0).binaryValue().utf8ToString(),
+            equalTo("NA")
+        );
+    }
+
+    public void testEmptyStringAsNullWithinAnArray() throws IOException {
+        final DocumentMapper mapper = emptyStringAsNull(b -> b.field("type", "keyword")).documentMapper();
+        assertEquals(
+            fieldsOf(mapper.parse(source(b -> b.array("field", "a", null, "b")))),
+            fieldsOf(mapper.parse(source(b -> b.array("field", "a", "", "b"))))
+        );
+    }
+
+    public void testEmptyStringAsNullIsNotInSyntheticSource() throws IOException {
+        final MapperService mapperService = createMapperService(
+            Settings.builder()
+                .put(FieldMapper.EMPTY_KEYWORD_STRING_AS_NULL_SETTING.getKey(), true)
+                .put("index.mapping.source.mode", "synthetic")
+                .build(),
+            fieldMapping(b -> b.field("type", "keyword"))
+        );
+        assertEquals("{}", syntheticSource(mapperService.documentMapper(), b -> b.field("field", "")));
+    }
+
+    public void testSearchingForAnEmptyStringAsksForTheDocumentsWithNoValue() throws IOException {
+        final MapperService mapperService = emptyStringAsNull(b -> b.field("type", "keyword"));
+        final SearchExecutionContext context = createSearchExecutionContext(mapperService);
+        final MappedFieldType fieldType = mapperService.fieldType("field");
+        final Query expected = new BooleanQuery.Builder().add(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.FILTER)
+            .add(fieldType.existsQuery(context), BooleanClause.Occur.MUST_NOT)
+            .build();
+        assertEquals(expected, fieldType.termQuery("", context));
+        assertEquals(expected, fieldType.termsQuery(List.of(""), context));
+    }
+
+    public void testSearchingForAnEmptyStringIsATermQueryWhenTheSettingIsOff() throws IOException {
+        final MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword")));
+        final SearchExecutionContext context = createSearchExecutionContext(mapperService);
+        assertEquals(new TermQuery(new Term("field", "")), mapperService.fieldType("field").termQuery("", context));
+    }
+
+    public void testSearchingForAnEmptyStringFindsTheNullValueWhenOneIsConfigured() throws IOException {
+        final MapperService mapperService = emptyStringAsNull(b -> b.field("type", "keyword").field("null_value", ""));
+        final SearchExecutionContext context = createSearchExecutionContext(mapperService);
+        assertEquals(new TermQuery(new Term("field", "")), mapperService.fieldType("field").termQuery("", context));
+    }
+
+    public void testEmptyStringAsNullCannotBeUpdated() throws IOException {
+        final MapperService mapperService = emptyStringAsNull(b -> b.field("type", "keyword"));
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> mapperService.getIndexSettings()
+                .getScopedSettings()
+                .updateSettings(
+                    Settings.builder().put(FieldMapper.EMPTY_KEYWORD_STRING_AS_NULL_SETTING.getKey(), false).build(),
+                    Settings.builder(),
+                    Settings.builder(),
+                    "index"
+                )
+        );
+        assertThat(e.getMessage(), containsString("final"));
     }
 }

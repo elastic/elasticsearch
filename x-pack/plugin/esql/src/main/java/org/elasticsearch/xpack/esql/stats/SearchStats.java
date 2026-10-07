@@ -46,6 +46,15 @@ public interface SearchStats {
     boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value);
 
     /**
+     * Whether every index this reads holds no empty string for {@code field}, because one given at index time was
+     * read as a null. A comparison against an empty string is then a question about whether the field holds a
+     * value at all.
+     */
+    default boolean emptyStringReadsAsNull(FieldName field) {
+        return false;
+    }
+
+    /**
      * Do all fields with the matching name support this loader config?
      */
     boolean supportsLoaderConfig(FieldName name, BlockLoaderFunctionConfig config, MappedFieldType.FieldExtractPreference preference);

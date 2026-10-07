@@ -122,6 +122,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
             .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), false)
+            // The documents below hold an empty string of their own, which this setting would read as a null.
+            .put(FieldMapper.EMPTY_KEYWORD_STRING_AS_NULL_SETTING.getKey(), false)
             .build();
         IndexSettings indexSettings = new IndexSettings(
             IndexMetadata.builder("index").settings(settings).numberOfShards(1).numberOfReplicas(0).build(),

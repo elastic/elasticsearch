@@ -55,6 +55,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Wild
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
@@ -1386,6 +1389,69 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         // The field must remain a FieldAttribute — not replaced with a constant Literal
         assertThat(fullTextFunction.field(), instanceOf(FieldAttribute.class));
         assertThat(Expressions.name(fullTextFunction.field()), equalTo("first_name"));
+    }
+
+    private static EsqlTestUtils.TestSearchStats emptyStringReadsAsNull(String field) {
+        return new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public boolean emptyStringReadsAsNull(FieldAttribute.FieldName name) {
+                return name.string().equals(field);
+            }
+        };
+    }
+
+    public void testEqualsEmptyStringBecomesIsNull() {
+        var plan = testAnalyzer().coordinatorPlan("""
+            from test
+            | where first_name == ""
+            """);
+
+        var localPlan = localPlan(plan, emptyStringReadsAsNull("first_name"));
+
+        var limit = as(localPlan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var isNull = as(filter.condition(), IsNull.class);
+        assertThat(Expressions.name(isNull.field()), equalTo("first_name"));
+    }
+
+    public void testNotEqualsEmptyStringBecomesIsNotNull() {
+        var plan = testAnalyzer().coordinatorPlan("""
+            from test
+            | where first_name != ""
+            """);
+
+        var localPlan = localPlan(plan, emptyStringReadsAsNull("first_name"));
+
+        var limit = as(localPlan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var isNotNull = as(filter.condition(), IsNotNull.class);
+        assertThat(Expressions.name(isNotNull.field()), equalTo("first_name"));
+    }
+
+    public void testEmptyStringIsLeftAloneOnAnOrdinaryField() {
+        var plan = testAnalyzer().coordinatorPlan("""
+            from test
+            | where first_name == ""
+            """);
+
+        var localPlan = localPlan(plan, emptyStringReadsAsNull("last_name"));
+
+        var limit = as(localPlan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        as(filter.condition(), Equals.class);
+    }
+
+    public void testANonEmptyStringIsLeftAlone() {
+        var plan = testAnalyzer().coordinatorPlan("""
+            from test
+            | where first_name == "John"
+            """);
+
+        var localPlan = localPlan(plan, emptyStringReadsAsNull("first_name"));
+
+        var limit = as(localPlan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        as(filter.condition(), Equals.class);
     }
 
     public void testConstantFieldReplacedOutsideFullTextFunction() {

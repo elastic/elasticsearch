@@ -134,6 +134,53 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         );
     }
 
+    private static Settings emptyStringAsNullSettings() {
+        return Settings.builder().put(columnarSettings()).put(FieldMapper.EMPTY_KEYWORD_STRING_AS_NULL_SETTING.getKey(), true).build();
+    }
+
+    public void testEmptyStringAsNull() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            emptyStringAsNullSettings(),
+            batch(
+                "empty string as null",
+                1L,
+                doc("d1", 1L, "{\"f\":\"\"}"),
+                doc("d2", 2L, "{\"f\":\"alpha\"}"),
+                doc("d3", 3L, "{\"f\":null}"),
+                doc("d4", 4L, "{}")
+            )
+        );
+    }
+
+    public void testEmptyStringAsNullWithinAnArray() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            emptyStringAsNullSettings(),
+            batch(
+                "empty string as null within an array",
+                1L,
+                doc("d1", 1L, "{\"f\":[\"alpha\",\"\",\"beta\"]}"),
+                doc("d2", 2L, "{\"f\":[\"\"]}"),
+                doc("d3", 3L, "{\"f\":[\"\",\"\"]}")
+            )
+        );
+    }
+
+    public void testEmptyStringAsNullTakesTheNullValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("null_value", "NA").endObject()),
+            emptyStringAsNullSettings(),
+            batch(
+                "empty string as null takes the null value",
+                1L,
+                doc("d1", 1L, "{\"f\":\"\"}"),
+                doc("d2", 2L, "{\"f\":[\"alpha\",\"\"]}"),
+                doc("d3", 3L, "{}")
+            )
+        );
+    }
+
     public void testMixedBatch() throws IOException {
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),

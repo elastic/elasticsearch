@@ -30,6 +30,8 @@ import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
@@ -51,6 +53,7 @@ import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.GroupedReleasables;
 import org.elasticsearch.core.Nullable;
@@ -106,6 +109,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
+import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -679,6 +683,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final IndexVersion indexVersion;
         private final DocValuesDiskFormat diskFormat;
         private final boolean preservesArrayOrder;
+        /**
+         * Whether a searched-for {@code ""} asks for the documents that hold no value; see
+         * {@link FieldMapper#EMPTY_KEYWORD_STRING_AS_NULL_SETTING}.
+         */
+        private final boolean emptyStringAsNull;
 
         public KeywordFieldType(
             String name,
@@ -711,6 +720,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.usesBinaryDocValuesForIgnoredFields = builder.storeIgnoredFieldsInBinaryDocValues;
             this.docValuesParams = builder.docValuesParameters();
             this.indexVersion = builder.indexSettings.getIndexVersionCreated();
+            this.emptyStringAsNull = EMPTY_KEYWORD_STRING_AS_NULL_SETTING.get(builder.indexSettings.getSettings());
             this.diskFormat = builder.diskFormat();
             this.preservesArrayOrder = builder.preservesArrayOrder();
         }
@@ -745,6 +755,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 ? DocValuesDiskFormat.NONE
                 : (usesBinaryDocValues ? DocValuesDiskFormat.BINARY_SEPARATE_COUNT : DocValuesDiskFormat.SORTED_SET);
             this.preservesArrayOrder = false;
+            this.emptyStringAsNull = false;
         }
 
         public KeywordFieldType(String name, FieldType fieldType, boolean isSyntheticSource) {
@@ -769,6 +780,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.indexVersion = IndexVersion.current();
             this.diskFormat = fieldType.docValuesType() == DocValuesType.NONE ? DocValuesDiskFormat.NONE : DocValuesDiskFormat.SORTED_SET;
             this.preservesArrayOrder = false;
+            this.emptyStringAsNull = false;
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
@@ -793,6 +805,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.indexVersion = IndexVersion.current();
             this.diskFormat = DocValuesDiskFormat.SORTED_SET;
             this.preservesArrayOrder = false;
+            this.emptyStringAsNull = false;
         }
 
         public boolean usesBinaryDocValues() {
@@ -930,6 +943,9 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
+            if (readsAsNull(value)) {
+                return noValueQuery(context);
+            }
             failIfNotIndexedNorDocValuesFallback(context);
             if (indexType.hasTerms()) {
                 return super.termQuery(value, context);
@@ -942,6 +958,15 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
+            if (values.stream().anyMatch(this::readsAsNull)) {
+                final List<?> rest = values.stream().filter(v -> readsAsNull(v) == false).toList();
+                if (rest.isEmpty()) {
+                    return noValueQuery(context);
+                }
+                return new BooleanQuery.Builder().add(noValueQuery(context), BooleanClause.Occur.SHOULD)
+                    .add(termsQuery(rest, context), BooleanClause.Occur.SHOULD)
+                    .build();
+            }
             failIfNotIndexedNorDocValuesFallback(context);
             if (indexType.hasTerms()) {
                 return super.termsQuery(values, context);
@@ -1043,6 +1068,26 @@ public final class KeywordFieldMapper extends FieldMapper {
                     caseInsensitive
                 );
             }
+        }
+
+        /** Whether this field reads an empty string as a null, so it holds no empty value to be found. */
+        public boolean emptyStringReadsAsNull() {
+            return emptyStringAsNull && nullValue == null;
+        }
+
+        /**
+         * Whether searching for {@code value} is searching for a value the field cannot hold, because an empty
+         * string was read as a null when the document was indexed.
+         */
+        private boolean readsAsNull(Object value) {
+            return emptyStringReadsAsNull() && value != null && indexedValueForSearch(value).length == 0;
+        }
+
+        /** The documents that hold no value for this field. */
+        private Query noValueQuery(SearchExecutionContext context) {
+            return new BooleanQuery.Builder().add(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.FILTER)
+                .add(existsQuery(context), BooleanClause.Occur.MUST_NOT)
+                .build();
         }
 
         @Override
@@ -1539,6 +1584,8 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     private final IndexAnalyzers indexAnalyzers;
     private final IndexSettings indexSettings;
+    /** Whether a value of {@code ""} is read as {@code null}; see {@link FieldMapper#EMPTY_KEYWORD_STRING_AS_NULL_SETTING}. */
+    private final boolean emptyStringAsNull;
     private final boolean writeDimensionRouting;
     private final boolean forceDocValuesSkipper;
     private final boolean storeIgnoredFieldsInBinaryDocValues;
@@ -1575,6 +1622,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.indexAnalyzers = builder.indexAnalyzers;
         this.scriptCompiler = builder.scriptCompiler;
         this.indexSettings = builder.indexSettings;
+        this.emptyStringAsNull = EMPTY_KEYWORD_STRING_AS_NULL_SETTING.get(builder.indexSettings.getSettings());
         this.writeDimensionRouting = builder.dimension.getValue()
             && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
             && efs.extractDimensionsWhileMapping();
@@ -1837,7 +1885,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                         // document keeps no slot for it. Only a null written inside the field's own array keeps its place. A
                         // null_value substitution turns the null into a value, which is why this also asks that nothing was
                         // produced.
-                        final boolean bareNull = strictColumnar && hasNonNull == false && source.isNull(currentDoc);
+                        final boolean bareNull = strictColumnar
+                            && hasNonNull == false
+                            && (source.isNull(currentDoc) || readsAsBareNull(source, currentDoc));
                         // An all-null array (hasNonNull==false, not a bare scalar null) with nullability=false is a
                         // violation that mapColumnBatch's hasNullOrAbsentDoc() did not catch — it only detects scalar
                         // nulls and absent docs, not array columns whose every element is null.
@@ -1888,6 +1938,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
 
                 BytesRef binaryValue = cursor.value();
+                if (emptyStringAsNull && binaryValue != null && binaryValue.length == 0) {
+                    binaryValue = null;
+                }
 
                 // Explicit JSON null: apply null_value substitution if configured; otherwise record a
                 // null doc-values slot (no term, no ignore_above check), mirroring the row-path's
@@ -2077,11 +2130,21 @@ public final class KeywordFieldMapper extends FieldMapper {
                     nullElementSeenThisDoc = false;
                 }
                 BytesRef binaryValue = cursor.value();
+                final boolean emptyStringReadAsNull = emptyStringAsNull && binaryValue != null && binaryValue.length == 0;
+                if (emptyStringReadAsNull) {
+                    binaryValue = null;
+                }
                 if (binaryValue == null) {
                     if (nullValueBytes != null) {
                         binaryValue = nullValueBytes;  // substitute, fall through to normal processing
                     } else {
                         nullElementSeenThisDoc = true;
+                        if (emptyStringReadAsNull && values == null && emitSharedColumn) {
+                            // An empty string is a value in the source column, unlike a null, so the output cannot
+                            // be that column itself: build one that leaves this value out, as an ignored one does.
+                            values = pending.add(mergeStringColumn());
+                            EscfColumnTransforms.backfillUtf8Before(values, source, currentDoc, elementsThisDoc);
+                        }
                         continue;  // null without null_value -> absent (row-path parity)
                     }
                 }
@@ -2207,9 +2270,33 @@ public final class KeywordFieldMapper extends FieldMapper {
         );
     }
 
+    /**
+     * Whether the document's field is a single empty string that {@link FieldMapper#EMPTY_KEYWORD_STRING_AS_NULL_SETTING}
+     * reads as a null. Only a value given on its own is a bare null; one written inside the field's array keeps
+     * its place, as an explicit null there does.
+     */
+    private boolean readsAsBareNull(EscfColumn source, int doc) {
+        return emptyStringAsNull && source.getTypeByte(doc) == SourceValueType.STRING && source.getStringValue(doc).bytes().length() == 0;
+    }
+
+    @Override
+    protected boolean valueSatisfiesRequired(DocumentParserContext context) throws IOException {
+        // An empty string this field reads as a null leaves the document without a value, the same way an explicit
+        // null does, so it does not satisfy the requirement either.
+        return readsAsNull(context.parser()) == false;
+    }
+
+    /** Whether the value the parser is on is an empty string that {@link #emptyStringAsNull} reads as a null. */
+    private boolean readsAsNull(XContentParser parser) throws IOException {
+        return emptyStringAsNull && parser.currentToken() == XContentParser.Token.VALUE_STRING && parser.textLength() == 0;
+    }
+
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         var value = context.parser().optimizedTextOrNull();
 
+        if (emptyStringAsNull && value != null && value.bytes().length() == 0) {
+            value = null;
+        }
         if (value == null && fieldType().nullValue != null) {
             value = new Text(fieldType().nullValue);
         }

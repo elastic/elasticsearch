@@ -167,8 +167,8 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
                             exemplarCounters.droppedNonFinite++;
                             continue;
                         }
-                        // Assigning the request timestamp can cause duplicate timestamps if there are multiple per timestamp
-                        // We leave the duplicate detection to the indexing request
+                        // Assigning the request timestamp can cause duplicate timestamps if a series has multiple exemplars
+                        // without a timestamp. We leave the duplicate detection to the indexing request.
                         long exemplarTimestamp = exemplar.getTimestamp() == 0 ? requestTimestamp : exemplar.getTimestamp();
                         IndexRequest indexRequest = buildExemplarIndexRequest(timeSeries, exemplar, dataset, namespace, exemplarTimestamp);
                         if (expandedContentTracker.add(indexRequest.ramBytesUsed(), listener)) {

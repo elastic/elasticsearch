@@ -252,17 +252,6 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     }
 
     @Override
-    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        MetadataFieldMapper.Builder mergeBuilder = (MetadataFieldMapper.Builder) getMergeBuilder();
-        if (mergeBuilder.hasNonDefaultParameters() == false) {
-            return builder;
-        }
-        builder.startObject(leafName());
-        mergeBuilder.serializeParameters(builder, params);
-        return builder.endObject();
-    }
-
-    @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         throw new DocumentParsingException(
             context.parser().getTokenLocation(),

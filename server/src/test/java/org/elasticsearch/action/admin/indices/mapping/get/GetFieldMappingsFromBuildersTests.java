@@ -10,6 +10,7 @@
 package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -18,11 +19,17 @@ import org.elasticsearch.index.mapper.MappingBuilder;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.not;
 
+/**
+ * Get Field Mappings reads the stored mapping source back into builders and serializes the matching ones, so what it returns is pinned
+ * here against the paths the mapping declares and the exact source each field is written as.
+ */
 public class GetFieldMappingsFromBuildersTests extends MapperServiceTestCase {
 
     private static final String[][] REQUESTS = {
@@ -67,32 +74,83 @@ public class GetFieldMappingsFromBuildersTests extends MapperServiceTestCase {
         }
         """;
 
-    public void testRichMappingAgrees() throws IOException {
-        Set<String> keys = assertAgrees(RICH_MAPPING);
-        // the shapes the builders have to get right are really in the mapping this checks
+    /** Every path the rich mapping declares, leaving out the metadata fields, which only some of the tests look at. */
+    private static final Set<String> RICH_MAPPING_PATHS = Set.of(
+        "kw",
+        "kw.raw",
+        "kw.txt",
+        "txt",
+        "txt.sub",
+        "obj.a",
+        "obj.b",
+        "obj.b.f",
+        "nest.n",
+        "nest.obj.deep",
+        "alias_kw",
+        "flat",
+        "flat.known"
+    );
+
+    public void testRichMappingReturnsEveryDeclaredPath() throws IOException {
+        MapperService mapperService = createMapperService(RICH_MAPPING);
+        Set<String> keys = find(mapperService, false, "*").keySet();
+        assertThat(keys, hasItems(RICH_MAPPING_PATHS.toArray(String[]::new)));
+        assertThat(keys, hasItems("_routing", "_source"));
+        // objects, including the nested one, are not fields of their own
+        assertThat(keys, not(hasItems("obj", "nest")));
+    }
+
+    public void testRequestedFieldsAreMatchedAgainstFullPaths() throws IOException {
+        MapperService mapperService = createMapperService(RICH_MAPPING);
+        for (boolean includeDefaults : new boolean[] { false, true }) {
+            for (String[] fields : REQUESTS) {
+                Set<String> expected = new TreeSet<>();
+                for (String path : RICH_MAPPING_PATHS) {
+                    if (Regex.simpleMatch(fields, path)) {
+                        expected.add(path);
+                    }
+                }
+                Set<String> actual = new TreeSet<>(find(mapperService, includeDefaults, fields).keySet());
+                // metadata fields are returned for the patterns that match them, and the paths above are the only others
+                actual.removeIf(path -> path.startsWith("_"));
+                assertThat("fields " + String.join(",", fields) + " include_defaults " + includeDefaults, actual, equalTo(expected));
+            }
+        }
+    }
+
+    public void testFieldsAreWrittenUnderTheirLeafName() throws IOException {
+        MapperService mapperService = createMapperService(RICH_MAPPING);
+        Map<String, FieldMappingMetadata> found = find(mapperService, false, "kw.raw", "nest.obj.deep", "alias_kw", "obj.b");
+        assertThat(found.keySet(), equalTo(Set.of("kw.raw", "nest.obj.deep", "alias_kw", "obj.b")));
+        assertThat(source(found, "kw.raw"), equalTo("{\"raw\":{\"type\":\"keyword\",\"ignore_above\":10}}"));
+        assertThat(source(found, "nest.obj.deep"), equalTo("{\"deep\":{\"type\":\"date\"}}"));
+        assertThat(source(found, "alias_kw"), equalTo("{\"alias_kw\":{\"type\":\"alias\",\"path\":\"kw\"}}"));
+        // a field's own multi-fields are part of it
+        assertThat(source(found, "obj.b"), equalTo("{\"b\":{\"type\":\"keyword\",\"fields\":{\"f\":{\"type\":\"keyword\"}}}}"));
+    }
+
+    public void testCopyToIsSerialized() throws IOException {
+        MapperService mapperService = createMapperService(RICH_MAPPING);
         assertThat(
-            keys,
-            hasItems(
-                "kw",
-                "kw.raw",
-                "kw.txt",
-                "txt",
-                "txt.sub",
-                "obj.a",
-                "obj.b",
-                "obj.b.f",
-                "nest.n",
-                "nest.obj.deep",
-                "alias_kw",
-                "flat",
-                "flat.known",
-                "_routing",
-                "_source"
-            )
+            source(find(mapperService, false, "txt"), "txt"),
+            equalTo("{\"txt\":{\"type\":\"text\",\"fields\":{\"sub\":{\"type\":\"keyword\"}},\"copy_to\":[\"kw\"]}}")
         );
     }
 
-    public void testSubobjectsFalseAgrees() throws IOException {
+    public void testIncludeDefaultsAddsParametersToTheSameField() throws IOException {
+        MapperService mapperService = createMapperService(RICH_MAPPING);
+        Map<String, Object> without = find(mapperService, false, "obj.a").get("obj.a").sourceAsMap();
+        Map<String, Object> with = find(mapperService, true, "obj.a").get("obj.a").sourceAsMap();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> withoutBody = (Map<String, Object>) without.get("a");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> withBody = (Map<String, Object>) with.get("a");
+        assertThat(withoutBody, equalTo(Map.of("type", "long")));
+        assertThat(withBody.keySet(), hasItems("type", "index", "doc_values", "coerce", "ignore_malformed"));
+        assertThat(withBody.get("type"), equalTo("long"));
+    }
+
+    public void testSubobjectsFalse() throws IOException {
         MapperService mapperService = createMapperService(mappingNoSubobjects(b -> {
             b.startObject("a.b").field("type", "keyword");
             b.startObject("fields").startObject("raw").field("type", "keyword").endObject().endObject();
@@ -102,55 +160,33 @@ public class GetFieldMappingsFromBuildersTests extends MapperServiceTestCase {
             b.startObject("properties").startObject("y").field("type", "keyword").endObject().endObject();
             b.endObject();
         }));
-        Set<String> keys = assertAgrees(mapperService);
-        assertThat(keys, hasItems("a.b", "a.b.raw", "o.x", "n.y"));
+        Map<String, FieldMappingMetadata> found = find(mapperService, false, "*");
+        assertThat(found.keySet(), hasItems("a.b", "a.b.raw", "o.x", "n.y"));
+        // with subobjects disabled a dotted field is a leaf of the root and is written under its whole dotted name
+        assertThat(source(found, "a.b"), equalTo("{\"a.b\":{\"type\":\"keyword\",\"fields\":{\"raw\":{\"type\":\"keyword\"}}}}"));
     }
 
-    public void testEmptyMappingAgrees() throws IOException {
-        assertAgrees(createMapperService(mapping(b -> {})));
+    public void testEmptyMapping() throws IOException {
+        Map<String, FieldMappingMetadata> found = find(createMapperService(mapping(b -> {})), false, "*");
+        assertThat(found.keySet().stream().filter(path -> path.startsWith("_") == false).toList(), equalTo(java.util.List.of()));
     }
 
-    /**
-     * @return the full paths the mappers listed for a request for everything
-     */
-    private Set<String> assertAgrees(String mapping) throws IOException {
-        return assertAgrees(createMapperService(mapping));
-    }
-
-    private static MappingBuilder parseMappings(MapperService mapperService, DocumentMapper documentMapper) {
-        return mapperService.parseMappings(documentMapper.mappingSource(), MapperService.MergeReason.MAPPING_RECOVERY);
-    }
-
-    private Set<String> assertAgrees(MapperService mapperService) {
+    /** The fields filter lets everything through, as it does for a user with access to the whole index. */
+    private static Map<String, FieldMappingMetadata> find(MapperService mapperService, boolean includeDefaults, String... fields) {
         DocumentMapper documentMapper = mapperService.documentMapper();
         Predicate<String> everything = field -> true;
-        Set<String> everythingMapped = null;
-        for (boolean includeDefaults : new boolean[] { false, true }) {
-            for (String[] fields : REQUESTS) {
-                GetFieldMappingsIndexRequest request = new GetFieldMappingsIndexRequest(
-                    new GetFieldMappingsRequest().fields(fields).includeDefaults(includeDefaults),
-                    "index"
-                );
-                Map<String, FieldMappingMetadata> fromBuilders = TransportGetFieldMappingsIndexAction.findFieldMappings(
-                    everything,
-                    parseMappings(mapperService, documentMapper),
-                    request
-                );
-                Map<String, FieldMappingMetadata> fromMappers = TransportGetFieldMappingsIndexAction.findFieldMappingsFromMappers(
-                    everything,
-                    documentMapper.mappers(),
-                    request
-                );
-                assertThat(
-                    "fields " + String.join(",", fields) + " include_defaults " + includeDefaults,
-                    fromBuilders,
-                    equalTo(fromMappers)
-                );
-                if (includeDefaults == false && fields.length == 1 && fields[0].equals("*")) {
-                    everythingMapped = fromMappers.keySet();
-                }
-            }
-        }
-        return everythingMapped;
+        GetFieldMappingsIndexRequest request = new GetFieldMappingsIndexRequest(
+            new GetFieldMappingsRequest().fields(fields).includeDefaults(includeDefaults),
+            "index"
+        );
+        MappingBuilder mappingBuilder = mapperService.parseMappings(
+            documentMapper.mappingSource(),
+            MapperService.MergeReason.MAPPING_RECOVERY
+        );
+        return TransportGetFieldMappingsIndexAction.findFieldMappings(everything, mappingBuilder, request);
+    }
+
+    private static String source(Map<String, FieldMappingMetadata> found, String path) {
+        return found.get(path).source().utf8ToString();
     }
 }

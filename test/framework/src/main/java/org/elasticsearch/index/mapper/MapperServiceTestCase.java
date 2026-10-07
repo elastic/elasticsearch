@@ -100,6 +100,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -116,6 +117,7 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -637,6 +639,33 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     protected static void mappingToXContent(MapperService mapperService, XContentBuilder builder, ToXContent.Params params)
         throws IOException {
         parsedMapping(mapperService).toXContent(builder, params);
+    }
+
+    /**
+     * Writes the {@code {"<field>": {...}}} fragment for a single field, as Get Field Mappings does: from the builder parsed out of the
+     * mapping source, so that {@code include_defaults} can be asked for.
+     */
+    protected static void fieldToXContent(MapperService mapperService, String field, XContentBuilder builder, ToXContent.Params params)
+        throws IOException {
+        List<Mapper.Builder> found = new ArrayList<>();
+        parsedMapping(mapperService).collectFieldBuilders(MapperService.MergeReason.MAPPING_RECOVERY, (path, b) -> {
+            if (path.equals(field)) {
+                found.add(b);
+            }
+        });
+        assertThat("no field [" + field + "] in the mapping", found, hasSize(1));
+        found.get(0).toXContent(builder, params);
+    }
+
+    /** The {@code {"<field>": {...}}} JSON for a single field, without {@code include_defaults}. */
+    protected static String fieldMappingToString(MapperService mapperService, String field) throws IOException {
+        return fieldMappingToString(mapperService, field, ToXContent.EMPTY_PARAMS);
+    }
+
+    protected static String fieldMappingToString(MapperService mapperService, String field, ToXContent.Params params) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+        fieldToXContent(mapperService, field, builder, params);
+        return Strings.toString(builder.endObject());
     }
 
     protected static void mergeDynamicUpdate(MapperService mapperService, CompressedXContent dynamicUpdate) {

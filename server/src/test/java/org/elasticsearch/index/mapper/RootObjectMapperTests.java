@@ -211,7 +211,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             assertNull(mapperService.fieldType("another_field"));
             assertEquals("""
                 {"_doc":{"runtime":{"field":{"type":"long"}},\
-                "properties":{"concrete":{"type":"keyword"}}}}""", Strings.toString(mapperService.documentMapper().mapping().getRoot()));
+                "properties":{"concrete":{"type":"keyword"}}}}""", mapperService.documentMapper().mappingSource().string());
         }
     }
 

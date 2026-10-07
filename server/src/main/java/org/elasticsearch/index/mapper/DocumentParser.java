@@ -33,7 +33,6 @@ import org.elasticsearch.plugins.internal.XContentParserDecorator;
 import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -1034,11 +1033,6 @@ public final class DocumentParser {
 
             @Override
             public Builder getMergeBuilder() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) {
                 throw new UnsupportedOperationException();
             }
 

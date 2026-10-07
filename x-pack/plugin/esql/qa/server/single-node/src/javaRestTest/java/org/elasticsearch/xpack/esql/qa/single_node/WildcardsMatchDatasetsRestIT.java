@@ -32,6 +32,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 /**
  * End-to-end REST coverage for the {@code wildcards_match_datasets} query setting, against the scenario reported on a 9.5.2
@@ -104,14 +105,18 @@ public class WildcardsMatchDatasetsRestIT extends ESRestTestCase {
         assertThat(values, empty());
 
         // On: the same wildcard now reaches the dataset and the query fails trying to read its resource. That failure
-        // IS the proof of reach -- the bucket does not exist, which is exactly why it is unambiguous.
+        // IS the proof of reach -- the bucket returns a storage error, which is exactly why it is unambiguous.
+        // The error must not expose the bucket name (storage location is hidden from all users per the security model).
         ResponseException ex = expectThrows(
             ResponseException.class,
             () -> query("SET wildcards_match_datasets = true; FROM lake_1* | LIMIT 1")
         );
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         String body = EntityUtils.toString(ex.getResponse().getEntity());
-        assertThat(body, containsString("Failed to resolve external source [s3://bucket/1/*.csv]"));
+        // The query reached the dataset and attempted a listing — the listing failure proves reach.
+        // The bucket name must not appear: storage location is hidden from all users per the security model.
+        assertThat(body, containsString("Access denied listing objects"));
+        assertThat(body, not(containsString("s3://bucket")));
     }
 
     private static Map<String, Object> query(String esql) throws IOException {

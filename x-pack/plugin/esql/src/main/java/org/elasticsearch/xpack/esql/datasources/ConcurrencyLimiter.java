@@ -11,7 +11,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionGate;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.QueryAdmission;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.util.Objects;
 import java.util.concurrent.Semaphore;
@@ -26,16 +31,17 @@ import java.util.concurrent.atomic.AtomicLong;
  * Thread-safe and designed to be shared across all queries targeting the same storage scheme.
  * A permits value of 0 disables limiting entirely (all operations pass through).
  */
-class ConcurrencyLimiter {
+class ConcurrencyLimiter implements AdmissionGate {
 
     private static final Logger logger = LogManager.getLogger(ConcurrencyLimiter.class);
 
-    static final ConcurrencyLimiter UNLIMITED = new ConcurrencyLimiter(60_000L);
+    static final ConcurrencyLimiter UNLIMITED = new ConcurrencyLimiter(QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS);
 
     private final Semaphore semaphore;
     private final String scheme;
     private final ExternalSourceSettings.BlobStoreConcurrency concurrency;
     private final long acquireTimeoutMs;
+    private final AdmissionTracker tracker;
     private final AtomicLong lastWarnLogTime = new AtomicLong(0);
 
     private static final long WARN_LOG_INTERVAL_MS = 30_000;
@@ -46,13 +52,23 @@ class ConcurrencyLimiter {
         this.concurrency = null;
         this.acquireTimeoutMs = acquireTimeoutMs;
         this.semaphore = null;
+        this.tracker = AdmissionTracker.NOOP;
     }
 
     ConcurrencyLimiter(String scheme, ExternalSourceSettings.BlobStoreConcurrency concurrency) {
-        this(scheme, concurrency, 60_000L);
+        this(scheme, concurrency, QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS);
     }
 
     ConcurrencyLimiter(String scheme, ExternalSourceSettings.BlobStoreConcurrency concurrency, long acquireTimeoutMs) {
+        this(scheme, concurrency, acquireTimeoutMs, AdmissionTracker.NOOP);
+    }
+
+    ConcurrencyLimiter(
+        String scheme,
+        ExternalSourceSettings.BlobStoreConcurrency concurrency,
+        long acquireTimeoutMs,
+        AdmissionTracker tracker
+    ) {
         if (Strings.isNullOrEmpty(scheme)) {
             throw new IllegalArgumentException("Scheme cannot be null or empty");
         }
@@ -64,6 +80,8 @@ class ConcurrencyLimiter {
         this.concurrency = concurrency;
         this.acquireTimeoutMs = acquireTimeoutMs;
         this.semaphore = new Semaphore(concurrency.permits(), true);
+        this.tracker = tracker == null ? AdmissionTracker.NOOP : tracker;
+        this.tracker.register(this);
     }
 
     /**
@@ -80,7 +98,17 @@ class ConcurrencyLimiter {
         try {
             acquire();
         } catch (TimeoutException e) {
-            throw new ExternalUnavailableException(e.getMessage(), e);
+            ExternalUnavailableException ex = new ExternalUnavailableException(
+                Condition.STORE_UNAVAILABLE,
+                StoragePath.NONE,
+                "",
+                "",
+                false,
+                0L,
+                e
+            );
+            ex.setDetail(e.getMessage());
+            throw ex;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             EsRejectedExecutionException rejected = new EsRejectedExecutionException("Interrupted while acquiring a concurrency permit");
@@ -93,11 +121,24 @@ class ConcurrencyLimiter {
         if (semaphore == null) {
             return;
         }
+        // Fair zero-timeout acquire: fails when waiters exist, so lastGrant only moves on a real park.
+        if (semaphore.tryAcquire(0, TimeUnit.NANOSECONDS)) {
+            return;
+        }
         long startNanos = System.nanoTime();
-        boolean acquired = semaphore.tryAcquire(acquireTimeoutMs, TimeUnit.MILLISECONDS);
+        AdmissionTracker.Wait wait = tracker.waitStarted(name(), Thread.currentThread().getName());
+        boolean acquired;
+        try {
+            acquired = semaphore.tryAcquire(acquireTimeoutMs, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            wait.finished();
+            throw e;
+        }
         if (acquired == false) {
+            wait.finished();
             throw new TimeoutException(timeoutMessage());
         }
+        wait.granted();
         long waitMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
         if (waitMs > WARN_WAIT_THRESHOLD_MS) {
             long lastWarn = lastWarnLogTime.get();
@@ -105,6 +146,57 @@ class ConcurrencyLimiter {
             if (now - lastWarn > WARN_LOG_INTERVAL_MS && lastWarnLogTime.compareAndSet(lastWarn, now)) {
                 logger.warn("[{}] request waited [{}]ms for a concurrency permit (max permits [{}])", scheme, waitMs, maxPermits());
             }
+        }
+    }
+
+    /**
+     * Untimed barge: returns immediately. Fair waiters may be skipped. Used by async retries so a
+     * continuation never parks (fail, reschedule with jitter). First-attempt async still uses
+     * {@link #acquireChecked()}.
+     */
+    boolean tryAcquire() {
+        if (semaphore == null) {
+            return true;
+        }
+        return semaphore.tryAcquire();
+    }
+
+    /**
+     * {@link #tryAcquire()} mapped onto {@link PermitMissException} so the retry layer can wait on
+     * the admission clock without consuming a storage attempt. throttling=false: local semaphore.
+     */
+    void acquireBargeChecked() {
+        if (tryAcquire() == false) {
+            throw new PermitMissException(scheme, maxPermits());
+        }
+    }
+
+    long acquireTimeoutMs() {
+        return acquireTimeoutMs;
+    }
+
+    /**
+     * Untimed barge missed the node semaphore. Not a store fault: {@link RetryableStorageObject}
+     * reschedules on {@link #acquireTimeoutMs()} and does not burn a storage retry or record
+     * retry/error metrics. Terminal admission timeout is converted to the same
+     * {@link ExternalUnavailableException} as {@link #acquireChecked()}.
+     */
+    static final class PermitMissException extends RuntimeException {
+        PermitMissException(String scheme, int maxPermits) {
+            super("No concurrency permit available for [" + scheme + "] (max permits [" + maxPermits + "])");
+        }
+
+        ExternalUnavailableException toUnavailable() {
+            ExternalUnavailableException ex = new ExternalUnavailableException(
+                Condition.STORE_UNAVAILABLE,
+                StoragePath.NONE,
+                "",
+                "",
+                false,
+                0L
+            );
+            ex.setDetail(getMessage());
+            return ex;
         }
     }
 
@@ -132,6 +224,19 @@ class ConcurrencyLimiter {
 
     int availablePermits() {
         return semaphore != null ? semaphore.availablePermits() : Integer.MAX_VALUE;
+    }
+
+    @Override
+    public String name() {
+        return scheme == null ? AdmissionTracker.permits("none") : AdmissionTracker.permits(scheme);
+    }
+
+    @Override
+    public int holders() {
+        if (semaphore == null) {
+            return 0;
+        }
+        return maxPermits() - availablePermits();
     }
 
     private String timeoutMessage() {

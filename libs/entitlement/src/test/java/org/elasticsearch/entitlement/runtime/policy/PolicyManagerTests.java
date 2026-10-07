@@ -14,8 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager.ModuleEntitlements;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager.PolicyScope;
-import org.elasticsearch.entitlement.runtime.policy.agent.TestAgent;
-import org.elasticsearch.entitlement.runtime.policy.agent.inner.TestInnerAgent;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ExitVMEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
@@ -51,11 +49,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class PolicyManagerTests extends ESTestCase {
-
-    /**
-     * A test agent package name for use in tests.
-     */
-    private static final String TEST_AGENTS_PACKAGE_NAME = "org.elasticsearch.entitlement.runtime.policy.agent";
 
     /**
      * A module you can use for test cases that don't actually care about the
@@ -99,7 +92,6 @@ public class PolicyManagerTests extends ESTestCase {
         var plugin1SourcePaths = List.of(Path.of("modules", "plugin1"));
         var policyManager = new PolicyManager(
             new Policy("server", List.of(new Scope("org.example.httpclient", List.of(new OutboundNetworkEntitlement())))),
-            List.of(),
             Map.of("plugin1", new Policy("plugin1", List.of(new Scope("plugin.module1", List.of(new ExitVMEntitlement()))))),
             Map.of(),
             c -> policyScope.get(),
@@ -180,7 +172,6 @@ public class PolicyManagerTests extends ESTestCase {
 
         var correctlyKeyed = new PolicyManager(
             createEmptyTestServerPolicy(),
-            List.of(),
             Map.of(descriptorName, pluginPolicy),
             Map.of(),
             c -> PolicyScope.plugin(descriptorName, PolicyManager.ALL_UNNAMED),
@@ -198,7 +189,6 @@ public class PolicyManagerTests extends ESTestCase {
         var directoryName = "my-plugin";
         var misKeyed = new PolicyManager(
             createEmptyTestServerPolicy(),
-            List.of(),
             Map.of(directoryName, pluginPolicy),
             Map.of(),
             c -> PolicyScope.plugin(descriptorName, PolicyManager.ALL_UNNAMED),
@@ -213,30 +203,6 @@ public class PolicyManagerTests extends ESTestCase {
         );
     }
 
-    public void testAgentsEntitlements() throws ClassNotFoundException {
-        var notAgentClass = makeClassInItsOwnModule();
-        var policyManager = new PolicyManager(
-            createEmptyTestServerPolicy(),
-            List.of(new CreateClassLoaderEntitlement()),
-            Map.of(),
-            Map.of(),
-            c -> c.getPackageName().startsWith(TEST_AGENTS_PACKAGE_NAME)
-                ? PolicyScope.apmAgent("test.agent.module")
-                : PolicyScope.plugin("test", "test.plugin.module"),
-            name -> Collections.emptyList(),
-            TEST_PATH_LOOKUP
-        );
-        ModuleEntitlements agentsEntitlements = policyManager.getEntitlements(TestAgent.class);
-        assertThat(agentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
-        agentsEntitlements = policyManager.getEntitlements(TestInnerAgent.class);
-        assertThat(agentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
-        ModuleEntitlements notAgentsEntitlements = policyManager.getEntitlements(notAgentClass);
-        assertThat(notAgentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(false));
-        var unnamedNotAgentClass = createUnnamedModuleClassLoader().loadClass("q.B");
-        notAgentsEntitlements = policyManager.getEntitlements(unnamedNotAgentClass);
-        assertThat(notAgentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(false));
-    }
-
     public void testDuplicateEntitlements() {
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
@@ -245,7 +211,6 @@ public class PolicyManagerTests extends ESTestCase {
                     "server",
                     List.of(new Scope("test", List.of(new CreateClassLoaderEntitlement(), new CreateClassLoaderEntitlement())))
                 ),
-                List.of(),
                 Map.of(),
                 Map.of(),
                 c -> PolicyScope.plugin("test", moduleName(c)),
@@ -262,27 +227,6 @@ public class PolicyManagerTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> new PolicyManager(
                 createEmptyTestServerPolicy(),
-                List.of(new CreateClassLoaderEntitlement(), new CreateClassLoaderEntitlement()),
-                Map.of(),
-                Map.of(),
-                c -> PolicyScope.plugin("test", moduleName(c)),
-                name -> Collections.emptyList(),
-                TEST_PATH_LOOKUP
-            )
-        );
-        assertEquals(
-            "[(APM agent)] using module [ALL-UNNAMED] found duplicate entitlement "
-                + "["
-                + CreateClassLoaderEntitlement.class.getName()
-                + "]",
-            iae.getMessage()
-        );
-
-        iae = expectThrows(
-            IllegalArgumentException.class,
-            () -> new PolicyManager(
-                createEmptyTestServerPolicy(),
-                List.of(),
                 Map.of(
                     "plugin1",
                     new Policy(
@@ -321,7 +265,6 @@ public class PolicyManagerTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> new PolicyManager(
                 createEmptyTestServerPolicy(),
-                List.of(),
                 Map.of(
                     "plugin1",
                     new Policy(
@@ -387,7 +330,6 @@ public class PolicyManagerTests extends ESTestCase {
                         )
                     )
                 ),
-                List.of(),
                 Map.of(
                     "plugin1",
                     new Policy(

@@ -1,44 +1,44 @@
 import { describe, expect, test } from "vitest";
-import { toGradleProject, toFqcn } from "./domain.ts";
 
-describe("toGradleProject", () => {
-  test("converts simple path", () => {
-    expect(toGradleProject("server")).toBe(":server");
+import { BLOCKING_LABELS, FLAKINESS_PROVEN_EXIT_CODE, matchedBlockingLabels } from "./domain.ts";
+
+describe("matchedBlockingLabels", () => {
+  const OPTED_IN = BLOCKING_LABELS[0];
+
+  test("returns the label that opted in, so the analyze step can name it", () => {
+    expect(matchedBlockingLabels(OPTED_IN)).toEqual([OPTED_IN]);
   });
 
-  test("converts nested path", () => {
-    expect(toGradleProject("x-pack/plugin/core")).toBe(":x-pack:plugin:core");
+  test("finds it among other labels, whatever the spacing", () => {
+    // Buildkite sets GITHUB_PR_LABELS as a comma-separated list; the spacing around entries is not
+    // something we control, and pipeline.ts trims it the same way.
+    expect(matchedBlockingLabels(`>bug, ${OPTED_IN} ,v9.3.0`)).toEqual([OPTED_IN]);
+    expect(matchedBlockingLabels(`>bug, ${OPTED_IN},v9.3.0`)).toEqual([OPTED_IN]);
   });
 
-  test("converts modules path", () => {
-    expect(toGradleProject("modules/transport-netty4")).toBe(":modules:transport-netty4");
+  test("empty for a PR with no labels at all", () => {
+    // Also the manually-triggered pipeline, which has no PR and so never sets the variable.
+    expect(matchedBlockingLabels("")).toEqual([]);
+    expect(matchedBlockingLabels(",, ,")).toEqual([]);
   });
 
-  test("converts deeply nested qa path", () => {
-    expect(toGradleProject("x-pack/plugin/ml/qa/native-multi-node-tests")).toBe(
-      ":x-pack:plugin:ml:qa:native-multi-node-tests"
-    );
+  test("empty when no label opted in", () => {
+    expect(matchedBlockingLabels(">bug,v9.3.0,Team:SomeOtherTeam")).toEqual([]);
   });
 
-  test("prefixes test- on children of test/external-modules", () => {
-    expect(toGradleProject("test/external-modules/apm-integration")).toBe(
-      ":test:external-modules:test-apm-integration"
-    );
-  });
-
-  test("leaves sibling test paths unchanged", () => {
-    expect(toGradleProject("test/fixtures/some-fixture")).toBe(":test:fixtures:some-fixture");
+  test("matches exactly, so a near miss does not opt a team in by accident", () => {
+    expect(matchedBlockingLabels(`${OPTED_IN}-something`)).toEqual([]);
+    expect(matchedBlockingLabels(OPTED_IN.toLowerCase())).toEqual([]);
   });
 });
 
-describe("toFqcn", () => {
-  test("converts java package path to FQCN", () => {
-    expect(toFqcn("org/elasticsearch/index/IndexTests")).toBe("org.elasticsearch.index.IndexTests");
-  });
-
-  test("converts deeply nested path", () => {
-    expect(toFqcn("org/elasticsearch/xpack/core/security/AuthTests")).toBe(
-      "org.elasticsearch.xpack.core.security.AuthTests"
-    );
+describe("FLAKINESS_PROVEN_EXIT_CODE", () => {
+  test("cannot collide with a code that means something other than a failing test", () => {
+    // never-fail.sh propagates this one code and swallows every other. 124/137 are timeout's own exits, 1
+    // is gradle's, and 2 is the wrapper's malformed-invocation exit: if the verdict shared any of them, a
+    // labelled PR would go red for an infrastructure failure.
+    expect([0, 1, 2, 124, 137]).not.toContain(FLAKINESS_PROVEN_EXIT_CODE);
+    // Must also fit in a process exit status.
+    expect(FLAKINESS_PROVEN_EXIT_CODE).toBeLessThan(126);
   });
 });

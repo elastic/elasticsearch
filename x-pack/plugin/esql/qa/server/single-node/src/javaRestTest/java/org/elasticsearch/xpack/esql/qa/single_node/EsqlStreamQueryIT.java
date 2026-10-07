@@ -152,6 +152,7 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         assertThat(footer, not(hasKey("columns")));
         assertThat(footer, not(hasKey("values")));
         assertThat(footer, not(hasKey("error")));
+        assertThat("profile must be absent when not requested", footer, not(hasKey("profile")));
     }
 
     public void testDropNullColumns() throws IOException {
@@ -400,18 +401,41 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         assertThat(re.getMessage(), containsString("columnar"));
     }
 
-    public void testProfileRejected() {
-        ResponseException re = expectThrows(
-            ResponseException.class,
-            () -> EsqlStreamTestUtils.rawStream(
-                client(),
-                "{\"query\": \"FROM stream-test | LIMIT 1\", \"profile\": true}",
-                "streaming=true",
-                "format=ndjson"
-            )
-        );
-        assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(re.getMessage(), containsString("profile"));
+    @SuppressWarnings("unchecked")
+    public void testProfile() throws IOException {
+        List<Map<String, Object>> lines = stream("{\"query\": \"FROM stream-test | LIMIT 10\", \"profile\": true}", "batch_size=1");
+
+        Map<String, Object> footer = lines.get(lines.size() - 1);
+        assertThat(footer.get("status"), equalTo(200));
+        assertThat("profile must be present when requested", footer, hasKey("profile"));
+
+        Map<String, Object> profile = (Map<String, Object>) footer.get("profile");
+        assertThat("profile must contain drivers", profile, hasKey("drivers"));
+        assertThat("profile must contain plans", profile, hasKey("plans"));
+        assertThat("profile must contain minimumTransportVersion", profile, hasKey("minimumTransportVersion"));
+        assertThat("profile must contain field_caps_calls", profile, hasKey("field_caps_calls"));
+
+        List<Map<String, Object>> drivers = (List<Map<String, Object>>) profile.get("drivers");
+        assertThat("drivers list must be non-empty", drivers, not(empty()));
+
+        // At least one driver must contain a StreamingPageOperator in its operators list.
+        boolean foundStreamingOp = false;
+        for (Map<String, Object> driver : drivers) {
+            List<Map<String, Object>> operators = (List<Map<String, Object>>) driver.get("operators");
+            if (operators != null) {
+                for (Map<String, Object> op : operators) {
+                    String opName = (String) op.get("operator");
+                    if (opName != null && opName.startsWith("StreamingPageOperator")) {
+                        foundStreamingOp = true;
+                        break;
+                    }
+                }
+            }
+            if (foundStreamingOp) {
+                break;
+            }
+        }
+        assertTrue("at least one driver must contain a StreamingPageOperator", foundStreamingOp);
     }
 
     public void testIncludeCcsMetadataRejected() {

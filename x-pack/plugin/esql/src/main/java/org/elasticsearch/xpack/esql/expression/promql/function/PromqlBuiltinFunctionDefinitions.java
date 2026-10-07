@@ -57,7 +57,11 @@ public class PromqlBuiltinFunctionDefinitions {
         .differenceFromPrometheus(
             "A `k` close to Integer.MAX_VALUE can trip {{es}}'s circuit breaker (the execution engine allocates a "
                 + "buffer sized to `k`, not to the number of matching series), whereas Prometheus has no equivalent limit. "
-                + "A `without` grouping clause is not yet supported."
+                + "A `without` grouping clause is not yet supported. "
+                + "A `NaN` value ranks above `+Inf` rather than last, so a series whose value is `NaN` wins a slot ahead "
+                + "of a series with a comparable value. Prometheus ranks `NaN` farthest from the top and returns the "
+                + "comparable series instead. `bottomk` is unaffected, because its ascending ranking already places "
+                + "`NaN` last."
         )
         .name("topk");
 
@@ -99,6 +103,24 @@ public class PromqlBuiltinFunctionDefinitions {
                 + "A `without` grouping clause is not yet supported."
         )
         .name("limitk");
+
+    /**
+     * {@code limit_ratio(r, v)} keeps each series iff its identity-hash sampling offset falls below {@code r},
+     * like Prometheus. The kept subset is stable across node restarts; no per-group state.
+     */
+    public static final PromqlFunctionDefinition LIMIT_RATIO = PromqlFunctionDefinition.def()
+        .acrossSeriesBinaryRatioReduce(PromqlFunctionDefinition.RATIO)
+        .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
+        .description("Returns a ratio `r` of the series from the input vector, keeping their full label set.")
+        .example("limit_ratio(0.5, http_requests_total)")
+        .stack(PromqlFunctionDefinition.STACK_GA_9_6)
+        .differenceFromPrometheus(
+            "Series are kept by hashing the series identity rather than the Prometheus label serialization, "
+                + "so the kept subset has the same statistical properties but is generally a different subset than "
+                + "the one Prometheus keeps. `by` is a membership no-op as in "
+                + "Prometheus. A `without` grouping clause is not yet supported."
+        )
+        .name("limit_ratio");
 
     /**
      * {@code label_replace(v, dst_label, replacement, src_label, regex)} matches {@code regex} (fully anchored) against the
@@ -305,17 +327,13 @@ public class PromqlBuiltinFunctionDefinitions {
     static final PromqlFunctionDefinition ROUND = PromqlFunctionDefinition.def()
         .binaryOptionalValueTransformation(PromqlFunctionDefinition.TO_NEAREST, (source, value, toNearest, configuration) -> {
             if (toNearest == null) {
-                return new Round(source, value, null);
+                return new Round(source, value, null, true);
             } else {
                 return promqlRoundToNearest(source, value, toNearest, configuration);
             }
         })
         .example("round(rate(http_requests_total[5m]))")
         .description("Rounds the sample values to the nearest integer, or to the nearest multiple of the optional argument.")
-        .differenceFromPrometheus(
-            "With a `to_nearest` argument, ties round up, matching Prometheus. Called with a single argument, a `NaN` input "
-                + "returns `0` instead of `NaN`."
-        )
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("round");
 
@@ -323,13 +341,18 @@ public class PromqlBuiltinFunctionDefinitions {
      * PromQL {@code round(v, to_nearest)} rounds to the nearest multiple of {@code to_nearest},
      * with ties resolved by rounding up. Matches Prometheus:
      * {@code floor(v * (1 / to_nearest) + 0.5) / (1 / to_nearest)}.
+     * <p>
+     * The arithmetic nodes built here use the non-finite-preserving math variant so the degenerate {@code to_nearest = 0}
+     * input reproduces Prometheus's result of {@code NaN} ({@code 1 / 0 = +Inf}, {@code v * +Inf = ±Inf/NaN},
+     * {@code floor(...) / +Inf = NaN}) instead of hitting the divide-by-zero guard and dropping the series.
+     * </p>
      */
     private static Expression promqlRoundToNearest(Source source, Expression value, Expression toNearest, Configuration configuration) {
-        Expression inverse = new Div(source, Literal.fromDouble(source, 1.0), toNearest);
+        Expression inverse = new Div(source, Literal.fromDouble(source, 1.0), toNearest, null, true);
         Expression half = Literal.fromDouble(source, 0.5);
-        Expression scaled = new Mul(source, value, inverse);
-        Expression withHalf = new Add(source, scaled, half, configuration);
-        return new Div(source, new Floor(source, withHalf), inverse);
+        Expression scaled = new Mul(source, value, inverse, true);
+        Expression withHalf = new Add(source, scaled, half, configuration, true);
+        return new Div(source, new Floor(source, withHalf), inverse, null, true);
     }
 
     private static PromqlFunctionDefinition.Builder dateExtraction(ChronoField field) {

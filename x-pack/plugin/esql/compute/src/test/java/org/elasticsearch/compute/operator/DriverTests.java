@@ -53,6 +53,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
 
@@ -510,6 +511,66 @@ public class DriverTests extends ESTestCase {
             sinkHandler.fetchPageAsync(true, ActionListener.noop());
             future.actionGet(5, TimeUnit.SECONDS);
             assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    /**
+     * Operators that opt into {@link Operator#finalStatusAfterAsyncActions()} must appear in
+     * the driver profile with the post-close {@code toString()}, taken after
+     * {@code waitForAsyncActions}, not the pre-close snapshot.
+     */
+    public void testFinalStatusReplacedAfterAsyncClose() {
+        DriverContext driverContext = driverContext();
+        AtomicBoolean closed = new AtomicBoolean();
+        SourceOperator source = new SourceOperator() {
+            private boolean finished;
+            private Page page = new Page(driverContext.blockFactory().newConstantIntBlockWith(1, 1));
+
+            @Override
+            public void finish() {
+                finished = true;
+            }
+
+            @Override
+            public boolean isFinished() {
+                return finished;
+            }
+
+            @Override
+            public Page getOutput() {
+                Page out = page;
+                page = null;
+                finished = true;
+                return out;
+            }
+
+            @Override
+            public boolean finalStatusAfterAsyncActions() {
+                return true;
+            }
+
+            @Override
+            public void close() {
+                closed.set(true);
+            }
+
+            @Override
+            public String toString() {
+                return closed.get() ? "after-close" : "before-close";
+            }
+        };
+        List<Page> outPages = new ArrayList<>();
+        Driver driver = TestDriverFactory.create(driverContext, source, List.of(), new TestResultPageSinkOperator(outPages::add));
+        ThreadPool threadPool = threadPool();
+        try {
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 1000), future);
+            future.actionGet(30, TimeUnit.SECONDS);
+            assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
+            assertTrue(closed.get());
+            assertThat(driver.profile().operators().get(0).operator(), equalTo("after-close"));
         } finally {
             terminate(threadPool);
         }

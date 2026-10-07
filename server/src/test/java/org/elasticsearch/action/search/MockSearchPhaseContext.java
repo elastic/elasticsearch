@@ -56,9 +56,10 @@ import static org.mockito.Mockito.mock;
 /**
  * SearchPhaseContext for tests
  */
-public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<SearchPhaseResult> {
+public class MockSearchPhaseContext extends AbstractSearchAsyncAction<SearchPhaseResult> {
     private static final Logger logger = LogManager.getLogger(MockSearchPhaseContext.class);
     public final AtomicReference<Throwable> phaseFailure = new AtomicReference<>();
+    public final AtomicInteger phaseFailures = new AtomicInteger();
     final int numShards;
     final AtomicInteger numSuccess;
     public final List<ShardSearchFailure> failures = Collections.synchronizedList(new ArrayList<>());
@@ -181,6 +182,8 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
     @Override
     public void onPhaseFailure(String phase, String msg, Throwable cause) {
         phaseFailure.set(cause);
+        // Counted because raisePhaseFailure completes the search listener, which must not happen twice.
+        phaseFailures.incrementAndGet();
         // Completes the listener as production does, so anything registered with addReleasable is released. Unlike
         // raisePhaseFailure it does not release the successful shards' contexts or notify the progress listener.
         doneFuture.onResponse(null);

@@ -1,6 +1,6 @@
 ```yaml {applies_to}
-stack: preview 9.6+
-serverless: preview
+stack: ga 9.6+
+serverless: ga
 ```
 
 The `HIGHLIGHT` [processing command](/reference/query-languages/esql/commands/processing-commands.md)

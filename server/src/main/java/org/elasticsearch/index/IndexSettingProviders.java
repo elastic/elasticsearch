@@ -156,12 +156,12 @@ public final class IndexSettingProviders {
                     continue;
                 }
                 if (overrulingSettings.contains(additionalSetting)) {
-                    resultBuilder.put(additionalSetting, settings.get(additionalSetting));
+                    resultBuilder.copy(additionalSetting, settings);
                     if (requestSettingsBuilder != null) {
                         requestSettingsBuilder.remove(additionalSetting);
                     }
                 } else if (userDefinedSettingNames.contains(additionalSetting) == false) {
-                    resultBuilder.put(additionalSetting, settings.get(additionalSetting));
+                    resultBuilder.copy(additionalSetting, settings);
                 }
             }
             for (String userDefinedSetting : userDefinedSettingNames) {
@@ -170,7 +170,7 @@ public final class IndexSettingProviders {
                     continue;
                 }
                 if (userDefinedSettings.get(userDefinedSetting) != null || preserveNulls.contains(userDefinedSetting)) {
-                    resultBuilder.put(userDefinedSetting, userDefinedSettings.get(userDefinedSetting));
+                    resultBuilder.copy(userDefinedSetting, userDefinedSettings);
                 }
             }
         }

@@ -263,6 +263,34 @@ public class IndexSettingProvidersTests extends ESTestCase {
         assertThat(effective.build(), equalTo(Settings.builder().put("index.a", "overruling").put("index.b", "requested").build()));
     }
 
+    /**
+     * List settings such as {@code index.dimensions} must stay lists when applied, otherwise they get flattened to a single
+     * "[a, b]" string and are no longer usable by their consumers (e.g. routing).
+     */
+    public void testListSettingsStayListsWhenApplied() {
+        var additionalSettings = collect(
+            List.of(
+                provider(Settings.builder().putList("index.provided", "a", "b").build(), false),
+                provider(Settings.builder().putList("index.overruling", "c", "d").build(), true)
+            )
+        );
+
+        Settings effective = applyTo(
+            additionalSettings,
+            Settings.builder().putList("index.configured", "e", "f").putList("index.overruling", "g")
+        );
+        assertThat(effective.getAsList("index.provided"), equalTo(List.of("a", "b")));
+        assertThat(effective.getAsList("index.overruling"), equalTo(List.of("c", "d")));
+        assertThat(effective.getAsList("index.configured"), equalTo(List.of("e", "f")));
+    }
+
+    public void testListSettingConfiguredByTheUserWinsOverProvidedList() {
+        var additionalSettings = collect(List.of(provider(Settings.builder().putList("index.a", "a", "b").build(), false)));
+
+        Settings effective = applyTo(additionalSettings, Settings.builder().putList("index.a", "x", "y"));
+        assertThat(effective.getAsList("index.a"), equalTo(List.of("x", "y")));
+    }
+
     public void testDuplicateProvidedSettingIsRejected() {
         Settings settings = Settings.builder().put("index.a", "provided").build();
         var e = expectThrows(IllegalArgumentException.class, () -> collect(List.of(provider(settings, false), provider(settings, false))));

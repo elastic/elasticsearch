@@ -1300,6 +1300,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * cluster applier thread. The applier only checks current metadata while the shard lock is held. Keeping that lock until deletion
      * finishes prevents a newly introduced shard from creating a store we might delete.
      */
+    @Override
     public void deleteShardsOutsideIndexRange(IndexMetadata metadata, ActionListener<Void> listener) {
         threadPool.generic().execute(ActionRunnable.wrap(listener, delegate -> {
             final var shardIds = nodeEnv.findAllShardIds(metadata.getIndex());

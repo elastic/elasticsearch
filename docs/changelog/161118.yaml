@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 161118
-summary: Internal views
+summary: This change introduces reserved views. Such views could be queried but could not be modified or deleted by users.
 type: enhancement

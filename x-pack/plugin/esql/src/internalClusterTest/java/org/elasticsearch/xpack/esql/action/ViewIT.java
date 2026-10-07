@@ -147,22 +147,22 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
         assertThat(List.of(indices), contains("my-index"));
     }
 
-    public void testInternalViewCannotBeUpdatedOrDeleted() {
-        String viewName = "internal-view";
+    public void testReservedViewCannotBeUpdatedOrDeleted() {
+        String viewName = "reserved-view";
         assertAcked(createView(viewName, "FROM some-index", null, true));
 
         expectThrows(
             IllegalArgumentException.class,
-            containsString("cannot modify internal view [" + viewName + "]"),
+            containsString("cannot modify reserved view [" + viewName + "]"),
             () -> createView(viewName, "FROM something-else")
         );
 
-        // but can update definition of internal view with another internal view
+        // but can update definition of reserved view with another reserved view
         assertAcked(createView(viewName, "FROM some-other-index", null, true));
 
         expectThrows(
             IllegalArgumentException.class,
-            containsString("cannot delete internal view [" + viewName + "]"),
+            containsString("cannot delete reserved view [" + viewName + "]"),
             () -> client().execute(
                 DeleteViewAction.INSTANCE,
                 new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { viewName })
@@ -182,10 +182,10 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
         return createView(viewName, query, null, false);
     }
 
-    private AcknowledgedResponse createView(String viewName, String query, String description, boolean internal) {
+    private AcknowledgedResponse createView(String viewName, String query, String description, boolean reserved) {
         return client().execute(
             PutViewAction.INSTANCE,
-            new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(viewName, query, description, internal))
+            new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(viewName, query, description, reserved))
         ).actionGet(30, TimeUnit.SECONDS);
     }
 }

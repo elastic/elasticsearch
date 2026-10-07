@@ -203,7 +203,9 @@ The `mappings` block supports the following properties:
 - `properties`: Columns keyed by their logical name. Each column requires a `type`.
   - `path`: Optional physical column name. Use it to expose a file column under a different logical name, including renaming a timestamp column to `@timestamp`.
     - {applies_to}`stack: experimental 9.6` To keep a file column whose name matches a metadata name, rename it here before requesting that name via `METADATA`.
-  - `format`: Optional date parsing pattern for a column with type `date`.
+  - `format`: Optional date parsing pattern for a column with type `date` or `date_nanos`. Without a `format`, a plain number in a `date` column is read as epoch milliseconds. Set `format` to `epoch_second` for epoch seconds.
+    - {applies_to}`stack: experimental 9.6+` A plain number in a `date_nanos` column without a `format` is also read as epoch milliseconds. A value before 1970 or after 2262, such as an epoch-nanoseconds count, cannot be represented and is handled according to `error_mode`. No format reads epoch nanoseconds: declare such a column as `long` and convert it with `TO_DATE_NANOS` in the query.
+    - {applies_to}`stack: experimental =9.5` A plain number in a `date_nanos` column without a `format` is read as epoch nanoseconds.
 - `_id.path` {applies_to}`stack: experimental =9.5`: Optional source column whose value becomes the row's `_id`. Later versions reject an `_id` block in `mappings`.
 - `dynamic`: Controls undeclared columns. The default, `true`, overlays the declared columns on the inferred schema. Set it to `false` to treat the declaration as the complete schema, skip schema inference for text formats, and leave undeclared columns unavailable to queries.
 

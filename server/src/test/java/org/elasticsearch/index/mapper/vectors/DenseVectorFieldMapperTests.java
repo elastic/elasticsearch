@@ -780,15 +780,16 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     public void testIVFParsing() throws IOException {
         var base = new DenseVectorMappingBuilder().dims(128).index(true).similarity(VectorSimilarity.DOT_PRODUCT);
         {
-            DocumentMapper mapperService = createMapperService(
+            MapperService mapperService = createMapperService(
                 EXPERIMENTAL_FEATURES_ENABLED,
                 fieldMapping(b -> base.clone().indexOptions(Map.of("type", "bbq_disk", "bits", 4)).build(b))
-            ).documentMapper();
+            );
 
-            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
-            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldMapper
-                .fieldType()
-                .getIndexOptions();
+            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = getIndexOptions(
+                mapperService,
+                "field",
+                DenseVectorFieldMapper.BBQIVFIndexOptions.class
+            );
             assertEquals(4, indexOptions.bits, 0.0F);
             assertNull(indexOptions.rescoreVector);
             assertEquals(ES940DiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER, indexOptions.clusterSize);
@@ -796,20 +797,21 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertEquals(0.0, indexOptions.defaultVisitPercentage, 0.0);
         }
         {
-            DocumentMapper mapperService = createMapperService(
+            MapperService mapperService = createMapperService(
                 EXPERIMENTAL_FEATURES_ENABLED,
                 fieldMapping(b -> base.clone().indexOptions(Map.of("type", "bbq_disk", "bits", 7)).build(b))
-            ).documentMapper();
+            );
 
-            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
-            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldMapper
-                .fieldType()
-                .getIndexOptions();
+            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = getIndexOptions(
+                mapperService,
+                "field",
+                DenseVectorFieldMapper.BBQIVFIndexOptions.class
+            );
             assertEquals(7, indexOptions.bits, 0.0F);
             assertNull(indexOptions.rescoreVector);
         }
         {
-            DocumentMapper mapperService = createMapperService(
+            MapperService mapperService = createMapperService(
                 EXPERIMENTAL_FEATURES_DISABLED,
                 fieldMapping(
                     b -> base.clone()
@@ -829,12 +831,13 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                         )
                         .build(b)
                 )
-            ).documentMapper();
+            );
 
-            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
-            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldMapper
-                .fieldType()
-                .getIndexOptions();
+            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = getIndexOptions(
+                mapperService,
+                "field",
+                DenseVectorFieldMapper.BBQIVFIndexOptions.class
+            );
             assertEquals(2F, indexOptions.rescoreVector.oversample(), 0.0F);
             assertEquals(1000, indexOptions.clusterSize);
             assertEquals(1500, indexOptions.getFlatIndexThreshold());
@@ -842,27 +845,29 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertEquals(1, indexOptions.bits, 0.0);
         }
         {
-            DocumentMapper mapperService = createMapperService(
+            MapperService mapperService = createMapperService(
                 EXPERIMENTAL_FEATURES_DISABLED,
                 fieldMapping(b -> base.clone().indexOptions(Map.of("type", "bbq_disk", "bits", 4)).build(b))
-            ).documentMapper();
+            );
 
-            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
-            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldMapper
-                .fieldType()
-                .getIndexOptions();
+            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = getIndexOptions(
+                mapperService,
+                "field",
+                DenseVectorFieldMapper.BBQIVFIndexOptions.class
+            );
             assertEquals(4, indexOptions.bits, 0.0F);
         }
         {
-            DocumentMapper mapperService = createMapperService(
+            MapperService mapperService = createMapperService(
                 EXPERIMENTAL_FEATURES_DISABLED,
                 fieldMapping(b -> base.clone().indexOptions(Map.of("type", "bbq_disk", "precondition", true)).build(b))
-            ).documentMapper();
+            );
 
-            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
-            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldMapper
-                .fieldType()
-                .getIndexOptions();
+            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = getIndexOptions(
+                mapperService,
+                "field",
+                DenseVectorFieldMapper.BBQIVFIndexOptions.class
+            );
             assertTrue(indexOptions.doPrecondition());
         }
     }
@@ -1235,36 +1240,39 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     public void testDefaultOversampleValue() throws IOException {
         var base = new DenseVectorMappingBuilder().dims(128).index(true).similarity(VectorSimilarity.DOT_PRODUCT);
         {
-            DocumentMapper mapperService = createDocumentMapper(
+            MapperService mapperService = createMapperService(
                 fieldMapping(b -> base.clone().indexOptions(Map.of("type", "bbq_hnsw")).build(b))
             );
 
-            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
-            DenseVectorFieldMapper.BBQHnswIndexOptions indexOptions = (DenseVectorFieldMapper.BBQHnswIndexOptions) denseVectorFieldMapper
-                .fieldType()
-                .getIndexOptions();
+            DenseVectorFieldMapper.BBQHnswIndexOptions indexOptions = getIndexOptions(
+                mapperService,
+                "field",
+                DenseVectorFieldMapper.BBQHnswIndexOptions.class
+            );
             assertEquals(3.0F, indexOptions.rescoreVector.oversample(), 0.0F);
         }
         {
-            DocumentMapper mapperService = createDocumentMapper(
+            MapperService mapperService = createMapperService(
                 fieldMapping(b -> base.clone().indexOptions(Map.of("type", "bbq_flat")).build(b))
             );
 
-            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
-            DenseVectorFieldMapper.BBQFlatIndexOptions indexOptions = (DenseVectorFieldMapper.BBQFlatIndexOptions) denseVectorFieldMapper
-                .fieldType()
-                .getIndexOptions();
+            DenseVectorFieldMapper.BBQFlatIndexOptions indexOptions = getIndexOptions(
+                mapperService,
+                "field",
+                DenseVectorFieldMapper.BBQFlatIndexOptions.class
+            );
             assertEquals(3.0F, indexOptions.rescoreVector.oversample(), 0.0F);
         }
         {
-            DocumentMapper mapperService = createDocumentMapper(
+            MapperService mapperService = createMapperService(
                 fieldMapping(b -> base.clone().indexOptions(Map.of("type", "int8_hnsw")).build(b))
             );
 
-            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
-            DenseVectorFieldMapper.Int8HnswIndexOptions indexOptions = (DenseVectorFieldMapper.Int8HnswIndexOptions) denseVectorFieldMapper
-                .fieldType()
-                .getIndexOptions();
+            DenseVectorFieldMapper.Int8HnswIndexOptions indexOptions = getIndexOptions(
+                mapperService,
+                "field",
+                DenseVectorFieldMapper.Int8HnswIndexOptions.class
+            );
             assertNull(indexOptions.rescoreVector);
         }
     }
@@ -2898,8 +2906,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     private static boolean onDiskMergeOf(MapperService mapperService) {
-        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
-        return mapper.fieldType().getIndexOptions().isOnDiskMerge();
+        return getIndexOptions(mapperService, "field", DenseVectorFieldMapper.DenseVectorIndexOptions.class).isOnDiskMerge();
     }
 
     private static class TestDenseVectorIndexOptions extends DenseVectorFieldMapper.DenseVectorIndexOptions {

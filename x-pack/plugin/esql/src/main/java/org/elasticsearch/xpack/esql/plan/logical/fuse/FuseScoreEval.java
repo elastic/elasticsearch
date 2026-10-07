@@ -122,8 +122,12 @@ public class FuseScoreEval extends UnaryPlan
             return false;
         }
 
-        FuseScoreEval rrf = (FuseScoreEval) obj;
-        return child().equals(rrf.child()) && scoreAttr.equals(rrf.score()) && discriminatorAttr.equals(discriminator());
+        FuseScoreEval other = (FuseScoreEval) obj;
+        return child().equals(other.child())
+            && scoreAttr.equals(other.score())
+            && discriminatorAttr.equals(other.discriminator())
+            && fuseType == other.fuseType
+            && Objects.equals(options, other.options);
     }
 
     @Override

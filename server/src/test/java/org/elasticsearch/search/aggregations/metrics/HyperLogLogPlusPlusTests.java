@@ -267,7 +267,8 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
      * only grow, so the result must not depend on how the hashes were split up or merged.
      */
     public void testBulkMergePaths() throws IOException {
-        final int precision = randomIntBetween(MIN_PRECISION, 12);
+        // Up to 14, so that the registers need several steps of the bulk operations, which move at most 4096 registers at a time.
+        final int precision = randomIntBetween(MIN_PRECISION, 14);
         final int threshold = (int) ((1 << precision) / 4 * 0.75);
         final BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
         try (

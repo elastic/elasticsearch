@@ -2990,23 +2990,29 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * schema whatever the fold is doing, so no error policy can make them stop. On {@code FIRST_FILE_WINS} only
      * {@code skip_row} forces a full read, because only it strips the unread files' row counts at commit and so
      * would leave the dataset-aggregate promise unfulfillable.
+     * <p>
+     * Three files, because the three outcomes collide at two. The reconciliation rail reads the N files with no
+     * separate anchor read; first_file_wins reads an anchor and then fans out. So a full reconciliation read is 3,
+     * a full first_file_wins read is 1 + 3 = 4, and a stop is the anchor plus the one read that settles the fold
+     * and the budget = 2. At two files the first and last are both 2 and the assertion proves nothing.
      */
     public void testStopDecisionAcrossSchemaResolutionsAndErrorPolicies() throws Exception {
         for (FormatReader.SchemaResolution resolution : FormatReader.SchemaResolution.values()) {
             for (String errorMode : List.of("fail_fast", "skip_row", "null_field")) {
                 int reads = gatherReadsFor(resolution, errorMode);
-                boolean mustReadEveryFile = resolution != FormatReader.SchemaResolution.FIRST_FILE_WINS || errorMode.equals("skip_row");
                 String cell = resolution + "/" + errorMode;
-                if (mustReadEveryFile) {
-                    assertEquals(cell + " must read every file", 3, reads);
+                if (resolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
+                    assertEquals(cell + ": the reconciliation rail reads every file and never stops", 3, reads);
+                } else if (errorMode.equals("skip_row")) {
+                    assertEquals(cell + ": skip_row strips the unread counts, so the fan-out must complete", 4, reads);
                 } else {
-                    assertEquals(cell + " may stop at the sizing read", 2, reads);
+                    assertEquals(cell + ": nothing left to buy, so stop after the anchor and one read", 2, reads);
                 }
             }
         }
     }
 
-    /** One cell of the matrix: two ndjson files, no row counts (dead fold), 1 kb cache (refusing budget). */
+    /** One cell of the matrix: three ndjson files, no row counts (dead fold), 1 kb cache (refusing budget). */
     private int gatherReadsFor(FormatReader.SchemaResolution resolution, String errorMode) throws Exception {
         Settings tinyCache = Settings.builder()
             .put("esql.external.cache.size", "1kb")
@@ -3017,9 +3023,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
             String glob = "s3://bucket/nd/*.ndjson";
             String pathA = "s3://bucket/nd/a.ndjson";
             String pathB = "s3://bucket/nd/b.ndjson";
+            String pathC = "s3://bucket/nd/c.ndjson";
             List<Attribute> schema = List.of(attr("x", DataType.LONG));
-            Map<String, List<Attribute>> schemas = Map.of(pathA, schema, pathB, schema);
-            List<StorageEntry> listing = List.of(entry(pathA, 100), entry(pathB, 200));
+            Map<String, List<Attribute>> schemas = Map.of(pathA, schema, pathB, schema, pathC, schema);
+            List<StorageEntry> listing = List.of(entry(pathA, 100), entry(pathB, 200), entry(pathC, 300));
             StubStorageProvider provider = new StubStorageProvider(Map.of("s3://bucket/nd/", listing), schemas);
             AtomicInteger metadataReads = new AtomicInteger();
             ExternalSourceResolver resolver = ndjsonPromiseResolver(provider, schemas, Map.of(), cacheService, metadataReads);

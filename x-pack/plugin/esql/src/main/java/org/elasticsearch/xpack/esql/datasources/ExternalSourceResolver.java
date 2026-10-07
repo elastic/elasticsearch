@@ -2653,6 +2653,9 @@ public class ExternalSourceResolver {
      * worth the reads by itself. Nor does it stop where stopping would destroy the warm answer: under
      * {@code skip_row} the unread files' row counts are stripped at commit, so a dataset-aggregate
      * promise could never be fulfilled and every warm {@code COUNT(*)} would re-scan.
+     * <p>
+     * The purpose conjunct is load-bearing against a crash, not just a narrower schema: the reconciliation rail's
+     * consumers read every slot, so a gather that stopped there throws on the first unread one.
      */
     private static boolean remainingReadsBuyNothing(
         GatherPurpose purpose,

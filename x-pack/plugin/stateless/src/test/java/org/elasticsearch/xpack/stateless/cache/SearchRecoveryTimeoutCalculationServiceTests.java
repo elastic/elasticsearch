@@ -49,6 +49,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.metadata.Metadata.DEFAULT_PROJECT_ID;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -138,22 +139,24 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
 
     /// Builds a cluster state with `numShards` SEARCH\_ONLY replicas on `sourceNodeId`,
     /// with the first `numShardsToTarget` relocating to `targetNodeId` and the remainder
-    /// relocating to `"other-node"`. The source is marked for REMOVE shutdown starting at `startedAtMillis`; the effective grace period
-    /// is controlled via [SharedBlobCacheWarmingService#SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING].
+    /// relocating to `"other-node"`, plus `numPendingShards` additional SEARCH\_ONLY shards that are STARTED on `sourceNodeId` (not
+    /// relocating yet). The source is marked for REMOVE shutdown starting at `startedAtMillis`; the effective grace period is controlled
+    /// via [SharedBlobCacheWarmingService#SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING].
     private static ClusterState clusterStateSearchShardsRelocatingFromShuttingDownSource(
         int numShards,
         int numShardsToTarget,
         Index index,
         String sourceNodeId,
         String targetNodeId,
-        long startedAtMillis
+        long startedAtMillis,
+        int numPendingShards
     ) {
         assert numShardsToTarget <= numShards;
         final String primaryNodeId = "primary-node";
         final String masterNodeId = "master-node";
         final String otherNodeId = "other-node";
         final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
-            .settings(indexSettings(IndexVersion.current(), index.getUUID(), numShards, 1))
+            .settings(indexSettings(IndexVersion.current(), index.getUUID(), numShards + numPendingShards, 1))
             .build();
         final IndexRoutingTable.Builder routingBuilder = IndexRoutingTable.builder(index);
         for (int s = 0; s < numShards; s++) {
@@ -167,6 +170,16 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 .withRole(ShardRouting.Role.SEARCH_ONLY)
                 .build();
             routingBuilder.addIndexShard(new IndexShardRoutingTable.Builder(sid).addShard(primary).addShard(relocating));
+        }
+        for (int s = numShards; s < numShards + numPendingShards; s++) {
+            final ShardId sid = new ShardId(index, s);
+            final ShardRouting primary = TestShardRouting.shardRoutingBuilder(sid, primaryNodeId, true, STARTED)
+                .withRole(ShardRouting.Role.INDEX_ONLY)
+                .build();
+            final ShardRouting pending = TestShardRouting.shardRoutingBuilder(sid, sourceNodeId, false, STARTED)
+                .withRole(ShardRouting.Role.SEARCH_ONLY)
+                .build();
+            routingBuilder.addIndexShard(new IndexShardRoutingTable.Builder(sid).addShard(primary).addShard(pending));
         }
         final SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
             .setNodeId(sourceNodeId)
@@ -195,6 +208,25 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             )
             .routingTable(GlobalRoutingTable.builder().put(DEFAULT_PROJECT_ID, RoutingTable.builder().add(routingBuilder).build()).build())
             .build();
+    }
+
+    private static ClusterState clusterStateSearchShardsRelocatingFromShuttingDownSource(
+        int numShards,
+        int numShardsToTarget,
+        Index index,
+        String sourceNodeId,
+        String targetNodeId,
+        long startedAtMillis
+    ) {
+        return clusterStateSearchShardsRelocatingFromShuttingDownSource(
+            numShards,
+            numShardsToTarget,
+            index,
+            sourceNodeId,
+            targetNodeId,
+            startedAtMillis,
+            0
+        );
     }
 
     /// [SearchRecoveryTimeoutCalculationService#searchRecoveryTimeout] applies to non-promotable search replicas only.
@@ -640,12 +672,13 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
 
             final int shardsLeft = randomFrom(2, 4);
             final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
-                shardsLeft,
+                shardsLeft - 1,
                 1,
                 index,
                 sourceNodeId,
                 targetNodeId,
-                startedAtMillis
+                startedAtMillis,
+                1
             );
             final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
                 .shardRoutingTable(new ShardId(index, 0))
@@ -860,14 +893,15 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             final String sourceNodeId = "source-node";
             final String targetNodeId = "target-node";
 
-            // 4 shards on the source, 1 of them relocating to targetNodeId → shardsOnSource=4, ongoingRelocations=1
+            // 4 shards on the source: 3 relocating (1 of them to targetNodeId) and 1 pending → shardsOnSource=4, ongoingRelocations=1
             final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
-                4,
+                3,
                 1,
                 index,
                 sourceNodeId,
                 targetNodeId,
-                startedAtMillis
+                startedAtMillis,
+                1
             );
             final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
                 .shardRoutingTable(new ShardId(index, 0))
@@ -925,12 +959,13 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             final String targetNodeId = "target-node";
 
             final ClusterState initialState = clusterStateSearchShardsRelocatingFromShuttingDownSource(
-                4,
+                3,
                 1,
                 index,
                 sourceNodeId,
                 targetNodeId,
-                startedAtMillis
+                startedAtMillis,
+                1
             );
             final ShardRouting self = initialState.routingTable(DEFAULT_PROJECT_ID)
                 .shardRoutingTable(new ShardId(index, 0))
@@ -942,15 +977,16 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             assertThat(initialPlan.timeout().millis(), equalTo(10_000L / 4));
             assertThat(initialPlan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
 
-            // two other shards finished on time, one slice later only two shards are left on the source
+            // two other shards finished on time, one slice later only two shards (one of them still pending) are left on the source
             threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
             final ClusterState stateAfterEarlyFinishes = clusterStateSearchShardsRelocatingFromShuttingDownSource(
-                2,
+                1,
                 1,
                 index,
                 sourceNodeId,
                 targetNodeId,
-                startedAtMillis
+                startedAtMillis,
+                1
             );
             final var reevaluatedPlan = service.searchRecoveryTimeout(stateAfterEarlyFinishes, mockIndexShard(self), 0L, initialPlan);
             assertThat(reevaluatedPlan.timeout().millis(), equalTo(8000L / 2 - 10_000L / 4));
@@ -961,6 +997,61 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 4000);
             final var nextPlan = service.searchRecoveryTimeout(stateAfterEarlyFinishes, mockIndexShard(self), 0L, reevaluatedPlan);
             assertThat(nextPlan.timeout().millis(), equalTo(0L));
+        }
+    }
+
+    /// With no shard pending on the source nobody waits for a slice behind the relocating shards, which wait concurrently, so a
+    /// re-evaluation extends by all the remaining grace even when nothing was saved. With a pending shard, nothing saved means no
+    /// extension: 10s grace, 4 shards on the source gives each 2500ms; 2000ms later the fresh share is 2000ms, below what was budgeted.
+    public void testReevaluationExtendsByRemainingGraceOnlyWhenNoShardIsPending() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            final Settings settings = Settings.builder()
+                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
+                .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
+                .build();
+            final var service = newCalculationService(threadPool, settings, 0L);
+
+            final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
+            final long startedAtMillis = threadPool.absoluteTimeInMillis();
+            final var index = new Index("idx", randomUUID());
+            final String sourceNodeId = "source-node";
+            final String targetNodeId = "target-node";
+
+            final var previous = new SearchRecoveryTimeout(
+                TimeValue.timeValueMillis(2500),
+                TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE,
+                2500.0
+            );
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
+
+            // 4 shards on the source in both cases, 1 of them relocating to targetNodeId
+            IntStream.of(0, 1).forEach(pendingShards -> {
+                final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
+                    4 - pendingShards,
+                    1,
+                    index,
+                    sourceNodeId,
+                    targetNodeId,
+                    startedAtMillis,
+                    pendingShards
+                );
+                final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
+                    .shardRoutingTable(new ShardId(index, 0))
+                    .shardsWithState(RELOCATING)
+                    .getFirst()
+                    .getTargetRelocatingShard();
+                final var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L, previous);
+                assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
+                assertThat(plan.perShardShareMs(), equalTo(2000.0));
+                assertThat("pending shards: " + pendingShards, plan.timeout().millis(), equalTo(pendingShards == 0 ? 8000L : 0L));
+            });
         }
     }
 

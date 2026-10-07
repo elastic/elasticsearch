@@ -176,6 +176,10 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         assertEquals(0, watermark.used());
     }
 
+    /**
+     * Concurrent waiters share one overshoot owner and the rest become partial holders via forced
+     * admits.
+     */
     public void testConcurrentAdmitWaitTakesOneOvershootRestCharged() throws Exception {
         ParquetIoWatermark watermark = new ParquetIoWatermark(200);
         AtomicInteger admitted = new AtomicInteger();
@@ -312,6 +316,9 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         assertEquals(90, watermark.used());
     }
 
+    /**
+     * After the admit wait budget a waiter force-charges instead of failing.
+     */
     public void testAdmitWaitChargesAfterTimeoutInsteadOfRejecting() {
         ParquetIoWatermark watermark = new ParquetIoWatermark(100);
         RowGroupIo owner = new RowGroupIo();
@@ -379,9 +386,8 @@ public class ParquetIoWatermarkTests extends ESTestCase {
     }
 
     /**
-     * Waiters force-charge after the watermark admit budget, so the owner's release queued on the
-     * same pool can run. Worker failures are captured on this thread; the pool would otherwise
-     * swallow an AssertionError.
+     * Waiters on a shared pool force-charge after the admit budget so the owner's release queued
+     * behind them can run.
      */
     public void testWaitersOnSharedPoolBoundedByAdmitBudget() throws Exception {
         ParquetIoWatermark watermark = new ParquetIoWatermark(100, 200L);

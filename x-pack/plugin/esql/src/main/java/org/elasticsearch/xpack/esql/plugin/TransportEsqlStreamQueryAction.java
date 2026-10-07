@@ -418,20 +418,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             }, ex -> {
                 transportEsqlQueryAction.recordCCSTelemetry(task, executionInfo, request, ex);
                 if (streamStarted.get()) {
-                    long tookMillis = executionInfo.overallTook() != null ? executionInfo.overallTook().millis() : 0L;
-                    publisher.failStream(
-                        ex,
-                        new PageStreamPublisher.StreamFooter(
-                            ExceptionsHelper.status(ex).getStatus(),
-                            tookMillis,
-                            executionInfo.isPartial(),
-                            footerWarnings(threadPool.getThreadContext(), DriverCompletionInfo.EMPTY),
-                            null,
-                            null,
-                            ex,
-                            null
-                        )
-                    );
+                    publisher.failStream(ex, failureFooter(ex, executionInfo, threadPool.getThreadContext()));
                 }
                 listener.onFailure(ex);
             })
@@ -443,6 +430,20 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             return null;
         }
         return ChunkedToXContent.wrapAsToXContent(executionInfo);
+    }
+
+    static PageStreamPublisher.StreamFooter failureFooter(Exception ex, EsqlExecutionInfo executionInfo, ThreadContext threadContext) {
+        long tookMillis = executionInfo.overallTook() != null ? executionInfo.overallTook().millis() : 0L;
+        return new PageStreamPublisher.StreamFooter(
+            ExceptionsHelper.status(ex).getStatus(),
+            tookMillis,
+            executionInfo.isPartial(),
+            footerWarnings(threadContext, DriverCompletionInfo.EMPTY),
+            null,
+            null,
+            ex,
+            null
+        );
     }
 
     private static Exception startStream(

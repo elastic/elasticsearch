@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
@@ -62,11 +64,17 @@ public class QueryConcurrencyBudgetTests extends ESTestCase {
     }
 
     public void testTimeoutThrows() throws Exception {
-        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 50L, null);
+        RecordingTracker tracker = new RecordingTracker();
+        ConcurrencyBudgetAllocator allocator = new ConcurrencyBudgetAllocator(10, 50L, tracker, "s3");
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 50L, allocator, tracker);
         budget.acquire();
 
         expectThrows(TimeoutException.class, budget::acquire);
 
+        assertEquals("budget/s3", tracker.lastGate);
+        assertEquals(0, tracker.outstanding.get());
+        assertEquals(0, tracker.grants.get());
+        assertEquals(1, tracker.finished.get());
         budget.release();
     }
 
@@ -523,5 +531,31 @@ public class QueryConcurrencyBudgetTests extends ESTestCase {
 
     private static void awaitWaiters(QueryConcurrencyBudget budget, int expected) throws Exception {
         assertBusy(() -> assertEquals(expected, budget.waiterCount()));
+    }
+
+    private static final class RecordingTracker implements AdmissionTracker {
+        private final AtomicInteger outstanding = new AtomicInteger();
+        private final AtomicInteger grants = new AtomicInteger();
+        private final AtomicInteger finished = new AtomicInteger();
+        private volatile String lastGate;
+
+        @Override
+        public Wait waitStarted(String gate, String waiter) {
+            lastGate = gate;
+            outstanding.incrementAndGet();
+            return new Wait() {
+                @Override
+                public void granted() {
+                    outstanding.decrementAndGet();
+                    grants.incrementAndGet();
+                }
+
+                @Override
+                public void finished() {
+                    outstanding.decrementAndGet();
+                    finished.incrementAndGet();
+                }
+            };
+        }
     }
 }

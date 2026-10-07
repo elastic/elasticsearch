@@ -679,7 +679,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public MappingBuilder parseMappings(CompressedXContent mappingSource) {
-        return mappingParser.parseToBuilder(SINGLE_MAPPING_NAME, MergeReason.MAPPING_UPDATE, MappingParser.convertToMap(mappingSource));
+        return parseMappings(mappingSource, MergeReason.MAPPING_UPDATE);
+    }
+
+    /**
+     * Parses a mapping source into a builder under the given reason
+     */
+    public MappingBuilder parseMappings(CompressedXContent mappingSource, MergeReason reason) {
+        return mappingParser.parseToBuilder(SINGLE_MAPPING_NAME, reason, MappingParser.convertToMap(mappingSource));
     }
 
     private DocumentMapper doMerge(String type, MergeReason reason, Map<String, Object> mappingSourceAsMap) {

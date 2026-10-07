@@ -26,7 +26,11 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.mapper.MappingBuilder;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -96,11 +100,18 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
     protected GetFieldMappingsResponse shardOperation(final GetFieldMappingsIndexRequest request, ShardId shardId) {
         assert shardId != null;
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        Predicate<String> metadataFieldPredicate = (f) -> indexService.mapperService().isMetadataField(f);
+        MapperService mapperService = indexService.mapperService();
+        Predicate<String> metadataFieldPredicate = mapperService::isMetadataField;
         Predicate<String> fieldPredicate = metadataFieldPredicate.or(indicesService.getFieldFilter().apply(shardId.getIndexName()));
 
-        MappingLookup mappingLookup = indexService.mapperService().mappingLookup();
-        Map<String, FieldMappingMetadata> fieldMapping = findFieldMappings(fieldPredicate, mappingLookup, request);
+        DocumentMapper documentMapper = mapperService.documentMapper();
+        if (documentMapper == null) {
+            return new GetFieldMappingsResponse(Map.of(shardId.getIndexName(), Map.of()));
+        }
+        MappingBuilder mappingBuilder = mapperService.parseMappings(documentMapper.mappingSource(), MergeReason.MAPPING_RECOVERY);
+        Map<String, FieldMappingMetadata> fieldMapping = findFieldMappings(fieldPredicate, mappingBuilder, request);
+        assert fieldMapping.equals(findFieldMappingsFromMappers(fieldPredicate, documentMapper.mappers(), request))
+            : "field mappings written from builders differ from those written from mappers";
         return new GetFieldMappingsResponse(singletonMap(shardId.getIndexName(), fieldMapping));
     }
 
@@ -151,57 +162,75 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
         }
     };
 
-    private static Map<String, FieldMappingMetadata> findFieldMappings(
+    static Map<String, FieldMappingMetadata> findFieldMappings(
         Predicate<String> fieldPredicate,
-        MappingLookup mappingLookup,
+        MappingBuilder mappingBuilder,
         GetFieldMappingsIndexRequest request
     ) {
         // TODO the logic here needs to be reworked to also include runtime fields. Though matching is against mappers rather
         // than field types, and runtime fields are mixed with ordinary fields in FieldTypeLookup
         Map<String, FieldMappingMetadata> fieldMappings = new HashMap<>();
+        // simpleMatch is a glob for a pattern, everything for "*", and equality for a field name: the three ways of asking
+        mappingBuilder.collectFieldBuilders(MergeReason.MAPPING_RECOVERY, (path, builder) -> {
+            if (Regex.simpleMatch(request.fields(), path)) {
+                addField(fieldPredicate, path, builder, fieldMappings, request.includeDefaults());
+            }
+        });
+        return Collections.unmodifiableMap(fieldMappings);
+    }
+
+    /**
+     * Used to assert equality with the FieldMappings built from the mappings source
+     */
+    static Map<String, FieldMappingMetadata> findFieldMappingsFromMappers(
+        Predicate<String> fieldPredicate,
+        MappingLookup mappingLookup,
+        GetFieldMappingsIndexRequest request
+    ) {
+        Map<String, FieldMappingMetadata> fieldMappings = new HashMap<>();
         for (String field : request.fields()) {
             if (Regex.isMatchAllPattern(field)) {
                 for (Mapper fieldMapper : mappingLookup.fieldMappers()) {
-                    addFieldMapper(fieldPredicate, fieldMapper.fullPath(), fieldMapper, fieldMappings, request.includeDefaults());
+                    addField(fieldPredicate, fieldMapper.fullPath(), fieldMapper, fieldMappings, request.includeDefaults());
                 }
             } else if (Regex.isSimpleMatchPattern(field)) {
                 for (Mapper fieldMapper : mappingLookup.fieldMappers()) {
                     if (Regex.simpleMatch(field, fieldMapper.fullPath())) {
-                        addFieldMapper(fieldPredicate, fieldMapper.fullPath(), fieldMapper, fieldMappings, request.includeDefaults());
+                        addField(fieldPredicate, fieldMapper.fullPath(), fieldMapper, fieldMappings, request.includeDefaults());
                     }
                 }
             } else {
                 // not a pattern
                 Mapper fieldMapper = mappingLookup.getMapper(field);
                 if (fieldMapper != null) {
-                    addFieldMapper(fieldPredicate, field, fieldMapper, fieldMappings, request.includeDefaults());
+                    addField(fieldPredicate, field, fieldMapper, fieldMappings, request.includeDefaults());
                 }
             }
         }
         return Collections.unmodifiableMap(fieldMappings);
     }
 
-    private static void addFieldMapper(
+    private static void addField(
         Predicate<String> fieldPredicate,
-        String field,
-        Mapper fieldMapper,
+        String fullPath,
+        ToXContent field,
         Map<String, FieldMappingMetadata> fieldMappings,
         boolean includeDefaults
     ) {
-        if (fieldMappings.containsKey(field)) {
+        if (fieldMappings.containsKey(fullPath)) {
             return;
         }
-        if (fieldPredicate.test(field)) {
+        if (fieldPredicate.test(fullPath)) {
             try {
                 BytesReference bytes = XContentHelper.toXContent(
-                    fieldMapper,
+                    field,
                     XContentType.JSON,
                     includeDefaults ? includeDefaultsParams : ToXContent.EMPTY_PARAMS,
                     false
                 );
-                fieldMappings.put(field, new FieldMappingMetadata(fieldMapper.fullPath(), bytes));
+                fieldMappings.put(fullPath, new FieldMappingMetadata(fullPath, bytes));
             } catch (IOException e) {
-                throw new ElasticsearchException("failed to serialize XContent of field [" + field + "]", e);
+                throw new ElasticsearchException("failed to serialize XContent of field [" + fullPath + "]", e);
             }
         }
     }

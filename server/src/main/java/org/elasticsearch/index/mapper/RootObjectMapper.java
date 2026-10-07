@@ -201,6 +201,15 @@ public class RootObjectMapper extends ObjectMapper {
             return context.createChildContext(null, dynamic);
         }
 
+        @Override
+        public void collectFieldBuilders(@Nullable String parentPath, BiConsumer<String, Mapper.Builder> consumer) {
+            for (Mapper.Builder child : mappersBuilders) {
+                // The root's name is not part of it's children's full path, so we pass null as the parent
+                child.collectFieldBuilders(null, consumer);
+            }
+            // TODO include runtime fields
+        }
+
         /**
          * Writes the root-only settings as {@link RootObjectMapper#doXContent} does, statement for statement.
          */

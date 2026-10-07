@@ -1006,6 +1006,12 @@ public abstract class FieldMapper extends Mapper {
                 }
             }
 
+            void collectFieldBuilders(String parentPath, BiConsumer<String, Mapper.Builder> consumer) {
+                for (FieldMapper.Builder fieldBuilder : fieldBuilders.values()) {
+                    fieldBuilder.collectFieldBuilders(parentPath, consumer);
+                }
+            }
+
             /**
              * Writes the {@code fields} block, sorted by name exactly as {@link MultiFields} sorts its built mappers.
              */
@@ -2232,6 +2238,13 @@ public abstract class FieldMapper extends Mapper {
         @Override
         public void normalize(MapperBuilderContext context) {
             multiFieldsBuilder.normalize(context.createChildContext(leafName(), null));
+        }
+
+        @Override
+        public void collectFieldBuilders(@Nullable String parentPath, BiConsumer<String, Mapper.Builder> consumer) {
+            String fullPath = fullPath(parentPath);
+            consumer.accept(fullPath, this);
+            multiFieldsBuilder.collectFieldBuilders(fullPath, consumer);
         }
 
         protected BuilderParams builderParams(Mapper.Builder mainFieldBuilder, MapperBuilderContext context) {

@@ -48,6 +48,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
 public class ObjectMapper extends Mapper {
@@ -258,6 +259,17 @@ public class ObjectMapper extends Mapper {
             }
             // no object mapper found
             return null;
+        }
+
+        /**
+         * Descends into the children: an object contributes no field of its own.
+         */
+        @Override
+        public void collectFieldBuilders(@Nullable String parentPath, BiConsumer<String, Mapper.Builder> consumer) {
+            String fullPath = fullPath(parentPath);
+            for (Mapper.Builder child : mappersBuilders) {
+                child.collectFieldBuilders(fullPath, consumer);
+            }
         }
 
         /**

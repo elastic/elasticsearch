@@ -2995,8 +2995,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         for (FormatReader.SchemaResolution resolution : FormatReader.SchemaResolution.values()) {
             for (String errorMode : List.of("fail_fast", "skip_row", "null_field")) {
                 int reads = gatherReadsFor(resolution, errorMode);
-                boolean mustReadEveryFile = resolution != FormatReader.SchemaResolution.FIRST_FILE_WINS
-                    || errorMode.equals("skip_row");
+                boolean mustReadEveryFile = resolution != FormatReader.SchemaResolution.FIRST_FILE_WINS || errorMode.equals("skip_row");
                 String cell = resolution + "/" + errorMode;
                 if (mustReadEveryFile) {
                     assertEquals(cell + " must read every file", 3, reads);

@@ -11,6 +11,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionGate;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.QueryAdmission;
@@ -29,7 +31,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * Thread-safe and designed to be shared across all queries targeting the same storage scheme.
  * A permits value of 0 disables limiting entirely (all operations pass through).
  */
-class ConcurrencyLimiter {
+class ConcurrencyLimiter implements AdmissionGate {
 
     private static final Logger logger = LogManager.getLogger(ConcurrencyLimiter.class);
 
@@ -39,6 +41,7 @@ class ConcurrencyLimiter {
     private final String scheme;
     private final ExternalSourceSettings.BlobStoreConcurrency concurrency;
     private final long acquireTimeoutMs;
+    private final AdmissionTracker tracker;
     private final AtomicLong lastWarnLogTime = new AtomicLong(0);
 
     private static final long WARN_LOG_INTERVAL_MS = 30_000;
@@ -49,6 +52,7 @@ class ConcurrencyLimiter {
         this.concurrency = null;
         this.acquireTimeoutMs = acquireTimeoutMs;
         this.semaphore = null;
+        this.tracker = AdmissionTracker.NOOP;
     }
 
     ConcurrencyLimiter(String scheme, ExternalSourceSettings.BlobStoreConcurrency concurrency) {
@@ -56,6 +60,15 @@ class ConcurrencyLimiter {
     }
 
     ConcurrencyLimiter(String scheme, ExternalSourceSettings.BlobStoreConcurrency concurrency, long acquireTimeoutMs) {
+        this(scheme, concurrency, acquireTimeoutMs, AdmissionTracker.NOOP);
+    }
+
+    ConcurrencyLimiter(
+        String scheme,
+        ExternalSourceSettings.BlobStoreConcurrency concurrency,
+        long acquireTimeoutMs,
+        AdmissionTracker tracker
+    ) {
         if (Strings.isNullOrEmpty(scheme)) {
             throw new IllegalArgumentException("Scheme cannot be null or empty");
         }
@@ -67,6 +80,8 @@ class ConcurrencyLimiter {
         this.concurrency = concurrency;
         this.acquireTimeoutMs = acquireTimeoutMs;
         this.semaphore = new Semaphore(concurrency.permits(), true);
+        this.tracker = tracker == null ? AdmissionTracker.NOOP : tracker;
+        this.tracker.register(this);
     }
 
     /**
@@ -106,11 +121,24 @@ class ConcurrencyLimiter {
         if (semaphore == null) {
             return;
         }
+        // Fair zero-timeout acquire: fails when waiters exist, so lastGrant only moves on a real park.
+        if (semaphore.tryAcquire(0, TimeUnit.NANOSECONDS)) {
+            return;
+        }
         long startNanos = System.nanoTime();
-        boolean acquired = semaphore.tryAcquire(acquireTimeoutMs, TimeUnit.MILLISECONDS);
+        AdmissionTracker.Wait wait = tracker.waitStarted(name(), Thread.currentThread().getName());
+        boolean acquired;
+        try {
+            acquired = semaphore.tryAcquire(acquireTimeoutMs, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            wait.finished();
+            throw e;
+        }
         if (acquired == false) {
+            wait.finished();
             throw new TimeoutException(timeoutMessage());
         }
+        wait.granted();
         long waitMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
         if (waitMs > WARN_WAIT_THRESHOLD_MS) {
             long lastWarn = lastWarnLogTime.get();
@@ -196,6 +224,19 @@ class ConcurrencyLimiter {
 
     int availablePermits() {
         return semaphore != null ? semaphore.availablePermits() : Integer.MAX_VALUE;
+    }
+
+    @Override
+    public String name() {
+        return scheme == null ? AdmissionTracker.permits("none") : AdmissionTracker.permits(scheme);
+    }
+
+    @Override
+    public int holders() {
+        if (semaphore == null) {
+            return 0;
+        }
+        return maxPermits() - availablePermits();
     }
 
     private String timeoutMessage() {

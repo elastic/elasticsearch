@@ -100,6 +100,8 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSO
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils.addDenseVectorField;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils.getIndexOptions;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorTestSettingsBuilder.EXPERIMENTAL_FEATURES_DISABLED;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorTestSettingsBuilder.EXPERIMENTAL_FEATURES_ENABLED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
@@ -170,7 +172,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
     @Override
     public void testDisableDefaultIndex() throws IOException {
-        var settings = Settings.builder().put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), true).build();
+        var settings = new DenseVectorTestSettingsBuilder().indexDisabledByDefault(true).build();
         var mapperService = createMapperService(settings, fieldMapping(b -> {
             b.field("type", "dense_vector").field("dims", dims);
             if (elementType != ElementType.FLOAT) {
@@ -195,12 +197,12 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         String mapping = Strings.toString(fieldMapping(this::notIndexedMapping));
         Object sample = getSampleValueForDocument(false);
 
-        var settings = Settings.builder().put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true).build();
+        var settings = new DenseVectorTestSettingsBuilder().excludeSourceVectors(true).build();
         MapperService mapperService = createMapperService(settings, mapping);
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", sample)));
         assertThat(storedSource(doc).utf8ToString(), equalTo("{}"));
 
-        var legacySettings = Settings.builder().put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), false).build();
+        var legacySettings = new DenseVectorTestSettingsBuilder().excludeSourceVectors(false).build();
         MapperService legacy = createMapperService(legacySettings, mapping);
         ParsedDocument legacyDoc = legacy.documentMapper().parse(source(b -> b.field("field", sample)));
         BytesReference legacySource = storedSource(legacyDoc);
@@ -791,14 +793,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     public void testAggregatableConsistency() {}
 
     public void testIVFParsing() throws IOException {
-        Settings experimentalEnabled = Settings.builder()
-            .put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), true)
-            .build();
-        Settings experimentalDisabled = Settings.builder()
-            .put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), false)
-            .build();
         {
-            DocumentMapper mapperService = createMapperService(experimentalEnabled, fieldMapping(b -> {
+            DocumentMapper mapperService = createMapperService(EXPERIMENTAL_FEATURES_ENABLED, fieldMapping(b -> {
                 b.field("type", "dense_vector");
                 b.field("dims", 128);
                 b.field("index", true);
@@ -820,7 +816,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertEquals(0.0, indexOptions.defaultVisitPercentage, 0.0);
         }
         {
-            DocumentMapper mapperService = createMapperService(experimentalEnabled, fieldMapping(b -> {
+            DocumentMapper mapperService = createMapperService(EXPERIMENTAL_FEATURES_ENABLED, fieldMapping(b -> {
                 b.field("type", "dense_vector");
                 b.field("dims", 128);
                 b.field("index", true);
@@ -839,7 +835,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertNull(indexOptions.rescoreVector);
         }
         {
-            DocumentMapper mapperService = createMapperService(experimentalDisabled, fieldMapping(b -> {
+            DocumentMapper mapperService = createMapperService(EXPERIMENTAL_FEATURES_DISABLED, fieldMapping(b -> {
                 b.field("type", "dense_vector");
                 b.field("dims", 128);
                 b.field("index", true);
@@ -864,7 +860,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertEquals(1, indexOptions.bits, 0.0);
         }
         {
-            DocumentMapper mapperService = createMapperService(experimentalDisabled, fieldMapping(b -> {
+            DocumentMapper mapperService = createMapperService(EXPERIMENTAL_FEATURES_DISABLED, fieldMapping(b -> {
                 b.field("type", "dense_vector");
                 b.field("dims", 128);
                 b.field("index", true);
@@ -882,7 +878,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertEquals(4, indexOptions.bits, 0.0F);
         }
         {
-            DocumentMapper mapperService = createMapperService(experimentalDisabled, fieldMapping(b -> {
+            DocumentMapper mapperService = createMapperService(EXPERIMENTAL_FEATURES_DISABLED, fieldMapping(b -> {
                 b.field("type", "dense_vector");
                 b.field("dims", 128);
                 b.field("index", true);
@@ -904,7 +900,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     public void testAutoCalibrateParsing() throws IOException {
         CheckedBiConsumer<Object, IvfAutoCalibrationProfile, IOException> assertParsing = (autoCalibrate, expectedProfile) -> {
             String message = "auto_calibrate [" + autoCalibrate + "]";
-            MapperService mapperService = createMapperService(EXPERIMENTAL_ENABLED, autoCalibrateMapping(autoCalibrate));
+            MapperService mapperService = createMapperService(EXPERIMENTAL_FEATURES_ENABLED, autoCalibrateMapping(autoCalibrate));
             DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = getIndexOptions(
                 mapperService,
                 "field",
@@ -933,11 +929,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     public void testBBQDiskAutoCalibrateIndexOptionMappingInteractions() throws IOException {
-        Settings experimentalEnabled = Settings.builder()
-            .put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), true)
-            .build();
-
-        MapperService mapperService = createMapperService(experimentalEnabled, fieldMapping(b -> {
+        MapperService mapperService = createMapperService(EXPERIMENTAL_FEATURES_ENABLED, fieldMapping(b -> {
             b.field("type", "dense_vector");
             b.field("dims", 128);
             b.field("index", true);
@@ -1021,10 +1013,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         })));
     }
 
-    private static final Settings EXPERIMENTAL_ENABLED = Settings.builder()
-        .put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), true)
-        .build();
-
     public void testAutoCalibrateDefaultEnabledProfile() throws IOException {
         IndexVersion qualityVersion = IndexVersionUtils.randomVersionBetween(
             IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE,
@@ -1038,7 +1026,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
         for (Tuple<IndexVersion, IvfAutoCalibrationProfile> testCase : testCases) {
             IndexVersion version = testCase.v1();
-            MapperService mapperService = createMapperService(version, EXPERIMENTAL_ENABLED, autoCalibrateMapping(true));
+            MapperService mapperService = createMapperService(version, EXPERIMENTAL_FEATURES_ENABLED, autoCalibrateMapping(true));
             assertEquals(
                 testCase.v2(),
                 getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrationProfile()
@@ -1047,7 +1035,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             // The stored mapping keeps the boolean, so recovery must resolve it against the same index version
             String mappingSource = mapperService.documentMapper().mappingSource().string();
             assertThat(mappingSource, containsString("\"auto_calibrate\":true"));
-            MapperService recovered = new TestMapperServiceBuilder().indexVersion(version).settings(EXPERIMENTAL_ENABLED).build();
+            MapperService recovered = new TestMapperServiceBuilder().indexVersion(version).settings(EXPERIMENTAL_FEATURES_ENABLED).build();
             merge(recovered, MapperService.MergeReason.MAPPING_RECOVERY, mappingSource);
             assertEquals(
                 testCase.v2(),
@@ -1075,7 +1063,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
     private void assertAutoCalibrateUpdate(IndexVersion version, Object from, Object to, boolean accepted) throws IOException {
         String message = "index version [" + version + "], from [" + from + "] to [" + to + "]";
-        MapperService mapperService = createMapperService(version, EXPERIMENTAL_ENABLED, autoCalibrateMapping(from));
+        MapperService mapperService = createMapperService(version, EXPERIMENTAL_FEATURES_ENABLED, autoCalibrateMapping(from));
         if (accepted) {
             merge(mapperService, autoCalibrateMapping(to));
             DenseVectorAutoCalibrate expected = DenseVectorAutoCalibrate.parse(to, version, f -> true, "field");
@@ -1097,7 +1085,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     public void testAutoCalibrateProfilesRequireClusterFeature() throws IOException {
-        final Supplier<MapperService> createMapperService = () -> new TestMapperServiceBuilder().settings(EXPERIMENTAL_ENABLED)
+        final Supplier<MapperService> createMapperService = () -> new TestMapperServiceBuilder().settings(EXPERIMENTAL_FEATURES_ENABLED)
             .clusterSupportsFeature(f -> false)
             .build();
 
@@ -1131,7 +1119,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
         for (Object value : List.of(false, "disabled")) {
             MapperService mapperService = createMapperService(
-                EXPERIMENTAL_ENABLED,
+                EXPERIMENTAL_FEATURES_ENABLED,
                 autoCalibrateMapping(value, DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType.ASH)
             );
             assertFalse(getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrate());
@@ -1141,7 +1129,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             Exception e = expectThrows(
                 MapperParsingException.class,
                 () -> createMapperService(
-                    EXPERIMENTAL_ENABLED,
+                    EXPERIMENTAL_FEATURES_ENABLED,
                     autoCalibrateMapping(value, DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType.ASH)
                 )
             );
@@ -1451,14 +1439,14 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     public void testDefaultElementTypeUnderVectordbDocumentIndexMode() throws Exception {
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "vectordb_document").build();
+        Settings settings = new DenseVectorTestSettingsBuilder().indexMode(IndexMode.VECTORDB_DOCUMENT).build();
         MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "dense_vector").field("dims", 8)));
         DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
         assertEquals(ElementType.BFLOAT16, mapper.fieldType().getElementType());
     }
 
     public void testExplicitElementTypeOverridesVectordbDocumentModeDefault() throws Exception {
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "vectordb_document").build();
+        Settings settings = new DenseVectorTestSettingsBuilder().indexMode(IndexMode.VECTORDB_DOCUMENT).build();
         MapperService mapperService = createMapperService(
             settings,
             fieldMapping(b -> b.field("type", "dense_vector").field("dims", 8).field("element_type", "float"))
@@ -1469,7 +1457,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
     public void testDefaultsUnderVectordbColumnarIndexMode() throws Exception {
         assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "vectordb_columnar").build();
+        Settings settings = new DenseVectorTestSettingsBuilder().indexMode(IndexMode.VECTORDB_COLUMNAR).build();
         MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "dense_vector").field("dims", 8)));
         DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
         assertEquals(ElementType.BFLOAT16, mapper.fieldType().getElementType());
@@ -1478,7 +1466,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
     public void testExplicitElementTypeOverridesVectordbColumnarModeDefault() throws Exception {
         assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "vectordb_columnar").build();
+        Settings settings = new DenseVectorTestSettingsBuilder().indexMode(IndexMode.VECTORDB_COLUMNAR).build();
         MapperService mapperService = createMapperService(
             settings,
             fieldMapping(b -> b.field("type", "dense_vector").field("dims", 8).field("element_type", "float"))
@@ -2921,11 +2909,11 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             .build(MapperBuilderContext.root(false, false));
         final IndexSettings enabled = IndexSettingsModule.newIndexSettings(
             "foo",
-            Settings.builder().put(IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING.getKey(), true).build()
+            new DenseVectorTestSettingsBuilder().intraMergeParallelism(true).build()
         );
         final IndexSettings disabled = IndexSettingsModule.newIndexSettings(
             "foo",
-            Settings.builder().put(IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING.getKey(), false).build()
+            new DenseVectorTestSettingsBuilder().intraMergeParallelism(false).build()
         );
         // enabled with null tp
         mapper.getKnnVectorsFormatForField(new ES93HnswVectorsFormat(), enabled, null);

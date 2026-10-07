@@ -13,7 +13,8 @@ import org.elasticsearch.xpack.esql.generator.Column;
 import java.util.List;
 
 /**
- * Tests the predicates that classify known generative-test failures as allowed failures.
+ * Tests the predicates that classify known generative-test failures as allowed failures,
+ * and the schema-propagation helpers used by the generative pipeline.
  */
 public class GenerativeRestTestTests extends ESTestCase {
 

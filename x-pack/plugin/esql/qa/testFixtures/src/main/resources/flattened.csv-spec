@@ -1025,3 +1025,33 @@ FROM flattened_otel_logs
 2020-01-01T00:02:48.461Z | infra-filebeat-6vjxr                             | "{""team"":""infra"",""tier"":""prod""}"
 2020-01-01T00:07:43.000Z | devops-ci-master-blue.c.elastic-ci-prod.internal | "{""team"":""devops"",""tier"":""prod""}"
 ;
+
+fillNullOnFlattenedIsUnfillable
+required_capability: fillnull
+required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:00:00.000Z"
+| FILLNULL "missing" ON attributes
+;
+warning:Line 3:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [attributes]
+
+@timestamp:date          | attributes:flattened             | resource.attributes:flattened
+2020-01-01T00:00:00.000Z | "{""host.name"":""equal-host""}" | "{""host.name"":""equal-host""}"
+;
+
+fillNullDefaultOnFlattenedHasNoDefault
+required_capability: fillnull
+required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:00:00.000Z"
+| FILLNULL DEFAULT ON attributes
+;
+warning:Line 3:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [attributes]; provide an explicit value
+
+@timestamp:date          | attributes:flattened             | resource.attributes:flattened
+2020-01-01T00:00:00.000Z | "{""host.name"":""equal-host""}" | "{""host.name"":""equal-host""}"
+;

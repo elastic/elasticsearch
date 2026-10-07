@@ -134,6 +134,16 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
         assertConfigKeysMatchConstants(PartitionConfig.class, PartitionConfig.CONFIG_KEYS);
     }
 
+    public void testCoordinatorKeysIncludesAllPartitionSpecKeys() {
+        for (String key : PartitionSpec.CONFIG_KEYS) {
+            assertTrue("PartitionSpec key " + key + " must be a coordinator key", FileSourceFactory.COORDINATOR_KEYS.contains(key));
+        }
+    }
+
+    public void testPartitionSpecKeysMatchConstants() {
+        assertConfigKeysMatchConstants(PartitionSpec.class, PartitionSpec.CONFIG_KEYS);
+    }
+
     public void testCoordinatorKeysIncludesAllExclusionConfigKeys() {
         for (String key : ExclusionConfig.CONFIG_KEYS) {
             assertTrue("ExclusionConfig key " + key + " must be a coordinator key", FileSourceFactory.COORDINATOR_KEYS.contains(key));

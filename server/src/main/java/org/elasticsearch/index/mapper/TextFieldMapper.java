@@ -957,6 +957,13 @@ public final class TextFieldMapper extends FieldMapper {
             return BinaryDocValuesQueries.forFormat(binaryFormat());
         }
 
+        @Override
+        public BinaryDocValuesQueries valueQueries() {
+            // The strictly columnar modes write the values as the codec's payload, which a query reads a page at a
+            // time. Any other framing is read a document at a time, which is no better than reading the rows.
+            return usesColumnarPayload() ? BinaryDocValuesQueries.forFormat(binaryFormat()) : null;
+        }
+
         /** How this field's binary doc values are framed, and so which decoder reads them back. */
         public BinaryDocValuesFormat binaryFormat() {
             if (useColumnarPayload) {

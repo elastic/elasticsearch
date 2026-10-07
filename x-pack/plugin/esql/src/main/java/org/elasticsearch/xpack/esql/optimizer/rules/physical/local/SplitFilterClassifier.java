@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.datasources.StatValueComparator;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownLiteralConversion;
 import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitStats;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
@@ -70,7 +71,8 @@ final class SplitFilterClassifier {
         if (filter == null || splitStats == null) {
             return SplitMatch.AMBIGUOUS;
         }
-        return classifyRecursive(filter, splitStats, implicitNullsForAbsentColumn);
+        // Convert mixed date/numeric literals into the column domain before stats compare.
+        return classifyRecursive(PushdownLiteralConversion.rewrite(filter), splitStats, implicitNullsForAbsentColumn);
     }
 
     /**
@@ -94,7 +96,7 @@ final class SplitFilterClassifier {
         }
         boolean allMatch = true;
         for (Expression conjunct : filterConjuncts) {
-            SplitMatch result = classifyRecursive(conjunct, splitStats, implicitNullsForAbsentColumn);
+            SplitMatch result = classifyRecursive(PushdownLiteralConversion.rewrite(conjunct), splitStats, implicitNullsForAbsentColumn);
             if (result == SplitMatch.MISS) {
                 return SplitMatch.MISS;
             }

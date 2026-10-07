@@ -3122,6 +3122,26 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         return baos.toByteArray();
     }
 
+    private byte[] int64FixtureBytes(String column, long... values) throws IOException {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named(column).named("test");
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (long value : values) {
+                Group g = factory.newGroup();
+                g.add(column, value);
+                writer.write(g);
+            }
+        }
+        return baos.toByteArray();
+    }
+
     private byte[] dateFixtureBytes(int... days) throws IOException {
         MessageType schema = MessageTypeParser.parseMessageType("message logs { required int32 d (DATE); }");
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -3467,8 +3487,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * {@code TIMESTAMP(MICROS)} infers as {@code date_nanos}. A {@code TO_DATETIME} literal is the other date
-     * type, so reader prune and stats fold decline; {@code FilterExec} still keeps the matching row.
+     * {@code TIMESTAMP(MICROS)} infers as {@code date_nanos}. A {@code TO_DATETIME} literal is converted into the
+     * column domain for reader prune. Footer {@code COUNT(*)} fold stays matching-type parity: RECHECK push
+     * attaches expressions so {@code PushStatsToExternalSource} skips; the classifier folds only when the filter
+     * is still unpushed. {@code FilterExec} re-checks the original mixed predicate.
      */
     public void testDatetimeLiteralFiltersInferredTimestampMicros() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
@@ -3507,8 +3529,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * An inferred {@code integer} compared to a {@code double} or {@code long} literal must stay in
-     * {@code FilterExec}; a column-typed bound would drop the matching row.
+     * An inferred {@code integer} compared to a {@code double} or {@code long} literal converts to a
+     * never-stricter column-typed bound (e.g. {@code i < 5.5} → {@code i <= 5}; out-of-range → domain tautology)
+     * so prune is safe and {@code FilterExec} still returns the matching row.
      */
     public void testNumericLiteralFiltersInferredInteger() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
@@ -3532,6 +3555,25 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertQ("integer lt double", "FROM mixed_int_inferred | WHERE i < 5.5 | STATS c = COUNT(*)", 1L);
         assertQ("integer lte long", "FROM mixed_int_inferred | WHERE i <= 3000000000 | STATS c = COUNT(*)", 1L);
         assertQ("integer in int and double", "FROM mixed_int_inferred | WHERE i IN (5, 5.5) | STATS c = COUNT(*)", 1L);
+
+        Path longParquet = createTempDir().resolve("long_id.parquet");
+        Files.write(longParquet, int64FixtureBytes("l", 5L));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "mixed_long_inferred",
+                    "local_ds",
+                    longParquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    null
+                )
+            )
+        );
+        assertQ("long equals integer", "FROM mixed_long_inferred | WHERE l == 5 | STATS c = COUNT(*)", 1L);
     }
 
     /** Declares {@code {ts: date, format: <the composite>}} over one dataset and asserts ts recovers EPOCH_SECOND_MILLIS. */

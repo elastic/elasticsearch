@@ -1094,41 +1094,54 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
         assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(and));
     }
 
-    public void testMixedDateComparisonNotPushed() {
+    public void testMixedDateComparisonConvertsToRecheck() {
         Attribute nanos = attr("ts", DataType.DATE_NANOS);
         assertEquals(
-            FilterPushdownSupport.Pushability.NO,
+            FilterPushdownSupport.Pushability.RECHECK,
             support.canPush(new Equals(Source.EMPTY, nanos, datetimeLit(1_700_000_000_000L), null))
         );
         assertEquals(
-            FilterPushdownSupport.Pushability.NO,
+            FilterPushdownSupport.Pushability.RECHECK,
             support.canPush(new Equals(Source.EMPTY, attr("ts", DataType.DATETIME), dateNanosLit(1_700_000_000_000_000_000L), null))
         );
     }
 
-    public void testMixedDateInNotPushed() {
+    public void testMixedDateInConvertsToRecheck() {
         Attribute nanos = attr("ts", DataType.DATE_NANOS);
         Expression filter = new In(Source.EMPTY, nanos, List.of(datetimeLit(1_000L), datetimeLit(2_000L)));
-        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
-        Expression reverse = new In(Source.EMPTY, attr("ts", DataType.DATETIME), List.of(dateNanosLit(1_000L), dateNanosLit(2_000L)));
-        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(reverse));
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(filter));
+        Expression reverse = new In(
+            Source.EMPTY,
+            attr("ts", DataType.DATETIME),
+            List.of(dateNanosLit(1_000_000_000L), dateNanosLit(2_000_000_000L))
+        );
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(reverse));
     }
 
-    public void testMixedDateRangeNotPushed() {
+    public void testMixedDateRangeConvertsToRecheck() {
         Attribute nanos = attr("ts", DataType.DATE_NANOS);
         Expression filter = new Range(Source.EMPTY, nanos, datetimeLit(1_000L), true, datetimeLit(2_000L), true, ZoneOffset.UTC);
-        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(filter));
         Attribute date = attr("ts", DataType.DATETIME);
-        Expression reverse = new Range(Source.EMPTY, date, dateNanosLit(1_000L), true, dateNanosLit(2_000L), true, ZoneOffset.UTC);
-        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(reverse));
+        Expression reverse = new Range(
+            Source.EMPTY,
+            date,
+            dateNanosLit(1_000_000_000L),
+            true,
+            dateNanosLit(2_000_000_000L),
+            true,
+            ZoneOffset.UTC
+        );
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(reverse));
     }
 
-    public void testMixedNumericComparisonInAndRangeNotPushed() {
+    public void testMixedNumericComparisonInAndRangeConvertsToRecheck() {
         Attribute id = attr("id", DataType.INTEGER);
-        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(new LessThan(Source.EMPTY, id, doubleLit(5.5), null)));
-        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(new In(Source.EMPTY, id, List.of(doubleLit(5.5)))));
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(new LessThan(Source.EMPTY, id, doubleLit(5.5), null)));
+        // IN (5.5) alone is a domain contradiction (i < MIN) — still pushable as RECHECK.
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(new In(Source.EMPTY, id, List.of(doubleLit(5.5)))));
         assertEquals(
-            FilterPushdownSupport.Pushability.NO,
+            FilterPushdownSupport.Pushability.RECHECK,
             support.canPush(new Range(Source.EMPTY, id, intLit(0), true, doubleLit(5.5), true, ZoneOffset.UTC))
         );
     }
@@ -1150,7 +1163,7 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
         assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(new IsNotNull(Source.EMPTY, attr("id", DataType.INTEGER))));
     }
 
-    public void testNestedMixedDateOrAndNotAttached() {
+    public void testNestedMixedDateOrAndPushesAfterConvert() {
         Attribute ts = attr("ts", DataType.DATE_NANOS);
         Attribute id = attr("id", DataType.INTEGER);
         Attribute other = attr("other", DataType.INTEGER);
@@ -1158,21 +1171,21 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
         Expression intEq = new Equals(Source.EMPTY, id, intLit(1), null);
         Expression otherEq = new Equals(Source.EMPTY, other, intLit(2), null);
         Expression filter = new Or(Source.EMPTY, new And(Source.EMPTY, mixed, intEq), otherEq);
-        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
-        assertFalse(support.pushFilters(List.of(filter)).hasPushedFilter());
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(filter));
+        assertTrue(support.pushFilters(List.of(filter)).hasPushedFilter());
     }
 
-    public void testNestedMixedDateNotAndNotAttached() {
+    public void testNestedMixedDateNotAndPushesAfterConvert() {
         Attribute ts = attr("ts", DataType.DATE_NANOS);
         Attribute id = attr("id", DataType.INTEGER);
         Expression mixed = new Equals(Source.EMPTY, ts, datetimeLit(1_700_000_000_000L), null);
         Expression intEq = new Equals(Source.EMPTY, id, intLit(1), null);
         Expression filter = new Not(Source.EMPTY, new And(Source.EMPTY, mixed, intEq));
-        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
-        assertFalse(support.pushFilters(List.of(filter)).hasPushedFilter());
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(filter));
+        assertTrue(support.pushFilters(List.of(filter)).hasPushedFilter());
     }
 
-    public void testNestedMixedDateInOrAndNotAttached() {
+    public void testNestedMixedDateInOrAndPushesAfterConvert() {
         Attribute ts = attr("ts", DataType.DATE_NANOS);
         Attribute id = attr("id", DataType.INTEGER);
         Attribute other = attr("other", DataType.INTEGER);
@@ -1180,18 +1193,27 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
         Expression intEq = new Equals(Source.EMPTY, id, intLit(1), null);
         Expression otherEq = new Equals(Source.EMPTY, other, intLit(2), null);
         Expression filter = new Or(Source.EMPTY, new And(Source.EMPTY, mixedIn, intEq), otherEq);
-        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
-        assertFalse(support.pushFilters(List.of(filter)).hasPushedFilter());
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(filter));
+        assertTrue(support.pushFilters(List.of(filter)).hasPushedFilter());
     }
 
-    public void testNestedMixedNumericOrAndNotAttached() {
+    public void testNestedMixedNumericOrAndPushesAfterConvert() {
         Attribute id = attr("id", DataType.INTEGER);
         Attribute other = attr("other", DataType.INTEGER);
         Expression mixed = new LessThan(Source.EMPTY, id, doubleLit(5.5), null);
         Expression otherEq = new Equals(Source.EMPTY, other, intLit(2), null);
         Expression filter = new Or(Source.EMPTY, new And(Source.EMPTY, mixed, otherEq), otherEq);
-        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
-        assertFalse(support.pushFilters(List.of(filter)).hasPushedFilter());
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(filter));
+        assertTrue(support.pushFilters(List.of(filter)).hasPushedFilter());
+    }
+
+    public void testMixedRecheckRemainderKeepsOriginalExpression() {
+        Attribute id = attr("id", DataType.INTEGER);
+        Expression mixed = new LessThan(Source.EMPTY, id, doubleLit(5.5), null);
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(mixed));
+        assertTrue(result.hasPushedFilter());
+        assertTrue("RECHECK remainder must keep the original mixed predicate", result.remainder().contains(mixed));
+        assertThat(result.pushedExpressions().getFirst(), instanceOf(LessThanOrEqual.class));
     }
 
     public void testColumnColumnDateAndIntegerStillPushesInteger() {

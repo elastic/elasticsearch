@@ -385,14 +385,14 @@ public class SplitFilterClassifierTests extends ESTestCase {
         assertEquals(MISS, classify(filter, STATS_30_50));
     }
 
-    public void testMixedDateLiteralOnDateNanosIsAmbiguous() {
+    public void testMixedDateLiteralOnDateNanosConvertsAndMatches() {
         long millis = 1_767_312_000_000L;
         long nanos = 1_767_312_000_000_000_000L;
         ReferenceAttribute ts = referenceAttribute("ts", DataType.DATE_NANOS);
         SplitStats stats = colStats("ts", nanos, nanos, 1L, 0L);
         Literal dateLit = new Literal(Source.EMPTY, millis, DataType.DATETIME);
-        assertEquals(AMBIGUOUS, classify(equalsOf(ts, dateLit), stats));
-        assertEquals(AMBIGUOUS, classify(lessThanOrEqualOf(ts, dateLit), stats));
+        assertEquals(MATCH, classify(equalsOf(ts, dateLit), stats));
+        assertEquals(MATCH, classify(lessThanOrEqualOf(ts, dateLit), stats));
     }
 
     public void testMatchingDateNanosLiteralStillMatches() {
@@ -404,10 +404,10 @@ public class SplitFilterClassifierTests extends ESTestCase {
         assertEquals(MATCH, classify(lessThanOrEqualOf(ts, nanosLit), stats));
     }
 
-    public void testMixedIntegerLessThanDoubleIsAmbiguous() {
+    public void testMixedIntegerLessThanDoubleConvertsAndMatches() {
         ReferenceAttribute id = referenceAttribute("id", DataType.INTEGER);
         SplitStats stats = colStats("id", 5, 5, 1L, 0L);
-        assertEquals(AMBIGUOUS, classify(lessThanOf(id, of(5.5)), stats));
+        assertEquals(MATCH, classify(lessThanOf(id, of(5.5)), stats));
     }
 
     public void testMatchingIntegerLiteralStillMatches() {
@@ -417,13 +417,13 @@ public class SplitFilterClassifierTests extends ESTestCase {
         assertEquals(MATCH, classify(lessThanOf(id, of(10)), stats));
     }
 
-    public void testMixedDateLiteralInOnDateNanosIsAmbiguous() {
+    public void testMixedDateLiteralInOnDateNanosConvertsAndMatches() {
         long millis = 1_767_312_000_000L;
         long nanos = 1_767_312_000_000_000_000L;
         ReferenceAttribute ts = referenceAttribute("ts", DataType.DATE_NANOS);
         SplitStats stats = colStats("ts", nanos, nanos, 1L, 0L);
         Literal dateLit = new Literal(Source.EMPTY, millis, DataType.DATETIME);
-        assertEquals(AMBIGUOUS, classify(in(ts, dateLit), stats));
+        assertEquals(MATCH, classify(in(ts, dateLit), stats));
     }
 
     public void testMatchingDateNanosLiteralInStillMatches() {
@@ -434,11 +434,13 @@ public class SplitFilterClassifierTests extends ESTestCase {
         assertEquals(MATCH, classify(in(ts, nanosLit), stats));
     }
 
-    public void testMixedIntegerInDoubleIsAmbiguous() {
+    public void testMixedIntegerInDoubleConverts() {
         ReferenceAttribute id = referenceAttribute("id", DataType.INTEGER);
         SplitStats stats = colStats("id", 5, 5, 1L, 0L);
-        assertEquals(AMBIGUOUS, classify(in(id, of(5.5)), stats));
-        assertEquals(AMBIGUOUS, classify(in(id, of(5), of(5.5)), stats));
+        // IN (5.5) alone → contradiction → MISS
+        assertEquals(MISS, classify(in(id, of(5.5)), stats));
+        // IN (5, 5.5) → drop 5.5 → equals 5 → MATCH
+        assertEquals(MATCH, classify(in(id, of(5), of(5.5)), stats));
     }
 
     public void testMatchingIntegerLiteralInStillMatches() {

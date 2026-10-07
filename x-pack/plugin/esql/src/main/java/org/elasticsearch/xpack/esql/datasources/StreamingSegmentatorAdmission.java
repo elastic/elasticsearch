@@ -14,18 +14,18 @@ import java.util.function.Consumer;
 
 /**
  * Node-level admission controller that caps how many {@link StreamingParallelParsingCoordinator} segmentators
- * may occupy the shared {@code esql_external_io} pool at once, guaranteeing that pool threads always remain free
- * to run the one-shot parser tasks a segmentator depends on.
+ * may occupy the shared {@code esql_external_io} pool at once. A pinned parser pool is not a deadlock:
+ * the segmentator inlines the FIFO head. This gate still keeps spare pool threads so parser tasks
+ * remain a second progress path, not the only one.
  * <p>
  * <strong>The hazard it closes.</strong> Each open stream-only compressed read runs a single long-lived
- * segmentator task on {@code esql_external_io}; that task blocks on {@code chunkQueue.put},
- * {@code dispatchPermits.acquire}, {@code bufferPool.take}, and the upstream decompress {@code InputStream.read},
- * so it pins a pool thread for as long as the read is open. Its per-chunk parser tasks are submitted to the
- * <em>same</em> pool. When the number of concurrently-open segmentators reaches the pool size, every thread is
- * pinned by a segmentator that is itself waiting for a parser task to drain its queues — but those parser tasks
- * are stuck behind the segmentators in the pool's work queue and never get a thread. The off-pool consumers then
- * wait forever for pages that never arrive: a producer-side thread-footprint deadlock (elastic/esql-planning
- * #1093, structural-fix item 4), independent of the drain-side fix in #153074.
+ * segmentator task on {@code esql_external_io}; that task blocks on {@code dispatchPermits.acquire},
+ * {@code bufferPool.take}, and the upstream decompress {@code InputStream.read} when no queued chunk
+ * can be inlined. A full chunk queue no longer parks the segmentator: it parses the FIFO head on
+ * its own thread. Parser tasks still share the same pool, so a full set of pinned segmentators can
+ * starve those tasks — inline parse on the segmentator is the liveness path (T2). The gate still
+ * keeps at least one pool thread free so parser tasks remain a second progress path
+ * (elastic/esql-planning #1093, structural-fix item 4), independent of the drain-side fix in #153074.
  * <p>
  * <strong>Why the gate must precede submission.</strong> A semaphore acquired <em>inside</em> the segmentator
  * task would not help: a segmentator blocked on {@code acquire()} still holds its pool thread. This controller

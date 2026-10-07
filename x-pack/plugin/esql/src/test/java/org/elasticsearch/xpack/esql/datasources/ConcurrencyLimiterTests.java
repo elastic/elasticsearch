@@ -119,4 +119,21 @@ public class ConcurrencyLimiterTests extends ESTestCase {
         assertTrue(limiter.isEnabled());
         assertEquals(42, limiter.maxPermits());
     }
+
+    public void testTryAcquireBargesWithoutBlocking() throws Exception {
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false), 30_000L);
+        limiter.acquire();
+        long start = System.nanoTime();
+        assertFalse(limiter.tryAcquire());
+        long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+        assertTrue("tryAcquire must not wait, took " + elapsedMs + "ms", elapsedMs < 1_000);
+        limiter.release();
+        assertTrue(limiter.tryAcquire());
+        limiter.release();
+    }
+
+    public void testUnlimitedTryAcquireAlwaysSucceeds() {
+        assertTrue(ConcurrencyLimiter.UNLIMITED.tryAcquire());
+        ConcurrencyLimiter.UNLIMITED.release();
+    }
 }

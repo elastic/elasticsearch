@@ -35,6 +35,7 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        project.getPluginManager().apply(InternalReaperPlugin.class);
         project.getPluginManager().apply(PluginBuildPlugin.class);
         project.getPluginManager().apply(JarHellPrecommitPlugin.class);
         project.getPluginManager().apply(ElasticsearchJavaPlugin.class);

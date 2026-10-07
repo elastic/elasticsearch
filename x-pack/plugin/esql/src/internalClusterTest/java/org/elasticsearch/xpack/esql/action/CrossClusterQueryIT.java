@@ -32,7 +32,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.plugin.RemoteFetchOperator;
+import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchOperator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -702,7 +702,11 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values.get(0), equalTo(List.of(45L)));
                 assertNotNull(resp.profile());
-                List<DriverProfile> drivers = resp.profile().drivers();
+                List<DriverProfile> drivers = resp.profile()
+                    .drivers()
+                    .stream()
+                    .filter(d -> d.description().equals("node_reduce") == false)
+                    .toList();
                 assertThat(drivers.size(), greaterThanOrEqualTo(2)); // one coordinator and at least one data
                 localOnlyProfiles = drivers.size();
 
@@ -722,8 +726,12 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values.get(0), equalTo(List.of(285L)));
                 assertNotNull(resp.profile());
-                List<DriverProfile> drivers = resp.profile().drivers();
-                assertThat(drivers.size(), greaterThanOrEqualTo(3)); // two coordinators and at least one data
+                List<DriverProfile> drivers = resp.profile()
+                    .drivers()
+                    .stream()
+                    .filter(d -> d.description().equals("node_reduce") == false)
+                    .toList();
+                assertThat(drivers.size(), greaterThanOrEqualTo(2)); // one cluster-level reduction and at least one data node
                 remoteOnlyProfiles = drivers.size();
 
                 EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
@@ -746,7 +754,11 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values.get(0), equalTo(List.of(330L)));
                 assertNotNull(resp.profile());
-                List<DriverProfile> drivers = resp.profile().drivers();
+                List<DriverProfile> drivers = resp.profile()
+                    .drivers()
+                    .stream()
+                    .filter(d -> d.description().equals("node_reduce") == false)
+                    .toList();
                 assertThat(drivers.size(), greaterThanOrEqualTo(4)); // two coordinators and at least two data
                 allProfiles = drivers.size();
 

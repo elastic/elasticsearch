@@ -28,9 +28,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
@@ -91,7 +93,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of("max_field_size", 10),
             null,
             "k:keyword\nhelloworld12\n",
-            "Row [1] of [mem://csv-direct-block-parity-tests]: field of [12] characters exceeds [10]; row: <unparsed>; "
+            "Row [1] of [csv-direct-block-parity-tests]: field of [12] characters exceeds [10]; row: <unparsed>; "
                 + "set [error_mode] to [skip_row] to skip the row instead"
         );
     }
@@ -103,7 +105,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of("max_field_size", 5),
             null,
             "k:keyword\n\"helloworld\"\n",
-            "Row [1] of [mem://csv-direct-block-parity-tests]: field of [10] characters exceeds [5]; row: <unparsed>; "
+            "Row [1] of [csv-direct-block-parity-tests]: field of [10] characters exceeds [5]; row: <unparsed>; "
                 + "set [error_mode] to [skip_row] to skip the row instead"
         );
     }
@@ -115,7 +117,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of("max_field_size", 5),
             List.of("a"),
             "a:keyword,b:keyword\nshort,helloworld\n",
-            "Row [1] of [mem://csv-direct-block-parity-tests]: field of [10] characters exceeds [5]; row: <unparsed>; "
+            "Row [1] of [csv-direct-block-parity-tests]: field of [10] characters exceeds [5]; row: <unparsed>; "
                 + "set [error_mode] to [skip_row] to skip the row instead"
         );
     }
@@ -135,7 +137,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of(),
             null,
             "k:keyword\n\"x\"y\n",
-            "Row [1] of [mem://csv-direct-block-parity-tests]: unexpected content after a closing quote; row: <unparsed>; "
+            "Row [1] of [csv-direct-block-parity-tests]: unexpected content after a closing quote; row: <unparsed>; "
                 + "set [error_mode] to [skip_row] to skip the row instead"
         );
     }
@@ -427,12 +429,12 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     /**
-     * The blank must read the same on both sides of the prefetch boundary. An inferred schema is sampled twice
-     * -- {@code schema_sample_size} rows to infer, then another {@code schema_sample_size} as the widening
-     * window ({@code collectWideningWindowAndPrefetch}) -- and every prefetched row is replayed through the
-     * shared conversion before the direct walkers see anything. So with {@code schema_sample_size: 2} the
-     * boundary sits after row 4: the blank in row 2 is decided by the replay and the one in row 5 by the direct
-     * loop. Six rows rather than four is what puts a row past the boundary at all.
+     * The blank must read the same on both sides of the prefetch boundary. An inferred schema samples
+     * {@code schema_sample_size} rows to infer, and every one of those sampled rows is replayed through
+     * the shared conversion before the direct walkers see anything past it. So with
+     * {@code schema_sample_size: 2} the boundary sits after row 2: the blank in row 2 is decided by the
+     * replay and the one in row 5 by the direct loop. Six rows rather than two is what puts a row past
+     * the boundary at all.
      * Both blanks in {@code phrase} read {@code ""} (string column); the trailing blank in {@code tail} also
      * reads {@code ""} because tail infers as keyword too.
      */
@@ -755,7 +757,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     public void testDatetimeFormatUnparseableValueFailFast() throws IOException {
         String content = "id:long,ts:datetime\n1,not-a-date\n";
         CsvFormatReader base = (CsvFormatReader) baseReader(false).withConfig(Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"));
-        String expected = "Row [1] of [mem://csv-direct-block-parity-tests]: cannot read [not-a-date] as [datetime]; row: ";
+        String expected = "Row [1] of [csv-direct-block-parity-tests]: cannot read [not-a-date] as [datetime]; row: ";
         for (boolean directBlock : List.of(false, true)) {
             String message = captureFailFastMessage(base.withDirectBlockEnabled(directBlock), null, content);
             assertTrue("direct_block=" + directBlock + " message: " + message, message.startsWith(expected));
@@ -1899,7 +1901,12 @@ public class CsvDirectBlockParityTests extends ESTestCase {
 
         @Override
         public StoragePath path() {
-            return StoragePath.of("mem://csv-direct-block-parity-tests");
+            return StoragePath.of("mem://host/csv-direct-block-parity-tests");
+        }
+
+        @Override
+        public StorageIdentity storageIdentity() {
+            return AbstractTestStorageObject.NOOP;
         }
     }
 }

@@ -1298,7 +1298,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testPushDownEvalPastManyAliasingProjects() {
         int evals = 450;
         StringBuilder query = new StringBuilder("from test | where salary > 0 | eval e0 = salary");
-        for (int i = 0; i < evals; i++) {
+        // Starting at 1 as 0 is used above
+        for (int i = 1; i <= evals; i++) {
             query.append(" | eval e").append(i).append(" = e").append(i - 1);
             if (i % 4 != 0) {
                 query.append(" + 1");

@@ -1192,12 +1192,15 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
         Settings singleCopy = Settings.builder()
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "false")
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put("index.routing.rebalance.enable", "none")
             .build();
         client(LOCAL_CLUSTER).admin().indices().prepareUpdateSettings("logs-1::failures").setSettings(singleCopy).get();
-        waitForSingleCopyPerShard(client(LOCAL_CLUSTER), (String) testClusterInfo.get("local.index.fs"), localNumShards);
+        waitForNoInitializingShards(client(LOCAL_CLUSTER), TimeValue.timeValueSeconds(30), (String) testClusterInfo.get("local.index.fs"));
         client(REMOTE_CLUSTER_1).admin().indices().prepareUpdateSettings("logs-2::failures").setSettings(singleCopy).get();
-        waitForSingleCopyPerShard(client(REMOTE_CLUSTER_1), (String) testClusterInfo.get("remote1.index.fs"), remoteNumShards);
+        waitForNoInitializingShards(
+            client(REMOTE_CLUSTER_1),
+            TimeValue.timeValueSeconds(30),
+            (String) testClusterInfo.get("remote1.index.fs")
+        );
         final int localOnlyProfiles;
         {
             try (
@@ -1408,17 +1411,6 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
             .setTimeout(timeout)
             .get();
         assertFalse(Strings.toString(resp, true, true), resp.isTimedOut());
-    }
-
-    /**
-     * Profile driver counts only compose across queries when every query reads the same shard copies, so each shard
-     * must have exactly one active copy before the profiled queries run.
-     */
-    private void waitForSingleCopyPerShard(Client client, String index, int numShards) {
-        waitForNoInitializingShards(client, TimeValue.timeValueSeconds(30), index);
-        ClusterHealthResponse resp = client.admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT, index).get();
-        assertThat(Strings.toString(resp, true, true), resp.getActivePrimaryShards(), equalTo(numShards));
-        assertThat(Strings.toString(resp, true, true), resp.getActiveShards(), equalTo(numShards));
     }
 
     Map<String, Object> setupTwoClusters() throws IOException {

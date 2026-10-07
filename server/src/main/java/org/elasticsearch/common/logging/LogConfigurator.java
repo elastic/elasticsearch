@@ -74,7 +74,6 @@ public class LogConfigurator {
      * fail startup and any such messages can be seen on the console.
      */
     private static final AtomicBoolean error = new AtomicBoolean();
-    private static final AtomicReference<StatusListener> statusLoggerForwarder = new AtomicReference<>();
     private static final StatusListener ERROR_LISTENER = new StatusConsoleListener(Level.ERROR) {
         @Override
         public void log(StatusData data) {
@@ -82,6 +81,8 @@ public class LogConfigurator {
             super.log(data);
         }
     };
+
+    private static final AtomicReference<StatusListener> statusLoggerForwarder = new AtomicReference<>();
 
     private static Appender consoleAppender;
 

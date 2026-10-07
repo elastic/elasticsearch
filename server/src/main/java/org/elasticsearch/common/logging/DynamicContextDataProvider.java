@@ -64,7 +64,7 @@ public class DynamicContextDataProvider implements ContextDataProvider {
                 } catch (Exception e) {
                     // Log4j would drop the whole event, so keep it without this provider's fields
                     StatusLogger.getLogger()
-                        .warn(
+                        .error(
                             "logging data provider [{}] failed, its fields may be missing or incomplete",
                             provider.getClass().getName(),
                             e

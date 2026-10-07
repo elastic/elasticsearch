@@ -44,6 +44,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
 
     private static final Logger logger = LogManager.getLogger(SharedCacheCapacityAllocationDecider.class);
     public static final String NAME = "shared_cache_capacity";
+    private static final Decision EMPTY_NOT_PREFERRED_DECISION = new Decision.Single(Decision.Type.NOT_PREFERRED, NAME, null);
     private static final FeatureFlag SHARED_CACHE_CAPACITY_DECIDER_FEATURE_FLAG = new FeatureFlag("shared_cache_capacity_decider");
 
     /**
@@ -233,7 +234,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
                 }
                 return allocation.decision(Decision.NOT_PREFERRED, NAME, message);
             } else {
-                return allocation.decision(Decision.NOT_PREFERRED, NAME, null);
+                return EMPTY_NOT_PREFERRED_DECISION;
             }
         }
 
@@ -273,7 +274,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
                 }
                 return allocation.decision(Decision.NOT_PREFERRED, NAME, message);
             } else {
-                return allocation.decision(Decision.NOT_PREFERRED, NAME, null);
+                return EMPTY_NOT_PREFERRED_DECISION;
             }
         }
 
@@ -344,7 +345,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
                 }
                 return allocation.decision(Decision.NOT_PREFERRED, NAME, message);
             } else {
-                return allocation.decision(Decision.NOT_PREFERRED, NAME, null);
+                return EMPTY_NOT_PREFERRED_DECISION;
             }
         }
 

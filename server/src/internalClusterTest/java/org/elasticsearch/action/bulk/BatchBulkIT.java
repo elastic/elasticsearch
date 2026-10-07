@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
@@ -25,11 +26,13 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.escf.EscfEncoder;
@@ -43,6 +46,8 @@ import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.elasticsearch.index.query.GeoDistanceQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.node.NodeMocksPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -52,6 +57,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -63,14 +69,19 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2, numClientNodes = 1)
 public class BatchBulkIT extends ESIntegTestCase {
@@ -96,10 +107,22 @@ public class BatchBulkIT extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         // DataStreamsPlugin is needed by the pre-built-batch tests that target a data stream rather than a
         // concrete index. MapperExtrasPlugin registers match_only_text, used by testColumnarTextBatchMode.
+        // MockTransportService holds shard requests in testBatchPagesComeFromTheNodeRecycler.
         return CollectionUtils.appendToCopyNoNullElements(
-            CollectionUtils.appendToCopyNoNullElements(super.nodePlugins(), DataStreamsPlugin.class),
-            MapperExtrasPlugin.class
+            CollectionUtils.appendToCopyNoNullElements(
+                CollectionUtils.appendToCopyNoNullElements(super.nodePlugins(), DataStreamsPlugin.class),
+                MapperExtrasPlugin.class
+            ),
+            MockTransportService.TestPlugin.class
         );
+    }
+
+    /** Always installs {@link NodeMocksPlugin}, so every run checks for leaked and double-released pages. */
+    @Override
+    protected Collection<Class<? extends Plugin>> getMockPlugins() {
+        Set<Class<? extends Plugin>> mocks = new LinkedHashSet<>(super.getMockPlugins());
+        mocks.add(NodeMocksPlugin.class);
+        return mocks;
     }
 
     private void createBatchIndex(String index, int shards, int replicas) throws IOException {
@@ -460,6 +483,53 @@ public class BatchBulkIT extends ESIntegTestCase {
         assertThat(primaryStats.getIndexFailedCount(), equalTo(0L));
         // replicas take the batch path too: 1 replica per shard doubles the total
         assertThat(statsResponse.getTotal().getIndexing().getTotal().getIndexCount(), equalTo(numDocs * 2L));
+    }
+
+    /**
+     * Batch pages come from the coordinating node's recycler: while the shard requests are held, the node's request breaker
+     * carries them, and it drops back once the bulk completes.
+     */
+    public void testBatchPagesComeFromTheNodeRecycler() throws Exception {
+        String index = randomIndexName();
+        createBatchIndex(index, 2, 0);
+        String coordinatingNode = findCoordinatingNode();
+        CircuitBreaker requestBreaker = internalCluster().getInstance(CircuitBreakerService.class, coordinatingNode)
+            .getBreaker(CircuitBreaker.REQUEST);
+        long baseline = requestBreaker.getUsed();
+
+        CountDownLatch shardRequestArrived = new CountDownLatch(1);
+        CountDownLatch releaseShardRequests = new CountDownLatch(1);
+        String[] nodes = internalCluster().getNodeNames();
+        for (String node : nodes) {
+            MockTransportService.getInstance(node)
+                .addRequestHandlingBehavior(TransportShardBulkAction.ACTION_NAME + "[p]", (handler, request, channel, task) -> {
+                    shardRequestArrived.countDown();
+                    safeAwait(releaseShardRequests);
+                    handler.messageReceived(request, channel, task);
+                });
+        }
+        try {
+            BulkRequestBuilder bulk = client(coordinatingNode).prepareBulk();
+            int numDocs = randomIntBetween(20, 100);
+            for (int i = 0; i < numDocs; i++) {
+                bulk.add(
+                    new IndexRequest(index).opType(DocWriteRequest.OpType.CREATE)
+                        .source(Map.of("name", "doc-" + i, "value", i, "message", "hello world " + i))
+                );
+            }
+            ActionFuture<BulkResponse> response = bulk.execute();
+            safeAwait(shardRequestArrived);
+            assertThat(requestBreaker.getUsed(), greaterThanOrEqualTo(baseline + PageCacheRecycler.BYTE_PAGE_SIZE));
+
+            releaseShardRequests.countDown();
+            assertNoFailures(safeGet(response));
+            assertBusy(() -> assertThat(requestBreaker.getUsed(), lessThanOrEqualTo(baseline)));
+        } finally {
+            releaseShardRequests.countDown();
+            for (String node : nodes) {
+                MockTransportService.getInstance(node).clearAllRules();
+            }
+        }
     }
 
     public void testBatchModeWithVersionConflicts() throws IOException {

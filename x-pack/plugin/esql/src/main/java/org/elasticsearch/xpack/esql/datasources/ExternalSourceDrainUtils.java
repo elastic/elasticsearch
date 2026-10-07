@@ -9,10 +9,14 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
@@ -52,6 +56,8 @@ public final class ExternalSourceDrainUtils {
      * boundary. To also abort a page pull ({@code hasNext()}/{@code next()}) parked in storage retry/throttle
      * backoff, {@code readCancelled} is installed as the ambient {@link StorageRetryCancellation} signal around
      * every drain step (initial and executor-resumed) — mirroring the {@code runProducerLoop} read path.
+     * The hot loop parks on {@link CloseableIterator#waitForReady()} rather than blocking
+     * {@code hasNext()}, so an async iterator can yield the executor slot while I/O is in flight.
      */
     public static void drainPagesAsync(
         CloseableIterator<Page> pages,
@@ -93,7 +99,7 @@ public final class ExternalSourceDrainUtils {
         Consumer<Page> pageSink,
         ActionListener<Void> listener
     ) {
-        drainBatch(pages, buffer, executor, readCancelled, stop, pageSink, listener);
+        drainBatch(pages, buffer, executor, readCancelled, stop, pageSink, listener, new AtomicBoolean());
     }
 
     private static Consumer<Page> defaultPageSink(AsyncExternalSourceBuffer buffer) {
@@ -110,36 +116,142 @@ public final class ExternalSourceDrainUtils {
         BooleanSupplier readCancelled,
         BooleanSupplier stop,
         Consumer<Page> pageSink,
-        ActionListener<Void> listener
+        ActionListener<Void> listener,
+        AtomicBoolean resumeQueued
     ) {
         try {
             StorageRetryCancellation.runWithCancellation(readCancelled, () -> {
-                while (buffer.noMoreInputs() == false && stop.getAsBoolean() == false && buffer.readCounters().meteredCpu(pages::hasNext)) {
-                    SubscribableListener<Void> space = buffer.waitForSpace();
-                    if (space.isDone()) {
-                        if (buffer.noMoreInputs() || stop.getAsBoolean()) {
-                            break;
-                        }
-                        Page page = buffer.readCounters().meteredCpu(pages::next);
-                        if (buffer.noMoreInputs() || stop.getAsBoolean()) {
-                            page.releaseBlocks();
-                            break;
-                        }
-                        pageSink.accept(page);
-                    } else {
-                        space.addListener(ActionListener.wrap(v -> {
-                            try {
-                                executor.execute(() -> drainBatch(pages, buffer, executor, readCancelled, stop, pageSink, listener));
-                            } catch (Exception e) {
-                                listener.onFailure(e);
-                            }
-                        }, listener::onFailure));
+                while (buffer.noMoreInputs() == false && stop.getAsBoolean() == false) {
+                    SubscribableListener<Void> ready = pages.waitForReady();
+                    if (ready.isDone() == false) {
+                        park(ready, null, pages, buffer, executor, readCancelled, stop, pageSink, listener, resumeQueued);
                         return;
                     }
+
+                    Holder<SubscribableListener<Void>> blockedOn = new Holder<>();
+                    Page page = buffer.readCounters().meteredCpu(() -> {
+                        Page tryPage = pages.tryAdvance();
+                        if (tryPage == null) {
+                            SubscribableListener<Void> recheck = pages.waitForReady();
+                            if (recheck.isDone()) {
+                                if (pages.hasNext() == false) {
+                                    return null;
+                                }
+                                tryPage = pages.next();
+                            } else {
+                                blockedOn.set(recheck);
+                                return null;
+                            }
+                        }
+                        return tryPage;
+                    });
+                    if (blockedOn.get() != null) {
+                        park(blockedOn.get(), null, pages, buffer, executor, readCancelled, stop, pageSink, listener, resumeQueued);
+                        return;
+                    }
+                    if (page == null) {
+                        listener.onResponse(null);
+                        return;
+                    }
+
+                    SubscribableListener<Void> space = buffer.waitForSpace();
+                    if (space.isDone() == false) {
+                        park(space, page, pages, buffer, executor, readCancelled, stop, pageSink, listener, resumeQueued);
+                        return;
+                    }
+                    if (buffer.noMoreInputs() || stop.getAsBoolean()) {
+                        page.releaseBlocks();
+                        break;
+                    }
+                    pageSink.accept(page);
                 }
                 listener.onResponse(null);
             });
         } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Parks the drain until {@code signal} fires, then force-resubmits at most one continuation
+     * on {@code executor}. {@code heldPage} is a page already pulled from the iterator; it is
+     * sunk on resume or released if the drain has stopped.
+     */
+    private static void park(
+        SubscribableListener<Void> signal,
+        @Nullable Page heldPage,
+        CloseableIterator<Page> pages,
+        AsyncExternalSourceBuffer buffer,
+        Executor executor,
+        BooleanSupplier readCancelled,
+        BooleanSupplier stop,
+        Consumer<Page> pageSink,
+        ActionListener<Void> listener,
+        AtomicBoolean resumeQueued
+    ) {
+        signal.addListener(ActionListener.wrap(v -> {
+            boolean consumed = heldPage == null;
+            try {
+                if (heldPage != null) {
+                    if (buffer.noMoreInputs() || stop.getAsBoolean()) {
+                        consumed = true;
+                        heldPage.releaseBlocks();
+                        listener.onResponse(null);
+                        return;
+                    }
+                    consumed = true;
+                    pageSink.accept(heldPage);
+                }
+                submitResume(pages, buffer, executor, readCancelled, stop, pageSink, listener, resumeQueued);
+            } catch (Exception e) {
+                if (consumed == false) {
+                    heldPage.releaseBlocks();
+                }
+                listener.onFailure(e);
+            }
+        }, e -> {
+            if (heldPage != null) {
+                heldPage.releaseBlocks();
+            }
+            listener.onFailure(e);
+        }));
+    }
+
+    private static void submitResume(
+        CloseableIterator<Page> pages,
+        AsyncExternalSourceBuffer buffer,
+        Executor executor,
+        BooleanSupplier readCancelled,
+        BooleanSupplier stop,
+        Consumer<Page> pageSink,
+        ActionListener<Void> listener,
+        AtomicBoolean resumeQueued
+    ) {
+        if (resumeQueued.compareAndSet(false, true) == false) {
+            return;
+        }
+        AbstractRunnable task = new AbstractRunnable() {
+            @Override
+            public boolean isForceExecution() {
+                return true;
+            }
+
+            @Override
+            protected void doRun() {
+                resumeQueued.set(false);
+                drainBatch(pages, buffer, executor, readCancelled, stop, pageSink, listener, resumeQueued);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                resumeQueued.set(false);
+                listener.onFailure(e);
+            }
+        };
+        try {
+            executor.execute(task);
+        } catch (Exception e) {
+            resumeQueued.set(false);
             listener.onFailure(e);
         }
     }

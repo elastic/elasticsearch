@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -408,7 +409,10 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
             return;
         }
 
-        var requestTaskSettings = ElasticInferenceServiceDocumentExtractionTaskSettings.fromMap(request.taskSettings());
+        var requestTaskSettings = ElasticInferenceServiceDocumentExtractionTaskSettings.fromMap(
+            request.taskSettings(),
+            ConfigurationParseContext.REQUEST
+        );
         var overriddenModel = ElasticInferenceServiceDocumentExtractionModel.of(
             elasticInferenceServiceDocumentExtractionModel,
             ElasticInferenceServiceDocumentExtractionTaskSettings.of(

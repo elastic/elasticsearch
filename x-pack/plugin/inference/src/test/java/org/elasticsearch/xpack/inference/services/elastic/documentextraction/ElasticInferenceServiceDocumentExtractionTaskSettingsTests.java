@@ -12,7 +12,9 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionTaskSettings.CssSettings;
 
 import java.io.IOException;
@@ -26,7 +28,6 @@ import static org.elasticsearch.xpack.inference.services.elastic.documentextract
 import static org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionTaskSettings.CssSettings.REMOVE;
 import static org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionTaskSettings.EMPTY_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionTaskSettings.OUTPUT_FORMAT;
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -47,43 +48,28 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettingsTests extends 
         assertThat(fromMap(new HashMap<>()), sameInstance(EMPTY_SETTINGS));
     }
 
-    public void testFromMap_ParsesOutputFormatAndRemovesItFromTheMap() {
-        var map = new HashMap<String, Object>(Map.of(OUTPUT_FORMAT, "markdown"));
-
-        var settings = fromMap(map);
+    public void testFromMap_ParsesOutputFormat() {
+        var settings = fromMap(Map.of(OUTPUT_FORMAT, "markdown"));
 
         assertThat(settings.outputFormat(), is("markdown"));
         assertThat(settings.css(), is(CssSettings.EMPTY));
-        assertThat(map, anEmptyMap());
     }
 
-    public void testFromMap_ParsesCssSettingsAndRemovesThemFromTheMap() {
-        var map = new HashMap<String, Object>(
-            Map.of(CSS, new HashMap<>(Map.of(EXTRACT_ONLY, List.of(".main-content", "#post-body"), REMOVE, List.of("nav"))))
-        );
-
-        var settings = fromMap(map);
+    public void testFromMap_ParsesCssSettings() {
+        var settings = fromMap(Map.of(CSS, Map.of(EXTRACT_ONLY, List.of(".main-content", "#post-body"), REMOVE, List.of("nav"))));
 
         assertThat(settings.outputFormat(), nullValue());
         assertThat(settings.css(), is(new CssSettings(List.of(".main-content", "#post-body"), List.of("nav"))));
-        assertThat(map, anEmptyMap());
     }
 
     public void testFromMap_WithNonStringOutputFormat_Throws() {
-        var map = new HashMap<String, Object>(Map.of(OUTPUT_FORMAT, 1));
+        var exception = expectThrows(XContentParseException.class, () -> fromMap(Map.of(OUTPUT_FORMAT, 1)));
 
-        var exception = expectThrows(ValidationException.class, () -> fromMap(map));
-
-        assertThat(
-            exception.getMessage(),
-            containsString("field [output_format] is not of the expected type. The value [1] cannot be converted to a [String]")
-        );
+        assertThat(exception.getMessage(), containsString("output_format doesn't support values of type: VALUE_NUMBER"));
     }
 
     public void testFromMap_WithEmptyOutputFormat_Throws() {
-        var map = new HashMap<String, Object>(Map.of(OUTPUT_FORMAT, ""));
-
-        var exception = expectThrows(ValidationException.class, () -> fromMap(map));
+        var exception = expectThrows(ValidationException.class, () -> fromMap(Map.of(OUTPUT_FORMAT, "")));
 
         assertThat(
             exception.getMessage(),
@@ -92,28 +78,66 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettingsTests extends 
     }
 
     public void testFromMap_WithNonObjectCss_Throws() {
-        var map = new HashMap<String, Object>(Map.of(CSS, "nav"));
+        var exception = expectThrows(XContentParseException.class, () -> fromMap(Map.of(CSS, "nav")));
 
-        var exception = expectThrows(ValidationException.class, () -> fromMap(map));
-
-        assertThat(exception.getMessage(), containsString("field [css] is not of the expected type"));
+        assertThat(exception.getMessage(), containsString("css doesn't support values of type: VALUE_STRING"));
     }
 
-    public void testFromMap_WithNonStringSelector_Throws() {
-        var map = new HashMap<String, Object>(Map.of(CSS, new HashMap<>(Map.of(EXTRACT_ONLY, List.of(1)))));
+    public void testFromMap_WithNonArraySelectors_Throws() {
+        var exception = expectThrows(
+            XContentParseException.class,
+            () -> fromMap(Map.of(CSS, Map.of(EXTRACT_ONLY, Map.of("selector", ".main-content"))))
+        );
 
-        var exception = expectThrows(ValidationException.class, () -> fromMap(map));
+        assertThat(exception.getMessage(), containsString("[task_settings] failed to parse field [css]"));
+    }
 
-        assertThat(exception.getMessage(), containsString("field [extract_only] is not of the expected type"));
+    public void testFromMap_WithUnknownField_ThrowsForRequestContext() {
+        var exception = expectThrows(
+            XContentParseException.class,
+            () -> ElasticInferenceServiceDocumentExtractionTaskSettings.fromMap(
+                Map.of(OUTPUT_FORMAT, "markdown", "unknown_field", "value"),
+                ConfigurationParseContext.REQUEST
+            )
+        );
+
+        assertThat(exception.getMessage(), containsString("[task_settings] unknown field [unknown_field]"));
+    }
+
+    public void testFromMap_WithUnknownField_IgnoresItForPersistentContext() {
+        var settings = ElasticInferenceServiceDocumentExtractionTaskSettings.fromMap(
+            Map.of(OUTPUT_FORMAT, "markdown", "unknown_field", "value"),
+            ConfigurationParseContext.PERSISTENT
+        );
+
+        assertThat(settings, is(new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown")));
+    }
+
+    public void testFromMap_WithUnknownCssField_ThrowsForRequestContext() {
+        var exception = expectThrows(
+            XContentParseException.class,
+            () -> ElasticInferenceServiceDocumentExtractionTaskSettings.fromMap(
+                Map.of(CSS, Map.of(EXTRACT_ONLY, List.of(".main-content"), "wait_for", List.of("#x"))),
+                ConfigurationParseContext.REQUEST
+            )
+        );
+
+        assertThat(exception.getMessage(), containsString("[task_settings] failed to parse field [css]"));
+        assertThat(exception.getCause().getMessage(), containsString("[css] unknown field [wait_for]"));
+    }
+
+    public void testFromMap_WithUnknownCssField_IgnoresItForPersistentContext() {
+        var settings = ElasticInferenceServiceDocumentExtractionTaskSettings.fromMap(
+            Map.of(CSS, Map.of(EXTRACT_ONLY, List.of(".main-content"), "wait_for", List.of("#x"))),
+            ConfigurationParseContext.PERSISTENT
+        );
+
+        assertThat(settings.css(), is(new CssSettings(List.of(".main-content"), null)));
     }
 
     public void testFromMap_ForwardsSelectorsWithoutValidatingThem() {
         // Selector validation is left to the Elastic Inference Service, so empty lists and blank selectors are passed through
-        var map = new HashMap<String, Object>(
-            Map.of(CSS, new HashMap<>(Map.of(EXTRACT_ONLY, List.of(), REMOVE, List.of(".main-content", " "))))
-        );
-
-        var settings = fromMap(map);
+        var settings = fromMap(Map.of(CSS, Map.of(EXTRACT_ONLY, List.of(), REMOVE, List.of(".main-content", " "))));
 
         assertThat(settings.css(), is(new CssSettings(List.of(), List.of(".main-content", " "))));
     }
@@ -166,6 +190,14 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettingsTests extends 
         assertThat(settings.updatedTaskSettings(new HashMap<>()), is(settings));
     }
 
+    public void testUpdatedTaskSettings_WithUnknownField_Throws() {
+        var settings = new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown");
+
+        var exception = expectThrows(XContentParseException.class, () -> settings.updatedTaskSettings(Map.of("unknown_field", "value")));
+
+        assertThat(exception.getMessage(), containsString("[task_settings] unknown field [unknown_field]"));
+    }
+
     public void testIsEmpty() {
         assertTrue(EMPTY_SETTINGS.isEmpty());
         assertTrue(new ElasticInferenceServiceDocumentExtractionTaskSettings("").isEmpty());
@@ -180,7 +212,7 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettingsTests extends 
     }
 
     private static ElasticInferenceServiceDocumentExtractionTaskSettings fromMap(@Nullable Map<String, Object> map) {
-        return ElasticInferenceServiceDocumentExtractionTaskSettings.fromMap(map);
+        return ElasticInferenceServiceDocumentExtractionTaskSettings.fromMap(map, randomFrom(ConfigurationParseContext.values()));
     }
 
     @Override
@@ -251,6 +283,6 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettingsTests extends 
 
     @Override
     protected ElasticInferenceServiceDocumentExtractionTaskSettings doParseInstance(XContentParser parser) throws IOException {
-        return ElasticInferenceServiceDocumentExtractionTaskSettings.fromMap(parser.map());
+        return ElasticInferenceServiceDocumentExtractionTaskSettings.fromMap(parser.map(), ConfigurationParseContext.PERSISTENT);
     }
 }

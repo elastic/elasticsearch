@@ -62,7 +62,7 @@ public class ElasticInferenceServiceDocumentExtractionModel extends ElasticInfer
             inferenceEntityId,
             taskType,
             ElasticInferenceServiceDocumentExtractionServiceSettings.fromMap(serviceSettings, context),
-            ElasticInferenceServiceDocumentExtractionTaskSettings.fromMap(taskSettings),
+            ElasticInferenceServiceDocumentExtractionTaskSettings.fromMap(taskSettings, context),
             elasticInferenceServiceComponents,
             endpointMetadata
         );

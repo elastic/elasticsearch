@@ -7,24 +7,32 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.documentextraction;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.inference.InferenceUtils;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
 
 /**
  * Task settings for the Elastic Inference Service {@code document_extraction} task type. They can be stored on the inference endpoint
@@ -56,23 +64,36 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettings implements Ta
     public static final ElasticInferenceServiceDocumentExtractionTaskSettings EMPTY_SETTINGS =
         new ElasticInferenceServiceDocumentExtractionTaskSettings(null, CssSettings.EMPTY);
 
+    private static final ObjectParser<Builder, Void> REQUEST_PARSER = createParser(false);
+    private static final ObjectParser<Builder, Void> PERSISTENT_PARSER = createParser(true);
+
+    private static ObjectParser<Builder, Void> createParser(boolean ignoreUnknownFields) {
+        var cssParser = CssSettings.createParser(ignoreUnknownFields);
+        var parser = new ObjectParser<Builder, Void>(TASK_SETTINGS.toString(), ignoreUnknownFields, Builder::new);
+        parser.declareString(Builder::setOutputFormat, new ParseField(OUTPUT_FORMAT));
+        parser.declareObject(Builder::setCss, (p, c) -> cssParser.apply(p, null), new ParseField(CSS));
+        return parser;
+    }
+
     /**
-     * Parses task settings from a raw config map, removing the fields it recognizes so callers can reject leftover unknown fields.
-     * A null or empty map produces {@link #EMPTY_SETTINGS}.
+     * Parses task settings from a raw config map. Unknown fields, including the ones nested inside {@code css}, are rejected for
+     * {@link ConfigurationParseContext#REQUEST} and ignored for {@link ConfigurationParseContext#PERSISTENT}, so settings persisted by
+     * a newer version can still be read. A null or empty map produces {@link #EMPTY_SETTINGS}.
      */
-    public static ElasticInferenceServiceDocumentExtractionTaskSettings fromMap(@Nullable Map<String, Object> map) {
+    public static ElasticInferenceServiceDocumentExtractionTaskSettings fromMap(
+        @Nullable Map<String, Object> map,
+        ConfigurationParseContext context
+    ) {
         if (map == null || map.isEmpty()) {
             return EMPTY_SETTINGS;
         }
 
-        ValidationException validationException = new ValidationException();
-
-        String outputFormat = ServiceUtils.extractOptionalString(map, OUTPUT_FORMAT, SettingsScope.TASK_SETTINGS, validationException);
-        var cssSettings = CssSettings.fromMap(ServiceUtils.extractOptionalMap(map, CSS, validationException), validationException);
-
-        validationException.throwIfValidationErrorsExist();
-
-        return new ElasticInferenceServiceDocumentExtractionTaskSettings(outputFormat, cssSettings);
+        var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
+            return parser.apply(xParser, null).build();
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse [{}]", e, TASK_SETTINGS);
+        }
     }
 
     /**
@@ -122,7 +143,7 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettings implements Ta
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        return of(this, fromMap(newSettings));
+        return of(this, fromMap(newSettings, ConfigurationParseContext.REQUEST));
     }
 
     @Override
@@ -189,19 +210,16 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettings implements Ta
 
         public static final CssSettings EMPTY = new CssSettings(null, null);
 
-        /**
-         * Parses the {@code css} object. Returns {@link #EMPTY} for a null map. The selectors are not validated beyond their type;
-         * they are forwarded as-is and validated by the Elastic Inference Service.
-         */
-        static CssSettings fromMap(@Nullable Map<String, Object> map, ValidationException validationException) {
-            if (map == null) {
-                return EMPTY;
-            }
-
-            var extractOnly = InferenceUtils.extractOptionalList(map, EXTRACT_ONLY, String.class, validationException);
-            var remove = InferenceUtils.extractOptionalList(map, REMOVE, String.class, validationException);
-
-            return new CssSettings(extractOnly == null ? null : List.copyOf(extractOnly), remove == null ? null : List.copyOf(remove));
+        @SuppressWarnings("unchecked")
+        private static ConstructingObjectParser<CssSettings, Void> createParser(boolean ignoreUnknownFields) {
+            var parser = new ConstructingObjectParser<CssSettings, Void>(
+                CSS,
+                ignoreUnknownFields,
+                args -> new CssSettings((List<String>) args[0], (List<String>) args[1])
+            );
+            parser.declareStringArray(optionalConstructorArg(), new ParseField(EXTRACT_ONLY));
+            parser.declareStringArray(optionalConstructorArg(), new ParseField(REMOVE));
+            return parser;
         }
 
         static CssSettings of(CssSettings original, CssSettings request) {
@@ -236,6 +254,28 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettings implements Ta
             }
             builder.endObject();
             return builder;
+        }
+    }
+
+    private static class Builder {
+        private String outputFormat;
+        private CssSettings css = CssSettings.EMPTY;
+
+        private void setOutputFormat(String outputFormat) {
+            this.outputFormat = outputFormat;
+        }
+
+        private void setCss(CssSettings css) {
+            this.css = css;
+        }
+
+        private ElasticInferenceServiceDocumentExtractionTaskSettings build() {
+            if (outputFormat != null && outputFormat.isEmpty()) {
+                var validationException = new ValidationException();
+                validationException.addValidationError(ServiceUtils.mustBeNonEmptyString(OUTPUT_FORMAT, TASK_SETTINGS));
+                throw validationException;
+            }
+            return new ElasticInferenceServiceDocumentExtractionTaskSettings(outputFormat, css);
         }
     }
 }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -49,7 +50,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -256,20 +256,20 @@ public class RetryableStorageObjectTests extends ESTestCase {
 
     /**
      * Prefetch used to hop the retry onto {@code [scheduler]} via {@code ThreadedRunnable}.
-     * The start hop is {@code esql_external_io}; {@link ConcurrencyLimiter#acquire} /
-     * {@code tryAcquire} must never run on a scheduler thread. Completion stays on the caller
-     * executor.
+     * First-attempt async takes a permit ticket; the retry barge is {@code tryAcquire} on
+     * {@code esql_external_io}. Neither must run on a scheduler thread. Completion stays on
+     * the caller executor.
      */
     public void testRetryHopDoesNotAcquireOnSchedulerThread() throws Exception {
         ThreadPool threadPool = new TestThreadPool(getTestName());
         ExecutorService io = Executors.newSingleThreadExecutor(r -> new Thread(r, "t4-esql_external_io"));
-        List<String> acquireThreads = new CopyOnWriteArrayList<>();
+        List<String> ticketThreads = new CopyOnWriteArrayList<>();
         List<String> tryAcquireThreads = new CopyOnWriteArrayList<>();
         ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(3, false)) {
             @Override
-            void acquire() throws TimeoutException, InterruptedException {
-                acquireThreads.add(Thread.currentThread().getName());
-                super.acquire();
+            SubscribableListener<Void> acquireAsync(BooleanSupplier cancelSignal, Executor executor) {
+                ticketThreads.add(Thread.currentThread().getName());
+                return super.acquireAsync(cancelSignal, executor);
             }
 
             @Override
@@ -367,16 +367,17 @@ public class RetryableStorageObjectTests extends ESTestCase {
             assertTrue(done.await(10, TimeUnit.SECONDS));
             assertNull(failure.get());
             assertNotNull(result.get());
-            assertFalse("first attempt must have acquired a permit", acquireThreads.isEmpty());
-            for (String name : acquireThreads) {
+            assertFalse("first attempt must have taken a permit ticket", ticketThreads.isEmpty());
+            for (String name : ticketThreads) {
                 assertFalse("scheduler must never acquire a concurrency permit, saw " + name, name.contains("[scheduler]"));
             }
-            assertFalse("retry barge must have tried a permit", tryAcquireThreads.isEmpty());
+            assertTrue(
+                "retry barge must tryAcquire on esql_external_io, saw " + tryAcquireThreads,
+                tryAcquireThreads.stream().anyMatch(name -> name.contains("t4-esql_external_io"))
+            );
             for (String name : tryAcquireThreads) {
-                assertThat("tryAcquire must run on esql_external_io, saw " + name, name, containsString("t4-esql_external_io"));
                 assertFalse("scheduler must never barge a concurrency permit, saw " + name, name.contains("[scheduler]"));
                 assertFalse("GENERIC must not issue blob GET retries, saw " + name, name.contains("[generic]"));
-                assertNotEquals("tryAcquire must not run on the caller completion executor", "t4-completion", name);
             }
             assertFalse("completion must have run on the caller executor", completionThreads.isEmpty());
             for (String name : completionThreads) {

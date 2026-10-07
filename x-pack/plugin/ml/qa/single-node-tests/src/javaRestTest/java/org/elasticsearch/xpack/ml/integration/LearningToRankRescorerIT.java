@@ -86,6 +86,62 @@ public class LearningToRankRescorerIT extends InferenceTestCase {
         assertExplainExtractedFeatures(response, List.of("cost", "type_tv", "two"));
     }
 
+    /**
+     * The feature queries of the model must be reported under the rescore node of the profile, one root per feature query in the order
+     * of the model's feature extractors, and must not be reported as part of the main query.
+     */
+    @SuppressWarnings("unchecked")
+    public void testLearningToRankRescoreProfile() throws Exception {
+        Request request = new Request("GET", "store/_search?size=3&error_trace");
+        request.setJsonEntity("""
+            {
+              "profile": true,
+              "query": { "term": { "product": "Laptop" } },
+              "rescore": {
+                "window_size": 10,
+                "learning_to_rank": {
+                  "model_id": "ltr-model",
+                  "params": {
+                    "keyword": "Laptop"
+                  }
+                }
+              }
+            }""");
+        Map<String, Object> response = responseAsMap(client().performRequest(request));
+        List<Map<String, Object>> shards = (List<Map<String, Object>>) XContentMapValues.extractValue("profile.shards", response);
+        assertThat(shards.size(), equalTo(1));
+        Map<String, Object> shard = shards.get(0);
+
+        List<Map<String, Object>> searches = (List<Map<String, Object>>) shard.get("searches");
+        List<Map<String, Object>> mainQueries = (List<Map<String, Object>>) searches.get(0).get("query");
+        assertThat(mainQueries.size(), equalTo(1));
+        assertThat(mainQueries.get(0).get("description"), equalTo("product:Laptop"));
+
+        List<Map<String, Object>> rescorers = (List<Map<String, Object>>) shard.get("rescore");
+        assertThat(rescorers.size(), equalTo(1));
+        Map<String, Object> rescorer = rescorers.get(0);
+        assertThat(rescorer.get("type"), equalTo("learning_to_rank"));
+        assertThat(XContentMapValues.extractValue("debug.window_size", rescorer), equalTo(10));
+        assertThat(XContentMapValues.extractValue("debug.docs_before_rescore", rescorer), equalTo(3));
+        assertThat(XContentMapValues.extractValue("debug.docs_after_rescore", rescorer), equalTo(3));
+        List<String> featureQueryTypes = ((List<Map<String, Object>>) rescorer.get("children")).stream()
+            .map(child -> (String) child.get("type"))
+            .toList();
+        assertThat(
+            featureQueryTypes,
+            equalTo(
+                List.of(
+                    "ScriptScoreQuery",
+                    "ConstantScoreQuery",
+                    "ConstantScoreQuery",
+                    "ConstantScoreQuery",
+                    "ScriptScoreQuery",
+                    "TermQuery"
+                )
+            )
+        );
+    }
+
     public void testLearningToRankRescoreSmallWindow() throws Exception {
         Request request = new Request("GET", "store/_search?size=5");
         request.setJsonEntity("""

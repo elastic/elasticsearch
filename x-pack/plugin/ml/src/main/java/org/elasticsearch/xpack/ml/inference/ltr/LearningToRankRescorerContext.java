@@ -62,7 +62,7 @@ public class LearningToRankRescorerContext extends RescoreContext {
         for (LearningToRankFeatureExtractorBuilder featureExtractorBuilder : learningToRankConfig.getFeatureExtractorBuilders()) {
             if (featureExtractorBuilder instanceof QueryExtractorBuilder queryExtractorBuilder) {
                 Query query = executionContext.toQuery(queryExtractorBuilder.query().getParsedQuery()).query();
-                Weight weight = searcher.rewrite(query).createWeight(searcher, ScoreMode.COMPLETE, 1f);
+                Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE, 1f);
                 weights.add(weight);
                 queryFeatureNames.add(queryExtractorBuilder.featureName());
             }

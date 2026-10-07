@@ -741,6 +741,88 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertThat(e.getMessage(), containsString("more than once"));
     }
 
+    public void testValidateDatasetPartitionSpec() {
+        assertEquals(
+            "year(ts), month(ts), day(ts)",
+            validator.validateDataset(
+                Map.of(),
+                "s3://b/p",
+                Map.of("partition_detection", "hive", "partition_spec", "year(ts), month(ts), day(ts)")
+            ).get("partition_spec")
+        );
+        assertEquals(
+            "aws-region=region",
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "partition_spec", "aws-region=region"))
+                .get("partition_spec")
+        );
+        assertEquals(
+            "year(ts)",
+            validator.validateDataset(
+                Map.of(),
+                "s3://b/p",
+                Map.of("partition_detection", "template", "partition_path", "{year}/{month}", "partition_spec", "year(ts)")
+            ).get("partition_spec")
+        );
+    }
+
+    public void testValidateDatasetPartitionSpecRejectsUnknownTransform() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "partition_spec", "bucket(ts)"))
+        );
+        assertThat(e.getMessage(), containsString("partition_spec"));
+        assertThat(e.getMessage(), containsString("bucket"));
+        assertThat(e.getMessage(), containsString("identity, year, month, day, hour"));
+    }
+
+    public void testValidateDatasetPartitionSpecRejectsNonePlusSpec() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "none", "partition_spec", "year(ts)"))
+        );
+        assertThat(e.getMessage(), containsString("partition_spec"));
+        assertThat(e.getMessage(), containsString("remove [partition_spec]"));
+        assertThat(e.getMessage(), containsString("enable partition detection"));
+    }
+
+    public void testValidateDatasetPartitionSpecNonePlusUnparseableReportsContradiction() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "none", "partition_spec", "bucket(ts)"))
+        );
+        assertThat(e.getMessage(), containsString("partition_spec"));
+        assertThat(e.getMessage(), containsString("remove [partition_spec]"));
+        assertThat(e.getMessage(), not(containsString("unknown transform")));
+    }
+
+    public void testValidateDatasetPartitionSpecRejectsTemplateKeyMismatch() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_path", "{yyy}/{mo}", "partition_spec", "year(ts)"))
+        );
+        assertThat(e.getMessage(), containsString("partition_spec"));
+        assertThat(e.getMessage(), containsString("year"));
+        assertThat(e.getMessage(), containsString("partition_path"));
+    }
+
+    public void testValidateDatasetPartitionSpecRejectsNonString() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "partition_spec", 42))
+        );
+        assertThat(e.getMessage(), containsString("partition_spec"));
+        assertThat(e.getMessage(), containsString("non-empty string"));
+    }
+
+    public void testValidateDatasetPartitionSpecHiveUnknownKeyIsAccepted() {
+        // Hive keys are not known until list time; PUT must not reject them.
+        assertEquals(
+            "yyy=year(ts)",
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "partition_spec", "yyy=year(ts)"))
+                .get("partition_spec")
+        );
+    }
+
     /**
      * The raw value is stored as-is (so stored datasets round-trip correctly), and a deprecation warning is emitted.
      *
@@ -967,7 +1049,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
                 containsString(
                     "known settings: [error_mode, file_exclusions, file_order, file_sort_by, format, hive_partitioning, "
                         + "max_error_ratio, max_errors, max_split_probes, partition_detection, partition_path, partition_sample_size, "
-                        + "schema_resolution, split_probe_window, target_split_size]"
+                        + "partition_spec, schema_resolution, split_probe_window, target_split_size]"
                 )
             )
         );

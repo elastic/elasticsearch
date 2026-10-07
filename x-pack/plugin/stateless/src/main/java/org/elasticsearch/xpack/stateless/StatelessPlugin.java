@@ -737,6 +737,7 @@ public class StatelessPlugin extends Plugin
                 WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
             )
             .put(WriteLoadConstraintSettings.CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING.getKey(), true)
+            .put(SharedCacheCapacityAllocationDecider.ENABLED_SETTING.getKey(), true)
         /* End reactive-balancing settings */
         ;
         if (sharedCachedSettingExplicitlySet == false) {

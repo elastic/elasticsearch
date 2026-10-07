@@ -12,7 +12,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
@@ -28,6 +27,7 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
@@ -611,7 +611,7 @@ public final class QueryDslTranslator {
         }
         // A time zone shifts what the bounds mean; we parse them zone-naively, so honoring it is not something we can
         // fake. Reject rather than answer a differently-scoped question.
-        String unsupported = unsupportedRangeReason(range);
+        String unsupported = QueryDslTimestampBoundsExtractor.unsupportedRangeReason(range);
         if (unsupported != null) {
             throw new TranslationUnsupportedException(unsupported);
         }
@@ -803,19 +803,6 @@ public final class QueryDslTranslator {
     private long closedUpperBound(DataType type, Object value, DateFormatter formatter, boolean inclusive) {
         long u = dateBound(type, value, formatter, inclusive);
         return inclusive ? u : u - 1;
-    }
-
-    /**
-     * Why this range cannot be rewritten as a row filter, or {@code null} if it can. Listing extraction with
-     * {@code RANGE_QUERY} semantics returns no bounds from a clause this rejects, so listing is never tighter than
-     * the applied row filter. Keep this list in one place: every new drop reason must feed both paths.
-     */
-    @Nullable
-    public static String unsupportedRangeReason(RangeQueryBuilder range) {
-        if (range.timeZone() != null) {
-            return "range[time_zone]";
-        }
-        return null;
     }
 
     /**

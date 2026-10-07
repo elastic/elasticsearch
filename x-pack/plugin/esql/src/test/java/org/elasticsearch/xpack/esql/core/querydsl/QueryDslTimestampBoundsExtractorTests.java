@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.core.querydsl;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.dsltranslate.QueryDslTranslator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
 
@@ -35,12 +37,14 @@ import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class QueryDslTimestampBoundsExtractorTests extends ESTestCase {
+
+    private static final long EPOCH_SECOND_2024_06_15 = 1_718_409_600L;
+    private static final long EPOCH_SECOND_2024_06_16 = 1_718_496_000L;
 
     public void testExtractTimestampBoundsFromRangeQuery() {
         Instant start = Instant.parse("2025-01-01T00:00:00Z");
@@ -264,7 +268,9 @@ public class QueryDslTimestampBoundsExtractorTests extends ESTestCase {
         List<Case> cases = List.of(
             new Case("coarse round", new RangeQueryBuilder("@timestamp").gte("2020-06-15").lte("2020-06-16")),
             new Case("now", new RangeQueryBuilder("@timestamp").gte("now-15m").lte("now")),
+            new Case("now/d", new RangeQueryBuilder("@timestamp").gte("now/d").lte("now/d")),
             new Case("exclusive", new RangeQueryBuilder("@timestamp").gt("2020-06-15T00:00:00.000Z").lt("2020-06-15T01:00:00.000Z")),
+            new Case("coarse exclusive", new RangeQueryBuilder("@timestamp").gt("2020-06-15").lt("2020-06-17")),
             new Case(
                 "format",
                 new RangeQueryBuilder("@timestamp").format("strict_date_optional_time")
@@ -275,7 +281,16 @@ public class QueryDslTimestampBoundsExtractorTests extends ESTestCase {
                 "time_zone",
                 new RangeQueryBuilder("@timestamp").timeZone("+02:00").gte("2025-01-01T00:00:00").lt("2025-01-02T00:00:00")
             ),
-            new Case("epoch_second", new RangeQueryBuilder("@timestamp").format("epoch_second").gte(1_718_409_600L).lte(1_718_496_000L))
+            new Case(
+                "epoch_second",
+                new RangeQueryBuilder("@timestamp").format("epoch_second").gte(EPOCH_SECOND_2024_06_15).lte(EPOCH_SECOND_2024_06_16)
+            ),
+            new Case("numeric no format", new RangeQueryBuilder("@timestamp").gte(2024L).lte(2025L)),
+            new Case(
+                "partial bool",
+                new BoolQueryBuilder().filter(new RangeQueryBuilder("@timestamp").gte("2020-06-15").lte("2020-06-16"))
+                    .filter(new RangeQueryBuilder("@timestamp").timeZone("+02:00").gte("2020-06-15").lte("2020-06-16"))
+            )
         );
         for (Case c : cases) {
             TimestampBounds listing = QueryDslTimestampBoundsExtractor.extractTimestampBounds(
@@ -285,14 +300,13 @@ public class QueryDslTimestampBoundsExtractorTests extends ESTestCase {
             );
             QueryDslTranslator.TranslationResult translated = new QueryDslTranslator(binder, fields, config, TransportVersion.current())
                 .translate(c.filter());
-            if (translated.isComplete() == false) {
+            MvInRange appliedRange = timestampInRange(translated.applied());
+            if (appliedRange == null) {
                 assertThat(c.name(), listing, nullValue());
                 continue;
             }
-            assertThat(c.name(), translated.applied(), instanceOf(MvInRange.class));
-            MvInRange range = (MvInRange) translated.applied();
-            long lo = (Long) ((Literal) range.lower()).value();
-            long hi = (Long) ((Literal) range.upper()).value();
+            long lo = (Long) ((Literal) appliedRange.lower()).value();
+            long hi = (Long) ((Literal) appliedRange.upper()).value();
             assertThat(c.name(), listing, notNullValue());
             assertThat(c.name() + " lo", listing.start().toEpochMilli(), lessThanOrEqualTo(lo));
             assertThat(c.name() + " hi", listing.end().toEpochMilli(), greaterThanOrEqualTo(hi));
@@ -300,7 +314,7 @@ public class QueryDslTimestampBoundsExtractorTests extends ESTestCase {
     }
 
     public void testRangeQueryNumericEpochSecondIs2024Not1970() {
-        var filter = new RangeQueryBuilder("@timestamp").format("epoch_second").gte(1_718_409_600L).lte(1_718_496_000L);
+        var filter = new RangeQueryBuilder("@timestamp").format("epoch_second").gte(EPOCH_SECOND_2024_06_15).lte(EPOCH_SECOND_2024_06_16);
         TimestampBounds bounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(filter, null, BoundSemantics.RANGE_QUERY);
         assertThat(bounds, notNullValue());
         assertThat(bounds.start(), equalTo(Instant.parse("2024-06-15T00:00:00Z")));
@@ -308,14 +322,49 @@ public class QueryDslTimestampBoundsExtractorTests extends ESTestCase {
         assertThat(bounds.end(), equalTo(Instant.parse("2024-06-16T00:00:00.999999999Z")));
     }
 
+    public void testRangeQueryNumericWithoutFormatIsEpochMillisNotYear() {
+        var filter = new RangeQueryBuilder("@timestamp").gte(2024L).lte(2025L);
+        TimestampBounds listing = QueryDslTimestampBoundsExtractor.extractTimestampBounds(filter, null, BoundSemantics.RANGE_QUERY);
+        TimestampBounds legacy = QueryDslTimestampBoundsExtractor.extractTimestampBounds(filter);
+        assertThat(listing, notNullValue());
+        assertThat(legacy, notNullValue());
+        assertThat(listing.start(), equalTo(Instant.ofEpochMilli(2024)));
+        assertThat(listing.end(), equalTo(Instant.ofEpochMilli(2025)));
+        assertThat(legacy.start(), equalTo(Instant.parse("2024-01-01T00:00:00Z")));
+    }
+
     public void testRangeQueryCoarseLteRoundsUpUnlikeLegacy() {
         var filter = new RangeQueryBuilder("@timestamp").gte("2020-06-15").lte("2020-06-15");
         TimestampBounds legacy = QueryDslTimestampBoundsExtractor.extractTimestampBounds(filter);
         TimestampBounds listing = QueryDslTimestampBoundsExtractor.extractTimestampBounds(filter, null, BoundSemantics.RANGE_QUERY);
+        assertThat(legacy, notNullValue());
+        assertThat(listing, notNullValue());
         assertThat(legacy.start(), equalTo(Instant.parse("2020-06-15T00:00:00Z")));
         assertThat(legacy.end(), equalTo(Instant.parse("2020-06-15T00:00:00Z")));
         assertThat(listing.start(), equalTo(Instant.parse("2020-06-15T00:00:00Z")));
         assertThat(listing.end(), equalTo(Instant.parse("2020-06-15T23:59:59.999999999Z")));
+    }
+
+    public void testRangeQueryCoarseGtRoundsUpUnlikeLegacy() {
+        var filter = new RangeQueryBuilder("@timestamp").gt("2020-06-15").lt("2020-06-17");
+        TimestampBounds legacy = QueryDslTimestampBoundsExtractor.extractTimestampBounds(filter);
+        TimestampBounds listing = QueryDslTimestampBoundsExtractor.extractTimestampBounds(filter, null, BoundSemantics.RANGE_QUERY);
+        assertThat(legacy, notNullValue());
+        assertThat(listing, notNullValue());
+        assertThat(legacy.start(), equalTo(Instant.parse("2020-06-15T00:00:00Z")));
+        assertThat(listing.start(), equalTo(Instant.parse("2020-06-15T23:59:59.999999999Z")));
+    }
+
+    @Nullable
+    private static MvInRange timestampInRange(Expression applied) {
+        return switch (applied) {
+            case MvInRange range -> range;
+            case And and -> {
+                MvInRange left = timestampInRange(and.left());
+                yield left != null ? left : timestampInRange(and.right());
+            }
+            default -> null;
+        };
     }
 
 }

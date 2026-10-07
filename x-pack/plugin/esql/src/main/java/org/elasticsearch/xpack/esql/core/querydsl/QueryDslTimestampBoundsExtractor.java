@@ -14,7 +14,6 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
-import org.elasticsearch.xpack.esql.dsltranslate.QueryDslTranslator;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -38,8 +37,8 @@ public final class QueryDslTimestampBoundsExtractor {
      * <p>
      * {@link #LEGACY} is the PromQL / {@code TBUCKET} / {@code TSTEP} path: both ends round down and a
      * {@code time_zone} is applied. {@link #RANGE_QUERY} matches the Query DSL range rewrite used as the
-     * row filter: {@code gte}/{@code lt} round down, {@code lte}/{@code gt} round up, and a clause the
-     * translator would drop contributes no listing narrowing.
+     * row filter: {@code gte}/{@code lt} round down, {@code lte}/{@code gt} round up, and a clause
+     * {@link #unsupportedRangeReason} would drop contributes no listing narrowing.
      */
     public enum BoundSemantics {
         LEGACY,
@@ -116,16 +115,37 @@ public final class QueryDslTimestampBoundsExtractor {
         }
     }
 
+    /**
+     * Why a range cannot be rewritten as a row filter, or {@code null} if it can. Listing extraction with
+     * {@link BoundSemantics#RANGE_QUERY} returns no bounds from a clause this rejects, so listing is never
+     * tighter than the applied row filter. Keep this list in one place: every new drop reason must feed
+     * both this extractor and {@code QueryDslTranslator.range()}.
+     */
+    @Nullable
+    public static String unsupportedRangeReason(RangeQueryBuilder range) {
+        if (range.timeZone() != null) {
+            return "range[time_zone]";
+        }
+        return null;
+    }
+
     @Nullable
     private static Instant parseInstant(
         @Nullable Object value,
         @Nullable String format,
         @Nullable String timeZone,
         @Nullable LongSupplier nowSupplier,
-        boolean roundUp
+        boolean roundUp,
+        BoundSemantics semantics
     ) {
         if (value == null) {
             return null;
+        }
+        // RANGE_QUERY matches DateFieldMapper / the translator: a Number with no format (or epoch_millis)
+        // is epoch millis. Stringifying would let "2024" parse as a year and listing would drop 1970 folders
+        // the row filter still matches.
+        if (semantics == BoundSemantics.RANGE_QUERY && value instanceof Number n && isEpochMillisFormat(format)) {
+            return Instant.ofEpochMilli(n.longValue());
         }
         String stringValue = value.toString();
         if (nowSupplier == null && stringValue.contains("now")) {
@@ -140,6 +160,10 @@ public final class QueryDslTimestampBoundsExtractor {
         }
     }
 
+    private static boolean isEpochMillisFormat(@Nullable String format) {
+        return format == null || "epoch_millis".equals(format);
+    }
+
     private static final class Builder {
         private final BoundSemantics semantics;
         private Instant start;
@@ -152,19 +176,19 @@ public final class QueryDslTimestampBoundsExtractor {
         }
 
         private void add(RangeQueryBuilder range, LongSupplier nowSupplier) {
-            if (semantics == BoundSemantics.RANGE_QUERY && QueryDslTranslator.unsupportedRangeReason(range) != null) {
+            if (semantics == BoundSemantics.RANGE_QUERY && unsupportedRangeReason(range) != null) {
                 // The row filter drops this clause; listing must not narrow from it.
                 return;
             }
             foundTimestampRange = true;
             boolean lowerRoundUp = semantics == BoundSemantics.RANGE_QUERY && range.includeLower() == false;
             boolean upperRoundUp = semantics == BoundSemantics.RANGE_QUERY && range.includeUpper();
-            Instant lowerBound = parseInstant(range.from(), range.format(), range.timeZone(), nowSupplier, lowerRoundUp);
+            Instant lowerBound = parseInstant(range.from(), range.format(), range.timeZone(), nowSupplier, lowerRoundUp, semantics);
             if (range.from() != null && lowerBound == null) {
                 invalid = true;
                 return;
             }
-            Instant upperBound = parseInstant(range.to(), range.format(), range.timeZone(), nowSupplier, upperRoundUp);
+            Instant upperBound = parseInstant(range.to(), range.format(), range.timeZone(), nowSupplier, upperRoundUp, semantics);
             if (range.to() != null && upperBound == null) {
                 invalid = true;
                 return;

@@ -199,9 +199,11 @@ null      | null
 
 jsonExtractNullPath
 required_capability: fn_json_extract
+required_capability: warn_null_misuse
 ROW json = """{"name":"Alice"}"""
 | EVAL result = JSON_EXTRACT(json, null::keyword)
 ;
+warning:Line 2:17: Expression [JSON_EXTRACT(json, null::keyword)] always evaluates to NULL.
 
 json:keyword              | result:keyword
 "{""name"":""Alice""}"    | null

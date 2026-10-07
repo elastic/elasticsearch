@@ -494,12 +494,36 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             for (String falsePredicate : alwaysFalsePredicates) {
                 String comparison = fieldWithType + falsePredicate;
                 var query = requestObjectBuilder().query(format(null, "from {} | where {}", testIndexName(), comparison));
-                var result = runEsql(query);
+                AssertWarnings warnings = falsePredicate.contains("to_double(null)")
+                    ? new AssertWarnings.ExactStrings(List.of(nullComparisonWarning(comparison)))
+                    : new AssertWarnings.NoWarnings();
+                var result = runEsql(query, warnings, profileLogger, mode);
 
                 var values = as(result.get("values"), ArrayList.class);
                 assertThat(format(null, "Comparison [{}] should return no rows.", comparison), values.size(), is(0));
             }
         }
+    }
+
+    /**
+     * {@code to_double(null)} is a typed null, so the warning is on the comparison that uses it.
+     * A leading minus folds first, so {@code -to_double(null)} warns on the negation.
+     * The comparison starts at column 29 of {@code from rest-esql-test | where …}.
+     */
+    private static String nullComparisonWarning(String comparison) {
+        int minus = comparison.indexOf("-to_double(null)");
+        if (minus >= 0) {
+            return "Line 1:" + (29 + minus) + ": Expression [-to_double(null)] always evaluates to NULL.";
+        }
+        String message = "Line 1:29: Expression [" + comparison + "] always evaluates to NULL";
+        String field = comparison.substring(0, comparison.indexOf(' '));
+        if (comparison.contains(" != ")) {
+            return message + ", did you mean [" + field + " IS NOT NULL]?";
+        }
+        if (comparison.contains(" == ")) {
+            return message + ", did you mean [" + field + " IS NULL]?";
+        }
+        return message + ".";
     }
 
     // Test the Range created in PushFiltersToSource for qualified pushable filters on the same field

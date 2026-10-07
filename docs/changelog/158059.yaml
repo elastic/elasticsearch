@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 158059
+summary: Send a warning when a query has a foldable NULL literal
+type: feature

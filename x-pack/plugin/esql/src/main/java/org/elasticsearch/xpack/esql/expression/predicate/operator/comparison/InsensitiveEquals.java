@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NullMisuseSuggestion;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -30,6 +32,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
@@ -37,7 +40,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
-public class InsensitiveEquals extends InsensitiveBinaryComparison implements EvaluatorMapper, AnyNullIsNull {
+public class InsensitiveEquals extends InsensitiveBinaryComparison implements EvaluatorMapper, AnyNullIsNull, NullMisuseSuggestion {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "InsensitiveEquals",
@@ -151,5 +154,23 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison implements Ev
             return new InsensitiveEqualsEvaluator.Factory(source(), leftEval, rightEval);
         }
         throw new EsqlIllegalArgumentException("resolved type for [" + this + "] but didn't implement mapping");
+    }
+
+    @Override
+    public String nullMisuseAlternative() {
+        Expression kept;
+        if (Expressions.isGuaranteedNull(right()) || ConvertFunction.isExplicitNull(right())) {
+            kept = left();
+        } else if (Expressions.isGuaranteedNull(left()) || ConvertFunction.isExplicitNull(left())) {
+            kept = right();
+        } else {
+            return null;
+        }
+        // Suggesting `<literal> IS NULL` is never what the user meant.
+        if (kept instanceof Literal) {
+            return null;
+        }
+        String text = kept.sourceText();
+        return text.isEmpty() ? null : text + " IS NULL";
     }
 }

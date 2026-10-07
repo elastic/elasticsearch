@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -578,8 +579,9 @@ public final class StreamingParallelParsingCoordinator {
         private final AtomicInteger buffersAllocated;
         /**
          * Arrays the grow loop allocated for a record larger than {@link #chunkSize}, each charged to
-         * {@link #breaker} at its length. Identity-keyed: membership makes {@link GrowBuffer#release()} single-shot
-         * against {@link #close()}, which releases whatever is still here.
+         * {@link #breaker} at its {@linkplain HeapFootprint#byteArrayBytes(long) heap footprint}. Identity-keyed:
+         * membership makes {@link GrowBuffer#release()} single-shot against {@link #close()}, which releases
+         * whatever is still here.
          */
         private final Set<GrowBuffer> growBuffers = ConcurrentHashMap.newKeySet();
         private final CircuitBreaker breaker;
@@ -595,6 +597,8 @@ public final class StreamingParallelParsingCoordinator {
          * (compressed size for {@link DecompressingStorageObject}, else {@link StorageObject#knownLength()}).
          */
         private final int chunkSize;
+        /** {@link HeapFootprint#byteArrayBytes(long)} of {@link #chunkSize}: what each pooled array is charged. */
+        private final long chunkCharge;
         /**
          * Canonical-stripe grid for per-stripe stats accounting, in decompressed-stream bytes
          * ({@code <= 0} disables). Stripes are orthogonal to chunking: the segmentator still cuts chunks
@@ -793,6 +797,7 @@ public final class StreamingParallelParsingCoordinator {
             this.pageQueueRingSize = parallelism + 1;
 
             this.chunkSize = ExternalSourceSettings.ioFillBytes(reader.minimumSegmentSize(), streamingFillHint(storageObject));
+            this.chunkCharge = HeapFootprint.byteArrayBytes(chunkSize);
 
             this.bufferPool = new ArrayBlockingQueue<>(bufferPoolSize);
             this.buffersAllocated = new AtomicInteger(0);
@@ -1519,7 +1524,7 @@ public final class StreamingParallelParsingCoordinator {
                     }
                     return null;
                 }
-                breaker.addEstimateBytesAndMaybeBreak(chunkSize, "streaming-parse-chunk-buffer");
+                breaker.addEstimateBytesAndMaybeBreak(chunkCharge, "streaming-parse-chunk-buffer");
                 if (buffersAllocated.compareAndSet(allocated, allocated + 1)) {
                     if (abortDispatch()) {
                         new PoolBuffer().release();
@@ -1527,7 +1532,7 @@ public final class StreamingParallelParsingCoordinator {
                     }
                     return new PoolBuffer();
                 }
-                breaker.addWithoutBreaking(-chunkSize);
+                breaker.addWithoutBreaking(-chunkCharge);
             }
         }
 
@@ -1557,7 +1562,10 @@ public final class StreamingParallelParsingCoordinator {
             void release();
         }
 
-        /** A {@link #chunkSize} array from {@link #bufferPool}; its charge is counted in {@link #buffersAllocated}. */
+        /**
+         * A {@link #chunkSize} array from {@link #bufferPool}; its {@link #chunkCharge} is counted in
+         * {@link #buffersAllocated}.
+         */
         private final class PoolBuffer implements ChunkBuffer {
             private final byte[] bytes = new byte[chunkSize];
 
@@ -1579,9 +1587,11 @@ public final class StreamingParallelParsingCoordinator {
         /** An array the grow loop allocated for a record larger than {@link #chunkSize}, charged to {@link #breaker}. */
         private final class GrowBuffer implements ChunkBuffer {
             private final byte[] bytes;
+            private final long charge;
 
-            private GrowBuffer(byte[] bytes) {
+            private GrowBuffer(byte[] bytes, long charge) {
                 this.bytes = bytes;
+                this.charge = charge;
             }
 
             @Override
@@ -1593,14 +1603,15 @@ public final class StreamingParallelParsingCoordinator {
             @Override
             public void release() {
                 if (growBuffers.remove(this)) {
-                    breaker.addWithoutBreaking(-bytes.length);
+                    breaker.addWithoutBreaking(-charge);
                 }
             }
         }
 
         /**
          * Allocates a grow buffer of {@code length} bytes holding a copy of the first {@code copyLen}
-         * bytes of {@code from}. The array is charged to {@link #breaker} before it is allocated and stays
+         * bytes of {@code from}. The array's {@linkplain HeapFootprint#byteArrayBytes(long) heap footprint}
+         * is charged to {@link #breaker} before it is allocated and stays
          * charged until {@link GrowBuffer#release()} or {@link #close()} releases it. The breaker sees the grow
          * loop's peak: the old and the new array are both live while one is copied into the other.
          * Returns {@code null} once {@link #close()} has begun, refunding an allocation that raced it.
@@ -1609,16 +1620,17 @@ public final class StreamingParallelParsingCoordinator {
             if (closed.get()) {
                 return null;
             }
-            breaker.addEstimateBytesAndMaybeBreak(length, GROW_BUFFER_BREAKER_LABEL);
+            long charge = HeapFootprint.byteArrayBytes(length);
+            breaker.addEstimateBytesAndMaybeBreak(charge, GROW_BUFFER_BREAKER_LABEL);
             byte[] bytes;
             try {
                 bytes = new byte[length];
                 System.arraycopy(from, 0, bytes, 0, copyLen);
             } catch (Throwable t) {
-                breaker.addWithoutBreaking(-length);
+                breaker.addWithoutBreaking(-charge);
                 throw t;
             }
-            GrowBuffer buf = new GrowBuffer(bytes);
+            GrowBuffer buf = new GrowBuffer(bytes, charge);
             growBuffers.add(buf);
             // Register before checking closed so either close's sweep or this allocator releases the charge.
             if (closed.get()) {
@@ -2212,7 +2224,7 @@ public final class StreamingParallelParsingCoordinator {
             }
             int allocated = buffersAllocated.getAndSet(POOL_CLOSED_MARKER);
             if (allocated > 0) {
-                breaker.addWithoutBreaking(-(long) allocated * chunkSize);
+                breaker.addWithoutBreaking(-allocated * chunkCharge);
             }
             // Grow buffers still held by the segmentator or a parser when the wait above ended early (timeout or
             // interrupt); queued chunks were already released by drainAllQueues(). GrowBuffer#release() is

@@ -742,6 +742,33 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         }
     }
 
+    public void testWriteIntsAndLongsLEAcrossPageBoundaries() throws IOException {
+        int pageSize = PageCacheRecycler.BYTE_PAGE_SIZE;
+        for (int gap = 0; gap < Long.BYTES; gap++) {
+            int start = pageSize - gap;
+            int[] ints = randomInts(2 * pageSize / Integer.BYTES).toArray();
+            try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler)) {
+                out.writeBytes(new byte[start]);
+                out.writeIntsLE(ints, 0, ints.length);
+                assertEquals(start + 2L * pageSize, out.position());
+                BytesReference bytes = out.bytes();
+                for (int i = 0; i < ints.length; i++) {
+                    assertEquals("gap " + gap + ", int " + i, ints[i], bytes.getIntLE(start + i * Integer.BYTES));
+                }
+            }
+            long[] longs = randomLongs(2 * pageSize / Long.BYTES).toArray();
+            try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler)) {
+                out.writeBytes(new byte[start]);
+                out.writeLongsLE(longs, 0, longs.length);
+                assertEquals(start + 2L * pageSize, out.position());
+                BytesReference bytes = out.bytes();
+                for (int i = 0; i < longs.length; i++) {
+                    assertEquals("gap " + gap + ", long " + i, longs[i], bytes.getLongLE(start + i * Long.BYTES));
+                }
+            }
+        }
+    }
+
     public void testRandomWritesAndSeeks() throws IOException {
         try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(new Recycler<>() {
             @Override

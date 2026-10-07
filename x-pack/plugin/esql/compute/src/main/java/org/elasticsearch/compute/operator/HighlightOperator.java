@@ -35,6 +35,7 @@ import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.apache.lucene.search.uhighlight.SplittingBreakIterator;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.Block;
@@ -129,6 +130,15 @@ public class HighlightOperator extends AbstractPageMappingOperator {
      * {@link BytesRef#BytesRef(CharSequence)} allocates 3.
      */
     private static final int SNIPPET_BYTES_PER_CHAR = 8;
+    /**
+     * Heap per snippet regardless of its length, so many tiny snippets are not undercounted: the formatter's
+     * StringBuilder with its default 16-char array, the String and {@link Snippet} it returns, the {@link BytesRef}
+     * {@link #appendSnippets} copies it into, their array headers, and the snippet's slot in the {@code Snippet[]}.
+     */
+    private static final long SNIPPET_OVERHEAD_BYTES = RamUsageEstimator.shallowSizeOfInstance(StringBuilder.class) + RamUsageEstimator
+        .shallowSizeOfInstance(String.class) + RamUsageEstimator.shallowSizeOfInstance(Snippet.class) + RamUsageEstimator
+            .shallowSizeOfInstance(BytesRef.class) + 3L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + 16
+        + RamUsageEstimator.NUM_BYTES_OBJECT_REF;
 
     private final BlockFactory blockFactory;
     private final HighlightConfig config;
@@ -434,7 +444,8 @@ public class HighlightOperator extends AbstractPageMappingOperator {
                 long text = passage.getEndOffset() - passage.getStartOffset();
                 chars += text * maxEncodedCharsPerChar + (long) passage.getNumMatches() * tagsLength;
             }
-            long bytes = chars * SNIPPET_BYTES_PER_CHAR;
+            long bytes = chars * SNIPPET_BYTES_PER_CHAR + passages.length * SNIPPET_OVERHEAD_BYTES
+                + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
             blockFactory.adjustBreaker(bytes);
             snippetBytes += bytes;
             return super.format(passages, content);

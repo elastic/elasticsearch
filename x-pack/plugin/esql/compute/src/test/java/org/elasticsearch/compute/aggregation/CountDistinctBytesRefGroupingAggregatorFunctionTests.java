@@ -21,14 +21,13 @@ import org.elasticsearch.core.Tuple;
 import java.util.List;
 import java.util.stream.LongStream;
 
-import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CountDistinctBytesRefGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new CountDistinctBytesRefAggregatorFunctionSupplier(40000);
+        return new CountDistinctBytesRefAggregatorFunctionSupplier(CountDistinctTestUtils.PRECISION);
     }
 
     @Override
@@ -46,13 +45,10 @@ public class CountDistinctBytesRefGroupingAggregatorFunctionTests extends Groupi
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
-        long distinct = input.stream().flatMap(p -> allBytesRefs(p, group)).distinct().count();
-        long count = ((LongBlock) result).getLong(position);
-        // HLL is an approximation algorithm and precision depends on the number of values computed and the precision_threshold param
-        // https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-cardinality-aggregation.html
-        // Below precision_threshold, linear counting merges distinct values whose hashes share a 25-bit prefix, so even
-        // tiny groups can be off by one.
-        assertThat((double) count, closeTo(distinct, Math.max(1, distinct * 0.1)));
+        long expected = CountDistinctTestUtils.expectedCount(
+            state -> input.stream().flatMap(p -> allBytesRefs(p, group)).forEach(state::collect)
+        );
+        assertThat(((LongBlock) result).getLong(position), equalTo(expected));
     }
 
     @Override

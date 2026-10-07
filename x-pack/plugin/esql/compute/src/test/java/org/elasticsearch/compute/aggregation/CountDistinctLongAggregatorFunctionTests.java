@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.stream.LongStream;
 
 import static org.elasticsearch.compute.test.BlockTestUtils.valuesAtPositions;
-import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CountDistinctLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
@@ -38,7 +37,7 @@ public class CountDistinctLongAggregatorFunctionTests extends AggregatorFunction
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new CountDistinctLongAggregatorFunctionSupplier(40000);
+        return new CountDistinctLongAggregatorFunctionSupplier(CountDistinctTestUtils.PRECISION);
     }
 
     @Override
@@ -48,13 +47,10 @@ public class CountDistinctLongAggregatorFunctionTests extends AggregatorFunction
 
     @Override
     protected void assertSimpleOutput(List<Page> input, Block result) {
-        long expected = input.stream().flatMapToLong(p -> allLongs(p.getBlock(0))).distinct().count();
-        long count = ((LongBlock) result).getLong(0);
-
-        // HLL is an approximation algorithm and precision depends on the number of values computed and the precision_threshold param
-        // https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-cardinality-aggregation.html
-        // For a number of values close to 10k and precision_threshold=1000, precision should be less than 10%
-        assertThat((double) count, closeTo(expected, expected * 0.1));
+        long expected = CountDistinctTestUtils.expectedCount(
+            state -> input.stream().flatMapToLong(p -> allLongs(p.getBlock(0))).forEach(state::collect)
+        );
+        assertThat(((LongBlock) result).getLong(0), equalTo(expected));
     }
 
     @Override

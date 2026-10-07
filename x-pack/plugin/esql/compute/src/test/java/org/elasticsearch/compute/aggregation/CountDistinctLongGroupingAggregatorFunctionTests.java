@@ -21,13 +21,12 @@ import org.elasticsearch.core.Tuple;
 import java.util.List;
 import java.util.stream.LongStream;
 
-import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CountDistinctLongGroupingAggregatorFunctionTests extends PartitionedGroupingAggregatorFunctionTestCase {
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new CountDistinctLongAggregatorFunctionSupplier(40000);
+        return new CountDistinctLongAggregatorFunctionSupplier(CountDistinctTestUtils.PRECISION);
     }
 
     @Override
@@ -45,25 +44,24 @@ public class CountDistinctLongGroupingAggregatorFunctionTests extends Partitione
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
-        long expected = input.stream().flatMapToLong(p -> allLongs(p, group)).distinct().count();
-        long count = ((LongBlock) result).getLong(position);
-        // HLL is an approximation algorithm and precision depends on the number of values computed and the precision_threshold param
-        // https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-cardinality-aggregation.html
-        // Below precision_threshold, linear counting merges distinct values whose hashes share a 25-bit prefix, so even
-        // tiny groups can be off by one.
-        assertThat((double) count, closeTo(expected, Math.max(1, expected * 0.1)));
+        long expected = CountDistinctTestUtils.expectedCount(
+            state -> input.stream().flatMapToLong(p -> allLongs(p, group)).forEach(state::collect)
+        );
+        assertThat(((LongBlock) result).getLong(position), equalTo(expected));
     }
 
     /**
      * {@code 21685} and {@code 76695} share the top 25 bits of their hash, so linear counting stores them as one entry
-     * and counts this group as 1. The tolerance in {@link #assertSimpleGroup} must accept that.
+     * and counts this group as 1. {@link #assertSimpleGroup} must expect that rather than the number of distinct values.
      */
     public void testHashCollisionInSmallGroup() {
         var runner = new TestDriverRunner().builder(driverContext()).collectDeepCopy();
         runner.input(
             new TupleLongLongBlockSourceOperator(runner.blockFactory(), List.of(Tuple.tuple(0L, 21685L), Tuple.tuple(0L, 76695L)))
         );
-        assertSimpleOutput(runner.deepCopy(), runner.run(simple()));
+        List<Page> results = runner.run(simple());
+        assertSimpleOutput(runner.deepCopy(), results);
+        assertThat(((LongBlock) results.getFirst().getBlock(1)).getLong(0), equalTo(1L));
     }
 
     @Override

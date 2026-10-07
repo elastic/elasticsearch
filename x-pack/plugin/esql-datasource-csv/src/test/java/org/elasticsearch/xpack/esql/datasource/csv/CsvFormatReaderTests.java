@@ -274,11 +274,10 @@ public class CsvFormatReaderTests extends ESTestCase {
      * one sampling boundary: for a given {@code schema_sample_size}, an anomaly on the last sampled row
      * is absorbed on both axes, and the identical anomaly one row later is absorbed on neither. Nothing
      * here pins a literal row number, so the test survives {@code schema_sample_size}'s default
-     * changing again — it is the "the two boundaries must agree" guard elastic/esql-planning#2134's own
-     * acceptance criteria calls for, whose absence is exactly what let the two axes silently drift apart
-     * (the type axis doubled its effective window in elastic/elasticsearch#157409 while the width axis
-     * stayed on the single original window) before the two CSV sampling windows were merged back into
-     * one.
+     * changing again — it is the "the two boundaries must agree" guard that was missing, which is
+     * exactly what let the two axes silently drift apart (the type axis doubled its effective window
+     * while the width axis stayed on the single original window) before the two CSV sampling windows
+     * were merged back into one.
      */
     public void testTypeAndWidthAxesShareOneSamplingBoundary() throws IOException {
         int n = 3;

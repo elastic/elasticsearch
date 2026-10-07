@@ -437,7 +437,7 @@ public class CsvModeReadTests extends ESTestCase {
     }
 
     /**
-     * The issue's own repro, condensed (elastic/esql-planning#2134): a column inferred {@code integer}
+     * A condensed repro: a column inferred {@code integer}
      * from its first two rows widens to {@code keyword} on a third, non-numeric row still inside the
      * sample. The widen must be reported — naming the column, the forced type, and the value — exactly
      * like the {@code \N} hint above, and must never land on this thread's response headers either.

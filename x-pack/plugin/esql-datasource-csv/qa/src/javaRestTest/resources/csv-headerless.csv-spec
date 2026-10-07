@@ -14,8 +14,8 @@
 // Headerless inference also samples columns beyond col1: the bracket multi-value syntax is not
 // bracket-aware during schema sampling, so a handful of other columns' comma-split fragments
 // disagree in type across sampled rows and widen to KEYWORD (or merge long+double) — pre-existing
-// behavior, now reported instead of silent (elastic/esql-planning#2134). The path segment is
-// wildcarded since it differs per storage backend/compression variant this spec runs against.
+// behavior, now reported instead of silent. The path segment is wildcarded since it differs per
+// storage backend/compression variant this spec runs against.
 headerRowFalse
 required_capability: dataset_in_from_command
 required_capability: external_csv_header_row_option

@@ -294,7 +294,7 @@ public class SchemaCacheEntryTests extends ESTestCase {
 
     /**
      * A within-file widening record is part of the cached entry too, so a warm resolve still lets
-     * {@code schema_resolution: strict} refuse it exactly like a cold one (elastic/esql-planning#2134).
+     * {@code schema_resolution: strict} refuse it exactly like a cold one.
      */
     public void testFromPreservesWidenedColumnsThroughCopies() {
         WidenedColumn widened = new WidenedColumn("a", DataType.INTEGER, DataType.KEYWORD, "oops", 3);

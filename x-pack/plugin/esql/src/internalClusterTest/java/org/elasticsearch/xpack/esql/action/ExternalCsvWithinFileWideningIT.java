@@ -34,8 +34,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
- * End-to-end coverage for elastic/esql-planning#2134: a CSV dataset whose column widens partway
- * through the schema sample must say so in a response {@code Warning} header, and
+ * End-to-end coverage for within-file schema-inference widening: a CSV dataset whose column widens
+ * partway through the schema sample must say so in a response {@code Warning} header, and
  * {@code schema_resolution: strict} must refuse the widen even on a dataset whose glob resolves to a
  * single file, where cross-file reconciliation has no second file to compare against. {@code strict}
  * (like every {@code schema_resolution} value) only takes effect through the glob/multi-file resolution

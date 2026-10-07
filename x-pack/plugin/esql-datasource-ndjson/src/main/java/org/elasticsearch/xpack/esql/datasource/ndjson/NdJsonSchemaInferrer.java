@@ -15,6 +15,7 @@ import com.fasterxml.jackson.core.exc.StreamConstraintsException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -363,13 +364,13 @@ public class NdJsonSchemaInferrer {
             case VALUE_NUMBER_INT -> {
                 switch (parser.getNumberType()) {
                     case INT:
-                        field.addType(DataType.INTEGER, lineCount + 1, parser.getText());
+                        field.addType(DataType.INTEGER, lineCount + 1, parser::getText);
                         return;
                     case LONG:
-                        field.addType(DataType.LONG, lineCount + 1, parser.getText());
+                        field.addLongType(lineCount + 1, parser.getLongValue(), parser::getText);
                         return;
                     case BIG_INTEGER: {
-                        field.addType(DataType.DOUBLE, lineCount + 1, parser.getText());
+                        field.addType(DataType.DOUBLE, lineCount + 1, parser::getText);
                         var location = parser.getTokenLocation();
                         logger.debug(
                             "Big integers are not supported, falling back to double [{}, line: {}, column: {}]",
@@ -380,8 +381,8 @@ public class NdJsonSchemaInferrer {
                     }
                 }
             } // conservative size
-            case VALUE_NUMBER_FLOAT -> field.addType(DataType.DOUBLE, lineCount + 1, parser.getText()); // conservative size
-            case VALUE_TRUE, VALUE_FALSE -> field.addType(DataType.BOOLEAN, lineCount + 1, parser.getText());
+            case VALUE_NUMBER_FLOAT -> field.addType(DataType.DOUBLE, lineCount + 1, parser::getText); // conservative size
+            case VALUE_TRUE, VALUE_FALSE -> field.addType(DataType.BOOLEAN, lineCount + 1, parser::getText);
             case VALUE_NULL -> field.nullable = true;
             // Ignore all other events
         }
@@ -485,7 +486,7 @@ public class NdJsonSchemaInferrer {
          * Whether a long-shaped value outside the range a double represents exactly has been seen for
          * this field. Gates a reported long/double merge so an ordinary field mixing whole numbers and
          * decimals (e.g. {@code 1}, {@code 2}, {@code 1.5}) is not flagged — nothing is actually lost
-         * there, since every value round-trips through double exactly. See {@link #isPrecisionLosingLong}.
+         * there, since every value round-trips through double exactly. See {@link #addLongType}.
          */
         boolean sawPrecisionLosingLong;
 
@@ -539,66 +540,97 @@ public class NdJsonSchemaInferrer {
 
         /**
          * Records one sampled value's type, updating the running fold and reporting a {@link Widening} the
-         * moment it moves to {@link DataType#KEYWORD} or completes a {@code long}/{@code double} merge —
-         * gated exactly like {@code SchemaReconciliation}'s cross-file emitters
-         * ({@code emitKeywordFallbackWarnings} / {@code emitPrecisionLossWarnings}): a lossless promotion
-         * (e.g. {@code integer -> long}) stays silent. The first value a field ever sees never widens
-         * anything (there is nothing yet to move away from), matching
-         * {@code CsvSchemaInferrer.narrowCandidate}'s treatment of an unconfirmed column.
+         * moment it moves to {@link DataType#KEYWORD} — gated exactly like {@code SchemaReconciliation}'s
+         * cross-file {@code emitKeywordFallbackWarnings}: a lossless promotion (e.g. {@code integer ->
+         * long}) stays silent. The first value a field ever sees never widens anything (there is nothing
+         * yet to move away from), matching {@code CsvSchemaInferrer.narrowCandidate}'s treatment of an
+         * unconfirmed column. A {@code long}/{@code double} merge is handled by {@link #addLongType}
+         * instead (for a {@code LONG} value) or below (for a {@code DOUBLE} value arriving after a
+         * {@code LONG} already settled the field) — see that method's javadoc for why the two are split.
          * <p>
          * A type already contributing to the fold changes nothing if seen again — {@code join} is
          * idempotent — so re-seeing it is skipped before the join, both as an optimization and because
          * {@code updated != previous} below only ever holds on a genuinely new type: {@code previous}
          * already absorbed every type seen so far, so joining it with one of those again is a no-op.
-         * <p>
-         * A long/double merge is only reported when {@code sawPrecisionLosingLong} is true: a field
-         * mixing whole numbers and decimals entirely within the range a double represents exactly (e.g.
-         * {@code 1}, {@code 2}, {@code 1.5}) must not be flagged, since nothing is actually lost there.
-         * The merge usually surfaces on the call that adds the second of {@code LONG}/{@code DOUBLE} to
-         * {@link #types} — adding any other type leaves their joint membership unchanged, so
-         * {@code type == LONG || type == DOUBLE} is equivalent to a before/after membership comparison,
-         * and cheaper: it folds into the {@code contains} calls already needed below instead of taking a
-         * separate pre-add snapshot on every call, including the repeat-value common case that returns
-         * before reaching here. {@code fromType} reports {@code LONG} (this value's own shape) rather
-         * than {@code previous} whenever {@code previous} already equals {@code updated}, since reporting
-         * {@code fromType == toType == DOUBLE} would say nothing useful.
-         * <p>
-         * Membership alone isn't the whole story, though: {@code sawPrecisionLosingLong} can flip on a
-         * call whose type is already a member — a second, larger {@code LONG} crossing 2^53 after a
-         * smaller one already settled the field on {@code LONG} — and {@code types.add} returning
-         * {@code false} for that call would otherwise hide the merge behind the early return below.
-         * Handled there explicitly.
+         * {@code value} is a {@link CheckedSupplier} rather than a plain {@code String} so the caller (a scalar
+         * token in the hot inference loop) only pays for materializing it when a {@link Widening} is
+         * actually about to be built — rare, since most values confirm a field's already-settled type.
+         * Safe to resolve synchronously here (never stored past this call): the backing
+         * {@code JsonParser} stays positioned on the current token for the whole call.
          */
-        void addType(DataType type, int row, String value) {
+        void addType(DataType type, int row, CheckedSupplier<String, IOException> value) throws IOException {
             fieldsSeen.set(idx);
-            boolean precisionLatchJustSet = false;
-            if (type == DataType.LONG && sawPrecisionLosingLong == false) {
-                sawPrecisionLosingLong = isPrecisionLosingLong(value);
-                precisionLatchJustSet = sawPrecisionLosingLong;
-            }
             if (types.add(type) == false) {
-                // type was already a member, so the "became both present" check below never runs for
-                // this call — but a value crossing the precision threshold can arrive on exactly such a
-                // call (see the javadoc above), and that merge must still be reported once, here.
-                if (precisionLatchJustSet && types.contains(DataType.DOUBLE)) {
-                    widenings.add(new Widening(fullName(), DataType.LONG, DataType.DOUBLE, value, row));
-                }
                 return;
             }
             DataType previous = runningType;
             DataType updated = previous == null ? type : TypeWidening.join(previous, type);
             if (previous != null) {
                 boolean becameKeyword = updated == DataType.KEYWORD && updated != previous;
+                // Only the DOUBLE side of a long/double merge reaches here — see addLongType for the
+                // LONG side, including the repeat-value case this method's types.add-gated shape can't see.
                 boolean becameLongDoubleMerge = updated == DataType.DOUBLE
-                    && (type == DataType.LONG || type == DataType.DOUBLE)
+                    && type == DataType.DOUBLE
                     && types.contains(DataType.LONG)
-                    && types.contains(DataType.DOUBLE)
                     && sawPrecisionLosingLong;
                 if (becameKeyword) {
-                    widenings.add(new Widening(fullName(), previous, updated, value, row));
+                    widenings.add(new Widening(fullName(), previous, updated, value.get(), row));
                 } else if (becameLongDoubleMerge) {
-                    DataType fromType = previous == updated ? type : previous;
-                    widenings.add(new Widening(fullName(), fromType, updated, value, row));
+                    widenings.add(new Widening(fullName(), previous, updated, value.get(), row));
+                }
+            }
+            runningType = updated;
+        }
+
+        /**
+         * Like {@link #addType}, but for a {@code LONG}-typed value, which is the only type that needs
+         * to track precision-loss risk: whether any long-shaped value's magnitude exceeds what a
+         * {@code double} represents exactly (see {@link #sawPrecisionLosingLong}). Takes the primitive
+         * {@code longValue} Jackson has already parsed, rather than text, because that check must run on
+         * every {@code LONG} value — including a repeat one, when {@code type} is already a member of
+         * {@link #types} and {@link #addType}'s {@code types.add}-gated shape would otherwise never look
+         * at it again — and a primitive comparison costs nothing there the common case needs to pay for
+         * with a materialized string.
+         * <p>
+         * A merge is only reported when {@link #sawPrecisionLosingLong} is true: a field mixing whole
+         * numbers and decimals entirely within the range a double represents exactly (e.g. {@code 1},
+         * {@code 2}, {@code 1.5}) must not be flagged, since nothing is actually lost there. The merge
+         * usually surfaces on the call that adds {@code LONG} to {@link #types} for the first time, with
+         * {@code DOUBLE} already a member (the symmetric case — {@code DOUBLE} arriving after
+         * {@code LONG} — is {@link #addType}'s). But membership alone isn't the whole story: the latch
+         * can flip on a call whose type is already a member — a second, larger {@code LONG} crossing
+         * 2^53 after a smaller one already settled the field on {@code LONG} — and {@code types.add}
+         * returning {@code false} for that call would otherwise hide the merge behind the early return.
+         * Handled there explicitly, reporting {@code LONG} as both the shape of this value and the
+         * field's prior committed type, since a repeat {@code LONG} call can only be reached once the
+         * field is already settled on {@code LONG}.
+         */
+        void addLongType(int row, long longValue, CheckedSupplier<String, IOException> value) throws IOException {
+            fieldsSeen.set(idx);
+            boolean precisionLatchJustSet = false;
+            if (sawPrecisionLosingLong == false) {
+                sawPrecisionLosingLong = longValue > MAX_SAFE_DOUBLE_INTEGER || longValue < -MAX_SAFE_DOUBLE_INTEGER;
+                precisionLatchJustSet = sawPrecisionLosingLong;
+            }
+            if (types.add(DataType.LONG) == false) {
+                if (precisionLatchJustSet && types.contains(DataType.DOUBLE)) {
+                    widenings.add(new Widening(fullName(), DataType.LONG, DataType.DOUBLE, value.get(), row));
+                }
+                return;
+            }
+            DataType previous = runningType;
+            DataType updated = previous == null ? DataType.LONG : TypeWidening.join(previous, DataType.LONG);
+            if (previous != null) {
+                boolean becameKeyword = updated == DataType.KEYWORD && updated != previous;
+                boolean becameLongDoubleMerge = updated == DataType.DOUBLE && types.contains(DataType.DOUBLE) && sawPrecisionLosingLong;
+                if (becameKeyword) {
+                    widenings.add(new Widening(fullName(), previous, updated, value.get(), row));
+                } else if (becameLongDoubleMerge) {
+                    // previous can equal updated here (field already DOUBLE from a genuine decimal,
+                    // now seeing its first — precision-losing — LONG): report LONG, this value's own
+                    // shape, rather than previous, since fromType == toType == DOUBLE says nothing.
+                    DataType fromType = previous == updated ? DataType.LONG : previous;
+                    widenings.add(new Widening(fullName(), fromType, updated, value.get(), row));
                 }
             }
             runningType = updated;
@@ -611,16 +643,6 @@ public class NdJsonSchemaInferrer {
 
     /** Every {@code long} at or below this magnitude round-trips through {@code double} exactly. */
     private static final long MAX_SAFE_DOUBLE_INTEGER = 1L << 53;
-
-    /** Whether {@code value} (already known to parse as a JSON integer token) loses precision as {@code double}. */
-    private static boolean isPrecisionLosingLong(String value) {
-        try {
-            long parsed = Long.parseLong(value);
-            return parsed > MAX_SAFE_DOUBLE_INTEGER || parsed < -MAX_SAFE_DOUBLE_INTEGER;
-        } catch (NumberFormatException e) {
-            return false;
-        }
-    }
 
     /**
      * The single type that represents everything observed for one field.
@@ -658,14 +680,14 @@ public class NdJsonSchemaInferrer {
      * strings, no later value pays a date parse. Without it every sampled value of a keyword column
      * would be parsed as a date and the result thrown away.
      */
-    private void inferStringType(FieldInfo field, String text) {
+    private void inferStringType(FieldInfo field, String text) throws IOException {
         if (field.types.contains(DataType.KEYWORD)) {
-            field.addType(DataType.KEYWORD, lineCount + 1, text);
+            field.addType(DataType.KEYWORD, lineCount + 1, () -> text);
             return;
         }
         TemporalAccessor parsed = tryParseDateTime(text);
         DataType type = parsed == null ? DataType.KEYWORD : forcesDateNanos(parsed) ? DataType.DATE_NANOS : DataType.DATETIME;
-        field.addType(type, lineCount + 1, text);
+        field.addType(type, lineCount + 1, () -> text);
     }
 
     /**

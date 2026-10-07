@@ -846,7 +846,7 @@ public class SchemaReconciliationTests extends ESTestCase {
     /**
      * {@code strict} must refuse a within-file schema-inference widen even on a single-file dataset,
      * where {@code validateStrictMatch} skips the only file (it equals the reference file) and so would
-     * otherwise see nothing to compare (elastic/esql-planning#2134). The reader reports the widen via
+     * otherwise see nothing to compare. The reader reports the widen via
      * {@link SourceMetadata#widenedColumns()}, independent of file count.
      */
     public void testStrictSingleFileRefusesWithinFileWidening() {

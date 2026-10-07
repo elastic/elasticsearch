@@ -215,7 +215,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
     }
 
     // widening-within-a-sample tests (CsvSchemaInferrer.widenSchema was folded into inferSchema when the
-    // two sampling windows were merged into one — elastic/esql-planning#2134)
+    // two sampling windows were merged into one)
 
     public void testWideningFromKeywordConflict() {
         String[] cols = { "id" };
@@ -249,7 +249,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
         assertEquals(DataType.DOUBLE, schema.get(1).dataType());
     }
 
-    // -- the `widenings` out-param (elastic/esql-planning#2134) --
+    // -- the `widenings` out-param --
 
     public void testWideningReportsColumnTypeValueAndRow() {
         String[] cols = { "id", "name" };
@@ -349,7 +349,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
      * KEYWORD by that point would. This was a latent discrepancy between the old two-pass
      * sample-then-widen design (where a column empty in the first window defaulted to KEYWORD and the
      * second pass, treating it as already-confirmed KEYWORD, never revisited it) and a true single
-     * pass, surfaced while merging the two sampling windows into one (elastic/esql-planning#2134).
+     * pass, surfaced while merging the two sampling windows into one.
      */
     public void testColumnEmptyEarlyInSampleIsStillTypedFromALaterValue() {
         String[] cols = { "id", "maybe" };

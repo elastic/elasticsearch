@@ -436,7 +436,7 @@ public class NdJsonFormatReaderTests extends ESTestCase {
      * {@code keyword} and report the widen — naming the field and the forced type — via both
      * {@link org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata#warnings()} and
      * {@link org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata#widenedColumns()}, matching
-     * the CSV/TSV behaviour (elastic/esql-planning#2134).
+     * the CSV/TSV behaviour.
      */
     public void testFieldTypeDisagreementEmitsWarningAndWidenedColumn() throws IOException {
         byte[] bytes = "{\"a\":1}\n{\"a\":2}\n{\"a\":\"oops\"}\n".getBytes(StandardCharsets.UTF_8);

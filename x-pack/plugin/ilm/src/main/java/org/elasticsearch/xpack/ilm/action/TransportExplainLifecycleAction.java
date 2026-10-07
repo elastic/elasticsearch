@@ -15,6 +15,8 @@ import org.elasticsearch.action.support.local.TransportLocalProjectMetadataActio
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
@@ -26,6 +28,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -230,10 +233,38 @@ public class TransportExplainLifecycleAction extends TransportLocalProjectMetada
                 indexResponse = null;
             }
         } else if (onlyManaged == false && onlyErrors == false) {
-            indexResponse = IndexLifecycleExplainResponse.newUnmanagedIndexResponse(indexName);
+            indexResponse = IndexLifecycleExplainResponse.newUnmanagedIndexResponse(
+                indexName,
+                describeNotManagedByIlmReason(project, indexMetadata)
+            );
         } else {
             indexResponse = null;
         }
         return indexResponse;
+    }
+
+    /**
+     * Describes why the index is not managed by ILM, mirroring the checks of {@link ProjectMetadata#isIndexManagedByILM}. Returns
+     * {@code null} if no specific reason can be determined.
+     */
+    @Nullable
+    static String describeNotManagedByIlmReason(ProjectMetadata project, IndexMetadata indexMetadata) {
+        String indexName = indexMetadata.getIndex().getName();
+        if (indexMetadata.getIndexMode() == IndexMode.LOOKUP) {
+            return "Index [" + indexName + "] is a lookup index, which is not compatible with lifecycle management.";
+        }
+        if (Strings.hasText(indexMetadata.getLifecyclePolicyName()) == false) {
+            return "Index [" + indexName + "] does not have an ILM policy configured.";
+        }
+        IndexAbstraction indexAbstraction = project.getIndicesLookup().get(indexName);
+        DataStream parentDataStream = indexAbstraction == null ? null : indexAbstraction.getParentDataStream();
+        if (parentDataStream != null) {
+            return "Index ["
+                + indexName
+                + "] belongs to data stream ["
+                + parentDataStream.getName()
+                + "] and is managed by data stream lifecycle, you can switch to ILM by setting prefer_ilm to true.";
+        }
+        return null;
     }
 }

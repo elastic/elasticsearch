@@ -1204,18 +1204,36 @@ public class ExternalSourceResolver {
             }
             extMetadata = withSourceType(extMetadata, datasetFormat);
 
-            // Capture the raw file schema: schemaMap describes the physical schema each reader actually
-            // sees, not the user-facing projection. _file.* columns are no longer glued onto the schema
-            // here — they are request-driven (FROM ... METADATA _file.path, or the temporary EXTERNAL
-            // shim that injects them into the relation's metadataFields). See ResolveExternalRelations.
-            List<Attribute> fileSchema = extMetadata.schema();
+            // Connector/catalog sources skip the file-format stamp (datasetFormat == null); AUTO
+            // must not hive-graft path keys onto a schema the catalog owns.
+            FileList singletonList = datasetFormat != null
+                ? GlobExpander.detectedFileListOf(List.of(storageEntry), path, PartitionConfig.fromConfig(fileConfig))
+                : GlobExpander.fileListOf(List.of(storageEntry), path);
+            pendingListingWarnings.addAll(singletonList.listingWarnings());
 
-            FileList singletonList = GlobExpander.fileListOf(List.of(storageEntry), path);
-            // Single-file: degenerate case of the general flow, with a one-entry schemaMap and identity mapping.
+            // Capture the raw file schema: schemaMap describes the physical schema each reader actually
+            // sees, not the user-facing projection. Partition columns are path-derived (injected by
+            // VirtualColumnIterator at read time), so they are never part of the physical read schema.
+            // _file.* columns are request-driven. See ResolveExternalRelations.
+            List<Attribute> physicalSchema = extMetadata.schema();
+            SourceStatistics fileStats = SourceStatisticsSerializer.fromSource(extMetadata);
+            List<Attribute> dataOnlySchema = physicalSchema;
+            PartitionMetadata partitionMetadata = singletonList.partitionMetadata();
+            if (physicalSchema != null && partitionMetadata != null && partitionMetadata.isEmpty() == false) {
+                // Shadow same-named physical columns: when a physical column collides with a partition key,
+                // the partition (path-derived) value wins (Spark/DuckDB semantics). Mapping width must agree
+                // with the data-only coordinator schema; enriching and keeping an identity map would disagree
+                // on a shadowed key. FileSchemaInfo still holds the physical ExternalSchema.
+                dataOnlySchema = ExternalSchema.dataAttributesOf(physicalSchema, partitionMetadata.partitionColumns().keySet())
+                    .attributes();
+                extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingSchemaWarnings::add);
+            }
+
             Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(
                 storagePath,
-                fileSchema,
-                SourceStatisticsSerializer.fromSource(extMetadata)
+                physicalSchema,
+                dataOnlySchema,
+                fileStats
             );
             listener.onResponse(new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap));
         } finally {
@@ -1228,11 +1246,27 @@ public class ExternalSourceResolver {
         @Nullable List<Attribute> schema,
         @Nullable SourceStatistics statistics
     ) {
-        if (schema == null || schema.isEmpty()) {
+        return singleEntrySchemaMap(path, schema, schema, statistics);
+    }
+
+    /**
+     * One-entry schema map for a concrete file. {@code physicalSchema} is what the reader parses
+     * (footer, or declared logical columns); {@code dataOnlySchema} is the mapping output width after
+     * partition-key shadowing. Empty physical schema still returns {@code Map.of()}.
+     */
+    private static Map<StoragePath, SchemaReconciliation.FileSchemaInfo> singleEntrySchemaMap(
+        StoragePath path,
+        @Nullable List<Attribute> physicalSchema,
+        @Nullable List<Attribute> dataOnlySchema,
+        @Nullable SourceStatistics statistics
+    ) {
+        if (physicalSchema == null || physicalSchema.isEmpty()) {
             return Map.of();
         }
-        ColumnMapping identityMapping = new ColumnMapping(identityMapping(schema.size()), null);
-        return Map.of(path, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(schema), identityMapping, statistics));
+        ColumnMapping mapping = dataOnlySchema == null || dataOnlySchema.size() == physicalSchema.size()
+            ? new ColumnMapping(identityMapping(physicalSchema.size()), null)
+            : SchemaReconciliation.computeMapping(dataOnlySchema, physicalSchema);
+        return Map.of(path, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(physicalSchema), mapping, statistics));
     }
 
     private void resolveMultiFileSource(
@@ -1780,6 +1814,7 @@ public class ExternalSourceResolver {
             assert listing.isTruncated() == false || extents.boundsFileSet()
                 : "a listing was truncated without a file-set extent being asked for";
             pendingListingWarnings.addAll(listing.listingWarnings());
+            emitPartitionSpecNotices(listing, hints, config);
             recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), schemaResolution);
             listener.onResponse(listing);
         }, listener::onFailure);
@@ -1841,6 +1876,32 @@ public class ExternalSourceResolver {
      */
     static boolean schemaAnswerableFromAPrefix(@Nullable FormatReader.SchemaResolution schemaResolution) {
         return schemaResolution == null || schemaResolution == FormatReader.SchemaResolution.FIRST_FILE_WINS;
+    }
+
+    /**
+     * Unmatched-bind and wrong-unit notices. Recomputed on every resolve (cold and
+     * cached) so they do not depend on listing-cache identity. Uses the resolver
+     * sink, not {@code HeaderWarning}, because this runs on the metadata executor.
+     */
+    private void emitPartitionSpecNotices(
+        FileList listing,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        Map<String, Object> config
+    ) {
+        String unusable = PartitionSpec.unusableNotice(config);
+        if (unusable != null) {
+            pendingListingWarnings.add(unusable);
+            return;
+        }
+        PartitionSpec spec = PartitionSpec.fromConfig(config);
+        if (spec.isEmpty()) {
+            return;
+        }
+        PartitionMetadata meta = listing.partitionMetadata();
+        // null metadata: listing never produced keys (do not warn). Empty key set:
+        // detection ran and found nothing — every bind is unmatched.
+        Set<String> detected = meta == null ? null : meta.partitionColumns().keySet();
+        spec.emitListingNotices(detected, hints, pendingListingWarnings::add);
     }
 
     /**
@@ -4218,13 +4279,16 @@ public class ExternalSourceResolver {
         // resolve never probes the live object; a miss (or a non-cacheable provider) probes exactly once. Strict
         // resolution reads no file body, so length + mtime are the only per-query object metadata it needs.
         FileMetadata meta = fileMetadataOf(storagePath, provider, storageIdentity);
+        StorageEntry storageEntry = new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()));
+        FileList singletonList = GlobExpander.detectedFileListOf(List.of(storageEntry), path, PartitionConfig.fromConfig(config));
+        pendingListingWarnings.addAll(singletonList.listingWarnings());
         // Declared mapping is the whole schema, in LOGICAL names; a `path` rename is applied at the reader, so the
         // operator (and file schema) work purely in logical names.
         List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredMapping);
         FormatNameResolver.rejectConflictingObjectFormat(storagePath, sourceType, dataSourceModule.formatReaderRegistry());
-        // Cheap no-I/O guard first (no partitions on a single file), then the columnar coercibility check which reads
+        // Cheap no-I/O guard first (partition collision), then the columnar coercibility check which reads
         // this file's footer (cached when the provider is).
-        rejectDeclaredMappingViolations(null, declaredMapping);
+        rejectDeclaredMappingViolations(singletonList.partitionMetadata(), declaredMapping);
         long mtimeMillis = meta.mtimeMillis();
         rejectStrictColumnarUncoercibleTypes(sourceType, provider, storageIdentity, storagePath, mtimeMillis, config, declaredMapping);
         ExternalSourceMetadata extMetadata = strictSingleFileMetadata(
@@ -4238,11 +4302,13 @@ public class ExternalSourceResolver {
             sourceType,
             mtimeMillis
         );
-        FileList singletonList = GlobExpander.fileListOf(
-            List.of(new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()))),
-            path
-        );
-        // Strict declares the whole schema, so no per-file footer statistics were harvested.
+        PartitionMetadata partitionMetadata = singletonList.partitionMetadata();
+        if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
+            extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingSchemaWarnings::add);
+        }
+        // Strict declares the whole schema, so no per-file footer statistics were harvested. Partition
+        // attributes are extra on the coordinator schema, not in the mapping — identity over declared width,
+        // same as resolveStrictMultiFile.
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, logicalSchema, null);
         return new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap);
     }
@@ -4466,6 +4532,7 @@ public class ExternalSourceResolver {
                 storagePath,
                 provider,
                 storageIdentity,
+                hints,
                 config,
                 declaredMapping,
                 demand,
@@ -4514,6 +4581,7 @@ public class ExternalSourceResolver {
         StoragePath storagePath,
         StorageProvider provider,
         String storageIdentity,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         Map<String, Object> config,
         DatasetMapping declaredMapping,
         ResolutionDemand demand,
@@ -4523,6 +4591,7 @@ public class ExternalSourceResolver {
     ) {
         try {
             pendingListingWarnings.addAll(listing.listingWarnings());
+            emitPartitionSpecNotices(listing, hints, config);
             recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), effectiveSchemaResolution(config));
             chargeListingPlanning(listing);
             if (listing.fileCount() == 0) {

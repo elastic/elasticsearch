@@ -167,19 +167,17 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         return hllBuckets.ramBytesUsed() + hll.ramBytesUsed() + lc.ramBytesUsed();
     }
 
-    /**
-     * Merges the registers {@code registers[offset, offset + 2^precision)} into the bucket, upgrading it to HyperLogLog first if needed.
-     */
+    /** Reads the registers of a serialized HyperLogLog state into an empty bucket, which becomes HyperLogLog. */
     void readRegisters(long bucketOrd, StreamInput in) throws IOException {
         hll.readRegisters(upgradeToHll(bucketOrd), in);
     }
 
-    void addRunLens(long bucketOrd, byte[] registers, int offset) {
-        long hllBucket = bucketOrd < hllBuckets.size() ? hllBuckets.get(bucketOrd) - 1 : -1;
-        if (hllBucket < 0) {
-            hllBucket = upgradeToHll(bucketOrd);
-        }
-        hll.mergeRegisters(hllBucket, registers, offset);
+    /**
+     * Merges the registers {@code registers[offset, offset + 2^precision)} into the bucket, upgrading it to HyperLogLog first if needed.
+     */
+    void mergeRegisters(long bucketOrd, byte[] registers, int offset) {
+        // upgradeToHll returns the HyperLogLog bucket of a bucket that is already upgraded.
+        hll.mergeRegisters(upgradeToHll(bucketOrd), registers, offset);
     }
 
     long upgradeToHll(long bucketOrd) {
@@ -204,14 +202,13 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         if (algorithm == HYPERLOGLOG) {
             final int registers = 1 << precision;
             assert in.available() >= registers : "expected [" + registers + "] registers but only [" + in.available() + "] bytes remain";
-            // The registers follow the header as raw bytes, so merge them straight out of the buffer.
-            addRunLens(bucket, other.bytes, in.getPosition());
+            // The registers follow the header as raw bytes, so merge them straight from the buffer.
+            mergeRegisters(bucket, other.bytes, in.getPosition());
             return;
         }
         final int length = Math.toIntExact(in.readVLong());
-        // this=HLL, other=LC: collect each value straight into the registers.
+        // this=HLL, other=LC: collect each value into the registers as it is read.
         if (getAlgorithm(bucket) == HYPERLOGLOG) {
-            // Nothing to deduplicate against, so collect the values as they are read rather than materializing them first.
             final long hllBucket = hllBuckets.get(bucket) - 1;
             for (int i = 0; i < length; i++) {
                 hll.collectEncoded(hllBucket, in.readInt());
@@ -229,7 +226,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
                 break;
             }
         }
-        // The values that remain go straight into the registers.
+        // The rest go straight into the registers.
         while (i < length) {
             hll.collectEncoded(hllBucket, in.readInt());
             i++;
@@ -244,11 +241,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             merge(thisBucket, other.getLinearCounting(otherBucket));
         } else if (other instanceof HyperLogLogPlusPlus otherHll) {
             final long otherHllBucket = otherHll.hllBuckets.get(otherBucket) - 1;
-            long hllBucket = thisBucket < hllBuckets.size() ? hllBuckets.get(thisBucket) - 1 : -1;
-            if (hllBucket < 0) {
-                hllBucket = upgradeToHll(thisBucket);
-            }
-            hll.mergeRegisters(hllBucket, otherHll.hll, otherHllBucket);
+            hll.mergeRegisters(upgradeToHll(thisBucket), otherHll.hll, otherHllBucket);
         } else {
             merge(thisBucket, other.getHyperLogLog(otherBucket));
         }
@@ -287,17 +280,14 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
     }
 
     private static class HyperLogLog extends AbstractHyperLogLog implements Releasable {
-        /** The most registers that the bulk operations move in one step, and so the size of the scratch array. */
+        /** The most registers that a bulk operation moves in one step, and so the size of the scratch array. */
         private static final int MAX_SCRATCH_SIZE = 4096;
 
         private final BigArrays bigArrays;
         // array for holding the runlens.
         private ByteArray runLens;
         private long totalBuckets = 0;
-        /**
-         * Scratch for moving registers in bulk, allocated on first use. It is at most {@link #MAX_SCRATCH_SIZE} bytes, whatever the
-         * precision, so it is not accounted for in the circuit breaker.
-         */
+        /** Scratch for bulk register moves, allocated on first use. It is small whatever the precision, so it is not charged to the breaker. */
         private byte[] scratch;
 
         private byte[] scratch() {
@@ -338,15 +328,15 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             final byte[] scratch = scratch();
             for (int done = 0; done < m; done += scratch.length) {
                 final int length = Math.min(scratch.length, m - done);
-                // The slice may alias the live pages, including the zero page that BigArrays shares between pages that were never
-                // written, so it is only read here. Writing goes through set, which copies a shared page before changing it.
+                // get can return a live page, even the zero page that BigArrays shares between unwritten pages, so only read it.
+                // set copies a shared page before it writes.
                 runLens.get(start + done, length, dest);
                 maxInto(scratch, 0, dest.bytes, dest.offset, src, srcOffset + done, length);
                 runLens.set(start + done, scratch, 0, length);
             }
         }
 
-        /** Reads the registers of a bucket that has none yet from the stream, without a buffer as large as the registers. */
+        /** Reads the registers of an empty bucket from the stream, one scratch array at a time. */
         void readRegisters(long bucketOrd, StreamInput in) throws IOException {
             final long start = bucketOrd << p;
             final byte[] scratch = scratch();
@@ -361,7 +351,8 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         void mergeRegisters(long bucketOrd, HyperLogLog other, long otherBucketOrd) {
             final BytesRef src = new BytesRef();
             other.runLens.get(otherBucketOrd << p, m, src);
-            // If the source was materialized it is a private copy, and otherwise it is read before the destination is touched.
+            // Only read. A slice that aliases the destination is safe: different buckets do not overlap, and a bucket merged into itself
+            // does not change.
             mergeRegisters(bucketOrd, src.bytes, src.offset);
         }
 

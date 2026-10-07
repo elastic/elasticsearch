@@ -267,7 +267,7 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
      * only grow, so the result must not depend on how the hashes were split up or merged.
      */
     public void testBulkMergePaths() throws IOException {
-        // Up to 14, so that the registers need several steps of the bulk operations, which move at most 4096 registers at a time.
+        // Up to 14: more than 4096 registers need several steps of the scratch array.
         final int precision = randomIntBetween(MIN_PRECISION, 14);
         final int threshold = (int) ((1 << precision) / 4 * 0.75);
         final BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
@@ -337,6 +337,9 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
     /**
      * Partitioned aggregations merge serialized states into a fresh structure with {@code combine} and then keep collecting into
      * it, across many buckets. Check that works and matches a structure that collected everything directly.
+     * <p>
+     * It is the regression test for writing registers in place through a slice: that wrote to the zero page that BigArrays shares
+     * between unwritten pages, and fails {@code assertZeroPageClean} when the next array is allocated.
      */
     public void testCollectAfterCombineAcrossManyBuckets() throws IOException {
         final int precision = randomIntBetween(MIN_PRECISION, 12);

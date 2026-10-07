@@ -14,15 +14,20 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -32,6 +37,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -423,6 +429,149 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         assertEquals(DataType.KEYWORD, stringSchema.get(0).dataType());
         assertEquals("id", stringSchema.get(1).name());
         assertEquals(DataType.KEYWORD, stringSchema.get(1).dataType());
+    }
+
+    /**
+     * A field whose sampled records disagree (here {@code integer} then {@code string}) must fold to
+     * {@code keyword} and report the widen — naming the field and the forced type — via both
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata#warnings()} and
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata#widenedColumns()}, matching
+     * the CSV/TSV behaviour.
+     */
+    public void testFieldTypeDisagreementEmitsWarningAndWidenedColumn() throws IOException {
+        byte[] bytes = "{\"a\":1}\n{\"a\":2}\n{\"a\":\"oops\"}\n".getBytes(StandardCharsets.UTF_8);
+        SourceMetadata metadata = new NdJsonFormatReader(null, blockFactory).metadata(new BytesObject(bytes));
+
+        assertEquals(DataType.KEYWORD, metadata.schema().get(0).dataType());
+        assertFalse("a field type disagreement must be reported as a warning", metadata.warnings().isEmpty());
+        assertTrue(
+            "the warning must name the field and the forced type",
+            metadata.warnings().stream().anyMatch(w -> w.contains("column [a]") && w.contains("[keyword]"))
+        );
+        assertEquals(1, metadata.widenedColumns().size());
+        WidenedColumn widened = metadata.widenedColumns().get(0);
+        assertEquals("a", widened.columnName());
+        assertEquals(DataType.INTEGER, widened.fromType());
+        assertEquals(DataType.KEYWORD, widened.toType());
+        assertEquals("oops", widened.value());
+    }
+
+    /**
+     * The fold to KEYWORD must be blamed on the row that actually completed it, not on whichever
+     * distinct type happened to be seen last. {@code boolean} (row 1) then {@code integer} (row 2)
+     * already fold to KEYWORD at row 2 — {@code TypeWidening.join} has no edge between them below
+     * KEYWORD — so a later, unrelated datetime string at row 3 must not be reported as the cause. The
+     * inferrer tracks the fold incrementally (like {@code CsvSchemaInferrer.narrowCandidate})
+     * specifically to get this right: reporting "first distinct type seen" / "last distinct type seen"
+     * instead would name row 3's datetime as the culprit, which is wrong.
+     */
+    public void testKeywordFoldIsBlamedOnTheRowThatCompletedItNotTheLastDistinctType() throws IOException {
+        byte[] bytes = "{\"a\":true}\n{\"a\":1}\n{\"a\":\"2023-10-23T12:15:03Z\"}\n".getBytes(StandardCharsets.UTF_8);
+        SourceMetadata metadata = new NdJsonFormatReader(null, blockFactory).metadata(new BytesObject(bytes));
+
+        assertEquals(DataType.KEYWORD, metadata.schema().get(0).dataType());
+        assertEquals(1, metadata.widenedColumns().size());
+        WidenedColumn widened = metadata.widenedColumns().get(0);
+        assertEquals(DataType.BOOLEAN, widened.fromType());
+        assertEquals(DataType.KEYWORD, widened.toType());
+        assertEquals("the boolean/integer disagreement at row 2 is what forced the fold, not row 3's datetime", "1", widened.value());
+        assertEquals(2, widened.sampleRow());
+    }
+
+    /** A lossless promotion ({@code integer -> long}) must stay silent, matching the CSV/TSV gating. */
+    public void testFieldLosslessPromotionEmitsNoWidening() throws IOException {
+        byte[] bytes = "{\"a\":1}\n{\"a\":9999999999}\n".getBytes(StandardCharsets.UTF_8);
+        SourceMetadata metadata = new NdJsonFormatReader(null, blockFactory).metadata(new BytesObject(bytes));
+
+        assertEquals(DataType.LONG, metadata.schema().get(0).dataType());
+        assertEquals(List.of(), metadata.widenedColumns());
+        assertEquals(List.of(), metadata.warnings());
+    }
+
+    /**
+     * The reverse order of a long/double merge: a field resolved to {@code double} by a genuine decimal
+     * first, then a later value that happens to be exactly long-representable. The running fold doesn't
+     * visibly move ({@code join(DOUBLE, LONG) == DOUBLE}), so the merge has to be detected by set
+     * membership ({@code LONG} and {@code DOUBLE} both contributing), not by whether the fold changed —
+     * this is exactly the case {@code emitPrecisionLossWarnings} exists to report cross-file: a column
+     * unified to {@code double} that silently loses precision above 2^53. {@code fromType} reports
+     * {@code LONG} (this value's own shape), not {@code DOUBLE} (the field's unchanged resolved type),
+     * since the latter would say {@code fromType == toType}.
+     */
+    public void testLongDoubleMergeReversedOrderIsReported() throws IOException {
+        // 9007199254740993 is 2^53 + 1, the smallest long a double cannot represent exactly.
+        byte[] bytes = "{\"a\":1.5}\n{\"a\":9007199254740993}\n".getBytes(StandardCharsets.UTF_8);
+        SourceMetadata metadata = new NdJsonFormatReader(null, blockFactory).metadata(new BytesObject(bytes));
+
+        assertEquals(DataType.DOUBLE, metadata.schema().get(0).dataType());
+        assertEquals(1, metadata.widenedColumns().size());
+        WidenedColumn widened = metadata.widenedColumns().get(0);
+        assertEquals(DataType.LONG, widened.fromType());
+        assertEquals(DataType.DOUBLE, widened.toType());
+        assertEquals("9007199254740993", widened.value());
+        assertEquals(2, widened.sampleRow());
+    }
+
+    /**
+     * A field confirmed {@code LONG} by a modest value (past int32, nowhere near 2^53) must still
+     * report the merge once a <em>later</em> {@code LONG} value crosses the precision threshold —
+     * even though {@code LONG} is already a member of {@code types} by then, so the usual
+     * "added the second of LONG/DOUBLE" check never runs for that call. Catches a regression where
+     * the precision-loss latch flipping on an already-seen type was silently dropped by the early
+     * return in {@code FieldInfo#addType}.
+     */
+    public void testLongDoubleMergeReportedWhenLaterLongCrossesThreshold() throws IOException {
+        // 3000000000 is past int32 but nowhere near 2^53: no precision lost by itself.
+        // 1152921504606846976 is 2^60, well past 2^53: the value that actually crosses the threshold.
+        byte[] bytes = "{\"a\":1.5}\n{\"a\":3000000000}\n{\"a\":1152921504606846976}\n".getBytes(StandardCharsets.UTF_8);
+        SourceMetadata metadata = new NdJsonFormatReader(null, blockFactory).metadata(new BytesObject(bytes));
+
+        assertEquals(DataType.DOUBLE, metadata.schema().get(0).dataType());
+        assertEquals(1, metadata.widenedColumns().size());
+        WidenedColumn widened = metadata.widenedColumns().get(0);
+        assertEquals(DataType.LONG, widened.fromType());
+        assertEquals(DataType.DOUBLE, widened.toType());
+        assertEquals("1152921504606846976", widened.value());
+        assertEquals(3, widened.sampleRow());
+    }
+
+    /**
+     * A field mixing whole numbers and decimals entirely within the range a double represents
+     * exactly (e.g. {@code 1}, {@code 2}, {@code 1.5}) must not be flagged — nothing is lost there.
+     */
+    public void testOrdinaryWholeNumberAndDecimalMixReportsNoWidening() throws IOException {
+        byte[] bytes = "{\"a\":1.5}\n{\"a\":2}\n".getBytes(StandardCharsets.UTF_8);
+        SourceMetadata metadata = new NdJsonFormatReader(null, blockFactory).metadata(new BytesObject(bytes));
+
+        assertEquals(DataType.DOUBLE, metadata.schema().get(0).dataType());
+        assertEquals(List.of(), metadata.widenedColumns());
+    }
+
+    /**
+     * {@code read()} re-infers its own schema inline (via {@code inferSchemaIfNeeded}) whenever the
+     * caller hands it no pre-resolved {@code readSchema} — a separate path from {@code metadata()},
+     * taken when planning has not already attached a schema to the request (e.g. a cold first-split
+     * read). A within-file widen discovered there must still reach the client as a warning, the same
+     * as one discovered through {@code metadata()}; this path has no {@code SourceMetadata} to attach a
+     * {@code widenedColumns()} to, so only the warning is expected here.
+     */
+    public void testReadWithoutPreResolvedSchemaStillWarnsOnWidening() throws IOException {
+        byte[] bytes = "{\"a\":1}\n{\"a\":2}\n{\"a\":\"oops\"}\n".getBytes(StandardCharsets.UTF_8);
+        StorageObject object = new BytesObject(bytes);
+        NdJsonFormatReader reader = new NdJsonFormatReader(null, blockFactory);
+
+        List<String> warnings = new ArrayList<>();
+        FormatReadContext context = FormatReadContext.builder().batchSize(100).informationalWarningSink(warnings::add).build();
+        try (CloseableIterator<Page> pages = reader.read(object, context)) {
+            while (pages.hasNext()) {
+                pages.next().releaseBlocks();
+            }
+        }
+
+        assertTrue(
+            "a within-file widen discovered on the no-pre-resolved-schema read path must still warn, got: " + warnings,
+            warnings.stream().anyMatch(w -> w.contains("column [a]") && w.contains("[keyword]"))
+        );
     }
 
     // -- helpers --

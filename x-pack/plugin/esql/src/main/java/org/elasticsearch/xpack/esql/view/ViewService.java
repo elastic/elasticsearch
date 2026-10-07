@@ -11,8 +11,11 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.SequentialAckingBatchedTaskExecutor;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -27,6 +30,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
@@ -34,7 +38,9 @@ import org.elasticsearch.xpack.esql.parser.QueryParams;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ViewService {
 
@@ -173,7 +179,7 @@ public class ViewService {
                     return currentState;
                 }
                 final Map<String, View> updatedViews = new HashMap<>(viewMetadata.views());
-                viewNames.forEach(updatedViews::remove);
+                updatedViews.keySet().removeAll(viewNames);
                 var metadata = ProjectMetadata.builder(project).views(updatedViews);
                 return ClusterState.builder(currentState).putProjectMetadata(metadata).build();
             }
@@ -209,8 +215,7 @@ public class ViewService {
             throw new IllegalArgumentException("cannot add view, the maximum number of views is reached: " + this.maxViewsCount);
         }
 
-        final Map<String, IndexAbstraction> indicesLookup = getIndicesLookup(metadata);
-        indicesLookup.entrySet()
+        getIndicesLookup(metadata).entrySet()
             .stream()
             .filter(entry -> entry.getKey().equals(view.name()))
             .filter(entry -> entry.getValue().getType() != IndexAbstraction.Type.VIEW)
@@ -242,5 +247,61 @@ public class ViewService {
      */
     public Set<String> list(ProjectId projectId) {
         return getMetadata(projectId).views().keySet();
+    }
+
+    /**
+     * This ensures reserved view exists or attempts to create one otherwise.
+     * Must be called during the services' initialization.
+     */
+    public void ensureReservedViewExists(
+        ProjectId projectId,
+        String name,
+        String query,
+        String description,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        clusterService.addListener(new ClusterStateListener() {
+            private final AtomicBoolean initializing = new AtomicBoolean(false);
+
+            @Override
+            public void clusterChanged(ClusterChangedEvent event) {
+                if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+                    return;
+                }
+                if (event.localNodeMaster() == false) {
+                    return;
+                }
+                if (event.state().getMinTransportVersion().supports(View.VIEW_RESERVED_VERSION) == false) {
+                    return;
+                }
+                var existing = getMetadata(event.state().metadata().getProject(projectId)).getView(name);
+                if (existing != null && existing.isReserved() == false) {
+                    listener.onFailure(new ResourceAlreadyExistsException("view [{}] already exists", name));
+                } else if (existing == null
+                    || Objects.equals(existing.query(), query) == false
+                    || Objects.equals(existing.description(), description) == false) {
+                        if (initializing.compareAndSet(false, true)) {
+                            clusterService.threadPool()
+                                .generic()
+                                .submit(
+                                    () -> putView(
+                                        projectId,
+                                        new PutViewAction.Request(
+                                            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+                                            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+                                            new View(name, query, description, true)
+                                        ),
+                                        listener
+                                    )
+                                );
+                        }
+                    } else {
+                        if (initializing.compareAndSet(false, true)) {
+                            listener.onResponse(AcknowledgedResponse.TRUE); // already initialized
+                        }
+                    }
+                clusterService.removeListener(this);
+            }
+        });
     }
 }

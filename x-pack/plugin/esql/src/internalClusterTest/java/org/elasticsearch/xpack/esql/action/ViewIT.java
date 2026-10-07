@@ -11,9 +11,11 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -27,6 +29,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
+import org.elasticsearch.xpack.esql.view.ViewService;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -176,6 +179,19 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
                 new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { viewName }, true)
             )
         );
+    }
+
+    public void testEnsureReservedViewExists() {
+        var viewService = internalCluster().getCurrentMasterNodeInstance(ViewService.class);
+
+        var future = new PlainActionFuture<AcknowledgedResponse>();
+        viewService.ensureReservedViewExists(ProjectId.DEFAULT, "reserved", "ROW f1=1", null, future);
+        // the view is created in response to a cluster state change
+        assertAcked(indicesAdmin().prepareCreate("trigger-index"));
+        assertAcked(future.actionGet(30, TimeUnit.SECONDS));
+
+        View view = viewService.get(ProjectId.DEFAULT, "reserved");
+        assertThat(view, equalTo(new View("reserved", "ROW f1=1", null, true)));
     }
 
     private AcknowledgedResponse createView(String viewName, String query) {

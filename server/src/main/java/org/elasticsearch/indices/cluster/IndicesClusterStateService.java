@@ -164,17 +164,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     record FailedShardCacheEntry(ShardRouting routing, long primaryTerm, ShardFailureType failureType) {}
 
-    /// Local-retry context: cached routing plus the {@link RecoveryState#getLocalRetries()} for the next create.
-    record RetryContext(ShardRouting routing, int localRecoveryRetries) {}
-
     // A list of shards that failed during recovery.
     // We keep track of these shards in order to prevent repeated recovery of these shards on each cluster state update.
     final ConcurrentMap<ShardId, FailedShardCacheEntry> failedShardsCache = ConcurrentCollections.newConcurrentMap();
+
+    /// Retry context key
+    record RetryKey(ShardId shardId, String allocationId) {}
+
     /// Context for local recovery retry. Put on [FailureStrategy#RETRY] in ([handleRecoveryFailure]).
-    /// Carries localRecoveryRetries (and routing) so whichever path recreates the shard applies the same retry count.
-    /// Cleared on successful create, when [retainRetryContextIfValid] drops the marker, and when shard failure is sent to master.
-    /// Package private for testing.
-    final ConcurrentMap<ShardId, RetryContext> retryingShards = ConcurrentCollections.newConcurrentMap();
+    final ConcurrentMap<RetryKey, Integer> retryingShards = ConcurrentCollections.newConcurrentMap();
+
     private final Map<ShardId, PendingShardCreation> pendingShardCreations = new HashMap<>();
     private final RepositoriesService repositoriesService;
 
@@ -916,10 +915,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final IndexMetadata indexMetadata = project.index(shardId.getIndex());
         assert indexMetadata != null : "null index metadata but non-null shard routing " + shardRouting;
         final var primaryTerm = indexMetadata.primaryTerm(shardRouting.id());
-        final RetryContext retryContext = retryingShards.get(shardRouting.shardId());
-        assert retryContext == null || retryContext.routing().isSameAllocation(shardRouting)
-            : "retry context allocation mismatch for " + shardRouting + ": " + retryContext.routing();
-        int localRecoveryRetries = retryContext != null ? retryContext.localRecoveryRetries() : 0;
+        final var retryKey = new RetryKey(shardId, shardRouting.allocationId().getId());
+        final var retryCount = retryingShards.get(retryKey);
+        final int localRecoveryRetries = retryCount != null ? retryCount : 0;
 
         try {
             final DiscoveryNode sourceNode;
@@ -963,7 +961,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         if (Boolean.TRUE.equals(success)) {
                             logger.debug("{} created shard with primary term [{}]", shardId, primaryTerm);
                             // Shard was created with the localRecoveryRetries; drop context.
-                            retryingShards.remove(shardId, retryContext);
+                            retryingShards.remove(retryKey, localRecoveryRetries);
                         } else {
                             // Gave up while creating shard (e.g. Lock-wait gave up due to UUID mismatch).
                             // Keep retry marker so a fresher CS/retry create still sees localRecoveryRetries.
@@ -1358,9 +1356,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         Exception failure,
         RecoveryState recoveryState
     ) {
-        // If local recovery retry is not enabled or recovery source is RESHARD_SPLIT
-        // we notify master instead.
-        // todo: Remove RESHARD_SPLIT exclusion once local retries support it
+        // If local recovery retry is not enabled or recovery source is RESHARD_SPLIT we notify the master instead.
+        // TODO: Remove RESHARD_SPLIT exclusion once local retries support it
         FailureStrategy finalStrategy = failureStrategy.equals(FailureStrategy.RETRY)
             && (localRecoveryRetryEnabled == false || shardRouting.recoverySource().getType().equals(Type.RESHARD_SPLIT))
                 ? FailureStrategy.FAIL_SEND
@@ -1378,29 +1375,38 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     l
                 )
             );
+
             if (finalStrategy == FailureStrategy.RETRY) {
                 logger.warn(() -> "retry recovery for shard after failure [" + shardRouting + "]", failure);
-                // Mark retry context before scheduling so createShard (retry or CS) can read localRecoveryRetries.
-                // todo: Reinsert this assert when lock-retry path has been synchronized
-                // assert retryingShards.containsKey(shardRouting.shardId()) == false
-                // : "retry context already present for " + shardRouting.shardId();
-                retryingShards.put(shardRouting.shardId(), new RetryContext(shardRouting, recoveryState.getLocalRetries() + 1));
+
+                // TODO: Reinsert this assert when lock-retry path has been synchronized, see discussion in #160891
+                // assert retryingShards.containsKey(new RetryKey(shardRouting.shardId(), shardRouting.allocationId().getId())) == false;
+
+                // Update retry context before scheduling so the next createShard (from this retry path or the cluster
+                // state application) uses the retry context.
+                retryingShards.put(
+                    new RetryKey(shardRouting.shardId(), shardRouting.allocationId().getId()),
+                    recoveryState.getLocalRetries() + 1
+                );
+
                 // Fork onto cluster state applier thread to retry attempt to create shard
                 clusterService.getClusterApplierService()
                     .runOnApplierThread("retry recovery " + shardRouting.shardId(), Priority.NORMAL, currentState -> {
                         synchronized (this) {
                             try {
                                 final ShardId shardId = shardRouting.shardId();
-                                if (retryingShards.containsKey(shardId) == false) {
-                                    return;
-                                }
-                                if (retainRetryContextIfValid(shardId, currentState) == false) {
-                                    return;
-                                }
                                 if (pendingShardCreations.containsKey(shardId)) {
-                                    // Creation already in flight (e.g. CS refreshed pending); leave marker for localRecoveryRetries.
+                                    // Creation already in flight (cluster state application beat the retry attempt)
                                     return;
                                 }
+
+                                final RetryKey key = new RetryKey(shardId, shardRouting.allocationId().getId());
+                                if (retryingShards.containsKey(key) == false || retryingShardMarkerIsOutOfDate(key, currentState)) {
+                                    // The marker was already consumed or invalidated by a new cluster state, or this
+                                    // allocation is no longer eligible for retry.
+                                    return;
+                                }
+
                                 final var indexService = indicesService.indexService(shardId.getIndex());
                                 if (indexService == null) {
                                     // Index not locally available yet (e.g. after disableStatePersistence).
@@ -1408,12 +1414,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                                     return;
                                 }
                                 assert indexService.getShardOrNull(shardId.id()) == null : "retry path found existing shard for " + shardId;
-                                // Use current routing from state, not the cached routing: some ShardRouting fields can
-                                // change without allocation id changing (e.g. relocatingNodeId is cleared after a failed
-                                // replica relocation source). Matches what a cluster-state-driven create would use.
+
+                                // Use current routing from state
                                 final RoutingNode localNode = currentState.getRoutingNodes().node(currentState.nodes().getLocalNodeId());
                                 final ShardRouting currentRouting = localNode.getByShardId(shardId);
                                 assert currentRouting != null;
+
                                 createShard(currentRouting, currentState);
                             } catch (Exception e) {
                                 // should not be possible
@@ -1453,50 +1459,44 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             retryingShards.clear();
             return;
         }
-        for (ShardId shardId : retryingShards.keySet()) {
-            retainRetryContextIfValid(shardId, state);
+        for (final var retryMarker : retryingShards.keySet()) {
+            if (retryingShardMarkerIsOutOfDate(retryMarker, state)) {
+                retryingShards.remove(retryMarker);
+            }
         }
     }
 
-    /// Returns {@code true} if a retry context marker is present and still valid for {@code state}.
-    /// Drops the marker when routing is gone, allocation changed, not initializing, or {@code failedShardsCache} hit.
-    /// Should always be called under synchronized lock to align with standard state application.
-    private boolean retainRetryContextIfValid(ShardId shardId, ClusterState state) {
+    private boolean retryingShardMarkerIsOutOfDate(RetryKey retryMarker, ClusterState state) {
         // Running on cluster state applier thread
-        assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
-        assert retryingShards.containsKey(shardId) : "retryingShards did not contain shard";
-        final RetryContext context = retryingShards.get(shardId);
-        final ShardRouting contextRouting = context.routing();
+        assert Thread.holdsLock(this);
+        final ShardId shardId = retryMarker.shardId();
+        final String retryAllocationId = retryMarker.allocationId();
 
-        RoutingNode localNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
+        final RoutingNode localNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
         assert localNode != null : "local node is not in routing table";
-        Index index = contextRouting.index();
 
         // Ignore retry if shard is no longer allocated to this node or the allocation id has changed
-        ShardRouting currentRouting = localNode.getByShardId(shardId);
-        if (currentRouting == null || currentRouting.isSameAllocation(contextRouting) == false || currentRouting.initializing() == false) {
+        final ShardRouting currentRouting = localNode.getByShardId(shardId);
+        if (currentRouting == null
+            || currentRouting.allocationId().getId().equals(retryAllocationId) == false
+            || currentRouting.initializing() == false) {
             logger.debug(
-                "{} gave up while retrying shard creation because the old routing [{}] is not same as new routing [{}]",
+                "{} retry shard context is obsolete: old allocationId [{}], new routing [{}]",
                 shardId,
-                contextRouting,
+                retryAllocationId,
                 currentRouting
             );
-            retryingShards.remove(shardId);
-            return false;
+            return true;
         }
 
         // Shard failure has been sent to master, but local cluster state doesn't reflect it yet.
         // Don't retry recovery on a shard that will be removed by master.
         if (failedShardsCache.containsKey(shardId)) {
-            logger.debug("{} gave up while retrying shard creation because shard has already been failed", shardId);
-            retryingShards.remove(shardId);
-            return false;
+            logger.debug("{} retry shard context is obsolete: shard failure was sent to master", shardId);
+            return true;
         }
 
-        // Shard still in local routing ⇒ index metadata must exist
-        assert state.metadata().projectFor(index).index(index) != null : "null index metadata but non-null shard routing " + currentRouting;
-
-        return true;
+        return false;
     }
 
     private void failAndRemoveShard(
@@ -1550,7 +1550,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 ? ShardFailureType.RECOVERY_CANCELLED
                 : ShardFailureType.FAILED;
             // Failed-to-master wins over local-retry; they must not coexist.
-            retryingShards.remove(shardId);
+            retryingShards.remove(new RetryKey(shardId, shardRouting.allocationId().getId()));
             failedShardsCache.put(shardRouting.shardId(), new FailedShardCacheEntry(shardRouting, primaryTerm, failureType));
             shardStateAction.localShardFailed(shardRouting, message, failure, ActionListener.noop(), state);
         } catch (Exception inner) {

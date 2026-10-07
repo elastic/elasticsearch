@@ -13,25 +13,26 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class RowGroupIoTests extends ESTestCase {
 
-    public void testCancelRunsEveryRegisteredWake() {
+    public void testCancelRunsOneWakePerOwner() {
         RowGroupIo lease = new RowGroupIo();
-        AtomicInteger first = new AtomicInteger();
-        AtomicInteger second = new AtomicInteger();
-        lease.setWake(first::incrementAndGet);
-        lease.setWake(second::incrementAndGet);
+        AtomicInteger bytes = new AtomicInteger();
+        AtomicInteger budget = new AtomicInteger();
+        lease.setWake("bytes", bytes::incrementAndGet);
+        lease.setWake("bytes", bytes::incrementAndGet);
+        lease.setWake("budget", budget::incrementAndGet);
         lease.cancel();
-        assertEquals(1, first.get());
-        assertEquals(1, second.get());
+        assertEquals(1, bytes.get());
+        assertEquals(1, budget.get());
         lease.cancel();
-        assertEquals(1, first.get());
-        assertEquals(1, second.get());
+        assertEquals(1, bytes.get());
+        assertEquals(1, budget.get());
     }
 
-    public void testSetWakeOnCancelledLeaseRunsImmediately() {
+    public void testSetWakeOnCancelledLeaseDoesNotRunInline() {
         RowGroupIo lease = new RowGroupIo();
         lease.cancel();
         AtomicInteger ran = new AtomicInteger();
-        lease.setWake(ran::incrementAndGet);
-        assertEquals(1, ran.get());
+        lease.setWake("late", ran::incrementAndGet);
+        assertEquals(0, ran.get());
     }
 }

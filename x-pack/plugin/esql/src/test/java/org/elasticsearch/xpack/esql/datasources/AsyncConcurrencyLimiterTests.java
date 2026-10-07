@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -17,7 +18,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -39,6 +39,7 @@ public class AsyncConcurrencyLimiterTests extends ESTestCase {
 
     public void testForkRejectAfterGrantReleasesPermit() throws Exception {
         ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false));
+        limiter.acquire();
         EsRejectedExecutionException rejected = new EsRejectedExecutionException("rejected");
         CountDownLatch failed = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
@@ -46,6 +47,8 @@ public class AsyncConcurrencyLimiterTests extends ESTestCase {
             error.set(e);
             failed.countDown();
         }));
+        assertBusy(() -> assertEquals(1, limiter.asyncWaiterCount()));
+        limiter.release();
         assertTrue(failed.await(5, TimeUnit.SECONDS));
         assertSame(rejected, error.get());
         assertEquals(1, limiter.availablePermits());
@@ -88,7 +91,7 @@ public class AsyncConcurrencyLimiterTests extends ESTestCase {
         cancel.set(true);
         limiter.wakeAsyncWaiters();
         assertTrue(failed.await(5, TimeUnit.SECONDS));
-        assertThat(error.get(), instanceOf(TimeoutException.class));
+        assertThat(error.get(), instanceOf(TaskCancelledException.class));
         assertEquals(0, limiter.availablePermits());
         assertEquals(0, limiter.asyncWaiterCount());
         limiter.release();

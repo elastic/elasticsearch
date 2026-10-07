@@ -35,6 +35,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -392,28 +393,34 @@ final class CoalescedRangeReader {
         StorageIoAffinity.Scope scope = StorageIoAffinity.current();
         ParquetIoWatermark.AdmitHold unitHold = null;
         try {
+            List<MergedRange> misses = new ArrayList<>();
+            List<MergedRange> hitRanges = new ArrayList<>();
+            List<FooterCacheHit> hits = new ArrayList<>();
             long unitBytes = 0L;
-            if (byteGate == ParquetIoWatermark.ByteGate.PER_GET && ioWatermark != null) {
-                for (MergedRange mr : merged) {
-                    if (lookupFooterCacheHit(storageObject, mr, footerBytes) == null) {
+            for (MergedRange mr : merged) {
+                FooterCacheHit hit = lookupFooterCacheHit(storageObject, mr, footerBytes);
+                if (hit != null) {
+                    hitRanges.add(mr);
+                    hits.add(hit);
+                } else {
+                    misses.add(mr);
+                    if (byteGate == ParquetIoWatermark.ByteGate.PER_GET && ioWatermark != null) {
                         unitBytes = Math.addExact(unitBytes, mr.length());
                     }
                 }
-                if (unitBytes > 0L) {
-                    unitHold = ioWatermark.wrap(admitUnitSync(ioWatermark, unitBytes, requireLease(scope)));
-                }
+            }
+            if (unitBytes > 0L) {
+                unitHold = ioWatermark.wrap(admitUnitSync(ioWatermark, unitBytes, requireLease(scope)));
             }
             DirectBufferFactory factory = byteGate == ParquetIoWatermark.ByteGate.PER_GET && unitHold != null
                 ? ParquetIoWatermark.bufferFactory(breaker, ioWatermark, unitHold)
                 : ParquetIoWatermark.bufferFactory(breaker, ioWatermark);
-            for (MergedRange mr : merged) {
-                FooterCacheHit hit = lookupFooterCacheHit(storageObject, mr, footerBytes);
-                if (hit != null) {
-                    DirectReadBuffer copied = copyFooterCacheHit(hit, cacheFactory);
-                    buffers.add(copied);
-                    sliceConstituents(copied.buffer(), mr, results);
-                    continue;
-                }
+            for (int i = 0; i < hitRanges.size(); i++) {
+                DirectReadBuffer copied = copyFooterCacheHit(hits.get(i), cacheFactory);
+                buffers.add(copied);
+                sliceConstituents(copied.buffer(), hitRanges.get(i), results);
+            }
+            for (MergedRange mr : misses) {
                 int length = (int) mr.length();
                 DirectReadBuffer result = factory.allocateWritableWindow(length);
                 buffers.add(result);
@@ -462,10 +469,9 @@ final class CoalescedRangeReader {
 
     /**
      * One ticket covering every coalesced GET in this call. Look-ahead {@link NodeByteBudget#tryAdmit}
-     * is attempted first; otherwise the caller parks on {@link NodeByteBudget#admitAsync} with
-     * {@link PlainActionFuture#actionGet()} and no charge-on-expiry. Sync CRR still joins that
-     * future until leftover {@code fetchSync} is ticketed; {@link #admitUnitThenIssueGets} is the
-     * non-blocking path.
+     * is attempted first; otherwise the caller waits on {@link NodeByteBudget#admitAsync} with a
+     * bounded {@link PlainActionFuture#actionGet(long, TimeUnit)} and no charge-on-expiry.
+     * Abandoning the wait cancels the ticket so a late grant cannot leak bytes.
      */
     private static NodeByteBudget.Hold admitUnitSync(ParquetIoWatermark ioWatermark, long unitBytes, RowGroupIo lease) {
         NodeByteBudget budget = ioWatermark.nodeByteBudget();
@@ -473,10 +479,49 @@ final class CoalescedRangeReader {
         if (hold != null) {
             return hold;
         }
-        BooleanSupplier cancel = () -> StorageRetryCancellation.isCancelled() || lease.isCancelled();
+        AtomicBoolean abandoned = new AtomicBoolean();
+        AtomicReference<NodeByteBudget.Hold> granted = new AtomicReference<>();
+        BooleanSupplier cancel = composeCancel(abandoned, lease);
         PlainActionFuture<NodeByteBudget.Hold> future = new PlainActionFuture<>();
-        budget.admitAsync(unitBytes, lease, cancel, Runnable::run).addListener(future);
-        return future.actionGet();
+        budget.admitAsync(unitBytes, lease, cancel, Runnable::run).addListener(ActionListener.wrap(grantedHold -> {
+            if (abandoned.get()) {
+                grantedHold.close();
+                return;
+            }
+            granted.set(grantedHold);
+            if (abandoned.get()) {
+                grantedHold.close();
+                return;
+            }
+            future.onResponse(grantedHold);
+        }, e -> {
+            if (abandoned.get()) {
+                return;
+            }
+            future.onFailure(e);
+        }));
+        try {
+            return future.actionGet(ioWatermark.admitWaitMs(), TimeUnit.MILLISECONDS);
+        } catch (RuntimeException e) {
+            abandoned.set(true);
+            budget.wakeWaiters();
+            NodeByteBudget.Hold late = granted.get();
+            if (late != null) {
+                late.close();
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Captures the ambient cancel supplier at ticket creation so grant/release threads do not
+     * sample a different thread's signal, and so {@link StorageRetryCancellation#isCancelled()}
+     * cannot recurse through this supplier when it is installed as CURRENT.
+     */
+    private static BooleanSupplier composeCancel(AtomicBoolean abandoned, RowGroupIo lease) {
+        BooleanSupplier ambient = StorageRetryCancellation.current();
+        BooleanSupplier captured = ambient == null ? () -> false : ambient;
+        return () -> abandoned.get() || captured.getAsBoolean() || lease.isCancelled();
     }
 
     private static void admitUnitThenIssueGets(
@@ -495,67 +540,81 @@ final class CoalescedRangeReader {
         AtomicBoolean cancelled,
         StorageIoAffinity.Scope scope
     ) {
-        RowGroupIo lease = requireLease(scope);
-        boolean countGets = scope.countGets;
-        long unitBytes = 0L;
-        for (MergedRange mr : gets) {
-            unitBytes = Math.addExact(unitBytes, mr.length());
-        }
-        BooleanSupplier cancel = () -> cancelled.get() || StorageRetryCancellation.isCancelled() || lease.isCancelled();
-        NodeByteBudget.Hold immediate = ioWatermark.nodeByteBudget().tryAdmit(unitBytes);
-        if (immediate != null) {
-            unitHold.set(ioWatermark.wrap(immediate));
-            issueGets(
-                storageObject,
-                gets,
-                ParquetIoWatermark.bufferFactory(breaker, ioWatermark, unitHold.get()),
-                executor,
-                results,
-                buffers,
-                inflight,
-                remaining,
-                firstFailure,
-                listener,
-                unitHold,
-                scope
-            );
-            return;
-        }
-        ioWatermark.nodeByteBudget().admitAsync(unitBytes, lease, cancel, executor).addListener(ActionListener.wrap(hold -> {
-            if (cancel.getAsBoolean()) {
-                hold.close();
-                failUnissuedGets(gets, remaining, firstFailure, buffers, results, listener, unitHold, scope, NodeByteBudget.cancelled());
+        try {
+            RowGroupIo lease = requireLease(scope);
+            boolean countGets = scope.countGets;
+            long unitBytes = 0L;
+            for (MergedRange mr : gets) {
+                unitBytes = Math.addExact(unitBytes, mr.length());
+            }
+            BooleanSupplier cancel = composeCancel(cancelled, lease);
+            NodeByteBudget.Hold immediate = ioWatermark.nodeByteBudget().tryAdmit(unitBytes);
+            if (immediate != null) {
+                unitHold.set(ioWatermark.wrap(immediate));
+                issueGets(
+                    storageObject,
+                    gets,
+                    ParquetIoWatermark.bufferFactory(breaker, ioWatermark, unitHold.get()),
+                    executor,
+                    results,
+                    buffers,
+                    inflight,
+                    remaining,
+                    firstFailure,
+                    listener,
+                    unitHold,
+                    scope
+                );
                 return;
             }
-            try {
-                StorageRetryCancellation.runWithCancellation(cancel, () -> {
-                    try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(lease, countGets)) {
-                        unitHold.set(ioWatermark.wrap(hold));
-                        issueGets(
-                            storageObject,
-                            gets,
-                            ParquetIoWatermark.bufferFactory(breaker, ioWatermark, unitHold.get()),
-                            executor,
-                            results,
-                            buffers,
-                            inflight,
-                            remaining,
-                            firstFailure,
-                            listener,
-                            unitHold,
-                            scope
-                        );
-                    }
-                });
-            } catch (Exception e) {
-                hold.close();
+            ioWatermark.nodeByteBudget().admitAsync(unitBytes, lease, cancel, executor).addListener(ActionListener.wrap(hold -> {
+                if (cancel.getAsBoolean()) {
+                    hold.close();
+                    failUnissuedGets(
+                        gets,
+                        remaining,
+                        firstFailure,
+                        buffers,
+                        results,
+                        listener,
+                        unitHold,
+                        scope,
+                        NodeByteBudget.cancelled()
+                    );
+                    return;
+                }
+                try {
+                    StorageRetryCancellation.runWithCancellation(cancel, () -> {
+                        try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(lease, countGets)) {
+                            unitHold.set(ioWatermark.wrap(hold));
+                            issueGets(
+                                storageObject,
+                                gets,
+                                ParquetIoWatermark.bufferFactory(breaker, ioWatermark, unitHold.get()),
+                                executor,
+                                results,
+                                buffers,
+                                inflight,
+                                remaining,
+                                firstFailure,
+                                listener,
+                                unitHold,
+                                scope
+                            );
+                        }
+                    });
+                } catch (Exception e) {
+                    hold.close();
+                    recordFailure(firstFailure, e, inflight);
+                    failUnissuedGets(gets, remaining, firstFailure, buffers, results, listener, unitHold, scope, null);
+                }
+            }, e -> {
                 recordFailure(firstFailure, e, inflight);
                 failUnissuedGets(gets, remaining, firstFailure, buffers, results, listener, unitHold, scope, null);
-            }
-        }, e -> {
-            recordFailure(firstFailure, e, inflight);
-            failUnissuedGets(gets, remaining, firstFailure, buffers, results, listener, unitHold, scope, null);
-        }), executor, null);
+            }));
+        } catch (Exception e) {
+            failUnissuedGets(gets, remaining, firstFailure, buffers, results, listener, unitHold, scope, e);
+        }
     }
 
     private static void failUnissuedGets(

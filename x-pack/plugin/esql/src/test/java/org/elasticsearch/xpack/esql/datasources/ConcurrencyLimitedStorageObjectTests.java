@@ -13,6 +13,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -31,7 +32,6 @@ import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
@@ -361,6 +361,7 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
 
     public void testCancelAfterGrantFailsListenerWithoutDelegate() throws Exception {
         ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false));
+        limiter.acquire();
         StorageObject delegate = mock(StorageObject.class);
         when(delegate.path()).thenReturn(StoragePath.of("s3://bucket/key"));
         ConcurrencyLimitedStorageObject obj = new ConcurrencyLimitedStorageObject(delegate, limiter);
@@ -375,11 +376,13 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
             error.set(e);
             failed.countDown();
         }));
+        assertBusy(() -> assertEquals(1, limiter.asyncWaiterCount()));
+        limiter.release();
         assertNotNull(deferred.get());
         cancel.close();
         deferred.get().run();
         assertTrue(failed.await(5, TimeUnit.SECONDS));
-        assertThat(error.get(), instanceOf(TimeoutException.class));
+        assertThat(error.get(), instanceOf(TaskCancelledException.class));
         assertEquals(1, limiter.availablePermits());
         verify(delegate, never()).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any());
     }

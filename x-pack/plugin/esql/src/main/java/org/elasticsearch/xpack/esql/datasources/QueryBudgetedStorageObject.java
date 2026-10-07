@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
@@ -217,7 +218,7 @@ class QueryBudgetedStorageObject implements StorageObject, ResumeBypassingStorag
             public void onResponse(Void unused) {
                 if (cancelled.get()) {
                     releasePermitOnce(lease, countGets, permitReleased);
-                    listener.onFailure(new TimeoutException("Cancelled while waiting for query concurrency budget permit"));
+                    listener.onFailure(new TaskCancelledException("Cancelled while waiting for query concurrency budget permit"));
                     return;
                 }
                 try {
@@ -262,7 +263,7 @@ class QueryBudgetedStorageObject implements StorageObject, ResumeBypassingStorag
             public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
-        }, executor, null);
+        });
         return () -> {
             cancelled.set(true);
             budget.wakeAsyncWaiters();

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 
@@ -38,6 +39,7 @@ public class AsyncQueryConcurrencyBudgetTests extends ESTestCase {
 
     public void testForkRejectAfterGrantReleasesPermit() throws Exception {
         QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 60_000L, null);
+        budget.acquire();
         EsRejectedExecutionException rejected = new EsRejectedExecutionException("rejected");
         CountDownLatch failed = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
@@ -46,6 +48,8 @@ public class AsyncQueryConcurrencyBudgetTests extends ESTestCase {
                 error.set(e);
                 failed.countDown();
             }));
+        assertBusy(() -> assertEquals(1, budget.waiterCount()));
+        budget.release();
         assertTrue(failed.await(5, TimeUnit.SECONDS));
         assertSame(rejected, error.get());
         assertEquals(0, budget.inFlight());
@@ -83,7 +87,7 @@ public class AsyncQueryConcurrencyBudgetTests extends ESTestCase {
         cancel.set(true);
         budget.wakeAsyncWaiters();
         assertTrue(failed.await(5, TimeUnit.SECONDS));
-        assertThat(error.get(), instanceOf(TimeoutException.class));
+        assertThat(error.get(), instanceOf(TaskCancelledException.class));
         assertEquals(1, budget.inFlight());
         assertEquals(0, budget.waiterCount());
         budget.release();

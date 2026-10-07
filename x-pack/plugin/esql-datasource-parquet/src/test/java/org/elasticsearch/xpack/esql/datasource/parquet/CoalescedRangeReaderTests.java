@@ -19,6 +19,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.parquet.CoalescedRangeReader.ByteRange;
 import org.elasticsearch.xpack.esql.datasource.parquet.CoalescedRangeReader.CoalescedRangeResult;
 import org.elasticsearch.xpack.esql.datasource.parquet.CoalescedRangeReader.MergedRange;
+import org.elasticsearch.xpack.esql.datasources.StorageRetryCancellation;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
@@ -1166,7 +1167,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
                 }
             );
         }
-        assertBusy(() -> assertEquals(1, watermark.nodeByteBudget().waiterCount()));
+        assertBusy(() -> assertEquals(1, watermark.waiterCount()));
         assertEquals("startReadBytesAsync must not run until the unit ticket grants", 0, starts.get());
         watermark.release(80);
         watermark.clearOwner(owner);
@@ -1227,7 +1228,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
                 }
             );
         }
-        assertBusy(() -> assertEquals(1, watermark.nodeByteBudget().waiterCount()));
+        assertBusy(() -> assertEquals(1, watermark.waiterCount()));
         cancel.close();
         assertTrue(listenerDone.await(5, TimeUnit.SECONDS));
         assertThat(error.get(), instanceOf(EsRejectedExecutionException.class));
@@ -1239,7 +1240,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         watermark.release(80);
         watermark.clearOwner(owner);
         assertEquals(0, watermark.used());
-        assertEquals(0, watermark.nodeByteBudget().waiterCount());
+        assertEquals(0, watermark.waiterCount());
     }
 
     public void testUngatedNullHoldStillForceAdds() throws Exception {
@@ -1263,8 +1264,8 @@ public class CoalescedRangeReaderTests extends ESTestCase {
     }
 
     /**
-     * T3 sync: one unit ticket for three GETs. Cap fits two ranges; the third does not create a
-     * partial holder. Charge-on-expiry is gone; {@code forcedAdmits} stays 0. This path parks on
+     * Sync: one unit ticket for three GETs. Cap fits two ranges; the third does not create a
+     * partial holder. Charge-on-expiry is gone; {@code forcedAdmits} stays 0. This path waits on
      * {@code actionGet}; {@link #testAsyncPerGetUnitTicketNoPartialHolders} is the async proof.
      */
     public void testPerGetUnitTicketNoPartialHolders() throws Exception {
@@ -1345,7 +1346,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
     }
 
     /**
-     * T3 async: same three-range unit as {@link #testPerGetUnitTicketNoPartialHolders}, without
+     * Async: same three-range unit as {@link #testPerGetUnitTicketNoPartialHolders}, without
      * parking the caller. This is the async-ticket proof, not the sync {@code actionGet} path.
      */
     public void testAsyncPerGetUnitTicketNoPartialHolders() throws Exception {
@@ -1364,6 +1365,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
                 ActionListener<DirectReadBuffer> listener
             ) {
                 starts.incrementAndGet();
+                StorageRetryCancellation.isCancelled();
                 return super.startReadBytesAsync(position, length, factory, executor, listener);
             }
         };
@@ -1396,7 +1398,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
                 }
             );
         }
-        assertBusy(() -> assertEquals(1, watermark.nodeByteBudget().waiterCount()));
+        assertBusy(() -> assertEquals(1, watermark.waiterCount()));
         assertEquals(0, starts.get());
         watermark.release(25);
         watermark.clearOwner(owner);

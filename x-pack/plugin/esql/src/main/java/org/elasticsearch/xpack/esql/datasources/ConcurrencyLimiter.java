@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionGate;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
@@ -45,6 +46,10 @@ class ConcurrencyLimiter implements AdmissionGate {
     private static final Logger logger = LogManager.getLogger(ConcurrencyLimiter.class);
 
     static final ConcurrencyLimiter UNLIMITED = new ConcurrencyLimiter(QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS);
+
+    private static TaskCancelledException cancelled() {
+        return new TaskCancelledException("Cancelled while waiting for a concurrency permit");
+    }
 
     private final Semaphore semaphore;
     private final String scheme;
@@ -241,8 +246,9 @@ class ConcurrencyLimiter implements AdmissionGate {
     }
 
     /**
-     * Async permit ticket. Completes on grant; fails on cancel. The grant is forked onto
-     * {@code executor}. Fair FIFO among ticket waiters; does not barge queued tickets.
+     * Async permit ticket. Completes on grant; fails on cancel. Uncontended grants complete
+     * on the caller; contended grants are forked onto {@code executor}. Fair FIFO among
+     * ticket waiters. Leftover sync {@link #acquire} can time out while tickets are queued.
      */
     SubscribableListener<Void> acquireAsync(BooleanSupplier cancelSignal, Executor executor) {
         SubscribableListener<Void> listener = new SubscribableListener<>();
@@ -255,7 +261,7 @@ class ConcurrencyLimiter implements AdmissionGate {
         }
         BooleanSupplier cancel = cancelSignal == null ? () -> false : cancelSignal;
         if (cancel.getAsBoolean()) {
-            listener.onFailure(new TimeoutException("Cancelled while waiting for a concurrency permit"));
+            listener.onFailure(cancelled());
             return listener;
         }
         List<Runnable> completions = List.of();
@@ -263,10 +269,10 @@ class ConcurrencyLimiter implements AdmissionGate {
         asyncLock.lock();
         try {
             if (cancel.getAsBoolean()) {
-                failNow = new TimeoutException("Cancelled while waiting for a concurrency permit");
+                failNow = cancelled();
             } else if (asyncWaiters.isEmpty() && semaphore.tryAcquire()) {
                 AsyncWaiter waiter = new AsyncWaiter(listener, executor, cancel);
-                waiter.completeGrant();
+                waiter.completeGrantInline();
                 completions = takePendingCompletions();
             } else {
                 AsyncWaiter waiter = new AsyncWaiter(listener, executor, cancel);
@@ -378,7 +384,7 @@ class ConcurrencyLimiter implements AdmissionGate {
             AsyncWaiter waiter = it.next();
             if (waiter.cancel.getAsBoolean()) {
                 it.remove();
-                waiter.fail(new TimeoutException("Cancelled while waiting for a concurrency permit"));
+                waiter.fail(cancelled());
             }
         }
     }
@@ -435,17 +441,23 @@ class ConcurrencyLimiter implements AdmissionGate {
         }
 
         private void completeGrant() {
-            pendingCompletions.add(() -> forkGrant(() -> {
-                if (completed.compareAndSet(false, true) == false) {
-                    return;
-                }
-                if (cancel.getAsBoolean()) {
-                    release();
-                    listener.onFailure(new TimeoutException("Cancelled while waiting for a concurrency permit"));
-                    return;
-                }
-                listener.onResponse(null);
-            }));
+            pendingCompletions.add(() -> forkGrant(this::deliverGrant));
+        }
+
+        private void completeGrantInline() {
+            pendingCompletions.add(this::deliverGrant);
+        }
+
+        private void deliverGrant() {
+            if (completed.compareAndSet(false, true) == false) {
+                return;
+            }
+            if (cancel.getAsBoolean()) {
+                release();
+                listener.onFailure(cancelled());
+                return;
+            }
+            listener.onResponse(null);
         }
 
         private void fail(Exception e) {

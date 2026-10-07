@@ -11,6 +11,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
@@ -26,7 +27,6 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
@@ -213,7 +213,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
             public void onResponse(Void unused) {
                 if (cancelled.get()) {
                     releaseLimiterOnce(permitReleased);
-                    listener.onFailure(new TimeoutException("Cancelled while waiting for a concurrency permit"));
+                    listener.onFailure(new TaskCancelledException("Cancelled while waiting for a concurrency permit"));
                     return;
                 }
                 try {
@@ -236,7 +236,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
             public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
-        }, executor, null);
+        });
         return () -> {
             cancelled.set(true);
             limiter.wakeAsyncWaiters();

@@ -30,6 +30,26 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class NodeByteBudgetTests extends ESTestCase {
 
+    public void testNullLeaseOverCapFailsAtEnqueue() throws Exception {
+        NodeByteBudgetService budget = new NodeByteBudgetService(10);
+        CountDownLatch failed = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        budget.admitAsync(20, null, () -> false, Runnable::run).addListener(ActionListener.wrap(hold -> {
+            fail("null-lease over-cap unit must not grant");
+            hold.close();
+        }, e -> {
+            error.set(e);
+            failed.countDown();
+        }));
+        assertTrue(failed.await(5, TimeUnit.SECONDS));
+        assertThat(error.get(), instanceOf(EsRejectedExecutionException.class));
+        assertEquals(0, budget.used());
+        assertEquals(0, budget.waiterCount());
+        NodeByteBudget.Hold small = budget.tryAdmit(4);
+        assertNotNull(small);
+        small.close();
+    }
+
     public void testTryAdmitFitsAndRefusesOverCap() {
         NodeByteBudgetService budget = new NodeByteBudgetService(100);
         NodeByteBudget.Hold first = budget.tryAdmit(40);
@@ -177,8 +197,8 @@ public class NodeByteBudgetTests extends ESTestCase {
     }
 
     /**
-     * T9: randomized concurrent tickets stay within cap plus one unit, leak no waiters, and
-     * drop every grant.
+     * Randomized concurrent tickets stay within cap plus one unit, leak no waiters, and drop
+     * every grant including the overshoot owner.
      */
     public void testRandomizedPeakCapPlusOneUnit() throws Exception {
         final long cap = 1_000L;
@@ -218,7 +238,11 @@ public class NodeByteBudgetTests extends ESTestCase {
                         assertTrue(done.await(10, TimeUnit.SECONDS));
                         NodeByteBudget.Hold granted = hold.get();
                         if (granted != null) {
+                            RowGroupIo grantedLease = granted.lease();
                             granted.close();
+                            if (grantedLease != null) {
+                                budget.clearOwner(grantedLease);
+                            }
                         }
                     }
                     return null;

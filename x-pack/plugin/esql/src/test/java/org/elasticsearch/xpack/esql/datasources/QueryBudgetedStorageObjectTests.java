@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -28,7 +29,6 @@ import java.time.Instant;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.instanceOf;
@@ -352,6 +352,7 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
 
     public void testCancelAfterGrantFailsListenerWithoutDelegate() throws Exception {
         QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 60_000L, null);
+        budget.acquire();
         StorageObject delegate = mock(StorageObject.class);
         QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
         AtomicReference<Runnable> deferred = new AtomicReference<>();
@@ -365,11 +366,13 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
             error.set(e);
             failed.countDown();
         }));
+        assertBusy(() -> assertEquals(1, budget.waiterCount()));
+        budget.release();
         assertNotNull(deferred.get());
         cancel.close();
         deferred.get().run();
         assertTrue(failed.await(5, TimeUnit.SECONDS));
-        assertThat(error.get(), instanceOf(TimeoutException.class));
+        assertThat(error.get(), instanceOf(TaskCancelledException.class));
         assertEquals(0, budget.inFlight());
         verify(delegate, never()).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any());
     }

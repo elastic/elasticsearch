@@ -19,15 +19,16 @@ import java.util.function.BooleanSupplier;
  * Node-wide ticket gate for retained external-source I/O bytes. Look-ahead uses {@link #tryAdmit};
  * a unit that must proceed uses {@link #admitAsync}. One overshoot slot exists per node, granted
  * only to a runnable lease; a unit larger than the cap goes through that slot only. Peak occupancy
- * is the cap plus one unit, not one unit per query.
+ * is the cap plus one unit, not one unit per query. Unconditional {@link #add} (ungated
+ * alloc) can sit besides that bound.
  * <p>
  * {@link Hold#close()} is idempotent and drops leftover byte charge only. It does
  * not clear the overshoot owner: buffers force-added beside the hold still occupy
  * {@link #used()}, and a second over-cap unit must wait until {@link #clearOwner}.
- * A grant that lands on a cancelled waiter is released immediately. Grant callbacks
- * run on the executor supplied to {@link #admitAsync}, not inline on the releasing
- * thread. Charge helpers ({@link #add}, {@link #release}, {@link #clearOwner}) stay
- * on this type because look-ahead and UNGATED alloc share the same cap; CRR tickets
+ * A grant that lands on a cancelled waiter is released immediately. Uncontended grants
+ * complete on the caller; contended grants are forked onto the executor supplied to
+ * {@link #admitAsync}. Charge helpers ({@link #add}, {@link #release}, {@link #clearOwner})
+ * stay on this type because look-ahead and ungated alloc share the same cap. Tickets
  * use {@link #tryAdmit}, {@link #admitAsync}, {@link Hold}, and {@link #wakeWaiters}.
  */
 public interface NodeByteBudget {
@@ -42,8 +43,9 @@ public interface NodeByteBudget {
 
     /**
      * FIFO ticket for {@code bytes}. Completes with a {@link Hold} on grant, or with failure on
-     * cancel. The grant is forked onto {@code executor}. {@code lease} is required when the unit
-     * needs the overshoot slot; {@code cancelSignal} is sampled at enqueue and at grant.
+     * cancel. Uncontended grants complete on the caller; contended grants are forked onto
+     * {@code executor}. {@code lease} is required when the unit needs the overshoot slot;
+     * {@code cancelSignal} is sampled at enqueue and at grant.
      */
     SubscribableListener<Hold> admitAsync(long bytes, RowGroupIo lease, BooleanSupplier cancelSignal, Executor executor);
 
@@ -71,18 +73,8 @@ public interface NodeByteBudget {
     long limit();
 
     /**
-     * Highest {@link #used()} observed, including the one overshoot unit. Tests use this for the
-     * cap+1-unit peak bound.
-     */
-    long peakUsed();
-
-    /** Queued {@link #admitAsync} waiters. Tests assert no leak. */
-    int waiterCount();
-
-    /**
      * Fails waiters whose cancel signal is set and grants the next runnable waiter. Installed as
-     * {@link RowGroupIo#setWake} so lease cancel is prompt. Cancel runs every installed wake;
-     * tickets keep their own cancel handles as well.
+     * {@link RowGroupIo#setWake} so lease cancel is prompt.
      */
     void wakeWaiters();
 
@@ -91,7 +83,7 @@ public interface NodeByteBudget {
      * implementation.
      */
     static EsRejectedExecutionException cancelled() {
-        return new EsRejectedExecutionException("Cancelled while waiting for parquet I/O bytes");
+        return new EsRejectedExecutionException("Cancelled while waiting for I/O bytes");
     }
 
     /**

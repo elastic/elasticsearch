@@ -33,7 +33,7 @@ import java.util.function.BooleanSupplier;
  * Node-scoped {@link NodeByteBudget}. Look-ahead {@link #tryAdmit} refuses rather than wait.
  * {@link #admitAsync} is FIFO; one overshoot slot is granted only to a runnable lease. A unit
  * larger than the cap goes through that slot only. Legacy {@link #admitWaitUntil} keeps the
- * #161066 charge-on-expiry path for leftover OPCI tests until the hard cap lands.
+ * charge-on-expiry path for leftover parquet column iterator tests until the hard cap lands.
  */
 public final class NodeByteBudgetService implements NodeByteBudget {
 
@@ -142,15 +142,17 @@ public final class NodeByteBudgetService implements NodeByteBudget {
         try {
             if (cancel.getAsBoolean() || (lease != null && lease.isCancelled())) {
                 failNow = cancelled();
+            } else if (lease == null && bytes > limit) {
+                failNow = new EsRejectedExecutionException("unit exceeds the node byte cap without a row-group lease");
             } else {
                 HoldImpl immediate = waiters.isEmpty() ? tryChargeLocked(bytes, lease, true) : null;
                 TicketWaiter waiter = new TicketWaiter(bytes, lease, cancel, executor, listener);
                 if (immediate != null) {
-                    waiter.complete(immediate);
+                    waiter.completeInline(immediate);
                 } else {
                     waiters.addLast(waiter);
                     if (lease != null) {
-                        lease.setWake(this::wakeWaiters);
+                        lease.setWake(this, this::wakeWaiters);
                     }
                     grantTicketWaitersLocked();
                 }
@@ -253,12 +255,10 @@ public final class NodeByteBudgetService implements NodeByteBudget {
         return limit;
     }
 
-    @Override
     public long peakUsed() {
         return peakUsed.get();
     }
 
-    @Override
     public int waiterCount() {
         lock.lock();
         try {
@@ -284,7 +284,8 @@ public final class NodeByteBudgetService implements NodeByteBudget {
     }
 
     /**
-     * Blocking #161066 path for leftover OPCI tests. Production CRR no longer calls this.
+     * Blocking wait with charge-on-expiry for leftover parquet column iterator tests.
+     * Production coalesced reads no longer call this.
      * Lock order: this lock, then the budget lock inside {@link RowGroupIo#tryPinOvershoot()}.
      */
     public Hold admitWaitUntil(long bytes, RowGroupIo lease, long deadlineNanos) {
@@ -317,7 +318,7 @@ public final class NodeByteBudgetService implements NodeByteBudget {
                     hold = granted;
                     break;
                 }
-                lease.setWake(this::wakeWaiters);
+                lease.setWake(this, this::wakeWaiters);
                 if (lease.isCancelled()) {
                     throw cancelled();
                 }
@@ -406,7 +407,7 @@ public final class NodeByteBudgetService implements NodeByteBudget {
         if (lease.scheduler() != null) {
             if (lease.tryPinOvershoot()) {
                 overshootOwner = lease;
-                lease.setWake(this::wakeWaiters);
+                lease.setWake(this, this::wakeWaiters);
                 setUsed(nextUsed);
                 return true;
             }
@@ -517,6 +518,10 @@ public final class NodeByteBudgetService implements NodeByteBudget {
 
         private void complete(HoldImpl hold) {
             pendingCompletions.add(() -> fork(() -> deliver(hold), hold));
+        }
+
+        private void completeInline(HoldImpl hold) {
+            pendingCompletions.add(() -> deliver(hold));
         }
 
         private void deliver(HoldImpl hold) {

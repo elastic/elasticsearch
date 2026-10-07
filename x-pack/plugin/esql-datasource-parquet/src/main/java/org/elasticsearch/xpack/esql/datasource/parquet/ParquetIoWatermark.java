@@ -30,8 +30,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * so a scan cannot stall; that overshoot is node-wide, not per iterator, and belongs to one
  * owner lease until {@link #clearOwner}. Look-ahead {@link #tryAdmit} still refuses rather than
  * fail the query. Coalesced PER_GET draws a whole-unit {@link NodeByteBudget} ticket. The
- * parking {@link #admitWaitUntil} path remains for leftover OPCI tests until the hard cap
- * lands. The REQUEST circuit breaker remains the hard stop for allocation.
+ * parking {@link #admitWaitUntil} path remains for leftover parquet column iterator tests
+ * until the hard cap lands. The REQUEST circuit breaker remains the hard stop for allocation.
  */
 final class ParquetIoWatermark implements AdmissionGate {
 
@@ -94,6 +94,10 @@ final class ParquetIoWatermark implements AdmissionGate {
     void bindTracker(AdmissionTracker tracker) {
         this.tracker = tracker == null ? AdmissionTracker.NOOP : tracker;
         this.tracker.register(this);
+    }
+
+    int waiterCount() {
+        return budget.waiterCount();
     }
 
     /**

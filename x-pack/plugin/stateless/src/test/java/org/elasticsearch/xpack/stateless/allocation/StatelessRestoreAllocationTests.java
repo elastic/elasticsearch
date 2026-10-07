@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
@@ -40,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
@@ -245,10 +247,17 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
         var info = new AtomicReference<>(info(INDEXING_RESERVED));
         var service = service(info, sizes);
         var reroutes = new AtomicInteger();
-        var monitor = new SnapshotRestoreStorageMonitor(state::get, (reason, priority, listener) -> {
-            reroutes.incrementAndGet();
-            state.set(service.reroute(state.get(), reason, listener));
-        });
+        var clock = new AtomicLong(TimeValue.timeValueMinutes(10).millis());
+        var interval = TimeValue.timeValueSeconds(30);
+        var monitor = new SnapshotRestoreStorageMonitor(
+            monitorClusterSettings(interval),
+            clock::get,
+            state::get,
+            (reason, priority, listener) -> {
+                reroutes.incrementAndGet();
+                state.set(service.reroute(state.get(), reason, listener));
+            }
+        );
 
         monitor.onNewInfo(info.get());
         assertEquals(1, state.get().getRoutingNodes().unassigned().size());
@@ -257,9 +266,44 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
 
         info.set(info(70 * GB));
         monitor.onNewInfo(info.get());
+        assertEquals(1, reroutes.get());
+        assertTrue(primary(state.get(), "index-0").unassigned());
+
+        clock.addAndGet(interval.millis());
+        monitor.onNewInfo(info.get());
         assertTrue(primary(state.get(), "index-0").initializing());
+        assertEquals(2, reroutes.get());
 
         monitor.onNewInfo(info(80 * GB));
+        assertEquals(2, reroutes.get());
+    }
+
+    public void testMonitorReroutesImmediatelyOnReservedSpaceChange() {
+        var state = new AtomicReference<>(restoreState(1));
+        var reroutes = new AtomicInteger();
+        var clock = new AtomicLong(TimeValue.timeValueMinutes(10).millis());
+        var interval = TimeValue.timeValueSeconds(30);
+        var monitor = new SnapshotRestoreStorageMonitor(
+            monitorClusterSettings(interval),
+            clock::get,
+            state::get,
+            (reason, priority, listener) -> {
+                reroutes.incrementAndGet();
+                listener.onResponse(null);
+            }
+        );
+
+        monitor.onNewInfo(info(50 * GB));
+        assertEquals(1, reroutes.get());
+
+        clock.addAndGet(1); // well within interval
+        var shardId = primary(state.get(), "index-0").shardId();
+        monitor.onNewInfo(
+            info(
+                Map.of(NODE, new DiskUsage(NODE, NODE, PATH, TOTAL, 50 * GB)),
+                Map.of(new ClusterInfo.NodeAndPath(NODE, PATH), new ClusterInfo.ReservedSpace(10 * GB, Set.of(shardId)))
+            )
+        );
         assertEquals(2, reroutes.get());
     }
 
@@ -269,10 +313,16 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
             .build();
         var state = new AtomicReference<>(withSearch);
         var reroutes = new AtomicInteger();
-        var monitor = new SnapshotRestoreStorageMonitor(state::get, (reason, priority, listener) -> {
-            reroutes.incrementAndGet();
-            listener.onResponse(null);
-        });
+        var clock = new AtomicLong(TimeValue.timeValueMinutes(10).millis());
+        var monitor = new SnapshotRestoreStorageMonitor(
+            monitorClusterSettings(TimeValue.timeValueSeconds(60)),
+            clock::get,
+            state::get,
+            (reason, priority, listener) -> {
+                reroutes.incrementAndGet();
+                listener.onResponse(null);
+            }
+        );
         monitor.onNewInfo(info(70 * GB));
         monitor.onNewInfo(
             info(
@@ -290,5 +340,12 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
         state.set(ClusterState.builder(restoreState(1)).nodes(DiscoveryNodes.builder(state.get().nodes()).masterNodeId(null)).build());
         monitor.onNewInfo(info(80 * GB));
         assertEquals(1, reroutes.get());
+    }
+
+    private static ClusterSettings monitorClusterSettings(TimeValue rerouteInterval) {
+        return new ClusterSettings(
+            Settings.builder().put(SnapshotRestoreStorageMonitor.REROUTE_INTERVAL_SETTING.getKey(), rerouteInterval).build(),
+            Set.of(SnapshotRestoreStorageMonitor.REROUTE_INTERVAL_SETTING)
+        );
     }
 }

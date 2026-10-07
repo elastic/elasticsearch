@@ -1010,7 +1010,14 @@ public class StatelessPlugin extends Plugin
 
         services.allocationService()
             .getClusterInfoService()
-            .addListener(new SnapshotRestoreStorageMonitor(clusterService::state, rerouteService)::onNewInfo);
+            .addListener(
+                new SnapshotRestoreStorageMonitor(
+                    clusterService.getClusterSettings(),
+                    threadPool.relativeTimeInMillisSupplier(),
+                    clusterService::state,
+                    rerouteService
+                )::onNewInfo
+            );
 
         recoveryCommitRegistrationHandler.set(new RecoveryCommitRegistrationHandler(client, clusterService));
 
@@ -1394,6 +1401,7 @@ public class StatelessPlugin extends Plugin
             DATA_STREAMS_LIFECYCLE_ONLY_MODE,
             FAILURE_STORE_REFRESH_INTERVAL_SETTING,
             InternalClusterInfoService.CLUSTER_INFO_UPDATE_DISK_ENABLED,
+            SnapshotRestoreStorageMonitor.REROUTE_INTERVAL_SETTING,
             ObjectStoreService.TYPE_SETTING,
             ObjectStoreService.BUCKET_SETTING,
             ObjectStoreService.CLIENT_SETTING,

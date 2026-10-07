@@ -688,3 +688,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalPartitionSpecPruningIT
   method: testIdentityRemapPrunesRegion
   issue: https://github.com/elastic/elasticsearch/issues/161232
+- class: org.elasticsearch.xpack.watcher.actions.webhook.WebhookTokenIntegrationTests
+  method: testWebhook
+  issue: https://github.com/elastic/elasticsearch/issues/160935
+- class: org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinatorTests
+  method: testCloseWhileSegmentatorParkedOnBufferPool
+  issue: https://github.com/elastic/elasticsearch/issues/161247

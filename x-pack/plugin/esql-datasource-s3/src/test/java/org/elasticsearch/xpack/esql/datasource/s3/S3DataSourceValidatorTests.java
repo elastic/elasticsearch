@@ -531,13 +531,16 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         // The bound must admit the readers' own default (20000); it used to stop at 1000, which made every value
         // from 1001 up -- including the default -- unregisterable. See FileDataSourceValidatorSampleSizeBoundTests.
         assertEquals(1001, validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 1001)).get("schema_sample_size"));
+        // The bound must admit CSV's default (40000, raised from 20000 when its two sampling windows were
+        // merged into one -- elastic/esql-planning#2134); NDJSON's own default (20000) sits well under it
+        // either way. See FileDataSourceValidatorSampleSizeBoundTests.
         assertEquals(
-            20_000,
-            validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 20_000)).get("schema_sample_size")
+            40_000,
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 40_000)).get("schema_sample_size")
         );
         expectThrows(
             ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 20_001))
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 40_001))
         );
     }
 
@@ -739,6 +742,88 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         );
         assertThat(e.getMessage(), containsString("partition_path"));
         assertThat(e.getMessage(), containsString("more than once"));
+    }
+
+    public void testValidateDatasetPartitionSpec() {
+        assertEquals(
+            "year(ts), month(ts), day(ts)",
+            validator.validateDataset(
+                Map.of(),
+                "s3://b/p",
+                Map.of("partition_detection", "hive", "partition_spec", "year(ts), month(ts), day(ts)")
+            ).get("partition_spec")
+        );
+        assertEquals(
+            "aws-region=region",
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "partition_spec", "aws-region=region"))
+                .get("partition_spec")
+        );
+        assertEquals(
+            "year(ts)",
+            validator.validateDataset(
+                Map.of(),
+                "s3://b/p",
+                Map.of("partition_detection", "template", "partition_path", "{year}/{month}", "partition_spec", "year(ts)")
+            ).get("partition_spec")
+        );
+    }
+
+    public void testValidateDatasetPartitionSpecRejectsUnknownTransform() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "partition_spec", "bucket(ts)"))
+        );
+        assertThat(e.getMessage(), containsString("partition_spec"));
+        assertThat(e.getMessage(), containsString("bucket"));
+        assertThat(e.getMessage(), containsString("identity, year, month, day, hour"));
+    }
+
+    public void testValidateDatasetPartitionSpecRejectsNonePlusSpec() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "none", "partition_spec", "year(ts)"))
+        );
+        assertThat(e.getMessage(), containsString("partition_spec"));
+        assertThat(e.getMessage(), containsString("remove [partition_spec]"));
+        assertThat(e.getMessage(), containsString("enable partition detection"));
+    }
+
+    public void testValidateDatasetPartitionSpecNonePlusUnparseableReportsContradiction() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "none", "partition_spec", "bucket(ts)"))
+        );
+        assertThat(e.getMessage(), containsString("partition_spec"));
+        assertThat(e.getMessage(), containsString("remove [partition_spec]"));
+        assertThat(e.getMessage(), not(containsString("unknown transform")));
+    }
+
+    public void testValidateDatasetPartitionSpecRejectsTemplateKeyMismatch() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_path", "{yyy}/{mo}", "partition_spec", "year(ts)"))
+        );
+        assertThat(e.getMessage(), containsString("partition_spec"));
+        assertThat(e.getMessage(), containsString("year"));
+        assertThat(e.getMessage(), containsString("partition_path"));
+    }
+
+    public void testValidateDatasetPartitionSpecRejectsNonString() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "partition_spec", 42))
+        );
+        assertThat(e.getMessage(), containsString("partition_spec"));
+        assertThat(e.getMessage(), containsString("non-empty string"));
+    }
+
+    public void testValidateDatasetPartitionSpecHiveUnknownKeyIsAccepted() {
+        // Hive keys are not known until list time; PUT must not reject them.
+        assertEquals(
+            "yyy=year(ts)",
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "partition_spec", "yyy=year(ts)"))
+                .get("partition_spec")
+        );
     }
 
     /**
@@ -967,7 +1052,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
                 containsString(
                     "known settings: [error_mode, file_exclusions, file_order, file_sort_by, format, hive_partitioning, "
                         + "max_error_ratio, max_errors, max_split_probes, partition_detection, partition_path, partition_sample_size, "
-                        + "schema_resolution, split_probe_window, target_split_size]"
+                        + "partition_spec, schema_resolution, split_probe_window, target_split_size]"
                 )
             )
         );
@@ -997,7 +1082,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             ValidationException.class,
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("delimiter", "|"))
         );
-        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage("s3://test")), e.validationErrors());
+        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage()), e.validationErrors());
     }
 
     public void testUnknownFormatGenuineTypoReportedAsUnknownSetting() {
@@ -1006,7 +1091,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             ValidationException.class,
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("not_a_setting", "x"))
         );
-        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage("s3://test")), e.validationErrors());
+        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage()), e.validationErrors());
     }
 
     public void testUnknownFormatMixedKeysReportBothDiagnoses() {
@@ -1014,7 +1099,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             ValidationException.class,
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("delimiter", "|", "not_a_setting", "x"))
         );
-        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage("s3://test")), e.validationErrors());
+        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage()), e.validationErrors());
     }
 
     public void testUnknownFormatBaseSettingsOnlyAccepted() {
@@ -1022,7 +1107,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             ValidationException.class,
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("partition_detection", "hive"))
         );
-        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage("s3://test")), e.validationErrors());
+        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage()), e.validationErrors());
     }
 
     public void testFormatAutoFallsBackToExtension() {

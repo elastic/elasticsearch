@@ -17,11 +17,11 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.IndexAnalyzerGroup;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField.UnknownAnalyzer;
-import org.elasticsearch.xpack.esql.plan.logical.AliasBindings;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
@@ -42,12 +42,11 @@ import java.util.TreeMap;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlightIndexKey.rowSourceOf;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 
 /**
- * Gives HIGHLIGHT back the mapping of text ON columns that {@code RENAME}, a plain {@code EVAL} copy, or an unchanged
- * {@code FORK} or {@code UNION ALL} turned into a {@link ReferenceAttribute}. A copy keeps the field's mapping, so it
- * is analyzed the same way as the field. A merged column gets one of these mappings:
+ * Gives HIGHLIGHT back the mapping of text ON columns that {@code RENAME}, a plain {@code EVAL} copy, an unchanged
+ * {@code FORK} or {@code UNION ALL}, or {@code FUSE} turned into a {@link ReferenceAttribute}. A copy keeps the field's
+ * mapping, so it is analyzed the same way as the field. A merged column gets one of these mappings:
  * <ul>
  *     <li>the mapping every branch agrees on;</li>
  *     <li>a mapping that names each index's analyzer, when branches over different indices disagree;</li>
@@ -75,12 +74,15 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
         });
     }
 
-    /** Mapping of each text ON column that isn't a field attribute, by name. */
+    /**
+     * Mapping of each ON column that isn't a field attribute but reads a text field, by name. FUSE returns a text column as
+     * {@code keyword}, so keyword columns are followed too.
+     */
     private static Map<String, TextEsField> mergedMappings(Highlight highlight) {
         Lineage lineage = new Lineage();
         Map<String, TextEsField> mappings = new HashMap<>();
         for (NamedExpression field : highlight.fields()) {
-            if (field instanceof Attribute column && (column instanceof FieldAttribute) == false && column.dataType() == TEXT) {
+            if (field instanceof Attribute column && (column instanceof FieldAttribute) == false && DataType.isString(column.dataType())) {
                 TextEsField mapping = mergedMapping(highlight.child(), column, lineage);
                 if (mapping != null) {
                     mappings.put(column.name(), mapping(column.name(), mapping));
@@ -92,7 +94,7 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
 
     /**
      * Mapping of {@code column} when a {@code RENAME} or {@code EVAL} copy still reads a mapped field, or the column
-     * came straight out of a {@code FORK} or {@code UNION ALL}.
+     * came out of a {@code FORK} or {@code UNION ALL}, directly or through {@code FUSE}.
      */
     private static @Nullable TextEsField mergedMapping(LogicalPlan plan, Attribute column, Lineage lineage) {
         Expression read = lineage.aliases(plan).resolve(column, column);
@@ -188,7 +190,7 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
 
         /** Bindings for {@code plan}. A branch has to use its own, or a column can resolve into another branch. */
         AttributeMap<Expression> aliases(LogicalPlan plan) {
-            return aliasesByPlan.computeIfAbsent(plan, AliasBindings::of);
+            return aliasesByPlan.computeIfAbsent(plan, ResolveHighlightIndexKey::aliases);
         }
 
         /** One map per branch of {@code merge}, in branch order, without the columns the branch fills with nulls. */

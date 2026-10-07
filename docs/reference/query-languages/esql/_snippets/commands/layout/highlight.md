@@ -241,7 +241,8 @@ applies:
 
 An index `text` field keeps its mapped analyzer when you rename it with
 `RENAME`, copy it with `EVAL` (such as `EVAL t = title`), or pass it unchanged
-through [`FORK`](/reference/query-languages/esql/commands/fork.md) or
+through [`FORK`](/reference/query-languages/esql/commands/fork.md),
+[`FUSE`](/reference/query-languages/esql/commands/fuse.md), or
 [subqueries in `FROM`](/reference/query-languages/esql/esql-from-subquery.md).
 Columns computed from expressions do not inherit a mapped analyzer. They use
 the analyzer declared with `TO_TEXT`, or default to `standard`. To analyze a
@@ -254,7 +255,7 @@ analyzer of the index it comes from.
 
 * Queried indices map the field with different analyzers and `HIGHLIGHT` cannot
   determine which index supplied the value (for example, after `STATS`, `DEDUP`,
-  or across a `LOOKUP JOIN`).
+  or a `FUSE` whose `KEY BY` omits `_index`, or across a `LOOKUP JOIN`).
 * Branches of `FORK`, or subqueries in `FROM`, define conflicting analyzers for
   the same column (for example, when one branch reads the field from an index and
   another computes the column with a different analyzer).

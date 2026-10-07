@@ -13,12 +13,15 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.AliasBindings;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
@@ -33,6 +36,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightAnalyzers;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
@@ -51,7 +55,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
  * see the added columns. A user {@code METADATA _index} that was renamed or dropped stays renamed or dropped.
  * <p>
  * STATS and ROW rows have no single source index, and DEDUP would group by the key. Those plans get no key, so
- * indices that disagree fail the query: see {@link HighlightAnalyzers#analyzerMismatch}.
+ * indices that disagree fail the query: see {@link HighlightAnalyzers#analyzerMismatch}. FUSE keeps the key when it
+ * groups by {@code _index}.
  */
 public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
@@ -73,7 +78,7 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
             if (grouped.isEmpty()) {
                 return highlight;
             }
-            AttributeMap<Expression> aliases = AliasBindings.of(highlight.child());
+            AttributeMap<Expression> aliases = aliases(highlight.child());
             // The key only holds the indices the rows are read from, which a LOOKUP JOIN field's groups do not name.
             // ponytail: one such field leaves every ON field without the key, so each one whose indices disagree fails.
             // Routing per field needs HIGHLIGHT to know which fields the key covers.
@@ -88,6 +93,24 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
             }
             return highlight;
         });
+    }
+
+    /**
+     * {@link AliasBindings} under {@code plan}, plus the {@code FIRST} that FUSE reads each column through. FUSE merges
+     * the rows of one document, so each column it outputs still holds the values of the column below it.
+     */
+    static AttributeMap<Expression> aliases(LogicalPlan plan) {
+        AttributeMap.Builder<Expression> fused = AttributeMap.builder();
+        plan.forEachDown(Aggregate.class, fuse -> {
+            if (fuse.child() instanceof FuseScoreEval) {
+                for (NamedExpression column : fuse.aggregates()) {
+                    if (column instanceof Alias alias && alias.child() instanceof First first) {
+                        fused.put(alias.toAttribute(), first.field());
+                    }
+                }
+            }
+        });
+        return AliasBindings.of(plan).combine(fused.build());
     }
 
     /**
@@ -149,6 +172,17 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
                 Aggregate aggregate = inlineStats.aggregate();
                 LogicalPlan child = withIndexKey(aggregate.child());
                 yield child == null ? null : inlineStats.replaceChild(aggregate.replaceChild(child));
+            }
+            // FUSE merges the rows of one document. Grouped by _index, they all come from one index, so any row's key fits.
+            case Aggregate fuse when fuse.child() instanceof FuseScoreEval
+                && fuse.groupings().stream().anyMatch(g -> Expressions.name(g).equals(MetadataAttribute.INDEX)) -> {
+                LogicalPlan child = withIndexKey(fuse.child());
+                if (child == null) {
+                    yield null;
+                }
+                First first = new First(fuse.source(), indexKey(child), Literal.NULL);
+                Alias key = new Alias(fuse.source(), INDEX_KEY_NAME, first, null, true);
+                yield fuse.with(child, fuse.groupings(), CollectionUtils.combine(fuse.aggregates(), key));
             }
             case UnaryPlan unary -> {
                 LogicalPlan child = withIndexKey(unary.child());

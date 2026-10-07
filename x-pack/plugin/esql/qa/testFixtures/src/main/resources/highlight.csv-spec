@@ -2203,6 +2203,50 @@ fork2         | 2936            | Fellowship of the <em>Ring</em> 2ND Edition
 ;
 
 
+# FUSE reads each column through FIRST, which returns title as keyword. HIGHLIGHT still follows it back to the field,
+# so english stems "Rings" and "ring" matches it.
+highlightMappingAnalyzerAfterForkAndFuse
+required_capability: highlight_mapping_analyzer
+required_capability: fork_v9
+required_capability: fuse_v6
+
+FROM books_english METADATA _id, _index, _score
+| FORK (WHERE book_no == "2714" | LIMIT 10)
+       (WHERE book_no == "2936" | LIMIT 10)
+| FUSE
+| HIGHLIGHT "ring" ON title
+| KEEP book_no, highlight_title
+| SORT book_no
+;
+
+book_no:keyword | highlight_title:keyword
+2714            | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+2936            | Fellowship of the <em>Ring</em> 2ND Edition
+;
+
+
+# FUSE groups by _index, so each row still comes from one index and HIGHLIGHT uses that index's analyzer.
+# The books_english row matches "Rings", and the books row does not.
+highlightPerIndexAnalyzerAfterForkAndFuse
+required_capability: highlight_mapping_analyzer
+required_capability: fork_v9
+required_capability: fuse_v6
+
+FROM books,books_english METADATA _id, _index, _score
+| FORK (WHERE book_no == "2714" | LIMIT 10)
+       (WHERE book_no == "2714" | LIMIT 10)
+| FUSE
+| HIGHLIGHT "ring" ON title
+| KEEP _index, title, highlight_title
+| SORT _index
+;
+
+_index:keyword | title:keyword                                                    | highlight_title:keyword
+books          | Return of the King Being the Third Part of The Lord of the Rings | null
+books_english  | Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+;
+
+
 # One FORK branch reads title from the index and the other computes it, so the branches disagree on its analyzer, and
 # HIGHLIGHT rejects the query unless WITH picks one. english stems "Rings", so "ring" matches it in both rows.
 highlightAnalyzerOptionAfterForkOfMappedAndComputed

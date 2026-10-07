@@ -7381,6 +7381,38 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     /**
+     * FUSE reads each column through FIRST, so a HIGHLIGHT after FORK and FUSE keeps the mapping the branches agree on.
+     * FUSE groups by {@code _index}, so each row still comes from one index and the key passes through FUSE. Without
+     * {@code _index} in KEY BY, one row can merge documents from several indices, so HIGHLIGHT gets no key and fails.
+     */
+    public void testHighlightAfterForkAndFuseKeepsMapping() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        String forkAndFuse = " METADATA _id, _index, _score"
+            + " | FORK (WHERE MATCH(title, \"ring\") | LIMIT 10) (WHERE MATCH(title, \"return\") | LIMIT 10)"
+            + " | FUSE";
+        String highlight = " | HIGHLIGHT \"ring\" ON title";
+        Highlight english = soleHighlight(
+            analyzer().addIndex("books_english", "mapping-books_english.json")
+                .minimumTransportVersion(TextEsField.TEXT_FIELD_ANALYZER)
+                .query("FROM books_english" + forkAndFuse + highlight)
+        );
+        assertThat(english.fieldMappings().get("title").analyzerName(), equalTo("english"));
+        assertWarnings(englishFallbackWarning("title"));
+
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().query("FROM books*" + forkAndFuse + highlight);
+        Highlight perIndex = soleHighlight(plan);
+        assertThat(perIndex.fieldMappings().get("title").analyzerGroups(), hasSize(2));
+        assertNotNull(perIndex.indexKey());
+        assertThat(fieldNames(plan.output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
+        assertWarnings();
+
+        booksWithConflictingTitleAnalyzer().error(
+            "FROM books*" + forkAndFuse + " KEY BY _id" + highlight,
+            containsString(analyzerConflictError("title"))
+        );
+    }
+
+    /**
      * When one branch computes the column and another maps it, no single analyzer fits every row, so HIGHLIGHT rejects the
      * query. A STATS branch agrees on the mapping but has no source index per row, so HIGHLIGHT gets no key and fails
      * because the indices disagree.
@@ -7678,11 +7710,15 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     private static String analyzerConflictError(String field) {
-        return "HIGHLIGHT on [" + field + "] cannot pick an analyzer: the queried indices disagree on the analyzer for this field";
+        return "HIGHLIGHT on ["
+            + field
+            + "] cannot resolve an analyzer across inputs: the queried indices disagree on the analyzer for this field";
     }
 
     private static String branchConflictError(String field) {
-        return "HIGHLIGHT on [" + field + "] cannot pick an analyzer: the FORK or UNION ALL branches disagree on the analyzer";
+        return "HIGHLIGHT on ["
+            + field
+            + "] cannot resolve an analyzer across inputs: the FORK or UNION ALL branches disagree on the analyzer";
     }
 
     /**

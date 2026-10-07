@@ -226,8 +226,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 throw new ParsingException(source(bindingCtx), "duplicate LET binding name [{}]", binding.name());
             }
             String name = binding.name();
-            if (name.contains("*") || name.contains(",") || name.contains(":")) {
-                throw new ParsingException(source(bindingCtx), "LET binding name [{}] must not contain '*', ',' or ':'", name);
+            if (name.contains("*") || name.contains(",") || name.contains(":") || name.contains(".")) {
+                throw new ParsingException(source(bindingCtx), "LET binding name [{}] must not contain '*', ',', ':' or '.'", name);
             }
             bindings.add(binding);
         }
@@ -566,9 +566,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         List<EsqlBaseParser.ValueExpressionContext> valueExprs = ctx.valueExpression();
         if (EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled() && valueExprs.size() == 2 && declaredLetBindingNames.isEmpty() == false) {
             Expression possibleName = expression(valueExprs.get(1));
-            if (possibleName instanceof UnresolvedAttribute ua
-                && ua.qualifiedName().contains(".") == false
-                && declaredLetBindingNames.contains(ua.name())) {
+            if (possibleName instanceof UnresolvedAttribute ua && declaredLetBindingNames.contains(ua.qualifiedName())) {
                 Expression value = expression(valueExprs.get(0));
                 Source source = source(ctx);
                 LogicalPlan subqueryPlan = new UnresolvedRelation(

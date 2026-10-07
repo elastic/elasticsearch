@@ -223,3 +223,23 @@ AVG(network.bytes_in):double | cluster:keyword | pod:keyword
 553.1379310344828            | qa              | two
 ;
 
+// -------------------------------------------------------------------
+// SET combined with LET
+// -------------------------------------------------------------------
+
+setWithLetBinding
+required_capability: set_command
+required_capability: named_subquery_let
+
+SET unmapped_fields="nullify"\;
+LET top_langs = (FROM languages | SORT language_code | LIMIT 2)\;
+FROM top_langs
+| KEEP language_code, language_name
+| SORT language_code
+;
+
+language_code:integer | language_name:keyword
+1                     | English
+2                     | French
+;
+

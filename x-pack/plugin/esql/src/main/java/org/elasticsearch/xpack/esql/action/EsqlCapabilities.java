@@ -4282,7 +4282,7 @@ public class EsqlCapabilities {
         EXTERNAL_SOURCE_SCORE_FIX,
 
         /** Support named subqueries (CTEs) declared with the {@code LET} prefix clause.
-            * A {@code LET} clause binds a subquery plan to a name that can be referenced
+         * A {@code LET} clause binds a subquery plan to a name that can be referenced
          * in the main query as a relation or as an {@code IN} operand.
          */
         NAMED_SUBQUERY_LET(Build.current().isSnapshot()),

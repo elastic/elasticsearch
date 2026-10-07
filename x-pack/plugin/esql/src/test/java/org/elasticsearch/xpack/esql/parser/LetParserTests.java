@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
@@ -19,8 +21,12 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
+import java.util.List;
+
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -172,6 +178,11 @@ public class LetParserTests extends AbstractStatementParserTests {
         expectValidationError("LET `a:b` = (FROM idx | LIMIT 1); ROW x = 1", "must not contain");
     }
 
+    public void testBindingNameWithDot() {
+        assumeLet();
+        expectValidationError("LET `a.b` = (FROM idx | LIMIT 1); ROW x = 1", "must not contain");
+    }
+
     public void testLetInsideViewBodyParsed() {
         assumeLet();
         // parseView is called by EsqlParser, not the test parser. Verify that LET is accepted
@@ -185,6 +196,26 @@ public class LetParserTests extends AbstractStatementParserTests {
         );
         assertThat(stmt.letBindings().size(), is(1));
         assertThat(stmt.letBindings().get(0).name(), is("x"));
+    }
+
+    // -----------------------------------------------------------------------
+    // Query parameters inside LET binding bodies
+    // -----------------------------------------------------------------------
+
+    /** Named query parameters inside a LET binding body are substituted at parse time. */
+    public void testLetBindingWithQueryParam() {
+        assumeLet();
+        var params = new QueryParams(List.of(paramAsConstant("threshold", 10020)));
+        EsqlStatement stmt = statement("LET top = (FROM employees | WHERE emp_no > ?threshold | LIMIT 3);\nFROM top | SORT emp_no", params);
+        assertThat(stmt.letBindings().size(), is(1));
+        LetBinding binding = stmt.letBindings().get(0);
+        assertThat(binding.name(), is("top"));
+        // body: Limit(Filter(UnresolvedRelation("employees")))
+        LogicalPlan body = binding.plan();
+        assertThat(body, instanceOf(Limit.class));
+        Filter filter = as(((Limit) body).child(), Filter.class);
+        GreaterThan gt = as(filter.condition(), GreaterThan.class);
+        assertThat(gt.right().fold(FoldContext.small()), equalTo(10020));
     }
 
     // -----------------------------------------------------------------------

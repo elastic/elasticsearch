@@ -55,18 +55,6 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
-    // -- LET binding used as FROM source alongside a regular index --
-
-    public void testLetBindingAsOnlyFromSource() {
-        requireLetSupport();
-        runGoldenTest("""
-            LET filtered_employees = (FROM employees | WHERE emp_no > 10020 | KEEP emp_no, languages);
-            FROM filtered_employees
-            | WHERE languages > 1
-            | SORT emp_no
-            """, STAGES);
-    }
-
     // -- multiple LET bindings, second references first --
 
     public void testLetMultipleBindingsSecondUsed() {
@@ -93,7 +81,7 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
 
     // -- LET body used as the right-hand side of an IN subquery --
 
-    public void testLetBindingInInSubquery() {
+    public void testLetBindingInsideInSubquery() {
         requireLetSupport();
         runGoldenTest("""
             LET active_langs = (FROM languages | WHERE language_code > 1 | KEEP language_code);

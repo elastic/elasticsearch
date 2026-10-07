@@ -81,6 +81,7 @@ public final class LetResolver {
             // Substitute earlier bindings into this binding's body (sequential scoping).
             var current = substitute(binding.plan(), resolved);
             resolved.put(binding.name(), current);
+            // After resolving the current binding, it should not contain references to previous ones (or itself). Otherwise we have a cycle
             checkForCycles(current, resolved);
         }
 
@@ -135,9 +136,6 @@ public final class LetResolver {
                     throw new VerificationException("Circular reference detected in LET bindings");
                 }
             }
-            // InSubquery and MultiColumnInSubquery carry a LogicalPlan field that is not part of the
-            // plan-node children, so transformDown cannot reach it via the normal child traversal.
-            // Substitute into those plans explicitly here.
             p.forEachExpression(InSubquery.class, inSub -> { checkForCycles(inSub.subquery(), resolved); });
             p.forEachExpression(MultiColumnInSubquery.class, mcsub -> { checkForCycles(mcsub.subquery(), resolved); });
         });

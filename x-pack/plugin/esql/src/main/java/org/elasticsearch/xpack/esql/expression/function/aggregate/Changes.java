@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ChangesDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.ChangesExponentialHistogramAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ChangesIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ChangesLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -38,7 +39,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
- * Implements the PromQL {@code changes()} range-vector function for per-series numeric values.
+ * Implements the PromQL {@code changes()} range-vector function for per-series numeric and native histogram values.
  */
 public class Changes extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -52,7 +53,11 @@ public class Changes extends TimeSeriesAggregateFunction implements OptionalArgu
         .description("Returns the number of times the value changed in each time series in a range vector.")
         .example("changes(process_start_time_seconds[1h])")
         .stack(PromqlFunctionDefinition.STACK_GA_9_6)
-        .differenceFromPrometheus(PromqlFunctionDefinition.COUNT_NOTE)
+        .differenceFromPrometheus(
+            PromqlFunctionDefinition.COUNT_NOTE
+                + " A single Elasticsearch field has a fixed type, so transitions between float and native histogram samples "
+                + "cannot be represented."
+        )
         .name("changes");
 
     private final Expression timestamp;
@@ -61,7 +66,7 @@ public class Changes extends TimeSeriesAggregateFunction implements OptionalArgu
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "long" },
         briefSummary = "Calculates the number of value changes in a time window.",
-        description = "Calculates the number of times the value of a numeric metric field changes in a time window.",
+        description = "Calculates the number of times the value of a numeric or native histogram metric field changes in a time window.",
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.7.0"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.8.0") }
@@ -70,7 +75,7 @@ public class Changes extends TimeSeriesAggregateFunction implements OptionalArgu
         Source source,
         @Param(
             name = "field",
-            type = { "long", "integer", "double", "counter_long", "counter_integer", "counter_double" },
+            type = { "long", "integer", "double", "counter_long", "counter_integer", "counter_double", "exponential_histogram" },
             description = "the metric field to calculate the value for"
         ) Expression field,
         @Param(
@@ -127,10 +132,14 @@ public class Changes extends TimeSeriesAggregateFunction implements OptionalArgu
     protected TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt == DataType.LONG || dt == DataType.INTEGER || dt == DataType.DOUBLE || DataType.isCounter(dt),
+            dt -> dt == DataType.LONG
+                || dt == DataType.INTEGER
+                || dt == DataType.DOUBLE
+                || dt == DataType.EXPONENTIAL_HISTOGRAM
+                || DataType.isCounter(dt),
             sourceText(),
             DEFAULT,
-            "long, integer, double, counter_long, counter_integer or counter_double"
+            "long, integer, double, counter_long, counter_integer, counter_double or exponential_histogram"
         );
     }
 
@@ -140,6 +149,7 @@ public class Changes extends TimeSeriesAggregateFunction implements OptionalArgu
             case LONG, COUNTER_LONG -> new ChangesLongAggregatorFunctionSupplier();
             case INTEGER, COUNTER_INTEGER -> new ChangesIntAggregatorFunctionSupplier();
             case DOUBLE, COUNTER_DOUBLE -> new ChangesDoubleAggregatorFunctionSupplier();
+            case EXPONENTIAL_HISTOGRAM -> new ChangesExponentialHistogramAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(field().dataType());
         };
     }

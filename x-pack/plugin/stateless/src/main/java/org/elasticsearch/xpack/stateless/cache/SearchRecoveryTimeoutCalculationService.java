@@ -183,7 +183,9 @@ public class SearchRecoveryTimeoutCalculationService {
     /// 2. _Data-volume-proportional_ (contributes only when `totalBytesToWarm` is greater than zero):
     /// `(totalBytesToWarm / (cacheSize * cacheRatio)) * remaining`.
     /// 3. _Warm-volume share_ (when a completed [ShardWarmVolumes.Entry] exists):
-    /// `(warm volume / sum of warm volumes on source) * remaining`. An unknown shard contributes 0.
+    /// `(warm volume / sum of warm volumes still competing for this target) * remaining`.
+    /// Copies already relocating to a different node are omitted from the sum. STARTED copies
+    /// (no target yet) stay in it. An unknown shard contributes 0.
     ///
     /// with `deadline = start + min(metadata grace, cap)` and `remaining = deadline - now`.
     private SearchRecoveryTimeout computeRelocationSourceShutdownWarmingTimeout(
@@ -220,7 +222,7 @@ public class SearchRecoveryTimeoutCalculationService {
         // But it's hard to do the accounting of the bytes warmed for shards for all the relocations of a given node shutting down.
         final double dataVolumeMs = warmingCacheBytes > 0 ? ((double) totalBytesToWarm / warmingCacheBytes) * remaining : 0;
         // Warm-volume shares use the source's current-commit prefixes; they can differ from this target's WarmTarget plan.
-        final double warmVolumeMs = warmVolumeShareMs(state, sourceNodeId, shardId, remaining);
+        final double warmVolumeMs = warmVolumeShareMs(state, sourceNodeId, targetNodeId, shardId, remaining);
         int ongoingRelocations = countOngoingRelocationsBetween(state, sourceNodeId, targetNodeId);
         // The current shard is itself one such relocation; floor at 1 in case it is not yet visible on the source's RoutingNode.
         if (ongoingRelocations <= 0) {
@@ -260,8 +262,10 @@ public class SearchRecoveryTimeoutCalculationService {
 
     /**
      * Per-shard warm-volume share of {@code remaining}, or {@code 0} when the map cannot be used for this shard.
+     * Copies already relocating from {@code sourceNodeId} to a node other than {@code targetNodeId} are left out of
+     * the denominator: they are committed elsewhere. STARTED copies remain in the sum until they get a target.
      */
-    private double warmVolumeShareMs(ClusterState state, String sourceNodeId, ShardId shardId, long remaining) {
+    private double warmVolumeShareMs(ClusterState state, String sourceNodeId, String targetNodeId, ShardId shardId, long remaining) {
         var entry = shardWarmVolumes.get(state, sourceNodeId);
         if (entry == null) {
             return 0;
@@ -274,6 +278,10 @@ public class SearchRecoveryTimeoutCalculationService {
         Long thisShardVolume = null;
         for (ShardRouting routing : sourceNode) {
             assert routing.isSearchable();
+            // Skip shards that are relocating to a different target node than the one we're computing for.
+            if (routing.relocating() && targetNodeId.equals(routing.relocatingNodeId()) == false) {
+                continue;
+            }
             Long volume = entry.volumes().get(routing.shardId());
             if (volume == null) {
                 continue;

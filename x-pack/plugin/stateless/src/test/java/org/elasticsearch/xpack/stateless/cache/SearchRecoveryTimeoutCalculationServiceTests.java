@@ -169,6 +169,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             sourceNodeId,
             targetNodeId,
             startedAtMillis,
+            0,
             0
         );
     }
@@ -180,10 +181,13 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         String sourceNodeId,
         String targetNodeId,
         long startedAtMillis,
-        int shardsAlreadyLeftSource
+        int shardsAlreadyLeftSource,
+        int shardsStartedOnSource
     ) {
         assert numShardsToTarget <= numShards;
         assert shardsAlreadyLeftSource <= numShards;
+        assert shardsStartedOnSource <= numShards;
+        assert shardsAlreadyLeftSource + shardsStartedOnSource <= numShards;
         final String primaryNodeId = "primary-node";
         final String masterNodeId = "master-node";
         final String otherNodeId = "other-node";
@@ -200,6 +204,10 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             final ShardRouting searchReplica;
             if (s < shardsAlreadyLeftSource) {
                 searchReplica = TestShardRouting.shardRoutingBuilder(sid, dest, false, STARTED)
+                    .withRole(ShardRouting.Role.SEARCH_ONLY)
+                    .build();
+            } else if (s >= numShards - shardsStartedOnSource) {
+                searchReplica = TestShardRouting.shardRoutingBuilder(sid, sourceNodeId, false, STARTED)
                     .withRole(ShardRouting.Role.SEARCH_ONLY)
                     .build();
             } else {
@@ -829,13 +837,16 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             final Index index = new Index("idx", randomUUID());
             final String sourceNodeId = "source-node";
             final String targetNodeId = "target-node";
+            // One relocating here, two still STARTED on the source (no target yet).
             final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
                 3,
                 1,
                 index,
                 sourceNodeId,
                 targetNodeId,
-                startedAtMillis
+                startedAtMillis,
+                0,
+                2
             );
             threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
 
@@ -892,13 +903,16 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             final Index index = new Index("idx", randomUUID());
             final String sourceNodeId = "source-node";
             final String targetNodeId = "target-node";
+            // One relocating here with a small volume; two still STARTED on the source.
             final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
                 3,
                 1,
                 index,
                 sourceNodeId,
                 targetNodeId,
-                startedAtMillis
+                startedAtMillis,
+                0,
+                2
             );
             threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
 
@@ -988,7 +1002,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             final Index index = new Index("idx", randomUUID());
             final String sourceNodeId = "source-node";
             final String targetNodeId = "target-node";
-            // Snapshot still holds A, B, C. Routing on the source now holds only B and C (A already left).
+            // Snapshot still holds A, B, C. A already left. B is relocating here. C is still STARTED on the source.
             final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
                 3,
                 2,
@@ -996,6 +1010,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 sourceNodeId,
                 targetNodeId,
                 startedAtMillis,
+                1,
                 1
             );
             threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
@@ -1018,6 +1033,62 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             assertThat(plan.awaitWarming(), is(true));
             // remaining=8000; leftover total=600+200; share=600/800*8000=6000. Including A would be 600/900*8000=5333.
             assertThat(plan.timeout().millis(), equalTo(6000L));
+            assertThat(
+                plan.timeoutContext(),
+                equalTo("relocation source shutting down (warm volume share of remaining time to capped grace deadline)")
+            );
+        }
+    }
+
+    public void testWarmVolumeShareExcludesShardsRelocatingToOtherNodes() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            Settings settings = Settings.builder()
+                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
+                .build();
+            final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
+            final long startedAtMillis = threadPool.absoluteTimeInMillis();
+            final Index index = new Index("idx", randomUUID());
+            final String sourceNodeId = "source-node";
+            final String targetNodeId = "target-node";
+            // Shard 0 relocating here, shard 1 relocating to another node, shard 2 still STARTED on the source.
+            final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
+                3,
+                1,
+                index,
+                sourceNodeId,
+                targetNodeId,
+                startedAtMillis,
+                0,
+                1
+            );
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
+
+            ShardWarmVolumes volumes = enabledWarmVolumes();
+            volumes.put(
+                sourceNodeId,
+                new ShardWarmVolumes.Entry(
+                    startedAtMillis,
+                    Map.of(new ShardId(index, 0), 600L, new ShardId(index, 1), 300L, new ShardId(index, 2), 100L)
+                )
+            );
+            var service = newCalculationService(threadPool, settings, 1000L, volumes, TelemetryProvider.NOOP);
+            final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
+                .shardRoutingTable(new ShardId(index, 0))
+                .shardsWithState(RELOCATING)
+                .get(0)
+                .getTargetRelocatingShard();
+            var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L);
+            assertThat(plan.awaitWarming(), is(true));
+            // remaining=8000; skip the 300 going elsewhere; S=600+100; share=600/700*8000≈6857.
+            // Including the other-target copy would be 600/1000*8000=4800.
+            assertThat(plan.timeout().millis(), equalTo(6857L));
             assertThat(
                 plan.timeoutContext(),
                 equalTo("relocation source shutting down (warm volume share of remaining time to capped grace deadline)")

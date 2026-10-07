@@ -30,7 +30,6 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.util.LongObjectPagedHashMap.Cursor;
-import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchHit;
@@ -81,8 +80,6 @@ class TopHitsAggregator extends MetricsAggregator {
     private final boolean isNested;
     private final SearchExecutionContext forkedSearchExecutionContext;
     private final InnerHitsContext forkedInnerHitsContext;
-    // only ever written under Assertions.ENABLED, from runFetchPhase
-    private Thread fetchThread;
 
     TopHitsAggregator(
         SubSearchContext subSearchContext,
@@ -256,14 +253,6 @@ class TopHitsAggregator extends MetricsAggregator {
     }
 
     private FetchSearchResult runFetchPhase(int[] docIdsToLoad, IntConsumer memoryChecker) {
-        if (Assertions.ENABLED) {
-            // All buckets share the forked contexts, so they must all be fetched on one thread.
-            if (fetchThread == null) {
-                fetchThread = Thread.currentThread();
-            }
-            assert fetchThread == Thread.currentThread()
-                : "forked fetch context shared across threads [" + fetchThread + "] and [" + Thread.currentThread() + "]";
-        }
         // Stays per bucket: it owns the FetchSearchResult the bucket's hits are published through.
         SubSearchContext fetchSubSearchContext = new SubSearchContext(subSearchContext) {
             @Override

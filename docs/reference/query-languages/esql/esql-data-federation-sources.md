@@ -1,6 +1,6 @@
 ---
 navigation_title: "Data sources"
-description: "Connect Elasticsearch to external storage with ES|QL Data Federation by setting up S3 data sources, configuring endpoints, and authenticating access."
+description: "Connect Elasticsearch to external storage with ES|QL Data Federation. Create and manage data sources, choose an authentication model, and grant read access to your data."
 applies_to:
   stack: experimental 9.5+
   serverless: unavailable
@@ -52,7 +52,7 @@ Click **Connect data source** to open a flyout where you define the connection:
 - **Endpoint**: an optional Amazon S3 endpoint override, given as an absolute `https` URL naming a supported AWS S3 endpoint. Leave it empty to have the endpoint resolved from the region.
 - **Authentication**: select an authentication model from the dropdown, then fill in the credentials it requires.
 
-For the full set of authentication methods and what each one requires, refer to [authentication models](#authentication). For detailed setup walkthroughs, refer to [connect with static credentials](esql-data-federation-static-credentials.md) or [connect with federated identity](esql-data-federation-federated-identity.md).
+For the full set of authentication methods and what each one requires, refer to [authentication models](#authentication). For setup walkthroughs, refer to [Amazon S3](esql-data-federation-s3.md).
 
 :::{dropdown} Show the Connect data source flyout
 :::{image} images/data-federation/connect-data-source-static-credentials.png
@@ -127,7 +127,7 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/data_source/prod_s3_logs" \
 ::::
 
 :::{tip}
-For step-by-step guides on setting up each authentication model in AWS, refer to [connect with static credentials](esql-data-federation-static-credentials.md) or [connect with federated identity](esql-data-federation-federated-identity.md).
+For step-by-step guides on setting up each authentication model in AWS, refer to [Amazon S3](esql-data-federation-s3.md).
 :::
 
 ### Get a data source
@@ -280,62 +280,7 @@ An unknown `type` value returns a `400 Bad Request` rather than a `failure` stat
 
 ## Data source settings
 
-Settings vary by data source type.
-
-### S3
-
-The following settings are available for `s3` data sources:
-
-Use the following connection settings:
-
-| Setting | Required | Description |
-|---|---|---|
-| `endpoint` | No | Optional Amazon S3 endpoint override. Must be an absolute `https` URL naming a supported AWS S3 endpoint, for example `https://s3.us-east-1.amazonaws.com`. Omit to resolve the endpoint from the region, which is the recommended configuration. See [S3 endpoint requirements](#s3-endpoint-requirements). {applies_to}`stack: experimental 9.6+` |
-| `addressing_style` {applies_to}`stack: experimental 9.6+` | No | URL addressing style. `auto` (default) uses path-style when `endpoint` is set and SDK-default otherwise. `path` always uses path-style. `virtual_hosted` lets the SDK decide (bare-IP endpoints fall back to path-style). Because `auto` resolves to path-style whenever `endpoint` is set, set `virtual_hosted` if reads through a VPC interface endpoint fail with an addressing error. |
-
-$$$s3-endpoint-requirements$$$
-::::{dropdown} S3 endpoint requirements
-:applies_to: stack: experimental 9.6+
-Accepted endpoint forms. The first three are accepted in every AWS partition; the global form exists only in the commercial partition:
-
-- Regional: `https://s3.us-east-1.amazonaws.com`
-- Historical: `https://s3-us-west-2.amazonaws.com`
-- VPC interface: `https://bucket.vpce-0a1b2c3d.s3.us-east-1.vpce.amazonaws.com`
-- Global: `https://s3.amazonaws.com`
-
-A regional endpoint must name a region that the Elasticsearch version you are running knows about. A region added by AWS after that release is rejected until you upgrade, or until a node permits its host with the setting described below.
-
-:::{note}
-`https://s3.amazonaws.com` has no region. When you set `endpoint`, the SDK stops following cross-region redirects, so this global endpoint only reaches `us-east-1` buckets; other regions get an error. Omit `endpoint` to let the SDK resolve the correct regional endpoint from the `region` setting.
-:::
-
-Every other AWS endpoint family is rejected, including FIPS endpoints, dual-stack endpoints, transfer acceleration, access points, object lambda, Outposts, the account-level control plane, the legacy `s3-external-1` alias, and S3 Express. A bucket-qualified endpoint such as `https://mybucket.s3.us-east-1.amazonaws.com` is also rejected: name the regional endpoint and let the bucket come from the dataset. So are plain `http`, a value without a scheme, and a host the URL syntax does not allow, such as an underscore or a non-numeric port.
-
-A node can permit additional hosts with the `esql.external.allowed_endpoint_hosts` node setting, a list of `host:port` patterns in `elasticsearch.yml` that defaults to empty. A host it names is also accepted over plain `http` for `endpoint`; `sts_endpoint` always requires `https`.
-
-:::{warning}
-A data source created before these endpoint restrictions were introduced keeps working for queries, but updating it requires an endpoint that passes the validation described above.
-:::
-::::
-
-:::{note}
-{applies_to}`stack: experimental 9.6+` The `region` setting on a data source is deprecated and has no effect. Set `region` in the [dataset settings](esql-data-federation-dataset-settings.md#amazon-s3-region) instead, or omit it to let Elasticsearch detect the region automatically. When no `endpoint` is set, the SDK redirects transparently. When one is set, Elasticsearch issues a `HeadBucket` probe on the first request and caches the discovered region for the lifetime of the data source.
-
-{applies_to}`stack: experimental =9.5` Set `region` on the data source. Datasets don't accept a `region` setting.
-:::
-
-Use the following authentication settings:
-
-| Setting | Required | Description |
-|---|---|---|
-| `access_key` | No | AWS access key ID. Used with `auth: static_credentials`. |
-| `secret_key` | No | AWS secret access key. Used with `auth: static_credentials`. |
-| `role_arn` | Yes (federated identity) | The ARN of the IAM role {{es}} assumes via STS. Used with `auth: federated_identity`. |
-| `jwt_audience` | No | Overrides the JWT audience claim sent to STS. Defaults to `sts.amazonaws.com`. Used with `auth: federated_identity`. |
-| `role_session_name` | No | A label for the assumed-role session. Defaults to `elasticsearch-esql-datasource`. Used with `auth: federated_identity`. |
-| `sts_endpoint` | No | STS endpoint override for `auth: federated_identity`, for example https://sts.us-east-1.amazonaws.com. Validated against the same [S3 endpoint requirements](#s3-endpoint-requirements) as `endpoint`, but for STS hosts, and always over `https`. Any host permitted via `esql.external.allowed_endpoint_hosts` receives the node's OIDC token; only add hosts on trusted network paths. {applies_to}`stack: experimental 9.6+` |
-| `sts_region` | No | The AWS region of the STS endpoint. Defaults to the `region` setting, or `us-east-1` if no region is set. Used with `auth: federated_identity`. |
-| `auth` | Yes | Authentication mode. Set it to `anonymous`, `static_credentials`, `managed_identity`, or `federated_identity`. |
+Settings vary by data source type. For every setting each type accepts, refer to the [data source settings reference](esql-data-federation-data-source-settings.md).
 
 ## Authentication
 
@@ -351,6 +296,16 @@ A data source authenticates to its store with one of the following models. The m
 :::{warning}
 Managed identity uses the cloud identity attached to each {{es}} node (for example, an IAM role on EC2 or a service account on GKE). Different nodes might have different identities, and the node that performs the connection is not guaranteed. You are responsible for configuring cloud IAM so that every node's identity has the required permissions on the target bucket. This model is best suited for single-cloud, single-tenant deployments where node identities are uniform.
 :::
+
+## Grant read access to your data [grant-read-access]
+
+A data source reads from external storage as a single cloud identity, and your cloud provider controls what that identity can read. For Amazon S3, the identity is the IAM user that owns the access key, the IAM role that {{es}} assumes, or the node's own IAM role. {{es}} doesn't check these permissions when you create a data source or a dataset. A missing permission shows up as an access error the first time you query a dataset.
+
+The identity needs permission to read the files in every dataset that uses the data source. If a dataset's resource is a prefix or a glob pattern, the identity also needs permission to list objects in that location. Because one data source can serve many datasets, check its permissions whenever you add a dataset that reads from a new location.
+
+To grant read access for each data source type, refer to:
+
+- **Amazon S3**: Allow `s3:GetObject` on the dataset's objects, and `s3:ListBucket` on the bucket when a dataset's resource is a prefix or a glob pattern. For a complete policy and troubleshooting, refer to [grant read access in Amazon S3](esql-data-federation-s3.md#s3-permissions).
 
 ## Next steps
 

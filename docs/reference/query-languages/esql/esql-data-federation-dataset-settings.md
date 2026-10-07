@@ -278,7 +278,7 @@ $$$amazon-s3-region$$$
 
     - **Default:** Auto-detected
     - **Valid values:** A non-empty AWS region name
-    - **Related:** `endpoint` and `sts_region` on the [data source](esql-data-federation-sources.md)
+    - **Related:** [`endpoint`](esql-data-federation-data-source-settings.md#endpoint) and [`sts_region`](esql-data-federation-data-source-settings.md#sts-region) on the data source
 
     Omit `region` for standard AWS S3. Set it when the data source uses a custom `endpoint`, such as MinIO or Scaleway, to skip region discovery on the first request.
 

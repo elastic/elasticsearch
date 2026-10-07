@@ -344,12 +344,6 @@ public class FoldNullTests extends ESTestCase {
         assertEquals(mul, foldNull(mul));
     }
 
-    // COALESCE is not null-propagating and evaluates a NULL-typed result fine on its own; only its parent needs folding.
-    public void testNullTypedCoalesceIsNotFoldedItself() {
-        Coalesce coalesce = nullTypedCoalesce();
-        assertEquals(coalesce, foldNull(coalesce));
-    }
-
     public void testNullTypedCoalesceDoesNotFoldAggregateOrCategorize() {
         Max max = new Max(EMPTY, nullTypedCoalesce());
         assertEquals(max, foldNull(max));

@@ -10,7 +10,7 @@ products:
 You can use the {{es}} SQL [REST API](sql-rest.md) to access {{es}} data from [LibreDB Studio](https://github.com/libredb/libredb-studio), an open source, web-based database IDE. LibreDB Studio sends each statement to the `_sql` endpoint over HTTP, so no JDBC or ODBC driver is needed.
 
 ::::{important}
-Elastic does not endorse, promote or provide support for this application; for native {{es}} integration in this product, reach out to its vendor.
+Elastic does not endorse, promote or provide support for this application. For native {{es}} integration in LibreDB Studio, reach out to its vendor.
 ::::
 
 

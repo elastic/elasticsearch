@@ -1236,6 +1236,36 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of(FileMetadataColumns.MODIFIED, 3_000L)));
     }
 
+    /**
+     * Identity bind of a date column aliases the keyword folder under the datetime name. Comparing
+     * {@code Instant.toString()} (or millis) to {@code "2024-06-15"} would prune every file; kind mismatch keeps.
+     */
+    public void testKeywordFolderVersusDatetimeRangeIsKept() {
+        FieldAttribute ts = new FieldAttribute(
+            SRC,
+            "@timestamp",
+            new EsField("@timestamp", DataType.DATETIME, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        Expression range = new MvInRange(
+            SRC,
+            ts,
+            Literal.dateTime(SRC, Instant.parse("2024-06-15T00:00:00Z")),
+            Literal.dateTime(SRC, Instant.parse("2024-06-15T01:00:00Z"))
+        );
+        assertNull(FileSplitProvider.evaluateFilter(range, Map.of("@timestamp", "2024-06-15")));
+        Expression gte = new GreaterThanOrEqual(SRC, ts, Literal.dateTime(SRC, Instant.parse("2024-06-15T00:00:00Z")), null);
+        assertNull(FileSplitProvider.evaluateFilter(gte, Map.of("@timestamp", "2024-06-15")));
+        Expression lt = new LessThan(SRC, ts, Literal.dateTime(SRC, Instant.parse("2024-06-15T01:00:00Z")), null);
+        assertNull(FileSplitProvider.evaluateFilter(lt, Map.of("@timestamp", "2024-06-15")));
+        Expression instantBound = new GreaterThanOrEqual(
+            SRC,
+            ts,
+            new Literal(SRC, Instant.parse("2024-06-15T00:00:00Z"), DataType.DATETIME),
+            null
+        );
+        assertNull(FileSplitProvider.evaluateFilter(instantBound, Map.of("@timestamp", "2024-06-15")));
+    }
+
     public void testMatchesPartitionFiltersAllMatch() {
         Map<String, Object> values = Map.of("year", 2024, "month", 6);
         List<Expression> filters = List.of(

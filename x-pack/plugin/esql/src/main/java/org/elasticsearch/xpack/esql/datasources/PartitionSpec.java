@@ -12,6 +12,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.Operator;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
 
@@ -823,9 +824,23 @@ public final class PartitionSpec {
 
     /** Notices for unmatched keys and a numeric bound that lands outside 1971–2100. */
     public void emitListingNotices(@Nullable Set<String> detectedKeys, @Nullable List<PartitionFilterHint> hints, Consumer<String> sink) {
+        emitListingNotices(detectedKeys, hints, null, sink);
+    }
+
+    /**
+     * Notices for unmatched keys, a numeric bound outside 1971–2100, and an identity bind onto a date
+     * column (declared mapping type, or a datetime hint / {@code @timestamp} when no mapping is present).
+     */
+    public void emitListingNotices(
+        @Nullable Set<String> detectedKeys,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, DataType> columnTypes,
+        Consumer<String> sink
+    ) {
         if (isEmpty() || sink == null) {
             return;
         }
+        emitIdentityOnDateNotices(hints, columnTypes, sink);
         if (detectedKeys != null) {
             for (Field field : fields) {
                 if (detectedKeys.contains(field.key()) == false) {
@@ -881,6 +896,58 @@ public final class PartitionSpec {
                 }
             }
         }
+    }
+
+    /**
+     * Identity equals a folder string to the column value. A date column's value is an instant, so that
+     * comparison cannot skip date folders — fail-open at split time and tell the user to bind year/month/day/hour.
+     */
+    private void emitIdentityOnDateNotices(
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, DataType> columnTypes,
+        Consumer<String> sink
+    ) {
+        for (Field field : fields) {
+            if (field.transform() != Transform.IDENTITY) {
+                continue;
+            }
+            if (isDateColumn(field.column(), hints, columnTypes) == false) {
+                continue;
+            }
+            sink.accept(
+                "["
+                    + CONFIG_PARTITION_SPEC
+                    + "] binds ["
+                    + field.key()
+                    + "] with identity to the date column ["
+                    + field.column()
+                    + "]; identity compares values and cannot skip date folders. Use year/month/day/hour."
+            );
+        }
+    }
+
+    private static boolean isDateColumn(String column, @Nullable List<PartitionFilterHint> hints, @Nullable Map<String, DataType> types) {
+        if (MetadataAttribute.TIMESTAMP_FIELD.equals(column)) {
+            return true;
+        }
+        DataType declared = types == null ? null : types.get(column);
+        if (declared == DataType.DATETIME || declared == DataType.DATE_NANOS) {
+            return true;
+        }
+        if (hints == null) {
+            return false;
+        }
+        for (PartitionFilterHint hint : hints) {
+            if (hint.columnName().equals(column) == false) {
+                continue;
+            }
+            for (Object value : hint.values()) {
+                if (value instanceof Instant || value instanceof ZonedDateTime || value instanceof OffsetDateTime) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**

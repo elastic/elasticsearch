@@ -358,6 +358,28 @@ public class PartitionSpecProjectorTests extends ESTestCase {
         assertEquals("us", values.get("region"));
     }
 
+    public void testIdentityOnTimestampWarns() {
+        PartitionSpec spec = PartitionSpec.parse("dt=@timestamp");
+        List<String> notices = new ArrayList<>();
+        spec.emitListingNotices(Set.of("dt"), List.of(), notices::add);
+        assertThat(notices, hasItem(containsString("binds [dt] with identity to the date column [@timestamp]")));
+        assertThat(notices, hasItem(containsString("year/month/day/hour")));
+    }
+
+    public void testIdentityOnMappedDateWarns() {
+        PartitionSpec spec = PartitionSpec.parse("dt=event_time");
+        List<String> notices = new ArrayList<>();
+        spec.emitListingNotices(Set.of("dt"), List.of(), Map.of("event_time", DataType.DATETIME), notices::add);
+        assertThat(notices, hasItem(containsString("binds [dt] with identity to the date column [event_time]")));
+    }
+
+    public void testIdentityOnKeywordDoesNotWarn() {
+        PartitionSpec spec = PartitionSpec.parse("aws-region=region");
+        List<String> notices = new ArrayList<>();
+        spec.emitListingNotices(Set.of("aws-region"), List.of(), notices::add);
+        assertThat(notices, empty());
+    }
+
     private static PartitionFilterHint hint(String column, Operator op, Object... values) {
         return new PartitionFilterHint(column, op, List.of(values));
     }

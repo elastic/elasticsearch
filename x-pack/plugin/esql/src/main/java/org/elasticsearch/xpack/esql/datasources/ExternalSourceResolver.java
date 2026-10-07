@@ -1827,7 +1827,7 @@ public class ExternalSourceResolver {
             assert listing.isTruncated() == false || extents.boundsFileSet()
                 : "a listing was truncated without a file-set extent being asked for";
             pendingListingWarnings.addAll(listing.listingWarnings());
-            emitPartitionSpecNotices(listing, hints, config);
+            emitPartitionSpecNotices(listing, hints, config, null);
             recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), schemaResolution);
             listener.onResponse(listing);
         }, listener::onFailure);
@@ -1892,14 +1892,15 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Unmatched-bind and wrong-unit notices. Recomputed on every resolve (cold and
+     * Unmatched-bind, wrong-unit, and identity-on-date notices. Recomputed on every resolve (cold and
      * cached) so they do not depend on listing-cache identity. Uses the resolver
      * sink, not {@code HeaderWarning}, because this runs on the metadata executor.
      */
     private void emitPartitionSpecNotices(
         FileList listing,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
-        Map<String, Object> config
+        Map<String, Object> config,
+        @Nullable DatasetMapping declaredMapping
     ) {
         String unusable = PartitionSpec.unusableNotice(config);
         if (unusable != null) {
@@ -1914,7 +1915,23 @@ public class ExternalSourceResolver {
         // null metadata: listing never produced keys (do not warn). Empty key set:
         // detection ran and found nothing — every bind is unmatched.
         Set<String> detected = meta == null ? null : meta.partitionColumns().keySet();
-        spec.emitListingNotices(detected, hints, pendingListingWarnings::add);
+        spec.emitListingNotices(detected, hints, declaredColumnTypes(declaredMapping), pendingListingWarnings::add);
+    }
+
+    @Nullable
+    private static Map<String, DataType> declaredColumnTypes(@Nullable DatasetMapping mapping) {
+        if (mapping == null) {
+            return null;
+        }
+        List<Attribute> attrs = DeclaredSchemaResolver.declaredAttributes(mapping);
+        if (attrs.isEmpty()) {
+            return null;
+        }
+        Map<String, DataType> types = new LinkedHashMap<>(attrs.size());
+        for (Attribute attr : attrs) {
+            types.put(attr.name(), attr.dataType());
+        }
+        return types;
     }
 
     /**
@@ -4713,7 +4730,7 @@ public class ExternalSourceResolver {
     ) {
         try {
             pendingListingWarnings.addAll(listing.listingWarnings());
-            emitPartitionSpecNotices(listing, hints, config);
+            emitPartitionSpecNotices(listing, hints, config, declaredMapping);
             recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), effectiveSchemaResolution(config));
             chargeListingPlanning(listing);
             if (listing.fileCount() == 0) {

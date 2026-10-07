@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
@@ -28,15 +29,19 @@ import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.planner.RuntimeSearchExecutionContext;
+import org.elasticsearch.xpack.esql.querydsl.query.MatchPhraseQuery;
 import org.elasticsearch.xpack.esql.querydsl.query.MatchQuery;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,34 +61,47 @@ import static org.hamcrest.Matchers.not;
 public class PrebuiltFuzzyQueryTests extends ESTestCase {
 
     private static final String FIELD = "f";
-    private static final String ALPHABET = "abcd";
+    private static final int[] ASCII_ALPHABET = "abcd".codePoints().toArray();
+    /** One-, two-, three- and four-byte UTF-8 code points, the last a surrogate pair in UTF-16. */
+    private static final int[] UNICODE_ALPHABET = "abcé中𝄞".codePoints().toArray();
 
     /**
      * Rows mix typos of a base word with random words from a four-letter alphabet, so many terms fall within the edit
      * distance, often more than {@code max_expansions}.
      */
     public void testMatchesFuzzyQuery() throws IOException {
+        assertMatchesFuzzyQuery(ASCII_ALPHABET, Lucene.STANDARD_ANALYZER);
+    }
+
+    /**
+     * Like {@link #testMatchesFuzzyQuery} with multi-byte code points, where edit distances, prefix lengths and boosts
+     * count code points rather than bytes. The whitespace analyzer keeps CJK characters in one token.
+     */
+    public void testMatchesFuzzyQueryUnicode() throws IOException {
+        assertMatchesFuzzyQuery(UNICODE_ALPHABET, new WhitespaceAnalyzer());
+    }
+
+    private static void assertMatchesFuzzyQuery(int[] alphabet, Analyzer analyzer) throws IOException {
         MemoryIndex memoryIndex = new MemoryIndex();
         for (int i = 0; i < 500; i++) {
-            String base = randomWord(between(3, 8));
+            String base = randomWord(alphabet, between(3, 8));
             StringBuilder row = new StringBuilder();
             int words = between(1, 300);
             for (int w = 0; w < words; w++) {
-                row.append(randomBoolean() ? typo(base) : randomWord(between(1, 9))).append(' ');
+                row.append(randomBoolean() ? typo(alphabet, base) : randomWord(alphabet, between(1, 9))).append(' ');
             }
             memoryIndex.reset();
-            memoryIndex.addField(FIELD, row.toString(), Lucene.STANDARD_ANALYZER);
+            memoryIndex.addField(FIELD, row.toString(), analyzer);
 
-            int maxEdits = between(0, 2);
+            int maxEdits = between(1, 2);
             int maxExpansions = randomBoolean() ? FuzzyQuery.defaultMaxExpansions : between(1, 10);
-            FuzzyQuery query = new FuzzyQuery(
-                new Term(FIELD, typo(base)),
-                maxEdits,
-                between(0, 2),
-                maxExpansions,
-                randomBoolean(),
-                randomRewriteMethod(maxExpansions)
-            );
+            Term term = new Term(FIELD, typo(alphabet, base));
+            int prefixLength = between(0, 2);
+            boolean transpositions = randomBoolean();
+            MultiTermQuery.RewriteMethod rewriteMethod = randomRewriteMethod(maxExpansions);
+            FuzzyQuery query = rewriteMethod == null
+                ? new FuzzyQuery(term, maxEdits, prefixLength, maxExpansions, transpositions)
+                : new FuzzyQuery(term, maxEdits, prefixLength, maxExpansions, transpositions, rewriteMethod);
             assertSameHitsAndScores(memoryIndex, query);
         }
     }
@@ -150,6 +168,23 @@ public class PrebuiltFuzzyQueryTests extends ESTestCase {
             .toList();
         assertEquals(1, zeroEdits.size());
         assertEquals(FuzzyQuery.class, zeroEdits.get(0).getClass());
+    }
+
+    /**
+     * Queries without a fuzzy clause with edits come back as the same instance, so {@code match_phrase} and
+     * non-fuzzy {@code match} queries pass through untouched.
+     */
+    public void testRewriteKeepsQueriesWithoutFuzzyEdits() throws IOException {
+        for (Query compiled : List.of(
+            compile("quick", Lucene.STANDARD_ANALYZER),
+            compile("quick fox", Lucene.STANDARD_ANALYZER, "operator", "AND"),
+            compile("quick fox", Lucene.STANDARD_ANALYZER, "boost", 2.0f, "minimum_should_match", "1"),
+            compile("ab cd", Lucene.STANDARD_ANALYZER, "fuzziness", "AUTO", "boost", 2.0f),
+            new MatchPhraseQuery(Source.EMPTY, RuntimeSearch.CONTENT_FIELD, "quick fox", Map.of("boost", 2.0f)).toQueryBuilder()
+                .toQuery(RuntimeSearchExecutionContext.create(List.of(RuntimeSearch.CONTENT_FIELD), Lucene.STANDARD_ANALYZER))
+        )) {
+            assertSame(compiled, RuntimeSearch.prebuildFuzzyAutomata(compiled));
+        }
     }
 
     /**
@@ -243,12 +278,9 @@ public class PrebuiltFuzzyQueryTests extends ESTestCase {
             TopDocs expected;
             try {
                 expected = search(memoryIndex, query, similarity);
-            } catch (IllegalArgumentException e) {
-                // A scoring boolean rewrite turns a candidate shorter than its edit distance into a negative boost
-                IllegalArgumentException actual = expectThrows(
-                    IllegalArgumentException.class,
-                    () -> search(memoryIndex, prebuilt, similarity)
-                );
+            } catch (RuntimeException e) {
+                // e.g. a scoring boolean rewrite turns a candidate shorter than its edit distance into a negative boost
+                RuntimeException actual = expectThrows(e.getClass(), () -> search(memoryIndex, prebuilt, similarity));
                 assertEquals(e.getMessage(), actual.getMessage());
                 continue;
             }
@@ -272,49 +304,57 @@ public class PrebuiltFuzzyQueryTests extends ESTestCase {
         return searcher.search(query, 1);
     }
 
+    /**
+     * A rewrite method as {@code fuzzy_rewrite} parses it; {@code null} leaves the {@link FuzzyQuery} default, as
+     * {@code FuzzyQueries#create} does.
+     */
     private static MultiTermQuery.RewriteMethod randomRewriteMethod(int maxExpansions) {
-        return switch (between(0, 4)) {
-            case 0 -> FuzzyQuery.defaultRewriteMethod(maxExpansions);
-            case 1 -> new MultiTermQuery.TopTermsScoringBooleanQueryRewrite(maxExpansions);
-            case 2 -> new MultiTermQuery.TopTermsBoostOnlyBooleanQueryRewrite(maxExpansions);
-            case 3 -> MultiTermQuery.SCORING_BOOLEAN_REWRITE;
-            case 4 -> MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE;
-            default -> throw new AssertionError();
-        };
+        String name = randomFrom(
+            new String[] {
+                null,
+                "constant_score",
+                "constant_score_blended",
+                "constant_score_boolean",
+                "scoring_boolean",
+                "top_terms_" + maxExpansions,
+                "top_terms_boost_" + maxExpansions,
+                "top_terms_blended_freqs_" + maxExpansions }
+        );
+        return QueryParsers.parseRewriteMethod(name, null, LoggingDeprecationHandler.INSTANCE);
     }
 
-    private static String randomWord(int length) {
+    private static String randomWord(int[] alphabet, int length) {
         StringBuilder word = new StringBuilder(length);
         for (int i = 0; i < length; i++) {
-            word.append(randomAlphabetChar());
+            word.appendCodePoint(randomCodePoint(alphabet));
         }
         return word.toString();
     }
 
-    /** Applies up to two random deletions, insertions, substitutions or transpositions. */
-    private static String typo(String word) {
-        StringBuilder sb = new StringBuilder(word);
+    /** Applies up to two random deletions, insertions, substitutions or transpositions of code points. */
+    private static String typo(int[] alphabet, String word) {
+        List<Integer> codePoints = new ArrayList<>(word.codePoints().boxed().toList());
         int edits = between(0, 2);
-        for (int e = 0; e < edits && sb.length() > 1; e++) {
-            int p = between(0, sb.length() - 1);
+        for (int e = 0; e < edits && codePoints.size() > 1; e++) {
+            int p = between(0, codePoints.size() - 1);
             switch (between(0, 3)) {
-                case 0 -> sb.deleteCharAt(p);
-                case 1 -> sb.insert(p, randomAlphabetChar());
-                case 2 -> sb.setCharAt(p, randomAlphabetChar());
+                case 0 -> codePoints.remove(p);
+                case 1 -> codePoints.add(p, randomCodePoint(alphabet));
+                case 2 -> codePoints.set(p, randomCodePoint(alphabet));
                 case 3 -> {
-                    if (p + 1 < sb.length()) {
-                        char c = sb.charAt(p);
-                        sb.setCharAt(p, sb.charAt(p + 1));
-                        sb.setCharAt(p + 1, c);
+                    if (p + 1 < codePoints.size()) {
+                        Collections.swap(codePoints, p, p + 1);
                     }
                 }
                 default -> throw new AssertionError();
             }
         }
+        StringBuilder sb = new StringBuilder();
+        codePoints.forEach(sb::appendCodePoint);
         return sb.toString();
     }
 
-    private static char randomAlphabetChar() {
-        return ALPHABET.charAt(between(0, ALPHABET.length() - 1));
+    private static int randomCodePoint(int[] alphabet) {
+        return alphabet[between(0, alphabet.length - 1)];
     }
 }

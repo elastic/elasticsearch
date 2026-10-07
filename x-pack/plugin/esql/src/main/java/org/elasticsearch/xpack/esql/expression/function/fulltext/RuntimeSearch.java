@@ -15,7 +15,6 @@ import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -305,9 +304,10 @@ public final class RuntimeSearch {
     }
 
     /**
-     * Replaces each {@link FuzzyQuery} in the compiled query with a {@link PrebuiltFuzzyQuery}, so the per-row
-     * rewrite against the {@link MemoryIndex} doesn't rebuild the Levenshtein automata. Walks the wrappers a
-     * compiled {@code match} query can contain and leaves every other query as is.
+     * Replaces each {@link FuzzyQuery} with edits in the compiled query by a {@link PrebuiltFuzzyQuery}, whose
+     * automata are built once rather than on every per-row rewrite against the {@link MemoryIndex}. Walks the
+     * {@link BooleanQuery} and {@link BoostQuery} wrappers a compiled {@code match} query can contain and returns
+     * the same instance for any subtree without such a fuzzy query.
      */
     static Query prebuildFuzzyAutomata(Query query) {
         if (query instanceof FuzzyQuery fuzzy && fuzzy.getMaxEdits() > 0) {
@@ -315,16 +315,17 @@ public final class RuntimeSearch {
         }
         if (query instanceof BooleanQuery bool) {
             BooleanQuery.Builder builder = new BooleanQuery.Builder().setMinimumNumberShouldMatch(bool.getMinimumNumberShouldMatch());
+            boolean changed = false;
             for (BooleanClause clause : bool.clauses()) {
-                builder.add(prebuildFuzzyAutomata(clause.query()), clause.occur());
+                Query rewritten = prebuildFuzzyAutomata(clause.query());
+                changed |= rewritten != clause.query();
+                builder.add(rewritten, clause.occur());
             }
-            return builder.build();
+            return changed ? builder.build() : bool;
         }
         if (query instanceof BoostQuery boost) {
-            return new BoostQuery(prebuildFuzzyAutomata(boost.getQuery()), boost.getBoost());
-        }
-        if (query instanceof ConstantScoreQuery constantScore) {
-            return new ConstantScoreQuery(prebuildFuzzyAutomata(constantScore.getQuery()));
+            Query rewritten = prebuildFuzzyAutomata(boost.getQuery());
+            return rewritten == boost.getQuery() ? boost : new BoostQuery(rewritten, boost.getBoost());
         }
         return query;
     }

@@ -25,12 +25,13 @@ import java.io.IOException;
  * its query against a fresh single-document {@link org.apache.lucene.index.memory.MemoryIndex} per row, and a plain
  * {@link FuzzyQuery} rebuilds its automata on every rewrite. Lucene doesn't keep them on the query on purpose, since
  * query caches hold queries as keys; that doesn't apply here, where the query lives only as long as the evaluator
- * factory.
+ * factory. The automata are held for that lifetime and are not counted by the circuit breaker. A term too complex
+ * for the automaton fails when the evaluator is built rather than on the first row.
  * <p>
  * Terms get the same {@link BoostAttribute} as in {@code FuzzyTermsEnum}, and the inherited rewrite method selects
- * and scores them, so matching and scores are unchanged. Unlike {@code FuzzyTermsEnum}, the enum doesn't lower the
- * edit distance once the top-terms queue is full; that is only an early exit, since {@link TopTermsRewrite} drops
- * non-competitive terms anyway.
+ * and scores them, so the query matches and scores exactly like {@link FuzzyQuery}. Unlike {@code FuzzyTermsEnum},
+ * the enum doesn't lower the edit distance once the top-terms queue is full; that is only an early exit, since
+ * {@link TopTermsRewrite} drops non-competitive terms anyway.
  */
 final class PrebuiltFuzzyQuery extends FuzzyQuery {
     /** Indexed by edit distance; index 0 is unused because an exact match is a bytes comparison. */
@@ -47,6 +48,7 @@ final class PrebuiltFuzzyQuery extends FuzzyQuery {
             query.getTranspositions(),
             query.getRewriteMethod()
         );
+        assert query.getMaxEdits() > 0 : "maxEdits must be positive but was " + query.getMaxEdits();
         String text = query.getTerm().text();
         this.termLength = text.codePointCount(0, text.length());
         this.automata = new CompiledAutomaton[query.getMaxEdits() + 1];
@@ -57,9 +59,6 @@ final class PrebuiltFuzzyQuery extends FuzzyQuery {
 
     @Override
     protected TermsEnum getTermsEnum(Terms terms, AttributeSource atts) throws IOException {
-        if (getMaxEdits() == 0) {
-            return super.getTermsEnum(terms, atts);
-        }
         return new PrebuiltFuzzyTermsEnum(terms, automata, getTerm().bytes(), termLength);
     }
 

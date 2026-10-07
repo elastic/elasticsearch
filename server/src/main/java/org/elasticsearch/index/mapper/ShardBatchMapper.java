@@ -12,7 +12,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
@@ -416,7 +415,7 @@ public final class ShardBatchMapper {
         final SourceBatch chunkSource = batch.slice(chunkStart, chunkEnd);
         final long[] normalizedSizes;
         try {
-            normalizedSizes = meterRows(documentParsingProvider, items, chunkStart, chunkEnd, chunkSource, mappingLookup.getMapping());
+            normalizedSizes = meterRows(documentParsingProvider, chunkSource, mappingLookup.getMapping());
         } catch (Exception e) {
             logger.warn("metering columnar batch failed on [{}], falling back", origin, e);
             return null;
@@ -512,25 +511,18 @@ public final class ShardBatchMapper {
      *  A column-aware version needs a new batch-level hook on DocumentParsingProvider.
      */
     @Nullable
-    private static long[] meterRows(
-        DocumentParsingProvider documentParsingProvider,
-        BulkItemRequest[] items,
-        int start,
-        int end,
-        SourceBatch chunkSource,
-        Mapping mapping
-    ) throws IOException {
+    private static long[] meterRows(DocumentParsingProvider documentParsingProvider, SourceBatch chunkSource, Mapping mapping)
+        throws IOException {
         long[] normalizedSizes = null;
         SourceRowXContentParser.SchemaNode schemaTree = null;
         final boolean expandDots = mapping.getRoot().subobjects() == ObjectMapper.Subobjects.ENABLED;
-        for (int d = 0; d < end - start; d++) {
-            final IndexRequest request = (IndexRequest) items[start + d].request();
-            final XContentMeteringParserDecorator decorator = documentParsingProvider.newMeteringParserDecorator(request);
+        for (int d = 0; d < chunkSource.docCount(); d++) {
+            final XContentMeteringParserDecorator decorator = documentParsingProvider.newMeteringParserDecorator();
             if (decorator == XContentMeteringParserDecorator.NOOP) {
                 continue;
             }
             if (normalizedSizes == null) {
-                normalizedSizes = new long[end - start];
+                normalizedSizes = new long[chunkSource.docCount()];
                 Arrays.fill(normalizedSizes, XContentMeteringParserDecorator.UNKNOWN_SIZE);
                 schemaTree = SourceRowXContentParser.buildSchemaTree(chunkSource.schema());
             }

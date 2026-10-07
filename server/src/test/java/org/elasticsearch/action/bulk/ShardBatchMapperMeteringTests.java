@@ -110,7 +110,7 @@ public class ShardBatchMapperMeteringTests extends IndexShardTestCase {
 
     private static final DocumentParsingProvider METERING_PROVIDER = new DocumentParsingProvider() {
         @Override
-        public <T> XContentMeteringParserDecorator newMeteringParserDecorator(IndexRequest request) {
+        public XContentMeteringParserDecorator newMeteringParserDecorator() {
             return new SizeOnCloseDecorator();
         }
     };
@@ -170,7 +170,7 @@ public class ShardBatchMapperMeteringTests extends IndexShardTestCase {
             null,
             Map.of(),
             Map.of(),
-            METERING_PROVIDER.newMeteringParserDecorator(request),
+            METERING_PROVIDER.newMeteringParserDecorator(),
             null
         );
         return shard.mapperService()

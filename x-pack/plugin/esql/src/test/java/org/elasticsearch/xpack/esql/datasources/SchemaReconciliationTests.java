@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -842,6 +843,60 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertThat(result.perFileInfo().size(), equalTo(1));
     }
 
+    /**
+     * {@code strict} must refuse a within-file schema-inference widen even on a single-file dataset,
+     * where {@code validateStrictMatch} skips the only file (it equals the reference file) and so would
+     * otherwise see nothing to compare. The reader reports the widen via
+     * {@link SourceMetadata#widenedColumns()}, independent of file count.
+     */
+    public void testStrictSingleFileRefusesWithinFileWidening() {
+        List<Attribute> schema = List.of(attr("a", DataType.KEYWORD));
+        StoragePath f1 = path("s3://b/f1.csv");
+        WidenedColumn widened = new WidenedColumn("a", DataType.INTEGER, DataType.KEYWORD, "oops", 3);
+
+        Map<StoragePath, SourceMetadata> metadata = new LinkedHashMap<>();
+        metadata.put(f1, metaWithWidenedColumns(schema, List.of(widened)));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SchemaReconciliation.reconcileStrict(f1, metadata));
+        assertThat(e.getMessage(), containsString("[f1.csv]"));
+        assertThat(e.getMessage(), containsString("column [a]"));
+        assertThat(e.getMessage(), containsString("[keyword]"));
+        assertThat(e.getMessage(), containsString("[integer]"));
+        assertThat(e.getMessage(), containsString("oops"));
+    }
+
+    /**
+     * A file with more than one widened column must name all of them in the one exception, not just the
+     * first — otherwise fixing the named column and rerunning would only reveal the next one.
+     */
+    public void testStrictRefusesWithinFileWideningNamesEveryWidenedColumn() {
+        List<Attribute> schema = List.of(attr("a", DataType.KEYWORD), attr("b", DataType.DOUBLE));
+        StoragePath f1 = path("s3://b/f1.csv");
+        WidenedColumn widenedA = new WidenedColumn("a", DataType.INTEGER, DataType.KEYWORD, "oops", 3);
+        WidenedColumn widenedB = new WidenedColumn("b", DataType.LONG, DataType.DOUBLE, "1.5", 5);
+
+        Map<StoragePath, SourceMetadata> metadata = new LinkedHashMap<>();
+        metadata.put(f1, metaWithWidenedColumns(schema, List.of(widenedA, widenedB)));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SchemaReconciliation.reconcileStrict(f1, metadata));
+        assertThat(e.getMessage(), containsString("column [a]"));
+        assertThat(e.getMessage(), containsString("oops"));
+        assertThat(e.getMessage(), containsString("column [b]"));
+        assertThat(e.getMessage(), containsString("1.5"));
+    }
+
+    /** A dataset with no within-file widening reports nothing extra: {@code strict} behaves as before this fix. */
+    public void testStrictSingleFileWithNoWideningIsUnaffected() {
+        List<Attribute> schema = List.of(attr("id", DataType.INTEGER));
+        StoragePath f1 = path("s3://b/f1.csv");
+
+        Map<StoragePath, SourceMetadata> metadata = new LinkedHashMap<>();
+        metadata.put(f1, metaWithWidenedColumns(schema, List.of()));
+
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileStrict(f1, metadata);
+        assertThat(result.unifiedSchema().size(), equalTo(1));
+    }
+
     public void testUnionByNameSingleFile() {
         List<Attribute> schema = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
         StoragePath f1 = path("s3://b/f1.parquet");
@@ -1455,12 +1510,17 @@ public class SchemaReconciliationTests extends ESTestCase {
     }
 
     private static SourceMetadata meta(List<Attribute> schema) {
-        return new SimpleMetadata(schema, "parquet");
+        return new SimpleMetadata(schema, "parquet", List.of());
     }
 
     /** Like {@link #meta(List)} but with an explicit {@code sourceType}, e.g. {@code "ndjson"}. */
     private static SourceMetadata meta(List<Attribute> schema, String sourceType) {
-        return new SimpleMetadata(schema, sourceType);
+        return new SimpleMetadata(schema, sourceType, List.of());
+    }
+
+    /** Like {@link #meta(List)} but carrying a within-file widening record, as a CSV/TSV/NDJSON reader would report it. */
+    private static SourceMetadata metaWithWidenedColumns(List<Attribute> schema, List<WidenedColumn> widenedColumns) {
+        return new SimpleMetadata(schema, "csv", widenedColumns);
     }
 
     private static Map<StoragePath, SourceMetadata> orderedMap(StoragePath k1, SourceMetadata v1, StoragePath k2, SourceMetadata v2) {
@@ -1473,10 +1533,12 @@ public class SchemaReconciliationTests extends ESTestCase {
     private static class SimpleMetadata implements SourceMetadata {
         private final List<Attribute> schema;
         private final String sourceType;
+        private final List<WidenedColumn> widenedColumns;
 
-        SimpleMetadata(List<Attribute> schema, String sourceType) {
+        SimpleMetadata(List<Attribute> schema, String sourceType, List<WidenedColumn> widenedColumns) {
             this.schema = schema;
             this.sourceType = sourceType;
+            this.widenedColumns = widenedColumns;
         }
 
         @Override
@@ -1492,6 +1554,11 @@ public class SchemaReconciliationTests extends ESTestCase {
         @Override
         public String location() {
             return "test";
+        }
+
+        @Override
+        public List<WidenedColumn> widenedColumns() {
+            return widenedColumns;
         }
     }
 

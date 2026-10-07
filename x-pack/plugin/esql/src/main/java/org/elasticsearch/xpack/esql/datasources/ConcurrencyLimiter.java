@@ -276,6 +276,7 @@ class ConcurrencyLimiter implements AdmissionGate {
                 completions = takePendingCompletions();
             } else {
                 AsyncWaiter waiter = new AsyncWaiter(listener, executor, cancel);
+                waiter.tracked = tracker.waitStarted(name(), Thread.currentThread().getName());
                 asyncWaiters.addLast(waiter);
                 grantSparesLocked();
                 completions = takePendingCompletions();
@@ -433,6 +434,7 @@ class ConcurrencyLimiter implements AdmissionGate {
         private final Executor executor;
         private final BooleanSupplier cancel;
         private final AtomicBoolean completed = new AtomicBoolean();
+        private AdmissionTracker.Wait tracked = AdmissionTracker.NOOP_WAIT;
 
         private AsyncWaiter(SubscribableListener<Void> listener, Executor executor, BooleanSupplier cancel) {
             this.listener = listener;
@@ -453,16 +455,19 @@ class ConcurrencyLimiter implements AdmissionGate {
                 return;
             }
             if (cancel.getAsBoolean()) {
+                tracked.finished();
                 release();
                 listener.onFailure(cancelled());
                 return;
             }
+            tracked.granted();
             listener.onResponse(null);
         }
 
         private void fail(Exception e) {
             pendingCompletions.add(() -> fork(() -> {
                 if (completed.compareAndSet(false, true)) {
+                    tracked.finished();
                     listener.onFailure(e);
                 }
             }));
@@ -473,6 +478,7 @@ class ConcurrencyLimiter implements AdmissionGate {
                 executor.execute(task);
             } catch (Exception e) {
                 if (completed.compareAndSet(false, true)) {
+                    tracked.finished();
                     release();
                     listener.onFailure(e);
                 }
@@ -484,6 +490,7 @@ class ConcurrencyLimiter implements AdmissionGate {
                 executor.execute(task);
             } catch (Exception e) {
                 if (completed.compareAndSet(false, true)) {
+                    tracked.finished();
                     listener.onFailure(e);
                 }
             }

@@ -14,6 +14,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 
@@ -59,6 +60,7 @@ public final class NodeByteBudgetService implements NodeByteBudget {
     private final ArrayDeque<TicketWaiter> waiters = new ArrayDeque<>();
     private final ArrayList<Runnable> pendingCompletions = new ArrayList<>();
     private RowGroupIo overshootOwner;
+    private volatile AdmissionTracker tracker = AdmissionTracker.NOOP;
 
     public static NodeByteBudgetService forHeap() {
         long heapBytes = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
@@ -78,6 +80,10 @@ public final class NodeByteBudgetService implements NodeByteBudget {
         }
         this.limit = limit;
         this.admitWaitMs = admitWaitMs;
+    }
+
+    public void bindTracker(AdmissionTracker tracker) {
+        this.tracker = tracker == null ? AdmissionTracker.NOOP : tracker;
     }
 
     public long admitWaitMs() {
@@ -150,6 +156,10 @@ public final class NodeByteBudgetService implements NodeByteBudget {
                 if (immediate != null) {
                     waiter.completeInline(immediate);
                 } else {
+                    waiter.tracked = tracker.waitStarted(
+                        AdmissionTracker.GATE_BYTES,
+                        lease == null ? Thread.currentThread().getName() : "lease#" + lease.startSeq()
+                    );
                     waiters.addLast(waiter);
                     if (lease != null) {
                         lease.setWake(this, this::wakeWaiters);
@@ -507,6 +517,7 @@ public final class NodeByteBudgetService implements NodeByteBudget {
         private final Executor executor;
         private final SubscribableListener<Hold> listener;
         private final AtomicBoolean completed = new AtomicBoolean();
+        private AdmissionTracker.Wait tracked = AdmissionTracker.NOOP_WAIT;
 
         private TicketWaiter(long bytes, RowGroupIo lease, BooleanSupplier cancel, Executor executor, SubscribableListener<Hold> listener) {
             this.bytes = bytes;
@@ -530,16 +541,19 @@ public final class NodeByteBudgetService implements NodeByteBudget {
                 return;
             }
             if (cancel.getAsBoolean() || (lease != null && lease.isCancelled())) {
+                tracked.finished();
                 hold.close();
                 listener.onFailure(cancelled());
                 return;
             }
+            tracked.granted();
             listener.onResponse(hold);
         }
 
         private void fail(Exception e) {
             pendingCompletions.add(() -> fork(() -> {
                 if (completed.compareAndSet(false, true)) {
+                    tracked.finished();
                     listener.onFailure(e);
                 }
             }, null));
@@ -553,6 +567,7 @@ public final class NodeByteBudgetService implements NodeByteBudget {
                     holdOnReject.close();
                 }
                 if (completed.compareAndSet(false, true)) {
+                    tracked.finished();
                     listener.onFailure(e);
                 }
             }

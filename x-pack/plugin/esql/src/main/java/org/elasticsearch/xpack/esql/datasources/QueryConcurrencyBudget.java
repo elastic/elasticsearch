@@ -254,6 +254,7 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
                 completions = takePendingCompletions();
             } else {
                 Waiter waiter = new Waiter(lease, countGets, listener, executor, cancel);
+                waiter.tracked = tracker.waitStarted(budgetGate(), budgetWaiterLabel(lease));
                 waiters.add(waiter);
                 if (lease != null) {
                     lease.setWake(this, this::wakeAsyncWaiters);
@@ -782,6 +783,7 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
         final Executor executor;
         final BooleanSupplier cancel;
         private final AtomicBoolean completed = new AtomicBoolean();
+        private AdmissionTracker.Wait tracked = AdmissionTracker.NOOP_WAIT;
 
         Waiter(RowGroupIo lease, boolean countGets) {
             this(lease, countGets, null, null, () -> false);
@@ -812,16 +814,19 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
                 return;
             }
             if (cancel.getAsBoolean() || (lease != null && lease.isCancelled())) {
+                tracked.finished();
                 release(lease, countGets);
                 async.onFailure(cancelled());
                 return;
             }
+            tracked.granted();
             async.onResponse(null);
         }
 
         void fail(Exception e) {
             pendingCompletions.add(() -> fork(() -> {
                 if (completed.compareAndSet(false, true)) {
+                    tracked.finished();
                     async.onFailure(e);
                 }
             }));
@@ -832,6 +837,7 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
                 executor.execute(task);
             } catch (Exception e) {
                 if (completed.compareAndSet(false, true)) {
+                    tracked.finished();
                     release(lease, countGets);
                     async.onFailure(e);
                 }
@@ -843,6 +849,7 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
                 executor.execute(task);
             } catch (Exception e) {
                 if (completed.compareAndSet(false, true)) {
+                    tracked.finished();
                     async.onFailure(e);
                 }
             }

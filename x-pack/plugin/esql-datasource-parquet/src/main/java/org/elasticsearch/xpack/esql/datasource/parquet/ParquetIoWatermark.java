@@ -94,6 +94,7 @@ final class ParquetIoWatermark implements AdmissionGate {
     void bindTracker(AdmissionTracker tracker) {
         this.tracker = tracker == null ? AdmissionTracker.NOOP : tracker;
         this.tracker.register(this);
+        budget.bindTracker(this.tracker);
     }
 
     int waiterCount() {

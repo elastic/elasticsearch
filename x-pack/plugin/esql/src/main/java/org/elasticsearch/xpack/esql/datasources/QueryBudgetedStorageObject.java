@@ -421,7 +421,7 @@ class QueryBudgetedStorageObject implements StorageObject, ResumeBypassingStorag
                     releasePermitOnce(lease, countGets, permitReleased);
                     listener.onFailure(e);
                 }
-            });
+            }, false);
             getHandle.set(handle);
             if (cancelled.get()) {
                 handle.close();

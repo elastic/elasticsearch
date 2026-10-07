@@ -345,9 +345,7 @@ public class IndexVersions {
      * In branches 8.7-8.11 see server/src/main/java/org/elasticsearch/index/IndexVersion.java for the equivalent definitions.
      */
 
-    // TODO: LUCENE11 Lucene 11 MIN_SUPPORTED_MAJOR is 10 in main.
     public static final IndexVersion MINIMUM_COMPATIBLE = V_8_0_0;
-    // TODO: LUCENE11 Lucene 8 read-only support needs to be added and tested
     public static final IndexVersion MINIMUM_READONLY_COMPATIBLE = V_7_0_0;
 
     static final NavigableMap<Integer, IndexVersion> VERSION_IDS = getAllVersionIds(IndexVersions.class);

@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.http;
 
-import org.apache.http.HttpResponse;
-import org.apache.http.StatusLine;
+import org.apache.hc.core5.http.message.BasicHttpResponse;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
@@ -19,17 +18,10 @@ import static org.elasticsearch.xpack.inference.external.request.RequestTests.mo
 import static org.elasticsearch.xpack.inference.logging.ThrottlerManagerTests.mockThrottlerManager;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class HttpUtilsTests extends ESTestCase {
     public void testCheckForFailureStatusCode_ThrowsWhenStatusCodeIs300() {
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(300);
-
-        var httpResponse = mock(HttpResponse.class);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
-
-        var result = new HttpResult(httpResponse, new byte[0]);
+        var result = new HttpResult(new BasicHttpResponse(300), new byte[0]);
 
         var thrownException = expectThrows(
             IllegalStateException.class,
@@ -40,31 +32,19 @@ public class HttpUtilsTests extends ESTestCase {
     }
 
     public void testCheckForFailureStatusCode_DoesNotThrowWhenStatusCodeIs200() {
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(200);
-
-        var httpResponse = mock(HttpResponse.class);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
-
-        var result = new HttpResult(httpResponse, new byte[0]);
+        var result = new HttpResult(new BasicHttpResponse(200), new byte[0]);
 
         checkForFailureStatusCode(mockThrottlerManager(), mock(Logger.class), mock(OutboundRequest.class), result);
     }
 
     public void testCheckForEmptyBody_DoesNotThrowWhenTheBodyIsNotEmpty() {
-        var httpResponse = mock(HttpResponse.class);
-        when(httpResponse.getStatusLine()).thenReturn(mock(StatusLine.class));
-
-        var result = new HttpResult(httpResponse, new byte[] { 'a' });
+        var result = new HttpResult(new BasicHttpResponse(200), new byte[] { 'a' });
 
         checkForEmptyBody(mockThrottlerManager(), mock(Logger.class), mock(OutboundRequest.class), result);
     }
 
     public void testCheckForEmptyBody_ThrowsWhenTheBodyIsEmpty() {
-        var httpResponse = mock(HttpResponse.class);
-        when(httpResponse.getStatusLine()).thenReturn(mock(StatusLine.class));
-
-        var result = new HttpResult(httpResponse, new byte[0]);
+        var result = new HttpResult(new BasicHttpResponse(200), new byte[0]);
 
         var thrownException = expectThrows(
             IllegalStateException.class,

@@ -1,0 +1,6 @@
+pr: 157778
+summary: "[Inference API] Upgrade the inference HTTP client to Apache HttpClient 5 and
+  add `xpack.inference.http.socket_timeout`"
+area: Inference
+type: upgrade
+issues: []

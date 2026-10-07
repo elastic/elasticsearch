@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.request.elastic;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringTests;
 import org.elasticsearch.tasks.Task;
@@ -26,7 +25,6 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.apiKey;
 import static org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequestTests.randomElasticInferenceServiceRequestMetadata;
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class ElasticInferenceServiceRerankRequestTests extends ESTestCase {
@@ -41,8 +39,7 @@ public class ElasticInferenceServiceRerankRequestTests extends ESTestCase {
         var request = createRequest(url, modelId, query, documents, topN);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
         var traceParent = request.getTraceContext().traceParent();
         var traceState = request.getTraceContext().traceState();
@@ -62,10 +59,8 @@ public class ElasticInferenceServiceRerankRequestTests extends ESTestCase {
         var truncatedRequest = request.truncate();
 
         var httpRequest = RequestTests.getHttpRequestSync(truncatedRequest);
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var httpPost = httpRequest.httpRequest();
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(4));
         assertThat(requestMap.get("query"), is(InferenceStringTests.inferenceStringToMap(query)));
         assertThat(requestMap.get("model"), is(modelId));
@@ -93,8 +88,7 @@ public class ElasticInferenceServiceRerankRequestTests extends ESTestCase {
         );
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
         var traceParent = request.getTraceContext().traceParent();
         var traceState = request.getTraceContext().traceState();

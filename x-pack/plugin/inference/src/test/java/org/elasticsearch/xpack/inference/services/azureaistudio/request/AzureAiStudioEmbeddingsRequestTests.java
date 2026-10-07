@@ -7,12 +7,11 @@
 
 package org.elasticsearch.xpack.inference.services.azureaistudio.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
@@ -23,6 +22,7 @@ import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioPro
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModelTests;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Map;
 
@@ -30,12 +30,11 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.request.AzureAiStudioEmbeddingsRequestEntity.convertToString;
 import static org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils.API_KEY_HEADER;
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class AzureAiStudioEmbeddingsRequestTests extends ESTestCase {
 
-    public void testCreateRequest_WithOpenAiProvider_NoAdditionalParams() throws IOException {
+    public void testCreateRequest_WithOpenAiProvider_NoAdditionalParams() throws IOException, URISyntaxException {
         var inputType = InputTypeTests.randomSearchAndIngestWithNull();
         var request = createRequest(
             "http://openaitarget.local",
@@ -47,17 +46,17 @@ public class AzureAiStudioEmbeddingsRequestTests extends ESTestCase {
             inputType
         );
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        var httpPost = validateRequestUrlAndContentType(httpRequest, "http://openaitarget.local");
+        var httpPost = validateRequestUrlAndContentType(httpRequest, "http://openaitarget.local/");
         validateRequestApiKey(httpPost, AzureAiStudioProvider.OPENAI, "apikey");
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(InputType.isSpecified(inputType) ? 2 : 1));
         assertThat(requestMap.get("input"), is(List.of("abcd")));
         AzureAiStudioEmbeddingsRequestTests.validateInputType(requestMap, inputType);
 
     }
 
-    public void testCreateRequest_WithOpenAiProvider_WithUserParam() throws IOException {
+    public void testCreateRequest_WithOpenAiProvider_WithUserParam() throws IOException, URISyntaxException {
         var inputType = InputTypeTests.randomSearchAndIngestWithNull();
         var request = createRequest(
             "http://openaitarget.local",
@@ -69,17 +68,17 @@ public class AzureAiStudioEmbeddingsRequestTests extends ESTestCase {
             inputType
         );
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        var httpPost = validateRequestUrlAndContentType(httpRequest, "http://openaitarget.local");
+        var httpPost = validateRequestUrlAndContentType(httpRequest, "http://openaitarget.local/");
         validateRequestApiKey(httpPost, AzureAiStudioProvider.OPENAI, "apikey");
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(InputType.isSpecified(inputType) ? 3 : 2));
         assertThat(requestMap.get("input"), is(List.of("abcd")));
         assertThat(requestMap.get("user"), is("userid"));
         AzureAiStudioEmbeddingsRequestTests.validateInputType(requestMap, inputType);
     }
 
-    public void testCreateRequest_WithCohereProvider_NoAdditionalParams() throws IOException {
+    public void testCreateRequest_WithCohereProvider_NoAdditionalParams() throws IOException, URISyntaxException {
         var inputType = InputTypeTests.randomSearchAndIngestWithNull();
         var request = createRequest(
             "http://coheretarget.local",
@@ -94,13 +93,13 @@ public class AzureAiStudioEmbeddingsRequestTests extends ESTestCase {
         var httpPost = validateRequestUrlAndContentType(httpRequest, "http://coheretarget.local/v1/embeddings");
         validateRequestApiKey(httpPost, AzureAiStudioProvider.COHERE, "apikey");
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(InputType.isSpecified(inputType) ? 2 : 1));
         assertThat(requestMap.get("input"), is(List.of("abcd")));
         AzureAiStudioEmbeddingsRequestTests.validateInputType(requestMap, inputType);
     }
 
-    public void testCreateRequest_WithCohereProvider_WithUserParam() throws IOException {
+    public void testCreateRequest_WithCohereProvider_WithUserParam() throws IOException, URISyntaxException {
         var inputType = InputTypeTests.randomSearchAndIngestWithNull();
         var request = createRequest(
             "http://coheretarget.local",
@@ -115,7 +114,7 @@ public class AzureAiStudioEmbeddingsRequestTests extends ESTestCase {
         var httpPost = validateRequestUrlAndContentType(httpRequest, "http://coheretarget.local/v1/embeddings");
         validateRequestApiKey(httpPost, AzureAiStudioProvider.COHERE, "apikey");
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(InputType.isSpecified(inputType) ? 3 : 2));
         assertThat(requestMap.get("input"), is(List.of("abcd")));
         assertThat(requestMap.get("user"), is("userid"));
@@ -136,10 +135,9 @@ public class AzureAiStudioEmbeddingsRequestTests extends ESTestCase {
         var truncatedRequest = request.truncate();
 
         var httpRequest = RequestTests.getHttpRequestSync(truncatedRequest);
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var httpPost = httpRequest.httpRequest();
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(InputType.isSpecified(inputType) ? 2 : 1));
         assertThat(requestMap.get("input"), is(List.of("ab")));
 
@@ -162,15 +160,14 @@ public class AzureAiStudioEmbeddingsRequestTests extends ESTestCase {
         assertTrue(truncatedRequest.getTruncationInfo()[0]);
     }
 
-    private HttpPost validateRequestUrlAndContentType(HttpRequest request, String expectedUrl) throws IOException {
-        assertThat(request.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) request.httpRequestBase();
-        assertThat(httpPost.getURI().toString(), is(expectedUrl));
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+    private SimpleHttpRequest validateRequestUrlAndContentType(HttpRequest request, String expectedUrl) throws URISyntaxException {
+        var httpPost = request.httpRequest();
+        assertThat(httpPost.getUri().toString(), is(expectedUrl));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         return httpPost;
     }
 
-    private void validateRequestApiKey(HttpPost httpPost, AzureAiStudioProvider provider, String apiKey) {
+    private void validateRequestApiKey(SimpleHttpRequest httpPost, AzureAiStudioProvider provider, String apiKey) {
         if (provider == AzureAiStudioProvider.OPENAI) {
             assertThat(httpPost.getLastHeader(API_KEY_HEADER).getValue(), is(apiKey));
         } else {

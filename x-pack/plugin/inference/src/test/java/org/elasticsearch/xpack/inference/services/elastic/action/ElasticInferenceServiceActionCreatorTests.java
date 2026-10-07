@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.action;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -31,7 +31,6 @@ import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicy;
 import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
@@ -310,7 +309,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         assertThat(requests, hasSize(1));
         var request = requests.get(0);
         assertNull(request.getUri().getQuery());
-        assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+        assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
 
         return request;
     }
@@ -356,7 +355,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(2));
@@ -836,7 +835,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(2));
@@ -927,7 +926,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             assertThat(webServer.requests(), hasSize(2));
             {
                 assertNull(webServer.requests().get(0).getUri().getQuery());
-                assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+                assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
 
                 var initialRequestAsMap = entityAsMap(webServer.requests().get(0).getBody());
                 var initialInputs = initialRequestAsMap.get("input");
@@ -935,7 +934,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             }
             {
                 assertNull(webServer.requests().get(1).getUri().getQuery());
-                assertThat(webServer.requests().get(1).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+                assertThat(webServer.requests().get(1).getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
 
                 var truncatedRequest = entityAsMap(webServer.requests().get(1).getBody());
                 var truncatedInputs = truncatedRequest.get("input");
@@ -983,7 +982,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
 
             var initialRequestAsMap = entityAsMap(webServer.requests().get(0).getBody());
             var initialInputs = initialRequestAsMap.get("input");

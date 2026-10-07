@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.inference.external.request;
 
-import org.apache.http.client.methods.HttpRequestBase;
-
-import static org.mockito.Mockito.mock;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
 
 public class HttpRequestTests {
+    /**
+     * Creates a placeholder {@link HttpRequest} for tests that never execute the request. A real
+     * {@link org.apache.hc.client5.http.async.methods.SimpleHttpRequest} is used because the class is final and cannot be mocked.
+     */
     public static HttpRequest createMock(String modelId) {
-        return new HttpRequest(mock(HttpRequestBase.class), modelId);
+        return new HttpRequest(SimpleRequestBuilder.post("http://localhost:12345").build(), modelId);
     }
 }

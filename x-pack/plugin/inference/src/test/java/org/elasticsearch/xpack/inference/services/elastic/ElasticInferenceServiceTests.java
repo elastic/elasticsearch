@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -662,7 +662,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             );
             var request = webServer.requests().getFirst();
             assertNull(request.getUri().getQuery());
-            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo("application/json; charset=UTF-8"));
 
             var requestMap = entityAsMap(request.getBody());
             assertThat(requestMap, is(Map.of("input", List.of("input text"), "model", "my-model-id", "usage_context", "search")));
@@ -749,7 +749,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
 
             var request = webServer.requests().getFirst();
             assertNull(request.getUri().getQuery());
-            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo("application/json; charset=UTF-8"));
 
             var requestMap = entityAsMap(request.getBody());
             assertThat(requestMap, is(Map.of("input", List.of(input), "model", modelId, "usage_context", inputType)));
@@ -804,7 +804,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             // Verify the outgoing HTTP request
             var request = webServer.requests().getFirst();
             assertNull(request.getUri().getQuery());
-            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo("application/json; charset=UTF-8"));
 
             // Verify the outgoing request body
             Map<String, Object> requestMap = entityAsMap(request.getBody());
@@ -868,7 +868,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             // Verify the outgoing HTTP request
             var request = webServer.requests().getFirst();
             assertNull(request.getUri().getQuery());
-            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo("application/json; charset=UTF-8"));
 
             // Verify the outgoing request body preserves the image type/format/value objects
             Map<String, Object> requestMap = entityAsMap(request.getBody());
@@ -939,7 +939,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             // Verify the header was sent in the request
             var request = webServer.requests().getFirst();
             assertNull(request.getUri().getQuery());
-            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo("application/json; charset=UTF-8"));
 
             // Check that the product use case header was set correctly
             var productUseCaseHeaders = request.getHeaders().get(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
@@ -999,7 +999,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             // Verify the header was sent in the request
             var request = webServer.requests().getFirst();
             assertNull(request.getUri().getQuery());
-            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo("application/json; charset=UTF-8"));
 
             // Check that the product use case header was set correctly
             var productUseCaseHeaders = request.getHeaders().get(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
@@ -1452,7 +1452,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             assertThat(webServer.requests(), hasSize(1));
             var request = webServer.requests().getFirst();
             assertNull(request.getUri().getQuery());
-            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
 
             // Check that the product use case header was set correctly
             var productUseCaseHeaders = request.getHeaders().get(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
@@ -1602,7 +1602,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                 assertThat(request.getUri().getPath(), endsWith("/embed/dense"));
             }
             assertThat(request.getUri().getQuery(), nullValue());
-            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
 
             List<Object> expectedInputs;
             if (taskType == TaskType.TEXT_EMBEDDING) {
@@ -1682,7 +1682,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             var request = webServer.requests().getFirst();
             assertThat(request.getUri().getPath(), endsWith("/embed/dense"));
             assertThat(request.getUri().getQuery(), nullValue());
-            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
 
             var expectedInputs = inputs.stream().map(InferenceStringGroupTests::toRequestMap).toList();
             var requestMap = entityAsMap(request.getBody());

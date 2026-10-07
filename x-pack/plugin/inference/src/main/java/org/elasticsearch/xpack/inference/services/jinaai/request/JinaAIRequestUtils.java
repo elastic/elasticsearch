@@ -7,17 +7,14 @@
 
 package org.elasticsearch.xpack.inference.services.jinaai.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.xcontent.XContentType;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
 public final class JinaAIRequestUtils {
 
-    public static void decorateWithAuthHeader(HttpPost request, SecureString apiKey) {
-        request.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
+    public static void decorateWithAuthHeader(SimpleHttpRequest request, SecureString apiKey) {
         request.setHeader(createAuthBearerHeader(apiKey));
         request.setHeader(JinaAIUtils.createRequestSourceHeader());
     }

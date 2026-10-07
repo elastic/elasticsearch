@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.inference.common.secrets;
 
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpRequestBase;
-import org.apache.http.message.BasicHeader;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.message.BasicHeader;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.test.ESTestCase;
 
@@ -24,9 +24,9 @@ public class HeaderApplierTests extends ESTestCase {
     public void testApplyTo_SetsHeaderOnRequest() {
         var header = new BasicHeader(HEADER_NAME, HEADER_VALUE);
         var applier = new HeaderApplier(() -> header);
-        var request = new HttpPost();
+        var request = SimpleRequestBuilder.post("http://localhost:12345").build();
 
-        var listener = new TestPlainActionFuture<HttpRequestBase>();
+        var listener = new TestPlainActionFuture<SimpleHttpRequest>();
         applier.applyTo(request, listener);
 
         var resultRequest = listener.actionGet(TEST_REQUEST_TIMEOUT);
@@ -36,9 +36,9 @@ public class HeaderApplierTests extends ESTestCase {
     public void testApplyTo_InvokesListenerWithSameRequest() {
         var header = new BasicHeader(HEADER_NAME, HEADER_VALUE);
         var applier = new HeaderApplier(() -> header);
-        var request = new HttpPost();
+        var request = SimpleRequestBuilder.post("http://localhost:12345").build();
 
-        var listener = new TestPlainActionFuture<HttpRequestBase>();
+        var listener = new TestPlainActionFuture<SimpleHttpRequest>();
         applier.applyTo(request, listener);
 
         var resultRequest = listener.actionGet(TEST_REQUEST_TIMEOUT);

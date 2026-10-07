@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.cohere;
 
-import org.apache.http.client.utils.URIBuilder;
+import org.apache.hc.core5.net.URIBuilder;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;

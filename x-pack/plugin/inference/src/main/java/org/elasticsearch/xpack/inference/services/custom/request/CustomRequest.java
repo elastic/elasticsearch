@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.inference.services.custom.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpRequestBase;
-import org.apache.http.client.utils.URIBuilder;
-import org.apache.http.entity.StringEntity;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.HttpHeaders;
+import org.apache.hc.core5.net.URIBuilder;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -115,7 +115,7 @@ public class CustomRequest implements OutboundRequest {
 
     @Override
     public void createHttpRequest(ActionListener<HttpRequest> listener) {
-        HttpPost httpRequest = new HttpPost(uri);
+        SimpleHttpRequest httpRequest = SimpleRequestBuilder.post(uri).build();
 
         setHeaders(httpRequest);
         setRequestContent(httpRequest);
@@ -123,7 +123,7 @@ public class CustomRequest implements OutboundRequest {
         listener.onResponse(new HttpRequest(httpRequest, getInferenceEntityId()));
     }
 
-    private void setHeaders(HttpRequestBase httpRequest) {
+    private void setHeaders(SimpleHttpRequest httpRequest) {
         // Header content_type's default value, if user defines the Content-Type, it will be replaced by user's value;
         httpRequest.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
 
@@ -133,13 +133,12 @@ public class CustomRequest implements OutboundRequest {
         }
     }
 
-    private void setRequestContent(HttpPost httpRequest) {
+    private void setRequestContent(SimpleHttpRequest httpRequest) {
         String replacedRequestContentString = jsonPlaceholderReplacer.replace(
             model.getServiceSettings().getRequestContentString(),
             REQUEST
         );
-        StringEntity stringEntity = new StringEntity(replacedRequestContentString, StandardCharsets.UTF_8);
-        httpRequest.setEntity(stringEntity);
+        httpRequest.setBody(replacedRequestContentString, ContentType.TEXT_PLAIN.withCharset(StandardCharsets.UTF_8));
     }
 
     @Override

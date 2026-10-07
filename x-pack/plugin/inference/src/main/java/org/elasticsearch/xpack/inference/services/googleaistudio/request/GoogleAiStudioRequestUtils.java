@@ -7,9 +7,10 @@
 
 package org.elasticsearch.xpack.inference.services.googleaistudio.request;
 
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.utils.URIBuilder;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.core5.net.URIBuilder;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.net.URI;
@@ -18,10 +19,11 @@ public final class GoogleAiStudioRequestUtils {
 
     private static final String API_KEY_PARAMETER = "key";
 
-    static void decorateWithApiKeyParameter(HttpPost httpPost, DefaultSecretSettings secretSettings) {
+    static void decorateWithApiKeyParameter(SimpleHttpRequest httpPost, DefaultSecretSettings secretSettings) {
         try {
-            var uriWithApiKey = builderWithApiKeyParameter(httpPost.getURI(), secretSettings).build();
-            httpPost.setURI(uriWithApiKey);
+            // build via ServiceUtils so the ':' in Google-style method paths (e.g. models/gemini-pro:generateContent) stays unencoded
+            var uriWithApiKey = ServiceUtils.buildUriPreservingColons(builderWithApiKeyParameter(httpPost.getUri(), secretSettings));
+            httpPost.setUri(uriWithApiKey);
         } catch (Exception e) {
             ValidationException validationException = new ValidationException(e);
             validationException.addValidationError(e.getMessage());

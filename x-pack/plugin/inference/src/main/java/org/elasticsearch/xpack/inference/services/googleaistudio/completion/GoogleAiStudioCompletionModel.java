@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.googleaistudio.completion;
 
-import org.apache.http.client.utils.URIBuilder;
+import org.apache.hc.core5.net.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -24,6 +24,7 @@ import java.net.URISyntaxException;
 import java.util.Map;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.buildUriPreservingColons;
 
 public class GoogleAiStudioCompletionModel extends GoogleAiStudioModel {
 
@@ -65,10 +66,15 @@ public class GoogleAiStudioCompletionModel extends GoogleAiStudioModel {
     public URI uri(boolean streaming) {
         try {
             var api = streaming ? GoogleAiStudioUtils.STREAM_GENERATE_CONTENT_ACTION : GoogleAiStudioUtils.GENERATE_CONTENT_ACTION;
-            return new URIBuilder().setScheme("https")
-                .setHost(GoogleAiStudioUtils.HOST_SUFFIX)
-                .setPathSegments(GoogleAiStudioUtils.V1, GoogleAiStudioUtils.MODELS, format("%s:%s", getServiceSettings().modelId(), api))
-                .build();
+            return buildUriPreservingColons(
+                new URIBuilder().setScheme("https")
+                    .setHost(GoogleAiStudioUtils.HOST_SUFFIX)
+                    .setPathSegments(
+                        GoogleAiStudioUtils.V1,
+                        GoogleAiStudioUtils.MODELS,
+                        format("%s:%s", getServiceSettings().modelId(), api)
+                    )
+            );
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
@@ -86,13 +92,14 @@ public class GoogleAiStudioCompletionModel extends GoogleAiStudioModel {
 
     // visible for testing
     static URI buildUri(String model) throws URISyntaxException {
-        return new URIBuilder().setScheme("https")
-            .setHost(GoogleAiStudioUtils.HOST_SUFFIX)
-            .setPathSegments(
-                GoogleAiStudioUtils.V1,
-                GoogleAiStudioUtils.MODELS,
-                format("%s:%s", model, GoogleAiStudioUtils.GENERATE_CONTENT_ACTION)
-            )
-            .build();
+        return buildUriPreservingColons(
+            new URIBuilder().setScheme("https")
+                .setHost(GoogleAiStudioUtils.HOST_SUFFIX)
+                .setPathSegments(
+                    GoogleAiStudioUtils.V1,
+                    GoogleAiStudioUtils.MODELS,
+                    format("%s:%s", model, GoogleAiStudioUtils.GENERATE_CONTENT_ACTION)
+                )
+        );
     }
 }

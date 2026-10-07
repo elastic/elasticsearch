@@ -258,7 +258,7 @@ setup:
         name: dogs
         body:
           query: 'FROM test | WHERE animal == "dog"'
-          internal: true
+          reserved: true
 
 ---
 "invalid-views":

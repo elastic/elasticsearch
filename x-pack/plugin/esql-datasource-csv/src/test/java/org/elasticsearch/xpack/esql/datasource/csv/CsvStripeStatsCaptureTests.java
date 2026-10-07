@@ -1523,6 +1523,6 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
      * identity, which is where a format name reaches a key now that it is not a component of its own.
      */
     private static DatasetIdentity testIdentity() {
-        return DatasetIdentity.of("", null, "", "", ".csv", "");
+        return DatasetIdentity.of("", null, "", ".csv", "");
     }
 }

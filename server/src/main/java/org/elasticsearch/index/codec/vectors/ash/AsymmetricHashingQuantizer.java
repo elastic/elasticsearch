@@ -117,15 +117,16 @@ public final class AsymmetricHashingQuantizer {
     }
 
     /**
-     * Result of training a projection matrix: the transposed matrix W^T together with whether it was
+     * Result of training a projection matrix: the matrix W and its transposition W^T together with whether it was
      * genuinely learned (PCA + Procrustes) or a random orthonormal fallback. The quantizer is the sole
      * owner of this distinction, so callers must not re-derive it. A random (non-learned) matrix must
      * not be inherited/warm-started at merge time.
      *
+     * @param w       the projection matrix W in row-major order, shape (originalDim, nDims)
      * @param wT      the transposed projection matrix W^T in row-major order, shape (nDims, originalDim)
      * @param learned {@code true} if W was learned; {@code false} if it is a random orthonormal fallback
      */
-    record TrainedProjection(float[] wT, boolean learned) {}
+    record TrainedProjection(float[] w, float[] wT, boolean learned) {}
 
     /**
      * Trains the projection matrix W on the given vectors and their cluster assignments.
@@ -148,20 +149,22 @@ public final class AsymmetricHashingQuantizer {
         int nDims = nDims(originalDim);
 
         if (method == Method.RANDOM) {
-            return new TrainedProjection(randomOrthogonal(originalDim, nDims), false);
+            float[] wT = randomOrthogonal(originalDim, nDims);
+            return new TrainedProjection(ESVectorUtil.transposeMatrix(wT, nDims, originalDim), wT, false);
         }
 
         // Too few vectors for meaningful PCA training; fall back to random projection
         if (method == Method.LEARNED && count < nDims * 2) {
-            return new TrainedProjection(randomOrthogonal(originalDim, nDims), false);
+            float[] wT = randomOrthogonal(originalDim, nDims);
+            return new TrainedProjection(ESVectorUtil.transposeMatrix(wT, nDims, originalDim), wT, false);
         }
 
         int trainingSize = Math.min(Math.min(originalDim * trainingFactor, count), MAX_TRAINING_SAMPLES);
         float[] xTraining = buildTrainingMatrix(vectors, count, centroids, originalDim, trainingSize);
 
         // LEARNED: PCA init + Procrustes
-        float[] wT = ESVectorUtil.transposeMatrix(learnedTraining(xTraining, trainingSize, originalDim, nDims), originalDim, nDims);
-        return new TrainedProjection(wT, true);
+        float[] w = learnedTraining(xTraining, trainingSize, originalDim, nDims);
+        return new TrainedProjection(w, ESVectorUtil.transposeMatrix(w, originalDim, nDims), true);
     }
 
     /**
@@ -207,7 +210,7 @@ public final class AsymmetricHashingQuantizer {
             || count < nDims * 2
             || refineIterations <= 0) {
             // Not refinable — return the inherited matrix as-is (caller already validated compatibility).
-            return new TrainedProjection(inheritedWT, true);
+            return new TrainedProjection(ESVectorUtil.transposeMatrix(inheritedWT, nDims, originalDim), inheritedWT, true);
         }
 
         int trainingSize = Math.min(Math.min(originalDim * trainingFactor, count), MAX_TRAINING_SAMPLES);
@@ -216,7 +219,7 @@ public final class AsymmetricHashingQuantizer {
         // The basis P is the (originalDim x nDims) form of the inherited W^T.
         float[] p = ESVectorUtil.transposeMatrix(inheritedWT, nDims, originalDim);
         float[] w = learnedTrainingFromBasis(xTraining, p, trainingSize, originalDim, nDims, refineIterations);
-        return new TrainedProjection(ESVectorUtil.transposeMatrix(w, originalDim, nDims), true);
+        return new TrainedProjection(w, ESVectorUtil.transposeMatrix(w, originalDim, nDims), true);
     }
 
     /**
@@ -248,34 +251,45 @@ public final class AsymmetricHashingQuantizer {
     }
 
     /**
-     * Result of encoding a single (vector, centroid) pair.
-     *
-     * @param xEnc quantized code in latent space, shape (nDims,)
-     * @param scale scale factor applied at scoring time (norm / codeNorm)
-     * @param offset additive correction term for dot product reconstruction
-     */
-    public record EncodedVector(float[] xEnc, float scale, float offset) {}
-
-    /**
      * A vector with its precomputed squared norm
      * @param vector    The vector
      * @param normSq    Squared norm
      */
     public record VectorAndNorm(float[] vector, float normSq) {}
 
-    private static VectorAndNorm centralizeVector(float[] vector, float[] centroid) {
+    /**
+     * Centers {@code vector} by {@code centroid} into {@code out[outOffset..]} and L2-normalizes it in
+     * place
+     *
+     * @return the squared norm of {@code vector - centroid}
+     */
+    private static float centralize(float[] vector, float[] centroid, float[] out, int outOffset) {
         int originalDim = vector.length;
-        float[] centered = new float[originalDim];
         for (int d = 0; d < originalDim; d++) {
-            centered[d] = vector[d] - centroid[d];
+            out[outOffset + d] = vector[d] - centroid[d];
         }
-        float normSq = ESVectorUtil.l2Normalize(centered);
-        return normSq == 0f ? new VectorAndNorm(new float[originalDim], 0) : new VectorAndNorm(centered, normSq);
+        return ESVectorUtil.l2Normalize(out, outOffset, originalDim);
+    }
+
+    /**
+     * Additive correction for dot product reconstruction, per ASH paper Equation 19:
+     * {@code ⟨x, μ⟩ - scale * ⟨centroid@W, code⟩ - ‖μ‖²}.
+     * <p>
+     * The cross-term ⟨centroid@W, code⟩ accounts for using the raw projected query Wq (Eq. 18)
+     * rather than the centered query W(q-μ). At query time the scorer computes ⟨Wq, code⟩,
+     * and the centroid's contribution is pre-subtracted here so no per-posting-list centroid
+     * recomputation is needed during search.
+     *
+     * @param vecCentroidDot ⟨x, μ⟩ for the original, uncentered vector
+     */
+    private static float computeOffset(float vecCentroidDot, float scale, float[] code, VectorAndNorm precomputed) {
+        float correction = ESVectorUtil.dotProduct(precomputed.vector(), code);
+        return vecCentroidDot - precomputed.normSq() - scale * correction;
     }
 
     /**
      * Precomputes centroid-dependent values for a posting list. Call once per cluster,
-     * then pass the result to {@link #encode} for each vector in that cluster.
+     * then pass the result to {@link BlockEncoder#encode} for each vector in that cluster.
      *
      * @param centroid the posting list centroid, length originalDim
      * @param wT transposed projection matrix in row-major order, shape (nDims, originalDim)
@@ -289,58 +303,118 @@ public final class AsymmetricHashingQuantizer {
         return new VectorAndNorm(centroidProjected, centroidNormSq);
     }
 
-    private static final ThreadLocal<float[]> XLATENT_ARRAY = new ThreadLocal<>();
-
-    private static float[] getXLatentArray(int length) {
-        float[] array = XLATENT_ARRAY.get();
-        if (array == null || array.length != length) {
-            array = new float[length];
-            XLATENT_ARRAY.set(array);
-        }
-        return array;
+    /**
+     * Creates a reusable encoder that projects and quantizes vectors a block at a time. The returned
+     * encoder is tied to {@code w}, so a caller must create a new one whenever W changes.
+     *
+     * @param w the projection matrix W in row-major order, shape (originalDim, nDims)
+     * @param originalDim the original vector dimensionality
+     * @param maxBlockSize the largest block the caller gathers before encoding
+     */
+    public BlockEncoder newBlockEncoder(float[] w, int originalDim, int maxBlockSize) {
+        return new BlockEncoder(w, originalDim, maxBlockSize);
     }
 
     /**
-     * Fast single-vector encoding using precomputed centroid values and transposed W.
-     * This avoids recomputing centroid @ W and ||centroid||^2 for every vector in a posting list.
-     *
-     * @param vector the input vector, length originalDim
-     * @param centroid the centroid (needed for centering), length originalDim
-     * @param wT transposed projection matrix in row-major order, shape (nDims, originalDim)
-     * @param precomputed precomputed centroid projection and norm
-     * @return xEnc/scale/offset for this (vector, centroid) pair
+     * Encodes vectors a block at a time using matrix multiplication
      */
-    public EncodedVector encode(float[] vector, float[] centroid, float[] wT, VectorAndNorm precomputed) {
-        int originalDim = centroid.length;
-        int nDims = wT.length / originalDim;
+    public final class BlockEncoder {
 
-        // Center and compute norm
-        VectorAndNorm centered = centralizeVector(vector, centroid);
+        private final int originalDim;
+        private final int nDims;
+        private final int maxBlockSize;
+        /** W as (originalDim x nDims), the right-operand shape the block multiply needs. */
+        private final float[] w;
+        /** The gathered vectors, centered and L2-normalized, row-major (maxBlockSize x originalDim). */
+        private final float[] centered;
+        /** The block projected into latent space, row-major (maxBlockSize x nDims). */
+        private final float[] latent;
+        private final float[][] codes;
+        private final float[] normSqs;
+        private final float[] vecCentroidDots;
+        private final float[] scales;
+        private final float[] offsets;
+        private int size;
 
-        // Project using transposed W
-        float[] xLatent = getXLatentArray(nDims);
-        ESVectorUtil.matrixVectorMultiply(wT, nDims, originalDim, centered.vector(), xLatent);
+        private BlockEncoder(float[] w, int originalDim, int maxBlockSize) {
+            assert w.length == originalDim * nDims(originalDim)
+                : "projection matrix length [" + w.length + "] does not match originalDim [" + originalDim + "]";
+            this.originalDim = originalDim;
+            this.nDims = w.length / originalDim;
+            this.maxBlockSize = maxBlockSize;
+            this.w = w;
+            this.centered = new float[maxBlockSize * originalDim];
+            this.latent = new float[maxBlockSize * nDims];
+            this.codes = new float[maxBlockSize][nDims];
+            this.normSqs = new float[maxBlockSize];
+            this.vecCentroidDots = new float[maxBlockSize];
+            this.scales = new float[maxBlockSize];
+            this.offsets = new float[maxBlockSize];
+        }
 
-        // Quantize
-        AshSphericalScalarQuantizer.SingleQuantizeResult qr = quantizer.encodeOne(xLatent);
-        float[] xEnc = qr.centeredCode();
-        float codeNorm = qr.codeNorm();
+        /** Discards the gathered block, ready for {@link #add}. */
+        public void reset() {
+            size = 0;
+        }
 
-        // Scale: norm / codeNorm
-        float scale = codeNorm > 0 ? (float) Math.sqrt(centered.normSq()) / codeNorm : 0;
+        /**
+         * Centers and normalizes {@code vector} into the next row of the block, and records the two
+         * quantities that need the original vector: ‖vector - centroid‖² and ⟨vector, centroid⟩. The
+         * caller may overwrite or reuse {@code vector} as soon as this returns, so a provider handing
+         * out a shared buffer stays safe across a whole block.
+         */
+        public void add(float[] vector, float[] centroid) {
+            assert size < maxBlockSize : "block is full";
+            normSqs[size] = centralize(vector, centroid, centered, size * originalDim);
+            vecCentroidDots[size] = ESVectorUtil.dotProduct(vector, centroid);
+            size++;
+        }
 
-        // Offset per ASH paper Equation 19: ⟨x, μ⟩ - scale * ⟨centroid@W, code⟩ - ‖μ‖²
-        // The cross-term ⟨centroid@W, code⟩ accounts for using the raw projected query Wq (Eq. 18)
-        // rather than the centered query W(q-μ). At query time the scorer computes ⟨Wq, code⟩,
-        // and the centroid's contribution is pre-subtracted here so no per-posting-list centroid
-        // recomputation is needed during search.
-        float dotVecCent = ESVectorUtil.dotProduct(vector, centroid);
-        float offset = dotVecCent - precomputed.normSq();
-        float[] centroidProjected = precomputed.vector();
-        float correction = ESVectorUtil.dotProduct(centroidProjected, xEnc);
-        offset -= scale * correction;
+        /**
+         * Projects, quantizes, and derives the scale and offset for every vector gathered since the
+         * last {@link #reset}.
+         *
+         * @param precomputed the projected centroid and its squared norm for the posting list these
+         *        vectors belong to, from {@link AsymmetricHashingQuantizer#precomputeCentroid}
+         */
+        public void encode(VectorAndNorm precomputed) {
+            // The multiply doesn't have offsets, so the full matrix is calculated
+            // Although this means that partial blocks multiply whatever is left in 'centered' after the tail,
+            // only 'count' rows are read back
+            ESVectorUtil.matrixMultiply(centered, w, maxBlockSize, originalDim, nDims, latent);
 
-        return new EncodedVector(xEnc, scale, offset);
+            for (int i = 0; i < size; i++) {
+                float[] code = codes[i];
+                float codeNorm = quantizer.quantizeExact(latent, i * nDims, code, 0, nDims);
+                float scale = codeNorm > 0 ? (float) Math.sqrt(normSqs[i]) / codeNorm : 0;
+                scales[i] = scale;
+                offsets[i] = computeOffset(vecCentroidDots[i], scale, code, precomputed);
+            }
+        }
+
+        public int size() {
+            return size;
+        }
+
+        public float[] code(int i) {
+            assert i < size;
+            return codes[i];
+        }
+
+        public float scale(int i) {
+            assert i < size;
+            return scales[i];
+        }
+
+        public float offset(int i) {
+            assert i < size;
+            return offsets[i];
+        }
+
+        public float vecCentroidDot(int i) {
+            assert i < size;
+            return vecCentroidDots[i];
+        }
     }
 
     private float[] learnedTraining(float[] xTraining, int nTraining, int originalDim, int nDims) {

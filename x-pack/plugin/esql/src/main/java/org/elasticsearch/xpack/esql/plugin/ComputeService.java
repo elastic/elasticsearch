@@ -1993,6 +1993,7 @@ public class ComputeService {
                 userAgentParserRegistry,
                 ipLocationService,
                 projectResolver,
+                projectResolver.getProjectMetadata(clusterService.state()),
                 physicalOperationProviders,
                 operatorFactoryRegistry,
                 remoteFetchService,

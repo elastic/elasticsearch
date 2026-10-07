@@ -277,13 +277,15 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
     }
 
     /**
-     * Merges the analyzers that branches give each index into one group per analyzer. Returns {@code null} when an index
-     * that may map the field gets two different analyzers.
+     * Picks one analyzer per index and groups indices that use the same one.
      * <p>
-     * A relation whose indices agree gives their analyzer to all of them, even to indices that don't map the field. An
-     * index that maps the field reports the same name to every relation, so an index that gets two analyzers, one of them
-     * named, doesn't map the field: its rows hold {@code null}, and it is skipped. A relation reports index-local when any
-     * of its indices does, so an index with an unreported analyzer can get both nameless ones; those return {@code null}.
+     * A relation copies its analyzer onto every index it reads, even indices without this field. An index that has
+     * the field reports the same name every time. Two analyzers on one index, one of them named, means the index
+     * does not have the field: the values are {@code null}, so the index is left out.
+     * <p>
+     * Returns {@code null} if both analyzers have no name, or if two fields of one index use different analyzers.
+     * Those rows may hold the field, so neither analyzer can be dropped. Both can lack a name because a relation
+     * marks every index index-local when any one of them is, including an index whose analyzer was not reported.
      */
     private static @Nullable List<IndexAnalyzerGroup> byAnalyzer(Map<IndexField, Set<IndexAnalyzerGroup.Analyzer>> claims) {
         Map<String, IndexAnalyzerGroup.Analyzer> analyzerByIndex = new TreeMap<>();

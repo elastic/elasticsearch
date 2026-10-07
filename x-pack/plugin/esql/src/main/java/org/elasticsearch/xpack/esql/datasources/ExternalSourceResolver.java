@@ -884,7 +884,6 @@ public class ExternalSourceResolver {
     private DatasetIdentity datasetIdentity(String objectName, String storageIdentity, String secretIdentity, Map<String, Object> config) {
         return DatasetIdentity.of(
             DatasetIdentity.definitionVersionOf(config),
-            null,
             secretIdentity,
             storageIdentity,
             formatConfigIdentity(objectName, config),

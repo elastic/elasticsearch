@@ -83,6 +83,8 @@ public record SchemaCacheKey(
      * no failing test.
      */
     public static SchemaCacheKey forDatasetAggregate(String pattern, FileSetFingerprint fingerprint, DatasetIdentity dataset) {
+        // Load-bearing, not defensive: a null fingerprint here would make isDatasetAggregate() answer false for
+        // an aggregate key, and the reconcile would then enrich it with a per-file contribution.
         Objects.requireNonNull(fingerprint, "dataset aggregate key requires a non-null file-set fingerprint");
         return new SchemaCacheKey(dataset, pattern == null ? "" : pattern, 0L, fingerprint, false, null);
     }
@@ -105,7 +107,7 @@ public record SchemaCacheKey(
     }
 
     /** True when this key addresses a statistics record rather than the schema record beside it. */
-    public boolean isStatisticsRecord() {
+    boolean isStatisticsRecord() {
         return readConfig != null;
     }
 }

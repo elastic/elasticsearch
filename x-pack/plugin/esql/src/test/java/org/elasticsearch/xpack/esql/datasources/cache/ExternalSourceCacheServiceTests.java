@@ -3201,6 +3201,171 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     /** {@link #seedSchemaCache} plus a resolved read-configuration fingerprint on the entry's metadata. */
+    /**
+     * The licensed branch files the rest of the harvest too. Under a strict error policy the producer licenses the
+     * physical row count to cross read configurations, so the admission is PARTIAL: the count enriches the schema
+     * record and the per-column extrema measured under the other read used to go nowhere. That is the default error
+     * mode, so the extrema of any file read at another file's schema never warmed on it.
+     */
+    public void testALicensedHarvestStillFilesItsExtremaUnderItsOwnRead() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "s3://bucket/data/a.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, TestDatasetIdentities.identity(".csv", "id", Map.of()), false);
+            List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "a", DataType.LONG, Nullability.TRUE, null, false));
+            service.getOrComputeSchema(
+                key,
+                k -> SchemaCacheEntry.from(
+                    schema,
+                    "csv",
+                    path,
+                    Map.of(
+                        ExternalStats.CONFIG_FINGERPRINT_KEY,
+                        "fp",
+                        ExternalStats.MTIME_MILLIS_KEY,
+                        mtime,
+                        ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
+                        "read-own"
+                    ),
+                    Map.of()
+                )
+            );
+
+            Map<String, Object> harvest = new LinkedHashMap<>();
+            harvest.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
+            harvest.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
+            harvest.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "read-anchor");
+            harvest.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, true);
+            harvest.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+            harvest.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "a.max", 7L);
+            service.reconcileSourceStats(Map.of(path, harvest));
+
+            SchemaCacheEntry schemaRecord = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            assertEquals(
+                "the licence admits the count onto the schema record, as before",
+                100L,
+                schemaRecord.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+            assertNull(
+                "and admits nothing else onto it",
+                schemaRecord.safeMetadata().get(SourceStatisticsSerializer.STATS_COL_PREFIX + "a.max")
+            );
+
+            SchemaCacheEntry statsRecord = service.getSchemaIfPresent(key.withReadConfig("read-anchor"));
+            assertNotNull("the extrema the licence did not admit must be filed under the read that measured them", statsRecord);
+            assertEquals(7L, statsRecord.safeMetadata().get(SourceStatisticsSerializer.STATS_COL_PREFIX + "a.max"));
+        }
+    }
+
+    /**
+     * The same, under a LENIENT error policy. The error mode reaches this layer as one flag: the producer sets
+     * {@code ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY} from {@code errorPolicy.isStrict()}, so {@code fail_fast} licenses
+     * the count to cross and {@code skip_row}/{@code null_field} license nothing — under a lenient policy a row can
+     * disappear, so even the count is a property of the read. Both shapes must file the harvest under its own read;
+     * only what the schema record additionally accepts differs.
+     */
+    public void testAnUnlicensedHarvestFilesEverythingUnderItsOwnRead() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "s3://bucket/data/a.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, TestDatasetIdentities.identity(".csv", "id", Map.of()), false);
+            List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "a", DataType.LONG, Nullability.TRUE, null, false));
+            service.getOrComputeSchema(
+                key,
+                k -> SchemaCacheEntry.from(
+                    schema,
+                    "csv",
+                    path,
+                    Map.of(
+                        ExternalStats.CONFIG_FINGERPRINT_KEY,
+                        "fp",
+                        ExternalStats.MTIME_MILLIS_KEY,
+                        mtime,
+                        ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
+                        "read-own"
+                    ),
+                    Map.of()
+                )
+            );
+
+            Map<String, Object> harvest = new LinkedHashMap<>();
+            harvest.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
+            harvest.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
+            harvest.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "read-anchor");
+            // No licence: a lenient policy can drop a row, so not even the count crosses.
+            harvest.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+            harvest.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "a.max", 7L);
+            service.reconcileSourceStats(Map.of(path, harvest));
+
+            SchemaCacheEntry schemaRecord = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            assertNull(
+                "without the licence the schema record takes nothing from another read",
+                schemaRecord.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+
+            SchemaCacheEntry statsRecord = service.getSchemaIfPresent(key.withReadConfig("read-anchor"));
+            assertNotNull("and the whole harvest is filed under the read that measured it", statsRecord);
+            assertEquals(100L, statsRecord.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+            assertEquals(7L, statsRecord.safeMetadata().get(SourceStatisticsSerializer.STATS_COL_PREFIX + "a.max"));
+        }
+    }
+
+    /**
+     * A statistics record holds no types of its own — it is built beside a schema record and carries that record's
+     * columns — so a harvest from a DIFFERENT read must not enrich it. Contribution matching compares path, mtime and
+     * format config and never the read, so every statistics record for a path is matched by every contribution for it.
+     * Without the read check, the second one lands on the first one's address and is coerced through the schema
+     * record's types, which belong to neither.
+     */
+    public void testAForeignReadDoesNotEnrichAStatisticsRecord() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "s3://bucket/data/a.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, TestDatasetIdentities.identity(".csv", "id", Map.of()), false);
+            List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "a", DataType.LONG, Nullability.TRUE, null, false));
+            service.getOrComputeSchema(
+                key,
+                k -> SchemaCacheEntry.from(
+                    schema,
+                    "csv",
+                    path,
+                    Map.of(
+                        ExternalStats.CONFIG_FINGERPRINT_KEY,
+                        "fp",
+                        ExternalStats.MTIME_MILLIS_KEY,
+                        mtime,
+                        ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
+                        "read-own"
+                    ),
+                    Map.of()
+                )
+            );
+
+            Map<String, Object> first = new LinkedHashMap<>();
+            first.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
+            first.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
+            first.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "read-a");
+            first.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "a.max", 11L);
+            service.reconcileSourceStats(Map.of(path, first));
+
+            Map<String, Object> second = new LinkedHashMap<>(first);
+            second.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "read-b");
+            second.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "a.max", 22L);
+            service.reconcileSourceStats(Map.of(path, second));
+
+            SchemaCacheEntry underA = service.getSchemaIfPresent(key.withReadConfig("read-a"));
+            SchemaCacheEntry underB = service.getSchemaIfPresent(key.withReadConfig("read-b"));
+            assertNotNull(underA);
+            assertNotNull(underB);
+            assertEquals(
+                "read-a's record must still hold read-a's measurement",
+                11L,
+                underA.safeMetadata().get(SourceStatisticsSerializer.STATS_COL_PREFIX + "a.max")
+            );
+            assertEquals("and read-b's its own", 22L, underB.safeMetadata().get(SourceStatisticsSerializer.STATS_COL_PREFIX + "a.max"));
+        }
+    }
+
     private static void seedSchemaCacheWithReadConfig(
         ExternalSourceCacheService service,
         SchemaCacheKey key,

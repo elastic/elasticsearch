@@ -134,7 +134,7 @@ public final class ReadConfigFingerprint {
      * render {@code "123"} - a rendering collision in the one place the javadoc above argues a collision is a wrong
      * answer.
      */
-    public static String render(long high, long low) {
+    static String render(long high, long low) {
         return String.format(Locale.ROOT, "%016x%016x", high, low);
     }
 

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources.cache;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.DefinitionVersion;
+import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -46,7 +47,7 @@ import java.util.Map;
  * shared object instead of walking a chain, and opaque rather than public because nothing needs the
  * value - the two goals do not conflict here.
  * <p>
- * 128 bits per pair, for the reason {@link org.elasticsearch.xpack.esql.datasources.FileSetFingerprint}
+ * 128 bits per pair, for the reason {@link FileSetFingerprint}
  * gives: a collision serves one dataset's record to another, which is a wrong answer and not a slow path.
  * Non-cryptographic (Murmur3) for the definition and participant folds, matching the file-set
  * fingerprint, which guards accidental collision rather than an adversary. Note the listing cache is NOT
@@ -87,9 +88,8 @@ public final class DatasetIdentity {
     }
 
     /**
-     * @param datasetVersion    the dataset's stored definition version, or {@code null}/empty for a query that
-     *                          reaches these stores with no registered dataset behind it
-     * @param dataSourceVersion the data source's stored definition version, under the same condition
+     * @param definitionVersion the stored definition version a query reads under, or {@code null}/empty for a query
+     *                          that reaches these stores with no registered dataset behind it
      * @param secretIdentity    the SHA-256 digest of the declared-secret settings the provider consumed, as
      *                          {@code Configured.secretIdentityOf} computes it; empty when it consumed none,
      *                          which is a correct answer for an auth mode that has no stored secret
@@ -98,15 +98,14 @@ public final class DatasetIdentity {
      * @param coordinatorIdentity what the coordinator says identifies its own
      */
     public static DatasetIdentity of(
-        @Nullable String datasetVersion,
-        @Nullable String dataSourceVersion,
+        @Nullable String definitionVersion,
         @Nullable String secretIdentity,
         @Nullable String storageIdentity,
         @Nullable String formatIdentity,
         @Nullable String coordinatorIdentity
     ) {
-        MurmurHash3.Hash128 dataset = fold(datasetVersion);
-        MurmurHash3.Hash128 source = fold(dataSourceVersion, secretIdentity);
+        MurmurHash3.Hash128 dataset = fold(definitionVersion);
+        MurmurHash3.Hash128 source = fold(secretIdentity);
         MurmurHash3.Hash128 participants = fold(storageIdentity, formatIdentity, coordinatorIdentity);
         return new DatasetIdentity(dataset.h1, dataset.h2, source.h1, source.h2, participants.h1, participants.h2);
     }
@@ -194,12 +193,12 @@ public final class DatasetIdentity {
      * Whether a contribution should enrich an entry whose definition version it cannot confirm is a separate
      * question this does not answer; it preserves what the comparison did before.
      */
-    public Participants participants() {
+    Participants participants() {
         return new Participants(participantsHi, participantsLo);
     }
 
     /** An opaque equality token over the participant lanes; the lanes stay private to {@link DatasetIdentity}. */
-    public static final class Participants {
+    static final class Participants {
 
         private final long hi;
         private final long lo;

@@ -216,9 +216,8 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
         assertWarmCountShortCircuits(dataset, total);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/esql-planning/issues/2201") // union_by_name retypes per file through
-                                                                                // pinToReconciledTypes, and the pinned-column poison is not
-                                                                                // yet lifted
+    // yet lifted
+    @AwaitsFix(bugUrl = "union_by_name retypes per file, and the pinned-column poison is not lifted yet")
     public void testCsvHeterogeneousCorpusWarmCountServedUnderNullFieldUnionByName() throws Exception {
         Path dir = createTempDir();
         long total = writeCsvCorpus(dir, true);
@@ -234,8 +233,7 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
         assertWarmCountShortCircuits(dataset, total);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/esql-planning/issues/2201") // the non-strict declared overlay is not yet wired to the
-                                                                                // read-addressed statistics record
+    @AwaitsFix(bugUrl = "the non-strict declared overlay is not wired to the read-addressed statistics record")
     public void testCsvHeterogeneousCorpusWarmCountServedUnderNullFieldDeclaredDynamic() throws Exception {
         Path dir = createTempDir();
         long total = writeCsvCorpus(dir, true);
@@ -255,8 +253,7 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
      * <p>Fails if the dataset key stops carrying the binding mode: the strict dataset is then handed the inferred
      * one's count and answers its first query without reading anything.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/esql-planning/issues/2201") // the dataset aggregate is still unstamped, so nothing
-                                                                                // separates a strict fold from an inferred one
+    @AwaitsFix(bugUrl = "the dataset aggregate carries no read configuration, so nothing separates a strict fold from an inferred one")
     public void testStrictAndInferredDatasetsOverOneGlobNeverShareAnAggregate() throws Exception {
         Path dir = createTempDir();
         long total = writeCsvCorpus(dir, true);
@@ -275,8 +272,7 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/esql-planning/issues/2201") // the declared strict rail is not yet wired to the
-                                                                                // read-addressed statistics record
+    @AwaitsFix(bugUrl = "the declared strict rail is not wired to the read-addressed statistics record")
     public void testCsvHeterogeneousCorpusWarmCountServedUnderNullFieldDeclaredStrict() throws Exception {
         Path dir = createTempDir();
         long total = writeCsvCorpus(dir, true);
@@ -420,9 +416,8 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
         assertWarmCountShortCircuits(dataset, total);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/esql-planning/issues/2201") // union_by_name retypes per file through
-                                                                                // pinToReconciledTypes, and the pinned-column poison is not
-                                                                                // yet lifted
+    // yet lifted
+    @AwaitsFix(bugUrl = "union_by_name retypes per file, and the pinned-column poison is not lifted yet")
     public void testNdjsonHeterogeneousCorpusWarmCountServedUnderNullFieldUnionByName() throws Exception {
         Path dir = createTempDir();
         long total = writeNdjsonCorpus(dir);
@@ -507,5 +502,206 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
         }
         Files.writeString(file, sb.toString(), StandardCharsets.UTF_8);
         return ROWS_PER_FILE;
+    }
+
+    /**
+     * The corpus without a letter cell, so a {@code fail_fast} read completes while parts 1..9 still infer
+     * {@code keyword} for {@code order_id} and are therefore read at the anchor's schema.
+     */
+    private static long writeSparseOnlyCsvCorpus(Path dir) throws IOException {
+        long total = 0;
+        for (int f = 0; f < FILE_COUNT; f++) {
+            boolean sparse = f >= SPARSE_FIRST_PART && f <= SPARSE_LAST_PART;
+            StringBuilder sb = new StringBuilder("id,color,order_id,value\n");
+            for (int i = 0; i < HET_ROWS_PER_FILE; i++) {
+                long v = total + i;
+                String orderId = sparse ? "" : Long.toString(v % 1000);
+                sb.append(v).append(',').append(v % 7).append(',').append(orderId).append(',').append(v).append('\n');
+            }
+            Files.writeString(dir.resolve(String.format(Locale.ROOT, "part-%02d.csv", f)), sb.toString(), StandardCharsets.UTF_8);
+            total += HET_ROWS_PER_FILE;
+        }
+        return total;
+    }
+
+    /**
+     * {@code fail_fast} is the default error mode, and the arms above all register {@code null_field}. Under
+     * {@code fail_fast} the producer licenses the physical row count to cross read configurations, so the count was
+     * never the problem; the per-column extrema were, and they had nowhere to be filed.
+     */
+    public void testCsvSparseCorpusWarmMinMaxServedUnderFailFastFirstFileWins() throws Exception {
+        Path dir = createTempDir();
+        long total = writeSparseOnlyCsvCorpus(dir);
+        String dataset = registerDataset(
+            "ff_minmax_csv",
+            globUri(dir, "*.csv"),
+            Map.of("format", "csv", "error_mode", "fail_fast", "schema_resolution", "first_file_wins", "file_sort_by", "name")
+        );
+        String minMaxQuery = "FROM " + dataset + " | STATS lo = MIN(value), hi = MAX(value)";
+        try (var response = run(syncEsqlQueryRequest(minMaxQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertMinMax(response, 0L, total - 1);
+            assertThat("cold MIN/MAX reads every row", response.documentsFound(), equalTo(total));
+        }
+        try (var response = run(syncEsqlQueryRequest(minMaxQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertMinMax(response, 0L, total - 1);
+            assertThat("warm MIN/MAX under the default error mode must be served", response.documentsFound(), equalTo(0L));
+        }
+    }
+
+    /** The count under the same settings, which the licence already served and must keep serving. */
+    public void testCsvSparseCorpusWarmCountServedUnderFailFastFirstFileWins() throws Exception {
+        Path dir = createTempDir();
+        long total = writeSparseOnlyCsvCorpus(dir);
+        String dataset = registerDataset(
+            "ff_count_csv",
+            globUri(dir, "*.csv"),
+            Map.of("format", "csv", "error_mode", "fail_fast", "schema_resolution", "first_file_wins", "file_sort_by", "name")
+        );
+        assertWarmCountShortCircuits(dataset, total);
+    }
+
+    /**
+     * {@code skip_row}, the third mode and the one no arm covered. It is lenient, so unlike {@code fail_fast} it
+     * licenses nothing to cross a read configuration - under it a row can disappear, which makes even the count a
+     * property of the read. The sparse-only corpus is deliberate: it has nothing for {@code skip_row} to drop, so
+     * what this measures is the licence behaviour rather than row loss, and the expected totals stay exact.
+     */
+    @AwaitsFix(bugUrl = "lenient reads stay off the warm path: warmsRowCountSafely is isStrict(), so a survivor count is never served")
+    public void testCsvSparseCorpusWarmMinMaxServedUnderSkipRowFirstFileWins() throws Exception {
+        Path dir = createTempDir();
+        long total = writeSparseOnlyCsvCorpus(dir);
+        String dataset = registerDataset(
+            "skiprow_minmax_csv",
+            globUri(dir, "*.csv"),
+            Map.of("format", "csv", "error_mode", "skip_row", "schema_resolution", "first_file_wins", "file_sort_by", "name")
+        );
+        String minMaxQuery = "FROM " + dataset + " | STATS lo = MIN(value), hi = MAX(value)";
+        try (var response = run(syncEsqlQueryRequest(minMaxQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertMinMax(response, 0L, total - 1);
+            assertThat("cold MIN/MAX reads every row", response.documentsFound(), equalTo(total));
+        }
+        try (var response = run(syncEsqlQueryRequest(minMaxQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertMinMax(response, 0L, total - 1);
+            assertThat("warm MIN/MAX under skip_row must be served", response.documentsFound(), equalTo(0L));
+        }
+    }
+
+    /** The count under {@code skip_row}, which has no licence and so depends entirely on the read-addressed record. */
+    @AwaitsFix(bugUrl = "lenient reads stay off the warm path: warmsRowCountSafely is isStrict(), so a survivor count is never served")
+    public void testCsvSparseCorpusWarmCountServedUnderSkipRowFirstFileWins() throws Exception {
+        Path dir = createTempDir();
+        long total = writeSparseOnlyCsvCorpus(dir);
+        String dataset = registerDataset(
+            "skiprow_count_csv",
+            globUri(dir, "*.csv"),
+            Map.of("format", "csv", "error_mode", "skip_row", "schema_resolution", "first_file_wins", "file_sort_by", "name")
+        );
+        assertWarmCountShortCircuits(dataset, total);
+    }
+
+    // ---- the error-mode x schema-resolution matrix ----
+    //
+    // Two axes decide whether a warm aggregate can be served, and until now the arms above varied only one of them:
+    // every restored arm registered null_field. The cells below hold the corpus fixed - the sparse-only one, which
+    // has nothing for skip_row to drop and nothing for fail_fast to throw on - so the mode and the resolution are
+    // the only things that move, and a red cell names which pair it is.
+
+    private static Map<String, Object> matrixSettings(String errorMode, String schemaResolution) {
+        return "first_file_wins".equals(schemaResolution)
+            ? Map.of("format", "csv", "error_mode", errorMode, "schema_resolution", schemaResolution, "file_sort_by", "name")
+            : Map.of("format", "csv", "error_mode", errorMode, "schema_resolution", schemaResolution);
+    }
+
+    /**
+     * One cell: register a corpus under this pair, then assert the warm aggregate is served.
+     * <p>
+     * The corpus follows the resolution rather than being held fixed, because {@code strict} is defined over files
+     * that agree: registering a divergent corpus under it is refused outright - "column [order_id] is [keyword], in
+     * [part-00.csv] it is [integer]; set [schema_resolution] to [union_by_name]" - so a divergent cell there would
+     * test the validator, not the warm path. {@code first_file_wins} and {@code union_by_name} get the divergent
+     * corpus, which is the only one where a file is read at another file's schema and so the only one where the
+     * read-addressed record does any work.
+     */
+    private void assertWarmMatrixCell(String name, String errorMode, String schemaResolution, boolean minMax) throws Exception {
+        Path dir = createTempDir();
+        long total = "strict".equals(schemaResolution) ? writeCsvCorpus(dir, false) : writeSparseOnlyCsvCorpus(dir);
+        String dataset = registerDataset(name, globUri(dir, "*.csv"), matrixSettings(errorMode, schemaResolution));
+        if (minMax == false) {
+            assertWarmCountShortCircuits(dataset, total);
+            return;
+        }
+        String query = "FROM " + dataset + " | STATS lo = MIN(value), hi = MAX(value)";
+        try (var response = run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertMinMax(response, 0L, total - 1);
+            assertThat("cold MIN/MAX reads every row", response.documentsFound(), equalTo(total));
+        }
+        try (var response = run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertMinMax(response, 0L, total - 1);
+            assertThat(
+                "warm MIN/MAX must be served for [" + errorMode + " x " + schemaResolution + "]",
+                response.documentsFound(),
+                equalTo(0L)
+            );
+        }
+    }
+
+    @AwaitsFix(bugUrl = "union_by_name retypes per file, and the pinned-column poison is not lifted yet")
+    public void testMatrixCountFailFastUnionByName() throws Exception {
+        assertWarmMatrixCell("m_count_fail_unio", "fail_fast", "union_by_name", false);
+    }
+
+    @AwaitsFix(bugUrl = "union_by_name retypes per file, and the pinned-column poison is not lifted yet")
+    public void testMatrixMinMaxFailFastUnionByName() throws Exception {
+        assertWarmMatrixCell("m_minmax_fail_unio", "fail_fast", "union_by_name", true);
+    }
+
+    public void testMatrixCountFailFastStrict() throws Exception {
+        assertWarmMatrixCell("m_count_fail_stri", "fail_fast", "strict", false);
+    }
+
+    public void testMatrixMinMaxFailFastStrict() throws Exception {
+        assertWarmMatrixCell("m_minmax_fail_stri", "fail_fast", "strict", true);
+    }
+
+    @AwaitsFix(bugUrl = "lenient reads stay off the warm path: warmsRowCountSafely is isStrict(), so a survivor count is never served")
+    public void testMatrixCountSkipRowUnionByName() throws Exception {
+        assertWarmMatrixCell("m_count_skip_unio", "skip_row", "union_by_name", false);
+    }
+
+    @AwaitsFix(bugUrl = "lenient reads stay off the warm path: warmsRowCountSafely is isStrict(), so a survivor count is never served")
+    public void testMatrixMinMaxSkipRowUnionByName() throws Exception {
+        assertWarmMatrixCell("m_minmax_skip_unio", "skip_row", "union_by_name", true);
+    }
+
+    @AwaitsFix(bugUrl = "lenient reads stay off the warm path: warmsRowCountSafely is isStrict(), so a survivor count is never served")
+    public void testMatrixCountSkipRowStrict() throws Exception {
+        assertWarmMatrixCell("m_count_skip_stri", "skip_row", "strict", false);
+    }
+
+    @AwaitsFix(bugUrl = "lenient reads stay off the warm path: warmsRowCountSafely is isStrict(), so a survivor count is never served")
+    public void testMatrixMinMaxSkipRowStrict() throws Exception {
+        assertWarmMatrixCell("m_minmax_skip_stri", "skip_row", "strict", true);
+    }
+
+    @AwaitsFix(bugUrl = "union_by_name retypes per file, and the pinned-column poison is not lifted yet")
+    public void testMatrixCountNullFieldUnionByName() throws Exception {
+        assertWarmMatrixCell("m_count_null_unio", "null_field", "union_by_name", false);
+    }
+
+    @AwaitsFix(bugUrl = "union_by_name retypes per file, and the pinned-column poison is not lifted yet")
+    public void testMatrixMinMaxNullFieldUnionByName() throws Exception {
+        assertWarmMatrixCell("m_minmax_null_unio", "null_field", "union_by_name", true);
+    }
+
+    public void testMatrixMinMaxNullFieldStrict() throws Exception {
+        assertWarmMatrixCell("m_minmax_null_stri", "null_field", "strict", true);
+    }
+
+    public void testMatrixMinMaxNullFieldFirstFileWins() throws Exception {
+        assertWarmMatrixCell("m_minmax_null_firs", "null_field", "first_file_wins", true);
+    }
+
+    public void testMatrixMinMaxFailFastFirstFileWins() throws Exception {
+        assertWarmMatrixCell("m_minmax_fail_firs", "fail_fast", "first_file_wins", true);
     }
 }

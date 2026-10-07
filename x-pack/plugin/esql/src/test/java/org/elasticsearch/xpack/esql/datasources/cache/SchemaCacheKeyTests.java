@@ -101,7 +101,6 @@ public class SchemaCacheKeyTests extends ESTestCase {
         );
     }
 
-    /** The same separation on the per-file rail, which is where the schema and the per-column extrema live. */
     /**
      * The strict-declared rail stores a different answer about the same bytes than the inferred rail does: its
      * record holds the DECLARED schema, where the inferred record holds what inference produced. If the two share
@@ -135,6 +134,7 @@ public class SchemaCacheKeyTests extends ESTestCase {
         assertNotEquals(strictStats, inferredStats);
     }
 
+    /** The same separation on the per-file rail, where the schema and the per-column extrema live. */
     public void testPerFileKeySeparatesPrincipals() {
         SchemaCacheKey a = SchemaCacheKey.build(
             "s3://bucket/data/a.ndjson",
@@ -223,11 +223,8 @@ public class SchemaCacheKeyTests extends ESTestCase {
     }
 
     public void testDatasetAggregateKeyDistinctFromPerFileKeys() {
-        // Even a per-file key crafted over the same strings cannot equal a dataset key: the file-set
-        // fingerprint rides the dedicated fileSetFingerprint component, which every per-file key leaves
-        // null (so a pathological its file-set fingerprint-bearing object name at most loses warm enrichment, never
-        // collides). canonicalPath stays the plain glob pattern (diagnostics-friendly, no smuggled
-        // separators).
+        // A per-file key cannot equal a dataset key: the file-set fingerprint rides its own component, which
+        // every per-file key leaves null. canonicalPath stays the plain glob pattern, for diagnostics.
         SchemaCacheKey dataset = SchemaCacheKey.forDatasetAggregate(
             PATTERN,
             new FileSetFingerprint(11, 22),

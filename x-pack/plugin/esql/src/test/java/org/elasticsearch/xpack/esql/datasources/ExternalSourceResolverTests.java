@@ -2704,7 +2704,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * Compressed siblings of one format share one aggregate key regardless of listing order.
-     * Last-dot of {@code path(0)} would mint {@code .csv#dataset-agg} vs {@code .gz#dataset-agg}.
+     * Last-dot of {@code path(0)} would resolve the format from {@code .csv} on one ordering and {@code .gz} on
+     * the other, so the two would not share an identity.
      */
     public void testDatasetAggregateKeyStableAcrossCsvGzListingOrder() {
         ExternalSourceResolver resolver = datasetGateResolver(null);

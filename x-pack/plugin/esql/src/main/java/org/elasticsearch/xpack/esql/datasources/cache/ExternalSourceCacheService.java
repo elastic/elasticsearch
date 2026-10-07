@@ -45,8 +45,11 @@ import java.util.function.LongFunction;
 /**
  * Coordinator-only, in-memory cache service for external source metadata. Maintains four independent caches:
  * <ul>
- *   <li>Per-file schema cache (~20% of budget) — schema + the per-file {@code _stats.*} overlay, keyed by
- *       {@code (path, mtime, config)}. No time expiry: a changed file has a new mtime, hence a new key.</li>
+ *   <li>Per-file schema cache (~20% of budget) — keyed by {@code (dataset identity, path, mtime)}. It holds
+ *       two kinds of record: a file's schema with the {@code _stats.*} overlay measured under that file's own
+ *       read, and, for a file read at some other schema, a statistics record at the same address plus the read
+ *       that measured it. So the entry count is one per file plus one per divergent file per read
+ *       configuration, not one per file. No time expiry: a changed file has a new mtime, hence a new key.</li>
  *   <li>Dataset-aggregate cache (~2% of budget) — the memoized whole-dataset row count, keyed by the
  *       file-set fingerprint. No time expiry; kept separate so per-file churn cannot evict it.</li>
  *   <li>File-metadata cache (count-bounded, listing TTL, five minutes by default) — {@code {length, mtime}}
@@ -1652,32 +1655,37 @@ public class ExternalSourceCacheService implements Closeable {
                     contributionFingerprint,
                     preCommitSnapshot.get(path)
                 );
+                // Read directly, as applicableStats does, and with its rule: an empty string is not a stamp, so
+                // absence and "" stay indistinguishable to every comparator.
+                Object stamp = mergedStats.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY);
+                String contributionReadConfig = stamp instanceof String str && str.isEmpty() == false ? str : null;
                 for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> match : matchingEntries) {
                     SchemaCacheKey key = match.getKey();
                     SchemaCacheEntry existing = match.getValue();
-                    Map<String, Object> applicable = applicableStats(existing, mergedStats);
-                    if (applicable == null) {
-                        // Harvested under a different resolved read configuration, with no licence to cross. Enriching THIS entry
-                        // would serve one read's measurement as another's, so it still must not happen. But the harvest itself is
-                        // not worthless — it is an accurate measurement of the read that produced it, and dropping it is why a file
-                        // read at another file's schema never warms, under any error mode.
-                        //
-                        // File it under the address of that read instead. A statistics record keyed by the contribution's own read
-                        // configuration cannot be served to a different read, so the guard above is preserved rather than widened;
-                        // nothing that matches today takes a second write, so the common path costs no extra entry.
-                        // Read directly, as applicableStats does above, and with its rule: an empty string is not a
-                        // stamp, so absence and "" stay indistinguishable to every comparator.
-                        Object stamp = mergedStats.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY);
-                        String contributionReadConfig = stamp instanceof String str && str.isEmpty() == false ? str : null;
-                        if (contributionReadConfig != null) {
-                            SchemaCacheKey statsKey = key.withReadConfig(contributionReadConfig);
-                            Map<String, Object> statsOnly = new HashMap<>(existing.safeMetadata());
-                            // Stored as harvested. The coercion below targets the ENTRY's resolved types, which belong to a
-                            // different read than this harvest, so applying it here would re-introduce the mix this address exists
-                            // to keep apart.
-                            statsOnly.putAll(mergedStats);
-                            putSchemaIfWithinCeiling(statsKey, existing.withSafeMetadata(statsOnly));
+                    if (key.isStatisticsRecord()) {
+                        // A statistics record is addressed by the read that produced it and holds no types of its OWN: it is
+                        // built beside a schema record and carries that record's columns. So only a contribution from the same
+                        // read may enrich it — contribution matching compares path, mtime and format config and never the read,
+                        // so without this a foreign read's harvest lands here — and it is stored as harvested, because the
+                        // coercion below targets the schema record's resolved types, which belong to a different read.
+                        if (Objects.equals(key.readConfig(), contributionReadConfig)) {
+                            putSchemaIfWithinCeiling(key, existing.withSafeMetadata(statisticsRecordMetadata(existing, mergedStats)));
                         }
+                        continue;
+                    }
+                    Map<String, Object> applicable = applicableStats(existing, mergedStats);
+                    // Anything the schema record does not take whole is an accurate measurement of its own read, and it is filed
+                    // under that read rather than dropped. Two cases reach here. A refusal (null) is the obvious one. The other is
+                    // a PARTIAL admission: under a strict error policy the producer licenses the physical row count to cross read
+                    // configurations, so applicableStats returns a count-only map, the count enriches this record — and without
+                    // this the per-column extrema harvested under the other read went nowhere, which is the default error mode.
+                    // A reference compare is the discriminator, because applicableStats returns the contribution itself when the
+                    // stamps agree and a fresh map when it is licensing a subset.
+                    if (applicable != mergedStats && contributionReadConfig != null) {
+                        SchemaCacheKey statsKey = key.withReadConfig(contributionReadConfig);
+                        putSchemaIfWithinCeiling(statsKey, existing.withSafeMetadata(statisticsRecordMetadata(existing, mergedStats)));
+                    }
+                    if (applicable == null) {
                         continue;
                     }
                     Map<String, Object> enriched = new HashMap<>(existing.safeMetadata());
@@ -1690,6 +1698,26 @@ public class ExternalSourceCacheService implements Closeable {
                 }
             }
         }
+    }
+
+    /**
+     * The metadata of a statistics record: the two keys contribution matching compares on, carried over from the schema
+     * record beside it, plus this read's measurements. Deliberately NOT the schema record's whole metadata map - that
+     * carries another read's measurements, and inheriting them is how a record filed under one read came to answer with
+     * another's extrema.
+     */
+    private static Map<String, Object> statisticsRecordMetadata(SchemaCacheEntry existing, Map<String, Object> contribution) {
+        Map<String, Object> metadata = new HashMap<>();
+        Object mtime = existing.safeMetadata().get(ExternalStats.MTIME_MILLIS_KEY);
+        if (mtime != null) {
+            metadata.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
+        }
+        Object fingerprint = existing.safeMetadata().get(ExternalStats.CONFIG_FINGERPRINT_KEY);
+        if (fingerprint != null) {
+            metadata.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
+        }
+        metadata.putAll(contribution);
+        return metadata;
     }
 
     public void setEnabled(boolean enabled) {

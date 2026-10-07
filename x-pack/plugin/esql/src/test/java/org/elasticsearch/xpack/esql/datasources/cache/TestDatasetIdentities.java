@@ -27,6 +27,6 @@ public final class TestDatasetIdentities {
     }
 
     public static DatasetIdentity identity(String formatType, String foldedIdentity, String secretIdentity, Map<String, Object> config) {
-        return DatasetIdentity.of(DatasetIdentity.definitionVersionOf(config), null, secretIdentity, foldedIdentity, formatType, "");
+        return DatasetIdentity.of(DatasetIdentity.definitionVersionOf(config), secretIdentity, foldedIdentity, formatType, "");
     }
 }

@@ -16,6 +16,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -42,6 +43,7 @@ import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.support.AbstractXContentParser;
@@ -59,6 +61,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -724,14 +727,51 @@ public abstract class FieldMapper extends Mapper {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        assert builderSerializesLikeMapper(params);
         builder.startObject(leafName());
         doXContentBody(builder, params);
         return builder.endObject();
     }
 
+    /**
+     * Checks that {@link Builder#toXContent} writes the same bytes as this mapper does, on every serialization the
+     * tests perform. Both serializers exist side by side until the mapper's is removed, and this is what keeps the
+     * builder's from drifting in the meantime; it goes with the mapper-side serialization.
+     */
+    private boolean builderSerializesLikeMapper(Params params) throws IOException {
+        Builder mergeBuilder = getMergeBuilder();
+        if (mergeBuilder == null) {
+            return true;
+        }
+        String fromMapper;
+        try (XContentBuilder expected = XContentFactory.jsonBuilder()) {
+            expected.startObject();
+            expected.startObject(leafName());
+            doXContentBody(expected, params);
+            expected.endObject();
+            expected.endObject();
+            fromMapper = Strings.toString(expected);
+        }
+        String fromBuilder;
+        try (XContentBuilder actual = XContentFactory.jsonBuilder()) {
+            actual.startObject();
+            mergeBuilder.toXContent(actual, params);
+            actual.endObject();
+            fromBuilder = Strings.toString(actual);
+        }
+        assert fromMapper.equals(fromBuilder)
+            : "builder serialization differs from mapper serialization of ["
+                + fullPath()
+                + "]: mapper "
+                + fromMapper
+                + " builder "
+                + fromBuilder;
+        return true;
+    }
+
     protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field("type", contentType());
-        getMergeBuilder().toXContent(builder, params);
+        getMergeBuilder().serializeParameters(builder, params);
         builderParams.multiFields.toXContent(builder, params);
         builderParams.copyTo.toXContent(builder);
         if (builderParams.sourceKeepMode.isPresent()) {
@@ -989,6 +1029,19 @@ public abstract class FieldMapper extends Mapper {
 
             public boolean hasSyntheticSourceCompatibleKeywordField() {
                 return hasSyntheticSourceCompatibleKeywordField;
+            }
+
+            /**
+             * Writes the {@code fields} block, sorted by name exactly as {@link MultiFields} sorts its built mappers.
+             */
+            void toXContent(XContentBuilder builder, Params params) throws IOException {
+                if (fieldBuilders.isEmpty() == false) {
+                    builder.startObject("fields");
+                    for (FieldMapper.Builder fieldBuilder : new TreeMap<>(fieldBuilders).values()) {
+                        fieldBuilder.toXContent(builder, params);
+                    }
+                    builder.endObject();
+                }
             }
 
             public MultiFields build(Mapper.Builder mainFieldBuilder, MapperBuilderContext context) {
@@ -2316,15 +2369,39 @@ public abstract class FieldMapper extends Mapper {
         }
 
         /**
-         * Writes the current builder parameter values as XContent
+         * Writes this field as {@code "<name>": {...}}, exactly as the {@link FieldMapper} built from it does. The
+         * result does not depend on whether the builder has been built: nothing {@code build} derives is serialized.
          */
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(leafName());
+            doXContentBody(builder, params);
+            return builder.endObject();
+        }
+
+        /**
+         * Writes the contents of the field's object: its type, parameters, multi-fields, {@code copy_to} and
+         * {@code synthetic_source_keep}, in the order the mapper has always written them. Builders whose mapper
+         * overrides {@link FieldMapper#doXContentBody} override this to match it.
+         */
+        protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
+            builder.field("type", contentType());
+            serializeParameters(builder, params);
+            multiFieldsBuilder.toXContent(builder, params);
+            copyTo.toXContent(builder);
+            if (sourceKeepMode.isPresent()) {
+                sourceKeepMode.get().toXContent(builder);
+            }
+        }
+
+        /**
+         * Writes the current builder parameter values as XContent
+         */
+        protected void serializeParameters(XContentBuilder builder, Params params) throws IOException {
             boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
             for (Parameter<?> parameter : getParameters()) {
                 parameter.toXContent(builder, includeDefaults);
             }
-            return builder;
         }
 
         /**

@@ -586,6 +586,39 @@ public final class TextFieldMapper extends FieldMapper {
             return CONTENT_TYPE;
         }
 
+        /**
+         * Writes the same sequence {@link TextFieldMapper#doXContentBody} does, statement for statement: the named
+         * parameters are interleaved with multi-fields, {@code copy_to} and {@code synthetic_source_keep} in an order
+         * that has to be kept for BWC, so it is not derived from {@link #getParameters()}.
+         */
+        @Override
+        protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
+            boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+            builder.field("type", contentType());
+            index.toXContent(builder, includeDefaults);
+            store.toXContent(builder, includeDefaults);
+            docValuesParameters.toXContent(builder, includeDefaults);
+            multiFieldsBuilder.toXContent(builder, params);
+            copyTo.toXContent(builder);
+            if (sourceKeepMode.isPresent()) {
+                sourceKeepMode.get().toXContent(builder);
+            }
+            meta.toXContent(builder, includeDefaults);
+            indexOptions.toXContent(builder, includeDefaults);
+            termVectors.toXContent(builder, includeDefaults);
+            norms.toXContent(builder, includeDefaults);
+            analyzers.indexAnalyzer.toXContent(builder, includeDefaults);
+            analyzers.searchAnalyzer.toXContent(builder, includeDefaults);
+            analyzers.searchQuoteAnalyzer.toXContent(builder, includeDefaults);
+            similarity.toXContent(builder, includeDefaults);
+            eagerGlobalOrdinals.toXContent(builder, includeDefaults);
+            analyzers.positionIncrementGap.toXContent(builder, includeDefaults);
+            fieldData.toXContent(builder, includeDefaults);
+            freqFilter.toXContent(builder, includeDefaults);
+            indexPrefixes.toXContent(builder, includeDefaults);
+            indexPhrases.toXContent(builder, includeDefaults);
+        }
+
         @Override
         public TextFieldMapper build(MapperBuilderContext context) {
             this.offsetsFieldName = FieldArrayContext.getOffsetsFieldName(

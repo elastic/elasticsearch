@@ -3483,6 +3483,214 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals("identity mapping matches schema width", new ColumnMapping(identityIndex(schema.size()), null), mapping);
     }
 
+    // ===== Single-file partition detection =====
+
+    public void testSingleFileHiveDetectionBindsPartitionColumns() throws Exception {
+        String path = "s3://bucket/data/year=2024/month=01/file.parquet";
+        List<Attribute> schema = List.of(attr("value", DataType.DOUBLE));
+        Map<String, List<Attribute>> schemasByPath = Map.of(path, schema);
+
+        ExternalSourceResolution resolution = resolveSingleFileWithConfig(path, schemasByPath, Map.of("partition_detection", "hive"));
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(path);
+        assertNotNull(resolved);
+        FileList fileList = resolved.fileList();
+        assertTrue(fileList.isResolved());
+        assertEquals(1, fileList.fileCount());
+        assertNotNull(fileList.partitionMetadata());
+        assertEquals(Set.of("year", "month"), fileList.partitionMetadata().partitionColumns().keySet());
+
+        List<Attribute> resolvedSchema = resolved.metadata().schema();
+        assertEquals(3, resolvedSchema.size());
+        assertEquals("value", resolvedSchema.get(0).name());
+        assertEquals("year", resolvedSchema.get(1).name());
+        assertEquals("month", resolvedSchema.get(2).name());
+        assertEquals(DataType.INTEGER, resolvedSchema.get(1).dataType());
+        assertEquals(DataType.INTEGER, resolvedSchema.get(2).dataType());
+    }
+
+    public void testSingleFileTemplateDetectionBindsPartitionColumns() throws Exception {
+        String path = "s3://bucket/data/2024/01/file.parquet";
+        List<Attribute> schema = List.of(attr("value", DataType.DOUBLE));
+        Map<String, List<Attribute>> schemasByPath = Map.of(path, schema);
+        Map<String, Object> config = Map.of("partition_detection", "template", "partition_path", "{year}/{month}");
+
+        ExternalSourceResolution resolution = resolveSingleFileWithConfig(path, schemasByPath, config);
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(path);
+        assertNotNull(resolved);
+        FileList fileList = resolved.fileList();
+        assertTrue(fileList.isResolved());
+        assertEquals(1, fileList.fileCount());
+        assertNotNull(fileList.partitionMetadata());
+        assertEquals(Set.of("year", "month"), fileList.partitionMetadata().partitionColumns().keySet());
+
+        List<Attribute> resolvedSchema = resolved.metadata().schema();
+        assertEquals(3, resolvedSchema.size());
+        assertEquals("value", resolvedSchema.get(0).name());
+        assertEquals("year", resolvedSchema.get(1).name());
+        assertEquals("month", resolvedSchema.get(2).name());
+    }
+
+    public void testSingleFileAutoDetectionBindsHivePartitionColumns() throws Exception {
+        String path = "s3://bucket/data/year=2024/month=01/file.parquet";
+        List<Attribute> schema = List.of(attr("value", DataType.DOUBLE));
+        Map<String, List<Attribute>> schemasByPath = Map.of(path, schema);
+
+        ExternalSourceResolution resolution = resolveSingleFile(path, schemasByPath);
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(path);
+        assertNotNull(resolved);
+        FileList fileList = resolved.fileList();
+        assertTrue(fileList.isResolved());
+        assertEquals(1, fileList.fileCount());
+        assertNotNull(fileList.partitionMetadata());
+        assertEquals(Set.of("year", "month"), fileList.partitionMetadata().partitionColumns().keySet());
+
+        List<Attribute> resolvedSchema = resolved.metadata().schema();
+        assertEquals(3, resolvedSchema.size());
+        assertEquals("value", resolvedSchema.get(0).name());
+        assertEquals("year", resolvedSchema.get(1).name());
+        assertEquals("month", resolvedSchema.get(2).name());
+    }
+
+    public void testSingleFileNoneDetectionOmitsPartitionColumns() throws Exception {
+        String path = "s3://bucket/data/year=2024/month=01/file.parquet";
+        List<Attribute> schema = List.of(attr("value", DataType.DOUBLE));
+        Map<String, List<Attribute>> schemasByPath = Map.of(path, schema);
+
+        ExternalSourceResolution resolution = resolveSingleFileWithConfig(path, schemasByPath, Map.of("partition_detection", "none"));
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(path);
+        assertNotNull(resolved);
+        FileList fileList = resolved.fileList();
+        assertTrue(fileList.isResolved());
+        assertEquals(1, fileList.fileCount());
+        PartitionMetadata metadata = fileList.partitionMetadata();
+        assertTrue(metadata == null || metadata.isEmpty());
+        List<Attribute> resolvedSchema = resolved.metadata().schema();
+        assertEquals(1, resolvedSchema.size());
+        assertEquals("value", resolvedSchema.get(0).name());
+    }
+
+    public void testSingleFileGlobAndCommaAgreeOnPartitionColumns() throws Exception {
+        String file1 = "s3://bucket/data/year=2024/month=01/file.parquet";
+        String file2 = "s3://bucket/data/year=2024/month=01/other.parquet";
+        String glob = "s3://bucket/data/year=2024/month=01/*.parquet";
+        String comma = file1 + "," + file2;
+        List<Attribute> schema = List.of(attr("value", DataType.DOUBLE));
+        Map<String, List<Attribute>> schemasByPath = Map.of(file1, schema, file2, schema);
+        List<StorageEntry> listing = List.of(entry(file1, 100), entry(file2, 200));
+
+        ExternalSourceResolution concrete = resolveSingleFile(file1, Map.of(file1, schema));
+        ExternalSourceResolution globResolution = resolveMultiFile(glob, schemasByPath, listing);
+        ExternalSourceResolution commaResolution = resolveResourceWithConfig(comma, schemasByPath, Map.of(), Map.of());
+
+        Set<String> expected = Set.of("value", "year", "month");
+        assertEquals(expected, columnNames(concrete.resolvedSource(file1).metadata().schema()));
+        assertEquals(expected, columnNames(globResolution.resolvedSource(glob).metadata().schema()));
+        assertEquals(expected, columnNames(commaResolution.resolvedSource(comma).metadata().schema()));
+    }
+
+    public void testSingleFilePartitionShadowNarrowsMapping() throws Exception {
+        String path = "s3://bucket/data/year=2024/file.parquet";
+        List<Attribute> schema = List.of(attr("year", DataType.KEYWORD), attr("name", DataType.KEYWORD));
+        Map<String, List<Attribute>> schemasByPath = Map.of(path, schema);
+
+        ExternalSourceResolution resolution = resolveSingleFile(path, schemasByPath);
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(path);
+        assertNotNull(resolved);
+        List<Attribute> resolvedSchema = resolved.metadata().schema();
+        assertEquals(2, resolvedSchema.size());
+        assertEquals("name", resolvedSchema.get(0).name());
+        assertEquals("year", resolvedSchema.get(1).name());
+        assertEquals(DataType.INTEGER, resolvedSchema.get(1).dataType());
+
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = resolved.schemaMap();
+        assertEquals(1, schemaMap.size());
+        SchemaReconciliation.FileSchemaInfo info = schemaMap.values().iterator().next();
+        assertEquals("physical file schema still has year", schema, info.fileSchema().attributes());
+        ColumnMapping mapping = info.mapping();
+        assertEquals(1, mapping.width());
+        assertFalse(mapping.isIdentity());
+        // 'name' is at physical position 1; the shadowed physical 'year' (position 0) is not read.
+        assertEquals(1, mapping.localIndex(0));
+        assertNull(mapping.cast(0));
+
+        List<String> warnings = resolution.warnings();
+        assertEquals(2, warnings.size());
+        assertEquals(
+            "Columns named like a partition key are read from the path, not the file; set [partition_detection] to [none] to read the file",
+            warnings.get(0)
+        );
+        assertEquals("column [year]: also a partition key", warnings.get(1));
+    }
+
+    public void testStrictSingleFileEnrichesDeclaredSchemaWithPartitions() throws Exception {
+        String path = "s3://bucket/data/year=2024/month=01/file.parquet";
+        List<Attribute> schema = List.of(attr("value", DataType.DOUBLE));
+        Map<String, List<Attribute>> schemasByPath = Map.of(path, schema);
+        DatasetMapping declared = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, Map.of("value", new DatasetFieldMapping("double", null)))
+        );
+
+        ExternalSourceResolver resolver = createResolver(schemasByPath, Map.of());
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(path), Map.of(path, new HashMap<>()), null, Map.of(path, declared), null, future);
+        ExternalSourceResolution.ResolvedSource resolved = future.actionGet().resolvedSource(path);
+        assertNotNull(resolved);
+
+        List<Attribute> resolvedSchema = resolved.metadata().schema();
+        assertEquals(3, resolvedSchema.size());
+        assertEquals("value", resolvedSchema.get(0).name());
+        assertEquals("year", resolvedSchema.get(1).name());
+        assertEquals("month", resolvedSchema.get(2).name());
+
+        SchemaReconciliation.FileSchemaInfo info = resolved.schemaMap().values().iterator().next();
+        ColumnMapping mapping = info.mapping();
+        assertTrue(mapping.isIdentity());
+        assertEquals("identity over declared width", 1, mapping.width());
+        assertEquals(List.of("value"), info.fileSchema().attributes().stream().map(Attribute::name).toList());
+    }
+
+    public void testStrictSingleFileRejectsDeclaredPartitionCollision() throws Exception {
+        String path = "s3://bucket/data/year=2024/file.parquet";
+        List<Attribute> schema = List.of(attr("value", DataType.DOUBLE));
+        Map<String, List<Attribute>> schemasByPath = Map.of(path, schema);
+        DatasetMapping declared = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, Map.of("year", new DatasetFieldMapping("integer", null)))
+        );
+
+        ExternalSourceResolver resolver = createResolver(schemasByPath, Map.of());
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(path), Map.of(path, new HashMap<>()), null, Map.of(path, declared), null, future);
+        Exception e = expectThrows(Exception.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("collides with a partition column"));
+    }
+
+    public void testNonStrictOverlayRejectsDeclaredPartitionCollisionOnSingleFile() throws Exception {
+        String path = "s3://bucket/data/year=2024/file.parquet";
+        List<Attribute> schema = List.of(attr("value", DataType.DOUBLE));
+        Map<String, List<Attribute>> schemasByPath = Map.of(path, schema);
+        DatasetMapping overlay = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, Map.of("year", new DatasetFieldMapping("integer", null)))
+        );
+
+        ExternalSourceResolver resolver = createResolver(schemasByPath, Map.of());
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(path), Map.of(path, new HashMap<>()), null, Map.of(path, overlay), null, future);
+        Exception e = expectThrows(Exception.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("collides with a partition column"));
+    }
+
+    public void testSingleFileReservedPartitionRenameReachesResolutionWarnings() throws Exception {
+        String path = "s3://bucket/data/_index=alpha/file.parquet";
+        List<Attribute> schema = List.of(attr("value", DataType.DOUBLE));
+        Map<String, List<Attribute>> schemasByPath = Map.of(path, schema);
+
+        ExternalSourceResolution resolution = resolveSingleFile(path, schemasByPath);
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(path);
+        assertNotNull(resolved);
+        assertThat(columnNames(resolved.metadata().schema()), hasItem("_partition._index"));
+        assertThat(resolution.warnings(), hasItem("partition key [_index] is named [_partition._index]"));
+    }
+
     // ===== ExternalSchema type preservation =====
 
     public void testSchemaTypesPreserved() throws Exception {
@@ -5389,22 +5597,68 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * A filter that rewrites the glob to a folder that does not exist must resolve to the full listing, not raise
-     * "Glob pattern matched no files". The rewrite spells the value literally ({@code year=2099}); the row filter
-     * still runs, so listing the whole dataset is correct and the query returns zero rows on its own. This is also
-     * what protects a zero-padded {@code month=06} folder from a {@code month == 6} predicate. Inferred
-     * {@code first_file_wins} now passes the same hints, so it must take the same fallback.
+     * A filter that rewrites the glob to a folder that does not exist must resolve to one inference-anchor
+     * file, not raise "Glob pattern matched no files". Three files at cap 2 must not throw. The leftover
+     * file is not the dataset, so stats are partial under both FFW and UBN.
      */
-    public void testZeroMatchPartitionFilterResolvesToFullListingNotError() throws Exception {
+    public void testZeroMatchPartitionFilterResolvesToOneInferenceAnchorNotError() throws Exception {
         String glob = "s3://bucket/data/year=*/*.parquet";
         List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
         Map<String, List<Attribute>> schemas = new HashMap<>();
         schemas.put("s3://bucket/data/year=2024/a.parquet", schema);
+        schemas.put("s3://bucket/data/year=2024/b.parquet", schema);
+        schemas.put("s3://bucket/data/year=2025/c.parquet", schema);
         Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
-        listingsByPrefix.put("s3://bucket/data/", List.of(entry("s3://bucket/data/year=2024/a.parquet", 100)));
+        listingsByPrefix.put(
+            "s3://bucket/data/",
+            List.of(
+                entry("s3://bucket/data/year=2024/a.parquet", 100),
+                entry("s3://bucket/data/year=2024/b.parquet", 100),
+                entry("s3://bucket/data/year=2025/c.parquet", 100)
+            )
+        );
         // The narrowed prefix s3://bucket/data/year=2099/ is deliberately absent: an object store lists it as empty.
-        CountingStorageProvider provider = new CountingStorageProvider(listingsByPrefix, schemas);
 
+        var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "year",
+            PartitionFilterHintExtractor.Operator.EQUALS,
+            List.of(2099)
+        );
+        Settings cap = Settings.builder().put(ExternalSourceSettings.MAX_DISCOVERED_FILES.getKey(), 2).build();
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            for (FormatReader.SchemaResolution strategy : List.of(
+                FormatReader.SchemaResolution.UNION_BY_NAME,
+                FormatReader.SchemaResolution.FIRST_FILE_WINS
+            )) {
+                ExternalSourceResolver resolver = createResolver(schemas, listingsByPrefix, cap, null, null, null, cacheService);
+                ExternalSourceResolution resolution = resolveWith(resolver, glob, Map.of(glob, List.of(hint)), strategy);
+                ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(glob);
+                assertEquals(1, resolved.fileList().fileCount());
+                assertTrue(resolved.fileList().isInferenceAnchor());
+                assertEquals(
+                    "[" + strategy + "] inference-anchor footer is not the dataset",
+                    Boolean.TRUE,
+                    resolved.metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_PARTIAL)
+                );
+            }
+        }
+    }
+
+    /** Hinted all-pruned listing must not serve an unhinted query; the loader runs again for the full glob. */
+    public void testAllPrunedThenUnfilteredListsEveryFile() throws Exception {
+        String glob = "s3://bucket/data/year=*/*.parquet";
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        schemas.put("s3://bucket/data/year=2024/a.parquet", schema);
+        schemas.put("s3://bucket/data/year=2025/b.parquet", schema);
+        schemas.put("s3://bucket/data/year=2026/c.parquet", schema);
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/data/year=2024/a.parquet", 100),
+            entry("s3://bucket/data/year=2025/b.parquet", 100),
+            entry("s3://bucket/data/year=2026/c.parquet", 100)
+        );
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of("s3://bucket/data/", files), schemas);
         var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
             "year",
             PartitionFilterHintExtractor.Operator.EQUALS,
@@ -5413,15 +5667,54 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
             ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
+            ExternalSourceResolution hinted = resolveWith(
+                resolver,
+                glob,
+                Map.of(glob, List.of(hint)),
+                FormatReader.SchemaResolution.UNION_BY_NAME
+            );
+            assertEquals(1, hinted.resolvedSource(glob).fileList().fileCount());
+            assertTrue(hinted.resolvedSource(glob).fileList().isInferenceAnchor());
+            int afterHinted = provider.listCallCount.get();
 
-            for (FormatReader.SchemaResolution strategy : MULTI_FILE_STRATEGIES) {
-                ExternalSourceResolution resolution = resolveWith(resolver, glob, Map.of(glob, List.of(hint)), strategy);
-                assertEquals(
-                    "[" + strategy + "] a rewrite to a missing folder must fall back to the full listing",
-                    1,
-                    resolution.resolvedSource(glob).fileList().fileCount()
-                );
-            }
+            ExternalSourceResolution unhinted = resolveWith(resolver, glob, Map.of(), FormatReader.SchemaResolution.UNION_BY_NAME);
+            assertEquals(3, unhinted.resolvedSource(glob).fileList().fileCount());
+            assertFalse(unhinted.resolvedSource(glob).fileList().isInferenceAnchor());
+            assertTrue("unhinted query must list again, not reuse the hinted one-file entry", provider.listCallCount.get() > afterHinted);
+        }
+    }
+
+    /**
+     * All-pruned UBN infers columns from the leftover file, not the union across the glob. Rows are empty
+     * either way; LIMIT 0 / columns() report the leftover schema.
+     */
+    public void testUnionByNameAllPrunedSchemaIsLeftoverFile() throws Exception {
+        String glob = "s3://bucket/data/year=*/*.parquet";
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        schemas.put("s3://bucket/data/year=2024/a.parquet", List.of(attr("x", DataType.INTEGER)));
+        schemas.put("s3://bucket/data/year=2025/b.parquet", List.of(attr("x", DataType.INTEGER), attr("y", DataType.KEYWORD)));
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        listingsByPrefix.put(
+            "s3://bucket/data/",
+            List.of(entry("s3://bucket/data/year=2024/a.parquet", 100), entry("s3://bucket/data/year=2025/b.parquet", 100))
+        );
+        var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "year",
+            PartitionFilterHintExtractor.Operator.EQUALS,
+            List.of(2099)
+        );
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = createResolver(schemas, listingsByPrefix, Settings.EMPTY, null, null, null, cacheService);
+            ExternalSourceResolution.ResolvedSource resolved = resolveWith(
+                resolver,
+                glob,
+                Map.of(glob, List.of(hint)),
+                FormatReader.SchemaResolution.UNION_BY_NAME
+            ).resolvedSource(glob);
+            assertTrue(resolved.fileList().isInferenceAnchor());
+            List<String> names = resolved.metadata().schema().stream().map(Attribute::name).toList();
+            assertFalse("leftover year=2024 file has no y; UBN must not union the pruned year", names.contains("y"));
+            assertTrue(names.contains("x"));
         }
     }
 
@@ -6364,6 +6657,21 @@ public class ExternalSourceResolverTests extends ESTestCase {
         return future.actionGet();
     }
 
+    private ExternalSourceResolution resolveSingleFileWithConfig(
+        String path,
+        Map<String, List<Attribute>> schemasByPath,
+        Map<String, Object> config
+    ) throws Exception {
+        ExternalSourceResolver resolver = createResolver(schemasByPath, Map.of());
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(path), Map.of(path, new HashMap<>(config)), future);
+        return future.actionGet();
+    }
+
+    private static Set<String> columnNames(List<Attribute> schema) {
+        return Set.copyOf(schema.stream().map(Attribute::name).toList());
+    }
+
     private ExternalSourceResolution resolveMultiplePaths(
         List<String> paths,
         Map<String, List<Attribute>> schemasByPath,
@@ -6508,6 +6816,30 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolution resolution = future.actionGet();
 
         assertEquals(1, resolution.resolvedSource(file).fileList().fileCount());
+        assertThat(metadataReads.get(), greaterThan(0));
+        assertEquals(baseline, breaker.getUsed());
+        assertEquals(0L, reservation.queryHeld());
+    }
+
+    /**
+     * Detection on a Hive-shaped concrete key must not start charging listing bytes. The single-file
+     * rail still skips {@code chargeListingPlanning}; partition columns come off the one path, not a listing.
+     */
+    public void testSingleFileHiveResolveDoesNotChargePlanningBytes() throws Exception {
+        String file = "s3://bucket/data/year=2024/month=01/file.parquet";
+        Map<String, List<Attribute>> schemas = Map.of(file, List.of(attr("value", DataType.DOUBLE)));
+        CircuitBreaker breaker = requestBreaker("1gb");
+        AtomicInteger metadataReads = new AtomicInteger();
+        ExternalSourceResolver resolver = planningResolver(schemas, Map.of(), breaker, metadataReads);
+        EsqlExecutionInfo info = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        ExternalPlanningReservation reservation = bindPlanning(resolver, info, breaker);
+        long baseline = breaker.getUsed();
+
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(file), Map.of(file, new HashMap<>()), future);
+        ExternalSourceResolution resolution = future.actionGet();
+
+        assertEquals(Set.of("value", "year", "month"), columnNames(resolution.resolvedSource(file).metadata().schema()));
         assertThat(metadataReads.get(), greaterThan(0));
         assertEquals(baseline, breaker.getUsed());
         assertEquals(0L, reservation.queryHeld());

@@ -754,4 +754,26 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
     public void testMatrixMinMaxFailFastFirstFileWins() throws Exception {
         assertWarmMatrixCell("m_minmax_fail_firs", "fail_fast", "first_file_wins", true);
     }
+
+    public void testMatrixCountFailFastFirstFileWins() throws Exception {
+        assertWarmMatrixCell("m_count_fail_firs", "fail_fast", "first_file_wins", false);
+    }
+
+    public void testMatrixCountNullFieldFirstFileWins() throws Exception {
+        assertWarmMatrixCell("m_count_null_firs", "null_field", "first_file_wins", false);
+    }
+
+    public void testMatrixCountNullFieldStrict() throws Exception {
+        assertWarmMatrixCell("m_count_null_stri", "null_field", "strict", false);
+    }
+
+    @AwaitsFix(bugUrl = "lenient reads stay off the warm path: warmsRowCountSafely is isStrict(), so a survivor count is never served")
+    public void testMatrixMinMaxSkipRowFirstFileWins() throws Exception {
+        assertWarmMatrixCell("m_minmax_skip_firs", "skip_row", "first_file_wins", true);
+    }
+
+    @AwaitsFix(bugUrl = "lenient reads stay off the warm path: warmsRowCountSafely is isStrict(), so a survivor count is never served")
+    public void testMatrixCountSkipRowFirstFileWins() throws Exception {
+        assertWarmMatrixCell("m_count_skip_firs", "skip_row", "first_file_wins", false);
+    }
 }

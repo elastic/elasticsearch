@@ -230,7 +230,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         Duration d = switch (o) {
             case Duration duration -> duration;
             // A number is a duration in seconds - a float literal, or a duration literal spelled with units, which the
-            // expression grammar already reads as its number of seconds; millisecond precision, like Prometheus.
+            // expression grammar already reads as its number of seconds; truncated to the millisecond, like Prometheus.
             case Number num -> {
                 double seconds = num.doubleValue();
                 if (Double.isFinite(seconds) == false || (positive && seconds <= 0)) {
@@ -240,7 +240,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
                 if (millis >= Long.MAX_VALUE) {
                     throw new ParsingException(source(ctx), "Duration out of range");
                 }
-                Duration duration = Duration.ofMillis(Math.round(millis));
+                Duration duration = Duration.ofMillis((long) millis);
                 // Validate the resulting duration is within acceptable range
                 validateDurationRange(source(ctx), duration);
                 yield duration;

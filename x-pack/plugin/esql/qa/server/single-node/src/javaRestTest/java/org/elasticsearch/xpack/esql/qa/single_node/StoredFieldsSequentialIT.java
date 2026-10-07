@@ -136,6 +136,7 @@ public class StoredFieldsSequentialIT extends ESRestTestCase {
                         .entry("inference_resolution", matchesMap().extraOk())
                         .entry("analysis", matchesMap().extraOk())
                         .entry("query", matchesMap().extraOk())
+                        .entry("planning_cpu_nanos", IntOrLongMatcher.isIntOrLong())
                         .entry("field_caps_calls", instanceOf(Integer.class))
                         .entry("unmapped_fields", instanceOf(String.class))
                         .entry("minimumTransportVersion", instanceOf(Integer.class))

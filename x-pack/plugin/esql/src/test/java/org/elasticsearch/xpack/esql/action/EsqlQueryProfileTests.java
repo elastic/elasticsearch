@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -55,7 +57,8 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomIntBetween(0, 1000)
+            randomIntBetween(0, 1000),
+            randomNonNegativeLong()
         );
     }
 
@@ -84,7 +87,8 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
         long externalResolutionBytes = instance.externalResolutionBytesRead();
         long externalResolutionRequests = instance.externalResolutionRequests();
         int splitDiscoveryProbes = instance.splitDiscoveryProbes();
-        switch (randomIntBetween(0, 22)) {
+        long planningCpu = instance.planningCpuNanos();
+        switch (randomIntBetween(0, 23)) {
             case 0 -> query = randomValueOtherThan(query, EsqlQueryProfileTests::randomTimeSpan);
             case 1 -> planning = randomValueOtherThan(planning, EsqlQueryProfileTests::randomTimeSpan);
             case 2 -> parsing = randomValueOtherThan(parsing, EsqlQueryProfileTests::randomTimeSpan);
@@ -108,6 +112,7 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
             case 20 -> externalResolutionBytes = randomValueOtherThan(externalResolutionBytes, ESTestCase::randomNonNegativeLong);
             case 21 -> externalResolutionRequests = randomValueOtherThan(externalResolutionRequests, ESTestCase::randomNonNegativeLong);
             case 22 -> splitDiscoveryProbes = randomValueOtherThan(splitDiscoveryProbes, () -> randomIntBetween(0, 1000));
+            case 23 -> planningCpu = randomValueOtherThan(planningCpu, ESTestCase::randomNonNegativeLong);
         }
         return new EsqlQueryProfile(
             query,
@@ -132,8 +137,26 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
             externalPlanningRequests,
             externalResolutionBytes,
             externalResolutionRequests,
-            splitDiscoveryProbes
+            splitDiscoveryProbes,
+            planningCpu
         );
+    }
+
+    public void testPlanningCpuNanosIsAdditiveAndAlwaysEmitted() throws IOException {
+        EsqlQueryProfile profile = new EsqlQueryProfile();
+        assertEquals(0L, profile.planningCpuNanos());
+        profile.addPlanningCpuNanos(5L);
+        profile.addPlanningCpuNanos(7L);
+        assertEquals(12L, profile.planningCpuNanos());
+        assertThat(toJson(profile), containsString("\"planning_cpu_nanos\":12"));
+        assertThat(toJson(new EsqlQueryProfile()), containsString("\"planning_cpu_nanos\":0"));
+    }
+
+    public void testPlanningCpuNanosNotSentToOlderNodes() throws IOException {
+        EsqlQueryProfile profile = createTestInstance();
+        TransportVersion older = TransportVersionUtils.randomVersionNotSupporting(EsqlQueryProfile.ESQL_PLANNING_CPU_NANOS);
+        EsqlQueryProfile copy = copyInstance(profile, older);
+        assertEquals(0L, copy.planningCpuNanos());
     }
 
     public void testAddExternalScanStatsIsAdditive() {

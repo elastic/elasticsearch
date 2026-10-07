@@ -1,0 +1,189 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.action;
+
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
+
+import java.util.concurrent.CountDownLatch;
+import java.util.function.LongSupplier;
+
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+
+public class PlanningCpuTrackerTests extends ESTestCase {
+
+    /** A per-thread CPU clock the test advances by hand. Each thread has its own counter, like ThreadMXBean. */
+    private static final class FakeCpuClock implements LongSupplier {
+        private final ThreadLocal<long[]> cpu = ThreadLocal.withInitial(() -> new long[1]);
+
+        void burn(long nanos) {
+            cpu.get()[0] += nanos;
+        }
+
+        @Override
+        public long getAsLong() {
+            return cpu.get()[0];
+        }
+    }
+
+    public void testSingleSample() {
+        FakeCpuClock clock = new FakeCpuClock();
+        PlanningCpuTracker tracker = new PlanningCpuTracker(clock);
+        clock.burn(5);
+        tracker.meteredCpu(() -> clock.burn(100));
+        clock.burn(7);
+        assertEquals(100L, tracker.cpuNanos());
+    }
+
+    public void testNestedSameTrackerCountsOnce() {
+        FakeCpuClock clock = new FakeCpuClock();
+        PlanningCpuTracker tracker = new PlanningCpuTracker(clock);
+        tracker.meteredCpu(() -> {
+            clock.burn(10);
+            tracker.meteredCpu(() -> clock.burn(20));
+            clock.burn(30);
+        });
+        assertEquals(60L, tracker.cpuNanos());
+    }
+
+    public void testForeignTrackerNestedInlinePausesOuter() {
+        FakeCpuClock clock = new FakeCpuClock();
+        PlanningCpuTracker a = new PlanningCpuTracker(clock);
+        PlanningCpuTracker b = new PlanningCpuTracker(clock);
+        a.meteredCpu(() -> {
+            clock.burn(10);
+            b.meteredCpu(() -> clock.burn(20));
+            clock.burn(30);
+        });
+        assertEquals(40L, a.cpuNanos());
+        assertEquals(20L, b.cpuNanos());
+    }
+
+    public void testFinishSettlesOpenSampleAndFreezes() {
+        FakeCpuClock clock = new FakeCpuClock();
+        PlanningCpuTracker tracker = new PlanningCpuTracker(clock);
+        long[] finished = new long[1];
+        tracker.meteredCpu(() -> {
+            clock.burn(10);
+            finished[0] = tracker.finish();
+            clock.burn(20); // execution continuing on the planning thread
+        });
+        assertEquals(10L, finished[0]);
+        assertEquals(10L, tracker.cpuNanos());
+        assertEquals(10L, tracker.finish());
+    }
+
+    public void testCheckpointSurvivesFinishOnAnotherThread() throws Exception {
+        FakeCpuClock clock = new FakeCpuClock();
+        PlanningCpuTracker tracker = new PlanningCpuTracker(clock);
+        CountDownLatch checkpointed = new CountDownLatch(1);
+        CountDownLatch finished = new CountDownLatch(1);
+        Thread worker = new Thread(() -> tracker.meteredCpu(() -> {
+            clock.burn(50);
+            tracker.checkpoint();
+            checkpointed.countDown();
+            try {
+                finished.await();
+            } catch (InterruptedException e) {
+                throw new AssertionError(e);
+            }
+            clock.burn(5); // after the signal: may be dropped
+        }));
+        worker.start();
+        checkpointed.await();
+        assertEquals(50L, tracker.finish());
+        finished.countDown();
+        worker.join();
+        assertEquals(50L, tracker.cpuNanos());
+    }
+
+    /** Documents the loss that {@code checkpoint()} exists to bound: a sample still open when another thread finishes is dropped. */
+    public void testSampleOpenAtFinishOnAnotherThreadIsDropped() throws Exception {
+        FakeCpuClock clock = new FakeCpuClock();
+        PlanningCpuTracker tracker = new PlanningCpuTracker(clock);
+        CountDownLatch burned = new CountDownLatch(1);
+        CountDownLatch finished = new CountDownLatch(1);
+        Thread worker = new Thread(() -> tracker.meteredCpu(() -> {
+            clock.burn(50);
+            burned.countDown();
+            try {
+                finished.await();
+            } catch (InterruptedException e) {
+                throw new AssertionError(e);
+            }
+        }));
+        worker.start();
+        burned.await();
+        assertEquals(0L, tracker.finish());
+        finished.countDown();
+        worker.join();
+        assertEquals(0L, tracker.cpuNanos());
+    }
+
+    public void testListenerMeteredOnCompletingThread() throws Exception {
+        FakeCpuClock clock = new FakeCpuClock();
+        PlanningCpuTracker tracker = new PlanningCpuTracker(clock);
+        ActionListener<String> inner = ActionListener.wrap(r -> clock.burn(70), e -> clock.burn(80));
+        ActionListener<String> metered = tracker.meteredCpu(inner);
+        Thread t1 = new Thread(() -> metered.onResponse("ok"));
+        t1.start();
+        t1.join();
+        assertEquals(70L, tracker.cpuNanos());
+        Thread t2 = new Thread(() -> metered.onFailure(new RuntimeException("boom")));
+        t2.start();
+        t2.join();
+        assertEquals(150L, tracker.cpuNanos());
+    }
+
+    public void testInheritMeteredCpu() throws Exception {
+        FakeCpuClock clock = new FakeCpuClock();
+        PlanningCpuTracker tracker = new PlanningCpuTracker(clock);
+        ActionListener<Void> inner = ActionListener.wrap(r -> clock.burn(9), e -> fail("unexpected failure"));
+        assertSame(inner, PlanningCpuTracker.inheritMeteredCpu(inner));
+        ActionListener<Void> inherited = tracker.meteredCpu(() -> PlanningCpuTracker.inheritMeteredCpu(inner));
+        assertNotSame(inner, inherited);
+        Thread t = new Thread(() -> inherited.onResponse(null));
+        t.start();
+        t.join();
+        assertEquals(9L, tracker.cpuNanos());
+    }
+
+    public void testThrowingWorkCommitsAndRestores() {
+        FakeCpuClock clock = new FakeCpuClock();
+        PlanningCpuTracker tracker = new PlanningCpuTracker(clock);
+        RuntimeException thrown = expectThrows(RuntimeException.class, () -> tracker.meteredCpu(() -> {
+            clock.burn(11);
+            throw new RuntimeException("boom");
+        }));
+        assertEquals("boom", thrown.getMessage());
+        assertEquals(11L, tracker.cpuNanos());
+        assertFalse(tracker.isMeteringCurrentThread());
+    }
+
+    public void testUnsupportedClock() {
+        PlanningCpuTracker tracker = new PlanningCpuTracker(() -> -1L);
+        tracker.meteredCpu(() -> {});
+        assertEquals(0L, tracker.cpuNanos());
+        assertTrue(tracker.isMeteringCurrentThread());
+        assertEquals(0L, tracker.finish());
+    }
+
+    public void testRealClockSmoke() {
+        assumeTrue("thread CPU time unsupported", ThreadCpuTimer.currentNanos() >= 0);
+        long target = 5_000_000L;
+        PlanningCpuTracker tracker = new PlanningCpuTracker();
+        tracker.meteredCpu(() -> {
+            long start = ThreadCpuTimer.currentNanos();
+            while (ThreadCpuTimer.elapsedNanos(start) < target) {
+                Thread.onSpinWait();
+            }
+        });
+        assertThat(tracker.cpuNanos(), greaterThanOrEqualTo(target));
+    }
+}

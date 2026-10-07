@@ -21,6 +21,7 @@ import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.flattened.KeyedFlattenedDocValuesBlockLoader;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.elasticsearch.test.IntOrLongMatcher;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -1600,6 +1601,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     .entry("inference_resolution", matchesMap().extraOk())
                     .entry("analysis", matchesMap().extraOk())
                     .entry("query", matchesMap().extraOk())
+                    .entry("planning_cpu_nanos", IntOrLongMatcher.isIntOrLong())
                     .entry("field_caps_calls", instanceOf(Integer.class))
                     .entry("unmapped_fields", instanceOf(String.class))
                     .entry("minimumTransportVersion", instanceOf(Integer.class))

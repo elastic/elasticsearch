@@ -15,6 +15,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
+import org.elasticsearch.test.IntOrLongMatcher;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -831,6 +832,7 @@ public class PushQueriesStringIT extends ESRestTestCase {
                     .entry("inference_resolution", matchesMap().extraOk())
                     .entry("analysis", matchesMap().extraOk())
                     .entry("query", matchesMap().extraOk())
+                    .entry("planning_cpu_nanos", IntOrLongMatcher.isIntOrLong())
                     .entry("field_caps_calls", instanceOf(Integer.class))
                     .entry("unmapped_fields", instanceOf(String.class))
                     .entry("minimumTransportVersion", instanceOf(Integer.class))

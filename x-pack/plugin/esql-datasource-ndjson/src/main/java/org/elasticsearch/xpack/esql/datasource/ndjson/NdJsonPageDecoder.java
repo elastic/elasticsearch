@@ -698,6 +698,7 @@ public class NdJsonPageDecoder implements Closeable {
             errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW
                 ? "Some rows in [" + sourceLocation + "] cannot be read; skipping them"
                 : "Some values in [" + sourceLocation + "] cannot be read; returning null, and skipping rows that cannot be parsed",
+            "Some values in [" + sourceLocation + "] cannot be read; " + SkipWarnings.REMOVED_FROM_MULTI_VALUE_OUTCOME,
             warningSink
         );
 
@@ -1566,6 +1567,20 @@ public class NdJsonPageDecoder implements Closeable {
          */
         @Nullable
         IdentityHashMap<String, BlockDecoder> identityCache;
+        /**
+         * A value of the JSON array filling this column's open entry failed under {@code null_field} and was dropped
+         * from it (see {@link #coercionFailure}). Lets {@link #endPositionEntry} tell an entry that every value
+         * failed out of, which must give up the cell it claimed, from one the array never addressed; and makes the
+         * cell cost the error budget once however many of its values fail. Cleared whenever the entry closes.
+         */
+        boolean droppedFromEntry;
+        /**
+         * Decoding a further spelling of an already-filled cell ({@link #appendFurtherOccurrence}) that is a scalar,
+         * not a JSON array. A failing scalar nulls the merged cell, as a failing first scalar spelling does, while a
+         * failing value of a JSON array is dropped from it whichever spelling it is, so the order of the spellings
+         * never decides what survives.
+         */
+        boolean inScalarFurtherOccurrence;
 
         /** The child decoder for one field-name segment, created on first use. */
         BlockDecoder child(String segment) {
@@ -1809,6 +1824,7 @@ public class NdJsonPageDecoder implements Closeable {
                 if (blockTracker.get(blockIdx) == false) {
                     blockBuilder.beginPositionEntry();
                 }
+                droppedFromEntry = false;
             }
             if (includeChildren && children != null) {
                 for (var child : children.values()) {
@@ -1830,10 +1846,19 @@ public class NdJsonPageDecoder implements Closeable {
                         // Claiming a null here would pin the cell, because reopenLastPositionEntry
                         // refuses to widen a null, so a later value would be dropped.
                         abb.cancelPositionEntry();
+                        if (droppedFromEntry) {
+                            // Every value the array gave this cell failed and was dropped: the same as an array
+                            // that gave it none, so it gives up the cell it claimed. An open empty entry was
+                            // opened by this array on an unclaimed cell (a claimed one reopens with its values),
+                            // so the claim was this array's own. The key was there, so the column was seen.
+                            blockTracker.clear(blockIdx);
+                            markColumnSeen(blockIdx);
+                        }
                     } else {
                         blockBuilder.endPositionEntry();
                     }
                 }
+                droppedFromEntry = false;
             }
             if (includeChildren && children != null) {
                 for (var child : children.values()) {
@@ -1845,8 +1870,10 @@ public class NdJsonPageDecoder implements Closeable {
         /**
          * Cancels the current position entry (rolling back all values appended since
          * {@link #beginPositionEntry}) and writes a null for this position instead. Used
-         * when a coercion failure poisoned an array: the whole position is nulled rather
-         * than committed as a partial multivalue, matching the columnar reader contract.
+         * when a failure poisoned the position: a value failing in a scalar further spelling of an
+         * already-filled cell (see {@link #appendFurtherOccurrence}), or a row {@code skip_row}
+         * drops. A value failing in a genuine array under {@code null_field} is instead dropped
+         * from the entry alone (see {@link #coercionFailure}).
          * <p>
          * A node that has no entry open (a prior spelling already committed the cell and this array never
          * wrote it, or a reopen refused because the cell is already null) is left alone:
@@ -1869,6 +1896,7 @@ public class NdJsonPageDecoder implements Closeable {
                         blockBuilder.appendNull();
                     }
                 }
+                droppedFromEntry = false;
             }
             if (includeChildren && children != null) {
                 for (var child : children.values()) {
@@ -1885,10 +1913,14 @@ public class NdJsonPageDecoder implements Closeable {
          * it is on ingest: the values appear in the order the record spells them.
          *
          * <p>A cell an error policy already nulled cannot be widened, so this occurrence is dropped: the policy has
-         * decided (and warned) that the column is null for this record. A failure in this occurrence nulls the whole
-         * cell, matching the array contract that a poisoned position is nulled rather than committed in part.
+         * decided (and warned) that the column is null for this record. A failing scalar occurrence nulls the whole
+         * cell, the outcome a failing first scalar spelling has: {@code {"a.b":1,"a":{"b":"bad"}}} and
+         * {@code {"a":{"b":"bad"},"a.b":1}} both read null. A failing value of an array occurrence is dropped from the
+         * cell under {@code null_field}, as it is from a first array spelling: {@code {"a":2,"a":[1,"bad"]}} reads
+         * {@code [2, 1]} and {@code {"a":[1,"bad"],"a":2}} reads {@code [1, 2]}.
          */
         private void appendFurtherOccurrence(JsonParser parser) throws IOException {
+            inScalarFurtherOccurrence = parser.currentToken() != JsonToken.START_ARRAY;
             try {
                 // Decoded as if this occurrence were an array element, so the reopen happens at the append site, on
                 // the first value that actually lands. That leaves the cell as the first occurrence committed it
@@ -1901,6 +1933,10 @@ public class NdJsonPageDecoder implements Closeable {
                 }
             } catch (PoisonedPositionException e) {
                 cancelAndNullPositionEntry(false);
+            } finally {
+                inScalarFurtherOccurrence = false;
+                // The occurrence's entry, if any, was closed above rather than by endPositionEntry.
+                droppedFromEntry = false;
             }
         }
 
@@ -2167,7 +2203,8 @@ public class NdJsonPageDecoder implements Closeable {
             }
             // Claims the cell. Every path below commits exactly one position for it: the decoded value, or the null
             // nullPolicyDecidedCell appends when the policy rejects the value. A further spelling of this column in
-            // the same record relies on that, since it reopens the position this bit promises.
+            // the same record relies on that, since it reopens the position this bit promises. The one exception is
+            // an array whose every value null_field dropped: endPositionEntry clears the bit again, committing nothing.
             blockTracker.set(blockIdx);
 
             // This node's own entry is open for every state that reaches here (CHILDREN returned above), so the leaf
@@ -2472,7 +2509,8 @@ public class NdJsonPageDecoder implements Closeable {
          * {@link DeclaredTypeCoercions#onCoercionFailure} the columnar readers call. This decoder owns its own
          * warning text and budget accounting, but to the SAME observable outcome, which is the contract that
          * matters across formats: {@link ErrorPolicy.Mode#FAIL_FAST} fails the query with an
-         * actionable message; {@link ErrorPolicy.Mode#NULL_FIELD} nulls this cell only and warns; and
+         * actionable message; {@link ErrorPolicy.Mode#NULL_FIELD} nulls this cell only and warns, or, for a value
+         * of a JSON array, drops that value from the cell and keeps the rest (a cell left with none reads null); and
          * {@link ErrorPolicy.Mode#SKIP_ROW} drops the whole record and warns (both subject to the error budget). Every
          * unrepresentable cell reaches this one sink: a bad value here, or a cross-kind token
          * ({@link #crossKindDrift}), for a DECLARED or an INFERRED column alike, so the observable outcome depends
@@ -2518,6 +2556,19 @@ public class NdJsonPageDecoder implements Closeable {
             // Both warn. crossKindDrift routes here too, for declared and inferred columns alike, so every
             // unrepresentable cell drops under skip_row uniformly.
             boolean skipRow = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW;
+            if (inArray && skipRow == false && inScalarFurtherOccurrence == false) {
+                // null_field inside a genuine array: drop this value and keep the rest, as the columnar readers do.
+                // The entry stays open; endPositionEntry (or appendFurtherOccurrence) commits the survivors, or the
+                // cell is given up if none survived. The array costs the budget once, however many of its values fail.
+                if (droppedFromEntry == false) {
+                    droppedFromEntry = true;
+                    chargeErrorBudget();
+                }
+                skipWarnings.addRemovedFromMultiValue(message);
+                checkErrorBudgetOrThrow();
+                logger.log(errorPolicy.logErrors() ? Level.INFO : Level.DEBUG, message);
+                return;
+            }
             nullPolicyDecidedCell(builder, inArray);
             if (skipRow) {
                 rowDroppedBySkipRow = true;
@@ -2527,9 +2578,10 @@ public class NdJsonPageDecoder implements Closeable {
             checkErrorBudgetOrThrow();
             logger.log(errorPolicy.logErrors() ? Level.INFO : Level.DEBUG, message);
             if (inArray) {
-                // Inside an array: throw to signal that the whole position must be nulled.
-                // The array decode loop catches PoisonedPositionException, drains remaining elements,
-                // and calls cancelAndNullPositionEntry to roll back any good elements already appended.
+                // A record skip_row drops, or a scalar further spelling of an already-filled cell: throw to signal that
+                // the whole position must be nulled. The array decode loop (or appendFurtherOccurrence) catches
+                // PoisonedPositionException, drains remaining elements, and rolls back any good elements already
+                // appended.
                 throw PoisonedPositionException.INSTANCE;
             }
         }
@@ -2562,8 +2614,9 @@ public class NdJsonPageDecoder implements Closeable {
     }
 
     /**
-     * Thrown by {@link BlockDecoder#coercionFailure} when a value inside a JSON array fails coercion,
-     * to signal that the entire array position must be nulled. Caught by the array decode loop in
+     * Thrown by {@link BlockDecoder#coercionFailure} when a value inside a JSON array fails coercion in a record
+     * {@code skip_row} drops, or a scalar further spelling of an already-filled cell fails, to signal that the entire array
+     * position must be nulled. Caught by {@link BlockDecoder#appendFurtherOccurrence} or the array decode loop in
      * {@link BlockDecoder#decodeValue}, which drains remaining elements and calls
      * {@link BlockDecoder#cancelAndNullPositionEntry}. Propagates through
      * {@link BlockDecoder#decodeObject} (which drains remaining fields and re-throws) so that a

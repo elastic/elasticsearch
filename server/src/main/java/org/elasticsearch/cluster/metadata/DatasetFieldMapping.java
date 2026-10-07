@@ -39,9 +39,11 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * physical name is the header column name; for <em>headerless</em> text the physical name is the positional alias
  * the reader assigns ({@code col0}, {@code col1}, …), so declared names there still bind by name. For
  * <em>columnar</em> formats (Parquet/ORC) the physical name comes from the footer. A declared name the file does
- * not supply reads null (CSV/TSV emit a warning; NDJSON and columnar formats read null silently); fewer declared
- * columns than the file leaves the extras unread. For columnar
- * formats a declared type that differs from the file's reconciled type is rejected at resolution.
+ * not supply reads null with a warning, under either {@code dynamic} value; fewer declared columns than the file
+ * leaves the extras unread. For columnar formats a declared type the resolved schema's type cannot be read as is
+ * rejected at resolution. Otherwise a declared type the file's values cannot be read as follows the dataset's
+ * {@code error_mode}: for columnar formats a whole column of one file (fail the query, null the column, or skip
+ * the file's rows), for the other formats each unreadable value.
  *
  * <p><b>Type is a plain String here on purpose.</b> {@link Dataset} lives in {@code server} and must not
  * depend on the ES|QL {@code DataType} enum (an x-pack type). The String is validated against the set of

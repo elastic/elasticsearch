@@ -319,6 +319,44 @@ public class ParquetColumnExtractorTests extends ESTestCase {
         }
     }
 
+    /**
+     * A DECLARED column whose file type cannot be read as declared (int64 for a declared ip) follows the policy on the
+     * deferred path as on the eager one: {@code fail_fast} fails, a lenient policy null-fills with one detail however
+     * many batches are extracted.
+     */
+    public void testDeferredDeclaredUncoercibleColumnFollowsErrorMode() throws IOException {
+        byte[] data = writeSingleInt64File(new long[] { 5L, 7L, 9L });
+        StorageObject so = createStorageObject(data);
+        ParquetFormatReader reader = (ParquetFormatReader) new ParquetFormatReader(blockFactory).withDeclaredTypeColumns(Set.of("v"));
+        long[] positions = { 0, 1, 2 };
+        try (ColumnExtractor extractor = new ParquetColumnExtractor(so, reader, loadFooter(so), ErrorPolicy.STRICT)) {
+            Exception e = expectThrows(
+                Exception.class,
+                () -> extractor.extract(new String[] { "v" }, new DataType[] { DataType.IP }, positions, blockFactory)
+            );
+            assertThat(e.getMessage(), containsString("cannot be read as its declared type [ip]"));
+        }
+        try (ColumnExtractor extractor = new ParquetColumnExtractor(so, reader, loadFooter(so), ErrorPolicy.PERMISSIVE)) {
+            for (int batch = 0; batch < 2; batch++) {
+                Block[] blocks = extractor.extract(new String[] { "v" }, new DataType[] { DataType.IP }, positions, blockFactory);
+                try (Block block = blocks[0]) {
+                    assertTrue(block.areAllValuesNull());
+                }
+            }
+        }
+        List<String> warnings = drainWarnings();
+        assertEquals(
+            "one detail across batches, got: " + warnings,
+            1,
+            warnings.stream().filter(w -> w.equals("column [v]: [long] in the file, [ip] in the query")).count()
+        );
+        assertTrue(
+            "the eager scan's summary, got: " + warnings,
+            warnings.stream()
+                .anyMatch(w -> w.startsWith("Some columns in [") && w.endsWith("] have a type the query cannot read; returning null"))
+        );
+    }
+
     public void testDeferredDeclaredCoercionWarningsRouteToSuppliedSink() throws IOException {
         // A declared long over unparseable string tokens null-fills each bad value on the deferred path and
         // records a per-value coercion Warning. When a driver-thread sink is supplied, every such warning must

@@ -3320,10 +3320,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         }
         if (coercionWarnings == null) {
             String outcome = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW ? "skipping their rows" : "returning null";
-            coercionWarnings = new SkipWarnings(
-                "Some values in [" + fileLocation + "] cannot be read as their declared type; " + outcome,
-                warningSink
-            );
+            String prefix = "Some values in [" + fileLocation + "] cannot be read as their declared type; ";
+            coercionWarnings = new SkipWarnings(prefix + outcome, prefix + SkipWarnings.REMOVED_FROM_MULTI_VALUE_OUTCOME, warningSink);
         }
         return coercionWarnings;
     }

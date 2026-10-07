@@ -1696,6 +1696,19 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     /**
+     * Under {@code null_field} a bracket element that does not parse is removed from its cell and the rest kept, on
+     * both bracket walkers: the fused projected one and the full-split ALL-scope one. {@link #valueAt} reads a cell's
+     * first value, so a leading bad element is what tells removal (the next element) from nulling (null).
+     */
+    public void testBracketElementFailureRemovesElementOnBothWalkers() throws IOException {
+        Map<String, Object> config = Map.of("multi_value_syntax", "brackets", "error_mode", "null_field", "max_errors", 100);
+        String content = "a:long,b:long\n1,[oops,2]\n2,[x,y]\n";
+        List<List<Object>> expected = List.of(row(1L, 2L), row(2L, null));
+        assertEquals(expected, read(false, config, nullField(), List.of("a", "b"), content));
+        assertEquals(expected, readAllScope(config, content));
+    }
+
+    /**
      * Reads with an ALL stats scope bound to a throwaway sink, which routes bracket parsing through the
      * full-split walker rather than the fused one. Only the direct-block arm is exercised (bracket mode is
      * not direct-eligible, so both arms parse identically); the golden assertion pins the value.

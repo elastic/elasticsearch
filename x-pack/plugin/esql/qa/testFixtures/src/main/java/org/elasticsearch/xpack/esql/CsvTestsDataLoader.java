@@ -1311,7 +1311,7 @@ public class CsvTestsDataLoader {
                             + indexName
                             + "\""
                             + (document.id() != null ? ", \"_id\": \"" + document.id() + "\"" : "")
-                            + (document.slice() != null ? ", \"" + SliceIndexing.PARAM_NAME + "\": \"" + document.slice() + "\"" : "")
+                            + (document.slice() != null ? ", \"" + SliceIndexing.FIELD_NAME + "\": \"" + document.slice() + "\"" : "")
                             + "}}\n"
                     );
                     builder.append(document.json());

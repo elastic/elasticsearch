@@ -23,14 +23,14 @@ setup:
       index:
         index: slice_pit_index
         id: "1"
-        slice: a
+        _slice: a
         body: { value: va }
 
   - do:
       index:
         index: slice_pit_index
         id: "1"
-        slice: b
+        _slice: b
         body: { value: vb }
 
   - do:
@@ -42,7 +42,7 @@ setup:
   - do:
       open_point_in_time:
         index: slice_pit_index
-        slice: _all
+        _slice: _all
         keep_alive: 5m
   - set: { id: point_in_time_all_id }
 
@@ -59,7 +59,7 @@ setup:
 
   - do:
       search:
-        slice: _all
+        _slice: _all
         body:
           size: 10
           query:
@@ -77,13 +77,13 @@ setup:
   - do:
       open_point_in_time:
         index: slice_pit_index
-        slice: a
+        _slice: a
         keep_alive: 5m
   - set: { id: point_in_time_a_id }
 
   - do:
       search:
-        slice: a
+        _slice: a
         body:
           size: 10
           query:
@@ -103,13 +103,13 @@ setup:
   - do:
       open_point_in_time:
         index: slice_pit_index
-        slice: b
+        _slice: b
         keep_alive: 5m
   - set: { id: point_in_time_b_id }
 
   - do:
       search:
-        slice: b
+        _slice: b
         body:
           size: 10
           query:
@@ -144,14 +144,14 @@ setup:
       index:
         index: slice_pit_open_index
         id: "1"
-        slice: a
+        _slice: a
         body: { value: va }
 
   - do:
       index:
         index: slice_pit_open_index
         id: "2"
-        slice: b
+        _slice: b
         body: { value: vb }
 
   - do:
@@ -161,14 +161,14 @@ setup:
   - do:
       open_point_in_time:
         index: slice_pit_open_index
-        slice: a
+        _slice: a
         keep_alive: 5m
   - match: { _shards.total: 1 }
   - set: { id: slice_a_pit_id }
 
   - do:
       search:
-        slice: a
+        _slice: a
         body:
           size: 10
           query:
@@ -188,7 +188,7 @@ setup:
   - do:
       open_point_in_time:
         index: slice_pit_open_index
-        slice: _all
+        _slice: _all
         keep_alive: 5m
   - match: { _shards.total: 2 }
   - set: { id: slice_all_pit_id }

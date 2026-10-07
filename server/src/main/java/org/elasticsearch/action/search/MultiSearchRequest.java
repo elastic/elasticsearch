@@ -56,7 +56,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
 public class MultiSearchRequest extends UntypedActionRequest implements CompositeIndicesRequest {
     public static final int MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT = 0;
     private static final String ROUTING_AND_SLICE_COMBINATION_ERROR =
-        "[routing] and [slice] cannot be combined in the same _msearch request";
+        "[routing] and [_slice] cannot be combined in the same _msearch request";
 
     private int maxConcurrentSearchRequests = 0;
     private final List<SearchRequest> requests = new ArrayList<>();
@@ -314,7 +314,7 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
                             }
                             searchRequest.routing(nodeStringValue(value, null));
                             routingProvided = true;
-                        } else if (SliceIndexing.PARAM_NAME.equals(entry.getKey())) {
+                        } else if (SliceIndexing.FIELD_NAME.equals(entry.getKey())) {
                             if (routingProvided || topLevelHasRouting) {
                                 throw new IllegalArgumentException(ROUTING_AND_SLICE_COMBINATION_ERROR);
                             }
@@ -394,14 +394,14 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
 
     private static SliceIndexing.ParsedRouting parseSearchRoutingOrSlice(String sliceValue) {
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalArgumentException("request does not support [slice]");
+            throw new IllegalArgumentException("request does not support [_slice]");
         }
         if (SliceIndexing.SLICE_ALL.equals(sliceValue)) {
             return new SliceIndexing.ParsedRouting(null, true);
         }
         final String[] slices = Strings.splitStringByCommaToArray(sliceValue);
         if (slices.length == 0) {
-            throw new IllegalArgumentException("invalid [slice] value: value must be non-empty");
+            throw new IllegalArgumentException("invalid [_slice] value: value must be non-empty");
         }
         for (String slice : slices) {
             SliceIndexing.validateUserSliceValue(slice);
@@ -463,7 +463,7 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
             xContentBuilder.field("preference", request.preference());
         }
         if (request.isRoutingFromSlice()) {
-            xContentBuilder.field(SliceIndexing.PARAM_NAME, request.searchSlice());
+            xContentBuilder.field(SliceIndexing.FIELD_NAME, request.searchSlice());
         } else if (request.routing() != null) {
             xContentBuilder.field("routing", request.routing());
         }

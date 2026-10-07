@@ -4042,7 +4042,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             String[] sliceValues = Strings.splitStringByCommaToArray(sliceRouting.trim());
             if (sliceValues.length == 0) {
-                throw new IllegalArgumentException("[" + SliceIndexing.PARAM_NAME + "] cannot be blank for KNN queries");
+                throw new IllegalArgumentException("[" + SliceIndexing.FIELD_NAME + "] cannot be blank for KNN queries");
             }
             final LinkedHashSet<String> uniqueSliceValues = new LinkedHashSet<>();
             for (String sliceValue : sliceValues) {
@@ -4059,11 +4059,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private static String validateSliceValue(String sliceValue) {
             final String value = sliceValue.trim();
             if (value.isEmpty()) {
-                throw new IllegalArgumentException("[" + SliceIndexing.PARAM_NAME + "] cannot be blank for KNN queries");
+                throw new IllegalArgumentException("[" + SliceIndexing.FIELD_NAME + "] cannot be blank for KNN queries");
             }
             if (SliceIndexing.SLICE_ALL.equals(value)) {
                 throw new IllegalArgumentException(
-                    "[" + SliceIndexing.PARAM_NAME + "] value [" + SliceIndexing.SLICE_ALL + "] is not supported for KNN"
+                    "[" + SliceIndexing.FIELD_NAME + "] value [" + SliceIndexing.SLICE_ALL + "] is not supported for KNN"
                 );
             }
             return value;

@@ -268,7 +268,7 @@ class BulkByPaginatedSearchParallelizationHelper {
                     IndexMetadata meta = projectMetadata.index(index);
                     if (meta != null && IndexSettings.SLICE_ENABLED.get(meta.getSettings())) {
                         throw new IllegalArgumentException(
-                            "[slice] is required when [index.slice.enabled] is true for "
+                            "[_slice] is required when [index.slice.enabled] is true for "
                                 + requestDescription
                                 + " targeting ["
                                 + indexName

@@ -35,6 +35,24 @@
               "description": "Default index for items which don't provide one"
             }
           }
+        },
+        {
+          "path": "/{index}/{_slice}/_bulk",
+          "methods": [
+            "POST",
+            "PUT"
+          ],
+          "parts": {
+            "index": {
+              "type": "string",
+              "description": "Default index for items which don't provide one"
+            },
+            "_slice": {
+              "type": "string",
+              "description": "Default slice identifier for a slice-enabled index (`index.slice.enabled=true`); applied to items that don't provide their own",
+              "feature_flag": "es.slice_indexing_feature_flag_enabled"
+            }
+          }
         }
       ]
     },

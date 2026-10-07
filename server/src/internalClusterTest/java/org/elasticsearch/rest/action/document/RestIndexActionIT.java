@@ -83,10 +83,9 @@ public class RestIndexActionIT extends ESIntegTestCase {
         String missingSliceBody = Streams.copyToString(
             new InputStreamReader(missingSliceException.getResponse().getEntity().getContent(), UTF_8)
         );
-        assertThat(missingSliceBody, containsString("[slice] is required when [index.slice.enabled] is true"));
+        assertThat(missingSliceBody, containsString("[_slice] is required when [index.slice.enabled] is true"));
 
-        Request invalidSlice = new Request("POST", "/slice-index-it/_doc/2");
-        invalidSlice.addParameter(SliceIndexing.PARAM_NAME, "_all");
+        Request invalidSlice = new Request("POST", "/slice-index-it/_all/_doc/2");
         invalidSlice.setJsonEntity("""
             {
               "field": "value"
@@ -95,10 +94,9 @@ public class RestIndexActionIT extends ESIntegTestCase {
         String invalidSliceBody = Streams.copyToString(
             new InputStreamReader(invalidSliceException.getResponse().getEntity().getContent(), UTF_8)
         );
-        assertThat(invalidSliceBody, containsString("invalid [slice] value"));
+        assertThat(invalidSliceBody, containsString("invalid [_slice] value"));
 
-        Request validSlice = new Request("POST", "/slice-index-it/_doc/3");
-        validSlice.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request validSlice = new Request("POST", "/slice-index-it/s1/_doc/3");
         validSlice.setJsonEntity("""
             {
               "field": "value"
@@ -119,15 +117,14 @@ public class RestIndexActionIT extends ESIntegTestCase {
             }""");
         getRestClient().performRequest(create);
 
-        Request request = new Request("POST", "/slice-index-disabled/_doc/1");
-        request.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request request = new Request("POST", "/slice-index-disabled/s1/_doc/1");
         request.setJsonEntity("""
             {
               "field": "value"
             }""");
         ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
         String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
-        assertThat(response, containsString("[slice] is not allowed when [index.slice.enabled] is false"));
+        assertThat(response, containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
     }
 
     public void testRoutingRejectedWhenSliceEnabled() throws Exception {
@@ -150,20 +147,19 @@ public class RestIndexActionIT extends ESIntegTestCase {
         ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
         String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
         assertThat(response, containsString("[routing] is not allowed when [index.slice.enabled] is true"));
-        assertThat(response, containsString("use [slice] instead"));
+        assertThat(response, containsString("use [_slice] instead"));
     }
 
     public void testSliceParamRejectedWhenFeatureFlagDisabled() throws Exception {
         assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        Request request = new Request("POST", "/test_index/_doc/1");
-        request.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request request = new Request("POST", "/test_index/s1/_doc/1");
         request.setJsonEntity("""
             {
               "field": "value"
             }""");
         ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
         String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
-        assertThat(response, containsString("request does not support [slice]"));
+        assertThat(response, containsString("request does not support [_slice]"));
     }
 
     public void testSliceFieldAliasWorksForQueries() throws Exception {
@@ -177,24 +173,21 @@ public class RestIndexActionIT extends ESIntegTestCase {
             }""");
         getRestClient().performRequest(create);
 
-        Request index1 = new Request("POST", "/slice-query-filter-it/_doc/1");
-        index1.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request index1 = new Request("POST", "/slice-query-filter-it/s1/_doc/1");
         index1.setJsonEntity("""
             {
               "field": "a"
             }""");
         getRestClient().performRequest(index1);
 
-        Request index2 = new Request("POST", "/slice-query-filter-it/_doc/2");
-        index2.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request index2 = new Request("POST", "/slice-query-filter-it/s1/_doc/2");
         index2.setJsonEntity("""
             {
               "field": "b"
             }""");
         getRestClient().performRequest(index2);
 
-        Request index3 = new Request("POST", "/slice-query-filter-it/_doc/3");
-        index3.addParameter(SliceIndexing.PARAM_NAME, "s2");
+        Request index3 = new Request("POST", "/slice-query-filter-it/s2/_doc/3");
         index3.setJsonEntity("""
             {
               "field": "c"
@@ -203,8 +196,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
 
         getRestClient().performRequest(new Request("POST", "/slice-query-filter-it/_refresh"));
 
-        Request filterBySlice = new Request("GET", "/slice-query-filter-it/_search");
-        filterBySlice.addParameter(SliceIndexing.PARAM_NAME, SliceIndexing.SLICE_ALL);
+        Request filterBySlice = new Request("GET", "/slice-query-filter-it/_all/_search");
         filterBySlice.setJsonEntity("""
             {
               "size": 0,
@@ -218,8 +210,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
         ObjectPath filterResponsePath = ObjectPath.createFromResponse(filterResponse);
         assertThat(filterResponsePath.evaluate("hits.total.value"), equalTo(2));
 
-        Request prefixBySlice = new Request("GET", "/slice-query-filter-it/_search");
-        prefixBySlice.addParameter(SliceIndexing.PARAM_NAME, SliceIndexing.SLICE_ALL);
+        Request prefixBySlice = new Request("GET", "/slice-query-filter-it/_all/_search");
         prefixBySlice.setJsonEntity("""
             {
               "size": 0,
@@ -331,8 +322,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
             }""");
         getRestClient().performRequest(create);
 
-        Request indexDoc = new Request("POST", "/slice-search-url-required-it/_doc/1");
-        indexDoc.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request indexDoc = new Request("POST", "/slice-search-url-required-it/s1/_doc/1");
         indexDoc.setJsonEntity("""
             {
               "field": "value"
@@ -363,8 +353,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
             }""");
         getRestClient().performRequest(create);
 
-        Request indexDoc = new Request("POST", "/slice-search-url-routing-rejected-it/_doc/1");
-        indexDoc.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request indexDoc = new Request("POST", "/slice-search-url-routing-rejected-it/s1/_doc/1");
         indexDoc.setJsonEntity("""
             {
               "field": "value"
@@ -383,7 +372,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
         ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(searchWithRouting));
         String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
         assertThat(response, containsString("[routing] is not allowed when [index.slice.enabled] is true"));
-        assertThat(response, containsString("use [slice] instead"));
+        assertThat(response, containsString("use [_slice] instead"));
     }
 
     public void testCountUrlWithoutSliceDefaultsToAllWhenSliceEnabled() throws Exception {
@@ -398,8 +387,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
             }""");
         getRestClient().performRequest(create);
 
-        Request indexDoc = new Request("POST", "/slice-count-url-required-it/_doc/1");
-        indexDoc.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request indexDoc = new Request("POST", "/slice-count-url-required-it/s1/_doc/1");
         indexDoc.setJsonEntity("""
             {
               "field": "value"
@@ -430,8 +418,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
             }""");
         getRestClient().performRequest(create);
 
-        Request indexDoc = new Request("POST", "/slice-count-url-routing-rejected-it/_doc/1");
-        indexDoc.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request indexDoc = new Request("POST", "/slice-count-url-routing-rejected-it/s1/_doc/1");
         indexDoc.setJsonEntity("""
             {
               "field": "value"
@@ -450,7 +437,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
         ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(countWithRouting));
         String countError = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
         assertThat(countError, containsString("[routing] is not allowed when [index.slice.enabled] is true"));
-        assertThat(countError, containsString("use [slice] instead"));
+        assertThat(countError, containsString("use [_slice] instead"));
     }
 
     public void testCountUrlSliceFilterIsAdditiveToQueryFilter() throws Exception {
@@ -465,24 +452,21 @@ public class RestIndexActionIT extends ESIntegTestCase {
             }""");
         getRestClient().performRequest(create);
 
-        Request indexS1MatchingQuery = new Request("POST", "/slice-count-url-additive-filter-it/_doc/1");
-        indexS1MatchingQuery.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request indexS1MatchingQuery = new Request("POST", "/slice-count-url-additive-filter-it/s1/_doc/1");
         indexS1MatchingQuery.setJsonEntity("""
             {
               "category": 1
             }""");
         getRestClient().performRequest(indexS1MatchingQuery);
 
-        Request indexS1NonMatchingQuery = new Request("POST", "/slice-count-url-additive-filter-it/_doc/2");
-        indexS1NonMatchingQuery.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request indexS1NonMatchingQuery = new Request("POST", "/slice-count-url-additive-filter-it/s1/_doc/2");
         indexS1NonMatchingQuery.setJsonEntity("""
             {
               "category": 2
             }""");
         getRestClient().performRequest(indexS1NonMatchingQuery);
 
-        Request indexS2MatchingQuery = new Request("POST", "/slice-count-url-additive-filter-it/_doc/3");
-        indexS2MatchingQuery.addParameter(SliceIndexing.PARAM_NAME, "s2");
+        Request indexS2MatchingQuery = new Request("POST", "/slice-count-url-additive-filter-it/s2/_doc/3");
         indexS2MatchingQuery.setJsonEntity("""
             {
               "category": 1
@@ -490,8 +474,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
         getRestClient().performRequest(indexS2MatchingQuery);
         getRestClient().performRequest(new Request("POST", "/slice-count-url-additive-filter-it/_refresh"));
 
-        Request countWithSliceAndQuery = new Request("GET", "/slice-count-url-additive-filter-it/_count");
-        countWithSliceAndQuery.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request countWithSliceAndQuery = new Request("GET", "/slice-count-url-additive-filter-it/s1/_count");
         countWithSliceAndQuery.setJsonEntity("""
             {
               "query": {
@@ -519,8 +502,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
             }""");
         getRestClient().performRequest(create);
 
-        Request indexDoc = new Request("POST", "/slice-search-pit-it/_doc/1");
-        indexDoc.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request indexDoc = new Request("POST", "/slice-search-pit-it/s1/_doc/1");
         indexDoc.setJsonEntity("""
             {
               "field": "value"
@@ -559,8 +541,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
         getRestClient().performRequest(indexDoc);
         getRestClient().performRequest(new Request("POST", "/slice-search-url-disabled-it/_refresh"));
 
-        Request searchWithSlice = new Request("GET", "/slice-search-url-disabled-it/_search");
-        searchWithSlice.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request searchWithSlice = new Request("GET", "/slice-search-url-disabled-it/s1/_search");
         searchWithSlice.setJsonEntity("""
             {
               "query": {
@@ -569,7 +550,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
             }""");
         ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(searchWithSlice));
         String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
-        assertThat(response, containsString("[slice] is not allowed when [index.slice.enabled] is false"));
+        assertThat(response, containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
     }
 
     public void testSearchUrlSliceAcceptedForMixedIndicesAndAppliesGlobalFilter() throws Exception {
@@ -593,15 +574,13 @@ public class RestIndexActionIT extends ESIntegTestCase {
             }""");
         getRestClient().performRequest(createDisabled);
 
-        Request indexS1 = new Request("POST", "/slice-search-url-mixed-enabled-it/_doc/1");
-        indexS1.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request indexS1 = new Request("POST", "/slice-search-url-mixed-enabled-it/s1/_doc/1");
         indexS1.setJsonEntity("""
             {
               "field": "a"
             }""");
         getRestClient().performRequest(indexS1);
-        Request indexS2 = new Request("POST", "/slice-search-url-mixed-enabled-it/_doc/2");
-        indexS2.addParameter(SliceIndexing.PARAM_NAME, "s2");
+        Request indexS2 = new Request("POST", "/slice-search-url-mixed-enabled-it/s2/_doc/2");
         indexS2.setJsonEntity("""
             {
               "field": "b"
@@ -618,8 +597,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
             new Request("POST", "/slice-search-url-mixed-enabled-it,slice-search-url-mixed-disabled-it/_refresh")
         );
 
-        Request searchWithSlice = new Request("GET", "/slice-search-url-mixed-enabled-it,slice-search-url-mixed-disabled-it/_search");
-        searchWithSlice.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request searchWithSlice = new Request("GET", "/slice-search-url-mixed-enabled-it/s1/_search");
         searchWithSlice.setJsonEntity("""
             {
               "query": {
@@ -646,24 +624,21 @@ public class RestIndexActionIT extends ESIntegTestCase {
             }""");
         getRestClient().performRequest(create);
 
-        Request indexS1MatchingQuery = new Request("POST", "/slice-search-url-additive-filter-it/_doc/1");
-        indexS1MatchingQuery.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request indexS1MatchingQuery = new Request("POST", "/slice-search-url-additive-filter-it/s1/_doc/1");
         indexS1MatchingQuery.setJsonEntity("""
             {
               "category": 1
             }""");
         getRestClient().performRequest(indexS1MatchingQuery);
 
-        Request indexS1NonMatchingQuery = new Request("POST", "/slice-search-url-additive-filter-it/_doc/2");
-        indexS1NonMatchingQuery.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request indexS1NonMatchingQuery = new Request("POST", "/slice-search-url-additive-filter-it/s1/_doc/2");
         indexS1NonMatchingQuery.setJsonEntity("""
             {
               "category": 2
             }""");
         getRestClient().performRequest(indexS1NonMatchingQuery);
 
-        Request indexS2MatchingQuery = new Request("POST", "/slice-search-url-additive-filter-it/_doc/3");
-        indexS2MatchingQuery.addParameter(SliceIndexing.PARAM_NAME, "s2");
+        Request indexS2MatchingQuery = new Request("POST", "/slice-search-url-additive-filter-it/s2/_doc/3");
         indexS2MatchingQuery.setJsonEntity("""
             {
               "category": 1
@@ -671,8 +646,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
         getRestClient().performRequest(indexS2MatchingQuery);
         getRestClient().performRequest(new Request("POST", "/slice-search-url-additive-filter-it/_refresh"));
 
-        Request searchWithSliceAndQuery = new Request("GET", "/slice-search-url-additive-filter-it/_search");
-        searchWithSliceAndQuery.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request searchWithSliceAndQuery = new Request("GET", "/slice-search-url-additive-filter-it/s1/_search");
         searchWithSliceAndQuery.setJsonEntity("""
             {
               "query": {
@@ -699,8 +673,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
             }""");
         getRestClient().performRequest(create);
 
-        Request indexS1 = new Request("POST", "/slice-search-url-multiple-values-it/_doc/1");
-        indexS1.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request indexS1 = new Request("POST", "/slice-search-url-multiple-values-it/s1/_doc/1");
         indexS1.setJsonEntity("""
             {
               "field": "a",
@@ -708,8 +681,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
             }""");
         getRestClient().performRequest(indexS1);
 
-        Request indexS2 = new Request("POST", "/slice-search-url-multiple-values-it/_doc/2");
-        indexS2.addParameter(SliceIndexing.PARAM_NAME, "s2");
+        Request indexS2 = new Request("POST", "/slice-search-url-multiple-values-it/s2/_doc/2");
         indexS2.setJsonEntity("""
             {
               "field": "b",
@@ -717,8 +689,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
             }""");
         getRestClient().performRequest(indexS2);
 
-        Request indexS3 = new Request("POST", "/slice-search-url-multiple-values-it/_doc/3");
-        indexS3.addParameter(SliceIndexing.PARAM_NAME, "s3");
+        Request indexS3 = new Request("POST", "/slice-search-url-multiple-values-it/s3/_doc/3");
         indexS3.setJsonEntity("""
             {
               "field": "c",
@@ -727,8 +698,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
         getRestClient().performRequest(indexS3);
         getRestClient().performRequest(new Request("POST", "/slice-search-url-multiple-values-it/_refresh"));
 
-        Request searchWithMultipleSlices = new Request("GET", "/slice-search-url-multiple-values-it/_search");
-        searchWithMultipleSlices.addParameter(SliceIndexing.PARAM_NAME, "s1,s2");
+        Request searchWithMultipleSlices = new Request("GET", "/slice-search-url-multiple-values-it/s1,s2/_search");
         searchWithMultipleSlices.setJsonEntity("""
             {
               "query": {
@@ -761,8 +731,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
             }""");
         getRestClient().performRequest(create);
 
-        Request indexS1 = new Request("POST", "/slice-search-url-all-slices-it/_doc/1");
-        indexS1.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request indexS1 = new Request("POST", "/slice-search-url-all-slices-it/s1/_doc/1");
         indexS1.setJsonEntity("""
             {
               "field": "a",
@@ -770,8 +739,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
             }""");
         getRestClient().performRequest(indexS1);
 
-        Request indexS2 = new Request("POST", "/slice-search-url-all-slices-it/_doc/2");
-        indexS2.addParameter(SliceIndexing.PARAM_NAME, "s2");
+        Request indexS2 = new Request("POST", "/slice-search-url-all-slices-it/s2/_doc/2");
         indexS2.setJsonEntity("""
             {
               "field": "b",
@@ -779,8 +747,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
             }""");
         getRestClient().performRequest(indexS2);
 
-        Request indexS3 = new Request("POST", "/slice-search-url-all-slices-it/_doc/3");
-        indexS3.addParameter(SliceIndexing.PARAM_NAME, "s3");
+        Request indexS3 = new Request("POST", "/slice-search-url-all-slices-it/s3/_doc/3");
         indexS3.setJsonEntity("""
             {
               "field": "c",
@@ -789,8 +756,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
         getRestClient().performRequest(indexS3);
         getRestClient().performRequest(new Request("POST", "/slice-search-url-all-slices-it/_refresh"));
 
-        Request searchAllSlices = new Request("GET", "/slice-search-url-all-slices-it/_search");
-        searchAllSlices.addParameter(SliceIndexing.PARAM_NAME, SliceIndexing.SLICE_ALL);
+        Request searchAllSlices = new Request("GET", "/slice-search-url-all-slices-it/_all/_search");
         searchAllSlices.setJsonEntity("""
             {
               "query": {
@@ -823,8 +789,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
             }""");
         getRestClient().performRequest(create);
 
-        Request index = new Request("POST", "/slice-get-delete-enabled/_doc/1");
-        index.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request index = new Request("POST", "/slice-get-delete-enabled/s1/_doc/1");
         index.setJsonEntity("""
             {
               "field": "value"
@@ -839,10 +804,9 @@ public class RestIndexActionIT extends ESIntegTestCase {
         String missingGetSliceResponse = Streams.copyToString(
             new InputStreamReader(missingGetSliceException.getResponse().getEntity().getContent(), UTF_8)
         );
-        assertThat(missingGetSliceResponse, containsString("[slice] is required when [index.slice.enabled] is true"));
+        assertThat(missingGetSliceResponse, containsString("[_slice] is required when [index.slice.enabled] is true"));
 
-        Request getWithSlice = new Request("GET", "/slice-get-delete-enabled/_doc/1");
-        getWithSlice.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request getWithSlice = new Request("GET", "/slice-get-delete-enabled/s1/_doc/1");
         Response getResponse = getRestClient().performRequest(getWithSlice);
         ObjectPath getResponsePath = ObjectPath.createFromResponse(getResponse);
         assertThat(getResponsePath.evaluate("found"), equalTo(true));
@@ -855,10 +819,9 @@ public class RestIndexActionIT extends ESIntegTestCase {
         String missingDeleteSliceResponse = Streams.copyToString(
             new InputStreamReader(missingDeleteSliceException.getResponse().getEntity().getContent(), UTF_8)
         );
-        assertThat(missingDeleteSliceResponse, containsString("[slice] is required when [index.slice.enabled] is true"));
+        assertThat(missingDeleteSliceResponse, containsString("[_slice] is required when [index.slice.enabled] is true"));
 
-        Request deleteWithSlice = new Request("DELETE", "/slice-get-delete-enabled/_doc/1");
-        deleteWithSlice.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request deleteWithSlice = new Request("DELETE", "/slice-get-delete-enabled/s1/_doc/1");
         Response deleteResponse = getRestClient().performRequest(deleteWithSlice);
         ObjectPath deleteResponsePath = ObjectPath.createFromResponse(deleteResponse);
         assertThat(deleteResponsePath.evaluate("result"), equalTo("deleted"));
@@ -876,8 +839,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
             }""");
         getRestClient().performRequest(createEnabled);
 
-        Request indexEnabled = new Request("POST", "/slice-explain-enabled/_doc/1");
-        indexEnabled.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request indexEnabled = new Request("POST", "/slice-explain-enabled/s1/_doc/1");
         indexEnabled.setJsonEntity("""
             {
               "field": "value"
@@ -899,7 +861,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
         String missingSliceResponse = Streams.copyToString(
             new InputStreamReader(missingSliceException.getResponse().getEntity().getContent(), UTF_8)
         );
-        assertThat(missingSliceResponse, containsString("[slice] is required when [index.slice.enabled] is true"));
+        assertThat(missingSliceResponse, containsString("[_slice] is required when [index.slice.enabled] is true"));
 
         Request explainWithRouting = new Request("GET", "/slice-explain-enabled/_explain/1");
         explainWithRouting.addParameter("routing", "r1");
@@ -917,10 +879,9 @@ public class RestIndexActionIT extends ESIntegTestCase {
             new InputStreamReader(routingException.getResponse().getEntity().getContent(), UTF_8)
         );
         assertThat(routingResponse, containsString("[routing] is not allowed when [index.slice.enabled] is true"));
-        assertThat(routingResponse, containsString("use [slice] instead"));
+        assertThat(routingResponse, containsString("use [_slice] instead"));
 
-        Request explainWithSlice = new Request("GET", "/slice-explain-enabled/_explain/1");
-        explainWithSlice.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request explainWithSlice = new Request("GET", "/slice-explain-enabled/s1/_explain/1");
         explainWithSlice.setJsonEntity("""
             {
               "query": {
@@ -931,8 +892,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
         ObjectPath explainObjectPath = ObjectPath.createFromResponse(explainResponse);
         assertThat(explainObjectPath.evaluate("matched"), equalTo(true));
 
-        Request explainWithWrongSlice = new Request("GET", "/slice-explain-enabled/_explain/1");
-        explainWithWrongSlice.addParameter(SliceIndexing.PARAM_NAME, "s2");
+        Request explainWithWrongSlice = new Request("GET", "/slice-explain-enabled/s2/_explain/1");
         explainWithWrongSlice.setJsonEntity("""
             {
               "query": {
@@ -966,8 +926,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
         getRestClient().performRequest(indexDisabled);
         getRestClient().performRequest(new Request("POST", "/slice-explain-disabled/_refresh"));
 
-        Request explainWithSliceOnDisabled = new Request("GET", "/slice-explain-disabled/_explain/1");
-        explainWithSliceOnDisabled.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request explainWithSliceOnDisabled = new Request("GET", "/slice-explain-disabled/s1/_explain/1");
         explainWithSliceOnDisabled.setJsonEntity("""
             {
               "query": {
@@ -981,7 +940,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
         String disabledSliceResponse = Streams.copyToString(
             new InputStreamReader(disabledSliceException.getResponse().getEntity().getContent(), UTF_8)
         );
-        assertThat(disabledSliceResponse, containsString("[slice] is not allowed when [index.slice.enabled] is false"));
+        assertThat(disabledSliceResponse, containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
     }
 
     public void testSliceRejectedForGetAndDeleteWhenSettingDisabled() throws Exception {
@@ -1002,17 +961,15 @@ public class RestIndexActionIT extends ESIntegTestCase {
             }""");
         getRestClient().performRequest(index);
 
-        Request getWithSlice = new Request("GET", "/slice-get-delete-disabled/_doc/1");
-        getWithSlice.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request getWithSlice = new Request("GET", "/slice-get-delete-disabled/s1/_doc/1");
         ResponseException getException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(getWithSlice));
         String getResponse = Streams.copyToString(new InputStreamReader(getException.getResponse().getEntity().getContent(), UTF_8));
-        assertThat(getResponse, containsString("[slice] is not allowed when [index.slice.enabled] is false"));
+        assertThat(getResponse, containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
 
-        Request deleteWithSlice = new Request("DELETE", "/slice-get-delete-disabled/_doc/1");
-        deleteWithSlice.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request deleteWithSlice = new Request("DELETE", "/slice-get-delete-disabled/s1/_doc/1");
         ResponseException deleteException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(deleteWithSlice));
         String deleteResponse = Streams.copyToString(new InputStreamReader(deleteException.getResponse().getEntity().getContent(), UTF_8));
-        assertThat(deleteResponse, containsString("[slice] is not allowed when [index.slice.enabled] is false"));
+        assertThat(deleteResponse, containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
     }
 
     public void testSliceBehaviorRespectsIndexTemplateSetting() throws Exception {
@@ -1033,8 +990,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
             }""", disabledPattern));
         getRestClient().performRequest(putDisabledTemplate);
 
-        Request disabledSliceWrite = new Request("POST", "/" + disabledIndex + "/_doc/1");
-        disabledSliceWrite.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request disabledSliceWrite = new Request("POST", "/" + disabledIndex + "/s1/_doc/1");
         disabledSliceWrite.setJsonEntity("""
             {
               "field": "value"
@@ -1046,7 +1002,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
         String disabledResponse = Streams.copyToString(
             new InputStreamReader(disabledException.getResponse().getEntity().getContent(), UTF_8)
         );
-        assertThat(disabledResponse, containsString("[slice] is not allowed when [index.slice.enabled] is false"));
+        assertThat(disabledResponse, containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
 
         final String enabledTemplateName = "slice-template-enabled-" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
         final String enabledPattern = "slice-template-enabled-" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT) + "-*";
@@ -1063,8 +1019,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
             }""", enabledPattern));
         getRestClient().performRequest(putEnabledTemplate);
 
-        Request enabledSliceWrite = new Request("POST", "/" + enabledIndex + "/_doc/1");
-        enabledSliceWrite.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request enabledSliceWrite = new Request("POST", "/" + enabledIndex + "/s1/_doc/1");
         enabledSliceWrite.setJsonEntity("""
             {
               "field": "value"
@@ -1111,10 +1066,9 @@ public class RestIndexActionIT extends ESIntegTestCase {
             String missingSliceBody = Streams.copyToString(
                 new InputStreamReader(missingSliceException.getResponse().getEntity().getContent(), UTF_8)
             );
-            assertThat(missingSliceBody, containsString("[slice] is required when [index.slice.enabled] is true"));
+            assertThat(missingSliceBody, containsString("[_slice] is required when [index.slice.enabled] is true"));
 
-            Request validSlice = new Request("POST", "/slice-provenance-enabled/_doc/2");
-            validSlice.addParameter(SliceIndexing.PARAM_NAME, "s1");
+            Request validSlice = new Request("POST", "/slice-provenance-enabled/s1/_doc/2");
             validSlice.setJsonEntity("""
                 {
                   "field": "value"
@@ -1132,8 +1086,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
                 }""");
             restClient.performRequest(createDisabled);
 
-            Request disabledSlice = new Request("POST", "/slice-provenance-disabled/_doc/1");
-            disabledSlice.addParameter(SliceIndexing.PARAM_NAME, "s1");
+            Request disabledSlice = new Request("POST", "/slice-provenance-disabled/s1/_doc/1");
             disabledSlice.setJsonEntity("""
                 {
                   "field": "value"
@@ -1145,7 +1098,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
             String disabledSliceBody = Streams.copyToString(
                 new InputStreamReader(disabledSliceException.getResponse().getEntity().getContent(), UTF_8)
             );
-            assertThat(disabledSliceBody, containsString("[slice] is not allowed when [index.slice.enabled] is false"));
+            assertThat(disabledSliceBody, containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
         } finally {
             restClient.setNodes(originalNodes);
         }

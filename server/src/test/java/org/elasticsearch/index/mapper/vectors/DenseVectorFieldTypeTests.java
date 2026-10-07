@@ -1091,7 +1091,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 "   "
             )
         );
-        assertThat(exception.getMessage(), containsString("[slice] cannot be blank for KNN queries"));
+        assertThat(exception.getMessage(), containsString("[_slice] cannot be blank for KNN queries"));
     }
 
     public void testBBQIVFRejectsSliceAllForKnn() {
@@ -1113,7 +1113,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 "_all"
             )
         );
-        assertThat(exception.getMessage(), containsString("[slice] value [_all] is not supported for KNN"));
+        assertThat(exception.getMessage(), containsString("[_slice] value [_all] is not supported for KNN"));
     }
 
     public void testBBQIVFUsesSlicedQueryForMultiSliceRouting() {

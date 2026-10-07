@@ -268,8 +268,7 @@ public class GoogleCloudStorageService {
                 if (ExceptionsHelper.unwrap(prevThrowable, SocketException.class) != null) {
                     return true;
                 }
-                // TLS handshake failures are SSLExceptions, not SocketExceptions. S3 and Azure retry them. A retry also covers the
-                // transient JDK X500Principal publication race on aarch64 (https://github.com/elastic/elasticsearch/issues/160280).
+                // TLS handshake failures are SSLExceptions, not SocketExceptions. S3 and Azure retry them too.
                 if (ExceptionsHelper.unwrap(prevThrowable, SSLException.class) != null) {
                     return true;
                 }

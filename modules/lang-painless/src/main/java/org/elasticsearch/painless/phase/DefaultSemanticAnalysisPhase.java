@@ -73,6 +73,7 @@ import org.elasticsearch.painless.node.SReturn;
 import org.elasticsearch.painless.node.SThrow;
 import org.elasticsearch.painless.node.STry;
 import org.elasticsearch.painless.node.SWhile;
+import org.elasticsearch.painless.spi.annotation.AllocatesAnnotation;
 import org.elasticsearch.painless.spi.annotation.DynamicTypeAnnotation;
 import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
 import org.elasticsearch.painless.spi.annotation.ScriptAwareAnnotation;
@@ -2683,14 +2684,25 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
      * getter/setter method on a type, or a getter/setter for a Map or List.
      * Checks: type validation, method resolution, field resolution
      */
-    /** Whether some allowlisted class has a {@code @script_aware} getter for the shortcut {@code name}. */
-    static boolean hasScriptAwareGetter(PainlessLookup painlessLookup, String name) {
+    /**
+     * Whether a def load of the shortcut {@code name} must pass the script instance: some allowlisted class has a
+     * {@code @script_aware} getter for it, or tracking is on and some class has a getter for it with an {@code @allocates}
+     * estimator to charge.
+     */
+    static boolean defGetterNeedsScript(ScriptScope scriptScope, String name) {
+        PainlessLookup painlessLookup = scriptScope.getPainlessLookup();
+        return hasAnnotatedGetter(painlessLookup, ScriptAwareAnnotation.class, name)
+            || (scriptScope.getCompilerSettings().isAllocationTrackingEnabled()
+                && hasAnnotatedGetter(painlessLookup, AllocatesAnnotation.class, name));
+    }
+
+    private static boolean hasAnnotatedGetter(PainlessLookup painlessLookup, Class<?> annotationType, String name) {
         if (name.isEmpty()) {
             return false;
         }
         String suffix = Character.toUpperCase(name.charAt(0)) + name.substring(1);
-        return painlessLookup.hasAnnotationAwareMethod(ScriptAwareAnnotation.class, "get" + suffix, 0)
-            || painlessLookup.hasAnnotationAwareMethod(ScriptAwareAnnotation.class, "is" + suffix, 0);
+        return painlessLookup.hasAnnotationAwareMethod(annotationType, "get" + suffix, 0)
+            || painlessLookup.hasAnnotationAwareMethod(annotationType, "is" + suffix, 0);
     }
 
     @Override
@@ -2814,8 +2826,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                         semanticScope.setCondition(userDotNode, DefOptimized.class);
                     }
 
-                    // A def load may resolve to a @script_aware getter, which needs the script instance.
-                    if (read && hasScriptAwareGetter(scriptScope.getPainlessLookup(), index)) {
+                    // A def load may resolve to a getter that needs the script instance: @script_aware, or @allocates under tracking.
+                    if (read && defGetterNeedsScript(scriptScope, index)) {
                         semanticScope.setUsesInstanceMethod();
                     }
                 } else {

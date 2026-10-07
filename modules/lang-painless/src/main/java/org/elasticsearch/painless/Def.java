@@ -686,7 +686,8 @@ public final class Def {
 
     /**
      * Looks up a getter for a def load. When {@code scriptPushed} the call site passes the script instance after the receiver:
-     * a {@code @script_aware} getter takes it first, any other getter drops it.
+     * a {@code @script_aware} getter takes it first, any other getter drops it, and a getter with an {@code @allocates}
+     * estimator charges it before the read.
      */
     static MethodHandle lookupGetter(PainlessLookup painlessLookup, Class<?> receiverClass, String name, boolean scriptPushed) {
         MethodHandle getter = lookupGetterInternal(painlessLookup, receiverClass, name);
@@ -700,10 +701,29 @@ public final class Def {
                 );
             }
             MethodType swapped = MethodType.methodType(type.returnType(), type.parameterType(1), PainlessScript.class);
-            return MethodHandles.permuteArguments(getter, swapped, 1, 0);
+            getter = MethodHandles.permuteArguments(getter, swapped, 1, 0);
+        } else if (scriptPushed) {
+            getter = MethodHandles.dropArguments(getter, 1, PainlessScript.class);
         }
 
-        return scriptPushed ? MethodHandles.dropArguments(getter, 1, PainlessScript.class) : getter;
+        if (scriptPushed) {
+            Method estimator = lookupGetterAllocationEstimator(painlessLookup, receiverClass, name);
+            if (estimator != null) {
+                getter = chargeAllocationBeforeCall(getter, estimator, new Object[0], takesScript);
+            }
+        }
+
+        return getter;
+    }
+
+    /** The {@code @allocates} estimator of the getter behind the shortcut {@code name} on {@code receiverClass}, or null. */
+    private static Method lookupGetterAllocationEstimator(PainlessLookup painlessLookup, Class<?> receiverClass, String name) {
+        if (name.isEmpty()) {
+            return null;
+        }
+        String suffix = Character.toUpperCase(name.charAt(0)) + name.substring(1);
+        Method estimator = painlessLookup.lookupRuntimeAllocationEstimator(receiverClass, "get" + suffix, 0);
+        return estimator != null ? estimator : painlessLookup.lookupRuntimeAllocationEstimator(receiverClass, "is" + suffix, 0);
     }
 
     private static MethodHandle lookupGetterInternal(PainlessLookup painlessLookup, Class<?> receiverClass, String name) {

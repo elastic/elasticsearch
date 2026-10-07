@@ -1767,8 +1767,8 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                     LoadDotDefNode irLoadDotDefNode = new LoadDotDefNode(location);
                     irLoadDotDefNode.attachDecoration(new IRDExpressionType(valueType));
                     irLoadDotDefNode.attachDecoration(new IRDValue(userDotNode.getIndex()));
-                    // Push the script when the name may resolve to a @script_aware getter; the bootstrap places or drops it.
-                    if (DefaultSemanticAnalysisPhase.hasScriptAwareGetter(scriptScope.getPainlessLookup(), userDotNode.getIndex())) {
+                    // Push the script when the name may resolve to a getter that needs it; the bootstrap places or drops it.
+                    if (DefaultSemanticAnalysisPhase.defGetterNeedsScript(scriptScope, userDotNode.getIndex())) {
                         irLoadDotDefNode.attachCondition(IRCScriptAware.class);
                     }
                     irLoadNode = irLoadDotDefNode;
@@ -1806,11 +1806,12 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 }
 
                 if (write == false || compound) {
+                    PainlessMethod getter = scriptScope.getDecoration(userDotNode, GetterPainlessMethod.class).getterPainlessMethod();
                     LoadDotShortcutNode irLoadDotShortcutNode = new LoadDotShortcutNode(location);
                     irLoadDotShortcutNode.attachDecoration(new IRDExpressionType(valueType));
-                    irLoadDotShortcutNode.attachDecoration(
-                        new IRDMethod(scriptScope.getDecoration(userDotNode, GetterPainlessMethod.class).getterPainlessMethod())
-                    );
+                    irLoadDotShortcutNode.attachDecoration(new IRDMethod(getter));
+                    // A getter read through shorthand charges its @allocates estimator like a call would.
+                    attachAllocationEstimator(irLoadDotShortcutNode, scriptScope, getter);
                     irLoadNode = irLoadDotShortcutNode;
                 }
 

@@ -2020,6 +2020,19 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             methodWriter.swap();
         }
 
+        // The stack now holds the getter's Java signature. Charge its @allocates estimator before the read, as a call site does.
+        java.lang.reflect.Method getterEstimator = irDotSubShortcutNode.getDecorationValue(IRDAllocationEstimator.class);
+        if (getterEstimator != null && isAllocationTrackingActive(writeScope)) {
+            Variable[] operands = writeDynamicAllocationCheck(
+                writeScope,
+                methodWriter,
+                "getterOperand",
+                getterPainlessMethod.methodType().parameterArray(),
+                getterEstimator
+            );
+            loadCallOperands(methodWriter, operands);
+        }
+
         methodWriter.invokeMethodCall(getterPainlessMethod);
 
         if (getterPainlessMethod.returnType() != getterPainlessMethod.javaMethod().getReturnType()) {

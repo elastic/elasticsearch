@@ -268,4 +268,13 @@ public class AllocationDisabledBytecodeTests extends ScriptTestCase {
         assertThat(asm, not(containsString("AllocationEstimators")));
         assertThat(asm, not(containsString("sanitizeEstimate")));
     }
+
+    public void testDefGetterLoadPassesScriptOnlyWhenTracking() {
+        // getLats() carries an @allocates estimator, so a def load of .lats passes the script only when tracking is on.
+        String off = bytecode("def g = null; def a = g.lats; return 1;", -1L);
+        assertThat(off, containsString("lats(Ljava/lang/Object;)Ljava/lang/Object;"));
+        assertThat(off, not(containsString("$checkAllocBytes")));
+        String on = bytecode("def g = null; def a = g.lats; return 1;", 1024 * 1024L);
+        assertThat(on, containsString("lats(Ljava/lang/Object;Lorg/elasticsearch/painless/PainlessScript$Script;)Ljava/lang/Object;"));
+    }
 }

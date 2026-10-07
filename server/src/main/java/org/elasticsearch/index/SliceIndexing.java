@@ -25,7 +25,8 @@ public final class SliceIndexing {
 
     private SliceIndexing() {}
 
-    /** Slice identifier name used everywhere: request-side (path segment, per-item body field, msearch header) and as the document metadata field / script-context name. */
+    /** Slice identifier name used everywhere: request-side (path segment, per-item body field, msearch header)
+     * and as the document metadata field / script-context name. */
     public static final String FIELD_NAME = "_slice";
     public static final FeatureFlag SLICE_FEATURE_FLAG = new FeatureFlag("slice_indexing");
     public static final TransportVersion SLICE_MISSING_EXCEPTION_VERSION = TransportVersion.fromName("slice_missing_exception");

@@ -839,7 +839,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Retrieves the <b>effective</b> lifecycle configuration meant for the backing indices.
+     * Retrieves the <b>effective</b> lifecycle configuration for this data stream's backing indices.
      */
     @Nullable
     public DataStreamLifecycle getEffectiveDataLifecycle(boolean minimumLifecycleEnabled) {

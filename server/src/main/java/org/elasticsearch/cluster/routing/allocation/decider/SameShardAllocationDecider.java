@@ -90,7 +90,7 @@ public class SameShardAllocationDecider extends AllocationDecider {
                 // check if its on the same host as the one we want to allocate to
                 assert Strings.hasLength(checkNode.getHostAddress()) : checkNode;
                 if (checkNode.getHostAddress().equals(node.node().getHostAddress())) {
-                    return createAlreadyAllocatedToHostNoDecision(node, checkNode, allocation);
+                    return createAlreadyAllocatedToHostNoDecision(allocation, node, checkNode);
                 }
             }
         }
@@ -103,9 +103,9 @@ public class SameShardAllocationDecider extends AllocationDecider {
     }
 
     private static Decision createAlreadyAllocatedToHostNoDecision(
+        RoutingAllocation allocation,
         RoutingNode newNode,
-        DiscoveryNode existingNode,
-        RoutingAllocation allocation
+        DiscoveryNode existingNode
     ) {
         return allocation.decision(
             Decision.NO,

@@ -162,6 +162,14 @@ public final class StorageObjectMetricsCounters {
         }
     }
 
+    /**
+     * Drain leftover after Metered already published delivered-to-caller. Profile + APM. Not a request.
+     */
+    public void publishDrainedBytes(long leftover) {
+        addBytes(leftover);
+        publishStreamBytes(leftover);
+    }
+
     /** Records one automatic retry triggered inside an in-flight request. */
     public void addRetry() {
         retryCount.increment();

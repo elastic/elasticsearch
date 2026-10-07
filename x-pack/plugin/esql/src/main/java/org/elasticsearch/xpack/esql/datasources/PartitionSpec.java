@@ -67,7 +67,7 @@ public final class PartitionSpec {
     public static final PartitionSpec EMPTY = new PartitionSpec(List.of());
 
     private static final String LEGAL_TRANSFORMS = "identity, year, month, day, hour";
-    private static final String LEGAL_UNITS = "second, millis, micros";
+    private static final String LEGAL_UNITS = "epoch_second, epoch_millis";
     /**
      * ES|QL unquoted identifiers ({@code @timestamp} included) plus {@code -} so {@code aws-region} stays bare.
      * Anything else is a backtick-quoted name.
@@ -110,15 +110,13 @@ public final class PartitionSpec {
     }
 
     public enum Unit {
-        SECOND,
-        MILLIS,
-        MICROS;
+        EPOCH_SECOND,
+        EPOCH_MILLIS;
 
         static Unit parse(String token) {
             return switch (token.toLowerCase(Locale.ROOT)) {
-                case "second" -> SECOND;
-                case "millis" -> MILLIS;
-                case "micros" -> MICROS;
+                case "epoch_second" -> EPOCH_SECOND;
+                case "epoch_millis" -> EPOCH_MILLIS;
                 default -> null;
             };
         }
@@ -149,7 +147,7 @@ public final class PartitionSpec {
             if (transform == Transform.IDENTITY) {
                 return key.equals(column) ? key : key + "=" + column;
             }
-            String call = transform.token() + "(" + column + (unit == Unit.MILLIS ? "" : ", " + unit.token()) + ")";
+            String call = transform.token() + "(" + column + (unit == Unit.EPOCH_MILLIS ? "" : ", " + unit.token()) + ")";
             return key.equals(transform.token()) ? call : key + "=" + call;
         }
     }
@@ -468,13 +466,13 @@ public final class PartitionSpec {
             if (rhs.indexOf('(') >= 0) {
                 return parseTransformCall(field, key, rhs);
             }
-            return new Field(key, Transform.IDENTITY, parseIdentifier(field, rhs), Unit.MILLIS);
+            return new Field(key, Transform.IDENTITY, parseIdentifier(field, rhs), Unit.EPOCH_MILLIS);
         }
         if (field.indexOf('(') >= 0) {
             return parseTransformCall(field, null, field);
         }
         String column = parseIdentifier(field, field);
-        return new Field(column, Transform.IDENTITY, column, Unit.MILLIS);
+        return new Field(column, Transform.IDENTITY, column, Unit.EPOCH_MILLIS);
     }
 
     private static Field parseTransformCall(String field, @Nullable String explicitKey, String call) {
@@ -544,7 +542,7 @@ public final class PartitionSpec {
             );
         }
         String column = parseIdentifier(field, trimmedArgs.get(0));
-        Unit unit = Unit.MILLIS;
+        Unit unit = Unit.EPOCH_MILLIS;
         if (trimmedArgs.size() == 2) {
             if (transform == Transform.IDENTITY) {
                 throw new IllegalArgumentException(
@@ -568,7 +566,7 @@ public final class PartitionSpec {
                         + trimmedArgs.get(1)
                         + "]; temporal transforms take ["
                         + LEGAL_UNITS
-                        + "] or omit the unit (default millis)"
+                        + "] or omit the unit (default epoch_millis)"
                 );
             }
         }
@@ -841,7 +839,8 @@ public final class PartitionSpec {
                                 + WRONG_UNIT_YEAR_MIN
                                 + "–"
                                 + WRONG_UNIT_YEAR_MAX
-                                + "; the unit is likely wrong — use [second] for unix epoch seconds or [millis] for datetime longs"
+                                + "; the unit is likely wrong — use [epoch_second] for unix epoch seconds"
+                                + " or [epoch_millis] for datetime longs"
                         );
                         break;
                     }
@@ -1342,9 +1341,8 @@ public final class PartitionSpec {
     private static Long applyUnit(long numeric, Unit unit) {
         try {
             return switch (unit) {
-                case SECOND -> Math.multiplyExact(numeric, 1000L);
-                case MILLIS -> numeric;
-                case MICROS -> numeric / 1000L;
+                case EPOCH_SECOND -> Math.multiplyExact(numeric, 1000L);
+                case EPOCH_MILLIS -> numeric;
             };
         } catch (ArithmeticException e) {
             return null;

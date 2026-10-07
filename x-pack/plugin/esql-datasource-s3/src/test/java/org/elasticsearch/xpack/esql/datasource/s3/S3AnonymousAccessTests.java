@@ -29,6 +29,7 @@ import java.time.Instant;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -152,10 +153,17 @@ public class S3AnonymousAccessTests extends ESTestCase {
         ExternalClientException e = expectThrows(ExternalClientException.class, obj::length);
         assertThat(e.getMessage(), containsString("Access denied reading [" + PATH.objectName() + "]"));
         assertThat(e.getMessage(), containsString("HTTP 403"));
-        // The message has to say what to change, not only what was refused: S3 answers a wrong key and an
-        // anonymous request against an authenticated bucket identically, so both remedies are named.
-        assertThat(e.getMessage(), containsString("access_key and secret_key"));
-        assertThat(e.getMessage(), containsString("auth=anonymous"));
+        // The message has to say what to change, not only what was refused. A bare 403 does not say why, and the
+        // storage object does not know the auth mode, so the remedy holds for every mode and names no setting.
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "Verify that the data source is allowed to read this object with the credentials it is configured with, "
+                    + "or anonymously if it has none."
+            )
+        );
+        assertThat(e.getMessage(), not(containsString("access_key")));
+        assertThat(e.getMessage(), not(containsString("auth=anonymous")));
     }
 
     /**

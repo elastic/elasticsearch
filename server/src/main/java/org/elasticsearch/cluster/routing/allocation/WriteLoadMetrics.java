@@ -27,14 +27,15 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.telemetry.metric.DoubleAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
+import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -101,36 +102,36 @@ public class WriteLoadMetrics {
         this.lastWriteLoadDistributionMetrics = new AtomicReferenceArray<>(trackedPercentiles.length);
         IntStream.range(0, trackedPercentiles.length).forEach(percentileIndex -> {
             lastWriteLoadDistributionMetrics.set(percentileIndex, List.of());
-            meterRegistry.registerDoublesAsyncGauge(
+            meterRegistry.registerDoubleAsyncGauge(
                 shardWriteLoadDistributionMetricName(trackedPercentiles[percentileIndex]),
                 trackedPercentiles[percentileIndex] + "th percentile of shard write-load values, broken down by node",
                 "write load",
-                () -> this.getWriteLoadDistributionMetrics(percentileIndex)
+                measurement -> this.recordWriteLoadDistributionMetrics(percentileIndex, measurement)
             );
         });
-        meterRegistry.registerDoublesAsyncGauge(
+        meterRegistry.registerDoubleAsyncGauge(
             WRITE_LOAD_PRIORITISATION_THRESHOLD_METRIC_NAME,
             "The threshold over which shards will be prioritised for movement when hot-spotting, per node",
             "write load",
-            this::getWriteLoadPrioritisationThresholdMetrics
+            this::recordWriteLoadPrioritisationThresholdMetrics
         );
-        meterRegistry.registerLongsAsyncGauge(
+        meterRegistry.registerLongAsyncGauge(
             WRITE_LOAD_PRIORITISATION_THRESHOLD_PERCENTILE_RANK_METRIC_NAME,
             "The number of shards whose write-load exceeds the prioritisation threshold, per node",
             "unit",
-            this::getWriteLoadPrioritisationThresholdPercentileRankMetrics
+            this::recordWriteLoadPrioritisationThresholdPercentileRankMetrics
         );
-        meterRegistry.registerDoublesAsyncGauge(
+        meterRegistry.registerDoubleAsyncGauge(
             WRITE_LOAD_SUM_METRIC_NAME,
             "The sum of the shard write-loads for the shards allocated to each node",
             "write load",
-            this::getWriteLoadSumMetrics
+            this::recordWriteLoadSumMetrics
         );
-        meterRegistry.registerDoublesAsyncGauge(
+        meterRegistry.registerDoubleAsyncGauge(
             NODE_WRITE_LOAD_METRIC_NAME,
             "average node write load (utilisation multiplied by thread pool size)",
             "write load",
-            this::getNodeAverageWriteLoadMetrics
+            this::recordNodeAverageWriteLoadMetrics
         );
     }
 
@@ -311,38 +312,46 @@ public class WriteLoadMetrics {
     }
 
     // visible for testing
-    final Collection<DoubleWithAttributes> getWriteLoadDistributionMetrics(int index) {
+    final void recordWriteLoadDistributionMetrics(int index, DoubleAsyncMeasurement measurement) {
         final var metrics = lastWriteLoadDistributionMetrics.getAndSet(index, List.of());
         lastMetricsCollected = true;
-        return metrics;
+        recordDoubles(metrics, measurement);
     }
 
     // visible for testing
-    final Collection<DoubleWithAttributes> getWriteLoadPrioritisationThresholdMetrics() {
+    final void recordWriteLoadPrioritisationThresholdMetrics(DoubleAsyncMeasurement measurement) {
         final var metrics = lastWriteLoadPrioritisationThresholdMetrics.getAndSet(List.of());
         lastMetricsCollected = true;
-        return metrics;
+        recordDoubles(metrics, measurement);
     }
 
     // visible for testing
-    final Collection<LongWithAttributes> getWriteLoadPrioritisationThresholdPercentileRankMetrics() {
+    final void recordWriteLoadPrioritisationThresholdPercentileRankMetrics(LongAsyncMeasurement measurement) {
         final var metrics = lastShardCountExceedingPrioritisationThresholdMetrics.getAndSet(List.of());
         lastMetricsCollected = true;
-        return metrics;
+        for (var metric : metrics) {
+            measurement.record(metric.value(), metric.attributes());
+        }
     }
 
     // visible for testing
-    final Collection<DoubleWithAttributes> getWriteLoadSumMetrics() {
+    final void recordWriteLoadSumMetrics(DoubleAsyncMeasurement measurement) {
         final var metrics = lastWriteLoadSumMetrics.getAndSet(List.of());
         lastMetricsCollected = true;
-        return metrics;
+        recordDoubles(metrics, measurement);
     }
 
     // visible for testing
-    final Collection<DoubleWithAttributes> getNodeAverageWriteLoadMetrics() {
+    final void recordNodeAverageWriteLoadMetrics(DoubleAsyncMeasurement measurement) {
         final var metrics = lastNodeAverageWriteLoadMetrics.getAndSet(List.of());
         lastMetricsCollected = true;
-        return metrics;
+        recordDoubles(metrics, measurement);
+    }
+
+    private static void recordDoubles(List<DoubleWithAttributes> observations, DoubleAsyncMeasurement measurement) {
+        for (var observation : observations) {
+            measurement.record(observation.value(), observation.attributes());
+        }
     }
 
     // visible for testing

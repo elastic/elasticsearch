@@ -273,7 +273,7 @@ public class SearchRecoveryTimeoutCalculationService {
             final double savedPerShardMs = max(0.0, equalShareMs - previousPlan.perShardShareMs());
             return new SearchRecoveryTimeout(
                 TimeValue.timeValueMillis(round(min(remaining, savedPerShardMs * ongoingRelocations))),
-                TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE_SAVED_TIME,
+                TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE,
                 equalShareMs
             );
         }

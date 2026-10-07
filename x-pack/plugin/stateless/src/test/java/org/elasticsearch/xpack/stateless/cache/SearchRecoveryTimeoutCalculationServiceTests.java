@@ -654,7 +654,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 .getTargetRelocatingShard();
 
             final var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), totalBytesToWarm, previous);
-            assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE_SAVED_TIME));
+            assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
             assertThat(plan.extendable(), is(true));
             assertThat(plan.timeout().millis(), equalTo(shardsLeft == 2 ? 1500L : 0L));
             assertThat(plan.perShardShareMs(), equalTo(8000.0 / shardsLeft));
@@ -678,7 +678,6 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         final var graceElapsed = TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_GRACE_ELAPSED;
         final var dataVolume = TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME;
         final var equalShare = TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE;
-        final var savedTime = TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE_SAVED_TIME;
         final var skip = TimeoutContext.SKIP;
 
         // previous context -> pair(v1: contexts of the re-evaluated plan that extend the wait, v2: contexts that stop it)
@@ -686,29 +685,24 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             // no shutdown involved yet: everything but "nothing to wait for" extends, including the first data-volume plan
             anotherActiveCopy,
             Tuple.tuple(
-                EnumSet.of(anotherActiveCopy, reshardTarget, noShutdown, metadataPresent, dataVolume, equalShare, savedTime),
+                EnumSet.of(anotherActiveCopy, reshardTarget, noShutdown, metadataPresent, dataVolume, equalShare),
                 EnumSet.of(graceElapsed, skip)
             ),
             noShutdown,
             Tuple.tuple(
-                EnumSet.of(anotherActiveCopy, reshardTarget, noShutdown, metadataPresent, dataVolume, equalShare, savedTime),
+                EnumSet.of(anotherActiveCopy, reshardTarget, noShutdown, metadataPresent, dataVolume, equalShare),
                 EnumSet.of(graceElapsed, skip)
             ),
             // staying in "metadata present" does not extend again
             metadataPresent,
             Tuple.tuple(
-                EnumSet.of(anotherActiveCopy, reshardTarget, noShutdown, dataVolume, equalShare, savedTime),
+                EnumSet.of(anotherActiveCopy, reshardTarget, noShutdown, dataVolume, equalShare),
                 EnumSet.of(metadataPresent, graceElapsed, skip)
             ),
             // within the shutdown phase only time saved by finished shards is handed out, a data-volume plan never follows
             equalShare,
             Tuple.tuple(
-                EnumSet.of(anotherActiveCopy, reshardTarget, noShutdown, metadataPresent, equalShare, savedTime),
-                EnumSet.of(dataVolume, graceElapsed, skip)
-            ),
-            savedTime,
-            Tuple.tuple(
-                EnumSet.of(anotherActiveCopy, reshardTarget, noShutdown, metadataPresent, equalShare, savedTime),
+                EnumSet.of(anotherActiveCopy, reshardTarget, noShutdown, metadataPresent, equalShare),
                 EnumSet.of(dataVolume, graceElapsed, skip)
             )
         );
@@ -901,7 +895,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 4000);
             final var reevaluatedPlan = service.searchRecoveryTimeout(state, mockIndexShard(self), totalBytesToWarm, initialPlan);
             assertThat("nothing saved, so nothing to extend by", reevaluatedPlan.timeout().millis(), equalTo(0L));
-            assertThat(reevaluatedPlan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE_SAVED_TIME));
+            assertThat(reevaluatedPlan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
             assertThat(reevaluatedPlan.extendable(), is(true));
         }
     }
@@ -960,7 +954,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             );
             final var reevaluatedPlan = service.searchRecoveryTimeout(stateAfterEarlyFinishes, mockIndexShard(self), 0L, initialPlan);
             assertThat(reevaluatedPlan.timeout().millis(), equalTo(8000L / 2 - 10_000L / 4));
-            assertThat(reevaluatedPlan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE_SAVED_TIME));
+            assertThat(reevaluatedPlan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
             assertThat(reevaluatedPlan.extendable(), is(true));
 
             // the saved-time plan carries the share it was computed from, so only the time saved after it is handed out next

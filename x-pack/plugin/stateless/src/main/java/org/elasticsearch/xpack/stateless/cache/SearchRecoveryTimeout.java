@@ -48,10 +48,6 @@ public record SearchRecoveryTimeout(TimeValue timeout, TimeoutContext timeoutCon
         RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE(
             "relocation source shutting down (equal share of remaining time to capped grace deadline)",
             true
-        ),
-        RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE_SAVED_TIME(
-            "relocation source shutting down (share of the time saved by shards that finished earlier than planned)",
-            true
         );
 
         private final String description;
@@ -74,7 +70,7 @@ public record SearchRecoveryTimeout(TimeValue timeout, TimeoutContext timeoutCon
         public boolean sourceShuttingDown() {
             return switch (this) {
                 case RELOCATION_SOURCE_SHUTTING_DOWN_GRACE_ELAPSED, RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME,
-                    RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE, RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE_SAVED_TIME -> true;
+                    RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE -> true;
                 case SKIP, NON_RELOCATION_ANOTHER_ACTIVE_COPY, RESHARD_SPLIT_TARGET,
                     RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN,
                     RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT -> false;
@@ -104,13 +100,12 @@ public record SearchRecoveryTimeout(TimeValue timeout, TimeoutContext timeoutCon
             // nothing to wait for any more
             case SKIP, RELOCATION_SOURCE_SHUTTING_DOWN_GRACE_ELAPSED -> false;
             case NON_RELOCATION_ANOTHER_ACTIVE_COPY, RESHARD_SPLIT_TARGET, RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN,
-                RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE, RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE_SAVED_TIME -> true;
+                RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE -> true;
         };
     }
 
     public boolean isEqualSharePlan() {
-        return timeoutContext == TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE
-            || timeoutContext == TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE_SAVED_TIME;
+        return timeoutContext == TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE;
     }
 
     /// When `true`, recovery should use [SharedBlobCacheWarmingService#searchRecoveryWarmingListener]

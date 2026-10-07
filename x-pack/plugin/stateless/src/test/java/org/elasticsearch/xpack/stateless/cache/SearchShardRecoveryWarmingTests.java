@@ -955,10 +955,6 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT
         );
         final var sourceShuttingDown = new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE);
-        final var sourceShuttingDownSavedTime = new SearchRecoveryTimeout(
-            sliceSize,
-            TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE_SAVED_TIME
-        );
         final var dataVolume = new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME);
         // plans for which there is nothing to wait for any more, even with a non-zero slice
         final var skip = new SearchRecoveryTimeout(sliceSize, TimeoutContext.SKIP);
@@ -973,8 +969,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             new Object[] { noShutdown, dataVolume, true },
             new Object[] { metadataPresent, dataVolume, true },
             new Object[] { sourceShuttingDown, dataVolume, false },
-            new Object[] { sourceShuttingDown, sourceShuttingDownSavedTime, true },
-            new Object[] { sourceShuttingDownSavedTime, dataVolume, false },
+            new Object[] { sourceShuttingDown, sourceShuttingDown, true },
             new Object[] { noShutdown, skip, false },
             new Object[] { noShutdown, graceElapsed, false }
         );

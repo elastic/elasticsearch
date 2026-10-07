@@ -196,6 +196,19 @@ public final class SliceIndexing {
     }
 
     /**
+     * Validates and normalizes a {@code _slice} value supplied inside the search {@code pit} object. A point-in-time search targets
+     * no index, so it cannot carry the slice as a {@code /{index}/{_slice}/_search} path segment; instead the slice is provided as
+     * the {@code _slice} field of the {@code pit} object. The value may be a single slice, a comma-separated list, or the reserved
+     * token {@code _all}. Requires the slice feature flag to be enabled.
+     */
+    public static ParsedRouting parsePitSearchSlice(String slice) {
+        if (SLICE_FEATURE_FLAG.isEnabled() == false) {
+            throw new IllegalArgumentException("request does not support [" + FIELD_NAME + "]");
+        }
+        return parseSearchPathSlice(slice);
+    }
+
+    /**
      * Parses and validates the REST-level {@code routing} and {@code _slice} for search-family APIs that supply the slice via
      * the {@code _slice} parameter rather than a path segment: {@code _msearch}, {@code _validate/query}, {@code _search_shards},
      * and {@code _pit}.

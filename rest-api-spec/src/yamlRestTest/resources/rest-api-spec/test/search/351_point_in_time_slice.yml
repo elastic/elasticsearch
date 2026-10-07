@@ -59,7 +59,6 @@ setup:
 
   - do:
       search:
-        _slice: _all
         body:
           size: 10
           query:
@@ -67,6 +66,7 @@ setup:
           pit:
             id: "$point_in_time_all_id"
             keep_alive: 1m
+            _slice: _all
   - match: { hits.total.value: 2 }
 
   - do:
@@ -83,7 +83,6 @@ setup:
 
   - do:
       search:
-        _slice: a
         body:
           size: 10
           query:
@@ -91,6 +90,7 @@ setup:
           pit:
             id: "$point_in_time_a_id"
             keep_alive: 1m
+            _slice: a
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "1" }
   - match: { hits.hits.0._source.value: va }
@@ -109,7 +109,6 @@ setup:
 
   - do:
       search:
-        _slice: b
         body:
           size: 10
           query:
@@ -117,6 +116,7 @@ setup:
           pit:
             id: "$point_in_time_b_id"
             keep_alive: 1m
+            _slice: b
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "1" }
   - match: { hits.hits.0._source.value: vb }
@@ -168,7 +168,6 @@ setup:
 
   - do:
       search:
-        _slice: a
         body:
           size: 10
           query:
@@ -176,6 +175,7 @@ setup:
           pit:
             id: "$slice_a_pit_id"
             keep_alive: 1m
+            _slice: a
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "1" }
   - match: { hits.hits.0._source.value: va }

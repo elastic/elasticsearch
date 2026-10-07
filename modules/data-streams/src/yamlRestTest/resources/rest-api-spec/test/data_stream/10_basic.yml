@@ -1340,6 +1340,10 @@ teardown:
 
 ---
 "Get data streams returns the index mode of the next backing index":
+  - requires:
+      cluster_features: ["data_stream.get_data_streams.index_mode_fix"]
+      test_runner_features: ["allowed_warnings"]
+      reason: "get data streams resolves the index mode from the additional index setting providers"
   - do:
       allowed_warnings:
         - "index template [my-template] has index patterns [data-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"

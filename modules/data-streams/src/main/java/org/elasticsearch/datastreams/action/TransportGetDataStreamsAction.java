@@ -45,10 +45,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
@@ -193,45 +191,29 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
     }
 
     /**
-     * Resolves the index mode ("index.mode" setting) for the given data stream, from the template or additional setting providers
+     * Resolves the settings the next backing index of the given data stream would be created with, as far as they can be determined
+     * without the mappings: the settings from the additional setting providers, with the given template and data stream settings
+     * applied on top of them.
      */
-    @Nullable
-    static IndexMode resolveMode(
+    static Settings resolveEffectiveSettings(
         ProjectState state,
         IndexSettingProviders indexSettingProviders,
         DataStream dataStream,
         Settings settings,
         ComposableIndexTemplate indexTemplate
     ) {
-        IndexMode indexMode = state.metadata().retrieveIndexModeFromTemplate(indexTemplate);
-        IndexVersion indexVersion = state.metadata().index(dataStream.getWriteIndex()).getCreationVersion();
-        for (IndexSettingProvider provider : indexSettingProviders.getIndexSettingProviders()) {
-            Settings.Builder builder = Settings.builder();
-            provider.provideAdditionalSettings(
-                MetadataIndexTemplateService.VALIDATE_INDEX_NAME,
-                dataStream.getName(),
-                indexMode,
-                indexTemplate.isRegistryInstalled(),
-                state.metadata(),
-                Instant.now(),
-                settings,
-                List.of(),
-                indexVersion,
-                builder
-            );
-            Settings addlSettings = builder.build();
-            var rawMode = addlSettings.get(IndexSettings.MODE.getKey());
-            if (rawMode != null) {
-                indexMode = IndexMode.fromString(rawMode);
-            }
-        }
-        if (indexMode == null) {
-            String rawMode = settings.get(IndexSettings.MODE.getKey());
-            if (rawMode != null) {
-                indexMode = IndexMode.fromString(rawMode);
-            }
-        }
-        return indexMode;
+        return IndexSettingProviders.collectAdditionalSettings(
+            indexSettingProviders.getIndexSettingProviders(),
+            MetadataIndexTemplateService.VALIDATE_INDEX_NAME,
+            dataStream.getName(),
+            state.metadata().retrieveIndexModeFromTemplate(indexTemplate),
+            indexTemplate.isRegistryInstalled(),
+            state.metadata(),
+            Instant.now(),
+            settings,
+            List.of(),
+            state.metadata().index(dataStream.getWriteIndex()).getCreationVersion()
+        ).applyTo(settings);
     }
 
     static GetDataStreamAction.Response innerOperation(
@@ -264,17 +246,17 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                         dataStreamDescriptor.getComposableIndexTemplate(),
                         dataStreamDescriptor.getComponentTemplates()
                     );
-                    ilmPolicyName = settings.get(IndexMetadata.LIFECYCLE_NAME);
-                    if (indexMode == null) {
-                        indexMode = resolveMode(
-                            state,
-                            indexSettingProviders,
-                            dataStream,
-                            settings,
-                            dataStreamDescriptor.getComposableIndexTemplate()
-                        );
-                    }
-                    indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(settings);
+                    Settings effectiveSettings = resolveEffectiveSettings(
+                        state,
+                        indexSettingProviders,
+                        dataStream,
+                        settings,
+                        dataStreamDescriptor.getComposableIndexTemplate()
+                    );
+                    ilmPolicyName = effectiveSettings.get(IndexMetadata.LIFECYCLE_NAME);
+                    String rawMode = effectiveSettings.get(IndexSettings.MODE.getKey());
+                    indexMode = rawMode == null ? null : IndexMode.fromString(rawMode);
+                    indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(effectiveSettings);
                 }
             } else {
                 indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata(), dataStream.getName(), false);
@@ -283,7 +265,8 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                      * Here we intentionally avoid the full MetadataDataStreamService::getEffectiveSettings and instead do a shortcut that
                      * does not merge all mappings together in order to fetch the settings from additional settings providers. The reason
                      * is that this code can be called fairly frequently, and we do not need that information here -- we get settings from
-                     * additional settings providers below in resolveMode, and those settings do not require any information from mappings.
+                     * additional settings providers below in resolveEffectiveSettings, and those settings do not require any information
+                     * from mappings.
                      */
                     ComposableIndexTemplate template = MetadataCreateDataStreamService.lookupTemplateForDataStream(
                         dataStream.getName(),
@@ -294,10 +277,10 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                         state.metadata().componentTemplates()
                     );
                     final Settings settings = templateSettings.merge(dataStream.getSettings());
-                    ilmPolicyName = settings.get(IndexMetadata.LIFECYCLE_NAME);
-                    if (indexMode == null && state.metadata().templatesV2().get(indexTemplate) != null) {
+                    Settings effectiveSettings = settings;
+                    if (state.metadata().templatesV2().get(indexTemplate) != null) {
                         try {
-                            indexMode = resolveMode(
+                            effectiveSettings = resolveEffectiveSettings(
                                 state,
                                 indexSettingProviders,
                                 dataStream,
@@ -305,10 +288,13 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                                 dataStream.getEffectiveIndexTemplate(state.metadata())
                             );
                         } catch (IOException e) {
-                            throw new RuntimeException("Failed to determine indexMode for data stream: " + dataStream.getName(), e);
+                            throw new RuntimeException("Failed to determine settings for data stream: " + dataStream.getName(), e);
                         }
                     }
-                    indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(settings);
+                    ilmPolicyName = effectiveSettings.get(IndexMetadata.LIFECYCLE_NAME);
+                    String rawMode = effectiveSettings.get(IndexSettings.MODE.getKey());
+                    indexMode = rawMode == null ? null : IndexMode.fromString(rawMode);
+                    indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(effectiveSettings);
                 } else {
                     LOGGER.warn(
                         "couldn't find any matching template for data stream [{}]. has it been restored (and possibly renamed)"

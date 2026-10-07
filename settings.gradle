@@ -190,4 +190,5 @@ gradle.lifecycle.beforeProject { Project project ->
   if (project == project.rootProject) return
   project.pluginManager.apply('elasticsearch.base')
   project.pluginManager.apply('elasticsearch.formatting')
+  project.pluginManager.apply('elasticsearch.resolve-all-dependencies')
 }

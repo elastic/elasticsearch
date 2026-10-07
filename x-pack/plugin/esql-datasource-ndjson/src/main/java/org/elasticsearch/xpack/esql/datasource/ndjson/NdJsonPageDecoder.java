@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorExcerpts;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -2492,7 +2493,8 @@ public class NdJsonPageDecoder implements Closeable {
                 }
                 return;
             }
-            String value = parser.getValueAsString();
+            // A value can be as long as a record, and this message becomes a response header or the query's error.
+            String value = ErrorExcerpts.summarize(parser.getValueAsString());
             // Not "the declared type": this path also fires for a supported-pair failure on an INFERRED column
             // (e.g. a bad string in an inferred long), where the target type was not declared.
             // The outcome (row skipped or value nulled) is stated once, in the summary, not per detail.

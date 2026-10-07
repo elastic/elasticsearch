@@ -32,6 +32,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * A {@code partition_spec} overlay projects a file-column filter onto Hive path keys.
@@ -266,18 +267,33 @@ public class ExternalPartitionSpecPruningIT extends AbstractExternalDataSourceIT
         request.acceptedPragmaRisks(true);
         request.profile(true);
         try (var response = run(request)) {
-            if (expectedFilesScanned > 0) {
+            var profile = response.getExecutionInfo().queryProfile();
+            if (tail.contains("COUNT(*)")) {
+                // KEEP harvests CSV stripe stats. COUNT(*) on the same pruned set then:
+                // - cold-scans the survivors (filesScanned == expected, scan operator present), or
+                // - skip-discovery / LocalRelation fold (filesScanned == 0, no scan operator), or
+                // - discovery records survivors then PushStats folds (filesScanned == expected, no
+                // operator; warm counter stays 0 because the fragment is no longer
+                // Aggregate->ExternalRelation). Never more files than the prune budget.
                 assertThat(
-                    "external scan must run on a data node via the distributed fragment path",
-                    externalScanNodeNames(response).size(),
-                    greaterThanOrEqualTo(1)
+                    "[" + tail + "] COUNT(*) must not scan more than " + expectedFilesScanned + " of " + totalFiles + " files",
+                    profile.filesScanned(),
+                    lessThanOrEqualTo(expectedFilesScanned)
+                );
+            } else {
+                if (expectedFilesScanned > 0) {
+                    assertThat(
+                        "external scan must run on a data node via the distributed fragment path",
+                        externalScanNodeNames(response).size(),
+                        greaterThanOrEqualTo(1)
+                    );
+                }
+                assertThat(
+                    "[" + tail + "] must scan exactly " + expectedFilesScanned + " of " + totalFiles + " files",
+                    profile.filesScanned(),
+                    equalTo(expectedFilesScanned)
                 );
             }
-            assertThat(
-                "[" + tail + "] must scan exactly " + expectedFilesScanned + " of " + totalFiles + " files",
-                response.getExecutionInfo().queryProfile().filesScanned(),
-                equalTo(expectedFilesScanned)
-            );
             return getValuesList(response);
         }
     }

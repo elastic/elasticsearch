@@ -438,6 +438,7 @@ toc:
               - file: esql/esql-data-federation-manage-datasets.md
               - file: esql/esql-data-federation-file-formats.md
               - file: esql/esql-data-federation-patterns.md
+              - file: esql/esql-data-federation-partition-spec.md
               - file: esql/esql-data-federation-schema.md
               - file: esql/esql-data-federation-dataset-settings.md
           - file: esql/esql-data-federation-querying.md

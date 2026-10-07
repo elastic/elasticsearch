@@ -170,6 +170,7 @@ public class ExternalSourceCacheService implements Closeable {
     private final LongAdder datasetAggregateHits = new LongAdder();
     private final LongAdder datasetAggregateMisses = new LongAdder();
     private final LongAdder statsAggregateIncomplete = new LongAdder();
+    private final LongAdder schemaFanOutRefused = new LongAdder();
 
     public ExternalSourceCacheService(Settings settings) {
         ByteSizeValue totalBudget = ExternalSourceCacheSettings.CACHE_SIZE.get(settings);
@@ -479,6 +480,23 @@ public class ExternalSourceCacheService implements Closeable {
      */
     public void recordStatsAggregateIncomplete() {
         statsAggregateIncomplete.increment();
+    }
+
+    /**
+     * Counts a schema fan-out whose entries were refused: the listing's file count times the first entry's
+     * size overran {@link #schemaBudget}, so none of the gather's entries will be retained. One increment per
+     * gather, because the verdict is taken once and latched.
+     * <p>
+     * Reported because the verdict now forks the read path, not just the cache: a refused fan-out is one of
+     * the conditions that licenses the resolver to stop reading per-file metadata (see
+     * {@code ExternalSourceResolver#remainingReadsBuyNothing}), and the budget it was compared against is
+     * already reported as {@code schema_budget_bytes}.
+     * <p>
+     * This map has no REST surface today - every caller of {@link #usageStats()} is a test - so the counter
+     * serves tests, and the DEBUG line at the refusal site is what a running node offers.
+     */
+    public void recordSchemaFanOutRefused() {
+        schemaFanOutRefused.increment();
     }
 
     /**
@@ -1812,6 +1830,7 @@ public class ExternalSourceCacheService implements Closeable {
             stats.put("dataset_aggregate.pending", pendingDatasetAggregates.size());
         }
         stats.put("stats_aggregate.incomplete", statsAggregateIncomplete.sum());
+        stats.put("schema_fan_out.refused", schemaFanOutRefused.sum());
 
         return stats;
     }

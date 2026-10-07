@@ -1492,7 +1492,8 @@ public class ExternalSourceResolver {
                 // path (the resolve overload with a null pathsRequiringStats set), preserving the original
                 // eager-for-all behavior.
                 //
-                // For an eager (requiresStats) resolve the cost is acceptable because:
+                // For an eager (requiresStats) resolve the cost is acceptable while a read still buys
+                // something - remainingReadsBuyNothing stops the gather when none does:
                 // - the cacheable path consults the schema cache, so repeat resolves are free;
                 // - the non-cacheable path reads footers with an async fan-out bounded by an in-flight permit
                 // (metadataReadConcurrency), releasing the pool thread across each footer read;
@@ -1513,6 +1514,16 @@ public class ExternalSourceResolver {
                     config,
                     cacheable
                 );
+                // Under skip_row a narrow-read parse failure drops the whole row, so the unread files' counts are
+                // stripped at commit (dropRowCount) and the dataset-aggregate promise can never be fulfilled -
+                // every warm COUNT(*) would re-scan, which is worse than the reads the stop saves. The predicate
+                // is the SAME one the strip uses (EsqlSession.collectPinnedReads), so the two cannot disagree
+                // about which policy strips. Not warmsRowCountSafely: that asks the wider question of whether a
+                // committed count equals the physical record count, and under null_field it does not either -
+                // a structurally malformed row is dropped there too. What makes null_field safe here is
+                // narrower: nothing strips its count, so an unread file costs it nothing. A resolve
+                // registering no promise is unaffected, so the stop still applies there.
+                boolean everyFileNeededForThePromise = datasetPrefetch.key() != null && resolvesToSkipRow(base.sourceType(), config);
                 // Filled by the gather below, before this listener runs. The fold drops each file's column
                 // map as it completes; file-level counts are what the schema map keeps.
                 Map<String, String> ffwReadConfigs = new HashMap<>(listing.fileCount());
@@ -1562,6 +1573,7 @@ public class ExternalSourceResolver {
                         // statistics each per-file lookup wants. Null leaves every lookup on the schema record
                         // alone, which is the behaviour before this address existed.
                         ReadConfigFingerprint.of(base.schema(), declaredReadSpecOf(declaredMapping)),
+                        everyFileNeededForThePromise,
                         statsListener
                     );
                 } else {
@@ -1574,6 +1586,7 @@ public class ExternalSourceResolver {
                         ffwReadConfigs,
                         ffwInferredTypes,
                         ffwSlimStats,
+                        everyFileNeededForThePromise,
                         statsListener
                     );
                 }
@@ -2500,6 +2513,9 @@ public class ExternalSourceResolver {
         Map<String, Object> referenceMetadata = referenceMeta.sourceMetadata();
         Object stamped = referenceMetadata != null ? referenceMetadata.get(ExternalStats.CONFIG_FINGERPRINT_KEY) : null;
         String fingerprint = stamped instanceof String s ? s : formatConfigIdentity(listing.path(0).objectName(), storageConfig(config));
+        // A cut-short gather records read configs only for the files it reached; an unrecorded path falls
+        // back to the config-level check. Registering anyway is deliberate - a refused budget leaves this
+        // dataset no other warm path.
         cacheService.registerPendingDatasetAggregate(
             datasetKey,
             pathToMtime,
@@ -2821,6 +2837,8 @@ public class ExternalSourceResolver {
             schemaInterner,
             privateLists,
             null,
+            GatherPurpose.SCHEMA_RECONCILIATION,
+            false,
             ActionListener.wrap(perFile -> {
                 Map<StoragePath, SourceMetadata> result = new LinkedHashMap<>();
                 for (int i = 0; i < fileCount; i++) {
@@ -2831,6 +2849,42 @@ public class ExternalSourceResolver {
         );
     }
 
+    /** What a gather is for. Who consumes the results decides whether every file must be read. */
+    enum GatherPurpose {
+        /** Folds a cross-file aggregate, warming the schema cache where cacheable. No consumer needs every file. */
+        STATS_AGGREGATE,
+        /** The schema is the union of every file's, so union_by_name and strict need all of them. */
+        SCHEMA_RECONCILIATION;
+
+        boolean requiresEveryFile() {
+            return this == SCHEMA_RECONCILIATION;
+        }
+    }
+
+    /**
+     * Whether the unread files would buy nothing: the fold has failed and no entry will be retained.
+     * Not a format test — admitted text keeps fanning out, because warming the per-file schema rail is
+     * worth the reads by itself. Nor does it stop where stopping would destroy the warm answer: under
+     * {@code skip_row} the unread files' row counts are stripped at commit, so a dataset-aggregate
+     * promise could never be fulfilled and every warm {@code COUNT(*)} would re-scan.
+     * <p>
+     * The purpose conjunct is load-bearing against a crash, not just a narrower schema: the reconciliation rail's
+     * consumers read every slot, so a gather that stopped there throws on the first unread one.
+     */
+    private static boolean remainingReadsBuyNothing(
+        GatherPurpose purpose,
+        boolean everyFileNeededForThePromise,
+        @Nullable RunningFileStatsFold fold,
+        @Nullable SchemaFanOutAdmission admission
+    ) {
+        // A null admission never meant to cache: a non-cacheable provider, or a single file.
+        return purpose.requiresEveryFile() == false
+            && everyFileNeededForThePromise == false
+            && fold != null
+            && fold.canStillProduceAnAggregate() == false
+            && (admission == null || admission.stillAdmitting() == false);
+    }
+
     /**
      * Runs an async, bounded fan-out over every file in {@code fileList}, resolving each file's {@link SourceMetadata}
      * and returning results in file order. Concurrency is capped at {@link #metadataReadConcurrency} in-flight reads
@@ -2839,7 +2893,8 @@ public class ExternalSourceResolver {
      * cancellation signal is checked before each dispatch (a cancelled wide glob stops issuing reads promptly and
      * surfaces {@link TaskCancelledException}), and the async reads run on {@link #metadataReadExecutor} so an
      * executor-backed synchronous read's backoff aborts on cancel. The first failure is propagated to {@code listener}
-     * and short-circuits the remaining files.
+     * and short-circuits the remaining files. {@link #remainingReadsBuyNothing} also ends the gather, but
+     * completes normally, leaving {@code null} for each unread file.
      * <p>
      * When a {@link #planningReservation} is set, the method opens a {@link ExternalPlanningReservation.Run} and charges
      * {@link #gatheredFileBytes} per resolved file to the circuit breaker, so concurrent gather fan-outs from different
@@ -2854,9 +2909,23 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         boolean cacheable,
         @Nullable RunningFileStatsFold fold,
+        boolean everyFileNeededForThePromise,
         ActionListener<List<SourceMetadata>> listener
     ) {
-        gatherPerFile(fileList, storageIdentity, secretIdentity, config, cacheable, fold, null, null, null, listener);
+        gatherPerFile(
+            fileList,
+            storageIdentity,
+            secretIdentity,
+            config,
+            cacheable,
+            fold,
+            null,
+            null,
+            null,
+            GatherPurpose.STATS_AGGREGATE,
+            everyFileNeededForThePromise,
+            listener
+        );
     }
 
     private void gatherPerFile(
@@ -2869,6 +2938,8 @@ public class ExternalSourceResolver {
         @Nullable SchemaInterner schemaInterner,
         @Nullable ExternalPlanningReservation.Run privateLists,
         @Nullable String boundReadConfig,
+        GatherPurpose purpose,
+        boolean everyFileNeededForThePromise,
         ActionListener<List<SourceMetadata>> listener
     ) {
         int fileCount = fileList.fileCount();
@@ -2887,6 +2958,15 @@ public class ExternalSourceResolver {
                 releasable.close();
                 return;
             }
+            if (remainingReadsBuyNothing(purpose, everyFileNeededForThePromise, fold, admission)) {
+                // Cancellation is observed inside the per-file read; raise it here or the gather
+                // completes with partial stats. Pinned by testMultiFileResolveCancellationStopsReadingFooters.
+                if (isCancelled()) {
+                    failure.compareAndSet(null, new TaskCancelledException(RESOLUTION_CANCELLED_MESSAGE));
+                }
+                releasable.close();
+                return;
+            }
             ActionListener<SourceMetadata> itemListener = ActionListener.runAfter(ActionListener.wrap(meta -> {
                 // Reconcile path only. Stats gathers pass a null interner and a null run; their lists are charged
                 // on resultsRun below. Charge the raw list before wrapping. Canonicalize so schema() is the shared
@@ -2900,13 +2980,10 @@ public class ExternalSourceResolver {
                     }
                 }
                 if (fold != null) {
-                    synchronized (fold) {
-                        fold.accept(i, meta);
-                    }
+                    fold.accept(i, meta);
                 }
-                // slim does not touch fold state, so it stays outside the lock. Fold and slim the
-                // original metadata so its private schema list stays reachable for the planning
-                // charge. The canonical wrapper is applied after and forwards the rest.
+                // Fold and slim the original metadata so its private schema list stays reachable for the
+                // planning charge. The canonical wrapper is applied after and forwards the rest.
                 SourceMetadata stored = fold != null && fileCount > 1 ? RunningFileStatsFold.slim(meta) : meta;
                 if (resultsRun != null) {
                     // Charge what the results array retains: the slimmed record when folding, before the
@@ -3207,6 +3284,13 @@ public class ExternalSourceResolver {
             this.fileCount = fileCount;
         }
 
+        /** Whether this fan-out is still admitting. True while undecided - it sizes on the first entry offered. */
+        boolean stillAdmitting() {
+            synchronized (this) {
+                return refuse == false;
+            }
+        }
+
         boolean tryAdmit(SchemaCacheEntry entry) {
             synchronized (this) {
                 if (refuse) {
@@ -3216,6 +3300,15 @@ public class ExternalSourceResolver {
                     sized = true;
                     if ((long) fileCount * entry.estimatedBytes() > cacheService.schemaBudget()) {
                         refuse = true;
+                        cacheService.recordSchemaFanOutRefused();
+                        // The three numbers behind the verdict; nothing else reports them. The verdict is one
+                        // of the conditions that lets the gather stop, not the whole of it.
+                        LOGGER.debug(
+                            "schema fan-out refused: [{}] files x [{}] estimated bytes exceeds schema budget [{}]",
+                            fileCount,
+                            entry.estimatedBytes(),
+                            cacheService.schemaBudget()
+                        );
                         return false;
                     }
                 }
@@ -3700,7 +3793,7 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Reads metadata from all files in {@code listing} with an async, bounded fan-out (see {@link #gatherPerFile}),
+     * Reads metadata from the files in {@code listing} with an async, bounded fan-out (see {@link #gatherPerFile}),
      * folding each file's column statistics as it completes. Responds with the folded stats map, or {@code null} if
      * any file lacks statistics. A read failure is treated as "could not aggregate" and responds with {@code null}
      * so the caller marks stats partial — except cancellation, which is surfaced as a failure so the query aborts
@@ -3715,9 +3808,10 @@ public class ExternalSourceResolver {
         Map<String, String> readConfigsOut,
         Map<StoragePath, Map<String, DataType>> inferredTypesOut,
         Map<StoragePath, SourceStatistics> slimStatsOut,
+        boolean everyFileNeededForThePromise,
         ActionListener<Map<String, Object>> listener
     ) {
-        gatherPerFile(listing, storageIdentity, secretIdentity, config, false, fold, ActionListener.wrap(allMeta -> {
+        gatherPerFile(listing, storageIdentity, secretIdentity, config, false, fold, everyFileNeededForThePromise, ActionListener.wrap(allMeta -> {
             collectReadConfigs(listing, allMeta, readConfigsOut);
             collectInferredTypes(listing, allMeta, inferredTypesOut);
             collectSlimStatistics(listing, allMeta, slimStatsOut);
@@ -3800,6 +3894,7 @@ public class ExternalSourceResolver {
         Map<StoragePath, Map<String, DataType>> inferredTypesOut,
         Map<StoragePath, SourceStatistics> slimStatsOut,
         @Nullable String boundReadConfig,
+        boolean everyFileNeededForThePromise,
         ActionListener<Map<String, Object>> listener
     ) {
         gatherPerFile(
@@ -3812,6 +3907,8 @@ public class ExternalSourceResolver {
             null,
             null,
             boundReadConfig,
+            GatherPurpose.STATS_AGGREGATE,
+            everyFileNeededForThePromise,
             ActionListener.wrap(allMeta -> {
                 collectReadConfigs(listing, allMeta, readConfigsOut);
                 collectInferredTypes(listing, allMeta, inferredTypesOut);

@@ -1716,8 +1716,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         final AtomicBoolean producerQueued = new AtomicBoolean();
         /** Set when a park/open hop arrives while a continuation is already queued or running. */
         final AtomicBoolean producerDirty = new AtomicBoolean();
-        /** Terminal onResponse/onFailure already fired; skip dirty resubmit. */
-        volatile boolean producerFinished;
+        /** Terminal onResponse/onFailure already fired; skip dirty resubmit and extra completes. */
+        final AtomicBoolean producerFinished = new AtomicBoolean();
 
         ProducerState(
             @Nullable ExternalSliceQueue queue,
@@ -2046,7 +2046,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             protected void doRun() {
                 work.run();
                 state.producerQueued.set(false);
-                if (state.producerFinished == false && state.producerDirty.compareAndSet(true, false)) {
+                if (state.producerFinished.get() == false && state.producerDirty.compareAndSet(true, false)) {
                     executeProducer(state, completionListener, () -> runProducerLoop(state, completionListener));
                 }
             }
@@ -2070,12 +2070,16 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     private static void completeProducer(ProducerState state, ActionListener<Void> listener) {
-        state.producerFinished = true;
+        if (state.producerFinished.compareAndSet(false, true) == false) {
+            return;
+        }
         listener.onResponse(null);
     }
 
     private static void failProducer(ProducerState state, ActionListener<Void> listener, Exception e) {
-        state.producerFinished = true;
+        if (state.producerFinished.compareAndSet(false, true) == false) {
+            return;
+        }
         listener.onFailure(e);
     }
 

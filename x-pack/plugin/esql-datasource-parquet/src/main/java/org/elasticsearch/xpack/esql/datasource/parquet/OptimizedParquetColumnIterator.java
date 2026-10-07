@@ -449,7 +449,14 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private volatile Exception pendingFailure;
     /** Ticket in flight for a required group or phase-2 fetch; cancelled from {@link #close()}. */
     private volatile SubscribableListener<ParquetIoWatermark.AdmitHold> pendingTicket;
+    /**
+     * Hold published by a ticket grant. The grant callback only stores this and {@link #signalReady()};
+     * {@link #consumeGrantedIo()} on the consumer thread starts the GET.
+     */
+    private volatile GrantedIo grantedIo;
     private final AtomicBoolean ticketAbandoned = new AtomicBoolean();
+    /** True when {@link #waitForReady()} parked; consumed by {@link #prefetchSucceeded} as a stall. */
+    private boolean ioParked;
     /** Phase-2 prefetch started after predicate decode; completed on {@link #waitForReady()}. */
     @Nullable
     private CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> phase2Future;
@@ -459,7 +466,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private boolean groupPrefetchRetried;
     /** One Phase-2 async re-ticket per group; a second miss surfaces instead of looping. */
     private boolean phase2Retried;
-    /** Executor for contended ticket grants; grants themselves only signal readiness. */
+    /** Executor for contended ticket grants; the callback must only publish the hold and signal. */
     private static final Executor TICKET_GRANT_EXECUTOR = Runnable::run;
 
     OptimizedParquetColumnIterator(
@@ -779,40 +786,82 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         );
         pendingTicket = ticket;
         ticket.addListener(ActionListener.wrap(hold -> {
-            pendingTicket = null;
-            if (closed.get() || ticketAbandoned.get()) {
-                hold.drop();
-                signalReady();
-                return;
-            }
-            boolean reserved = true;
-            try {
+            publishGrantedIo(new GrantedIo(hold, ordinal, block, columns, rowRanges, lease, watermark, prefetchBytes, false));
+        }, this::failReady));
+    }
+
+    /**
+     * Starts the GET for a published ticket hold. Must run on the iterator consumer
+     * ({@code esql_worker} / {@code hasNext}), never on the budget releaser thread.
+     */
+    private void consumeGrantedIo() {
+        GrantedIo granted = grantedIo;
+        if (granted == null) {
+            return;
+        }
+        grantedIo = null;
+        if (closed.get() || ticketAbandoned.get()) {
+            granted.hold.drop();
+            signalReady();
+            return;
+        }
+        if (granted.phase2 == false && rowGroupDominatedByThreshold(granted.block)) {
+            granted.hold.drop();
+            signalReady();
+            return;
+        }
+        boolean reserved = true;
+        try {
+            if (granted.phase2) {
+                launchPhase2Io(granted.block, granted.rowRanges, granted.lease, granted.watermark, granted.hold);
+                reserved = false;
+            } else {
                 CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future = startPrefetchIo(
-                    ordinal,
-                    block,
-                    columns,
-                    rowRanges,
-                    lease,
-                    watermark,
-                    hold,
+                    granted.ordinal,
+                    granted.block,
+                    granted.columns,
+                    granted.rowRanges,
+                    granted.lease,
+                    granted.watermark,
+                    granted.hold,
                     ParquetIoWatermark.ByteGate.GROUP_HOLD
                 );
-                future.whenComplete((ignored, error) -> hold.drop());
+                future.whenComplete((ignored, error) -> granted.hold.drop());
                 reserved = false;
-                enqueuePrefetch(ordinal, future, prefetchBytes, lease, watermark, true);
-                if (closed.get() || ticketAbandoned.get()) {
-                    cancelPendingPrefetch();
-                    signalReady();
-                    return;
-                }
-                setPhase(ReadinessPhase.GROUP_IO_PENDING);
-            } catch (Exception e) {
-                if (reserved) {
-                    hold.drop();
-                }
-                failReady(e);
+                enqueuePrefetch(granted.ordinal, future, granted.prefetchBytes, granted.lease, granted.watermark, true);
             }
-        }, this::failReady));
+            if (closed.get() || ticketAbandoned.get()) {
+                if (granted.phase2) {
+                    releasePhase2Future(phase2Future);
+                    phase2Future = null;
+                } else {
+                    cancelPendingPrefetch();
+                }
+                signalReady();
+            }
+        } catch (Exception e) {
+            if (reserved) {
+                granted.hold.drop();
+            }
+            failReady(e);
+        }
+    }
+
+    private void publishGrantedIo(GrantedIo granted) {
+        grantedIo = granted;
+        pendingTicket = null;
+        if (closed.get() || ticketAbandoned.get()) {
+            dropGrantedIo();
+        }
+        signalReady();
+    }
+
+    private void dropGrantedIo() {
+        GrantedIo granted = grantedIo;
+        grantedIo = null;
+        if (granted != null) {
+            granted.hold.drop();
+        }
     }
 
     private CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> startPrefetchIo(
@@ -868,7 +917,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         pendingPrefetches.addLast(new PendingPrefetch(ordinal, future, prefetchBytes, lease, watermark));
         queuedPrefetchBytes += prefetchBytes;
         watchPrefetch(future);
-        if (required) {
+        if (required && future.isDone() == false) {
             setPhase(ReadinessPhase.GROUP_IO_PENDING);
         }
     }
@@ -901,6 +950,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         if (hasBufferedRows()) {
             return true;
         }
+        if (grantedIo != null) {
+            return true;
+        }
         if (phase2Future != null) {
             return phase2Future.isDone();
         }
@@ -909,9 +961,16 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             return false;
         }
         int needed = neededRowGroupOrdinal();
+        for (PendingPrefetch pending : pendingPrefetches) {
+            if (pending.ordinal() == needed) {
+                return pending.future().isDone();
+            }
+        }
         PendingPrefetch head = pendingPrefetches.peekFirst();
-        if (head != null && head.ordinal() == needed) {
-            return head.future().isDone();
+        if (head != null && head.ordinal() != needed) {
+            // Stale prefix (ordinal < needed) or empty current (ordinal > needed): takePendingPrefetch
+            // can dequeue/skip without parking on the wrong group's future.
+            return true;
         }
         return switch (readinessPhase) {
             case OPEN_PENDING, GROUP_TICKET_PENDING, GROUP_IO_PENDING, PHASE2_TICKET_PENDING, PHASE2_IO_PENDING -> false;
@@ -933,6 +992,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     }
 
     private void failReady(Exception e) {
+        dropGrantedIo();
+        closePhase2Pending();
         if (closed.get()) {
             signalReady();
             return;
@@ -975,6 +1036,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         if (isReadyNow()) {
             return SubscribableListener.newSucceeded(null);
         }
+        ioParked = true;
         SubscribableListener<Void> existing = pendingReady.get();
         if (existing != null) {
             return existing;
@@ -994,8 +1056,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     public Page tryAdvance() {
         throwIfFailed();
         if (closed.get() || exhausted) {
+            consumeGrantedIo();
             return null;
         }
+        consumeGrantedIo();
         if (hasBufferedRows() == false) {
             if (isReadyNow() == false) {
                 return null;
@@ -1588,6 +1652,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     public boolean hasNext() {
         throwIfFailed();
         if (closed.get() || exhausted) {
+            consumeGrantedIo();
             return false;
         }
         if (budgetExhausted()) {
@@ -1618,6 +1683,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             while (true) {
                 awaitReady();
                 throwIfFailed();
+                consumeGrantedIo();
                 if (closed.get() || exhausted) {
                     return false;
                 }
@@ -1631,7 +1697,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     return false;
                 }
                 int needed = neededRowGroupOrdinal();
-                if (pendingTicket != null || currentPrefetchInFlight(needed) || queuedPrefetchFor(needed) || phase2Pending != null) {
+                if (pendingTicket != null
+                    || grantedIo != null
+                    || currentPrefetchInFlight(needed)
+                    || queuedPrefetchFor(needed)
+                    || phase2Pending != null) {
                     continue;
                 }
                 return false;
@@ -1707,6 +1777,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      * the row group after that.
      */
     private boolean advanceRowGroup() throws IOException {
+        consumeGrantedIo();
         closeTwoPhaseState();
         if (rowGroup != null) {
             rowsBeforeCurrentGroup += currentGroupRowsForBudget;
@@ -1723,7 +1794,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         // rowGroupOrdinal will see a fresh map at the next evaluateFilter call.
         while (true) {
             if (phase2Pending != null) {
-                if (pendingTicket != null || phase2Future == null || phase2Future.isDone() == false) {
+                if (pendingTicket != null || grantedIo != null || phase2Future == null || phase2Future.isDone() == false) {
                     return false;
                 }
                 if (completePhase2() == false) {
@@ -1750,7 +1821,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             }
             rowGroupOrdinal = nextOrdinal;
             pageBatchIndexInRowGroup = 0;
-            if (pendingTicket != null || currentPrefetchInFlight(rowGroupOrdinal)) {
+            if (pendingTicket != null || grantedIo != null || currentPrefetchInFlight(rowGroupOrdinal)) {
                 return false;
             }
 
@@ -1898,6 +1969,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 setPhase(ReadinessPhase.DECODING);
                 return rowsRemainingInGroup > 0;
             } catch (Throwable e) {
+                closePhase2Pending();
+                dropGrantedIo();
                 releaseHeldGroup();
                 throw e;
             }
@@ -2352,23 +2425,19 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 );
                 pendingTicket = ticket;
                 ticket.addListener(ActionListener.wrap(granted -> {
-                    pendingTicket = null;
-                    if (closed.get() || ticketAbandoned.get()) {
-                        granted.drop();
-                        signalReady();
-                        return;
-                    }
-                    try {
-                        launchPhase2Io(block, rowRanges, lease, watermark, granted);
-                        if (closed.get() || ticketAbandoned.get()) {
-                            releasePhase2Future(phase2Future);
-                            phase2Future = null;
-                            signalReady();
-                        }
-                    } catch (Exception e) {
-                        granted.drop();
-                        failReady(e);
-                    }
+                    publishGrantedIo(
+                        new GrantedIo(
+                            granted,
+                            rowGroupOrdinal,
+                            block,
+                            projectionOnlyColumnPaths,
+                            rowRanges,
+                            lease,
+                            watermark,
+                            prefetchBytes,
+                            true
+                        )
+                    );
                 }, this::failReady));
                 return true;
             }
@@ -2387,23 +2456,31 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         @Nullable ParquetIoWatermark.AdmitHold hold
     ) {
         ParquetIoWatermark.ByteGate gate = hold != null ? ParquetIoWatermark.ByteGate.GROUP_HOLD : ParquetIoWatermark.ByteGate.UNGATED;
-        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future = startPrefetchIo(
-            rowGroupOrdinal,
-            block,
-            projectionOnlyColumnPaths,
-            rowRanges,
-            lease,
-            watermark,
-            hold,
-            gate
-        );
-        if (hold != null) {
-            future.whenComplete((ignored, error) -> hold.drop());
-        }
-        phase2Future = future;
-        watchPrefetch(future);
-        if (future.isDone() == false) {
-            setPhase(ReadinessPhase.PHASE2_IO_PENDING);
+        boolean reserved = hold != null;
+        try {
+            CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future = startPrefetchIo(
+                rowGroupOrdinal,
+                block,
+                projectionOnlyColumnPaths,
+                rowRanges,
+                lease,
+                watermark,
+                hold,
+                gate
+            );
+            if (hold != null) {
+                future.whenComplete((ignored, error) -> hold.drop());
+                reserved = false;
+            }
+            phase2Future = future;
+            watchPrefetch(future);
+            if (future.isDone() == false) {
+                setPhase(ReadinessPhase.PHASE2_IO_PENDING);
+            }
+        } finally {
+            if (reserved) {
+                hold.drop();
+            }
         }
     }
 
@@ -2445,15 +2522,21 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             throw asyncFailure;
         }
         phase2Future = null;
-        phase2Pending = null;
         if (result == null) {
+            closePhase2Pending();
             throw new IllegalStateException("Phase 2 future completed without chunks in [" + fileLocation + "]");
         }
-        if (pending.triviallyPasses) {
-            finishTrivialPhase2(pending, result);
-        } else {
-            finishFilteredPhase2(pending, result);
+        try {
+            if (pending.triviallyPasses) {
+                finishTrivialPhase2(pending, result);
+            } else {
+                finishFilteredPhase2(pending, result);
+            }
+        } catch (Throwable t) {
+            closePhase2Pending();
+            throw t;
         }
+        phase2Pending = null;
         setPhase(ReadinessPhase.DECODING);
         return rowsRemainingInGroup > 0;
     }
@@ -2561,10 +2644,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             return false;
         }
         groupPrefetchRetried = true;
-        prefetch.close();
+        // Join staged skips so their breaker/watermark bytes drop before the retry GET.
+        // Do not cancel in-flight buffers — that leaks the hold and the retry ticket never grants.
+        prefetch.drainForFallback(new ArrayDeque<>(), rowGroupOrdinal);
         cancelPendingPrefetch();
         fillPrefetchQueue(rowGroupOrdinal, true);
-        return pendingTicket != null || queuedPrefetchFor(rowGroupOrdinal);
+        consumeGrantedIo();
+        return pendingTicket != null || grantedIo != null || queuedPrefetchFor(rowGroupOrdinal);
     }
 
     private void closePhase2Pending() {
@@ -2610,15 +2696,32 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     /**
      * Row group {@link #advanceRowGroup()} will open next. A failed or in-flight current group
      * must be retried before {@link #rowGroupOrdinal} advances; {@link #isReadyNow()} uses the
-     * same ordinal so a completed re-ticket GET cannot be missed.
+     * same ordinal so a completed re-ticket GET cannot be missed. Threshold-dominated groups are
+     * skipped even when their prefetch is still queued: pinning to them spins in
+     * {@link #advanceRowGroup()} ({@code continue} after {@link #rowGroupDominatedByThreshold})
+     * while {@link #isReadyNow()} stays true on the completed stale future.
      */
     private int neededRowGroupOrdinal() {
+        int ordinal;
         if (rowGroup == null
             && rowGroupOrdinal >= 0
-            && (pendingTicket != null || currentPrefetchInFlight(rowGroupOrdinal) || queuedPrefetchFor(rowGroupOrdinal))) {
-            return rowGroupOrdinal;
+            && (pendingTicket != null
+                || grantedIo != null
+                || currentPrefetchInFlight(rowGroupOrdinal)
+                || queuedPrefetchFor(rowGroupOrdinal))) {
+            ordinal = rowGroupOrdinal;
+        } else {
+            ordinal = nextSurvivingRowGroupOrdinal(rowGroupOrdinal + 1);
         }
-        return nextSurvivingRowGroupOrdinal(rowGroupOrdinal + 1);
+        return skipThresholdDominated(ordinal);
+    }
+
+    private int skipThresholdDominated(int ordinal) {
+        List<BlockMetaData> rowGroups = reader.getRowGroups();
+        while (ordinal < rowGroups.size() && rowGroupDominatedByThreshold(rowGroups.get(ordinal))) {
+            ordinal = nextSurvivingRowGroupOrdinal(ordinal + 1);
+        }
+        return ordinal;
     }
 
     private static void closeAndSuppress(Releasable releasable, Throwable failure) {
@@ -2818,7 +2921,6 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             }
             head = dequeuePending();
             selection.stage(head);
-            boolean wasReady = true;
             ColumnChunkPrefetcher.PrefetchedChunks result;
             try {
                 result = head.future().getNow(null);
@@ -2845,7 +2947,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 }
                 throw ex instanceof RuntimeException re ? re : new CompletionException(ex);
             }
-            prefetchSucceeded(wasReady);
+            prefetchSucceeded();
             NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> data = result.chunks();
             logger.trace("Took [{}] prefetched column chunks for row group [{}] in [{}]", data.size(), expectedOrdinal, fileLocation);
             selection.unstage(head);
@@ -2914,17 +3016,21 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         prefetchDepth = 1;
     }
 
-    private void prefetchSucceeded(boolean wasReady) {
+    private void prefetchSucceeded() {
         if (probing) {
             probing = false;
             prefetchDepth = Math.max(prefetchDepth, prefetchDepthFloor);
+            ioParked = false;
+            return;
         }
+        boolean wasReady = ioParked == false;
+        ioParked = false;
         adaptPrefetchDepth(wasReady);
     }
 
     /**
-     * Adjusts {@link #prefetchDepth} based on whether the consumed prefetch future was already
-     * complete. A stall ({@code wasReady == false}) means the consumer outpaced the producer —
+     * Adjusts {@link #prefetchDepth} based on whether {@link #waitForReady()} parked for this
+     * group. A stall ({@code wasReady == false}) means the consumer outpaced the producer —
      * grow depth by {@link #PREFETCH_DEPTH_GROWTH} unless the circuit breaker is under pressure.
      * Unfiltered LIMIT still grows: {@link #limitPrefetchCovered()} is what stops extra groups
      * once the remaining budget is queued. Sustained no-stalls mean the queue is deep enough —
@@ -3918,6 +4024,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         closed.set(true);
         ticketAbandoned.set(true);
         pendingTicket = null;
+        dropGrantedIo();
         ParquetIoWatermark watermark = formatReader.ioWatermark();
         if (watermark != null) {
             watermark.nodeByteBudget().wakeWaiters();
@@ -4006,6 +4113,45 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      * entries. {@link #drainForFallback} instead joins and releases both sets of entries before
      * fallback reserves replacement buffers.
      */
+    /**
+     * A ticket grant waiting for the consumer thread to start the GET. Written by the grant
+     * callback; read and cleared by {@link #consumeGrantedIo()}.
+     */
+    private static final class GrantedIo {
+        private final ParquetIoWatermark.AdmitHold hold;
+        private final int ordinal;
+        private final BlockMetaData block;
+        private final Set<String> columns;
+        @Nullable
+        private final RowRanges rowRanges;
+        private final RowGroupIo lease;
+        private final ParquetIoWatermark watermark;
+        private final long prefetchBytes;
+        private final boolean phase2;
+
+        private GrantedIo(
+            ParquetIoWatermark.AdmitHold hold,
+            int ordinal,
+            BlockMetaData block,
+            Set<String> columns,
+            @Nullable RowRanges rowRanges,
+            RowGroupIo lease,
+            ParquetIoWatermark watermark,
+            long prefetchBytes,
+            boolean phase2
+        ) {
+            this.hold = hold;
+            this.ordinal = ordinal;
+            this.block = block;
+            this.columns = columns;
+            this.rowRanges = rowRanges;
+            this.lease = lease;
+            this.watermark = watermark;
+            this.prefetchBytes = prefetchBytes;
+            this.phase2 = phase2;
+        }
+    }
+
     private static final class PendingPrefetchSelection implements Releasable {
         private final ArrayDeque<PendingPrefetch> stagedPrefetches = new ArrayDeque<>();
         private NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks;

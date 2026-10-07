@@ -662,6 +662,44 @@ public final class AllocationEstimators {
         return AllocSizes.arrayBytes(receiver == null ? 0 : receiver.size(), 8);
     }
 
+    /**
+     * {@code ScriptDocValues.GeoPoints.get(index)}, {@code getValue()}, {@code getLat()}, {@code getLon()} and the distance
+     * methods: each copies the current point into a new {@code GeoPoint}.
+     */
+    public static long geoPointReadBytes(ScriptDocValues.GeoPoints receiver) {
+        return geoPointBytes();
+    }
+
+    public static long geoPointReadBytes(ScriptDocValues.GeoPoints receiver, int index) {
+        return geoPointBytes();
+    }
+
+    public static long geoPointReadBytes(ScriptDocValues.GeoPoints receiver, double lat, double lon) {
+        return geoPointBytes();
+    }
+
+    public static long geoPointReadBytes(ScriptDocValues.GeoPoints receiver, double lat, double lon, double defaultValue) {
+        return geoPointBytes();
+    }
+
+    public static long geoPointReadBytes(ScriptDocValues.GeoPoints receiver, String geohash) {
+        return geoPointBytes();
+    }
+
+    public static long geoPointReadBytes(ScriptDocValues.GeoPoints receiver, String geohash, double defaultValue) {
+        return geoPointBytes();
+    }
+
+    /** {@code ScriptDocValues.Longs.get(index)}: the value comes back boxed. {@code getValue()} returns the primitive and is free. */
+    public static long boxedLongReadBytes(ScriptDocValues.Longs receiver, int index) {
+        return AllocSizes.boxSize(long.class);
+    }
+
+    /** {@code ScriptDocValues.Doubles.get(index)}: the value comes back boxed. */
+    public static long boxedDoubleReadBytes(ScriptDocValues.Doubles receiver, int index) {
+        return AllocSizes.boxSize(double.class);
+    }
+
     // ---- Doc-value reads. A keyword, binary or ip read copies the stored bytes out of the field's buffer and decodes them,
     // ---- so it costs in proportion to the value. The keyword, BytesRef and binary reads are charged after the call by the
     // ---- Augmentation wrappers, which see the real result; the sizing helpers below are public for them.

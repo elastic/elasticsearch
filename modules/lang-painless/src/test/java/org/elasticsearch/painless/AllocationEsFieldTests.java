@@ -11,14 +11,20 @@ package org.elasticsearch.painless;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.field.BinaryDocValuesField;
+import org.elasticsearch.script.field.DoubleDocValuesField;
+import org.elasticsearch.script.field.GeoPointDocValuesField;
 import org.elasticsearch.script.field.HalfFloatDocValuesField;
 import org.elasticsearch.script.field.IpDocValuesField;
 import org.elasticsearch.script.field.KeywordDocValuesField;
+import org.elasticsearch.script.field.LongDocValuesField;
 
 import java.io.IOException;
 import java.util.Map;
@@ -137,6 +143,39 @@ public class AllocationEsFieldTests extends AllocationTestCase {
         assertEquals(40L + 16L, AllocationEstimators.ipStringsBytes(null));
     }
 
+    public void testBoxedNumericListReadsCharged() throws IOException {
+        // get(index) returns the value boxed; getValue() returns the primitive and costs nothing.
+        LongDocValuesField longs = new LongDocValuesField(longDocValues(1000L), "test");
+        longs.setNextDocId(0);
+        Map<String, Object> longParams = Map.of("field", longs.toScriptDocValues());
+        assertEquals(AllocSizes.boxSize(long.class), allocatedBytes("params.field.get(0)", longParams));
+        assertEquals(
+            AllocSizes.boxSize(long.class),
+            allocatedBytes("ScriptDocValues.Longs f = (ScriptDocValues.Longs) params.field; f.get(0)", longParams)
+        );
+        assertEquals(0L, allocatedBytes("long v = ((ScriptDocValues.Longs) params.field).getValue(); return null;", longParams));
+
+        DoubleDocValuesField doubles = new DoubleDocValuesField(doubleDocValues(2.5), "test");
+        doubles.setNextDocId(0);
+        Map<String, Object> doubleParams = Map.of("field", doubles.toScriptDocValues());
+        assertEquals(AllocSizes.boxSize(double.class), allocatedBytes("params.field.get(0)", doubleParams));
+    }
+
+    public void testGeoPointReadsCharged() throws IOException {
+        // Every read copies the point into a new GeoPoint: get, the getters behind .value and .lat, and the distance methods.
+        Map<String, Object> params = Map.of("field", geoPointField(12.5, 45.25).toScriptDocValues());
+        long point = AllocationEstimators.geoPointBytes();
+        assertEquals(point, allocatedBytes("params.field.get(0)", params));
+        assertEquals(point, allocatedBytes("params.field.value", params));
+        assertEquals(point, allocatedBytes("double d = params.field.lat; return null;", params));
+        assertEquals(
+            point,
+            allocatedBytes("ScriptDocValues.GeoPoints f = (ScriptDocValues.GeoPoints) params.field; double d = f.lon; return null;", params)
+        );
+        assertEquals(point, allocatedBytes("double d = params.field.arcDistance(0, 0); return null;", params));
+        assertEquals(point, allocatedBytes("double d = params.field.geohashDistance('u0'); return null;", params));
+    }
+
     public void testContextWhitelistsWithConstantAnnotationsParse() {
         // StatsSummary (score) and sha1/256/512 (ingest/reindex/update/update_by_query) live in context whitelists that the
         // base test context does not load, so parse them directly to validate their new @allocates annotations.
@@ -218,5 +257,36 @@ public class AllocationEsFieldTests extends AllocationTestCase {
                 return values[next++];
             }
         };
+    }
+
+    /** Numeric doc values over one document holding {@code values}. */
+    private static SortedNumericLongValues longDocValues(long... values) {
+        return new SortedNumericLongValues(null) {
+            private int next;
+
+            @Override
+            public boolean advanceExact(int doc) {
+                next = 0;
+                return doc == 0;
+            }
+
+            @Override
+            public int docValueCount() {
+                return values.length;
+            }
+
+            @Override
+            public long nextValue() {
+                return values[next++];
+            }
+        };
+    }
+
+    /** A geo point field with one point in one document, already on that document. */
+    private static GeoPointDocValuesField geoPointField(double lat, double lon) throws IOException {
+        long encoded = new GeoPoint(lat, lon).getEncoded();
+        GeoPointDocValuesField field = new GeoPointDocValuesField(new MultiGeoPointValues(longDocValues(encoded)), "test");
+        field.setNextDocId(0);
+        return field;
     }
 }

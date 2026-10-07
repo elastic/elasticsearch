@@ -68,7 +68,7 @@ class org.elasticsearch.index.fielddata.ScriptDocValues$Strings {
 }
 
 class org.elasticsearch.index.fielddata.ScriptDocValues$Longs {
-  Long get(int)
+  Long get(int) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="boxedLongReadBytes"]
   long getValue()
 }
 
@@ -78,7 +78,7 @@ class org.elasticsearch.index.fielddata.ScriptDocValues$Dates {
 }
 
 class org.elasticsearch.index.fielddata.ScriptDocValues$Doubles {
-  Double get(int)
+  Double get(int) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="boxedDoubleReadBytes"]
   double getValue()
 }
 
@@ -92,23 +92,25 @@ class org.elasticsearch.index.fielddata.ScriptDocValues$Geometry {
 }
 
 class org.elasticsearch.index.fielddata.ScriptDocValues$GeoPoints {
-  org.elasticsearch.common.geo.GeoPoint get(int)
-  org.elasticsearch.common.geo.GeoPoint getValue()
-  double getLat()
-  double getLon()
+  # Every read below copies the point into a new GeoPoint, the distance functions included.
+  org.elasticsearch.common.geo.GeoPoint get(int) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="geoPointReadBytes"]
+  org.elasticsearch.common.geo.GeoPoint getValue() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="geoPointReadBytes"]
+  double getLat() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="geoPointReadBytes"]
+  double getLon() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="geoPointReadBytes"]
   double[] getLats() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="geoPointsDoublesBytes"]
   double[] getLons() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="geoPointsDoublesBytes"]
 
   # geo distance functions
-  double arcDistance(double,double)
-  double arcDistanceWithDefault(double,double,double)
-  double planeDistance(double,double)
-  double planeDistanceWithDefault(double,double,double)
-  double geohashDistance(String)
-  double geohashDistanceWithDefault(String,double)
+  double arcDistance(double,double) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="geoPointReadBytes"]
+  double arcDistanceWithDefault(double,double,double) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="geoPointReadBytes"]
+  double planeDistance(double,double) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="geoPointReadBytes"]
+  double planeDistanceWithDefault(double,double,double) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="geoPointReadBytes"]
+  double geohashDistance(String) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="geoPointReadBytes"]
+  double geohashDistanceWithDefault(String,double) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="geoPointReadBytes"]
 }
 
 class org.elasticsearch.index.fielddata.ScriptDocValues$Booleans {
+  # Boolean.valueOf returns a shared constant, so get(int) allocates nothing.
   Boolean get(int)
   boolean getValue()
 }

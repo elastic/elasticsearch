@@ -34,4 +34,38 @@ public final class UnsignedLongAllocationEstimators {
     public static long asBigIntegerBytes(UnsignedLongDocValuesField receiver, int index, BigInteger defaultValue) {
         return UNSIGNED_LONG_BIG_INTEGER_BYTES;
     }
+
+    /** A boxed {@link Long}. */
+    private static final long BOXED_LONG_BYTES = 24;
+
+    /** An empty {@code ArrayList}: header, size, modCount and the array reference. */
+    private static final long ARRAY_LIST_SHELL_BYTES = 32;
+
+    private static final long ARRAY_HEADER = 16;
+
+    private static final long REFERENCE_SIZE = 8;
+
+    /** {@code UnsignedLongScriptDocValues.get(int)}: the value comes back boxed. */
+    public static long boxedLongBytes(UnsignedLongScriptDocValues receiver, int index) {
+        return BOXED_LONG_BYTES;
+    }
+
+    /** A new list of {@code count} elements of {@code elementBytes} each. Empty gives the shared empty list, so nothing. */
+    private static long listBytes(int count, long elementBytes) {
+        if (count <= 0) {
+            return 0;
+        }
+        long array = (ARRAY_HEADER + REFERENCE_SIZE * count + 7) & ~7L;
+        return ARRAY_LIST_SHELL_BYTES + array + elementBytes * count;
+    }
+
+    /** {@code UnsignedLongDocValuesField.getValues()}: every value boxed into a new list. */
+    public static long longValuesBytes(UnsignedLongDocValuesField receiver) {
+        return receiver == null ? 0 : listBytes(receiver.size(), BOXED_LONG_BYTES);
+    }
+
+    /** {@code UnsignedLongDocValuesField.asBigIntegers()}: a {@link BigInteger} per value in a new list. */
+    public static long bigIntegersBytes(UnsignedLongDocValuesField receiver) {
+        return receiver == null ? 0 : listBytes(receiver.size(), UNSIGNED_LONG_BIG_INTEGER_BYTES);
+    }
 }

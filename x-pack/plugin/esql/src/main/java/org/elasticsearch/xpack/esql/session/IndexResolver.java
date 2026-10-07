@@ -202,6 +202,57 @@ public class IndexResolver {
     }
 
     /**
+     * Resolves the exemplar data streams of a query run with {@code SET exemplars=true} to all of their fields. Their pattern is
+     * derived from the metrics data streams the query matched (see {@code ExemplarsRewriter#exemplarIndexPattern}), so unlike a
+     * user-written pattern some of them may not exist: field caps tolerates that, but executing the query against them would not. So
+     * field caps is asked which indices it resolved each expression to, and only the expressions that resolved to something become the
+     * original indices of the relation (see {@link #RESOLVED_EXPRESSIONS}). Field caps only reports that when every cluster involved
+     * supports it; otherwise the resolution fails.
+     * <p>
+     * The relation is a regular one, not a time series one, so none of the time series or unmapped field handling of
+     * {@link #resolveMainIndicesVersioned} applies; {@code requestFilter} and {@code minimumVersion} work like there.
+     */
+    public void resolveExemplarDataStreamsVersioned(
+        String indexPattern,
+        QueryBuilder requestFilter,
+        TransportVersion minimumVersion,
+        ActionListener<Versioned<IndexResolution>> listener
+    ) {
+        doResolveIndices(
+            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, ALL_FIELDS, requestFilter, false, true),
+            indexPattern,
+            true, /* the derived data streams may not exist */
+            minimumVersion,
+            false,
+            false,
+            false,
+            false,
+            false,
+            null,
+            RESOLVED_EXPRESSIONS,
+            listener
+        );
+    }
+
+    /**
+     * Original indices for a pattern whose expressions may not all exist: per cluster, the requested expressions that field caps
+     * resolved to at least one index. Requires the field caps response to carry that resolution information, which the coordinating
+     * node only includes when it was requested and all clusters involved are recent enough to provide it.
+     */
+    static final OriginalIndexExtractor RESOLVED_EXPRESSIONS = (indexPattern, fieldCapabilitiesResponse) -> {
+        if (fieldCapabilitiesResponse.getResolvedLocally() == null) {
+            // the coordinating node leaves the resolution information out unless all nodes of all clusters involved support the
+            // transport version [resolved_fields_caps], which was introduced in 9.3.0
+            throw new VerificationException(
+                "When querying exemplars, all nodes in all involved clusters must be at least at version 9.3.0; "
+                    + "cannot resolve which of [{}] exist otherwise",
+                indexPattern
+            );
+        }
+        return Maps.transformValues(EsqlResolvedIndexExpression.from(fieldCapabilitiesResponse), v -> List.copyOf(v.expression()));
+    };
+
+    /**
      * Like {@code IndexResolver#resolveIndicesVersioned} but for flat (CPS) queries. Set
      * {@code lenient} to allow targets to be missing — used for {@code ViewShadowRelation}
      * lookups, where finding nothing is the expected outcome when no remote project has an

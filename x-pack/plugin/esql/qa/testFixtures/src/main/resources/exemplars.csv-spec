@@ -1,0 +1,20 @@
+// The initial exemplar rewrite replaces the analyzed metrics query with the relation over all exemplar data streams derived from the
+// metrics data streams it matched. Metric and filter selection are added separately.
+exemplarsRelation
+required_capability: exemplars_setting_development_v2
+SET exemplars=true\;
+TS metrics-cpu | STATS AVG(cpu_time)
+;
+ignoreOrder:true
+
+@timestamp:date          | attributes.cpu:keyword | attributes.state:keyword | cpu:keyword | metric_name:keyword | span_id:keyword | state:keyword | trace_id:keyword    | value:double
+2024-05-10T00:00:10.000Z | cpu0                   | idle                     | cpu0        | cpu_time            | span-1          | idle          | trace-idle-cpu0-cpu | 1.7
+2024-05-10T00:01:10.000Z | cpu0                   | busy                     | cpu0        | cpu_time            | span-2          | busy          | trace-busy-cpu0-cpu | 8.1
+2024-05-10T00:01:20.000Z | cpu0                   | busy                     | cpu0        | request_duration    | span-3          | busy          | trace-busy-cpu0-dur | 47.5
+2024-05-10T00:02:10.000Z | cpu1                   | idle                     | cpu1        | memory_usage        | span-4          | idle          | trace-idle-cpu1-mem | 310.0
+2024-05-10T00:02:20.000Z | cpu1                   | idle                     | cpu1        | cpu_time            | span-5          | idle          | trace-idle-cpu1-cpu | 2.9
+2024-05-10T00:02:30.000Z | cpu1                   | idle                     | cpu1        | request_duration    | span-6          | idle          | trace-idle-cpu1-dur | 9.5
+2024-05-10T00:03:10.000Z | cpu1                   | busy                     | cpu1        | memory_usage        | span-7          | busy          | trace-busy-cpu1-mem | 420.0
+2024-05-10T00:03:20.000Z | cpu1                   | busy                     | cpu1        | request_duration    | span-8          | busy          | trace-busy-cpu1-dur | 38.0
+2024-05-10T00:04:10.000Z | cpu0                   | idle                     | cpu0        | memory_usage        | span-9          | idle          | trace-idle-cpu0-mem | 105.0
+;

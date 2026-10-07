@@ -1,0 +1,82 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ exemplars_setting_development_v2 ]
+        - method: GET
+          path: /_query/view
+          capabilities: [ view_index_abstraction ]
+      reason: "requires the exemplars query setting and ES|QL views"
+
+  - do:
+      indices.create:
+        index: metrics-yaml
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ host ]
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host:
+                type: keyword
+                time_series_dimension: true
+              cpu_time:
+                type: double
+                time_series_metric: gauge
+  - do:
+      bulk:
+        index: "metrics-yaml"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2024-05-10T00:00:00Z", "host": "a", "cpu_time": 1.5 }
+          - { "index": { } }
+          - { "@timestamp": "2024-05-10T00:01:00Z", "host": "a", "cpu_time": 2.5 }
+
+  - do:
+      esql.put_view:
+        name: cpu_view
+        body:
+          query: 'TS metrics-yaml | STATS AVG(cpu_time)'
+  - do:
+      esql.put_view:
+        name: host_view
+        body:
+          query: 'FROM metrics-yaml | KEEP host'
+
+---
+teardown:
+  - do:
+      esql.delete_view:
+        name: cpu_view,host_view
+
+---
+# TODO: views are rejected with SET exemplars=true until their support is designed and tested, see EsqlSession#rejectViewsForExemplars.
+"views are rejected with the exemplars setting":
+  - do:
+      catch: /\[exemplars\] does not support views yet, found view\(s\) \[cpu_view\]/
+      esql.query:
+        body:
+          query: 'SET exemplars=true; FROM cpu_view'
+
+  - do:
+      catch: /\[exemplars\] does not support views yet, found view\(s\) \[cpu_view, host_view\]/
+      esql.query:
+        body:
+          query: 'SET exemplars=true; FROM cpu_view, host_view'
+
+  # the same views are fine without the setting
+  - do:
+      esql.query:
+        body:
+          query: 'SET exemplars=false; FROM cpu_view'
+
+  - match: { columns.0.name: "AVG(cpu_time)" }
+  - length: { values: 1 }

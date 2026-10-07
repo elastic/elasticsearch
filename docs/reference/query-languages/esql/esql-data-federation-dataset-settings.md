@@ -502,7 +502,7 @@ These settings tune parallel reading, date parsing, and schema size limits for N
 $$$ndjson-segment-size$$$
 
 `segment_size`
-:   The unit that a file is divided into for parallel reading.
+:   The unit that a file is divided into for parallel reading. The effective segment is a few bytes under the value you set, so that each segment buffer, including its JVM array header, fits within the configured size.
 
     - **Default:** 4 MiB (`4mb`)
     - **Valid values:** A byte size of at least 64 KiB (`64kb`)

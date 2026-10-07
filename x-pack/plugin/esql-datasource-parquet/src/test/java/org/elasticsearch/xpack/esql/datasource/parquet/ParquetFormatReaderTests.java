@@ -82,6 +82,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
@@ -9736,7 +9737,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
         try {
             assertTrue("a heap-backed delegate yields array-backed buffers", buffer.hasArray());
             assertFalse(buffer.isDirect());
-            assertEquals("allocation must be charged to the request breaker", before + buffer.capacity(), breaker.getUsed());
+            assertEquals(
+                "allocation must be charged to the request breaker",
+                before + HeapFootprint.byteArrayBytes(buffer.capacity()),
+                breaker.getUsed()
+            );
         } finally {
             allocator.release(buffer);
         }

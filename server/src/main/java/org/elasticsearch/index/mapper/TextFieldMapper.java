@@ -347,8 +347,11 @@ public final class TextFieldMapper extends FieldMapper {
             );
             this.index = Parameter.indexParam(m -> ((TextFieldMapper) m).index, true);
             // Strictly columnar indices default index_options to "freqs" since positions are not needed there; others keep "positions".
-            String defaultIndexOptions = indexSettings.getMode().isStrictColumnar() ? "freqs" : "positions";
-            this.indexOptions = TextParams.textIndexOptions(m -> ((TextFieldMapper) m).indexOptions, defaultIndexOptions);
+            // index_phrases requires positions, so when it is set without an explicit index_options we upgrade this default in build().
+            this.indexOptions = TextParams.textIndexOptions(
+                m -> ((TextFieldMapper) m).indexOptions,
+                indexSettings.getMode().isStrictColumnar() ? "freqs" : "positions"
+            );
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
                 m -> ((TextFieldMapper) m).indexAnalyzer,
@@ -569,6 +572,13 @@ public final class TextFieldMapper extends FieldMapper {
 
         @Override
         public TextFieldMapper build(MapperBuilderContext context) {
+            // index_phrases needs positions. In strictly columnar mode index_options defaults to "freqs", so if the user enabled
+            // index_phrases without explicitly choosing index_options, upgrade the default to "positions" (mirroring standard mode,
+            // where index_phrases works out of the box because positions is the default). An explicit lower setting still errors in
+            // buildPhraseInfo, matching standard-mode behavior.
+            if (indexPhrases.getValue() && indexOptions.isSet() == false && indexOptions.getValue().equals("freqs")) {
+                indexOptions.setValue("positions");
+            }
             this.offsetsFieldName = FieldArrayContext.getOffsetsFieldName(
                 context,
                 indexSettings.getMode().isStrictColumnar(),

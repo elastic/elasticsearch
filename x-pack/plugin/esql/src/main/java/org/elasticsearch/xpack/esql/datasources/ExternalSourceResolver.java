@@ -202,7 +202,7 @@ public class ExternalSourceResolver {
     private final Executor executor;
     private final DataSourceModule dataSourceModule;
     /**
-     * Query reservation for listing and schema-map bytes. Set once from {@code EsqlSession.execute}.
+     * Query reservation for listing and schema-map bytes. Set once from {@code PlanExecutor.esql}.
      * Null when the session has no request breaker; those sessions skip the charge.
      */
     private volatile ExternalPlanningReservation planningReservation;
@@ -359,7 +359,7 @@ public class ExternalSourceResolver {
     private final Executor metadataReadExecutor;
 
     /**
-     * Binds the reservation {@code EsqlSession.execute} created from the session block factory.
+     * Binds the reservation {@code PlanExecutor.esql} created from the block factory's breaker.
      * Charge and release then share that breaker. Null skips the charge.
      */
     public void planning(@Nullable ExternalPlanningReservation reservation) {
@@ -584,7 +584,7 @@ public class ExternalSourceResolver {
         // Restore the captured request ThreadContext and install cancellation on every metadata-read
         // task so footer-load waiters and per-file continuations see the caller's headers, and so a
         // pool rejection still reaches AbstractRunnable.onRejection. Planning I/O is resolved when
-        // the task runs: the resolver is built in PlanExecutor before EsqlSession.execute binds
+        // the task runs: the resolver is constructed before PlanExecutor.esql binds
         // the reservation, so a ctor-time capture is always null.
         this.metadataReadExecutor = ExternalIoExecutors.preserving(
             ExternalIoExecutors.restoring(executor, this.restorableContext, this::isCancelled),

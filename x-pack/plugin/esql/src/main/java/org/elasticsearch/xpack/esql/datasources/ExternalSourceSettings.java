@@ -14,6 +14,7 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 
 import java.util.List;
 import java.util.function.Function;
@@ -61,8 +62,12 @@ public final class ExternalSourceSettings {
      * value so in-flight GET size and the concurrency formula stay in lockstep. This is not a bound on bytes
      * retained after a GET completes (unread prefetch, current row group) and is not the NDJSON whole-object
      * byte-array fast-path cap.
+     *
+     * <p>Just under 8 MiB so the GET's {@code byte[]}, header included, fits in exactly 8 MiB of heap at every G1
+     * region size. The previous 10 MiB occupied 12 MiB at 4 MiB regions and 16 MiB at 8 MiB regions, and an exact
+     * 8 MiB would too. Do not round it back up; see {@link HeapFootprint#regionFriendlyLength(int)}.
      */
-    public static final int BLOB_STORE_GET_SIZE_BYTES = 10 * 1024 * 1024;
+    public static final int BLOB_STORE_GET_SIZE_BYTES = HeapFootprint.regionFriendlyLength(8 * 1024 * 1024);
 
     /**
      * Heap bytes to allocate for a fill or sliding-window buffer. {@code requestedMax} is the format ceiling
@@ -90,12 +95,12 @@ public final class ExternalSourceSettings {
      * The default per-node concurrency for accessing an external blob store. CPU slope is {@code processors * 3}
      * clamped to {@code [}{@value #BLOB_STORE_CONCURRENCY_FLOOR}{@code , }{@value #BLOB_STORE_CONCURRENCY_CEILING}{@code ]}.
      * A byte budget {@code M = min(heap/4, half of indices.breaker.request.limit)} then caps that at
-     * {@code floor(M / 10 MiB)}, so small heaps cut connections instead of also taking a latency-hiding
+     * {@code floor(M / 8 MiB)}, so small heaps cut connections instead of also taking a latency-hiding
      * floor of 16. Tightening the request breaker in node-start settings ({@code elasticsearch.yml}) binds
      * first; {@code indices.breaker.request.limit} is Dynamic, but this default is resolved for the NodeScope
      * concurrency knob at startup, so a live REQUEST update does not resize permits, SDK pools, or
      * {@code esql_external_io}. Leftover {@code M} is left unused rather than shrinking the GET size. The parse
-     * floor of {@value #BLOB_STORE_CONCURRENCY_FLOOR} still wins when {@code M / 10 MiB} is smaller, so gzip/zstd
+     * floor of {@value #BLOB_STORE_CONCURRENCY_FLOOR} still wins when {@code M / 8 MiB} is smaller, so gzip/zstd
      * streaming keeps a parser thread.
      */
     public static int defaultBlobStoreConcurrency(Settings settings) {
@@ -115,7 +120,7 @@ public final class ExternalSourceSettings {
 
     // visible for testing
     /**
-     * Upper bound on in-flight 10 MiB GET slots from {@code M = min(heap/4, REQUEST/2)}. Never below the parse
+     * Upper bound on in-flight 8 MiB GET slots from {@code M = min(heap/4, REQUEST/2)}. Never below the parse
      * floor, so gzip/zstd still has a parser thread when {@code M / B} would be 2.
      */
     static int memoryBoundConcurrency(long heapBytes, long requestBreakerLimitBytes) {
@@ -208,7 +213,7 @@ public final class ExternalSourceSettings {
      * The default is {@link #defaultBlobStoreConcurrency(Settings)} rather than a fixed literal: CPU slope
      * {@code allocatedProcessors * 3} clamped to
      * {@code [}{@value #BLOB_STORE_CONCURRENCY_FLOOR}{@code , }{@value #BLOB_STORE_CONCURRENCY_CEILING}{@code ]},
-     * then further limited so concurrent 10 MiB reads stay within a quarter of heap (or half the request breaker
+     * then further limited so concurrent 8 MiB reads stay within a quarter of heap (or half the request breaker
      * when that is tighter). A positive operator override is capped by that same memory term, so a leftover
      * {@code 16} (the old floor) cannot skip the budget; {@code 0} still disables permit limiting. Operators can
      * raise it up to the memory cap (setting range 0–500) for high-throughput clusters or lower it when a store

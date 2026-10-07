@@ -4789,7 +4789,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * {@link #testALimitedQuotedCsvWalkStopsAfterTheCuts}; this case is the full scan #2131 still needs.
      */
     public void testRecordAlignedMacroSplitDiscoveryProvesQuotedCsvBoundaries() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         // Build a CSV payload exceeding 3 MiB so macro-splits form (minimumSegmentSize defaults to 1 MiB).
         // Quoted fields carry both ""-escaped quotes and embedded raw newlines.
@@ -4843,7 +4843,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * warning, not a LIMIT cut. Full-scan #2131 is {@link #testRecordAlignedMacroSplitDiscoveryProvesQuotedCsvBoundaries}.
      */
     public void testProvenBoundariesStopsAtMaxBoundariesWithoutMarkingAShortfall() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         byte[] payload = repeatingLines("1,\"embedded\nnewline\",ok\n", 5L * CSV_MIN_SEGMENT_BYTES);
         var csvReader = new CsvFormatReader(blockFactory);
         StorageObject obj = createInMemoryStorageObject(payload, StoragePath.of("mem://capped.csv"));
@@ -4873,7 +4873,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * whole-file set, which is the property a query over a macro-split file depends on.
      */
     public void testRecordAlignedMacroSplitDiscoveryWalksQuoteFreeCsv() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         StringBuilder csv = new StringBuilder("id,pickup_datetime,passengers,distance,fare\n");
         int dataRows = 0;
@@ -4983,7 +4983,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * would drain far more than the window).
      */
     public void testSerialStridedProbesDrainBoundedProbeWindows() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         // A stride at the S3 close-drain threshold caps every window there too, so leftover after
         // the first row is still drained by close() (not abort-on-close) and all probes pool.
@@ -5026,7 +5026,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * two. Such a probe therefore aborts: it pays a connection per probe and transfers only the bytes it scanned.
      */
     public void testStridedProbesAbortRatherThanDrainWhenTooMuchOfTheWindowIsLeft() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         // The window is the stride, so a stride at twice the drain threshold leaves every probe above it.
         long stride = FULL_WIDTH_WINDOW_BYTES;
@@ -5112,7 +5112,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * terminates a record and the splitter can be probed at any offset, exactly like NDJSON's.
      */
     private static RecordSplitter stridedSplitter() {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         var reader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
         return reader.recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES);
     }
@@ -5541,7 +5541,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * window running out rather than the splitter reporting the record too large.
      */
     public void testMacroSplitDiscoverySkipsAnOffsetWhoseRecordOutrunsTheProbeWindow() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         int maxRecordBytes = 16;
         long stride = 256 * 1024;
         // A record straddling the first stride offset, longer than the window maxRecordBytes allows the probe
@@ -5593,7 +5593,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * all that long, which is the whole file read as one split.
      */
     public void testARecordOfHundredsOfKilobytesResolvesToABoundary() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         long stride = 2 * CSV_MIN_SEGMENT_BYTES;
         int longRecordBytes = 512 * 1024;
         String fillerRow = "tail\n";
@@ -8177,7 +8177,7 @@ public class FileSplitProviderTests extends ESTestCase {
         AtomicInteger gets,
         AtomicInteger cacheHits
     ) {
-        DirectBufferFactory factory = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+        DirectBufferFactory factory = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
         return new RangeAwareFormatReader() {
             @Override
             public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
@@ -8284,7 +8284,7 @@ public class FileSplitProviderTests extends ESTestCase {
         @Nullable java.util.function.Predicate<String> cachedObjectName,
         @Nullable AtomicInteger cacheHits
     ) {
-        DirectBufferFactory factory = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+        DirectBufferFactory factory = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
         return new RangeAwareFormatReader() {
             @Override
             public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {

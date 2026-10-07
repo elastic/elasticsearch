@@ -33,8 +33,6 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -87,7 +85,6 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
 
     private final Client client;
     private final ThreadPool threadPool;
-    private final BigArrays bigArrays;
     private final long maxExpandedContentLength;
 
     @Inject
@@ -96,40 +93,38 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
         ActionFilters actionFilters,
         ThreadPool threadPool,
         Client client,
-        BigArrays bigArrays,
         Settings settings
     ) {
         super(NAME, transportService, actionFilters, in -> TransportAction.localOnly(), threadPool.executor(ThreadPool.Names.WRITE));
         this.client = client;
         this.threadPool = threadPool;
-        this.bigArrays = bigArrays;
         this.maxExpandedContentLength = HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_EXPANDED_CONTENT_LENGTH.get(settings).getBytes();
     }
 
     @Override
     protected void doExecute(Task task, RemoteWriteRequest request, ActionListener<RemoteWriteResponse> listener) {
-        try (request; LongHash exemplarTimestamps = new LongHash(1, bigArrays)) {
+        try (request) {
             RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.parseFrom(request.remoteWriteRequest.streamInput());
             request.releaseBody();
 
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             boolean exemplarIngestionEnabled = PrometheusPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled();
+            // Exemplars without a timestamp are stamped with the time the request was received. A re-sent request (e.g. after a
+            // 429) therefore assigns a new timestamp to such exemplars, so they are indexed again instead of being rejected as
+            // duplicates. We accept this limitation.
             long requestTimestamp = exemplarIngestionEnabled ? threadPool.absoluteTimeInMillis() : 0;
 
             int totalSamples = 0;
-            int totalExemplars = 0;
-            int duplicateExemplars = 0;
             int droppedSamplesMissingName = 0;
-            int droppedExemplarsMissingName = 0;
+            ExemplarCounters exemplarCounters = new ExemplarCounters();
             ExpandedContentTracker expandedContentTracker = new ExpandedContentTracker(maxExpandedContentLength);
             List<IndexRequest> sampleRequests = new ArrayList<>();
             List<IndexRequest> exemplarRequests = new ArrayList<>();
             for (TimeSeries timeSeries : writeRequest.getTimeseriesList()) {
-                exemplarTimestamps.clear();
                 int seriesSamples = timeSeries.getSamplesCount();
                 int seriesExemplars = exemplarIngestionEnabled ? timeSeries.getExemplarsCount() : 0;
                 totalSamples += seriesSamples;
-                totalExemplars += seriesExemplars;
+                exemplarCounters.total += seriesExemplars;
 
                 String metricName = null;
                 String dataset = request.dataset;
@@ -150,7 +145,7 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
                 }
                 if (metricName == null) {
                     droppedSamplesMissingName += seriesSamples;
-                    droppedExemplarsMissingName += seriesExemplars;
+                    exemplarCounters.droppedMissingName += seriesExemplars;
                     continue;
                 }
 
@@ -167,11 +162,14 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
                 }
                 if (exemplarIngestionEnabled) {
                     for (Exemplar exemplar : timeSeries.getExemplarsList()) {
-                        long exemplarTimestamp = exemplar.getTimestamp() == 0 ? requestTimestamp : exemplar.getTimestamp();
-                        if (exemplarTimestamps.add(exemplarTimestamp) < 0) {
-                            duplicateExemplars++;
+                        if (Double.isFinite(exemplar.getValue()) == false) {
+                            // Prometheus passes non-finite exemplar values through, but the double mapping cannot store them.
+                            exemplarCounters.droppedNonFinite++;
                             continue;
                         }
+                        // Assigning the request timestamp can cause duplicate timestamps if there are multiple per timestamp
+                        // We leave the duplicate detection to the indexing request
+                        long exemplarTimestamp = exemplar.getTimestamp() == 0 ? requestTimestamp : exemplar.getTimestamp();
                         IndexRequest indexRequest = buildExemplarIndexRequest(timeSeries, exemplar, dataset, namespace, exemplarTimestamp);
                         if (expandedContentTracker.add(indexRequest.ramBytesUsed(), listener)) {
                             return;
@@ -181,6 +179,7 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
                 }
             }
 
+            // Samples are added before exemplars so that bulk item failures can be attributed to either of them by position.
             for (IndexRequest sampleRequest : sampleRequests) {
                 bulkRequestBuilder.add(sampleRequest);
             }
@@ -190,29 +189,21 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
             }
 
             logger.debug(
-                "Received Prometheus remote write request with {} timeseries, {} samples, and {} exemplars ({} duplicates dropped)",
+                "Received Prometheus remote write request with {} timeseries, {} samples, and {} exemplars",
                 writeRequest.getTimeseriesCount(),
                 totalSamples,
-                totalExemplars,
-                duplicateExemplars
+                exemplarCounters.total
             );
 
-            if (totalSamples + totalExemplars == 0) {
+            if (totalSamples + exemplarCounters.total == 0) {
                 listener.onResponse(new RemoteWriteResponse());
                 return;
             }
 
             if (bulkRequestBuilder.numberOfActions() == 0) {
-                if (droppedSamplesMissingName > 0 || droppedExemplarsMissingName > 0) {
-                    String message = buildFailureSummary(
-                        totalSamples,
-                        totalExemplars,
-                        droppedSamplesMissingName,
-                        droppedExemplarsMissingName,
-                        droppedSamplesMissingName,
-                        droppedExemplarsMissingName,
-                        Map.of()
-                    );
+                logExemplarProblems(exemplarCounters, null);
+                if (droppedSamplesMissingName > 0) {
+                    String message = buildFailureSummary(totalSamples, droppedSamplesMissingName, droppedSamplesMissingName, null);
                     listener.onFailure(new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST));
                 } else {
                     // No indexable data points remain, which is not a client error.
@@ -222,25 +213,19 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
             }
 
             final int finalTotalSamples = totalSamples;
-            final int finalTotalExemplars = totalExemplars;
             final int finalDroppedSamplesMissingName = droppedSamplesMissingName;
-            final int finalDroppedExemplarsMissingName = droppedExemplarsMissingName;
-            bulkRequestBuilder.execute(listener.delegateFailure((delegate, bulkResponse) -> {
-                if (bulkResponse.hasFailures() || finalDroppedSamplesMissingName > 0 || finalDroppedExemplarsMissingName > 0) {
-                    delegate.onFailure(
-                        buildPartialFailureException(
-                            bulkResponse,
-                            finalTotalSamples,
-                            finalTotalExemplars,
-                            finalDroppedSamplesMissingName,
-                            finalDroppedExemplarsMissingName,
-                            firstExemplarDocumentPosition
-                        )
-                    );
-                } else {
-                    delegate.onResponse(new RemoteWriteResponse());
-                }
-            }));
+            bulkRequestBuilder.execute(
+                listener.delegateFailure(
+                    (delegate, bulkResponse) -> handleBulkResponse(
+                        bulkResponse,
+                        finalTotalSamples,
+                        finalDroppedSamplesMissingName,
+                        exemplarCounters,
+                        firstExemplarDocumentPosition,
+                        delegate
+                    )
+                )
+            );
 
         } catch (InvalidProtocolBufferException e) {
             logger.debug("invalid Prometheus remote write payload", e);
@@ -272,28 +257,44 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
             builder.field("namespace", namespace);
             builder.endObject();
 
-            builder.startObject("labels");
-            for (Label label : timeSeries.getLabelsList()) {
-                if (isIgnoredLabel(label.getName()) == false) {
-                    builder.field(label.getName(), label.getValue());
-                }
-            }
-            builder.endObject();
+            writeSeriesLabels(builder, timeSeries);
 
-            if (exemplar.getLabelsCount() > 0) {
-                builder.startObject("exemplar_labels");
-                for (Label label : exemplar.getLabelsList()) {
-                    builder.field(label.getName(), label.getValue());
+            boolean hasExemplarLabels = false;
+            for (Label label : exemplar.getLabelsList()) {
+                if (Strings.hasLength(label.getValue()) == false) {
+                    continue;
                 }
+                if (hasExemplarLabels == false) {
+                    builder.startObject("exemplar_labels");
+                    hasExemplarLabels = true;
+                }
+                builder.field(label.getName(), label.getValue());
+            }
+            if (hasExemplarLabels) {
                 builder.endObject();
             }
 
             builder.field("value", exemplar.getValue());
             builder.endObject();
 
-            String targetIndex = EXEMPLARS_DATA_STREAM_PREFIX + dataset + PROMETHEUS_DATASET_SUFFIX + "-" + namespace;
+            String targetIndex = EXEMPLARS_DATA_STREAM_PREFIX + fullDataset + "-" + namespace;
             return new IndexRequest(targetIndex).opType(DocWriteRequest.OpType.CREATE).setRequireDataStream(true).source(builder);
         }
+    }
+
+    /**
+     * Writes the series labels (including {@code __name__}) as the {@code labels} object. Sample and exemplar documents must use
+     * identical labels because they form the time series dimensions of both data streams. Prometheus treats a label with an empty
+     * value as absent, so such labels are skipped.
+     */
+    private static void writeSeriesLabels(XContentBuilder builder, TimeSeries timeSeries) throws IOException {
+        builder.startObject("labels");
+        for (Label label : timeSeries.getLabelsList()) {
+            if (isIgnoredLabel(label.getName()) == false && Strings.hasLength(label.getValue())) {
+                builder.field(label.getName(), label.getValue());
+            }
+        }
+        builder.endObject();
     }
 
     /*
@@ -319,14 +320,7 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
             builder.field("namespace", namespace);
             builder.endObject();
 
-            // labels - all labels including __name__; Prometheus treats a label with an empty value as absent
-            builder.startObject("labels");
-            for (Label label : timeSeries.getLabelsList()) {
-                if (isIgnoredLabel(label.getName()) == false && Strings.hasLength(label.getValue())) {
-                    builder.field(label.getName(), label.getValue());
-                }
-            }
-            builder.endObject();
+            writeSeriesLabels(builder, timeSeries);
             builder.startObject("metrics");
 
             // metric value - field named after the metric
@@ -340,101 +334,150 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
         }
     }
 
-    private static ElasticsearchStatusException buildPartialFailureException(
+    /**
+     * Only sample failures decide whether the request fails. Exemplar failures never affect the response, following upstream
+     * Prometheus (which does not fail remote write requests on exemplar ingestion errors) and the OTLP endpoint (which only reports
+     * them as a warning). Remote write has no partial success channel, so exemplar problems are only logged.
+     */
+    private static void handleBulkResponse(
         BulkResponse bulkResponse,
         int totalSamples,
-        int totalExemplars,
         int droppedSamplesMissingName,
-        int droppedExemplarsMissingName,
-        int firstExemplarDocumentPosition
+        ExemplarCounters exemplarCounters,
+        int firstExemplarDocumentPosition,
+        ActionListener<RemoteWriteResponse> listener
     ) {
-        Map<String, Map<RestStatus, FailureGroup>> failureGroups = null;
+        Map<String, Map<RestStatus, FailureGroup>> sampleFailureGroups = null;
+        Map<String, Map<RestStatus, FailureGroup>> exemplarFailureGroups = null;
         // Default to 400 per the remote write spec for requests that should not be retried.
         RestStatus responseStatus = RestStatus.BAD_REQUEST;
         int sampleFailures = droppedSamplesMissingName;
-        int exemplarFailures = droppedExemplarsMissingName;
 
         BulkItemResponse[] items = bulkResponse.getItems();
         for (int i = 0; i < items.length; i++) {
-            BulkItemResponse item = items[i];
-            BulkItemResponse.Failure failure = item.getFailure();
+            BulkItemResponse.Failure failure = items[i].getFailure();
             if (failure != null) {
                 if (i < firstExemplarDocumentPosition) {
                     sampleFailures++;
-                } else {
-                    exemplarFailures++;
+                    if (failure.getStatus() == RestStatus.TOO_MANY_REQUESTS) {
+                        // 429 takes priority so clients retry (valid samples that were rate-limited may succeed on retry).
+                        responseStatus = RestStatus.TOO_MANY_REQUESTS;
+                    }
+                    sampleFailureGroups = addFailure(sampleFailureGroups, failure);
+                } else { // the failure occurred for an exemplar, so not an actual error reported to the user
+                    if (failure.getStatus() == RestStatus.CONFLICT) {
+                        // Exemplar data streams use time series mode, so an exemplar with the same series labels and timestamp as an
+                        // already indexed one (within this request, or from a re-sent batch) is rejected as a version conflict.
+                        // The first exemplar wins, which is the intended deduplication.
+                        exemplarCounters.duplicates++;
+                    } else {
+                        exemplarCounters.failed++;
+                        exemplarFailureGroups = addFailure(exemplarFailureGroups, failure);
+                    }
                 }
-                if (failure.getStatus() == RestStatus.TOO_MANY_REQUESTS) {
-                    // 429 takes priority so clients retry (valid samples that were rate-limited may succeed on retry).
-                    responseStatus = RestStatus.TOO_MANY_REQUESTS;
-                }
-                if (failureGroups == null) {
-                    failureGroups = new HashMap<>();
-                }
-                failureGroups.computeIfAbsent(failure.getIndex(), k -> new HashMap<>())
-                    .computeIfAbsent(failure.getStatus(), k -> new FailureGroup(new AtomicInteger(0), failure.getMessage()))
-                    .failureCount()
-                    .incrementAndGet();
             }
         }
 
-        String message = buildFailureSummary(
-            totalSamples,
-            totalExemplars,
-            droppedSamplesMissingName,
-            droppedExemplarsMissingName,
-            sampleFailures,
-            exemplarFailures,
-            failureGroups
-        );
-        return new ElasticsearchStatusException(message, responseStatus);
+        logExemplarProblems(exemplarCounters, exemplarFailureGroups);
+        if (sampleFailures > 0) {
+            String message = buildFailureSummary(totalSamples, sampleFailures, droppedSamplesMissingName, sampleFailureGroups);
+            listener.onFailure(new ElasticsearchStatusException(message, responseStatus));
+        } else {
+            listener.onResponse(new RemoteWriteResponse());
+        }
+    }
+
+    private static Map<String, Map<RestStatus, FailureGroup>> addFailure(
+        @Nullable Map<String, Map<RestStatus, FailureGroup>> failureGroups,
+        BulkItemResponse.Failure failure
+    ) {
+        if (failureGroups == null) {
+            failureGroups = new HashMap<>();
+        }
+        failureGroups.computeIfAbsent(failure.getIndex(), k -> new HashMap<>())
+            .computeIfAbsent(failure.getStatus(), k -> new FailureGroup(new AtomicInteger(0), failure.getMessage()))
+            .failureCount()
+            .incrementAndGet();
+        return failureGroups;
+    }
+
+    private static void logExemplarProblems(
+        ExemplarCounters exemplarCounters,
+        @Nullable Map<String, Map<RestStatus, FailureGroup>> exemplarFailureGroups
+    ) {
+        if (exemplarCounters.hasProblems() && logger.isDebugEnabled()) {
+            StringBuilder message = new StringBuilder("Prometheus remote write request: ");
+            exemplarCounters.appendSummary(message, exemplarFailureGroups);
+            logger.debug(message.toString());
+        }
     }
 
     private static String buildFailureSummary(
         int totalSamples,
-        int totalExemplars,
-        int droppedSamplesMissingName,
-        int droppedExemplarsMissingName,
         int sampleFailures,
-        int exemplarFailures,
-        @Nullable Map<String, Map<RestStatus, FailureGroup>> failureGroups
+        int droppedSamplesMissingName,
+        @Nullable Map<String, Map<RestStatus, FailureGroup>> sampleFailureGroups
     ) {
         StringBuilder failureMessage = new StringBuilder();
-        failureMessage.append("Prometheus remote write request partially failed: ");
-        if (sampleFailures > 0) {
-            failureMessage.append(sampleFailures).append(" of ").append(totalSamples).append(" samples");
-        }
-        if (exemplarFailures > 0) {
-            if (sampleFailures > 0) {
-                failureMessage.append(" and ");
-            }
-            failureMessage.append(exemplarFailures).append(" of ").append(totalExemplars).append(" exemplars");
-        }
-        failureMessage.append(" failed.\n");
+        failureMessage.append("Prometheus remote write request partially failed: ")
+            .append(sampleFailures)
+            .append(" of ")
+            .append(totalSamples)
+            .append(" samples failed.\n");
         if (droppedSamplesMissingName > 0) {
             failureMessage.append(droppedSamplesMissingName).append(" sample(s) dropped due to missing __name__ label\n");
         }
-        if (droppedExemplarsMissingName > 0) {
-            failureMessage.append(droppedExemplarsMissingName).append(" exemplar(s) dropped due to missing __name__ label\n");
+        appendFailureGroups(failureMessage, sampleFailureGroups);
+        return failureMessage.toString();
+    }
+
+    private static void appendFailureGroups(StringBuilder message, @Nullable Map<String, Map<RestStatus, FailureGroup>> failureGroups) {
+        if (failureGroups == null) {
+            return;
         }
-        if (failureGroups != null) {
-            for (Map.Entry<String, Map<RestStatus, FailureGroup>> indexEntry : failureGroups.entrySet()) {
-                for (Map.Entry<RestStatus, FailureGroup> statusEntry : indexEntry.getValue().entrySet()) {
-                    FailureGroup group = statusEntry.getValue();
-                    failureMessage.append("Index [")
-                        .append(indexEntry.getKey())
-                        .append("] returned status [")
-                        .append(statusEntry.getKey())
-                        .append("] for ")
-                        .append(group.failureCount())
-                        .append(" documents. Sample error: ")
-                        .append(group.failureMessageSample())
-                        .append("\n");
-                }
+        for (Map.Entry<String, Map<RestStatus, FailureGroup>> indexEntry : failureGroups.entrySet()) {
+            for (Map.Entry<RestStatus, FailureGroup> statusEntry : indexEntry.getValue().entrySet()) {
+                FailureGroup group = statusEntry.getValue();
+                message.append("Index [")
+                    .append(indexEntry.getKey())
+                    .append("] returned status [")
+                    .append(statusEntry.getKey())
+                    .append("] for ")
+                    .append(group.failureCount())
+                    .append(" documents. Sample error: ")
+                    .append(group.failureMessageSample())
+                    .append("\n");
             }
         }
+    }
 
-        return failureMessage.toString();
+    /**
+     * Tracks what happened to the exemplars of a request. None of these counts affect the response status.
+     */
+    private static class ExemplarCounters {
+        int total;
+        int droppedMissingName;
+        int droppedNonFinite;
+        int duplicates;
+        int failed;
+
+        boolean hasProblems() {
+            return droppedMissingName + droppedNonFinite + failed > 0;
+        }
+
+        void appendSummary(StringBuilder message, @Nullable Map<String, Map<RestStatus, FailureGroup>> exemplarFailureGroups) {
+            message.append(droppedMissingName + droppedNonFinite + failed)
+                .append(" of ")
+                .append(total)
+                .append(" exemplars were not indexed.\n");
+            if (droppedMissingName > 0) {
+                message.append(droppedMissingName).append(" exemplar(s) dropped due to missing __name__ label\n");
+            }
+            if (droppedNonFinite > 0) {
+                message.append(droppedNonFinite).append(" exemplar(s) dropped due to non-finite value\n");
+            }
+            appendFailureGroups(message, exemplarFailureGroups);
+        }
     }
 
     record FailureGroup(AtomicInteger failureCount, String failureMessageSample) {}

@@ -740,8 +740,9 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
     private static Map<String, Object> harvested(ExternalSourceCacheService service, SchemaCacheKey key) {
         SchemaCacheEntry schema = service.getSchemaIfPresent(key);
         assertNotNull("no schema record at " + key, schema);
-        String stamp = schema.safeMetadata().get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY) instanceof String str
-            && str.isEmpty() == false ? str : null;
+        String stamp = schema.safeMetadata().get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY) instanceof String str && str.isEmpty() == false
+            ? str
+            : null;
         Map<String, Object> statistics = service.getStatistics(StatisticsKey.of(key, stamp));
         return statistics == null ? Map.of() : statistics;
     }

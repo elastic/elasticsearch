@@ -228,6 +228,9 @@ tests:
 - class: org.elasticsearch.test.apmintegration.OtelMetricsIT
   method: testJvmMetrics
   issue: https://github.com/elastic/elasticsearch/issues/161198
+- class: org.elasticsearch.common.io.stream.RecyclerBytesStreamOutputTests
+  method: testCircuitBreakerReleaseOnRecyclerFailure
+  issue: https://github.com/elastic/elasticsearch/issues/161203
 
 # Examples:
 #

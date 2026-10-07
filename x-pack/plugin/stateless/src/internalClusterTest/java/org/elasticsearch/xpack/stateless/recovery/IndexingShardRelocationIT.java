@@ -506,11 +506,10 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         final var commitService = (TestStatelessCommitService) ((IndexEngine) indexShard.getEngineOrNull()).getStatelessCommitService();
 
         // Fail markRelocating on the first attempt only, before it completes the upload bound listener. The allocator then retries
-        // the relocation, and its installUploadBoundListener records the state left behind by the first attempt.
+        // the relocation, and its installUploadBoundListener checks the state left behind by the first attempt.
         final var simulatedFailure = new ElasticsearchException("simulated markRelocating failure");
-        final var firstUploadBoundListener = new SubscribableListener<SubscribableListener<Long>>();
+        final var firstUploadBoundListener = new SubscribableListener<Long>();
         final var retriedOnSameShard = new SubscribableListener<Boolean>();
-        final var uploadBoundWasNotClearedBeforeRetry = new SubscribableListener<Boolean>();
         final var installUploadBoundAttempts = new AtomicInteger();
         final var firstMarkRelocatingAttempt = new AtomicBoolean(true);
         commitService.setStrategy(new TestStatelessCommitService.Strategy() {
@@ -521,10 +520,13 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                 SubscribableListener<Long> uploadBoundListener
             ) {
                 if (installUploadBoundAttempts.incrementAndGet() == 1) {
-                    firstUploadBoundListener.onResponse(uploadBoundListener);
+                    uploadBoundListener.addListener(firstUploadBoundListener);
                 } else {
                     retriedOnSameShard.onResponse(indexShard.state() != IndexShardState.CLOSED);
-                    uploadBoundWasNotClearedBeforeRetry.onResponse(commitService.relocationUploadBoundIsPendingOrSet(shardId));
+                    assertFalse(
+                        "the failed upload bound listener must be cleared before the retry",
+                        commitService.relocationUploadBoundIsInstalled(shardId)
+                    );
                 }
                 originalRunnable.run();
             }
@@ -548,13 +550,9 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
 
         try {
             ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, indexNode, newIndexNode));
-            assertThat(safeAwaitFailure(safeAwait(firstUploadBoundListener)), sameInstance(simulatedFailure));
+            assertThat(safeAwaitFailure(firstUploadBoundListener), sameInstance(simulatedFailure));
 
             assertTrue("the relocation is retried from the same shard instance", safeAwait(retriedOnSameShard));
-            assertFalse(
-                "the failed upload bound listener must be cleared before the retry",
-                safeAwait(uploadBoundWasNotClearedBeforeRetry)
-            );
 
             ensureGreen(indexName);
             assertThat(findIndexShard(indexName).routingEntry().currentNodeId(), equalTo(getNodeId(newIndexNode)));

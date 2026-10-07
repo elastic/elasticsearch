@@ -1270,7 +1270,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     }
 
     // visible for testing
-    public boolean relocationUploadBoundIsPendingOrSet(ShardId shardId) {
+    public boolean relocationUploadBoundIsInstalled(ShardId shardId) {
         final ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         return commitState.relocationUploadBoundListener != null;
     }
@@ -1884,7 +1884,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 .map(PendingUploadVirtualBatchCompoundCommit::commit);
         }
 
-        private Optional<VirtualBatchedCompoundCommit> getMaxPendingUploadBccWithUnpausedUpload() {
+        private Optional<VirtualBatchedCompoundCommit> getUnpausedMaxPendingUploadBcc() {
             return pendingUploadBccGenerations.values()
                 .stream()
                 // Freezing a VBCC does not consult maxGenerationToUpload, so while the shard is relocating this map
@@ -3201,7 +3201,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         /// A VBCC that is past the [#maxGenerationToUpload] during relocation must not be handed to a search shard,
         /// which would otherwise read offsets into a blob that is never written.
         ///
-        /// While a relocation upload bound listener is installed this falls back to [#getMaxPendingUploadBccWithUnpausedUpload].
+        /// While a relocation upload bound listener is installed this falls back to [#getUnpausedMaxPendingUploadBcc].
         /// A recovering search shard then gets a slightly older commit and catches up through the normal notification path.
         ///
         /// Otherwise this returns the current VBCC, or the newest VBCC pending upload if there is no current one.
@@ -3215,7 +3215,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             if (virtualBcc != null && relocationUploadBoundListener == null) {
                 return virtualBcc;
             }
-            return getMaxPendingUploadBccWithUnpausedUpload().orElse(null);
+            return getUnpausedMaxPendingUploadBcc().orElse(null);
         }
 
         /**

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.benchmark.vector.quantization;
 
+import org.apache.lucene.search.TaskExecutor;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.benchmark.vector.VectorImplementation;
 import org.elasticsearch.benchmark.vector.VectorizationInfo;
@@ -26,11 +27,14 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 import java.util.Arrays;
 import java.util.Random;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 @BenchmarkMode(Mode.AverageTime)
@@ -45,6 +49,9 @@ public class MatrixMultiplyBenchmark {
         BenchmarkLogging.configure();
         VectorizationInfo.printOnce();
     }
+
+    @Param({ "1", "12" })
+    int threads;
 
     @Param({ "SCALAR", "PANAMA" })
     VectorImplementation implementation;
@@ -75,6 +82,8 @@ public class MatrixMultiplyBenchmark {
     @Param({ "128", "341", "512", "2048" })
     int n;
 
+    private ExecutorService executor;
+    private TaskExecutor tasks;
     private ESVectorUtilSupport impl;
     /** A is (m x k). */
     private float[] a;
@@ -84,6 +93,8 @@ public class MatrixMultiplyBenchmark {
 
     @Setup(Level.Trial)
     public void init() {
+        executor = threads == 1 ? null : Executors.newFixedThreadPool(threads);
+        tasks = executor == null ? null : new TaskExecutor(executor);
         impl = switch (implementation) {
             case SCALAR -> ESVectorizationProvider.lookup(false, false).getVectorUtilSupport();
             case PANAMA -> ESVectorizationProvider.lookup(true, false).getVectorUtilSupport();
@@ -103,7 +114,12 @@ public class MatrixMultiplyBenchmark {
     /** C = A @ B, A is (m x k), B is (k x n), C is (m x n). */
     @Benchmark
     public void matrixMultiply(Blackhole bh) {
-        impl.matrixMultiply(a, bMul, m, k, n, result);
+        impl.matrixMultiply(a, bMul, m, k, n, result, tasks);
         bh.consume(result);
+    }
+
+    @TearDown
+    public void close() {
+        if (executor != null) executor.close();
     }
 }

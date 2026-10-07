@@ -1147,7 +1147,7 @@ public class ESVectorUtil {
         if (result.length != m * n) {
             throw new IllegalArgumentException("Invalid result array size [" + result.length + "] for matrix multiplication");
         }
-        IMPL.matrixMultiply(a, b, m, k, n, result);
+        IMPL.matrixMultiply(a, b, m, k, n, result, null);
     }
 
     /**

@@ -81,7 +81,6 @@ import static org.hamcrest.Matchers.instanceOf;
 public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
 
     private static final String FIELD = "kw";
-    private static final CircuitBreaker NOOP = NoopCircuitBreaker.INSTANCE;
 
     /** How a keyword's documents are written, and the readers the mapper picks for that framing. */
     private enum Framing {
@@ -320,7 +319,8 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
         final String[] values = values(true);
         withSegment(values, Framing.PAYLOAD, leaf -> {
             final var loader = new BytesRefsFromBinaryBlockLoader(FIELD);
-            final TestBlock block = (TestBlock) loader.reader(NOOP, leaf).read(TestBlock.factory(), docs(0, values.length), 0, false);
+            final TestBlock block = (TestBlock) loader.reader(NoopCircuitBreaker.INSTANCE, leaf)
+                .read(TestBlock.factory(), docs(0, values.length), 0, false);
             for (int d = 0; d < values.length; d++) {
                 assertEquals("document " + d, values[d] == null ? null : payload(values[d]), block.get(d));
             }
@@ -396,7 +396,7 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
         String[] values,
         Function<String, Object> expected
     ) throws IOException {
-        try (BlockLoader.ColumnAtATimeReader reader = loader.reader(NOOP, leaf)) {
+        try (BlockLoader.ColumnAtATimeReader reader = loader.reader(NoopCircuitBreaker.INSTANCE, leaf)) {
             assertRead(label, reader, wanted, values, expected);
         }
     }
@@ -446,7 +446,7 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
             // document at once, and a small page after the largest.
             final int[][] pages = { { 0, 5 }, { 5, 40 }, { 44, 30 }, { 20, 60 }, { 0, n }, { n - 3, 3 }, { between(0, n - 2), 2 } };
             withSegment(values, framing, leaf -> {
-                try (BlockLoader.ColumnAtATimeReader reader = loader.reader(NOOP, guarded(leaf, lengthsOnly))) {
+                try (BlockLoader.ColumnAtATimeReader reader = loader.reader(NoopCircuitBreaker.INSTANCE, guarded(leaf, lengthsOnly))) {
                     for (int[] page : pages) {
                         final int[] wanted = new int[page[1]];
                         for (int i = 0; i < wanted.length; i++) {

@@ -57,7 +57,6 @@ public class ColumnarBinaryDocValuesQueriesTests extends ESTestCase {
 
     private static final String FIELD = "kw";
     private static final String[] TERMS = { "alpha", "alpine", "bravo", "charlie", "delta" };
-    private static final NoopCircuitBreaker NOOP_BREAKER = new NoopCircuitBreaker("wildcard-test");
 
     /**
      * The patterns worth telling apart: three that name a shape a column answers without an automaton, and
@@ -75,7 +74,7 @@ public class ColumnarBinaryDocValuesQueriesTests extends ESTestCase {
         "" };
 
     private static Query wildcard(String field, String pattern) {
-        return ColumnarBinaryDocValuesQueries.INSTANCE.wildcard(field, pattern, false, NOOP_BREAKER);
+        return ColumnarBinaryDocValuesQueries.INSTANCE.wildcard(field, pattern, false, NoopCircuitBreaker.INSTANCE);
     }
 
     /**
@@ -98,7 +97,7 @@ public class ColumnarBinaryDocValuesQueriesTests extends ESTestCase {
         }
         // Case folding is the automaton's business, so even a plain pattern stays one.
         assertThat(
-            ColumnarBinaryDocValuesQueries.INSTANCE.wildcard(FIELD, "alpha", true, NOOP_BREAKER),
+            ColumnarBinaryDocValuesQueries.INSTANCE.wildcard(FIELD, "alpha", true, NoopCircuitBreaker.INSTANCE),
             instanceOf(ColumnarStringAutomatonQuery.class)
         );
     }

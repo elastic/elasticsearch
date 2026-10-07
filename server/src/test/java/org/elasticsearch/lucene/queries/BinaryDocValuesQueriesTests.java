@@ -34,7 +34,6 @@ import static org.hamcrest.Matchers.containsString;
 public class BinaryDocValuesQueriesTests extends ESTestCase {
 
     private static final String FIELD = "kw";
-    private static final NoopCircuitBreaker NOOP_BREAKER = new NoopCircuitBreaker("wildcard-test");
 
     /** Every shape, and the query the column answers it with. */
     private static List<Shape> shapes() {
@@ -48,11 +47,15 @@ public class BinaryDocValuesQueriesTests extends ESTestCase {
             new Shape("fuzzy", q -> q.fuzzy(FIELD, "abc", 1, 0, true), ColumnarStringAutomatonQuery.class),
             new Shape("term ci", q -> q.caseInsensitiveTerm(FIELD, "a"), ColumnarStringAutomatonQuery.class),
             // A pattern naming a whole value, a prefix or a contained run is rewritten to the query that answers it.
-            new Shape("wildcard literal", q -> q.wildcard(FIELD, "abc", false, NOOP_BREAKER), ColumnarStringTermQuery.class),
-            new Shape("wildcard prefix", q -> q.wildcard(FIELD, "abc*", false, NOOP_BREAKER), ColumnarStringTermQuery.class),
-            new Shape("wildcard contains", q -> q.wildcard(FIELD, "*abc*", false, NOOP_BREAKER), ColumnarStringTermQuery.class),
-            new Shape("wildcard", q -> q.wildcard(FIELD, "a*b*c", false, NOOP_BREAKER), ColumnarStringAutomatonQuery.class),
-            new Shape("wildcard ci", q -> q.wildcard(FIELD, "a*b", true, NOOP_BREAKER), ColumnarStringAutomatonQuery.class),
+            new Shape("wildcard literal", q -> q.wildcard(FIELD, "abc", false, NoopCircuitBreaker.INSTANCE), ColumnarStringTermQuery.class),
+            new Shape("wildcard prefix", q -> q.wildcard(FIELD, "abc*", false, NoopCircuitBreaker.INSTANCE), ColumnarStringTermQuery.class),
+            new Shape(
+                "wildcard contains",
+                q -> q.wildcard(FIELD, "*abc*", false, NoopCircuitBreaker.INSTANCE),
+                ColumnarStringTermQuery.class
+            ),
+            new Shape("wildcard", q -> q.wildcard(FIELD, "a*b*c", false, NoopCircuitBreaker.INSTANCE), ColumnarStringAutomatonQuery.class),
+            new Shape("wildcard ci", q -> q.wildcard(FIELD, "a*b", true, NoopCircuitBreaker.INSTANCE), ColumnarStringAutomatonQuery.class),
             new Shape("regexp", q -> q.regexp(FIELD, "a.*", 0, 0, 10000, null), ColumnarStringAutomatonQuery.class),
             new Shape("automaton", q -> q.automaton(FIELD, Automata.makeString("a"), "described"), ColumnarStringAutomatonQuery.class)
         );
@@ -98,8 +101,14 @@ public class BinaryDocValuesQueriesTests extends ESTestCase {
         assertNotEquals(queries.fuzzy(FIELD, "alpha", 1, 0, true), queries.fuzzy(FIELD, "alpha", 1, 3, true));
         // Whether a transposition counts as one edit or two, so "alhpa" is accepted by one and not the other.
         assertNotEquals(queries.fuzzy(FIELD, "alpha", 1, 0, true), queries.fuzzy(FIELD, "alpha", 1, 0, false));
-        assertNotEquals(queries.wildcard(FIELD, "a*b", false, NOOP_BREAKER), queries.wildcard(FIELD, "a*c", false, NOOP_BREAKER));
-        assertNotEquals(queries.wildcard(FIELD, "a*b", false, NOOP_BREAKER), queries.wildcard(FIELD, "a*b", true, NOOP_BREAKER));
+        assertNotEquals(
+            queries.wildcard(FIELD, "a*b", false, NoopCircuitBreaker.INSTANCE),
+            queries.wildcard(FIELD, "a*c", false, NoopCircuitBreaker.INSTANCE)
+        );
+        assertNotEquals(
+            queries.wildcard(FIELD, "a*b", false, NoopCircuitBreaker.INSTANCE),
+            queries.wildcard(FIELD, "a*b", true, NoopCircuitBreaker.INSTANCE)
+        );
         assertNotEquals(queries.prefix(FIELD, "abc", true), queries.prefix(FIELD, "abd", true));
         assertNotEquals(queries.caseInsensitiveTerm(FIELD, "abc"), queries.caseInsensitiveTerm(FIELD, "abd"));
         assertNotEquals(queries.regexp(FIELD, "a.*", 0, 0, 10000, null), queries.regexp(FIELD, "b.*", 0, 0, 10000, null));

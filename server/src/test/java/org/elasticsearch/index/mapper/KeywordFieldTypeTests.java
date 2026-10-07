@@ -88,8 +88,6 @@ import static org.mockito.Mockito.mock;
 
 public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
-    private static final CircuitBreaker NOOP_BREAKER = new NoopCircuitBreaker("test");
-
     public void testIsFieldWithinQuery() throws IOException {
         KeywordFieldType ft = new KeywordFieldType("field", randomBoolean(), randomBoolean(), Map.of());
         // current impl ignores args and should always return INTERSECTS
@@ -400,7 +398,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             true
         );
         assertEquals(
-            ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", "foo*", false, SEPARATE_COUNT, NOOP_BREAKER),
+            ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", "foo*", false, SEPARATE_COUNT, NoopCircuitBreaker.INSTANCE),
             ft.wildcardQuery("foo*", null, MOCK_CONTEXT)
         );
     }
@@ -613,7 +611,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             true
         );
         assertEquals(
-            ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", "foo*", true, SEPARATE_COUNT, NOOP_BREAKER),
+            ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", "foo*", true, SEPARATE_COUNT, NoopCircuitBreaker.INSTANCE),
             ft.wildcardQuery("foo*", null, true, MOCK_CONTEXT)
         );
     }

@@ -21,7 +21,6 @@ import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 
 public class StringScriptFieldWildcardQueryTests extends AbstractStringScriptFieldQueryTestCase<StringScriptFieldWildcardQuery> {
-    private static final NoopCircuitBreaker NOOP_BREAKER = new NoopCircuitBreaker("wildcard-test");
 
     @Override
     protected StringScriptFieldWildcardQuery createTestInstance() {
@@ -31,7 +30,7 @@ public class StringScriptFieldWildcardQueryTests extends AbstractStringScriptFie
             randomAlphaOfLength(5),
             randomAlphaOfLength(6),
             randomBoolean(),
-            NOOP_BREAKER
+            NoopCircuitBreaker.INSTANCE
         );
     }
 
@@ -43,7 +42,7 @@ public class StringScriptFieldWildcardQueryTests extends AbstractStringScriptFie
             orig.fieldName(),
             orig.pattern(),
             orig.caseInsensitive(),
-            NOOP_BREAKER
+            NoopCircuitBreaker.INSTANCE
         );
     }
 
@@ -60,7 +59,7 @@ public class StringScriptFieldWildcardQueryTests extends AbstractStringScriptFie
             case 3 -> caseInsensitive = caseInsensitive == false;
             default -> fail();
         }
-        return new StringScriptFieldWildcardQuery(script, leafFactory, fieldName, pattern, caseInsensitive, NOOP_BREAKER);
+        return new StringScriptFieldWildcardQuery(script, leafFactory, fieldName, pattern, caseInsensitive, NoopCircuitBreaker.INSTANCE);
     }
 
     @Override
@@ -71,7 +70,7 @@ public class StringScriptFieldWildcardQueryTests extends AbstractStringScriptFie
             "test",
             "a*b",
             false,
-            NOOP_BREAKER
+            NoopCircuitBreaker.INSTANCE
         );
         BytesRefBuilder scratch = new BytesRefBuilder();
         assertTrue(query.matches(List.of("astuffb"), scratch));
@@ -89,7 +88,7 @@ public class StringScriptFieldWildcardQueryTests extends AbstractStringScriptFie
             "test",
             "a*b",
             true,
-            NOOP_BREAKER
+            NoopCircuitBreaker.INSTANCE
         );
         assertTrue(ciQuery.matches(List.of("Astuffb"), scratch));
         assertTrue(ciQuery.matches(List.of("astuffB", "fffff"), scratch));
@@ -109,7 +108,7 @@ public class StringScriptFieldWildcardQueryTests extends AbstractStringScriptFie
             "test",
             "a*b",
             false,
-            NOOP_BREAKER
+            NoopCircuitBreaker.INSTANCE
         );
         ByteRunAutomaton automaton = visitForSingleAutomata(query);
         BytesRef term = new BytesRef("astuffb");

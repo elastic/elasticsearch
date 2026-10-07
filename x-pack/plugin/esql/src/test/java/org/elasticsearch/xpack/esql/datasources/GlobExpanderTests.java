@@ -3684,10 +3684,7 @@ public class GlobExpanderTests extends ESTestCase {
             String dayOfMonth = String.format(Locale.ROOT, "%02d", day.getDayOfMonth());
             for (int hour = 0; hour < 24; hour++) {
                 entries.add(
-                    entry(
-                        String.format(Locale.ROOT, "s3://bucket/data/%d/%s/%s/%02d/%s", year, month, dayOfMonth, hour, fileName),
-                        100
-                    )
+                    entry(String.format(Locale.ROOT, "s3://bucket/data/%d/%s/%s/%02d/%s", year, month, dayOfMonth, hour, fileName), 100)
                 );
             }
         }
@@ -3850,8 +3847,7 @@ public class GlobExpanderTests extends ESTestCase {
                 hint("ts", PartitionFilterHintExtractor.Operator.LESS_THAN, end)
             )
         );
-        String glob =
-            "s3://bucket/AWSLogs/aws-account-id=*/aws-service=vpcflowlogs/aws-region=*/year=*/month=*/day=*/hour=*/*.parquet";
+        String glob = "s3://bucket/AWSLogs/aws-account-id=*/aws-service=vpcflowlogs/aws-region=*/year=*/month=*/day=*/hour=*/*.parquet";
         TreeStubProvider provider = new TreeStubProvider(files);
         FileList result = GlobExpander.expand(glob, provider, hints, HIVE_ON, MAX, MAX);
         assertEquals(

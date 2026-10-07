@@ -55,6 +55,12 @@ public class SemanticTextFieldHighlighterIT extends AbstractInferenceFieldHighli
     }
 
     @Override
+    boolean supportsMultiFields() {
+        // The legacy format does not support semantic_text as a multi-field
+        return useLegacyFormat == false;
+    }
+
+    @Override
     void addInferenceFieldsToMapping(XContentBuilder mapping, Map<String, String> fieldNameToInferenceIdMap) throws IOException {
         IntegrationTestUtils.addSemanticTextFieldsToMapping(mapping, fieldNameToInferenceIdMap);
     }

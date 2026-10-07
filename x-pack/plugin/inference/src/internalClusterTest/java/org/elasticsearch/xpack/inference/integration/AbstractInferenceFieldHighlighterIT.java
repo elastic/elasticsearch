@@ -56,10 +56,6 @@ abstract class AbstractInferenceFieldHighlighterIT extends ESIntegTestCase {
     static final int VECTOR_DIMENSIONS = 128;  // Use a dimension count that is compatible with BIT element type
     static final List<SourceFieldMapper.Mode> SOURCE_MODES = List.of(SourceFieldMapper.Mode.STORED, SourceFieldMapper.Mode.SYNTHETIC);
 
-    private static final String INFERENCE_FIELD = "inference_field";
-    private static final String SOURCE_FIELD = "source_field";
-    private static final String CHAINED_SOURCE_FIELD = "chained_source_field";
-
     String indexName = null;
     private String inferenceId;
     private TaskType taskType;
@@ -129,21 +125,28 @@ abstract class AbstractInferenceFieldHighlighterIT extends ESIntegTestCase {
 
     abstract void addInferenceFieldsToMapping(XContentBuilder mapping, Map<String, String> fieldNameToInferenceIdMap) throws IOException;
 
+    /**
+     * Whether the inference field type can be defined as a multi-field.
+     */
+    boolean supportsMultiFields() {
+        return true;
+    }
+
     public void testHighlightOwnAndCopyToValues() throws Exception {
-        createIndex();
+        createChainedCopyToIndex();
 
         final String ownValue = "a cat on a windowsill";
         final String copiedValue = "a dog running in a park";
         final String chainedValue = "a bird on a branch";
 
         client().prepareIndex(indexName)
-            .setSource(CHAINED_SOURCE_FIELD, chainedValue, SOURCE_FIELD, copiedValue, INFERENCE_FIELD, ownValue)
+            .setSource("chained_source_field", chainedValue, "source_field", copiedValue, "inference_field", ownValue)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+            .get(TEST_REQUEST_TIMEOUT);
 
         SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
             .highlighter(
-                new HighlightBuilder().field(new HighlightBuilder.Field(INFERENCE_FIELD).highlighterType("semantic").numOfFragments(3))
+                new HighlightBuilder().field(new HighlightBuilder.Field("inference_field").highlighterType("semantic").numOfFragments(3))
             );
 
         // Use the coordinating-only node so that highlights are serialized over the wire (data node -> coordinating node)
@@ -153,21 +156,75 @@ abstract class AbstractInferenceFieldHighlighterIT extends ESIntegTestCase {
                 assertHitCount(response, 1L);
                 // Only one level of copy_to is followed: chained_source_field -> source_field -> inference_field does not make
                 // chained_source_field's value part of inference_field. Fragments are in chunk order, with the field's own value first.
-                assertHighlight(response, 0, INFERENCE_FIELD, 0, 2, equalTo(ownValue));
-                assertHighlight(response, 0, INFERENCE_FIELD, 1, 2, equalTo(copiedValue));
+                assertHighlight(response, 0, "inference_field", 0, 2, equalTo(ownValue));
+                assertHighlight(response, 0, "inference_field", 1, 2, equalTo(copiedValue));
             }
         );
     }
 
-    private void createIndex() throws IOException {
-        indexName = randomIdentifier();
+    public void testHighlightMultiFieldOfCopyToTarget() throws Exception {
+        assumeTrue("Inference field type does not support multi-fields", supportsMultiFields());
+        createMultiFieldCopyToIndex();
 
+        final String ownValue = "a cat on a windowsill";
+        final String copiedValue = "a dog running in a park";
+
+        client().prepareIndex(indexName)
+            .setSource("text_field", ownValue, "source_field", copiedValue)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get(TEST_REQUEST_TIMEOUT);
+
+        SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
+            .highlighter(
+                new HighlightBuilder().field(
+                    new HighlightBuilder.Field("text_field.inference_field").highlighterType("semantic").numOfFragments(3)
+                )
+            );
+
+        // Use the coordinating-only node so that highlights are serialized over the wire (data node -> coordinating node)
+        assertNoFailuresAndResponse(
+            internalCluster().coordOnlyNodeClient().search(new SearchRequest(new String[] { indexName }, source)),
+            response -> {
+                assertHitCount(response, 1L);
+                // The multi-field's own value is the value of its parent text_field. Fragments are in chunk order, which for a
+                // multi-field of a copy_to target has the copied value first.
+                assertHighlight(response, 0, "text_field.inference_field", 0, 2, equalTo(copiedValue));
+                assertHighlight(response, 0, "text_field.inference_field", 1, 2, equalTo(ownValue));
+            }
+        );
+    }
+
+    /**
+     * Creates an index where {@code inference_field} is a {@code copy_to} target of {@code source_field}, which is itself a
+     * {@code copy_to} target of {@code chained_source_field}.
+     */
+    private void createChainedCopyToIndex() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties");
-        addInferenceFieldsToMapping(mapping, Map.of(INFERENCE_FIELD, inferenceId));
-        mapping.startObject(SOURCE_FIELD).field("type", "text").field("copy_to", INFERENCE_FIELD).endObject();
-        mapping.startObject(CHAINED_SOURCE_FIELD).field("type", "text").field("copy_to", SOURCE_FIELD).endObject();
+        addInferenceFieldsToMapping(mapping, Map.of("inference_field", inferenceId));
+        mapping.startObject("source_field").field("type", "text").field("copy_to", "inference_field").endObject();
+        mapping.startObject("chained_source_field").field("type", "text").field("copy_to", "source_field").endObject();
         mapping.endObject().endObject();
 
+        createIndex(mapping);
+    }
+
+    /**
+     * Creates an index where {@code text_field.inference_field} is a multi-field of {@code text_field}, which is a {@code copy_to}
+     * target of {@code source_field}.
+     */
+    private void createMultiFieldCopyToIndex() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties");
+        mapping.startObject("text_field").field("type", "text").startObject("fields");
+        addInferenceFieldsToMapping(mapping, Map.of("inference_field", inferenceId));
+        mapping.endObject().endObject();
+        mapping.startObject("source_field").field("type", "text").field("copy_to", "text_field").endObject();
+        mapping.endObject().endObject();
+
+        createIndex(mapping);
+    }
+
+    private void createIndex(XContentBuilder mapping) {
+        indexName = randomIdentifier();
         assertAcked(prepareCreate(indexName).setMapping(mapping));
         ensureGreen(indexName);
     }

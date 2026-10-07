@@ -30,6 +30,18 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         assertThat(acc.storageRequests(Type.UNKNOWN), equalTo(0L));
     }
 
+    public void testRecordBytesAddsBytesWithoutMintingRequest() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        acc.recordRequest(Type.S3, 9L, 0L);
+        acc.recordBytes(Type.S3, 2048L);
+        acc.recordBytes(Type.S3, 0L);
+
+        assertThat(acc.storageRequests(Type.S3), equalTo(1L));
+        assertThat(acc.storageBytesRead(Type.S3), equalTo(2048L));
+        assertThat(acc.storageRequests(Type.GCS), equalTo(0L));
+        assertThat(acc.storageBytesRead(Type.GCS), equalTo(0L));
+    }
+
     public void testRecordRequestZeroBytesDoesNotIncrementBytesRead() {
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
         acc.recordRequest(Type.LOCAL, 5L, 0L);
@@ -256,7 +268,9 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
         ExternalSourceMetrics metrics = new ExternalSourceMetrics(MeterRegistry.NOOP, acc);
 
-        metrics.recordRequest(50L, 2048L, "s3");
+        metrics.recordRequest(50L, 0L, "s3");
+        metrics.recordBytes(2048L, "s3");
+        metrics.recordRequest(25L, 512L, "azure");
         metrics.recordRetry("gcs");
         metrics.recordError("azure");
         metrics.recordThrottled("http");
@@ -278,6 +292,8 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
 
         assertThat(acc.storageRequests(Type.S3), equalTo(1L));
         assertThat(acc.storageBytesRead(Type.S3), equalTo(2048L));
+        assertThat(acc.storageRequests(Type.AZURE), equalTo(1L));
+        assertThat(acc.storageBytesRead(Type.AZURE), equalTo(512L));
         assertThat(acc.storageRetries(), equalTo(1L));
         assertThat(acc.storageErrors(Type.AZURE), equalTo(1L));
         assertThat(acc.storageThrottled(Type.HTTP), equalTo(1L));
@@ -294,6 +310,45 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         assertThat(acc.breakerTripped(), equalTo(1L));
         assertThat(acc.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_CREATED), equalTo(1L));
         assertThat(acc.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_REJECTED), equalTo(1L));
+    }
+
+    public void testRecordQueryCpuAccumulatesPerComponent() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        acc.recordQueryCpu(1_000L, 2_000L, 3_000L, 4_000L);
+
+        assertThat(acc.queryCpuNanos(DataSourceUsageAccumulator.CPU_EXECUTION), equalTo(1_000L));
+        assertThat(acc.queryCpuNanos(DataSourceUsageAccumulator.CPU_READ), equalTo(2_000L));
+        assertThat(acc.queryCpuNanos(DataSourceUsageAccumulator.CPU_PLANNING), equalTo(3_000L));
+        assertThat(acc.queryCpuNanos(DataSourceUsageAccumulator.CPU_SPLIT_DISCOVERY), equalTo(4_000L));
+    }
+
+    public void testRecordQueryCpuIsAdditive() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        acc.recordQueryCpu(100L, 200L, 300L, 400L);
+        acc.recordQueryCpu(100L, 200L, 300L, 400L);
+
+        assertThat(acc.queryCpuNanos(DataSourceUsageAccumulator.CPU_EXECUTION), equalTo(200L));
+        assertThat(acc.queryCpuNanos(DataSourceUsageAccumulator.CPU_PLANNING), equalTo(600L));
+    }
+
+    public void testQueryCpuComponentIndexOutOfRangeThrows() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        expectThrows(IllegalArgumentException.class, () -> acc.queryCpuNanos(DataSourceUsageAccumulator.CPU_COMPONENT_COUNT));
+        expectThrows(IllegalArgumentException.class, () -> acc.queryCpuNanos(-1));
+    }
+
+    public void testDataSourceCountersPopulatesCpuNanosKeys() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        acc.recordQueryCpu(1_000L, 2_000L, 3_000L, 4_000L);
+
+        Counters counters = new Counters();
+        DataSourceCounters.populate(acc, counters);
+
+        assertThat(counters.get("datasources.queries.cpu_nanos.execution"), equalTo(1_000L));
+        assertThat(counters.get("datasources.queries.cpu_nanos.read"), equalTo(2_000L));
+        assertThat(counters.get("datasources.queries.cpu_nanos.planning"), equalTo(3_000L));
+        assertThat(counters.get("datasources.queries.cpu_nanos.split_discovery"), equalTo(4_000L));
+        assertThat(counters.get("datasources.queries.cpu_nanos.total"), equalTo(10_000L));
     }
 
     public void testNoopHasNullAccumulator() {

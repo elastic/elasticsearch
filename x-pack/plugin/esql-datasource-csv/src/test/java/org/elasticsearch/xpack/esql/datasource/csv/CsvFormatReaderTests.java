@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator;
 import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorExcerpts;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -267,6 +268,45 @@ public class CsvFormatReaderTests extends ESTestCase {
         );
         List<Attribute> schema = reader.metadata(object).schema();
         assertEquals("inferred schema names only columns from the widest sampled row, not from later wider rows", 2, schema.size());
+    }
+
+    /**
+     * The type axis (within-sample widening) and the width axis (headerless column count) must share
+     * one sampling boundary: for a given {@code schema_sample_size}, an anomaly on the last sampled row
+     * is absorbed on both axes, and the identical anomaly one row later is absorbed on neither. Nothing
+     * here pins a literal row number, so the test survives {@code schema_sample_size}'s default
+     * changing again — it is the "the two boundaries must agree" guard that was missing, which is
+     * exactly what let the two axes silently drift apart (the type axis doubled its effective window
+     * while the width axis stayed on the single original window) before the two CSV sampling windows
+     * were merged back into one.
+     */
+    public void testTypeAndWidthAxesShareOneSamplingBoundary() throws IOException {
+        int n = 3;
+        Map<String, Object> config = Map.of("header_row", false, "schema_sample_size", n);
+
+        CsvFormatReader typeAtBoundaryReader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(config);
+        List<Attribute> typeAtBoundary = typeAtBoundaryReader.metadata(createStorageObject("1\n2\noops\n")).schema();
+        assertEquals(
+            "a type anomaly on the last sampled row must be absorbed (widened)",
+            DataType.KEYWORD,
+            typeAtBoundary.get(0).dataType()
+        );
+
+        CsvFormatReader typePastBoundaryReader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(config);
+        List<Attribute> typePastBoundary = typePastBoundaryReader.metadata(createStorageObject("1\n2\n3\noops\n")).schema();
+        assertEquals(
+            "the same type anomaly one row past the sample must not be absorbed",
+            DataType.INTEGER,
+            typePastBoundary.get(0).dataType()
+        );
+
+        CsvFormatReader widthAtBoundaryReader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(config);
+        List<Attribute> widthAtBoundary = widthAtBoundaryReader.metadata(createStorageObject("1,a\n2,b\n3,c,extra\n")).schema();
+        assertEquals("a width anomaly on the last sampled row must be absorbed (widened)", 3, widthAtBoundary.size());
+
+        CsvFormatReader widthPastBoundaryReader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(config);
+        List<Attribute> widthPastBoundary = widthPastBoundaryReader.metadata(createStorageObject("1,a\n2,b\n3,c\n4,d,extra\n")).schema();
+        assertEquals("the same width anomaly one row past the sample must not be absorbed", 2, widthPastBoundary.size());
     }
 
     public void testSchema() throws IOException {
@@ -2123,15 +2163,16 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * When the initial sample (rows 1..N) is all-numeric but later rows contain text, the inferred
-     * schema must widen that column to KEYWORD so the text values are readable without errors.
-     * A tiny {@code schema_sample_size=2} makes "hello" appear after the sample window.
+     * When the early rows of the sample are all-numeric but a later row in that same sample contains
+     * text, the inferred schema must widen that column to KEYWORD so the text value is readable
+     * without errors.
      */
-    public void testInferredSchemaWidensOnPostSampleTextConflict() throws IOException {
-        // Rows 1-2 are numeric (inferred as INTEGER from sample). Row 3 is text — contradicts INTEGER.
+    public void testInferredSchemaWidensOnTextConflict() throws IOException {
+        // Rows 1-2 are numeric (inferred as INTEGER from the first two rows seen). Row 3 is text —
+        // contradicts INTEGER — and the sample is sized to cover all three rows in its one window.
         String csv = "id\n1\n2\nhello\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("schema_sample_size", 2));
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("schema_sample_size", 3));
 
         List<Attribute> schema = reader.schema(object);
         assertEquals(1, schema.size());
@@ -3935,7 +3976,7 @@ public class CsvFormatReaderTests extends ESTestCase {
                 FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(tooWide).build()
             ).close()
         );
-        assertThat(e.getMessage(), Matchers.containsString("[memory://test.csv] has [2] columns, the schema has [3]"));
+        assertThat(e.getMessage(), Matchers.containsString("[test.csv] has [2] columns, the schema has [3]"));
         assertThat(e.getMessage(), Matchers.containsString("] has [2] columns, the schema has [3]"));
 
         // A 2-column pinned schema matches the two real columns and reads.
@@ -6322,7 +6363,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
             @Override
             public StoragePath path() {
-                return StoragePath.of("memory://test.csv");
+                return StoragePath.of("memory://host/test.csv");
             }
         };
     }
@@ -6394,7 +6435,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         });
         assertTrue(
             "expected a row error naming the file, got: " + e.getMessage(),
-            e.getMessage().startsWith("Row [") && e.getMessage().contains("] of [memory://test.csv]: ")
+            e.getMessage().startsWith("Row [") && e.getMessage().contains("] of [test.csv]: ")
         );
         assertTrue(
             "expected skip_row hint, got: " + e.getMessage(),
@@ -6865,7 +6906,7 @@ public class CsvFormatReaderTests extends ESTestCase {
                 }
             }
         });
-        assertTrue("expected sampling error message, got: " + e.getMessage(), e.getMessage().startsWith("schema sampling failed at row ["));
+        assertTrue("expected sampling error message, got: " + e.getMessage(), e.getMessage().contains("schema sampling failed at row ["));
         assertTrue("expected row index, got: " + e.getMessage(), e.getMessage().contains("row [1]"));
         assertTrue(
             "expected skip_row hint, got: " + e.getMessage(),
@@ -6900,7 +6941,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         });
         assertTrue(
             "expected budget message, got: " + e.getMessage(),
-            e.getMessage().startsWith("schema sampling: [") && e.getMessage().contains("over [max_errors] of [5]; first errors: ")
+            e.getMessage().contains("schema sampling: [") && e.getMessage().contains("over [max_errors] of [5]; first errors: ")
         );
         assertEquals(org.elasticsearch.rest.RestStatus.BAD_REQUEST, e.status());
     }
@@ -7003,25 +7044,6 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals("String length (12) is over the limit (10)", CsvFormatReader.rowErrorReason(reworded));
     }
 
-    public void testCsvErrorMessagesSummarizeShortValuePassesThrough() {
-        assertEquals("hello", CsvErrorMessages.summarize("hello"));
-        assertEquals("null", CsvErrorMessages.summarize((String) null));
-    }
-
-    public void testCsvErrorMessagesSummarizeLongValueIsCapped() {
-        StringBuilder huge = new StringBuilder();
-        for (int i = 0; i < 5_000; i++) {
-            huge.append('x');
-        }
-        String summarized = CsvErrorMessages.summarize(huge.toString());
-        assertTrue(
-            "expected length <= MAX_EXCERPT_CHARS, got " + summarized.length(),
-            summarized.length() <= CsvErrorMessages.MAX_EXCERPT_CHARS
-        );
-        assertTrue("expected truncation marker, got: " + summarized, summarized.contains("truncated"));
-        assertTrue("expected total-length marker, got: " + summarized, summarized.contains("5000"));
-    }
-
     public void testCsvErrorMessagesSummarizeRowEmptyIsSentinel() {
         assertEquals("<unparsed>", CsvErrorMessages.summarizeRow(new String[0]));
         assertEquals("<unparsed>", CsvErrorMessages.summarizeRow(null));
@@ -7105,7 +7127,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         String summarized = CsvErrorMessages.summarizeAround(huge.toString(), faultOffset);
         assertTrue(
             "expected length <= MAX_EXCERPT_CHARS, got " + summarized.length() + ": " + summarized,
-            summarized.length() <= CsvErrorMessages.MAX_EXCERPT_CHARS
+            summarized.length() <= ErrorExcerpts.MAX_EXCERPT_CHARS
         );
         assertTrue(
             "expected offset annotation, got: " + summarized,
@@ -7165,7 +7187,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         String summarized = CsvErrorMessages.summarizeAround(huge.toString(), -1);
         assertTrue(
             "expected length <= MAX_EXCERPT_CHARS, got " + summarized.length(),
-            summarized.length() <= CsvErrorMessages.MAX_EXCERPT_CHARS
+            summarized.length() <= ErrorExcerpts.MAX_EXCERPT_CHARS
         );
         assertTrue("expected truncated marker, got: " + summarized, summarized.contains("truncated"));
         assertTrue("expected total-length marker, got: " + summarized, summarized.contains("5000"));
@@ -7189,7 +7211,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         String summarized = CsvErrorMessages.summarizeAround(huge.toString(), faultOffset);
         assertTrue(
             "expected length <= MAX_EXCERPT_CHARS, got " + summarized.length(),
-            summarized.length() <= CsvErrorMessages.MAX_EXCERPT_CHARS
+            summarized.length() <= ErrorExcerpts.MAX_EXCERPT_CHARS
         );
         assertTrue("expected offset annotation, got: " + summarized, summarized.contains("(offset " + faultOffset + " of 100000 chars)"));
         assertTrue("expected fault bytes in window, got: " + summarized, summarized.contains(marker));
@@ -7199,7 +7221,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      * End-to-end: an unclosed quoted field at end-of-file produces an error excerpt anchored on the
      * opening quote, not a head/tail-truncated view of the entire row. The row is sized so the
      * opening quote sits well inside the elided middle of the legacy head/tail summary, so a
-     * regression that re-routes to {@link CsvErrorMessages#summarize} would hide the fault bytes.
+     * regression that re-routes to {@link ErrorExcerpts#summarize} would hide the fault bytes.
      */
     public void testMalformedRowErrorAnchorsOnQuoteOffset() {
         // Pad both sides of the unmatched quote so the line is much longer than MAX_EXCERPT_CHARS
@@ -7239,6 +7261,64 @@ public class CsvFormatReaderTests extends ESTestCase {
         // The unique fault marker sits at the elided middle for legacy head/tail; with offset
         // anchoring it must survive in the excerpt.
         assertTrue("expected fault bytes in excerpt, got: " + msg, msg.contains("\"unterminated_field_here_"));
+    }
+
+    /**
+     * A multi-megabyte value that does not parse as its column's type must not reach the client whole: the same
+     * message is the {@code Warning} detail under the lenient modes and the error under {@code fail_fast}. Unlike the
+     * {@link CsvErrorMessages} tests above, this reads a file, so it covers the cap's application on every walker.
+     */
+    public void testLongUnparseableValueIsTruncatedInWarningAndException() throws Exception {
+        int length = 2_000_000;
+        StorageObject object = createStorageObject("id:long,tag:keyword\n1,ok\n" + "Z".repeat(length) + ",bad\n2,ok\n");
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "tag", DataType.KEYWORD)
+        );
+        // The frame around the value is well under 64 chars. Under fail_fast the row excerpt (itself capped) and
+        // the hint come on top. A value embedded whole overshoots either bound.
+        int warningBound = ErrorExcerpts.MAX_EXCERPT_CHARS + 64;
+        int exceptionBound = 2 * ErrorExcerpts.MAX_EXCERPT_CHARS + 160;
+        for (String mvSyntax : List.of("NONE", "brackets")) {
+            for (boolean directBlock : List.of(false, true)) {
+                for (String lenient : List.of("null_field", "skip_row")) {
+                    String desc = "multi_value_syntax=" + mvSyntax + " directBlock=" + directBlock + " error_mode=" + lenient;
+                    Map<String, Object> config = Map.of(
+                        "header_row",
+                        true,
+                        "multi_value_syntax",
+                        mvSyntax,
+                        "error_mode",
+                        lenient,
+                        "max_errors",
+                        100
+                    );
+                    int rows = readRowCount(declaredReader(false, directBlock, config), object, schema, null);
+                    assertEquals(desc, lenient.equals("null_field") ? 3 : 2, rows);
+                    String detail = drainWarnings().stream().filter(w -> w.contains("cannot read [")).findFirst().orElseThrow();
+                    assertThat(desc + " warning carried the whole value", detail.length(), Matchers.lessThan(warningBound));
+                    assertThat(desc, detail, containsString("] as [long]"));
+                    assertThat(desc, detail, containsString("(truncated, " + length + " chars total)"));
+                    if (lenient.equals("null_field")) {
+                        assertThat(desc, detail, containsString("column [id]"));
+                    }
+                }
+
+                String desc = "multi_value_syntax=" + mvSyntax + " directBlock=" + directBlock + " error_mode=fail_fast";
+                Map<String, Object> config = Map.of("header_row", true, "multi_value_syntax", mvSyntax, "error_mode", "fail_fast");
+                ExternalClientException e = expectThrows(
+                    ExternalClientException.class,
+                    () -> readRowCount(declaredReader(false, directBlock, config), object, schema, null)
+                );
+                String message = e.getMessage();
+                assertThat(desc + " exception carried the whole value", message.length(), Matchers.lessThan(exceptionBound));
+                assertThat(desc, message, containsString("cannot read ["));
+                assertThat(desc, message, containsString("] as [long]"));
+                assertThat(desc, message, containsString("(truncated, " + length + " chars total)"));
+                assertThat(desc, message, containsString("set [error_mode] to [null_field]"));
+                drainWarnings();
+            }
+        }
     }
 
     // --- declared `path` binding under a pinned (declared) schema: esql-planning#1307 ---
@@ -9635,7 +9715,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      * sample rows are consumed.
      */
     public void testReadSchemaDoesNotDrainStream_inferredSchema() throws IOException {
-        // Plain headers trigger type inference from a sample (default 20 000 rows).
+        // Plain headers trigger type inference from a sample (default 40 000 rows).
         // The file contains 200 000 rows so most of it should remain unread after schema().
         StringBuilder csv = new StringBuilder("id,name,value\n");
         for (int i = 0; i < 200_000; i++) {

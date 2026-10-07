@@ -28,7 +28,9 @@ import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.datasources.CountingBreaker;
 import org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorExcerpts;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.hamcrest.Matchers;
@@ -162,6 +164,63 @@ public class NdJsonPageDecoderTests extends ESTestCase {
                 capacityAfter >= 3 * longValue.length()
             );
         }
+    }
+
+    /**
+     * Interior streaming chunks must not warn for a declared column that is merely absent from this
+     * chunk. Gzip/zstd clamp-to-compressed-size fills often decode only the first record of a sparse
+     * overlay; the column appears later.
+     */
+    public void testAbsentDeclaredColumnWarningSkippedWhenNotFileFinal() throws IOException {
+        String ndjson = "{\"id\":1}\n";
+        List<String> warnings = new ArrayList<>();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("id", DataType.LONG), attribute("spin_id", DataType.KEYWORD)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.STRICT,
+                "test://overlay-chunk",
+                new NdJsonReaderCounters(),
+                warnings::add
+            )
+        ) {
+            decoder.setReportAbsentDeclaredColumns(false);
+            try (Page page = decoder.decodePage()) {
+                assertEquals(1, page.getPositionCount());
+            }
+        }
+        assertTrue(warnings.isEmpty());
+    }
+
+    /**
+     * File-final (and whole-file) decoders still warn when a declared column never appears.
+     */
+    public void testAbsentDeclaredColumnWarningFiresWhenFileFinal() throws IOException {
+        String ndjson = "{\"id\":1}\n";
+        List<String> warnings = new ArrayList<>();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("id", DataType.LONG), attribute("spin_id", DataType.KEYWORD)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.STRICT,
+                "test://overlay-file",
+                new NdJsonReaderCounters(),
+                warnings::add
+            )
+        ) {
+            try (Page page = decoder.decodePage()) {
+                assertEquals(1, page.getPositionCount());
+            }
+        }
+        assertEquals(List.of(SkipWarnings.absentDeclaredColumnMessage("spin_id")), warnings);
     }
 
     /**
@@ -1801,6 +1860,61 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         // SkipWarnings.add() emits a one-time summary header on the first call, then the detail — 2 messages total.
         assertEquals("one summary + one detail warning for the nulled cell", 2, warnings.size());
         assertThat(warnings.get(1), Matchers.containsString("not_a_number"));
+    }
+
+    /**
+     * A multi-megabyte value that does not coerce to its column's type must not reach the client whole: the same
+     * message is the {@code Warning} detail under the lenient modes and the error under {@code fail_fast}. The value
+     * is cut to {@link ErrorExcerpts#MAX_EXCERPT_CHARS}; the frame -- column and target type -- stays.
+     */
+    public void testLongUnparseableValueIsTruncatedInWarningAndException() throws IOException {
+        int length = 2_000_000;
+        String big = "Z".repeat(length);
+        // The frame around the value is well under 64 chars; the fail-fast hint and ParsingException's
+        // position prefix add under 96 more. A value embedded twice, or whole, overshoots either bound.
+        int warningBound = ErrorExcerpts.MAX_EXCERPT_CHARS + 64;
+        int exceptionBound = warningBound + 96;
+        for (String bad : List.of("\"" + big + "\"", "[1,\"" + big + "\"]")) {
+            String ndjson = "{\"id\":1,\"v\":\"a\"}\n{\"id\":" + bad + ",\"v\":\"b\"}\n";
+            for (ErrorPolicy lenient : List.of(ErrorPolicy.PERMISSIVE, ErrorPolicy.LENIENT)) {
+                List<String> warnings = new ArrayList<>();
+                try (Page page = decodeIdAndV(ndjson, lenient, warnings)) {
+                    assertNotNull(page);
+                }
+                String detail = warnings.stream().filter(w -> w.contains("cannot read [")).findFirst().orElseThrow();
+                assertThat("warning carried the whole value", detail.length(), Matchers.lessThan(warningBound));
+                assertThat(detail, Matchers.containsString("column [id]"));
+                assertThat(detail, Matchers.containsString("] as [long]"));
+                assertThat(detail, Matchers.containsString("(truncated, " + length + " chars total)"));
+            }
+
+            ParsingException e = expectThrows(ParsingException.class, () -> decodeIdAndV(ndjson, ErrorPolicy.STRICT, new ArrayList<>()));
+            String message = e.getMessage();
+            assertThat("exception carried the whole value", message.length(), Matchers.lessThan(exceptionBound));
+            assertThat(message, Matchers.containsString("column [id]: cannot read ["));
+            assertThat(message, Matchers.containsString("] as [long]"));
+            assertThat(message, Matchers.containsString("(truncated, " + length + " chars total)"));
+            assertThat(message, Matchers.containsString("set [error_mode] to [null_field]"));
+        }
+    }
+
+    private Page decodeIdAndV(String ndjson, ErrorPolicy policy, List<String> warnings) throws IOException {
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("id", DataType.LONG), attribute("v", DataType.KEYWORD)),
+                null,
+                10,
+                blockFactory,
+                policy,
+                "test://long-bad-value",
+                new NdJsonReaderCounters(),
+                warnings::add
+            )
+        ) {
+            return decoder.decodePage();
+        }
     }
 
     // ---------------------------------------------------------------------------------------------

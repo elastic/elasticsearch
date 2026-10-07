@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.util.List;
 import java.util.Set;
@@ -28,6 +29,7 @@ public class ExternalSourceSettingsTests extends ESTestCase {
     public void testDefaults() {
         Settings settings = Settings.EMPTY;
         assertEquals(30, (int) ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(settings));
+        assertEquals(25_000, (int) ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings));
         // The in-flight-read permit bound defaults to the heap- and CPU-scaled formula, not a fixed literal.
         assertEquals(
             ExternalSourceSettings.defaultBlobStoreConcurrency(settings),
@@ -313,12 +315,13 @@ public class ExternalSourceSettingsTests extends ESTestCase {
 
     public void testSettingsListNotEmpty() {
         assertFalse(ExternalSourceSettings.settings().isEmpty());
-        assertEquals(18, ExternalSourceSettings.settings().size());
+        assertEquals(19, ExternalSourceSettings.settings().size());
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_CONCURRENT_REQUESTS));
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.FIRST_ATTEMPT_LISTING_FILES));
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_LISTED_OBJECTS));
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_DECOMPRESSION_RATIO));
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD));
+        assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.SCHEMA_MAX_FIELDS));
         // Registered rather than merely declared: an unregistered key fails a node that carries it in its config.
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS));
     }
@@ -653,5 +656,39 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         Settings settings = Settings.builder().putList("esql.external.local_allowed_paths", "/data/allowed").build();
         LocalFileAccess access = LocalFileAccess.create(settings);
         assertTrue("local disk access must be enabled when allowlist is set", access.enabled());
+    }
+
+    public void testIoFillBytesUnknownKeepsRequestedMax() {
+        int requested = 4 * 1024 * 1024;
+        assertEquals(requested, ExternalSourceSettings.ioFillBytes(requested, StorageObject.READ_TO_END));
+        assertEquals(requested, ExternalSourceSettings.ioFillBytes(requested, Long.MIN_VALUE));
+    }
+
+    public void testIoFillBytesTinyObjectPaysObjectSize() {
+        assertEquals(5 * 1024, ExternalSourceSettings.ioFillBytes(4 * 1024 * 1024, 5 * 1024));
+        assertEquals(1, ExternalSourceSettings.ioFillBytes(4 * 1024 * 1024, 0L));
+        assertEquals(1, ExternalSourceSettings.ioFillBytes(1, 0L));
+        assertEquals(0, ExternalSourceSettings.ioFillBytes(0, 0L));
+    }
+
+    public void testIoFillBytesEqualToRequested() {
+        int size = 4096;
+        assertEquals(size, ExternalSourceSettings.ioFillBytes(size, size));
+    }
+
+    public void testIoFillBytesLargerThanRequestedKeepsRequested() {
+        assertEquals(4096, ExternalSourceSettings.ioFillBytes(4096, 10_000));
+    }
+
+    public void testIoFillBytesCapsRequestedAtIntegerMax() {
+        assertEquals(Integer.MAX_VALUE, ExternalSourceSettings.ioFillBytes(Integer.MAX_VALUE + 1L, -1L));
+        assertEquals(Integer.MAX_VALUE, ExternalSourceSettings.ioFillBytes(Integer.MAX_VALUE + 1L, Long.MAX_VALUE));
+        assertEquals(5, ExternalSourceSettings.ioFillBytes(Integer.MAX_VALUE + 1L, 5L));
+        assertEquals(1, ExternalSourceSettings.ioFillBytes(Integer.MAX_VALUE + 1L, 0L));
+    }
+
+    public void testIoFillBytesRejectsNegativeRequestedMax() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ExternalSourceSettings.ioFillBytes(-1L, 1024));
+        assertThat(e.getMessage(), containsString("requestedMax"));
     }
 }

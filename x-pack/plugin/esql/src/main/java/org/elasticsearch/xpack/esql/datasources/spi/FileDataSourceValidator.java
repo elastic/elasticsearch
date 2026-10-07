@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.datasources.FileSplitProvider;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
+import org.elasticsearch.xpack.esql.datasources.PartitionSpec;
 import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
@@ -106,8 +107,12 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * {@code FileDataSourceValidatorSampleSizeBoundTests} pins it against the reader constant so the two cannot
      * drift apart again. Whether values ABOVE the default should be accepted is a separate question this does not
      * settle — it only makes the default reachable.
+     * <p>
+     * Raised from {@code 20_000} to {@code 40_000} alongside {@code CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE}:
+     * CSV/TSV merged a second, separate {@code 20_000}-row "widening window" into this one setting, so a user
+     * who wants the row depth type inference already effectively sampled must be able to configure it directly.
      */
-    private static final int SCHEMA_SAMPLE_SIZE_MAX = 20_000;
+    private static final int SCHEMA_SAMPLE_SIZE_MAX = 40_000;
 
     /**
      * Upper bound accepted for {@code skip_rows} at registration. Preambles are a handful of lines;
@@ -133,6 +138,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         fields.add(FormatNameResolver.CONFIG_FORMAT);
         fields.addAll(ErrorPolicy.CONFIG_KEYS);
         fields.addAll(PartitionConfig.CONFIG_KEYS);
+        fields.addAll(PartitionSpec.CONFIG_KEYS);
         fields.addAll(ExclusionConfig.CONFIG_KEYS);
         fields.addAll(FileOrderConfig.CONFIG_KEYS);
         fields.addAll(FileSplitProvider.CONFIG_KEYS);
@@ -612,6 +618,9 @@ public class FileDataSourceValidator implements DataSourceValidator {
             errors
         );
         validate(() -> PartitionConfig.validate(settings), errors);
+        // partition_spec grammar plus none+spec / template-key contradictions.
+        // Reads partition_detection and partition_path itself.
+        validate(() -> PartitionSpec.validate(settings), errors);
         // hive_partitioning is accepted but ignored (deprecated no-op). Two warning sites:
         // (1) here, at CRUD time for stored datasets; (2) FileSourceFactory.validateConfig, at schema-resolution
         // time for inline FROM "..." WITH {...} queries that have no CRUD path (fires only on schema-cache misses,
@@ -861,7 +870,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
             return FormatNameResolver.datasetFormat(settings, resource, formatReaderRegistry);
         }
         if (formatConfigKeyResolver == null) {
-            throw new IllegalArgumentException(FormatNameResolver.ambiguousDatasetFormatMessage(resource));
+            throw new IllegalArgumentException(FormatNameResolver.ambiguousDatasetFormatMessage());
         }
         return FormatNameResolver.datasetFormat(settings, resource, candidate -> {
             String ext = FormatNameResolver.extractCleanExtension(candidate);

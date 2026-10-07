@@ -15,6 +15,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
@@ -29,6 +30,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -320,7 +322,7 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
     ) {
         AtomicBoolean cancelled = new AtomicBoolean();
         AtomicReference<InflightSlot> inflight = new AtomicReference<>(InflightSlot.NONE);
-        readBytesAsyncWithRetry(position, length, factory, executor, listener, 0, System.nanoTime(), 0L, inflight, cancelled);
+        readBytesAsyncWithRetry(position, length, factory, executor, listener, 0, System.nanoTime(), 0L, 0L, inflight, cancelled);
         return () -> {
             cancelled.set(true);
             inflight.get().handle().close();
@@ -360,6 +362,7 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
         int attempt,
         long startNanos,
         long accumulatedBackoffMillis,
+        long admissionDeadlineNanos,
         AtomicReference<InflightSlot> inflight,
         AtomicBoolean cancelled
     ) {
@@ -367,7 +370,42 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
             listener.onFailure(new TaskCancelledException(StorageRetryCancellation.CANCELLED_MESSAGE));
             return;
         }
-        Releasable inner = delegate.startReadBytesAsync(position, length, factory, executor, new ActionListener<>() {
+        Releasable inner = startDelegateRead(
+            position,
+            length,
+            factory,
+            executor,
+            listener,
+            attempt,
+            startNanos,
+            accumulatedBackoffMillis,
+            admissionDeadlineNanos,
+            inflight,
+            cancelled
+        );
+        registerInflight(attempt, inner, inflight, cancelled);
+    }
+
+    /**
+     * First attempt uses a blocking permit wait. Retries barge ({@link ConcurrencyLimiter#tryAcquire()})
+     * so the continuation never parks. A miss waits on {@link StorageObject#admissionWaitTimeoutMs()}
+     * without consuming a storage retry attempt or recording retry/error metrics. The node permit
+     * is not held across attempts.
+     */
+    private Releasable startDelegateRead(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener,
+        int attempt,
+        long startNanos,
+        long accumulatedBackoffMillis,
+        long admissionDeadlineNanos,
+        AtomicReference<InflightSlot> inflight,
+        AtomicBoolean cancelled
+    ) {
+        ActionListener<DirectReadBuffer> retryingListener = new ActionListener<>() {
             @Override
             public void onResponse(DirectReadBuffer result) {
                 retryPolicy.notifySuccess();
@@ -396,6 +434,23 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
                     listener.onFailure(e);
                     return;
                 }
+                if (e instanceof ConcurrencyLimiter.PermitMissException miss) {
+                    scheduleAdmissionRetry(
+                        miss,
+                        position,
+                        length,
+                        factory,
+                        executor,
+                        listener,
+                        attempt,
+                        startNanos,
+                        accumulatedBackoffMillis,
+                        admissionDeadlineNanos,
+                        inflight,
+                        cancelled
+                    );
+                    return;
+                }
                 // One shared decision point (classify, budget, backoff) for every driver. The delegate has
                 // already released its DirectReadBuffer on the failure path, so a retry simply allocates a
                 // fresh one via the factory on the next attempt — nothing to release here.
@@ -420,6 +475,7 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
                 // and the listener never completes. Benign only because that happens solely at node shutdown,
                 // which abandons (not awaits) query futures and reclaims all state on JVM exit. Revisit if
                 // graceful query drain is ever added — a stranded listener would then stall shutdown.
+                // Fresh storage attempt: reset the admission deadline so this hop gets a full permit wait.
                 try {
                     retryScheduler.schedule(
                         () -> readBytesAsyncWithRetry(
@@ -431,6 +487,7 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
                             attempt + 1,
                             startNanos,
                             accumulatedBackoffMillis + decision.delayMillis(),
+                            0L,
                             inflight,
                             cancelled
                         ),
@@ -445,8 +502,68 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
                     listener.onFailure(rejected);
                 }
             }
-        });
-        registerInflight(attempt, inner, inflight, cancelled);
+        };
+        return delegate.startReadBytesAsync(position, length, factory, executor, retryingListener, attempt > 0);
+    }
+
+    /**
+     * Barge missed the node permit. Wait on {@link StorageObject#admissionWaitTimeoutMs()} with the
+     * same attempt number; do not count a storage retry. Deadline 0 means this is the first miss of
+     * the hop and starts the clock.
+     */
+    private void scheduleAdmissionRetry(
+        ConcurrencyLimiter.PermitMissException miss,
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener,
+        int attempt,
+        long startNanos,
+        long accumulatedBackoffMillis,
+        long admissionDeadlineNanos,
+        AtomicReference<InflightSlot> inflight,
+        AtomicBoolean cancelled
+    ) {
+        long now = retryPolicy.nanoTime();
+        long deadline = admissionDeadlineNanos != 0L
+            ? admissionDeadlineNanos
+            : now + TimeUnit.MILLISECONDS.toNanos(Math.max(0L, delegate.admissionWaitTimeoutMs()));
+        long remainingMs = TimeUnit.NANOSECONDS.toMillis(deadline - now);
+        if (remainingMs <= 0L) {
+            ExternalUnavailableException timedOut = miss.toUnavailable();
+            recordTerminalFailure(timedOut, accumulatedBackoffMillis);
+            listener.onFailure(timedOut);
+            return;
+        }
+        long delay = retryPolicy.delayMillis(0);
+        if (delay <= 0L) {
+            delay = 1L;
+        }
+        delay = Math.min(delay, remainingMs);
+        logger.debug("waiting for concurrency permit for [{}] (delay [{}]ms, remaining [{}]ms)", delegate.path(), delay, remainingMs);
+        try {
+            retryScheduler.schedule(
+                () -> readBytesAsyncWithRetry(
+                    position,
+                    length,
+                    factory,
+                    executor,
+                    listener,
+                    attempt,
+                    startNanos,
+                    accumulatedBackoffMillis,
+                    deadline,
+                    inflight,
+                    cancelled
+                ),
+                delay,
+                executor
+            );
+        } catch (Exception rejected) {
+            recordTerminalFailure(rejected, accumulatedBackoffMillis);
+            listener.onFailure(rejected);
+        }
     }
 
     @Override
@@ -583,15 +700,16 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
                     return n;
                 }
                 if (n < 0 && isPrematureEof()) {
-                    reopenOrThrow(
-                        new ExternalUnavailableException(
-                            false,
-                            "Premature end of object body for [{}] after [{}] of [{}] bytes",
-                            delegate.path(),
-                            delivered,
-                            expectedCount()
-                        )
+                    ExternalUnavailableException peof = new ExternalUnavailableException(
+                        Condition.STORE_UNAVAILABLE,
+                        delegate.path(),
+                        "",
+                        "",
+                        false,
+                        0L
                     );
+                    peof.setDetail("premature end after " + delivered + " of " + expectedCount() + " bytes");
+                    reopenOrThrow(peof);
                     continue;
                 }
                 return n;
@@ -628,14 +746,18 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
                 MIN_PROGRESS_BYTES_PER_SEC
             );
             belowProgressFloor = true;
-            throw new ExternalUnavailableException(
-                false,
-                "Read of [{}] at byte [{}] below progress floor: [{}] bytes in [{}] ms",
+            ExternalUnavailableException belowFloor = new ExternalUnavailableException(
+                Condition.STORE_UNAVAILABLE,
                 delegate.path(),
-                position + delivered,
-                bytesInWindow,
-                elapsedMs
+                "",
+                "",
+                false,
+                0L
             );
+            belowFloor.setDetail(
+                "below progress floor at byte " + (position + delivered) + ": " + bytesInWindow + " bytes in " + elapsedMs + " ms"
+            );
+            throw belowFloor;
         }
 
         private static long minBytesForWindow(long windowMs) {
@@ -672,7 +794,7 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
                 StorageRetryCancellation.sleepWithCancellationChecks(decision.delayMillis());
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
-                throw new IOException("interrupted while waiting to resume read of " + delegate.path(), ie);
+                throw new IOException("interrupted while waiting to resume read of [" + delegate.path().objectName() + "]", ie);
             }
             throwIfAborted(e);
             long resumeFrom = position + delivered;
@@ -777,19 +899,19 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
             String observed = delegate.contentGeneration();
             if (pinnedGeneration == null) {
                 if (observed != null && delivered > 0) {
-                    throw new ExternalObjectChangedException("Object changed during read of [{}]", delegate.path());
+                    throw new ExternalObjectChangedException(delegate.path());
                 }
                 pinnedGeneration = observed;
             } else if (observed != null && pinnedGeneration.equals(observed) == false) {
                 // Providers set the pin once, so this is unreachable today; kept as an assertion of that
                 // invariant rather than as a silent splice if a provider ever moves its pin.
-                throw new ExternalObjectChangedException("Object changed during read of [{}]", delegate.path());
+                throw new ExternalObjectChangedException(delegate.path());
             }
             long observedLength = delegate.knownLength();
             if (pinnedKnownLength == READ_TO_END) {
                 pinnedKnownLength = observedLength;
             } else if (observedLength != READ_TO_END && observedLength != pinnedKnownLength) {
-                throw new ExternalObjectChangedException("Object changed during read of [{}]", delegate.path());
+                throw new ExternalObjectChangedException(delegate.path());
             }
         }
 

@@ -419,6 +419,7 @@ public class SecurityTests extends ESTestCase {
             List.of("role"),
             true,
             null,
+            AuthenticationTestHelper.builder().build(),
             WriteRequest.RefreshPolicy.WAIT_UNTIL,
             future
         );

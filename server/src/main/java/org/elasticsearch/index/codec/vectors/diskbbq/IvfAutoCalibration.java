@@ -180,7 +180,6 @@ public class IvfAutoCalibration {
     private final int blockDimension;
     private final double targetRecall;
     private final int k;
-    private final double varianceInflation;
 
     public IvfAutoCalibration(int vectorsPerCluster) {
         this(vectorsPerCluster, ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION);
@@ -191,31 +190,11 @@ public class IvfAutoCalibration {
     }
 
     public IvfAutoCalibration(int vectorsPerCluster, int blockDimension, double targetRecall, int k) {
-        this(vectorsPerCluster, blockDimension, targetRecall, k, ErrorModel.DEFAULT_VARIANCE_INFLATION);
-    }
-
-    /**
-     * @param varianceInflation factor applied to the measured quantization-error variance before it reaches the recall
-     *                          model ({@link ErrorModel#DEFAULT_VARIANCE_INFLATION} in production; {@code 1.0} = none).
-     *                          Only the fast (real-residual) path honours it; the full path keeps its own OLS margin.
-     */
-    public IvfAutoCalibration(int vectorsPerCluster, int blockDimension, double targetRecall, int k, double varianceInflation) {
         this.vectorsPerCluster = vectorsPerCluster;
         this.blockDimension = blockDimension;
         this.targetRecall = targetRecall;
         this.k = k;
-        this.varianceInflation = varianceInflation;
     }
-
-    /**
-     * Benchmark-only overrides for the recall-model knobs, read once from system properties so the
-     * {@code qa/vector} harness can sweep them without an index-settings surface:
-     * {@code bench.calibration.variance_inflation} (double, default {@link ErrorModel#DEFAULT_VARIANCE_INFLATION}).
-     * It defaults to the production value, so an unadorned benchmark run measures exactly what production does.
-     */
-    static final double BENCH_VARIANCE_INFLATION = Double.parseDouble(
-        System.getProperty("bench.calibration.variance_inflation", Double.toString(ErrorModel.DEFAULT_VARIANCE_INFLATION))
-    );
 
     /**
      * Returns an {@link IvfMergeConfigResolver} that runs merge-time auto-calibration for the given cluster size.
@@ -225,8 +204,7 @@ public class IvfAutoCalibration {
             vectorsPerCluster,
             ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
             DEFAULT_TARGET_RECALL,
-            DEFAULT_K,
-            BENCH_VARIANCE_INFLATION
+            DEFAULT_K
         ).resolve(fieldInfo, mergeState, codecDefault);
     }
 
@@ -559,7 +537,7 @@ public class IvfAutoCalibration {
         CalibrationSource calibrationSource
     ) throws IOException {
         double invDim = manifold.invDim();
-        ErrorModel.RealResidualState state = ErrorModel.newRealResidualState(calibrationSource, varianceInflation);
+        ErrorModel.RealResidualState state = new ErrorModel.RealResidualState(calibrationSource);
         Map<EncKey, QuantizationErrorStdModel> errorModelCache = new HashMap<>();
         return sweepCandidates(similarityFunction, numVectors, manifold, (candidate, precondition) -> {
             EncKey key = new EncKey(candidate.qbits(), candidate.dbits(), precondition);

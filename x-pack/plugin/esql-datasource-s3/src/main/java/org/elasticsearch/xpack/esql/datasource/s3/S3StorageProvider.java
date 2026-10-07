@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
@@ -822,6 +823,7 @@ public class S3StorageProvider implements StorageProvider {
                     requestBuilder.continuationToken(continuationToken);
                 }
                 ListObjectsV2Response response = s3Client.listObjectsV2(requestBuilder.build());
+                ExternalPlanningIo.addMetadataGet(0);
                 for (S3Object s3Object : response.contents()) {
                     if (s3Object.key().endsWith(StoragePath.PATH_SEPARATOR)) {
                         continue; // directory placeholder key (console "folder" object)
@@ -841,6 +843,7 @@ public class S3StorageProvider implements StorageProvider {
                 continuationToken = response.nextContinuationToken();
             } while (continuationToken != null);
         } catch (Exception e) {
+            ExternalPlanningIo.addMetadataGet(0);
             // Same typing as the other list sites: a 503/429 must surface as ExternalUnavailableException so the
             // retry layer re-attempts it and the adaptive backoff hears about it.
             ExternalUnavailableException unavailable = mapResolveFailure(prefix, e);
@@ -1157,11 +1160,13 @@ public class S3StorageProvider implements StorageProvider {
                 }
 
                 ListObjectsV2Response response = s3Client.listObjectsV2(requestBuilder.build());
+                ExternalPlanningIo.addMetadataGet(0);
 
                 currentBatch = response.contents().iterator();
                 continuationToken = response.nextContinuationToken();
                 hasMorePages = response.isTruncated();
             } catch (Exception e) {
+                ExternalPlanningIo.addMetadataGet(0);
                 ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "listing objects in the configured path");
                 if (expired != null) {
                     throw expired;

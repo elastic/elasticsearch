@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.datasources.CountingBreaker;
 import org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.hamcrest.Matchers;
@@ -162,6 +163,63 @@ public class NdJsonPageDecoderTests extends ESTestCase {
                 capacityAfter >= 3 * longValue.length()
             );
         }
+    }
+
+    /**
+     * Interior streaming chunks must not warn for a declared column that is merely absent from this
+     * chunk. Gzip/zstd clamp-to-compressed-size fills often decode only the first record of a sparse
+     * overlay; the column appears later.
+     */
+    public void testAbsentDeclaredColumnWarningSkippedWhenNotFileFinal() throws IOException {
+        String ndjson = "{\"id\":1}\n";
+        List<String> warnings = new ArrayList<>();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("id", DataType.LONG), attribute("spin_id", DataType.KEYWORD)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.STRICT,
+                "test://overlay-chunk",
+                new NdJsonReaderCounters(),
+                warnings::add
+            )
+        ) {
+            decoder.setReportAbsentDeclaredColumns(false);
+            try (Page page = decoder.decodePage()) {
+                assertEquals(1, page.getPositionCount());
+            }
+        }
+        assertTrue(warnings.isEmpty());
+    }
+
+    /**
+     * File-final (and whole-file) decoders still warn when a declared column never appears.
+     */
+    public void testAbsentDeclaredColumnWarningFiresWhenFileFinal() throws IOException {
+        String ndjson = "{\"id\":1}\n";
+        List<String> warnings = new ArrayList<>();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("id", DataType.LONG), attribute("spin_id", DataType.KEYWORD)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.STRICT,
+                "test://overlay-file",
+                new NdJsonReaderCounters(),
+                warnings::add
+            )
+        ) {
+            try (Page page = decoder.decodePage()) {
+                assertEquals(1, page.getPositionCount());
+            }
+        }
+        assertEquals(List.of(SkipWarnings.absentDeclaredColumnMessage("spin_id")), warnings);
     }
 
     /**

@@ -23,6 +23,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Decorates a {@link StorageObject} with concurrency limiting. Each I/O operation
@@ -139,6 +140,11 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
     }
 
     @Override
+    public long admissionWaitTimeoutMs() {
+        return limiter.acquireTimeoutMs();
+    }
+
+    @Override
     public int readBytes(long position, ByteBuffer target) throws IOException {
         limiter.acquireChecked();
         try {
@@ -167,8 +173,30 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
         Executor executor,
         ActionListener<DirectReadBuffer> listener
     ) {
+        return startReadBytesAsync(position, length, factory, executor, listener, false);
+    }
+
+    /**
+     * {@code barge}: untimed {@link ConcurrencyLimiter#tryAcquire()} so a retry continuation never
+     * parks. A miss is {@link ConcurrencyLimiter.PermitMissException}; the retry layer waits on
+     * {@link #admissionWaitTimeoutMs()} without burning a storage attempt. Permit is not held
+     * across attempts; the next hop acquires again.
+     */
+    @Override
+    public Releasable startReadBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener,
+        boolean barge
+    ) {
         try {
-            limiter.acquireChecked();
+            if (barge) {
+                limiter.acquireBargeChecked();
+            } else {
+                limiter.acquireChecked();
+            }
         } catch (Exception e) {
             listener.onFailure(e);
             return () -> {};
@@ -265,7 +293,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
      */
     private static class PermitReleasingInputStream extends FilterInputStream {
         private final ConcurrencyLimiter limiter;
-        private volatile boolean released;
+        private final AtomicBoolean released = new AtomicBoolean();
 
         PermitReleasingInputStream(InputStream in, ConcurrencyLimiter limiter) {
             super(in);
@@ -282,8 +310,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
          * stream has been aborted directly via the delegate, so we don't double-close.
          */
         void markReleased() {
-            if (released == false) {
-                released = true;
+            if (released.getAndSet(true) == false) {
                 limiter.release();
             }
         }
@@ -293,8 +320,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
             try {
                 super.close();
             } finally {
-                if (released == false) {
-                    released = true;
+                if (released.getAndSet(true) == false) {
                     limiter.release();
                 }
             }

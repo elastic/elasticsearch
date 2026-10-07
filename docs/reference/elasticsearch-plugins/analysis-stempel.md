@@ -20,6 +20,8 @@ The plugin must be installed on every node in the cluster, and each node must be
 
 You can download this plugin for [offline install](/reference/elasticsearch/command-line-tools/elasticsearch-plugin.md#elasticsearch-plugin-ids) from [https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-stempel/analysis-stempel-{{version.stack}}.zip](https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-stempel/analysis-stempel-{{version.stack}}.zip). To verify the `.zip` file, use the [SHA hash](https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-stempel/analysis-stempel-{{version.stack}}.zip.sha512) or [ASC key](https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-stempel/analysis-stempel-{{version.stack}}.zip.asc).
 
+The plugin manager installs plugins on a self-managed cluster. To install this plugin on {{ech}}, {{ece}}, or {{eck}}, refer to the [plugin installation instructions for your deployment type](docs-content://deploy-manage/plugins-and-custom-configuration-files.md#plugins-by-deployment-type).
+
 
 ## Removal [analysis-stempel-remove]
 

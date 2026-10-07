@@ -31,13 +31,7 @@ To verify the `.zip` file, use
 the [SHA hash](https://artifacts.elastic.co/downloads/elasticsearch-plugins/microsoft-graph-authz/microsoft-graph-authz-{{version.stack}}.zip.sha512)
 or [ASC key](https://artifacts.elastic.co/downloads/elasticsearch-plugins/microsoft-graph-authz/microsoft-graph-authz-{{version.stack}}.zip.asc).
 
-<!--
-TEMPORARY LINK. The "Plugins and configuration files" hub does not exist on docs-content
-main yet, so a docs-content:// crosslink fails the build. This points at the PR preview
-instead. When https://github.com/elastic/docs-content/pull/7959 merges, restore:
-[Plugins and configuration files](docs-content://deploy-manage/plugins-and-configuration-files.md)
--->
-For all other deployment types, refer to [Plugins and configuration files](https://docs-v3-preview.elastic.dev/elastic/docs-content/pull/7959/deploy-manage/plugins-and-configuration-files).
+To install this plugin on {{ech}}, {{ece}}, or {{eck}}, refer to the [plugin installation instructions for your deployment type](docs-content://deploy-manage/plugins-and-custom-configuration-files.md#plugins-by-deployment-type).
 
 ## Removal [ms-graph-authz-remove]
 

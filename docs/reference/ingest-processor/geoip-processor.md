@@ -264,15 +264,14 @@ You can create a service that mimics the Elastic GeoIP endpoint. You can then ge
 
     You can also use custom city, country, and ASN `.mmdb` files. These files must be uncompressed. The type (city, country, or ASN) will be pulled from the file metadata, so the filename does not matter.
 
-<!--
-TEMPORARY LINK. This page moved in docs-content and the new path is not on main yet, so a
-docs-content:// crosslink fails the build. This points at the PR preview instead. When
-https://github.com/elastic/docs-content/pull/7959 merges, restore:
-[custom bundle](docs-content://deploy-manage/plugins-and-configuration-files/elastic-cloud/upload-custom-plugins-bundles.md)
--->
-3. On {{ech}} deployments upload database using a [custom bundle](https://docs-v3-preview.elastic.dev/elastic/docs-content/pull/7959/deploy-manage/plugins-and-configuration-files/elastic-cloud/upload-custom-plugins-bundles).
-4. On self-managed deployments copy the database files to `$ES_CONFIG/ingest-geoip`.
-5. In your `geoip` processors, configure the `database_file` parameter to use a custom database file.
+3. Make the database files available in the `ingest-geoip` directory of each node's {{es}} config directory. How you do that depends on your deployment type:
+
+    * **Self-managed**: copy the database files to `$ES_CONFIG/ingest-geoip`.
+    * **{{ech}}**: upload the database files as a [custom bundle](docs-content://deploy-manage/plugins-and-custom-configuration-files/elastic-cloud/upload-custom-plugins-bundles.md) that contains an `ingest-geoip` folder.
+    * **{{ece}}**: refer to [Example: Add a custom GeoIP database bundle](docs-content://deploy-manage/plugins-and-custom-configuration-files/cloud-enterprise/add-custom-bundles-plugins.md#ece-add-custom-bundle-example-geoip).
+    * **{{eck}}**: [mount the database files from a ConfigMap or Secret](docs-content://deploy-manage/plugins-and-custom-configuration-files/cloud-on-k8s/custom-configuration-files-plugins.md) into the `ingest-geoip` subdirectory of the config directory.
+
+4. In your `geoip` processors, configure the `database_file` parameter to use a custom database file.
 
 ### Troubleshooting geolocation database updates
 

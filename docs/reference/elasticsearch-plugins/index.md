@@ -12,6 +12,8 @@ Plugins are a way to enhance the core {{es}} functionality in a custom manner. T
 
 Plugins contain JAR files, but may also contain scripts and config files, and must be installed on every node in the cluster. After installation, each node must be restarted before the plugin becomes visible.
 
+Both the plugins available to you and the way you install them depend on where {{es}} runs. Refer to [Plugins and custom configuration files](docs-content://deploy-manage/plugins-and-custom-configuration-files.md) for more information.
+
 There are two categories of plugins:
 
 Core Plugins

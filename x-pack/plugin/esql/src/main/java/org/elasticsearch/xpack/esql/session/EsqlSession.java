@@ -2143,6 +2143,9 @@ public class EsqlSession {
         Map<String, DatasetMapping> declaredMappings = extractDeclaredMappings(plan);
 
         LogicalPlan listingPlan = FoldDateFunctionFiltersForListing.fold(plan, configuration, functionRegistry);
+        // QueryDslTimestampBoundsExtractor parses both ends with roundUp=false, so
+        // `lte now/y` is start-of-year. Including that Instant in year IN is safe
+        // only while listing is year grain.
         var filterHints = projectPartitionSpecs(
             PartitionSpec.addTimestampBounds(
                 PartitionFilterHintExtractor.extract(listingPlan),

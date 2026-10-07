@@ -118,8 +118,8 @@ PUT /_query/dataset/vpc_flow
 }
 ```
 
-A time range on `@timestamp` (for example Kibana's time picker) already narrows the year folders in the
-listing. Skipping day folders for that same range is a follow-up.
+A time range on `@timestamp` (for example Kibana's time picker, or a `request.filter` range) narrows
+the year folders in the listing and skips day folders whose UTC interval misses the window.
 
 Renamed folders need an explicit key. `yyy=year(ts), mo=month(ts)` with `partition_path: {yyy}/{mo}` maps
 the file column onto those folder names. `year(ts)` alone would look for a key named `year` and miss `yyy`.
@@ -144,3 +144,4 @@ The following table shows how different query patterns interact with `partition_
 | 10 | `WHERE start > T` | `year(start)` on unix seconds (default unit `millis`) | Nothing. Warning: the unit is likely wrong. |
 | 11 | `WHERE ts > T` | `yyy=year(ts), mo=month(ts)` and `partition_path: {yyy}/{mo}` | Same combined range as row 4, on the renamed keys. |
 | 12 | `WHERE @timestamp > T` | `year(@timestamp), month(@timestamp), day(@timestamp)` after mapping `start` to `@timestamp` | Same combined range as row 5. No unit: the column is a date. Binding `start` matches nothing. |
+| 13 | `request.filter` range on `@timestamp` | `year(@timestamp), month(@timestamp), day(@timestamp)` | Day folders whose UTC interval misses the window. Year folders in the listing too. |

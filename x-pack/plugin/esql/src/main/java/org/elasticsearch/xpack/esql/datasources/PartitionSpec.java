@@ -10,21 +10,10 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.Operator;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
-import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -218,6 +207,18 @@ public final class PartitionSpec {
 
     public List<Field> fields() {
         return fields;
+    }
+
+    /**
+     * Every spec source column: temporal binds and identity remaps. Listing and
+     * overlap extract against this set, not hive keys.
+     */
+    public Set<String> boundColumns() {
+        Set<String> columns = new LinkedHashSet<>();
+        for (Field field : fields) {
+            columns.add(field.column());
+        }
+        return columns;
     }
 
     /**
@@ -783,10 +784,17 @@ public final class PartitionSpec {
 
     /**
      * Same overlap test against resolved ancestor filter expressions (split
-     * discovery). Missing source column → no overlap test.
+     * discovery). Missing source column → no overlap test. DATETIME/DATE_NANOS
+     * literals become {@link Instant} so they cannot be scaled as unix numbers.
      */
     public boolean overlapsExpressions(Map<String, Object> partitionValues, List<Expression> filters) {
-        return overlaps(partitionValues, hintsFromExpressions(filters));
+        if (isEmpty() || filters == null || filters.isEmpty()) {
+            return true;
+        }
+        return overlaps(
+            partitionValues,
+            PartitionFilterHintExtractor.fromConjuncts(filters, Set.of(), boundColumns(), PartitionFilterHintExtractor.TEMPORAL)
+        );
     }
 
     /** Notices for unmatched keys and a numeric bound that lands outside 1971–2100. */
@@ -906,72 +914,6 @@ public final class PartitionSpec {
             }
         }
         return detectedKeys.contains(coarser.token());
-    }
-
-    static List<PartitionFilterHint> hintsFromExpressions(@Nullable List<Expression> filters) {
-        if (filters == null || filters.isEmpty()) {
-            return List.of();
-        }
-        List<PartitionFilterHint> hints = new ArrayList<>();
-        for (Expression filter : filters) {
-            for (Expression conjunct : Predicates.splitAnd(filter)) {
-                if (conjunct instanceof EsqlBinaryComparison comparison) {
-                    extractComparison(comparison, hints);
-                } else if (conjunct instanceof In in) {
-                    extractIn(in, hints);
-                }
-            }
-        }
-        return hints;
-    }
-
-    private static void extractComparison(EsqlBinaryComparison comparison, List<PartitionFilterHint> hints) {
-        String column = null;
-        Object literal = null;
-        boolean reversed = false;
-        if (comparison.left() instanceof Attribute attr && comparison.right() instanceof Literal lit) {
-            column = attr.name();
-            literal = lit.value();
-        } else if (comparison.left() instanceof Literal lit && comparison.right() instanceof Attribute attr) {
-            column = attr.name();
-            literal = lit.value();
-            reversed = true;
-        }
-        if (column == null) {
-            return;
-        }
-        Operator operator = switch (comparison) {
-            case Equals ignored -> Operator.EQUALS;
-            case NotEquals ignored -> Operator.NOT_EQUALS;
-            case GreaterThan ignored -> reversed ? Operator.LESS_THAN : Operator.GREATER_THAN;
-            case GreaterThanOrEqual ignored -> reversed ? Operator.LESS_THAN_OR_EQUAL : Operator.GREATER_THAN_OR_EQUAL;
-            case LessThan ignored -> reversed ? Operator.GREATER_THAN : Operator.LESS_THAN;
-            case LessThanOrEqual ignored -> reversed ? Operator.GREATER_THAN_OR_EQUAL : Operator.LESS_THAN_OR_EQUAL;
-            default -> null;
-        };
-        if (operator != null) {
-            hints.add(new PartitionFilterHint(column, operator, List.of(normalizeLiteral(literal))));
-        }
-    }
-
-    private static void extractIn(In in, List<PartitionFilterHint> hints) {
-        if (in.value() instanceof Attribute attr) {
-            List<Object> values = new ArrayList<>();
-            for (Expression item : in.list()) {
-                if (item instanceof Literal lit) {
-                    values.add(normalizeLiteral(lit.value()));
-                } else {
-                    return;
-                }
-            }
-            if (values.isEmpty() == false) {
-                hints.add(new PartitionFilterHint(attr.name(), Operator.IN, values));
-            }
-        }
-    }
-
-    private static Object normalizeLiteral(Object value) {
-        return value instanceof BytesRef br ? BytesRefs.toString(br) : value;
     }
 
     private Map<String, List<Field>> temporalGroups() {

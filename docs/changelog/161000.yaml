@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 0
+summary: Skip day folders from a time-picker range on @timestamp
+type: enhancement

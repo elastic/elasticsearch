@@ -8,8 +8,16 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.Operator;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -24,6 +32,8 @@ import static org.hamcrest.Matchers.hasItem;
 
 public class PartitionSpecProjectorTests extends ESTestCase {
 
+    private static final Source SRC = Source.EMPTY;
+
     /** 2024-03-15T00:00:00Z */
     private static final Instant MARCH_15_2024 = Instant.parse("2024-03-15T00:00:00Z");
 
@@ -35,6 +45,51 @@ public class PartitionSpecProjectorTests extends ESTestCase {
         assertFalse("2024-02-15 is before the bound", spec.overlaps(folder(2024, 2, 15), hints));
         assertTrue("2024-03-15 still overlaps the exclusive start", spec.overlaps(folder(2024, 3, 15), hints));
         assertFalse("2024-03-14 is entirely before the bound", spec.overlaps(folder(2024, 3, 14), hints));
+    }
+
+    public void testOverlapsExpressionsGreaterThanDatetimeMatchesHintOverlap() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts)");
+        Expression filter = new GreaterThan(SRC, datetimeField("ts"), datetimeLiteral(MARCH_15_2024.toEpochMilli()));
+
+        assertTrue("2025-01-01 is after the bound", spec.overlapsExpressions(folder(2025, 1, 1), List.of(filter)));
+        assertFalse("2024-02-15 is before the bound", spec.overlapsExpressions(folder(2024, 2, 15), List.of(filter)));
+        assertTrue("2024-03-15 still overlaps the exclusive start", spec.overlapsExpressions(folder(2024, 3, 15), List.of(filter)));
+        assertFalse("2024-03-14 is entirely before the bound", spec.overlapsExpressions(folder(2024, 3, 14), List.of(filter)));
+    }
+
+    public void testOverlapsExpressionsMvInRangeOneDay() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts)");
+        Instant dayStart = Instant.parse("2024-06-15T00:00:00Z");
+        Instant dayEnd = Instant.parse("2024-06-15T23:59:59.999Z");
+        Expression filter = new MvInRange(
+            SRC,
+            datetimeField("ts"),
+            datetimeLiteral(dayStart.toEpochMilli()),
+            datetimeLiteral(dayEnd.toEpochMilli())
+        );
+        assertTrue(spec.overlapsExpressions(folder(2024, 6, 15), List.of(filter)));
+        assertFalse(spec.overlapsExpressions(folder(2024, 6, 14), List.of(filter)));
+        assertFalse(spec.overlapsExpressions(folder(2024, 6, 16), List.of(filter)));
+    }
+
+    public void testOverlapsExpressionsDatetimeLongIsNotScaledAsSeconds() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts, second), month(ts, second)");
+        Expression filter = new GreaterThan(SRC, datetimeField("ts"), datetimeLiteral(MARCH_15_2024.toEpochMilli()));
+        assertTrue("datetime millis must not be scaled as unix seconds", spec.overlapsExpressions(folder(2024, 3, null), List.of(filter)));
+        assertFalse("2023 is entirely before March 2024", spec.overlapsExpressions(folder(2023, 3, null), List.of(filter)));
+    }
+
+    public void testOverlapsExpressionsDateNanosLongIsInstantNotUnix() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts)");
+        long nanos = MARCH_15_2024.getEpochSecond() * 1_000_000_000L;
+        Expression filter = new GreaterThan(SRC, dateNanosField("ts"), new Literal(SRC, nanos, DataType.DATE_NANOS));
+        assertTrue(spec.overlapsExpressions(folder(2024, 3, null), List.of(filter)));
+        assertFalse(spec.overlapsExpressions(folder(2024, 2, null), List.of(filter)));
+    }
+
+    public void testBoundColumnsIncludesIdentityAndTemporalSources() {
+        PartitionSpec spec = PartitionSpec.parse("aws-region=region, year(ts), month(ts)");
+        assertEquals(Set.of("region", "ts"), spec.boundColumns());
     }
 
     public void testJointOverlapIsNotIndependentYearAndMonth() {
@@ -279,6 +334,26 @@ public class PartitionSpecProjectorTests extends ESTestCase {
         );
     }
 
+    public void testClosedRangeEndingAtYearStartStillIncludesThatYear() {
+        Instant start = Instant.parse("2024-06-01T00:00:00Z");
+        Instant end = Instant.parse("2026-01-01T00:00:00Z");
+        PartitionSpec spec = PartitionSpec.parse("year(@timestamp), month(@timestamp)");
+        Map<String, List<PartitionFilterHint>> hints = PartitionSpec.addTimestampBounds(
+            Map.of(),
+            Map.of("s3://logs/**", Map.of(PartitionSpec.CONFIG_PARTITION_SPEC, "year(@timestamp), month(@timestamp)")),
+            start,
+            end
+        );
+        assertEquals(
+            List.of(
+                hint("@timestamp", Operator.GREATER_THAN_OR_EQUAL, start),
+                hint("@timestamp", Operator.LESS_THAN_OR_EQUAL, end),
+                hint("year", Operator.IN, 2024, 2025, 2026)
+            ),
+            spec.projectListingHints(hints.get("s3://logs/**"))
+        );
+    }
+
     public void testAliasIdentityValuesDoesNotOverwriteExistingColumn() {
         PartitionSpec spec = PartitionSpec.parse("aws-region=region");
         Map<String, Object> values = new HashMap<>(Map.of("aws-region", "eu", "region", "us"));
@@ -288,6 +363,18 @@ public class PartitionSpecProjectorTests extends ESTestCase {
 
     private static PartitionFilterHint hint(String column, Operator op, Object... values) {
         return new PartitionFilterHint(column, op, List.of(values));
+    }
+
+    private static FieldAttribute datetimeField(String name) {
+        return new FieldAttribute(SRC, name, new EsField(name, DataType.DATETIME, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
+    }
+
+    private static FieldAttribute dateNanosField(String name) {
+        return new FieldAttribute(SRC, name, new EsField(name, DataType.DATE_NANOS, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
+    }
+
+    private static Literal datetimeLiteral(long millis) {
+        return new Literal(SRC, millis, DataType.DATETIME);
     }
 
     private static Map<String, Object> hourFolder(int hour) {

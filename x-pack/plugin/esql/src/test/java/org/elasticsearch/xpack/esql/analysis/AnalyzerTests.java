@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlightIndexKey;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
@@ -7477,6 +7478,34 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertThat(as(highlight.fields().getLast(), ReferenceAttribute.class).valuesAnalyzer(), equalTo("whitespace"));
         assertThat(highlight.fieldMappings().keySet(), equalTo(Set.of("title")));
         assertWarnings();
+    }
+
+    /**
+     * FUSE reads each column through FIRST, which returns {@code text} as {@code keyword} and drops the analyzer TO_TEXT
+     * declares. HIGHLIGHT follows the column back through FIRST, also after a later RENAME or EVAL copy, and still uses
+     * the declared analyzer.
+     */
+    public void testHighlightAfterFuseKeepsDeclaredAnalyzer() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        String fuse = "FROM books* METADATA _id, _index, _score"
+            + " | EVAL t = TO_TEXT(CONCAT(title, \"\"), {\"analyzer\": \"whitespace\"})"
+            + " | FORK (WHERE MATCH(title, \"ring\") | LIMIT 10) (WHERE MATCH(title, \"return\") | LIMIT 10)"
+            + " | FUSE";
+        for (String query : List.of(
+            fuse + " | HIGHLIGHT \"ring\" ON t",
+            fuse + " | RENAME t AS u | HIGHLIGHT \"ring\" ON u",
+            fuse + " | EVAL u = t | HIGHLIGHT \"ring\" ON u"
+        )) {
+            Highlight highlight = soleHighlight(booksWithConflictingTitleAnalyzer().query(query));
+            NamedExpression column = highlight.fields().getFirst();
+            assertNull(query, AnalyzedTextExpression.valuesAnalyzerOf(column));
+            TextEsField mapping = highlight.fieldMappings().get(column.name());
+            assertNotNull(query, mapping);
+            assertThat(query, mapping.analyzerName(), equalTo("whitespace"));
+            assertThat(query, mapping.unknownAnalyzer(), equalTo(TextEsField.UnknownAnalyzer.NONE));
+            assertNull(query, mapping.analyzerGroups());
+            assertWarnings();
+        }
     }
 
     /**

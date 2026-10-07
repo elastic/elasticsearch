@@ -54,7 +54,8 @@ import static org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlightIndexK
  *     <li>a {@link UnknownAnalyzer#BRANCH_CONFLICT}, which fails the query unless {@code WITH} picks an analyzer.</li>
  * </ul>
  * An expression over a field has no mapping, and neither does a column no branch maps. HIGHLIGHT analyzes those like
- * any other computed column.
+ * any other computed column, except that a column FUSE read from a {@code TO_TEXT} column gets a mapping that names
+ * the analyzer {@code TO_TEXT} declares, because FUSE drops the declaration.
  * <p>
  * Runs before {@link ResolveHighlightIndexKey}, which threads each row's {@code _index} through every branch when a mapping
  * names each index's analyzer.
@@ -85,6 +86,9 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
         for (NamedExpression field : highlight.fields()) {
             if (field instanceof Attribute column && (column instanceof FieldAttribute) == false && DataType.isString(column.dataType())) {
                 TextEsField mapping = mergedMapping(highlight.child(), column, lineage);
+                if (mapping == null) {
+                    mapping = droppedDeclaration(highlight.child(), column, lineage);
+                }
                 if (mapping != null) {
                     mappings.put(column.name(), mapping(column.name(), mapping));
                 }
@@ -107,6 +111,20 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
             return branchesMapping(merge, merged.name(), lineage);
         }
         return null; // an expression, not a field
+    }
+
+    /**
+     * A mapping that names the analyzer TO_TEXT declares for the column {@code column} reads, when {@code column} itself
+     * declares none. FUSE reads each column through FIRST, which returns {@code keyword} and so drops the declaration.
+     */
+    private static @Nullable TextEsField droppedDeclaration(LogicalPlan plan, Attribute column, Lineage lineage) {
+        if (AnalyzedTextExpression.valuesAnalyzerOf(column) != null) {
+            return null;
+        }
+        String declared = AnalyzedTextExpression.valuesAnalyzerOf(lineage.aliases(plan).resolve(column, column));
+        return declared == null
+            ? null
+            : mapping(column.name(), declared, TextEsField.DEFAULT_POSITION_INCREMENT_GAP, UnknownAnalyzer.NONE, null);
     }
 
     /**

@@ -2292,6 +2292,27 @@ books_english     | Return of the King Being the Third Part of The Lord of the R
 ;
 
 
+# FUSE reads t through FIRST, which drops the english analyzer TO_TEXT declares. HIGHLIGHT still uses english, so
+# "ring" matches "Rings", which standard would miss.
+highlightDeclaredAnalyzerAfterForkAndFuse
+required_capability: highlight_mapping_analyzer
+required_capability: fork_v9
+required_capability: fuse_v6
+
+FROM books METADATA _id, _index, _score
+| EVAL t = TO_TEXT(CONCAT(title, ""), {"analyzer": "english"})
+| FORK (WHERE book_no == "2714" | LIMIT 10)
+       (WHERE book_no == "2714" | LIMIT 10)
+| FUSE
+| HIGHLIGHT "ring" ON t
+| KEEP book_no, highlight_t
+;
+
+book_no:keyword | highlight_t:keyword
+2714            | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+;
+
+
 # FUSE GROUP BY an aliased fork column still reads title through FIRST, so english stems "Rings" and "ring" matches it.
 highlightMappingAnalyzerAfterFuseGroupByAlias
 required_capability: highlight_mapping_analyzer

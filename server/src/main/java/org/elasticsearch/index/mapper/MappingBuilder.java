@@ -153,6 +153,9 @@ public class MappingBuilder implements ToXContentFragment {
         List<String> serializedBeforeBuild = null;
         assert checkSerialization == false || (serializedBeforeBuild = serializationsAfterNormalizing(reason)) != null;
         RootObjectMapper root = rootBuilder.build(rootContext(reason));
+        for (MetadataFieldMapper.Builder metadataBuilder : metadataBuilders.values()) {
+            metadataBuilder.validateMapping(rootBuilder);
+        }
         MetadataFieldMapper[] metadataMappers = metadataBuilders.values()
             .stream()
             .map(MetadataFieldMapper.Builder::build)

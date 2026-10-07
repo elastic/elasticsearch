@@ -161,6 +161,13 @@ public abstract class MetadataFieldMapper extends FieldMapper {
             return builder.endObject();
         }
 
+        /**
+         * Checks this field against the rest of the mapping once the root has been normalized, and fails the build
+         * if they are inconsistent. Runs on the builders, so it sees what the user configured explicitly rather
+         * than what was resolved at build time.
+         */
+        void validateMapping(RootObjectMapper.Builder root) {}
+
         @Override
         public final MetadataFieldMapper build(MapperBuilderContext context) {
             return build();

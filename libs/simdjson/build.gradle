@@ -86,7 +86,7 @@ nativeLibraryBuild {
   modeEnvironmentVariable = 'SIMDJSON_NATIVE_BUILD'
   workingDir = layout.projectDirectory.dir('native')
   sources = ['native/src/**', 'native/Makefile']
-  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:7'
+  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:8'
   forwardedEnvironment = ['CLANG_CXX']
   // The platforms libsimdjson is built for. Other hosts (Intel Mac) still consume the artifact but
   // fall back to the Java implementation when they don't have a platform-specific one.

@@ -116,7 +116,7 @@ nativeLibraryBuild {
   modeEnvironmentVariable = 'VEC_NATIVE_BUILD'
   workingDir = layout.projectDirectory.dir('native')
   sources = ['native/src/vec/**', 'native/Makefile']
-  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:7'
+  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:8'
   forwardedEnvironment = ['CLANG_CXX']
   // The platforms libvec is built for. Other hosts (Intel Mac) still consume the artifact but
   // fall back to the Panama implementation when they don't have a platform-specific implementation.

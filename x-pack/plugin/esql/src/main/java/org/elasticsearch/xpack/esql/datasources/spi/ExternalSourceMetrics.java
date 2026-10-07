@@ -596,8 +596,11 @@ public final class ExternalSourceMetrics {
      */
     public void recordQuery(String outcome, long durationMillis, boolean partial, @Nullable String errorType, @Nullable String status) {
         try {
+            // Clamp before anything is emitted, so a token outside the closed set can neither become an APM attribute nor
+            // make the two sinks disagree.
+            String canonicalErrorType = errorType == null ? null : canonicalErrorType(errorType);
             Map<String, Object> attributes = OUTCOME_FAILURE.equals(outcome)
-                ? failureAttrs(Map.of(OUTCOME_ATTRIBUTE, OUTCOME_FAILURE), errorType, status)
+                ? failureAttrs(Map.of(OUTCOME_ATTRIBUTE, OUTCOME_FAILURE), canonicalErrorType, status)
                 : outcomeAttrs(outcome);
             queriesTotal.incrementBy(1, attributes);
             queryDuration.record(Math.max(0L, durationMillis), attributes);
@@ -608,7 +611,7 @@ public final class ExternalSourceMetrics {
                 queriesPartialTotal.incrementBy(1);
             }
             if (usageAccumulator != null) {
-                usageAccumulator.recordQuery(outcome, durationMillis, partial, errorType);
+                usageAccumulator.recordQuery(outcome, durationMillis, partial, canonicalErrorType);
             }
         } catch (Exception e) {
             logger.trace("telemetry: recordQuery failed", e);
@@ -667,10 +670,12 @@ public final class ExternalSourceMetrics {
      */
     public void recordDiscoveryFailure(@Nullable String scheme, String errorType, @Nullable String status) {
         try {
+            // Clamp before anything is emitted (see recordQuery).
+            String canonicalErrorType = canonicalErrorType(errorType);
             Map<String, Object> typeAttributes = typeAttrs(scheme);
-            discoveryFailuresTotal.incrementBy(1, failureAttrs(typeAttributes, errorType, status));
+            discoveryFailuresTotal.incrementBy(1, failureAttrs(typeAttributes, canonicalErrorType, status));
             if (usageAccumulator != null) {
-                usageAccumulator.recordDiscoveryFailure(errorType);
+                usageAccumulator.recordDiscoveryFailure(canonicalErrorType);
             }
         } catch (Exception e) {
             logger.trace("telemetry: recordDiscoveryFailure failed", e);
@@ -914,6 +919,17 @@ public final class ExternalSourceMetrics {
      * {@code null}). Only used on the failure paths, so allocating a map per call is not a hot-path concern; the
      * value space is closed ({@code errorType}) or a handful of HTTP codes ({@code status}).
      */
+    /**
+     * Folds a failure category into the closed {@link DataSourceUsageAccumulator#ERROR_TYPE_NAMES} set: anything outside it,
+     * including {@code null}, becomes {@link DataSourceUsageAccumulator#ERROR_TYPE_OTHER}. The classifier only returns members
+     * of the set; this is the boundary that publishes the label, so it does not rely on that.
+     */
+    static String canonicalErrorType(@Nullable String errorType) {
+        return errorType != null && DataSourceUsageAccumulator.ERROR_TYPE_NAMES.contains(errorType)
+            ? errorType
+            : DataSourceUsageAccumulator.ERROR_TYPE_OTHER;
+    }
+
     private static Map<String, Object> failureAttrs(Map<String, Object> base, @Nullable String errorType, @Nullable String status) {
         if (errorType == null && status == null) {
             return base;

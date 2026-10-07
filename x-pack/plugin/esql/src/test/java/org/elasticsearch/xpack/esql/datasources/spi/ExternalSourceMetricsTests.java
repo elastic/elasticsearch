@@ -311,6 +311,32 @@ public class ExternalSourceMetricsTests extends ESTestCase {
         assertThat(failure.attributes().get(ExternalSourceMetrics.STATUS_ATTRIBUTE), equalTo("500"));
     }
 
+    /**
+     * The failure category is clamped to the closed set before anything is emitted, so a token the classifier should never
+     * produce cannot become an APM attribute, and the two sinks never disagree about it.
+     */
+    public void testUnknownErrorTypeIsClampedToOtherInBothSinks() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        RecordingMeterRegistry dualRegistry = new RecordingMeterRegistry();
+        ExternalSourceMetrics dualSink = new ExternalSourceMetrics(dualRegistry, acc);
+
+        dualSink.recordDiscoveryFailure("s3", "SomeException", "400");
+        dualSink.recordDiscoveryFailure("s3", null, "400");
+        dualSink.recordQuery(ExternalSourceMetrics.OUTCOME_FAILURE, 5L, false, "AnotherException", "400");
+
+        int other = DataSourceUsageAccumulator.ERROR_TYPE_NAMES.indexOf(DataSourceUsageAccumulator.ERROR_TYPE_OTHER);
+        assertThat(acc.discoveryFailures(other), equalTo(2L));
+        assertThat(acc.discoveryFailures(), equalTo(2L));
+        assertThat(acc.queryFailures(other), equalTo(1L));
+        for (Measurement m : dualRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.DISCOVERY_FAILURES_TOTAL)) {
+            assertThat(m.attributes().get(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo("other"));
+        }
+        for (Measurement m : dualRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL)) {
+            assertThat(m.attributes().get(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo("other"));
+        }
+    }
+
     /** The cause is added to the failure series only, on both instruments, so the success series do not grow. */
     public void testRecordQueryFailureCarriesErrorTypeAndStatus() {
         metrics.recordQuery(

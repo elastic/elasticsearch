@@ -1783,13 +1783,21 @@ public class ExternalSourceResolver {
      */
     @Nullable
     private static SourceStatistics fileStatisticsFromCache(@Nullable CachedFile cached) {
-        if (cached == null || cached.statistics() == null) {
+        if (cached == null) {
             return null;
         }
-        // Composed, not read off the record: the measurements are their own store, and the record's own
-        // metadata still carries the mtime and fingerprint the extractor expects beside them.
-        Map<String, Object> composed = new HashMap<>(cached.record().safeMetadata());
-        composed.putAll(cached.statistics());
+        // Composed over BOTH, and it must not short-circuit on an absent statistics record. The schema record
+        // carries statistics of its own: SchemaCacheEntry.from embeds whatever the reader reported at mint, and
+        // for a columnar file that is the footer metadata - the only statistics such a file ever has, because
+        // nothing on those rails publishes through the capture sink, so no statistics record is ever written
+        // for one. Returning null when the statistics store misses therefore threw away every per-file footer
+        // statistic on a warm deferred resolve and sent split discovery back to open every footer.
+        Map<String, Object> composed = cached.statistics() == null
+            ? cached.record().safeMetadata()
+            : new HashMap<>(cached.record().safeMetadata());
+        if (cached.statistics() != null) {
+            composed.putAll(cached.statistics());
+        }
         return SourceStatisticsSerializer.extractStatistics(composed).orElse(null);
     }
 
@@ -1844,7 +1852,10 @@ public class ExternalSourceResolver {
         if (record == null) {
             return null;
         }
-        return new CachedFile(record, cachedStatistics(key, readConfigStampOf(record)));
+        // Same gate as the serve path: a columnar file can have no statistics record, and its footer statistics
+        // are already on the schema record, so asking would miss on every file.
+        Map<String, Object> statistics = publishesScanDerivedStatistics(record) ? cachedStatistics(key, readConfigStampOf(record)) : null;
+        return new CachedFile(record, statistics);
     }
 
     private static int[] identityMapping(int n) {
@@ -3012,19 +3023,25 @@ public class ExternalSourceResolver {
         // describes the file and is the same answer whoever asks, so when it already carries THIS read's
         // measurements there is nothing a read-addressed record could add.
         //
-        // The order is what keeps the second lookup off the common path. Under first_file_wins a text file whose
-        // own schema IS the one the query binds is stamped with this very read; a columnar file is never stamped
-        // and can have no statistics record at all. Either way the statistics get does not happen. Asking for it
-        // first cost a guaranteed miss per file: Cache#get counts every absent lookup, so it both doubled the
-        // segment traffic across N files and reported a miss per file in schema_cache.misses, which is the ratio
-        // an operator reads to size this cache.
+        // The schema record is consulted first because it decides whether the statistics address is worth asking
+        // for at all: a text file whose own schema IS the one the query binds is stamped with this very read, and
+        // a columnar file can have no statistics record, so neither pays for a second lookup. Asking for the
+        // statistics address first cost a guaranteed miss per file, and Cache#get counts every absent lookup, so
+        // it both doubled the segment traffic across N files and distorted the miss ratio an operator reads to
+        // size the store.
         SchemaCacheEntry cached = cacheService.getSchemaIfPresent(schemaKey);
         if (cached != null) {
             // The file's shape comes from the schema record; which read's measurements go over it is the only
             // question left. When the record answers this read, its own address is the right one; otherwise the
             // bound read's measurements live at their own address and the schema record carries none of them.
-            String measuredUnder = schemaRecordAnswersTheRead(cached, boundReadConfig) ? readConfigStampOf(cached) : boundReadConfig;
-            Map<String, Object> statistics = cachedStatistics(schemaKey, measuredUnder);
+            // Only ask where a statistics record can exist. A columnar file's statistics are the footer
+            // metadata already on its schema record, so this lookup would miss on every file and distort
+            // statistics_cache.misses, the ratio an operator reads to size that store.
+            Map<String, Object> statistics = null;
+            if (publishesScanDerivedStatistics(cached)) {
+                String measuredUnder = schemaRecordAnswersTheRead(cached, boundReadConfig) ? readConfigStampOf(cached) : boundReadConfig;
+                statistics = cachedStatistics(schemaKey, measuredUnder);
+            }
             pendingMetadataWarnings.addAll(cached.warnings());
             // Served with no statistics when nothing has been harvested under that read yet: a correct schema
             // answer, and the aggregate above it re-scans rather than folding numbers nobody measured.
@@ -3063,6 +3080,23 @@ public class ExternalSourceResolver {
      * address. A statistics record is written by the reconcile and never computed on demand, so a miss means
      * "not measured yet" and the caller falls through to the schema record or to a scan.
      */
+    /**
+     * Whether this file's rail publishes scan-derived statistics at all, and so whether a statistics record can
+     * ever exist for it.
+     * <p>
+     * Columnar rails do not: their row counts and extrema come from footer metadata, embedded on the schema
+     * record at mint, and nothing on those rails publishes through the capture sink - so
+     * {@code reconcileSourceStats} never writes a statistics record for one. Asking for that address is a
+     * guaranteed miss on every such file, and {@code Cache#get} counts an absent key.
+     * <p>
+     * Named once and consulted by both the serve decision and the lookup gate, rather than testing
+     * {@code FILE_TYPED_FORMATS} at each. That set is a hardcoded list standing in for a capability the
+     * {@code FormatReader} SPI does not expose; this does not fix that, but it does not deepen it either.
+     */
+    private static boolean publishesScanDerivedStatistics(SchemaCacheEntry entry) {
+        return FILE_TYPED_FORMATS.contains(entry.sourceType()) == false;
+    }
+
     /** The read a schema record was resolved under, or {@code null} when its rail stamps none (columnar). */
     @Nullable
     private static String readConfigStampOf(SchemaCacheEntry entry) {
@@ -3083,7 +3117,7 @@ public class ExternalSourceResolver {
         if (boundReadConfig == null || boundReadConfig.isEmpty()) {
             return true;
         }
-        if (FILE_TYPED_FORMATS.contains(entry.sourceType())) {
+        if (publishesScanDerivedStatistics(entry) == false) {
             return true;
         }
         return boundReadConfig.equals(readConfigStampOf(entry));

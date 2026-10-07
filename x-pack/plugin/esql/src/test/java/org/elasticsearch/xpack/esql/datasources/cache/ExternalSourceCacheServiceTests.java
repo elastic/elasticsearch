@@ -3396,7 +3396,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
             SchemaCacheEntry schemaRecord = warm(service, key);
             assertEquals(
-                "the licence admits the count onto the schema record, as before",
+                "the licence admits the count, as before, now at the record's own read address",
                 100L,
                 schemaRecord.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
             );
@@ -3471,8 +3471,9 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
      * time, which is the cost this addressing exists to remove. The schema-record arm accumulates by copying its
      * own metadata first; this pins that the read-addressed arm does too.
      * <p>
-     * Inject the defect by dropping the {@code prior} seed in {@code statisticsRecordMetadata}: column a is gone
-     * after the second harvest and the first assertion turns red.
+     * Inject the defect by having {@code ExternalSourceCacheService#fileStatistics} start from an empty map
+     * instead of the record already at the address: column a is gone after the second harvest and the first
+     * assertion turns red.
      */
     public void testAStatisticsRecordAccumulatesAcrossHarvestsOfOneRead() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
@@ -3533,8 +3534,8 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     /**
-     * A statistics record holds no types of its own — it is built beside a schema record and carries that record's
-     * columns — so a harvest from a DIFFERENT read must not enrich it. Contribution matching compares path, mtime and
+     * A statistics record holds no types of its own at all, so a harvest from a DIFFERENT read must not enrich
+     * it: there is no resolution it could be normalised against. Contribution matching compares path, mtime and
      * format config and never the read, so every statistics record for a path is matched by every contribution for it.
      * Without the read check, the second one lands on the first one's address and is coerced through the schema
      * record's types, which belong to neither.
@@ -3714,11 +3715,9 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             Map<String, Object> measured = service.getStatistics(StatisticsKey.of(key, "own"));
             assertNotNull(measured);
             assertEquals(99.0, ((Number) measured.get(SourceStatisticsSerializer.STATS_COL_PREFIX + "v.max")).doubleValue(), 0.0);
-            // A statistics record has no shape to hold: StatisticsRecord exposes no column accessor at all, so
-            // the only way shape could leak is through the map. It does not.
-            for (String key2 : measured.keySet()) {
-                assertFalse("a statistics record must hold no sample of the file's shape", key2.startsWith("_sample."));
-            }
+            // The other direction needs no loop: StatisticsRecord exposes no column accessor at all, so a
+            // consumer cannot ask one for a type. There is no assertion to write for a method that does not
+            // exist, and a loop over the map for keys nothing can write would pass whatever the code did.
         }
     }
 

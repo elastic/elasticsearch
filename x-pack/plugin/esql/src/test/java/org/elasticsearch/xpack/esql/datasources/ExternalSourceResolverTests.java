@@ -4585,6 +4585,77 @@ public class ExternalSourceResolverTests extends ESTestCase {
         return SchemaCacheEntry.from(schema, sourceType, "s3://bucket/data/f." + sourceType, metadata, Map.of());
     }
 
+    /**
+     * A warm DEFERRED first-file-wins resolve must keep every per-file footer statistic, so split discovery
+     * does not re-open a footer it has already read.
+     * <p>
+     * The schema record carries statistics of its own: {@code SchemaCacheEntry.from} embeds whatever the reader
+     * reported at mint, and for a columnar file that is the footer metadata - the ONLY statistics such a file
+     * ever has, because nothing on those rails publishes through the capture sink, so no statistics record is
+     * ever written for one. A composition that short-circuits when the statistics store misses therefore
+     * discards them all. That is exactly what it did, and nothing in the tree caught it.
+     * <p>
+     * Inject the defect by returning null from {@code fileStatisticsFromCache} when
+     * {@code cached.statistics() == null}: this goes from 3 to 0.
+     */
+    public void testAWarmDeferredColumnarResolveKeepsItsCachedFooterStatistics() throws Exception {
+        ThreeFileStats stats = threeFileStats();
+        StubStorageProvider storageProvider = new StubStorageProvider(Map.of(PREFIX, threeFileListing()), stats.schemas());
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            AtomicInteger reads = new AtomicInteger();
+            ExternalSourceResolver resolver = buildStatsResolver(storageProvider, stats, reads, cacheService);
+            Map<String, Object> config = configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS);
+            assertNotNull(resolveFfwWithConfig(resolver, Set.of(GLOB), config).resolvedSource(GLOB));
+            int readsAfterCold = reads.get();
+            assertTrue("premise: the cold eager resolve read every footer", readsAfterCold >= 3);
+            ExternalSourceResolution.ResolvedSource warm = resolveFfwWithConfig(resolver, Set.of(), config).resolvedSource(GLOB);
+            assertNotNull(warm);
+            assertEquals("the warm deferred resolve must read no footer", readsAfterCold, reads.get());
+            int withStats = 0;
+            for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : warm.schemaMap().entrySet()) {
+                if (e.getValue().statistics() != null) {
+                    withStats++;
+                }
+            }
+            assertEquals("every per-file entry must carry its cached footer statistics on the warm deferred resolve", 3, withStats);
+        }
+    }
+
+    /**
+     * A warm columnar resolve must book no statistics-store miss.
+     * <p>
+     * A columnar record is never stamped with a read configuration and no statistics record is ever written for
+     * one, so asking for that address is a guaranteed miss on every file. {@code Cache#get} counts an absent
+     * key, so the cost is a per-file distortion of the ratio an operator reads to size the store - on the
+     * format that dominates.
+     * <p>
+     * Asserted on {@code statistics_cache.misses}, which is where the lookup now lands. A sibling case asserts
+     * {@code schema_cache.misses} and cannot see this: the two counters moved apart when the stores did.
+     */
+    public void testAWarmColumnarResolveBooksNoStatisticsStoreMiss() throws Exception {
+        String glob = "s3://bucket/data/*.parquet";
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER), attr("y", DataType.KEYWORD));
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        List<StorageEntry> listing = new ArrayList<>();
+        for (String n : List.of("a", "b", "c")) {
+            schemas.put("s3://bucket/data/" + n + ".parquet", schema);
+            listing.add(entry("s3://bucket/data/" + n + ".parquet", 100));
+        }
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemas);
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
+            assertNotNull(resolveWith(resolver, glob, Map.of(), FormatReader.SchemaResolution.FIRST_FILE_WINS).resolvedSource(glob));
+            long coldMisses = ((Number) cacheService.usageStats().get("statistics_cache.misses")).longValue();
+            assertNotNull(resolveWith(resolver, glob, Map.of(), FormatReader.SchemaResolution.FIRST_FILE_WINS).resolvedSource(glob));
+            long warmMisses = ((Number) cacheService.usageStats().get("statistics_cache.misses")).longValue();
+            assertEquals(
+                "a warm columnar resolve must book no statistics-store miss (cold=" + coldMisses + " warm=" + warmMisses + ")",
+                coldMisses,
+                warmMisses
+            );
+        }
+    }
+
     // ===== Empty resolution =====
 
     public void testEmptyPathListReturnsEmptyResolution() throws Exception {

@@ -42,13 +42,15 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongFunction;
 
 /**
- * Coordinator-only, in-memory cache service for external source metadata. Maintains four independent caches:
+ * Coordinator-only, in-memory cache service for external source metadata. Maintains five independent caches, one per kind of fact:
  * <ul>
- *   <li>Per-file schema cache (~20% of budget) — keyed by {@code (dataset identity, path, mtime)}. It holds
- *       two kinds of record: a file's schema with the {@code _stats.*} overlay measured under that file's own
- *       read, and, for a file read at some other schema, a statistics record at the same address plus the read
- *       that measured it. So the entry count is one per file plus one per divergent file per read
- *       configuration, not one per file. No time expiry: a changed file has a new mtime, hence a new key.</li>
+ *   <li>Per-file schema cache (~8% of budget) — keyed by {@code (dataset identity, path, mtime,
+ *       declaredStrict)}. One kind of record: what the file contains. No measurement, and one entry per file.
+ *       No time expiry: a changed file has a new mtime, hence a new key.</li>
+ *   <li>Statistics cache (~12% of budget) — what ONE read measured about one file, keyed by the file's own
+ *       address plus the read that measured it, so one entry per file per read configuration. Its own slice,
+ *       so the measurements cannot evict the schema records they were measured against. The larger of the two
+ *       because a harvested {@code _stats.*} map outweighs the schema it was measured against.</li>
  *   <li>Dataset-aggregate cache (~2% of budget) — the memoized whole-dataset row count, keyed by the
  *       file-set fingerprint. No time expiry; kept separate so per-file churn cannot evict it.</li>
  *   <li>File-metadata cache (count-bounded, listing TTL, five minutes by default) — {@code {length, mtime}}
@@ -366,7 +368,7 @@ public class ExternalSourceCacheService implements Closeable {
      * {@link DatasetAggregateKey}), or {@code null} on a miss. The map carries only
      * dataset-INDEPENDENT-of-declaration keys — today just {@code _stats.row_count} — never per-column
      * stats, so serving it can never leak a wrongly-normalized MIN/MAX (those keep re-scanning until the
-     * per-file rail serves them). It lives in the dedicated the dataset-aggregate store, so per-file churn
+     * per-file rail serves them). It lives in its own store, so per-file churn
      * can no longer evict it. Does NOT touch the hit/miss counters — those are resolver-driven at the serve
      * decision (see {@link #recordDatasetAggregateHit} / {@link #recordDatasetAggregateMiss}).
      */
@@ -1581,11 +1583,14 @@ public class ExternalSourceCacheService implements Closeable {
     }
 
     /**
-     * Reconciles already-merged data-node-captured source stats into the schema cache. For each
-     * {@code (path, mergedStats)} entry, finds the cached {@link SchemaCacheEntry} whose location
-     * and mtime match and replaces it with a new entry whose {@code safeMetadata} folds in the
-     * merged {@code _stats.*} keys. Entries with no cache match are ignored (the warm path will
-     * just trigger a fresh metadata() call on the next query).
+     * Reconciles already-merged data-node-captured source stats into the STATISTICS cache. For each
+     * {@code (path, mergedStats)} entry, finds the cached {@link SchemaCacheEntry} whose location and mtime
+     * match - the schema record is what identifies the file and supplies the types - and writes the merged
+     * {@code _stats.*} keys to the statistics store, addressed by the read that produced them.
+     * <p>
+     * The schema record itself is never written here: it describes the file, and a measurement is a property
+     * of a read. Entries with no schema-record match are ignored, and the warm path triggers a fresh
+     * metadata() call on the next query.
      */
     public void reconcileSourceStats(Map<String, Map<String, Object>> mergedStatsPerFile) {
         if (enabled == false || mergedStatsPerFile == null || mergedStatsPerFile.isEmpty()) {

@@ -64,28 +64,11 @@ public class SchemaCacheKeyTests extends ESTestCase {
 
         // Header + six longs + the cached hash. A nested object or a retained string makes this 72.
         assertEquals("DatasetIdentity must stay six longs and an int behind one reference", 64L, identityShallow);
-        // Header + one identity reference + a long + a boolean + two nullable references. A seventh component
-        // makes this 48.
-        assertEquals("the per-file key must stay at six components", 40L, keyShallow);
-        assertEquals("and the pair is what replaced three retained strings", 104L, keyShallow + identityShallow);
-    }
-
-    /**
-     * A schema record's key retains no read-configuration string. Only a statistics record is addressed by its
-     * read, so that is the one kind of key that pays for the extra component, and it pays for it in the
-     * reference the key already has rather than in a wider object.
-     */
-    public void testASchemaRecordKeyRetainsNoReadConfiguration() {
-        SchemaCacheKey schema = SchemaCacheKey.build("s3://bucket/data/a.csv", 1L, identity(), false);
-        assertNull("a schema record is not addressed by a read", schema.readConfig());
-
-        SchemaCacheKey stats = schema.withReadConfig("0123456789abcdef0123456789abcdef");
-        assertNotNull("a statistics record is", stats.readConfig());
-        assertEquals(
-            "and it costs no extra field to say so",
-            RamUsageEstimator.shallowSizeOf(schema),
-            RamUsageEstimator.shallowSizeOf(stats)
-        );
+        // Header, one identity reference, one path reference, a long and a boolean. A fifth component makes
+        // this 40, which is what it measured while the key still carried the read-addressing it no longer
+        // needs - the statistics address is a StatisticsKey now.
+        assertEquals("the per-file key must stay at four components", 32L, keyShallow);
+        assertEquals("and the pair is what replaced three retained strings", 96L, keyShallow + identityShallow);
     }
 
     /**
@@ -109,16 +92,6 @@ public class SchemaCacheKeyTests extends ESTestCase {
         );
         assertEquals("and the rail is the only thing that differs", inferred, SchemaCacheKey.build("s3://b/f.csv", 1000L, identity, false));
         assertEquals(strict, SchemaCacheKey.build("s3://b/f.csv", 1000L, identity, true));
-    }
-
-    /** The rail must survive the derivation to a statistics address, or a strict harvest lands on the inferred record. */
-    public void testTheRailSurvivesTheStatisticsDerivation() {
-        DatasetIdentity identity = TestDatasetIdentities.identity("csv", "endpoint=a", Map.of());
-        SchemaCacheKey strictStats = SchemaCacheKey.build("s3://b/f.csv", 1000L, identity, true).withReadConfig("aaaa1111");
-        SchemaCacheKey inferredStats = SchemaCacheKey.build("s3://b/f.csv", 1000L, identity, false).withReadConfig("aaaa1111");
-        assertTrue(strictStats.declaredStrict());
-        assertFalse(inferredStats.declaredStrict());
-        assertNotEquals(strictStats, inferredStats);
     }
 
     /** The same separation on the per-file rail, where the schema and the per-column extrema live. */
@@ -179,65 +152,4 @@ public class SchemaCacheKeyTests extends ESTestCase {
         assertNotEquals(usEast, euWest);
     }
 
-    /**
-     * A statistics record is addressed by the read that produced it, so two reads of one file that resolved
-     * different schemas must not share an address — and must not collide with the schema record beside them.
-     * This is the discrimination the refusal in {@code applicableStats} exists to do today; once the address
-     * carries the read, there is nothing left to compare.
-     */
-    public void testStatisticsAddressDiscriminatesTheReadThatProducedIt() {
-        SchemaCacheKey schema = SchemaCacheKey.build(PATTERN, 11L, TestDatasetIdentities.identity("ndjson", "", Map.of()), false);
-
-        SchemaCacheKey readAsFileOwn = schema.withReadConfig("aaaa1111");
-        SchemaCacheKey readAsAnchor = schema.withReadConfig("bbbb2222");
-
-        // Two reads, two addresses. On main both harvests contend for the schema key and the second is refused.
-        assertNotEquals(readAsFileOwn, readAsAnchor);
-        // Neither collides with the schema record it sits beside.
-        assertNotEquals(schema, readAsFileOwn);
-        assertNotEquals(schema, readAsAnchor);
-
-        assertTrue(readAsFileOwn.isStatisticsRecord());
-        assertFalse(schema.isStatisticsRecord());
-        assertEquals("aaaa1111", readAsFileOwn.readConfig());
-        assertNull(schema.readConfig());
-    }
-
-    /**
-     * Everything but the read is carried across, so a statistics record can never drift from the schema record
-     * it belongs to — same file, same mtime, same dataset identity, same rail.
-     * <p>
-     * It is derived from a PER-FILE key, and that is now the only thing it can be derived from. This case used
-     * to build a dataset-aggregate key and derive a statistics address from it, asserting that the aggregate
-     * kind "survived the derivation" — an address that was reachable, meaningless, and written by nothing. A
-     * dataset fold is a {@link DatasetAggregateKey} now, which has no {@code withReadConfig}, so the state does
-     * not exist to assert about.
-     */
-    public void testStatisticsAddressCarriesEveryOtherComponent() {
-        SchemaCacheKey file = SchemaCacheKey.build(PATTERN, 11L, TestDatasetIdentities.identity("ndjson", "id", Map.of()), true);
-        SchemaCacheKey stats = file.withReadConfig("cccc3333");
-
-        // Pin that a key was actually derived first. Without these two the carrying assertions below hold
-        // trivially when withReadConfig returns its receiver, and the test passes whether or not it works.
-        assertNotSame(file, stats);
-        assertEquals("cccc3333", stats.readConfig());
-
-        assertEquals(file.canonicalPath(), stats.canonicalPath());
-        assertEquals(file.lastModifiedEpochMillis(), stats.lastModifiedEpochMillis());
-        assertEquals(file.dataset(), stats.dataset());
-        // The rail survives the derivation: a strict-declared record's statistics stay on the strict rail
-        // rather than silently becoming the inferred record's.
-        assertTrue("the declared-strict rail must survive", stats.declaredStrict());
-    }
-
-    /**
-     * A rail that stamps no read configuration gets the address it has. An address asserting a read nobody
-     * recorded would claim more than the harvest does, which is the mistake this whole area is about.
-     */
-    public void testAnUnstampedReadKeepsTheAddressItHas() {
-        SchemaCacheKey schema = SchemaCacheKey.build(PATTERN, 11L, TestDatasetIdentities.identity("ndjson", "", Map.of()), false);
-        assertSame(schema, schema.withReadConfig(null));
-        assertSame(schema, schema.withReadConfig(""));
-        assertFalse(schema.withReadConfig(null).isStatisticsRecord());
-    }
 }

@@ -1,4 +1,4 @@
-// End-to-end PromQL csv-spec coverage for histogram_count and histogram_sum on native histograms.
+// End-to-end PromQL csv-spec coverage for native histogram functions.
 
 ///////////////////////////////////////////////////////////////////////////////
 // changes on exponential histograms

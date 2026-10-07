@@ -89,6 +89,12 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         );
     }
 
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantQueryDurationLiteralIsSeconds}. */
+    public void testQueryRangeDurationLiteralIsSeconds() throws Exception {
+        assertBinopRangeValues("1h30m", 5400);
+        assertBinopRangeValues("2m + 30s", 150);
+    }
+
     /** Prometheus rejects a string literal in a range query: "invalid expression type "string" for range query". */
     public void testQueryRangeStringLiteralIsRejected() throws Exception {
         Request request = prometheusReadRequest(
@@ -595,6 +601,24 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
     private void assertBinopRangeDuplicate(String expression) {
         ResponseException error = expectThrows(ResponseException.class, () -> executeBinopRangeQuery(expression));
         assertThat(error.getMessage(), containsString("duplicate"));
+    }
+
+    /**
+     * The range twin of {@code PrometheusInstantQueryRestIT#testInstantRangeVectorIsRejected}: a range query over a range
+     * vector is a type error in Prometheus too, reported with its message.
+     */
+    public void testRangeRangeVectorIsRejected() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query_range",
+            new BasicNameValuePair("query", "tx[5m]"),
+            new BasicNameValuePair("start", RANGE_START),
+            new BasicNameValuePair("end", RANGE_END),
+            new BasicNameValuePair("step", RANGE_STEP)
+        );
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("for range query, must be scalar or instant vector"));
     }
 
     /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantWithoutOverAClosedBinaryOperator}. */

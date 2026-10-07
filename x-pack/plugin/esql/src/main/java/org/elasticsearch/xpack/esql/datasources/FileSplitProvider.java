@@ -754,10 +754,11 @@ public class FileSplitProvider implements SplitProvider {
         try {
             PartitionMetadata partitionInfo = context.partitionInfo();
             Set<String> partitionKeys = partitionInfo == null ? Set.of() : partitionInfo.partitionColumns().keySet();
-            List<PartitionFilterHintExtractor.PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(
+            List<PartitionFilterHintExtractor.PartitionFilterHint> hints = listingHintsForQuery(
                 context.filterHints(),
                 context.metadataColumnNames(),
-                partitionKeys
+                partitionKeys,
+                PartitionSpec.fromConfig(config)
             );
             List<PartitionFilterHintExtractor.PartitionFilterHint> narrowing = hints.isEmpty() ? null : hints;
             if (extents.boundsFileSet()) {
@@ -803,6 +804,48 @@ public class FileSplitProvider implements SplitProvider {
         } finally {
             StorageProviderCache.closeLease(provider);
         }
+    }
+
+    /**
+     * Listing-cache hints: hive keys and requested {@code _file.*} from the LISTING
+     * extract, plus spec-projected {@code year IN} / identity remaps. Data columns
+     * such as {@code @timestamp} never join the listing cache identity.
+     */
+    static List<PartitionFilterHintExtractor.PartitionFilterHint> listingHintsForQuery(
+        List<Expression> filters,
+        Set<String> requestedMetadata,
+        Set<String> partitionKeys,
+        PartitionSpec spec
+    ) {
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(
+            filters,
+            requestedMetadata,
+            partitionKeys
+        );
+        if (spec == null || spec.isEmpty()) {
+            return hints;
+        }
+        List<PartitionFilterHintExtractor.PartitionFilterHint> merged = new ArrayList<>(hints);
+        merged.addAll(
+            PartitionFilterHintExtractor.fromConjuncts(filters, Set.of(), spec.boundColumns(), PartitionFilterHintExtractor.TEMPORAL)
+        );
+        return dropNonListingKeys(spec.projectListingHints(merged), partitionKeys, requestedMetadata);
+    }
+
+    static List<PartitionFilterHintExtractor.PartitionFilterHint> dropNonListingKeys(
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        Set<String> partitionKeys,
+        Set<String> requestedMetadata
+    ) {
+        List<PartitionFilterHintExtractor.PartitionFilterHint> kept = new ArrayList<>(hints.size());
+        for (PartitionFilterHintExtractor.PartitionFilterHint hint : hints) {
+            String column = hint.columnName();
+            if (partitionKeys.contains(column)
+                || (FileMetadataColumns.isFileMetadataColumn(column) && requestedMetadata.contains(column))) {
+                kept.add(hint);
+            }
+        }
+        return kept;
     }
 
     @Override

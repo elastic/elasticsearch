@@ -1,7 +1,17 @@
-// The initial exemplar rewrite replaces the analyzed metrics query with the relation over all exemplar data streams derived from the
-// metrics data streams it matched. Metric and filter selection are added separately.
-exemplarsRelation
-required_capability: exemplars_setting_development_v3
+// With SET exemplars=true a TS or PROMQL query returns the exemplars of the series it reads instead of its result. The metrics query
+// is analyzed but not executed: the metric fields it aggregates and the filters before the aggregation select the exemplars from the
+// exemplar data stream derived from the metrics one (metrics-cpu -> exemplars-cpu). An exemplar document belongs to exactly one
+// metric: it carries the metric's name in metric_name and the observed value in value instead of the metric field itself, so the
+// exemplar query selects exemplars by metric_name where the metrics query refers to the metric field. The exemplars are the result of
+// the query, so they cannot be processed further: the columns are all fields of the exemplar index.
+//
+// Like in the OTel mappings, attributes and metrics are passthrough objects of the metrics index, so every dimension and metric is
+// also available under its short name, e.g. cpu_time for metrics.cpu_time. The metric name is the name of the metric field as
+// referred to in the query, so the metrics have to be referred to by their short name for now (see the TODO on
+// ExemplarsRewriter#metricName).
+
+exemplarsOfSingleMetric
+required_capability: exemplars_setting_development_v4
 SET exemplars=true\;
 TS metrics-cpu | STATS AVG(cpu_time)
 ;
@@ -10,40 +20,352 @@ ignoreOrder:true
 @timestamp:date          | attributes.cpu:keyword | attributes.state:keyword | cpu:keyword | metric_name:keyword | span_id:keyword | state:keyword | trace_id:keyword    | value:double
 2024-05-10T00:00:10.000Z | cpu0                   | idle                     | cpu0        | cpu_time            | span-1          | idle          | trace-idle-cpu0-cpu | 1.7
 2024-05-10T00:01:10.000Z | cpu0                   | busy                     | cpu0        | cpu_time            | span-2          | busy          | trace-busy-cpu0-cpu | 8.1
-2024-05-10T00:01:20.000Z | cpu0                   | busy                     | cpu0        | request_duration    | span-3          | busy          | trace-busy-cpu0-dur | 47.5
-2024-05-10T00:02:10.000Z | cpu1                   | idle                     | cpu1        | memory_usage        | span-4          | idle          | trace-idle-cpu1-mem | 310.0
 2024-05-10T00:02:20.000Z | cpu1                   | idle                     | cpu1        | cpu_time            | span-5          | idle          | trace-idle-cpu1-cpu | 2.9
-2024-05-10T00:02:30.000Z | cpu1                   | idle                     | cpu1        | request_duration    | span-6          | idle          | trace-idle-cpu1-dur | 9.5
-2024-05-10T00:03:10.000Z | cpu1                   | busy                     | cpu1        | memory_usage        | span-7          | busy          | trace-busy-cpu1-mem | 420.0
-2024-05-10T00:03:20.000Z | cpu1                   | busy                     | cpu1        | request_duration    | span-8          | busy          | trace-busy-cpu1-dur | 38.0
-2024-05-10T00:04:10.000Z | cpu0                   | idle                     | cpu0        | memory_usage        | span-9          | idle          | trace-idle-cpu0-mem | 105.0
 ;
 
+// The exemplars are returned most recent first. SET exemplars=true leaves them under the default limit of a regular query.
 exemplarsAreSortedByTimestampDesc
-required_capability: exemplars_setting_development_v3
+required_capability: exemplars_setting_development_v4
 SET exemplars=true\;
 TS metrics-cpu | STATS AVG(cpu_time)
 ;
 
 @timestamp:date          | attributes.cpu:keyword | attributes.state:keyword | cpu:keyword | metric_name:keyword | span_id:keyword | state:keyword | trace_id:keyword    | value:double
-2024-05-10T00:04:10.000Z | cpu0                   | idle                     | cpu0        | memory_usage        | span-9          | idle          | trace-idle-cpu0-mem | 105.0
-2024-05-10T00:03:20.000Z | cpu1                   | busy                     | cpu1        | request_duration    | span-8          | busy          | trace-busy-cpu1-dur | 38.0
-2024-05-10T00:03:10.000Z | cpu1                   | busy                     | cpu1        | memory_usage        | span-7          | busy          | trace-busy-cpu1-mem | 420.0
-2024-05-10T00:02:30.000Z | cpu1                   | idle                     | cpu1        | request_duration    | span-6          | idle          | trace-idle-cpu1-dur | 9.5
 2024-05-10T00:02:20.000Z | cpu1                   | idle                     | cpu1        | cpu_time            | span-5          | idle          | trace-idle-cpu1-cpu | 2.9
-2024-05-10T00:02:10.000Z | cpu1                   | idle                     | cpu1        | memory_usage        | span-4          | idle          | trace-idle-cpu1-mem | 310.0
-2024-05-10T00:01:20.000Z | cpu0                   | busy                     | cpu0        | request_duration    | span-3          | busy          | trace-busy-cpu0-dur | 47.5
 2024-05-10T00:01:10.000Z | cpu0                   | busy                     | cpu0        | cpu_time            | span-2          | busy          | trace-busy-cpu0-cpu | 8.1
 2024-05-10T00:00:10.000Z | cpu0                   | idle                     | cpu0        | cpu_time            | span-1          | idle          | trace-idle-cpu0-cpu | 1.7
 ;
 
+// A limit in the setting returns only that many of the most recent exemplars.
 exemplarsLimit
-required_capability: exemplars_setting_development_v3
+required_capability: exemplars_setting_development_v4
 SET exemplars={"limit": 2}\;
 TS metrics-cpu | STATS AVG(cpu_time)
 ;
 
 @timestamp:date          | attributes.cpu:keyword | attributes.state:keyword | cpu:keyword | metric_name:keyword | span_id:keyword | state:keyword | trace_id:keyword    | value:double
-2024-05-10T00:04:10.000Z | cpu0                   | idle                     | cpu0        | memory_usage        | span-9          | idle          | trace-idle-cpu0-mem | 105.0
+2024-05-10T00:02:20.000Z | cpu1                   | idle                     | cpu1        | cpu_time            | span-5          | idle          | trace-idle-cpu1-cpu | 2.9
+2024-05-10T00:01:10.000Z | cpu0                   | busy                     | cpu0        | cpu_time            | span-2          | busy          | trace-busy-cpu0-cpu | 8.1
+;
+
+// The dimension filter of the metrics query is applied to the exemplars too.
+dimensionFilter
+required_capability: exemplars_setting_development_v4
+SET exemplars=true\;
+TS metrics-cpu | WHERE attributes.state == "idle" | STATS AVG(cpu_time) BY attributes.cpu
+;
+ignoreOrder:true
+
+@timestamp:date          | attributes.cpu:keyword | attributes.state:keyword | cpu:keyword | metric_name:keyword | span_id:keyword | state:keyword | trace_id:keyword    | value:double
+2024-05-10T00:00:10.000Z | cpu0                   | idle                     | cpu0        | cpu_time            | span-1          | idle          | trace-idle-cpu0-cpu | 1.7
+2024-05-10T00:02:20.000Z | cpu1                   | idle                     | cpu1        | cpu_time            | span-5          | idle          | trace-idle-cpu1-cpu | 2.9
+;
+
+// Dimensions can be referred to by the full field name or the short name alike, as the exemplar index has both. A metric referred to by
+// its full field name selects the exemplars of metric_name "metrics.cpu_time", which do not exist.
+metricReferencedByFullFieldNameSelectsNoExemplars
+required_capability: exemplars_setting_development_v4
+SET exemplars=true\;
+TS metrics-cpu | WHERE state == "idle" | STATS AVG(metrics.cpu_time) BY cpu
+;
+
+@timestamp:date | attributes.cpu:keyword | attributes.state:keyword | cpu:keyword | metric_name:keyword | span_id:keyword | state:keyword | trace_id:keyword | value:double
+;
+
+// Filters on the metric value itself describe the metric samples, not the exemplars, and are not carried over: the exemplar
+// with value 1.7 is returned even though the metrics query only reads samples with cpu_time > 2.
+metricValueFilterIsNotAppliedToExemplars
+required_capability: exemplars_setting_development_v4
+SET exemplars=true\;
+TS metrics-cpu | WHERE attributes.state == "idle" AND cpu_time > 2 | STATS AVG(cpu_time)
+;
+ignoreOrder:true
+
+@timestamp:date          | attributes.cpu:keyword | attributes.state:keyword | cpu:keyword | metric_name:keyword | span_id:keyword | state:keyword | trace_id:keyword    | value:double
+2024-05-10T00:00:10.000Z | cpu0                   | idle                     | cpu0        | cpu_time            | span-1          | idle          | trace-idle-cpu0-cpu | 1.7
+2024-05-10T00:02:20.000Z | cpu1                   | idle                     | cpu1        | cpu_time            | span-5          | idle          | trace-idle-cpu1-cpu | 2.9
+;
+
+// Null checks on metrics, also through conversion functions, are carried over like dimension filters, as conditions on metric_name;
+// the metric they mention is not what the exemplars are fetched for, so the memory_usage exemplars are not selected.
+metricNullCheckFilterIsApplied
+required_capability: exemplars_setting_development_v4
+SET exemplars=true\;
+TS metrics-cpu | WHERE TO_LONG(memory_usage) IS NULL AND attributes.state == "idle" | STATS AVG(cpu_time)
+;
+ignoreOrder:true
+
+@timestamp:date          | attributes.cpu:keyword | attributes.state:keyword | cpu:keyword | metric_name:keyword | span_id:keyword | state:keyword | trace_id:keyword    | value:double
+2024-05-10T00:00:10.000Z | cpu0                   | idle                     | cpu0        | cpu_time            | span-1          | idle          | trace-idle-cpu0-cpu | 1.7
+2024-05-10T00:02:20.000Z | cpu1                   | idle                     | cpu1        | cpu_time            | span-5          | idle          | trace-idle-cpu1-cpu | 2.9
+;
+
+// A null check on a metric other than the aggregated ones excludes all exemplars: an exemplar only ever belongs to one metric.
+metricNotNullCheckOnOtherMetricSelectsNothing
+required_capability: exemplars_setting_development_v4
+SET exemplars=true\;
+TS metrics-cpu | WHERE memory_usage IS NOT NULL | STATS AVG(cpu_time)
+;
+
+@timestamp:date | attributes.cpu:keyword | attributes.state:keyword | cpu:keyword | metric_name:keyword | span_id:keyword | state:keyword | trace_id:keyword | value:double
+;
+
+// Only filters before STATS describe the series read; a filter after STATS, even on a grouping dimension, does not carry over.
+filterAfterStatsOnDimensionIsNotApplied
+required_capability: exemplars_setting_development_v4
+SET exemplars=true\;
+TS metrics-cpu | STATS AVG(cpu_time) BY attributes.cpu | WHERE attributes.cpu == "cpu1"
+;
+ignoreOrder:true
+
+@timestamp:date          | attributes.cpu:keyword | attributes.state:keyword | cpu:keyword | metric_name:keyword | span_id:keyword | state:keyword | trace_id:keyword    | value:double
+2024-05-10T00:00:10.000Z | cpu0                   | idle                     | cpu0        | cpu_time            | span-1          | idle          | trace-idle-cpu0-cpu | 1.7
+2024-05-10T00:01:10.000Z | cpu0                   | busy                     | cpu0        | cpu_time            | span-2          | busy          | trace-busy-cpu0-cpu | 8.1
+2024-05-10T00:02:20.000Z | cpu1                   | idle                     | cpu1        | cpu_time            | span-5          | idle          | trace-idle-cpu1-cpu | 2.9
+;
+
+// The same holds for everything else after STATS: it processes the aggregated result, which is never computed.
+everythingAfterStatsIsIgnored
+required_capability: exemplars_setting_development_v4
+SET exemplars=true\;
+TS metrics-cpu | STATS avg = AVG(cpu_time) BY attributes.cpu | KEEP avg | SORT avg | LIMIT 1
+;
+ignoreOrder:true
+
+@timestamp:date          | attributes.cpu:keyword | attributes.state:keyword | cpu:keyword | metric_name:keyword | span_id:keyword | state:keyword | trace_id:keyword    | value:double
+2024-05-10T00:00:10.000Z | cpu0                   | idle                     | cpu0        | cpu_time            | span-1          | idle          | trace-idle-cpu0-cpu | 1.7
+2024-05-10T00:01:10.000Z | cpu0                   | busy                     | cpu0        | cpu_time            | span-2          | busy          | trace-busy-cpu0-cpu | 8.1
+2024-05-10T00:02:20.000Z | cpu1                   | idle                     | cpu1        | cpu_time            | span-5          | idle          | trace-idle-cpu1-cpu | 2.9
+;
+
+multipleMetrics
+required_capability: exemplars_setting_development_v4
+SET exemplars=true\;
+TS metrics-cpu | WHERE attributes.cpu == "cpu1" | STATS AVG(cpu_time), MAX(memory_usage)
+;
+ignoreOrder:true
+
+@timestamp:date          | attributes.cpu:keyword | attributes.state:keyword | cpu:keyword | metric_name:keyword | span_id:keyword | state:keyword | trace_id:keyword    | value:double
+2024-05-10T00:02:10.000Z | cpu1                   | idle                     | cpu1        | memory_usage        | span-4          | idle          | trace-idle-cpu1-mem | 310.0
+2024-05-10T00:02:20.000Z | cpu1                   | idle                     | cpu1        | cpu_time            | span-5          | idle          | trace-idle-cpu1-cpu | 2.9
+2024-05-10T00:03:10.000Z | cpu1                   | busy                     | cpu1        | memory_usage        | span-7          | busy          | trace-busy-cpu1-mem | 420.0
+;
+
+// The filter of an aggregate function applies to the exemplars of its metric only: the idle cpu_time exemplars and the busy
+// memory_usage exemplar are selected, not the busy cpu_time or the idle memory_usage ones.
+aggregateFilters
+required_capability: exemplars_setting_development_v4
+SET exemplars=true\;
+TS metrics-cpu | STATS AVG(cpu_time) WHERE attributes.state == "idle", MAX(memory_usage) WHERE attributes.state == "busy"
+;
+ignoreOrder:true
+
+@timestamp:date          | attributes.cpu:keyword | attributes.state:keyword | cpu:keyword | metric_name:keyword | span_id:keyword | state:keyword | trace_id:keyword    | value:double
+2024-05-10T00:00:10.000Z | cpu0                   | idle                     | cpu0        | cpu_time            | span-1          | idle          | trace-idle-cpu0-cpu | 1.7
+2024-05-10T00:02:20.000Z | cpu1                   | idle                     | cpu1        | cpu_time            | span-5          | idle          | trace-idle-cpu1-cpu | 2.9
+2024-05-10T00:03:10.000Z | cpu1                   | busy                     | cpu1        | memory_usage        | span-7          | busy          | trace-busy-cpu1-mem | 420.0
+;
+
+// A WHERE before STATS applies to all metrics, on top of the filters of the aggregate functions.
+aggregateFiltersAndSharedFilter
+required_capability: exemplars_setting_development_v4
+SET exemplars=true\;
+TS metrics-cpu | WHERE attributes.cpu == "cpu1" | STATS AVG(cpu_time) WHERE attributes.state == "idle", MAX(memory_usage) WHERE attributes.state == "busy"
+;
+ignoreOrder:true
+
+@timestamp:date          | attributes.cpu:keyword | attributes.state:keyword | cpu:keyword | metric_name:keyword | span_id:keyword | state:keyword | trace_id:keyword    | value:double
+2024-05-10T00:02:20.000Z | cpu1                   | idle                     | cpu1        | cpu_time            | span-5          | idle          | trace-idle-cpu1-cpu | 2.9
+2024-05-10T00:03:10.000Z | cpu1                   | busy                     | cpu1        | memory_usage        | span-7          | busy          | trace-busy-cpu1-mem | 420.0
+;
+
+// PROMQL metrics queries work the same way: the label matchers and the evaluated time range are applied to the exemplars.
+promqlMetricsQuery
+required_capability: exemplars_setting_development_v4
+required_capability: promql_command_v0
+SET exemplars=true\;
+PROMQL index=metrics-cpu start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:02:00.000Z" step=1m (avg(avg_over_time(cpu_time{attributes.state="idle"}[1m])))
+;
+ignoreOrder:true
+
+@timestamp:date          | attributes.cpu:keyword | attributes.state:keyword | cpu:keyword | metric_name:keyword | span_id:keyword | state:keyword | trace_id:keyword    | value:double
+2024-05-10T00:00:10.000Z | cpu0                   | idle                     | cpu0        | cpu_time            | span-1          | idle          | trace-idle-cpu0-cpu | 1.7
+;
+
+// A PROMQL binary operation between two metrics selects the exemplars of both, each under its own label matchers, whether the
+// operands are translated to one shared time series aggregation (same labels, no vector matching) ...
+promqlBinaryOperation
+required_capability: exemplars_setting_development_v4
+required_capability: promql_command_v0
+SET exemplars=true\;
+PROMQL index=metrics-cpu start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:05:00.000Z" step=1m (sum by (attributes.cpu) (avg_over_time(cpu_time{attributes.state="idle"}[1m])) / sum by (attributes.cpu) (avg_over_time(memory_usage{attributes.state="busy"}[1m])))
+;
+ignoreOrder:true
+
+@timestamp:date          | attributes.cpu:keyword | attributes.state:keyword | cpu:keyword | metric_name:keyword | span_id:keyword | state:keyword | trace_id:keyword    | value:double
+2024-05-10T00:00:10.000Z | cpu0                   | idle                     | cpu0        | cpu_time            | span-1          | idle          | trace-idle-cpu0-cpu | 1.7
+2024-05-10T00:02:20.000Z | cpu1                   | idle                     | cpu1        | cpu_time            | span-5          | idle          | trace-idle-cpu1-cpu | 2.9
+2024-05-10T00:03:10.000Z | cpu1                   | busy                     | cpu1        | memory_usage        | span-7          | busy          | trace-busy-cpu1-mem | 420.0
+;
+
+// ... or to two separate ones joined by explicit vector matching.
+promqlBinaryOperationWithVectorMatching
+required_capability: exemplars_setting_development_v4
+required_capability: promql_command_v0
+SET exemplars=true\;
+PROMQL index=metrics-cpu start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:05:00.000Z" step=1m (sum by (attributes.cpu) (avg_over_time(cpu_time{attributes.state="idle"}[1m])) / on (attributes.cpu) sum by (attributes.cpu) (avg_over_time(memory_usage{attributes.state="busy"}[1m])))
+;
+ignoreOrder:true
+
+@timestamp:date          | attributes.cpu:keyword | attributes.state:keyword | cpu:keyword | metric_name:keyword | span_id:keyword | state:keyword | trace_id:keyword    | value:double
+2024-05-10T00:00:10.000Z | cpu0                   | idle                     | cpu0        | cpu_time            | span-1          | idle          | trace-idle-cpu0-cpu | 1.7
+2024-05-10T00:02:20.000Z | cpu1                   | idle                     | cpu1        | cpu_time            | span-5          | idle          | trace-idle-cpu1-cpu | 2.9
+2024-05-10T00:03:10.000Z | cpu1                   | busy                     | cpu1        | memory_usage        | span-7          | busy          | trace-busy-cpu1-mem | 420.0
+;
+
+// Exemplars of an exponential histogram metric are the raw observations that were sampled into the histogram, so their value is a
+// plain double like for any other metric.
+exponentialHistogramMetric
+required_capability: exemplars_setting_development_v4
+required_capability: exponential_histogram_tech_preview
+SET exemplars=true\;
+TS metrics-cpu | WHERE attributes.state == "busy" | STATS p95 = PERCENTILE(LAST_OVER_TIME(request_duration), 95) BY attributes.cpu
+;
+ignoreOrder:true
+
+@timestamp:date          | attributes.cpu:keyword | attributes.state:keyword | cpu:keyword | metric_name:keyword | span_id:keyword | state:keyword | trace_id:keyword    | value:double
+2024-05-10T00:01:20.000Z | cpu0                   | busy                     | cpu0        | request_duration    | span-3          | busy          | trace-busy-cpu0-dur | 47.5
 2024-05-10T00:03:20.000Z | cpu1                   | busy                     | cpu1        | request_duration    | span-8          | busy          | trace-busy-cpu1-dur | 38.0
+;
+
+exponentialHistogramAndGaugeMetrics
+required_capability: exemplars_setting_development_v4
+required_capability: exponential_histogram_tech_preview
+SET exemplars=true\;
+TS metrics-cpu | WHERE attributes.cpu == "cpu1" | STATS AVG(cpu_time), MAX(MAX_OVER_TIME(request_duration)) BY attributes.cpu
+;
+ignoreOrder:true
+
+@timestamp:date          | attributes.cpu:keyword | attributes.state:keyword | cpu:keyword | metric_name:keyword | span_id:keyword | state:keyword | trace_id:keyword    | value:double
+2024-05-10T00:02:20.000Z | cpu1                   | idle                     | cpu1        | cpu_time            | span-5          | idle          | trace-idle-cpu1-cpu | 2.9
+2024-05-10T00:02:30.000Z | cpu1                   | idle                     | cpu1        | request_duration    | span-6          | idle          | trace-idle-cpu1-dur | 9.5
+2024-05-10T00:03:20.000Z | cpu1                   | busy                     | cpu1        | request_duration    | span-8          | busy          | trace-busy-cpu1-dur | 38.0
+;
+
+exponentialHistogramPromqlMetricsQuery
+required_capability: exemplars_setting_development_v4
+required_capability: promql_command_v0
+required_capability: promql_histogram_sum_count_avg
+SET exemplars=true\;
+PROMQL index=metrics-cpu start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:05:00.000Z" step=1m (histogram_count(request_duration{attributes.cpu="cpu1"}))
+;
+ignoreOrder:true
+
+@timestamp:date          | attributes.cpu:keyword | attributes.state:keyword | cpu:keyword | metric_name:keyword | span_id:keyword | state:keyword | trace_id:keyword    | value:double
+2024-05-10T00:02:30.000Z | cpu1                   | idle                     | cpu1        | request_duration    | span-6          | idle          | trace-idle-cpu1-dur | 9.5
+2024-05-10T00:03:20.000Z | cpu1                   | busy                     | cpu1        | request_duration    | span-8          | busy          | trace-busy-cpu1-dur | 38.0
+;
+
+// Without an exemplar data stream to read from the query yields no rows, and no columns but the fields its filter and sort refer to,
+// which are null. Unlike for other source commands, a concrete exemplar data stream that does not exist is not an error.
+metricsWithoutExemplarDataStream
+required_capability: exemplars_setting_development_v4
+SET exemplars=true\;
+TS metrics-noexemplars | WHERE attributes.state == "idle" | STATS AVG(cpu_time) BY attributes.cpu
+;
+
+attributes.state:null | metric_name:null | @timestamp:null
+;
+
+metricsWithoutExemplarDataStreamWildcard
+required_capability: exemplars_setting_development_v4
+SET exemplars=true\;
+TS metrics-noexemplars* | STATS AVG(cpu_time) BY attributes.cpu
+;
+
+metric_name:null | @timestamp:null
+;
+
+// Index patterns that do not follow the metrics-* naming have no exemplar data streams either.
+nonMetricsIndexPattern
+required_capability: exemplars_setting_development_v4
+SET exemplars=true\;
+TS k8s | STATS MAX(RATE(network.total_bytes_in)) BY cluster
+;
+
+metric_name:null | @timestamp:null
+;
+
+// Only the metrics-* expressions of a mixed index pattern contribute exemplars, and only those whose exemplar data stream exists.
+mixedIndexPattern
+required_capability: exemplars_setting_development_v4
+SET exemplars=true\;
+TS metrics-cpu,metrics-noexemplars,k8s | STATS AVG(cpu_time) BY attributes.cpu
+;
+ignoreOrder:true
+
+@timestamp:date          | attributes.cpu:keyword | attributes.state:keyword | cpu:keyword | metric_name:keyword | span_id:keyword | state:keyword | trace_id:keyword    | value:double
+2024-05-10T00:00:10.000Z | cpu0                   | idle                     | cpu0        | cpu_time            | span-1          | idle          | trace-idle-cpu0-cpu | 1.7
+2024-05-10T00:01:10.000Z | cpu0                   | busy                     | cpu0        | cpu_time            | span-2          | busy          | trace-busy-cpu0-cpu | 8.1
+2024-05-10T00:02:20.000Z | cpu1                   | idle                     | cpu1        | cpu_time            | span-5          | idle          | trace-idle-cpu1-cpu | 2.9
+;
+
+// When only some of the queried metrics data streams have exemplars, fields that exist in none of the exemplar indices are treated as
+// null there: metrics-k8s has neither exemplars nor the dimensions of metrics-cpu and vice versa. Its metric selects no exemplars,
+// because no exemplar of the other data stream carries that metric_name.
+metricOnlyInDataStreamWithoutExemplars
+required_capability: exemplars_setting_development_v4
+SET exemplars=true\;
+TS metrics-cpu,metrics-k8s | STATS AVG(cpu_time), MAX(RATE(network.total_bytes_in))
+;
+ignoreOrder:true
+
+@timestamp:date          | attributes.cpu:keyword | attributes.state:keyword | cpu:keyword | metric_name:keyword | span_id:keyword | state:keyword | trace_id:keyword    | value:double
+2024-05-10T00:00:10.000Z | cpu0                   | idle                     | cpu0        | cpu_time            | span-1          | idle          | trace-idle-cpu0-cpu | 1.7
+2024-05-10T00:01:10.000Z | cpu0                   | busy                     | cpu0        | cpu_time            | span-2          | busy          | trace-busy-cpu0-cpu | 8.1
+2024-05-10T00:02:20.000Z | cpu1                   | idle                     | cpu1        | cpu_time            | span-5          | idle          | trace-idle-cpu1-cpu | 2.9
+;
+
+// A filter on a dimension that only the data stream without exemplars has excludes all series of the other data streams in the metrics
+// query, and therefore all of their exemplars; the dimension is a null column of the result.
+dimensionFilterOnlyInDataStreamWithoutExemplars
+required_capability: exemplars_setting_development_v4
+SET exemplars=true\;
+TS metrics-cpu,metrics-k8s | WHERE cluster == "prod" | STATS AVG(cpu_time), MAX(RATE(network.total_bytes_in))
+;
+
+@timestamp:date | attributes.cpu:keyword | attributes.state:keyword | cpu:keyword | metric_name:keyword | span_id:keyword | state:keyword | trace_id:keyword | value:double | cluster:null
+;
+
+dimensionFilterInDataStreamWithExemplars
+required_capability: exemplars_setting_development_v4
+SET exemplars=true\;
+TS metrics-cpu,metrics-k8s | WHERE attributes.state == "idle" | STATS AVG(cpu_time), MAX(RATE(network.total_bytes_in))
+;
+ignoreOrder:true
+
+@timestamp:date          | attributes.cpu:keyword | attributes.state:keyword | cpu:keyword | metric_name:keyword | span_id:keyword | state:keyword | trace_id:keyword    | value:double
+2024-05-10T00:00:10.000Z | cpu0                   | idle                     | cpu0        | cpu_time            | span-1          | idle          | trace-idle-cpu0-cpu | 1.7
+2024-05-10T00:02:20.000Z | cpu1                   | idle                     | cpu1        | cpu_time            | span-5          | idle          | trace-idle-cpu1-cpu | 2.9
+;
+
+// Only metrics of the data stream without exemplars are read: the exemplar indices exist, but hold none of them.
+onlyMetricsOfDataStreamWithoutExemplars
+required_capability: exemplars_setting_development_v4
+SET exemplars=true\;
+TS metrics-cpu,metrics-k8s | STATS MAX(RATE(network.total_bytes_in)) BY cluster
+;
+
+@timestamp:date | attributes.cpu:keyword | attributes.state:keyword | cpu:keyword | metric_name:keyword | span_id:keyword | state:keyword | trace_id:keyword | value:double
+;
+
+// Without the setting the metrics query runs as usual.
+settingDisabledRunsMetricsQuery
+required_capability: exemplars_setting_development_v4
+SET exemplars=false\;
+TS metrics-cpu | STATS avg = AVG(cpu_time)
+;
+
+avg:double
+4.75
 ;

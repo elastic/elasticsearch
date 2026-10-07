@@ -53,27 +53,33 @@ public interface LibraryProvider<T> {
     }
 
     /**
-     * Returns a new instance of the given library class, or {@code null} if no provider is registered
-     * or if the library is unavailable on the current platform (see {@link LibrarySpecification#unavailableOn()}).
-     * The cast is safe by construction: the map invariant guarantees the provider keyed by {@code cls}
-     * declared {@code T} as its {@code libraryClass()}.
+     * Returns a new instance of the given library class, or {@code null} if the library is unavailable
+     * on the current platform (see {@link LibrarySpecification#unavailableOn()}).
      */
     static <T> T lookupLibrary(Class<T> cls) {
-        @SuppressWarnings("unchecked")
-        LibraryProvider<T> provider = (LibraryProvider<T>) Holder.PROVIDERS.get(cls);
-        if (provider == null) {
-            return null;
-        }
-        return provider.load();
+        return registeredProvider(cls).load();
     }
 
     /**
      * Whether the given library may be used on the current platform, answered from its
      * {@link LibrarySpecification#unavailableOn()} without loading the native library. For callers
-     * that must decide before {@link #lookupLibrary} runs; {@code false} if no provider is registered.
+     * that must decide before {@link #lookupLibrary} runs.
      */
     static boolean isAvailableOnCurrentPlatform(Class<?> cls) {
-        LibraryProvider<?> provider = Holder.PROVIDERS.get(cls);
-        return provider != null && provider.availableOnCurrentPlatform();
+        return registeredProvider(cls).availableOnCurrentPlatform();
+    }
+
+    /**
+     * The cast is safe by construction: the map invariant guarantees the provider keyed by {@code cls}
+     * declared {@code T} as its {@code libraryClass()}.
+     */
+    private static <T> LibraryProvider<T> registeredProvider(Class<T> cls) {
+        @SuppressWarnings("unchecked")
+        LibraryProvider<T> provider = (LibraryProvider<T>) Holder.PROVIDERS.get(cls);
+        if (provider == null) {
+            // No provider generated/registered is a build bug
+            throw new AssertionError("no LibraryProvider registered for [" + cls.getName() + "]");
+        }
+        return provider;
     }
 }

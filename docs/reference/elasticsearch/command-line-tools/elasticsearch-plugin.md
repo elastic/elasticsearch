@@ -31,7 +31,7 @@ bin/elasticsearch-plugin
 
 A plugin is only available to the node it was installed on, so run this command on every node in the cluster, then restart each node to load the plugin.
 
-The command is in the `$ES_HOME/bin` directory by default, but it might be elsewhere depending on which {{es}} package you installed. Plugins are installed into the node's `plugins` directory, whose location also depends on the package:
+Plugins are installed into the node's `plugins` directory, whose location depends on the {{es}} package you installed:
 
 * [Directory layout of `.tar.gz` archives](docs-content://deploy-manage/deploy/self-managed/install-elasticsearch-from-archive-on-linux-macos.md#targz-layout)
 * [Directory layout of Windows `.zip` archives](docs-content://deploy-manage/deploy/self-managed/install-elasticsearch-with-zip-on-windows.md#windows-layout)
@@ -42,11 +42,11 @@ Every plugin records the {{es}} version it was built against, and {{es}} checks 
 
 To prevent a node from starting when a plugin you depend on is missing, use the [`plugin.mandatory`](/reference/elasticsearch/configuration-reference/node-settings.md#mandatory-plugins) setting.
 
-::::{important} Running as root
+::::{important} - Running as root
 If {{es}} was installed using the deb or rpm package, then run `/usr/share/elasticsearch/bin/elasticsearch-plugin` as `root` so it can write to the appropriate files on disk. Otherwise, run `bin/elasticsearch-plugin` as the user that owns all of the {{es}} files.
 ::::
 
-::::{note} Docker installations
+::::{note} - Docker installations
 If you run {{es}} using the [official {{es}} Docker images](https://www.docker.elastic.co/), manage plugins with the declarative [`elasticsearch-plugins.yml` configuration file](/reference/elasticsearch-plugins/manage-plugins-using-configuration-file.md) instead. The `install` and `remove` commands are disabled when that file is present.
 ::::
 
@@ -123,7 +123,7 @@ HTTP
     sudo bin/elasticsearch-plugin install <EXAMPLE_PLUGIN_HOST_URL>/plugin.zip
     ```
 
-    The plugin script will refuse to talk to an HTTPS URL with an untrusted certificate. To use a self-signed HTTPS cert, you will need to add the CA cert to a local Java truststore and pass the location to the script as follows:
+    The plugin script will refuse to talk to an HTTPS URL with an untrusted certificate. To use a self-signed HTTPS cert, add the CA cert to a local Java truststore and pass the location to the script as follows:
 
     ```shell
     sudo CLI_JAVA_OPTS="-Djavax.net.ssl.trustStore=/path/to/trustStore.jks" bin/elasticsearch-plugin install <MY_HOST_URL>/plugin.zip
@@ -131,7 +131,7 @@ HTTP
 
 ## Custom config directory [elasticsearch-plugin-custom-config-directory]
 
-If your `elasticsearch.yml` config file is in a custom location, you will need to specify the path to the config file when using the `plugin` script. You can do this as follows:
+If your `elasticsearch.yml` config file is in a custom location, specify the path to the config file when using the `plugin` script. You can do this as follows:
 
 ```sh
 sudo ES_PATH_CONF=/path/to/conf/dir bin/elasticsearch-plugin install <plugin name>

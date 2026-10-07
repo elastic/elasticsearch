@@ -7,7 +7,7 @@
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.multi_value_false_alias"]
+      cluster_features: ["mapper.doc_values.multi_value_false_alias", "mapper.doc_values.top_level_attributes"]
       reason: "doc_values.multi_value: false for index sort requires the false alias to be supported on all nodes; columnar index mode required"
 
   - do:
@@ -40,7 +40,7 @@
         index: test
 
   - match: { test.mappings.properties.rank.type: integer }
-  - match: { test.mappings.properties.rank.doc_values.multi_value: false }
+  - match: { test.mappings.properties.rank.multi_value: false }
 
   - do:
       index:
@@ -150,7 +150,7 @@
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.multi_value_false_alias"]
+      cluster_features: ["mapper.doc_values.multi_value_false_alias", "mapper.doc_values.top_level_attributes"]
       reason: "doc_values.multi_value: false for index sort requires the false alias to be supported on all nodes; columnar index mode required"
 
   - do:
@@ -181,7 +181,7 @@
         index: test_kw
 
   - match: { test_kw.mappings.properties.tag.type: keyword }
-  - match: { test_kw.mappings.properties.tag.doc_values.multi_value: false }
+  - match: { test_kw.mappings.properties.tag.multi_value: false }
 
   # Segment 1: tags c, a, d, b
   - do:
@@ -285,7 +285,7 @@
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.multi_value_false_alias"]
+      cluster_features: ["mapper.doc_values.multi_value_false_alias", "mapper.doc_values.top_level_attributes"]
       reason: "doc_values.multi_value: false for index sort requires the false alias to be supported on all nodes; columnar index mode required"
 
   - do:

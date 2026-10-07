@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.QueryAdmission;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupScheduler;
@@ -54,6 +55,7 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
     private volatile int maxPermits;
     private final long acquireTimeoutMs;
     private final ConcurrencyBudgetAllocator allocator;
+    private final AdmissionTracker tracker;
     private volatile boolean closed;
 
     private final AtomicLong lastWarnLogTime = new AtomicLong(0);
@@ -72,13 +74,22 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
     static final QueryConcurrencyBudget UNLIMITED = new QueryConcurrencyBudget(0, QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS, null);
 
     QueryConcurrencyBudget(int maxPermits, long acquireTimeoutMs, ConcurrencyBudgetAllocator allocator) {
+        this(maxPermits, acquireTimeoutMs, allocator, AdmissionTracker.NOOP);
+    }
+
+    QueryConcurrencyBudget(int maxPermits, long acquireTimeoutMs, ConcurrencyBudgetAllocator allocator, AdmissionTracker tracker) {
         this.maxPermits = maxPermits;
         this.acquireTimeoutMs = acquireTimeoutMs;
         this.allocator = allocator;
+        this.tracker = tracker == null ? AdmissionTracker.NOOP : tracker;
     }
 
     long acquireTimeoutMs() {
         return acquireTimeoutMs;
+    }
+
+    private String budgetGate() {
+        return allocator == null ? AdmissionTracker.GATE_BUDGET : allocator.name();
     }
 
     /**
@@ -139,19 +150,23 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
             }
             Waiter waiter = new Waiter(lease, countGets);
             waiters.add(waiter);
+            AdmissionTracker.Wait tracked = tracker.waitStarted(budgetGate(), budgetWaiterLabel(lease));
             try {
                 while (waiter.granted == false) {
                     if (closed) {
                         waiters.remove(waiter);
+                        tracked.finished();
                         throw new TimeoutException("Budget was closed while waiting for permit");
                     }
                     if (lease != null && lease.isFinished()) {
                         waiters.remove(waiter);
+                        tracked.finished();
                         throw new TimeoutException("Row group lease was finished while waiting for permit");
                     }
                     long waitNanos = deadlineNanos - System.nanoTime();
                     if (waitNanos <= 0) {
                         waiters.remove(waiter);
+                        tracked.finished();
                         throw new TimeoutException(
                             "Timed out waiting for query concurrency budget permit after ["
                                 + acquireTimeoutMs
@@ -162,11 +177,14 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
                     }
                     waiter.condition.awaitNanos(waitNanos);
                 }
+                tracked.granted();
             } catch (InterruptedException e) {
                 if (waiter.granted == false) {
                     waiters.remove(waiter);
+                    tracked.finished();
                     throw e;
                 }
+                tracked.granted();
                 Thread.currentThread().interrupt();
             }
         } finally {
@@ -361,6 +379,13 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
         }
     }
 
+    private static String budgetWaiterLabel(RowGroupIo lease) {
+        if (lease == null) {
+            return Thread.currentThread().getName();
+        }
+        return "lease#" + lease.startSeq();
+    }
+
     // ── grant policy ───────────────────────────────────────────────────────────
 
     private void takePermit(RowGroupIo lease, boolean countGets) {
@@ -391,6 +416,8 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
      * Picks the next waiter. Outstanding is read at grant time, not copied onto the waiter.
      * {@code acquire(null)} is FIFO among null leases and never becomes {@code favoured}, except a
      * null waiter that has waited {@link #NULL_LEASE_MAX_WAIT_MS} takes one grant.
+     * A live favoured lease (unfinished, and either waiting, still holding outstanding GETs, or
+     * pinned) is not replaced just because it is mid-GET and absent from {@code waiting}.
      */
     Waiter choose(Collection<Waiter> waiting) {
         Waiter nullDue = oldestNullLeaseWaitingAtLeast(waiting, NULL_LEASE_MAX_WAIT_MS);
@@ -399,7 +426,10 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
         }
 
         Waiter incumbent = waiterFor(waiting, favoured);
-        if (incumbent != null && favoured.isFinished() == false) {
+        boolean favouredLive = favoured != null
+            && favoured.isFinished() == false
+            && (incumbent != null || favoured.outstanding() > 0 || favoured.isPinned());
+        if (favouredLive) {
             if (favoured.isPinned() == false) {
                 Waiter challenger = closestOther(waiting, favoured);
                 if (challenger != null && favoured.outstanding() - challenger.outstanding() >= PREEMPT_GAP) {
@@ -407,7 +437,10 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
                     return challenger;
                 }
             }
-            return incumbent;
+            if (incumbent != null) {
+                return incumbent;
+            }
+            return grantWithoutUnseating(waiting);
         }
         Waiter oldest = smallestStartSeq(waiting);
         Waiter closest = smallestOutstanding(waiting);
@@ -419,6 +452,19 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
             return closest;
         }
         favoured = oldest.lease;
+        return oldest;
+    }
+
+    /** Grants a waiter without changing {@link #favoured}. */
+    private Waiter grantWithoutUnseating(Collection<Waiter> waiting) {
+        Waiter oldest = smallestStartSeq(waiting);
+        if (oldest == null) {
+            return oldestNull(waiting);
+        }
+        Waiter closest = smallestOutstanding(waiting);
+        if (oldest != closest && closest != null && oldest.outstanding() - closest.outstanding() >= PREEMPT_GAP) {
+            return closest;
+        }
         return oldest;
     }
 

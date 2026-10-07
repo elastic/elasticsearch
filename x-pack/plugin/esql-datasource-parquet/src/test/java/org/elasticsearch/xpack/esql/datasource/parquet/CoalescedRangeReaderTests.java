@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.parquet.CoalescedRangeReader.ByteRange;
@@ -1093,6 +1095,287 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         }
     }
 
+    public void testPerGetAdmitIsNotDoubleCounted() throws Exception {
+        byte[] data = sequentialBytes(64);
+        ParquetIoWatermark watermark = new ParquetIoWatermark(1024);
+        RowGroupIo lease = new RowGroupIo();
+        CoalescedRangeResult result;
+        try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(lease, true)) {
+            result = awaitCoalesced(
+                new CountingStorage(data),
+                List.of(new ByteRange(0, 64)),
+                null,
+                watermark,
+                ParquetIoWatermark.ByteGate.PER_GET
+            );
+        }
+        try {
+            assertEquals("admitWait plus alloc must swap, not stack, the charge", 64, watermark.used());
+        } finally {
+            result.release().close();
+        }
+        assertEquals(0, watermark.used());
+    }
+
+    public void testPerGetWaitsBeforeStartReadBytesAsync() throws Exception {
+        byte[] data = sequentialBytes(32);
+        ParquetIoWatermark watermark = new ParquetIoWatermark(50, 30_000L);
+        RowGroupIo owner = new RowGroupIo();
+        watermark.admitWait(80, owner, 1_000L);
+        AtomicInteger starts = new AtomicInteger();
+        CountingStorage storage = new CountingStorage(data) {
+            @Override
+            public Releasable startReadBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
+                starts.incrementAndGet();
+                return super.startReadBytesAsync(position, length, factory, executor, listener);
+            }
+        };
+        RowGroupIo waiter = new RowGroupIo();
+        CountDownLatch done = new CountDownLatch(1);
+        AtomicReference<CoalescedRangeResult> resultRef = new AtomicReference<>();
+        AtomicReference<Exception> error = new AtomicReference<>();
+        Thread thread = new Thread(() -> {
+            try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(waiter, true)) {
+                resultRef.set(awaitCoalesced(storage, List.of(new ByteRange(0, 16)), null, watermark, ParquetIoWatermark.ByteGate.PER_GET));
+            } catch (Exception e) {
+                error.set(e);
+            } finally {
+                done.countDown();
+            }
+        });
+        thread.start();
+        assertBusy(() -> assertEquals(Thread.State.TIMED_WAITING, thread.getState()));
+        assertEquals("startReadBytesAsync must not run until byte admission succeeds", 0, starts.get());
+        watermark.release(80);
+        watermark.clearOwner(owner);
+        assertTrue(done.await(5, TimeUnit.SECONDS));
+        thread.join();
+        assertNull(error.get());
+        assertEquals(1, starts.get());
+        assertEquals(0, watermark.forcedAdmits());
+        resultRef.get().release().close();
+    }
+
+    public void testAdmitWaitFailureCompletesBatch() throws Exception {
+        byte[] data = sequentialBytes(64);
+        ParquetIoWatermark watermark = new ParquetIoWatermark(1024);
+        RowGroupIo lease = new RowGroupIo();
+        AtomicInteger starts = new AtomicInteger();
+        CountingStorage storage = new CountingStorage(data) {
+            @Override
+            public Releasable startReadBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
+                starts.incrementAndGet();
+                Releasable handle = super.startReadBytesAsync(position, length, factory, executor, listener);
+                lease.cancel();
+                return handle;
+            }
+        };
+        CountDownLatch listenerDone = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        AtomicReference<CoalescedRangeResult> success = new AtomicReference<>();
+        try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(lease, false)) {
+            CoalescedRangeReader.readCoalesced(
+                storage,
+                List.of(new ByteRange(0, 8), new ByteRange(40, 8)),
+                0,
+                breaker,
+                watermark,
+                null,
+                null,
+                ParquetIoWatermark.ByteGate.PER_GET,
+                Runnable::run,
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(CoalescedRangeResult result) {
+                        success.set(result);
+                        listenerDone.countDown();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        error.set(e);
+                        listenerDone.countDown();
+                    }
+                }
+            );
+        }
+        assertTrue(listenerDone.await(5, TimeUnit.SECONDS));
+        assertThat(error.get(), instanceOf(EsRejectedExecutionException.class));
+        assertNull(success.get());
+        assertEquals(1, starts.get());
+        assertEquals(0, lease.outstanding());
+        assertEquals("circuit breaker still holds bytes after admitWait failure", 0L, breaker.getUsed());
+        assertEquals(0, watermark.used());
+    }
+
+    public void testUngatedNullHoldStillForceAdds() throws Exception {
+        byte[] data = sequentialBytes(32);
+        ParquetIoWatermark watermark = new ParquetIoWatermark(50);
+        watermark.forceAdd(80);
+        CoalescedRangeResult result = awaitCoalesced(
+            new CountingStorage(data),
+            List.of(new ByteRange(0, 16)),
+            null,
+            watermark,
+            ParquetIoWatermark.ByteGate.UNGATED
+        );
+        try {
+            assertEquals(96, watermark.used());
+        } finally {
+            result.release().close();
+        }
+        assertEquals(80, watermark.used());
+        watermark.release(80);
+    }
+
+    /**
+     * Sync PER_GET must bound the byte wait to one deadline per {@code readCoalescedSync} call,
+     * not a fresh timeout on every merged GET.
+     */
+    public void testPerGetByteWaitBoundedPerCall() throws Exception {
+        byte[] data = sequentialBytes(64);
+        ParquetIoWatermark watermark = new ParquetIoWatermark(100);
+        RowGroupIo owner = new RowGroupIo();
+        watermark.admitWait(150, owner, 1_000L);
+        CountingStorage storage = new CountingStorage(data);
+        List<ByteRange> ranges = List.of(new ByteRange(0, 10), new ByteRange(20, 10), new ByteRange(40, 10));
+        long start = System.nanoTime();
+        CoalescedRangeResult result = null;
+        try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(new RowGroupIo(), false)) {
+            result = CoalescedRangeReader.readCoalescedSync(
+                storage,
+                ranges,
+                0,
+                breaker,
+                watermark,
+                null,
+                ParquetIoWatermark.ByteGate.PER_GET
+            );
+        }
+        long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+        try {
+            assertNotNull(result);
+            assertEquals(3, storage.syncGets.get());
+            assertEquals(3, watermark.forcedAdmits());
+            assertTrue(
+                "one coalesced call must not wait a fresh deadline per GET, elapsedMs=" + elapsedMs,
+                elapsedMs >= 500L && elapsedMs < 3_000L
+            );
+        } finally {
+            if (result != null) {
+                result.release().close();
+            }
+            watermark.release(watermark.used());
+        }
+    }
+
+    public void testForcedAdmitStillTripsRequestBreaker() throws Exception {
+        byte[] data = sequentialBytes(64);
+        CircuitBreaker smallBreaker = new LimitedBreaker("small", ByteSizeValue.ofBytes(32));
+        ParquetIoWatermark watermark = new ParquetIoWatermark(100, 50L);
+        RowGroupIo owner = new RowGroupIo();
+        watermark.admitWait(110, owner, 1_000L);
+        CircuitBreakingException e;
+        try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(new RowGroupIo(), false)) {
+            e = expectThrows(
+                CircuitBreakingException.class,
+                () -> CoalescedRangeReader.readCoalescedSync(
+                    new CountingStorage(data),
+                    List.of(new ByteRange(0, 64)),
+                    0,
+                    smallBreaker,
+                    watermark,
+                    null,
+                    ParquetIoWatermark.ByteGate.PER_GET
+                )
+            );
+        }
+        assertThat(e.getMessage(), containsString("over test limit"));
+        assertEquals(0L, smallBreaker.getUsed());
+        assertEquals(110, watermark.used());
+        assertEquals(1, watermark.forcedAdmits());
+    }
+
+    public void testAsyncPerGetUsesOneDeadlinePerCall() throws Exception {
+        byte[] data = sequentialBytes(64);
+        ParquetIoWatermark watermark = new ParquetIoWatermark(100, 200L);
+        RowGroupIo owner = new RowGroupIo();
+        watermark.admitWait(150, owner, 1_000L);
+        AtomicInteger starts = new AtomicInteger();
+        CountingStorage storage = new CountingStorage(data) {
+            @Override
+            public Releasable startReadBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
+                starts.incrementAndGet();
+                return super.startReadBytesAsync(position, length, factory, executor, listener);
+            }
+        };
+        CountDownLatch listenerDone = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        AtomicReference<CoalescedRangeResult> success = new AtomicReference<>();
+        long start = System.nanoTime();
+        try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(new RowGroupIo(), false)) {
+            CoalescedRangeReader.readCoalesced(
+                storage,
+                List.of(new ByteRange(0, 10), new ByteRange(20, 10), new ByteRange(40, 10)),
+                0,
+                breaker,
+                watermark,
+                null,
+                null,
+                ParquetIoWatermark.ByteGate.PER_GET,
+                Runnable::run,
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(CoalescedRangeResult result) {
+                        success.set(result);
+                        listenerDone.countDown();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        error.set(e);
+                        listenerDone.countDown();
+                    }
+                }
+            );
+        }
+        assertTrue(listenerDone.await(5, TimeUnit.SECONDS));
+        long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+        try {
+            assertNull(error.get());
+            assertNotNull(success.get());
+            assertTrue(
+                "one async call must wait the budget once then charge, elapsedMs=" + elapsedMs,
+                elapsedMs >= 100L && elapsedMs < 600L
+            );
+            assertEquals(3, watermark.forcedAdmits());
+            assertEquals(3, starts.get());
+        } finally {
+            if (success.get() != null) {
+                success.get().release().close();
+            }
+            watermark.release(watermark.used());
+        }
+    }
+
     private static FooterByteCache footerCache() {
         return FooterByteCache.fromSettings(Settings.EMPTY);
     }
@@ -1124,6 +1407,16 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         FooterByteCache cache,
         ParquetIoWatermark watermark
     ) throws Exception {
+        return awaitCoalesced(storageObject, ranges, cache, watermark, ParquetIoWatermark.ByteGate.UNGATED);
+    }
+
+    private CoalescedRangeResult awaitCoalesced(
+        StorageObject storageObject,
+        List<ByteRange> ranges,
+        FooterByteCache cache,
+        ParquetIoWatermark watermark,
+        ParquetIoWatermark.ByteGate byteGate
+    ) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<CoalescedRangeResult> resultRef = new AtomicReference<>();
         AtomicReference<Exception> failureRef = new AtomicReference<>();
@@ -1135,6 +1428,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
             watermark,
             null,
             cache,
+            byteGate,
             Runnable::run,
             new ActionListener<>() {
                 @Override
@@ -1201,6 +1495,17 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         ) {
             asyncGets.incrementAndGet();
             StorageObject.super.readBytesAsync(position, length, factory, executor, listener);
+        }
+
+        @Override
+        public Releasable startReadBytesAsync(
+            long position,
+            long length,
+            DirectBufferFactory factory,
+            Executor executor,
+            ActionListener<DirectReadBuffer> listener
+        ) {
+            return StorageObject.super.startReadBytesAsync(position, length, factory, executor, listener);
         }
 
         @Override

@@ -26,10 +26,12 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -135,7 +137,7 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
             ActionListener<DirectReadBuffer> listener = inv.getArgument(4);
             listener.onResponse(result);
             return (Releasable) () -> {};
-        }).when(delegate).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class));
+        }).when(delegate).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class), anyBoolean());
 
         QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
         CountDownLatch latch = new CountDownLatch(1);
@@ -159,7 +161,7 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
             ActionListener<DirectReadBuffer> listener = inv.getArgument(4);
             listener.onFailure(new IOException("async error"));
             return (Releasable) () -> {};
-        }).when(delegate).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class));
+        }).when(delegate).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class), anyBoolean());
 
         QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
         CountDownLatch latch = new CountDownLatch(1);
@@ -281,7 +283,7 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
             held.set(inv.getArgument(4));
             firstStarted.countDown();
             return (Releasable) () -> {};
-        }).when(delegate).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class));
+        }).when(delegate).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class), anyBoolean());
 
         QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
         try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(farther, true)) {
@@ -309,5 +311,39 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
         assertSame(closer, budget.favoured());
         held.get().onResponse(new DirectReadBuffer(ByteBuffer.wrap("more".getBytes(StandardCharsets.UTF_8)), () -> {}));
         assertEquals(0, budget.inFlight());
+    }
+
+    public void testAbortAndCloseRaceDoesNotOverGrantBudget() throws Exception {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(3, 60_000L, null);
+        StorageObject delegate = mock(StorageObject.class);
+        when(delegate.newStream()).thenAnswer(inv -> new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8)));
+        when(delegate.path()).thenReturn(StoragePath.of("s3://bucket/key"));
+
+        for (int i = 0; i < 200; i++) {
+            QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
+            InputStream wrapper = obj.newStream();
+            CyclicBarrier barrier = new CyclicBarrier(2);
+            Thread abortThread = new Thread(() -> {
+                try {
+                    barrier.await();
+                    obj.abortStream(wrapper);
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            });
+            Thread closeThread = new Thread(() -> {
+                try {
+                    barrier.await();
+                    wrapper.close();
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            });
+            abortThread.start();
+            closeThread.start();
+            abortThread.join();
+            closeThread.join();
+            assertEquals("abort+close must not over-grant the budget", 0, budget.inFlight());
+        }
     }
 }

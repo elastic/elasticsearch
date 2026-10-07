@@ -96,7 +96,7 @@ import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSe
  * <li>updating</li>
  * </ul>
  */
-public final class DatafeedManager {
+public class DatafeedManager {
 
     private static final Logger logger = LogManager.getLogger(DatafeedManager.class);
 
@@ -176,6 +176,19 @@ public final class DatafeedManager {
             () -> callerCredential.set(credentialManagerSupplier.get().extractCloudManagedCredential(threadPool.getThreadContext()))
         );
         return callerCredential.get();
+    }
+
+    /**
+     * Extracts the caller's cloud credential on the coordinating node (see {@link #currentCallerCredential}) and hands it to
+     * {@code carrier}, which stores it on the request that is about to be forwarded to the master. The carrier is not invoked when there
+     * is no credential: a master-node action's {@code doExecute} runs again on the master, where the transient headers are gone and
+     * extraction yields {@code null}, and that must not overwrite the credential carried from the coordinator.
+     */
+    public void carryCallerCredential(ThreadPool threadPool, @Nullable SecurityContext securityContext, Consumer<CloudCredential> carrier) {
+        CloudCredential callerCredential = currentCallerCredential(threadPool, securityContext);
+        if (callerCredential != null) {
+            carrier.accept(callerCredential);
+        }
     }
 
     private static boolean hasCallerCloudCredential(

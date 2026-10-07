@@ -829,7 +829,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Retrieves the explicitly configured lifecycle for this data stream's the backing indices.
+     * Retrieves the explicit lifecycle configuration as persisted on the data stream's state.
      * This may differ from the effective lifecycle that can be retrieved by
      * {@link #getEffectiveDataLifecycle(boolean)}
      */
@@ -839,7 +839,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Retrieves the <b>effective</b> lifecycle configuration for this data stream's backing indices.
+     * Retrieves the <b>effective</b> lifecycle configuration meant for the backing indices.
      */
     @Nullable
     public DataStreamLifecycle getEffectiveDataLifecycle(boolean minimumLifecycleEnabled) {
@@ -1370,7 +1370,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             indices,
             effectiveRetention,
             indexMetadataSupplier,
-            this::isIndexManagedByDataStreamLifecycle,
+            indexMetadata -> isIndexManagedByDataStreamLifecycle(indexMetadata, false),
             nowSupplier
         );
     }
@@ -1458,11 +1458,15 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Checks if the provided backing index is managed by the data stream lifecycle as part of this data stream.
+     * Checks if the provided backing index is effectively managed by the data stream lifecycle as part of this data stream.
      * If the index is not a backing index or a failure store index of this data stream, or we cannot supply its metadata
      * we return false.
      */
-    public boolean isIndexManagedByDataStreamLifecycle(Index index, Function<String, IndexMetadata> indexMetadataSupplier) {
+    public boolean isIndexManagedByDataStreamLifecycle(
+        Index index,
+        Function<String, IndexMetadata> indexMetadataSupplier,
+        boolean minimumLifecycleEnabled
+    ) {
         if (containsIndex(index.getName()) == false) {
             return false;
         }
@@ -1471,20 +1475,17 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             // the index was deleted
             return false;
         }
-        return isIndexManagedByDataStreamLifecycle(indexMetadata);
+        return isIndexManagedByDataStreamLifecycle(indexMetadata, minimumLifecycleEnabled);
     }
 
     /**
-     * This is the raw definition of an index being managed by the data stream lifecycle. An index is managed by the data stream lifecycle
-     * if it's part of a data stream that has a data stream lifecycle configured and enabled and depending on the value of
-     * {@link org.elasticsearch.index.IndexSettings#PREFER_ILM_SETTING} having an ILM policy configured will play into the decision.
-     * This method also skips any validation to make sure the index is part of this data stream, hence the private
-     * access method.
+     * Checks if the provided backing index is effectively managed by the data stream lifecycle as part of this data stream.
+     * If the index is not a backing index or a failure store index of this data stream we return false.
      */
-    private boolean isIndexManagedByDataStreamLifecycle(IndexMetadata indexMetadata) {
+    private boolean isIndexManagedByDataStreamLifecycle(IndexMetadata indexMetadata, boolean minimumLifecycleEnabled) {
         Settings settings = indexMetadata.getSettings();
         IndexMode indexMode = indexMetadata.getIndexMode();
-        var lifecycle = getDataLifecycleForIndex(indexMetadata.getIndex());
+        var lifecycle = getEffectiveLifecycleForIndex(indexMetadata.getIndex(), minimumLifecycleEnabled);
         return lifecycleManagedBy(indexMetadata.getLifecyclePolicyName(), lifecycle, settings, indexMode) == LifecycleManagedBy.DLM;
     }
 

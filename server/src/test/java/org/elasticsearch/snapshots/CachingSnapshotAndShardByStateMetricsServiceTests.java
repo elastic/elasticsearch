@@ -38,7 +38,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.ShardGeneration;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -46,7 +46,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -58,8 +57,8 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -89,8 +88,8 @@ public class CachingSnapshotAndShardByStateMetricsServiceTests extends ESTestCas
 
         // No metrics should be recorded before the cluster service is started
         when(clusterService.lifecycleState()).thenReturn(Lifecycle.State.INITIALIZED);
-        assertThat(byStateMetricsService.getShardsByState(), empty());
-        assertThat(byStateMetricsService.getSnapshotsByState(), empty());
+        assertThat(shardsByState(byStateMetricsService), empty());
+        assertThat(snapshotsByState(byStateMetricsService), empty());
         verify(clusterService, never()).state();
 
         // Simulate the metrics service being started/a state being applied
@@ -99,8 +98,8 @@ public class CachingSnapshotAndShardByStateMetricsServiceTests extends ESTestCas
         when(clusterService.state()).thenReturn(withSnapshotsInProgress);
 
         // This time we should publish some metrics
-        final Collection<LongWithAttributes> shardsByState = byStateMetricsService.getShardsByState();
-        final Collection<LongWithAttributes> snapshotsByState = byStateMetricsService.getSnapshotsByState();
+        final List<Measurement> shardsByState = shardsByState(byStateMetricsService);
+        final List<Measurement> snapshotsByState = snapshotsByState(byStateMetricsService);
         assertThat(shardsByState, not(empty()));
         assertThat(snapshotsByState, not(empty()));
         verify(clusterService, times(2)).state();
@@ -125,8 +124,8 @@ public class CachingSnapshotAndShardByStateMetricsServiceTests extends ESTestCas
         when(clusterService.state()).thenReturn(noLongerMaster);
 
         // We should no longer publish metrics
-        assertThat(byStateMetricsService.getShardsByState(), empty());
-        assertThat(byStateMetricsService.getSnapshotsByState(), empty());
+        assertThat(shardsByState(byStateMetricsService), empty());
+        assertThat(snapshotsByState(byStateMetricsService), empty());
 
         // Become master again
         final ClusterState masterAgain = ClusterState.builder(noLongerMaster)
@@ -136,10 +135,10 @@ public class CachingSnapshotAndShardByStateMetricsServiceTests extends ESTestCas
         when(clusterService.state()).thenReturn(masterAgain);
 
         // We should return cached metrics because the SnapshotsInProgress hasn't changed
-        final Collection<LongWithAttributes> secondShardsByState = byStateMetricsService.getShardsByState();
-        final Collection<LongWithAttributes> secondSnapshotsByState = byStateMetricsService.getSnapshotsByState();
-        assertThat(secondShardsByState, sameInstance(shardsByState));
-        assertThat(secondSnapshotsByState, sameInstance(snapshotsByState));
+        final List<Measurement> secondShardsByState = shardsByState(byStateMetricsService);
+        final List<Measurement> secondSnapshotsByState = snapshotsByState(byStateMetricsService);
+        assertThat(secondShardsByState, equalTo(shardsByState));
+        assertThat(secondSnapshotsByState, equalTo(snapshotsByState));
 
         // Update SnapshotsInProgress
         final ClusterState newSnapshotsInProgress = ClusterState.builder(masterAgain)
@@ -149,18 +148,16 @@ public class CachingSnapshotAndShardByStateMetricsServiceTests extends ESTestCas
         when(clusterService.state()).thenReturn(newSnapshotsInProgress);
 
         // We should return fresh metrics because the SnapshotsInProgress has changed
-        final Collection<LongWithAttributes> thirdShardsByState = byStateMetricsService.getShardsByState();
-        final Collection<LongWithAttributes> thirdSnapshotsByState = byStateMetricsService.getSnapshotsByState();
+        final List<Measurement> thirdShardsByState = shardsByState(byStateMetricsService);
+        final List<Measurement> thirdSnapshotsByState = snapshotsByState(byStateMetricsService);
         assertThat(thirdShardsByState, not(empty()));
         assertThat(thirdSnapshotsByState, not(empty()));
-        assertThat(thirdShardsByState, not(sameInstance(shardsByState)));
-        assertThat(thirdSnapshotsByState, not(sameInstance(snapshotsByState)));
 
         // Then the cluster service is stopped, we should no longer publish metrics
         reset(clusterService);
         when(clusterService.lifecycleState()).thenReturn(Lifecycle.State.STOPPED);
-        assertThat(byStateMetricsService.getShardsByState(), empty());
-        assertThat(byStateMetricsService.getSnapshotsByState(), empty());
+        assertThat(shardsByState(byStateMetricsService), empty());
+        assertThat(snapshotsByState(byStateMetricsService), empty());
         verify(clusterService, never()).state();
     }
 
@@ -310,7 +307,7 @@ public class CachingSnapshotAndShardByStateMetricsServiceTests extends ESTestCas
         );
 
         // No waiting shards, expect metric to be zero:
-        assertThat(metricsService.getLongestWaitingTimeMillis(), contains(new LongWithAttributes(0L)));
+        assertThat(longestWaitingTimeMillis(metricsService), contains(new Measurement(0L, Map.of(), false)));
 
         // Add shard1 in WAITING state:
         advanceTime(deterministicTaskQueue, randomLongBetween(100, 1000));
@@ -318,18 +315,18 @@ public class CachingSnapshotAndShardByStateMetricsServiceTests extends ESTestCas
         snapshots = updateSnapshot(snapshots, snapshot1, List.of(index1), Map.of(shard0, initStatus, shard1, waitingStatus));
         applyNewSnapshotsInProgress(clusterService, deterministicTaskQueue, "shard1 waiting", snapshots);
         // shard1 has just been observed waiting for the first time, so expect metric to be zero:
-        assertThat(metricsService.getLongestWaitingTimeMillis(), contains(new LongWithAttributes(0L)));
+        assertThat(longestWaitingTimeMillis(metricsService), contains(new Measurement(0L, Map.of(), false)));
 
         // Check that we still get zero, rather than a negative value, if the clock goes backwards:
         advanceTime(deterministicTaskQueue, -1L);
-        assertThat(metricsService.getLongestWaitingTimeMillis(), contains(new LongWithAttributes(0L)));
+        assertThat(longestWaitingTimeMillis(metricsService), contains(new Measurement(0L, Map.of(), false)));
 
         // Wait some time:
         advanceTime(deterministicTaskQueue, randomLongBetween(100, 1000));
         // shard1 has been waiting for some time, expect metric to reflect elapsed time:
         assertThat(
-            metricsService.getLongestWaitingTimeMillis(),
-            contains(new LongWithAttributes(deterministicTaskQueue.getCurrentTimeMillis() - shard1WaitingTimestamp))
+            longestWaitingTimeMillis(metricsService),
+            contains(new Measurement(deterministicTaskQueue.getCurrentTimeMillis() - shard1WaitingTimestamp, Map.of(), false))
         );
 
         // Add shard2 in WAITING state:
@@ -338,8 +335,8 @@ public class CachingSnapshotAndShardByStateMetricsServiceTests extends ESTestCas
         applyNewSnapshotsInProgress(clusterService, deterministicTaskQueue, "shard2 waiting", snapshots);
         // shard1 has still been waiting longest:
         assertThat(
-            metricsService.getLongestWaitingTimeMillis(),
-            contains(new LongWithAttributes(deterministicTaskQueue.getCurrentTimeMillis() - shard1WaitingTimestamp))
+            longestWaitingTimeMillis(metricsService),
+            contains(new Measurement(deterministicTaskQueue.getCurrentTimeMillis() - shard1WaitingTimestamp, Map.of(), false))
         );
 
         // Add shard3 in WAITING state:
@@ -349,8 +346,8 @@ public class CachingSnapshotAndShardByStateMetricsServiceTests extends ESTestCas
         applyNewSnapshotsInProgress(clusterService, deterministicTaskQueue, "shard3 waiting", snapshots);
         // shard1 has still been waiting longest:
         assertThat(
-            metricsService.getLongestWaitingTimeMillis(),
-            contains(new LongWithAttributes(deterministicTaskQueue.getCurrentTimeMillis() - shard1WaitingTimestamp))
+            longestWaitingTimeMillis(metricsService),
+            contains(new Measurement(deterministicTaskQueue.getCurrentTimeMillis() - shard1WaitingTimestamp, Map.of(), false))
         );
 
         // Add shard4 in WAITING state:
@@ -360,8 +357,8 @@ public class CachingSnapshotAndShardByStateMetricsServiceTests extends ESTestCas
         applyNewSnapshotsInProgress(clusterService, deterministicTaskQueue, "shard4 waiting", snapshots);
         // shard1 has still been waiting longest:
         assertThat(
-            metricsService.getLongestWaitingTimeMillis(),
-            contains(new LongWithAttributes(deterministicTaskQueue.getCurrentTimeMillis() - shard1WaitingTimestamp))
+            longestWaitingTimeMillis(metricsService),
+            contains(new Measurement(deterministicTaskQueue.getCurrentTimeMillis() - shard1WaitingTimestamp, Map.of(), false))
         );
 
         // Move shard2 out of WAITING state:
@@ -370,8 +367,8 @@ public class CachingSnapshotAndShardByStateMetricsServiceTests extends ESTestCas
         applyNewSnapshotsInProgress(clusterService, deterministicTaskQueue, "shard2 no longer waiting", snapshots);
         // shard1 has still been waiting longest:
         assertThat(
-            metricsService.getLongestWaitingTimeMillis(),
-            contains(new LongWithAttributes(deterministicTaskQueue.getCurrentTimeMillis() - shard1WaitingTimestamp))
+            longestWaitingTimeMillis(metricsService),
+            contains(new Measurement(deterministicTaskQueue.getCurrentTimeMillis() - shard1WaitingTimestamp, Map.of(), false))
         );
 
         // Move shard1 out of WAITING state:
@@ -380,8 +377,8 @@ public class CachingSnapshotAndShardByStateMetricsServiceTests extends ESTestCas
         applyNewSnapshotsInProgress(clusterService, deterministicTaskQueue, "shard1 no longer waiting", snapshots);
         // Now shard3 has been waiting the longest:
         assertThat(
-            metricsService.getLongestWaitingTimeMillis(),
-            contains(new LongWithAttributes(deterministicTaskQueue.getCurrentTimeMillis() - shard3WaitingTimestamp))
+            longestWaitingTimeMillis(metricsService),
+            contains(new Measurement(deterministicTaskQueue.getCurrentTimeMillis() - shard3WaitingTimestamp, Map.of(), false))
         );
 
         // Remove shard3 from SnapshotsInProgress:
@@ -390,15 +387,33 @@ public class CachingSnapshotAndShardByStateMetricsServiceTests extends ESTestCas
         applyNewSnapshotsInProgress(clusterService, deterministicTaskQueue, "shard3 removed", snapshots);
         // Now shard4 has been waiting the longest:
         assertThat(
-            metricsService.getLongestWaitingTimeMillis(),
-            contains(new LongWithAttributes(deterministicTaskQueue.getCurrentTimeMillis() - shard4WaitingTimestamp))
+            longestWaitingTimeMillis(metricsService),
+            contains(new Measurement(deterministicTaskQueue.getCurrentTimeMillis() - shard4WaitingTimestamp, Map.of(), false))
         );
 
         // Move shard4 out of WAITING state:
         snapshots = updateSnapshot(snapshots, snapshot3, List.of(index4), Map.of(shard4, initStatus));
         applyNewSnapshotsInProgress(clusterService, deterministicTaskQueue, "shard4 no longer waiting", snapshots);
         // No waiting shards left, so expect metric to be zero:
-        assertThat(metricsService.getLongestWaitingTimeMillis(), contains(new LongWithAttributes(0L)));
+        assertThat(longestWaitingTimeMillis(metricsService), contains(new Measurement(0L, Map.of(), false)));
+    }
+
+    private static List<Measurement> shardsByState(CachingSnapshotAndShardByStateMetricsService service) {
+        final List<Measurement> recorded = new ArrayList<>();
+        service.recordShardsByState((value, attributes) -> recorded.add(new Measurement(value, attributes, false)));
+        return recorded;
+    }
+
+    private static List<Measurement> snapshotsByState(CachingSnapshotAndShardByStateMetricsService service) {
+        final List<Measurement> recorded = new ArrayList<>();
+        service.recordSnapshotsByState((value, attributes) -> recorded.add(new Measurement(value, attributes, false)));
+        return recorded;
+    }
+
+    private static List<Measurement> longestWaitingTimeMillis(CachingSnapshotAndShardByStateMetricsService service) {
+        final List<Measurement> recorded = new ArrayList<>();
+        service.recordLongestWaitingTimeMillis((value, attributes) -> recorded.add(new Measurement(value, attributes, false)));
+        return recorded;
     }
 
     private void advanceTime(DeterministicTaskQueue deterministicTaskQueue, long millis) {

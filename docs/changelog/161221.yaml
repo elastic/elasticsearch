@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 161221
-summary: Align partition_spec units with Elasticsearch date formats
-type: enhancement

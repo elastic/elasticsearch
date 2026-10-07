@@ -1031,11 +1031,6 @@ public final class DocumentParser {
             }
 
             @Override
-            protected void checkIncomingMergeType(FieldMapper mergeWith) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
             public Builder getMergeBuilder() {
                 throw new UnsupportedOperationException();
             }

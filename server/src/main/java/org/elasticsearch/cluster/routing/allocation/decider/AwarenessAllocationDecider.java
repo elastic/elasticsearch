@@ -172,7 +172,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         for (String awarenessAttribute : awarenessAttributes) {
             // the node the shard exists on must be associated with an awareness attribute
             if (node.node().getAttributes().containsKey(awarenessAttribute) == false) {
-                return debugNoMissingAttribute(allocation, awarenessAttribute, awarenessAttributes);
+                return createMissingAttributeNoDecision(allocation, awarenessAttribute, awarenessAttributes);
             }
 
             final Set<String> actualAttributeValues = allocation.routingNodes().getAttributeValues(awarenessAttribute);
@@ -214,7 +214,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
             final int maximumShardsPerAttributeValue = (shardCount + valueCount - 1) / valueCount; // ceil(shardCount/valueCount)
             if (shardsForTargetAttributeValue > maximumShardsPerAttributeValue) {
-                return debugNoTooManyCopies(
+                return createTooManyCopiesNoDecision(
                     allocation,
                     shardCount,
                     awarenessAttribute,
@@ -231,7 +231,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         return YES_ALL_MET;
     }
 
-    private static Decision debugNoTooManyCopies(
+    private static Decision createTooManyCopiesNoDecision(
         RoutingAllocation allocation,
         int shardCount,
         String attributeName,
@@ -260,7 +260,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         );
     }
 
-    private static Decision debugNoMissingAttribute(
+    private static Decision createMissingAttributeNoDecision(
         RoutingAllocation allocation,
         String awarenessAttribute,
         List<String> awarenessAttributes

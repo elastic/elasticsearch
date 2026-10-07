@@ -1200,9 +1200,8 @@ public class InternalEngine extends Engine {
             }
             // Below details are stateless specific.
             // The versionMap can still be unsafe (intentionally) for gets at this point due to the archive being unsafe.
-            // There is a gap between a flush and internal refresh (call to `super.refreshInternalSearcher`)
-            // in `IndexEngine#refreshInternalSearcher` above.
-            // Writes that land between these two points may not be in the versionMap since it doesn't enforce safe access yet.
+            // There is a gap between a flush and `enforceSafeAccess()` above.
+            // Writes that land between these two points will not be in the versionMap since it doesn't enforce safe access yet.
             // But they happened after the flush so they are not in the commit captured by `lastUnsafeSegmentGenerationForGets` either!
             // If there are internal refreshes happening for any reason, they can clear the versionMap
             // and also clear the versionMap unsafe flag.
@@ -1210,8 +1209,8 @@ public class InternalEngine extends Engine {
             // the search shard. However, this is wrong as established above since `lastUnsafeSegmentGenerationForGets` does not
             // include the needed write.
             // Normally this is resolved by keeping the version in the archive until we know that the search shard
-            // is aware of the appropriate generation. But in this case since the version map was unsafe, there is nothing
-            // to be stored in the archive.
+            // is aware of the appropriate generation (and as such it's found in the map).
+            // But in this case since the version map was unsafe and there is nothing to be stored in the archive.
         }
 
         return versionMap.getUnderLock(id);

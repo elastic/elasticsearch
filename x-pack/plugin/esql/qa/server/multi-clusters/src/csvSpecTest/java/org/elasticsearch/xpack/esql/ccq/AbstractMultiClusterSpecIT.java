@@ -288,6 +288,10 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
             "Dense vector equality is not supported in CCS unless all nodes support it",
             bothClustersAtCurrentVersion() == false && testCase.requiredCapabilities.contains(DENSE_VECTOR_EQUALITY.capabilityName())
         );
+        assumeFalse(
+            "DENSE_VECTOR command is not supported in CCS unless all nodes support it",
+            bothClustersAtCurrentVersion() == false && testCase.requiredCapabilities.contains(DENSE_VECTOR_COMMAND.capabilityName())
+        );
 
     }
 

@@ -354,6 +354,19 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
         }
 
         {
+            // The template only configures a failures lifecycle, so the backing index is not managed and reports why
+            String backingIndex = waitForDataStreamBackingIndices(dataStreamName, 1).get(0).getName();
+            ExplainDataStreamLifecycleAction.Response response = client().execute(
+                ExplainDataStreamLifecycleAction.INSTANCE,
+                new ExplainDataStreamLifecycleAction.Request(TEST_REQUEST_TIMEOUT, new String[] { backingIndex })
+            ).actionGet();
+            assertThat(response.getIndices().size(), is(1));
+            ExplainIndexDataStreamLifecycle explainIndex = response.getIndices().get(0);
+            assertThat(explainIndex.isManagedByLifecycle(), is(false));
+            assertThat(explainIndex.getUnmanagedReason(), containsString("does not have data stream lifecycle configuration"));
+        }
+
+        {
             // Let's also explain using the data stream name
             ExplainDataStreamLifecycleAction.Request explainIndicesRequest = new ExplainDataStreamLifecycleAction.Request(
                 TEST_REQUEST_TIMEOUT,
@@ -551,6 +564,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                 assertThat(explainIndex.isManagedByLifecycle(), is(false));
                 assertThat(explainIndex.getIndex(), is(firstGenerationIndex));
                 assertThat(explainIndex.getIndexCreationDate(), nullValue());
+                assertThat(explainIndex.getUnmanagedReason(), containsString("has disabled data stream lifecycle"));
                 assertThat(explainIndex.getLifecycle(), nullValue());
                 assertThat(explainIndex.getGenerationTime(System::currentTimeMillis), nullValue());
                 assertThat(explainIndex.getRolloverDate(), nullValue());

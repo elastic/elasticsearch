@@ -462,7 +462,7 @@ Because federated data does not live in {{es}}, the system discovers schemas bef
 - Parquet reads its schema from file metadata, which also provides column statistics and bloom filters that the engine uses to skip irrelevant data.
 - For CSV, TSV, and NDJSON, schemas are inferred by sampling rows from the data files.
 
-{applies_to}`stack: experimental 9.6+` NDJSON inference skips malformed lines, including lines that repeat a key in the same object (for example `{"a":1,"a":2}`). Such a line contributes no columns, even for fields it names before the point where parsing fails, and does not count toward `schema_sample_size` or `schema_max_fields`. A column that appears only on malformed lines is therefore absent from the schema. When the file is read, the same lines are handled according to the dataset's [`error_mode`](#common-settings).
+{applies_to}`stack: experimental 9.6+` NDJSON inference skips malformed lines, including lines that repeat a key in the same object (for example `{"a":1,"a":2}`). Such a line contributes no columns, even for fields it names before the point where parsing fails. It also does not count toward `schema_sample_size` or `schema_max_fields`. A column that appears only on malformed lines is therefore absent from the schema. When the file is read, the same lines are handled according to the dataset's [`error_mode`](#common-settings).
 
 ### Schema merge strategies
 

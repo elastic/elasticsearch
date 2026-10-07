@@ -35,6 +35,8 @@ public class InboundAggregator implements Releasable {
     private Exception aggregationException;
     private boolean canTripBreaker = true;
     private boolean isClosed = false;
+    // Bytes charged to the breaker for the current message before it finished aggregating; handed to the BreakerControl on finish
+    private int chargedBytes = 0;
 
     public InboundAggregator(
         Supplier<CircuitBreaker> circuitBreaker,
@@ -79,6 +81,21 @@ public class InboundAggregator implements Releasable {
         ensureOpen();
         assert isAggregating();
         if (isShortCircuited() == false) {
+            // Charging each fragment as it arrives, rather than reserving the declared size once up front, means every fragment is checked
+            // against the memory in use at that moment, so a message that arrives alongside others trips as the heap fills. Only requests
+            // whose action name is already known can be charged, anything else is charged in checkBreaker once it has all been read.
+            if (currentHeader.isRequest() && currentHeader.needsToReadVariableHeader() == false && content.length() > 0) {
+                if (reserveBreakerBytes(content.length(), currentHeader.getActionName())) {
+                    chargedBytes += content.length();
+                } else {
+                    // The breaker tripped: stop holding on to what has been read so far, the rest of the message is discarded
+                    releaseContent();
+                    firstContent = null;
+                    contentAggregation = null;
+                    releaseChargedBytes();
+                    return;
+                }
+            }
             if (isFirstContent()) {
                 firstContent = content.retain();
             } else {
@@ -107,6 +124,8 @@ public class InboundAggregator implements Releasable {
         }
 
         final BreakerControl breakerControl = new BreakerControl(circuitBreaker);
+        breakerControl.addReservedBytes(chargedBytes);
+        chargedBytes = 0;
         final InboundMessage aggregated = new InboundMessage(currentHeader, releasableContent, breakerControl);
         boolean success = false;
         try {
@@ -160,7 +179,15 @@ public class InboundAggregator implements Releasable {
 
     private void closeCurrentAggregation() {
         releaseContent();
+        releaseChargedBytes();
         resetCurrentAggregation();
+    }
+
+    private void releaseChargedBytes() {
+        if (chargedBytes > 0) {
+            circuitBreaker.get().addWithoutBreaking(-chargedBytes);
+        }
+        chargedBytes = 0;
     }
 
     private void releaseContent() {
@@ -205,22 +232,35 @@ public class InboundAggregator implements Releasable {
         return header.isCompressed() == (header.getCompressionScheme() != null);
     }
 
+    /**
+     * @return whether the bytes were reserved; {@code false} if the breaker tripped, in which case the aggregation is short-circuited
+     */
+    private boolean reserveBreakerBytes(int bytes, String label) {
+        if (canTripBreaker) {
+            try {
+                circuitBreaker.get().addEstimateBytesAndMaybeBreak(bytes, label);
+            } catch (CircuitBreakingException e) {
+                shortCircuit(e);
+                return false;
+            }
+        } else {
+            circuitBreaker.get().addWithoutBreaking(bytes);
+        }
+        return true;
+    }
+
     private void checkBreaker(final Header header, final int contentLength, final BreakerControl breakerControl) {
         if (header.isRequest() == false) {
             return;
         }
         assert header.needsToReadVariableHeader() == false;
 
-        if (canTripBreaker) {
-            try {
-                circuitBreaker.get().addEstimateBytesAndMaybeBreak(contentLength, header.getActionName());
-                breakerControl.setReservedBytes(contentLength);
-            } catch (CircuitBreakingException e) {
-                shortCircuit(e);
-            }
-        } else {
-            circuitBreaker.get().addWithoutBreaking(contentLength);
-            breakerControl.setReservedBytes(contentLength);
+        // Everything was charged fragment by fragment as it arrived, unless the action name was only parsed along with the content, in
+        // which case nothing could be charged until now.
+        final int uncharged = contentLength - breakerControl.reservedBytes();
+        assert uncharged >= 0 : "charged more than the content length: " + uncharged;
+        if (uncharged > 0 && reserveBreakerBytes(uncharged, header.getActionName())) {
+            breakerControl.addReservedBytes(uncharged);
         }
     }
 
@@ -235,9 +275,13 @@ public class InboundAggregator implements Releasable {
             this.circuitBreaker = circuitBreaker;
         }
 
-        private void setReservedBytes(int reservedBytes) {
-            final boolean set = bytesToRelease.compareAndSet(0, reservedBytes);
-            assert set : "Expected bytesToRelease to be 0, found " + bytesToRelease.get();
+        private void addReservedBytes(int reservedBytes) {
+            final int updated = bytesToRelease.addAndGet(reservedBytes);
+            assert updated >= 0 : "Expected bytesToRelease to be non-negative, found " + updated;
+        }
+
+        private int reservedBytes() {
+            return bytesToRelease.get();
         }
 
         @Override

@@ -495,6 +495,8 @@ $$$ndjson-schema-sample-size$$$
 
     The sample determines whether sparse or late-appearing fields get a column. To learn how schemas are inferred, refer to [schema inference](esql-data-federation-schema.md).
 
+    {applies_to}`stack: experimental 9.6+` NDJSON inference skips malformed lines, including lines that repeat a key in the same object, for example `{"a":1,"a":2}`. A malformed line contributes no columns, even for fields it names before parsing fails, and doesn't count toward `schema_sample_size` or `schema_max_fields`. A column that appears only on malformed lines is absent from the schema. When the file is read, those lines are handled according to the dataset's [`error_mode`](#error-mode).
+
 ### Advanced NDJSON settings
 
 These settings tune parallel reading, date parsing, and schema size limits for NDJSON files.

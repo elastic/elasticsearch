@@ -163,9 +163,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     /**
      * Names declared by the {@code LET} prefix clause of the current statement.
-     * Populated before the main query is visited so that {@link #visitLogicalIn} can
-     * recognise {@code value IN (letName)} and emit {@link InSubquery} instead of {@link
-     * org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In}.
+     * Populated before the main query is visited so that {@link #visitLogicalInLetBinding} and
+     * {@link #visitLogicalInMultiColumnLetBinding} can reject references to undeclared names.
      */
     private Set<String> declaredLetBindingNames = Set.of();
 
@@ -202,8 +201,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (ctx.letCommand() == null) {
             letBindings = List.of();
         } else {
-            // Collect all binding names first so that visitLogicalIn can recognise
-            // `value IN (letName)` in both binding bodies and the main query.
+            // Collect all binding names first so that visitLogicalInLetBinding and
+            // visitLogicalInMultiColumnLetBinding can reject undeclared names.
             declaredLetBindingNames = ctx.letCommand()
                 .letBinding()
                 .stream()
@@ -244,36 +243,42 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public Expression visitLogicalInLetBinding(EsqlBaseParser.LogicalInLetBindingContext ctx) {
-        Expression value = expression(ctx.valueExpression());
         String name = visitIdentifier(ctx.identifier());
+        if (declaredLetBindingNames.contains(name) == false) {
+            throw new ParsingException(source(ctx), "unknown LET binding [{}]", name);
+        }
+        Expression value = expression(ctx.valueExpression());
+        Source source = source(ctx);
         LogicalPlan subqueryPlan = new UnresolvedRelation(
-            source(ctx),
-            new IndexPattern(source(ctx), name),
+            source,
+            new IndexPattern(source, name),
             false,
             List.of(),
             org.elasticsearch.index.IndexMode.STANDARD,
             null,
             "LET"
         );
-        Source source = source(ctx);
         Expression e = new InSubquery(source, value, subqueryPlan);
         return ctx.NOT() == null ? e : new Not(source, e);
     }
 
     @Override
     public Expression visitLogicalInMultiColumnLetBinding(EsqlBaseParser.LogicalInMultiColumnLetBindingContext ctx) {
-        List<Expression> values = ctx.valueExpression().stream().map(this::expression).toList();
         String name = visitIdentifier(ctx.identifier());
+        if (declaredLetBindingNames.contains(name) == false) {
+            throw new ParsingException(source(ctx), "unknown LET binding [{}]", name);
+        }
+        List<Expression> values = ctx.valueExpression().stream().map(this::expression).toList();
+        Source source = source(ctx);
         LogicalPlan subqueryPlan = new UnresolvedRelation(
-            source(ctx),
-            new IndexPattern(source(ctx), name),
+            source,
+            new IndexPattern(source, name),
             false,
             List.of(),
             org.elasticsearch.index.IndexMode.STANDARD,
             null,
             "LET"
         );
-        Source source = source(ctx);
         Expression e = new MultiColumnInSubquery(source, values, subqueryPlan);
         return ctx.NOT() == null ? e : new Not(source, e);
     }
@@ -553,13 +558,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     /**
-     * Overrides the base class to handle {@code value IN (letName)} — the parenthesised form of
-     * a LET binding reference.  The {@code IN_SUBQUERY_LP} lexer rule directs {@code IN (FROM ...)},
-     * {@code IN (ROW ...)}, etc., to {@code #logicalInSubquery}; a plain {@code IN (name)} falls
-     * here as a single-element {@code #logicalIn}.  When the single element is an unresolved
-     * attribute whose name matches a declared LET binding we emit {@link InSubquery} so that
-     * {@link org.elasticsearch.xpack.esql.analysis.LetResolver} and
-     * {@link org.elasticsearch.xpack.esql.analysis.InSubqueryResolver} handle it correctly.
+     * Rejects {@code value IN (letName)} when {@code letName} matches a declared LET binding.
+     * The bare form {@code value IN letName} is the only supported way to reference a binding.
+     * Without this check the parenthesised form would silently become a single-element value list.
      */
     @Override
     public Expression visitLogicalIn(EsqlBaseParser.LogicalInContext ctx) {
@@ -567,22 +568,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled() && valueExprs.size() == 2 && declaredLetBindingNames.isEmpty() == false) {
             Expression possibleName = expression(valueExprs.get(1));
             if (possibleName instanceof UnresolvedAttribute ua && declaredLetBindingNames.contains(ua.qualifiedName())) {
-                Expression value = expression(valueExprs.get(0));
-                Source source = source(ctx);
-                LogicalPlan subqueryPlan = new UnresolvedRelation(
-                    source,
-                    new IndexPattern(source, ua.name()),
-                    false,
-                    List.of(),
-                    org.elasticsearch.index.IndexMode.STANDARD,
-                    null,
-                    "LET"
+                throw new ParsingException(
+                    source(ctx),
+                    "use the bare form [IN {}] to reference a LET binding; [IN ({})] is not supported",
+                    ua.qualifiedName(),
+                    ua.qualifiedName()
                 );
-                Expression e = new InSubquery(source, value, subqueryPlan);
-                return ctx.NOT() == null ? e : new Not(source, e);
             }
         }
-        // Delegate to the base class for normal IN value lists.
         return super.visitLogicalIn(ctx);
     }
 

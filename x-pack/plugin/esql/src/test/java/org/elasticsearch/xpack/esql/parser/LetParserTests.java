@@ -120,27 +120,14 @@ public class LetParserTests extends AbstractStatementParserTests {
         assertThat(filter.condition().children().get(0), instanceOf(InSubquery.class));
     }
 
-    /** {@code x IN (name)} — parenthesised single-column form (same-name LET binding) */
-    public void testInParenthesisedSingleNameMatchingLet() {
+    /** {@code x IN (name)} where name is a LET binding must be a parse error; use bare form. */
+    public void testInParenthesisedLetBindingRejected() {
         assumeLet();
-        EsqlStatement stmt = statement("LET top3 = (FROM idx | LIMIT 3); FROM src | WHERE ext IN (top3)");
-        Filter filter = as(stmt.plan(), Filter.class);
-        assertThat(filter.condition(), instanceOf(InSubquery.class));
-        InSubquery inSub = (InSubquery) filter.condition();
-        UnresolvedRelation ur = (UnresolvedRelation) inSub.subquery();
-        assertThat(ur.indexPattern().indexPattern(), is("top3"));
-    }
-
-    /**
-     * {@code x IN (real_field)} — parenthesised form where the name does NOT match any LET
-     * binding: must NOT emit InSubquery (the base class In/Equals path applies).
-     */
-    public void testInParenthesisedSingleNameNotMatchingLet() {
-        assumeLet();
-        EsqlStatement stmt = statement("LET top3 = (FROM idx | LIMIT 3); FROM src | WHERE ext IN (some_field)");
-        Filter filter = as(stmt.plan(), Filter.class);
-        // The condition must NOT be InSubquery — "some_field" is not a binding name.
-        assertThat(filter.condition(), not(instanceOf(InSubquery.class)));
+        ParsingException pe = expectThrows(
+            ParsingException.class,
+            () -> statement("LET top3 = (FROM idx | LIMIT 3); FROM src | WHERE ext IN (top3)")
+        );
+        assertThat(pe.getMessage(), containsString("use the bare form [IN top3] to reference a LET binding; [IN (top3)] is not supported"));
     }
 
     /** {@code (a, b) IN name} — bare multi-column form */

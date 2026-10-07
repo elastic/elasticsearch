@@ -47,15 +47,13 @@ import java.util.Map;
  * within a single pass — no cycle guard is needed.</p>
  *
  * <h2>One-pass substitution</h2>
- * <p>{@link #substitute} performs a <em>one-pass</em> substitution: every node that already
- * belongs to a resolved binding body is skipped when encountered during {@code transformDown}.
- * This is necessary because {@code transformDown} descends into newly introduced subtrees after
- * a replacement. Without this guard, a binding body such as {@code LET a = (FROM a | LIMIT 1)}
- * would cause infinite re-substitution: the inner {@code FROM a} (which refers to the ES index
- * {@code a}, not the LET binding) would be repeatedly replaced, causing a
- * {@link StackOverflowError}. The guard is identity-based so that only actual object instances
- * from resolved bodies are protected — fresh {@code UnresolvedRelation} objects in the original
- * plan are still substituted normally.</p>
+ * <p>{@link #substitute} uses {@code transformDownSkipBranch}: when a replacement is made the
+ * replacement subtree is not descended into. This enforces sequential scoping — a binding body
+ * that was evaluated against the partial map (bindings declared before it) is not re-expanded
+ * with later bindings when it appears as a replacement. It also prevents infinite re-substitution
+ * for self-referential names: {@code LET a = (FROM a | LIMIT 1)} (where {@code FROM a} refers
+ * to the ES index {@code a}) would otherwise loop indefinitely. Self-referential and forward
+ * references are caught by {@link #checkBindingReferences} after substitution.</p>
  *
  */
 public final class LetResolver {
@@ -82,12 +80,14 @@ public final class LetResolver {
             var current = substitute(binding.plan(), resolved);
             resolved.put(binding.name(), current);
             // After resolving the current binding, it should not contain references to previous ones (or itself). Otherwise we have a cycle
-            checkForCycles(current, resolved);
+            checkBindingReferences(current, resolved, "Circular reference detected in LET bindings");
         }
 
         // Substitute the full map into the main query plan.
         var result = substitute(plan, resolved);
-        checkForCycles(result, resolved);
+        // Any remaining binding reference in the query after all substitutions must come from a forward reference
+        // This is because after resolution any binding does not contain references to previous ones
+        checkBindingReferences(result, resolved, "Forward reference in LET bindings: [{}] cannot be referenced before its declaration");
         return result;
     }
 
@@ -104,15 +104,23 @@ public final class LetResolver {
             return plan;
         }
 
-        return plan.transformDown(p -> {
+        // transformDownSkipBranch: when a replacement is made, set skipBranch so the replacement
+        // subtree is not descended into. This enforces sequential scoping — a binding body that was
+        // already evaluated against its own (partial) resolved map is not re-expanded with later
+        // bindings when it appears as a replacement in the main query or an outer binding body.
+        return plan.transformDownSkipBranch((p, skipBranch) -> {
             if (p instanceof UnresolvedRelation ur) {
                 String pattern = ur.indexPattern().indexPattern();
                 LogicalPlan bound = resolved.get(pattern);
-                return bound != null ? bound : ur;
+                if (bound != null) {
+                    skipBranch.set(true);
+                    return bound;
+                }
+                return ur;
             }
             // InSubquery and MultiColumnInSubquery carry a LogicalPlan field that is not part of the
-            // plan-node children, so transformDown cannot reach it via the normal child traversal.
-            // Substitute into those plans explicitly here.
+            // plan-node children, so transformDownSkipBranch cannot reach it via the normal child
+            // traversal. Substitute into those plans explicitly here.
             LogicalPlan result = p.transformExpressionsOnly(InSubquery.class, inSub -> {
                 LogicalPlan newSubquery = substitute(inSub.subquery(), resolved);
                 return newSubquery != inSub.subquery() ? new InSubquery(inSub.source(), inSub.value(), newSubquery) : inSub;
@@ -124,7 +132,7 @@ public final class LetResolver {
         });
     }
 
-    private static void checkForCycles(LogicalPlan plan, Map<String, LogicalPlan> resolved) {
+    private static void checkBindingReferences(LogicalPlan plan, Map<String, LogicalPlan> resolved, String errorMessage) {
         if (resolved.isEmpty()) {
             return;
         }
@@ -133,11 +141,14 @@ public final class LetResolver {
             if (p instanceof UnresolvedRelation ur) {
                 String pattern = ur.indexPattern().indexPattern();
                 if (resolved.containsKey(pattern)) {
-                    throw new VerificationException("Circular reference detected in LET bindings");
+                    throw new VerificationException(errorMessage, pattern);
                 }
             }
-            p.forEachExpression(InSubquery.class, inSub -> { checkForCycles(inSub.subquery(), resolved); });
-            p.forEachExpression(MultiColumnInSubquery.class, mcsub -> { checkForCycles(mcsub.subquery(), resolved); });
+            p.forEachExpression(InSubquery.class, inSub -> { checkBindingReferences(inSub.subquery(), resolved, errorMessage); });
+            p.forEachExpression(
+                MultiColumnInSubquery.class,
+                mcsub -> { checkBindingReferences(mcsub.subquery(), resolved, errorMessage); }
+            );
         });
     }
 

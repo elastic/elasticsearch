@@ -183,6 +183,26 @@ public class LetResolverTests extends ESTestCase {
     }
 
     // -----------------------------------------------------------------------
+    // Forward references (binding A referencing binding B declared later)
+    // -----------------------------------------------------------------------
+
+    public void testForwardReferenceIsRejected() {
+        // LET a = (FROM b | LIMIT 1); -- a references b, declared later (forward reference)
+        // LET b = (FROM real_index);
+        // FROM a
+        //
+        // Sequential scoping: a is evaluated against the empty map (b is not yet declared),
+        // so UR("b") survives unresolved in a's body. The main substitution replaces UR("a")
+        // with Limit(UR("b")) and does NOT descend into the replacement (transformDownSkipBranch).
+        // checkForForwardReferences then finds UR("b") ∈ resolved and rejects the forward reference.
+        LetBinding a = binding("a", withLimit(relation("b")));
+        LetBinding b = binding("b", relation("real_index"));
+
+        var e = expectThrows(VerificationException.class, () -> LetResolver.resolve(relation("a"), List.of(a, b)));
+        assertThat(e.getMessage(), containsString("Forward reference in LET bindings: [b] cannot be referenced before its declaration"));
+    }
+
+    // -----------------------------------------------------------------------
     // Substitution into multiple positions
     // -----------------------------------------------------------------------
 

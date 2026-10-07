@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.vector;
 
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -88,6 +88,14 @@ public class Knn extends SingleFieldFullTextFunction
         VectorFunction,
         PostOptimizationVerificationAware,
         ConfigurationFunction {
+
+    /**
+     * Marks nodes that run KNN's runtime search (over a non-index-mapped field or expression) by default, rather than
+     * only behind the now-removed snapshot build + pragma gate. Older nodes have the runtime evaluators but keep them
+     * disabled, so they mis-plan such a query; the {@code Verifier} uses this to fail fast with a 4xx when any
+     * participating node (including a CCS remote) predates the release.
+     */
+    public static final TransportVersion ESQL_KNN_RUNTIME_FIELD = TransportVersion.fromName("esql_knn_runtime_field");
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", Knn::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Knn.class)
@@ -268,17 +276,8 @@ public class Knn extends SingleFieldFullTextFunction
         return new Knn(source(), field(), query(), options(), implicitK(), queryBuilder, filterExpressions(), configuration);
     }
 
-    /** Unlike the lexical search functions, KNN's runtime search is still gated behind a pragma. */
-    @Override
-    public boolean supportsRuntimeSearch() {
-        return Build.current().isSnapshot() && configuration.pragmas().knnRuntimeField();
-    }
-
     @Override
     public boolean isRuntimeSearch() {
-        if (supportsRuntimeSearch() == false) {
-            return false;
-        }
         FieldAttribute fieldAttribute = fieldAsFieldAttribute();
         if (fieldAttribute == null) {
             // This isn't a field in the index OR a pushed block loader

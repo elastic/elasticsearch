@@ -4092,7 +4092,7 @@ public class EsqlCapabilities {
         /**
          * KNN function support for runtime expressions, not just ES mapped fields.
          */
-        KNN_RUNTIME_FIELD(Build.current().isSnapshot()),
+        KNN_RUNTIME_FIELD,
 
         /**
          * Support for {@code MATCH}, {@code MATCH_PHRASE}, and the match operator in a {@code WHERE}

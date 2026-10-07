@@ -600,7 +600,6 @@ dense vector command output feeds runtime knn filter
 required_capability: dense_vector_command_v3
 required_capability: dense_vector_field_type_released
 required_capability: knn_runtime_field
-pragma: knn_runtime_field=true
 
 FROM books
 | WHERE book_no IN ("2924", "7381", "7670")
@@ -622,7 +621,6 @@ dense vector command output feeds runtime knn with score
 required_capability: dense_vector_command_v3
 required_capability: dense_vector_field_type_released
 required_capability: knn_runtime_field
-pragma: knn_runtime_field=true
 
 FROM books metadata _score
 | WHERE book_no IN ("2924", "7381", "7670")
@@ -645,7 +643,6 @@ dense vector command output feeds runtime knn with similarity threshold
 required_capability: dense_vector_command_v3
 required_capability: dense_vector_field_type_released
 required_capability: knn_runtime_field
-pragma: knn_runtime_field=true
 
 FROM books
 | WHERE book_no IN ("2924", "7381", "7670")
@@ -664,7 +661,6 @@ dense vector command output feeds runtime knn with boost and score
 required_capability: dense_vector_command_v3
 required_capability: dense_vector_field_type_released
 required_capability: knn_runtime_field
-pragma: knn_runtime_field=true
 
 FROM books metadata _score
 | WHERE book_no IN ("2924", "7381", "7670")
@@ -685,7 +681,6 @@ dense vector command suffix output feeds runtime knn
 required_capability: dense_vector_command_v3
 required_capability: dense_vector_field_type_released
 required_capability: knn_runtime_field
-pragma: knn_runtime_field=true
 
 FROM books
 | WHERE book_no IN ("2924", "7381", "7670")
@@ -706,7 +701,6 @@ dense vector command multi field output feeds runtime knn on one column
 required_capability: dense_vector_command
 required_capability: dense_vector_field_type_released
 required_capability: knn_runtime_field
-pragma: knn_runtime_field=true
 
 FROM books
 | WHERE book_no IN ("2924", "7381", "7670")
@@ -724,7 +718,6 @@ dense vector command over an eval column feeds runtime knn
 required_capability: dense_vector_command_v3
 required_capability: dense_vector_field_type_released
 required_capability: knn_runtime_field
-pragma: knn_runtime_field=true
 
 FROM books
 | WHERE book_no IN ("2924", "7381", "7670")

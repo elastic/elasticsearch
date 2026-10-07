@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
+import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
@@ -154,6 +155,7 @@ public class Verifier {
         checkTStepIncompatibleWithTRange(plan, failures);
         checkTimeSeriesCollapseSupported(plan, failures, context.minimumVersion());
         checkHighlightSupported(plan, failures, context.minimumVersion());
+        checkKnnRuntimeSearchSupported(plan, failures, context.minimumVersion());
 
         // collect plan checkers
         var planCheckers = planCheckers(plan, context.analysisRegistry());
@@ -230,6 +232,31 @@ public class Verifier {
                     fail(
                         highlight,
                         "HIGHLIGHT with a derived query or field list is not supported on every participating node; "
+                            + "rolling upgrade in progress, or a remote cluster is on an older version"
+                    )
+                );
+            }
+        });
+    }
+
+    /**
+     * KNN function on runtime dense_vector fields or expressions is enabled by default since {@link Knn#ESQL_KNN_RUNTIME_FIELD}.
+     * Older nodes may be running a version which does not support runtime KNN at all or a version which disables it by default.
+     * <p>
+     * Such a scenario may lead to partial or errors down the line. Instead, fail fast with a 4xx here when any participating
+     * node - including a CCS remote, which can lag by whole versions for a long time - predates the release.
+     * Indexed-field KNN is pushed down as a {@code KnnQuery} that older nodes handle fine, so only the runtime path is gated.
+     */
+    private static void checkKnnRuntimeSearchSupported(LogicalPlan plan, Failures failures, TransportVersion minimumVersion) {
+        if (minimumVersion.supports(Knn.ESQL_KNN_RUNTIME_FIELD)) {
+            return;
+        }
+        plan.forEachExpressionDown(Knn.class, knn -> {
+            if (knn.isRuntimeSearch()) {
+                failures.add(
+                    fail(
+                        knn,
+                        "KNN over a non-index-mapped field or expression is not supported on every participating node; "
                             + "rolling upgrade in progress, or a remote cluster is on an older version"
                     )
                 );

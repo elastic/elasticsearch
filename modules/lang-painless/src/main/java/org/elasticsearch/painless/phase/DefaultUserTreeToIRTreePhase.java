@@ -1861,11 +1861,11 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 }
 
                 if (write == false || compound) {
+                    PainlessMethod getter = scriptScope.getDecoration(userDotNode, GetterPainlessMethod.class).getterPainlessMethod();
                     LoadListShortcutNode irLoadListShortcutNode = new LoadListShortcutNode(location);
                     irLoadListShortcutNode.attachDecoration(new IRDExpressionType(valueType));
-                    irLoadListShortcutNode.attachDecoration(
-                        new IRDMethod(scriptScope.getDecoration(userDotNode, GetterPainlessMethod.class).getterPainlessMethod())
-                    );
+                    irLoadListShortcutNode.attachDecoration(new IRDMethod(getter));
+                    attachAllocationEstimator(irLoadListShortcutNode, scriptScope, getter);
                     irLoadNode = irLoadListShortcutNode;
                 }
 
@@ -1944,6 +1944,10 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 LoadBraceDefNode irLoadBraceDefNode = new LoadBraceDefNode(location);
                 irLoadBraceDefNode.attachDecoration(new IRDExpressionType(valueType));
                 irLoadBraceDefNode.attachDecoration(new IRDIndexType(indexType));
+                // Push the script when the read may hit a list get(int) with an estimator; the bootstrap charges or drops it.
+                if (DefaultSemanticAnalysisPhase.defBraceLoadNeedsScript(scriptScope, indexType)) {
+                    irLoadBraceDefNode.attachCondition(IRCScriptAware.class);
+                }
                 irLoadNode = irLoadBraceDefNode;
             }
         } else if (scriptScope.getCondition(userBraceNode, MapShortcut.class)) {
@@ -1983,6 +1987,8 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 LoadListShortcutNode irLoadListShortcutNode = new LoadListShortcutNode(location);
                 irLoadListShortcutNode.attachDecoration(new IRDExpressionType(valueType));
                 irLoadListShortcutNode.attachDecoration(new IRDMethod(getter));
+                // A list read through brackets charges the receiver type's get(int) estimator like a call would.
+                attachAllocationEstimator(irLoadListShortcutNode, scriptScope, getter);
                 irLoadNode = irLoadListShortcutNode;
             }
         } else {

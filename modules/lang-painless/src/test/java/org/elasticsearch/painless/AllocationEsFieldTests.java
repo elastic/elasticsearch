@@ -154,6 +154,9 @@ public class AllocationEsFieldTests extends AllocationTestCase {
             allocatedBytes("ScriptDocValues.Longs f = (ScriptDocValues.Longs) params.field; f.get(0)", longParams)
         );
         assertEquals(0L, allocatedBytes("long v = ((ScriptDocValues.Longs) params.field).getValue(); return null;", longParams));
+        // The def bracket form reaches the same get(int). (The typed form does not compile on these classes: get returns Long
+        // while the inherited set takes def, and the list shortcut requires them to match.)
+        assertEquals(AllocSizes.boxSize(long.class), allocatedBytes("params.field[0]", longParams));
 
         DoubleDocValuesField doubles = new DoubleDocValuesField(doubleDocValues(2.5), "test");
         doubles.setNextDocId(0);

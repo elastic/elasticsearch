@@ -2046,6 +2046,20 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.writeDebugInfo(irLoadListShortcutNode.getLocation());
 
         PainlessMethod getterPainlessMethod = irLoadListShortcutNode.getDecorationValue(IRDMethod.class);
+
+        // The stack holds the receiver and the index. Charge the get(int) estimator before the read, as a call site does.
+        java.lang.reflect.Method getterEstimator = irLoadListShortcutNode.getDecorationValue(IRDAllocationEstimator.class);
+        if (getterEstimator != null && isAllocationTrackingActive(writeScope)) {
+            Variable[] operands = writeDynamicAllocationCheck(
+                writeScope,
+                methodWriter,
+                "listOperand",
+                getterPainlessMethod.methodType().parameterArray(),
+                getterEstimator
+            );
+            loadCallOperands(methodWriter, operands);
+        }
+
         methodWriter.invokeMethodCall(getterPainlessMethod);
 
         if (getterPainlessMethod.returnType() != getterPainlessMethod.javaMethod().getReturnType()) {
@@ -2087,12 +2101,18 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
     public void visitLoadBraceDef(LoadBraceDefNode irLoadBraceDefNode, WriteScope writeScope) {
         MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeDebugInfo(irLoadBraceDefNode.getLocation());
-        Type methodType = Type.getMethodType(
-            MethodWriter.getType(irLoadBraceDefNode.getDecorationValue(IRDExpressionType.class)),
-            MethodWriter.getType(def.class),
-            MethodWriter.getType(irLoadBraceDefNode.getDecorationValue(IRDIndexType.class))
-        );
-        methodWriter.invokeDefCall("arrayLoad", methodType, DefBootstrap.ARRAY_LOAD);
+        Type returnType = MethodWriter.getType(irLoadBraceDefNode.getDecorationValue(IRDExpressionType.class));
+        Type indexType = MethodWriter.getType(irLoadBraceDefNode.getDecorationValue(IRDIndexType.class));
+
+        if (irLoadBraceDefNode.hasCondition(IRCScriptAware.class)) {
+            // The read may hit a list get(int) with an estimator: pass the script after the index and tell the bootstrap.
+            methodWriter.loadThis();
+            Type methodType = Type.getMethodType(returnType, MethodWriter.getType(def.class), indexType, WriterConstants.CLASS_TYPE);
+            methodWriter.invokeDefCall("arrayLoad", methodType, DefBootstrap.ARRAY_LOAD, 1);
+        } else {
+            Type methodType = Type.getMethodType(returnType, MethodWriter.getType(def.class), indexType);
+            methodWriter.invokeDefCall("arrayLoad", methodType, DefBootstrap.ARRAY_LOAD);
+        }
     }
 
     @Override

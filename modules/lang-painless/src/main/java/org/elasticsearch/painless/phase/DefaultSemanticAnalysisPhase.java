@@ -2696,6 +2696,16 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                 && hasAnnotatedGetter(painlessLookup, AllocatesAnnotation.class, name));
     }
 
+    /**
+     * Whether a def bracket read with an index of {@code indexType} must pass the script instance: tracking is on and some
+     * allowlisted class has a {@code get(int)} with an {@code @allocates} estimator. A String index can only be a map key.
+     */
+    static boolean defBraceLoadNeedsScript(ScriptScope scriptScope, Class<?> indexType) {
+        return indexType != String.class
+            && scriptScope.getCompilerSettings().isAllocationTrackingEnabled()
+            && scriptScope.getPainlessLookup().hasAnnotationAwareMethod(AllocatesAnnotation.class, "get", 1);
+    }
+
     private static boolean hasAnnotatedGetter(PainlessLookup painlessLookup, Class<?> annotationType, String name) {
         if (name.isEmpty()) {
             return false;
@@ -3110,6 +3120,12 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
             if (write) {
                 semanticScope.setCondition(userBraceNode, DefOptimized.class);
+            }
+
+            // A def bracket read may resolve to a list get(int) with an estimator, which needs the script instance.
+            Class<?> indexValueType = semanticScope.getDecoration(userIndexNode, ValueType.class).valueType();
+            if (defBraceLoadNeedsScript(semanticScope.getScriptScope(), indexValueType)) {
+                semanticScope.setUsesInstanceMethod();
             }
         } else if (Map.class.isAssignableFrom(prefixValueType)) {
             String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(prefixValueType);

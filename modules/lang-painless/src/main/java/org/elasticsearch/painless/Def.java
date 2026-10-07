@@ -853,21 +853,42 @@ public final class Def {
     /**
      * Returns a method handle to do an array load.
      * @param receiverClass Class of the array to load the value from
+     * @param scriptPushed whether the call site passes the script instance after the index. A list whose {@code get(int)} carries
+     *   an {@code @allocates} estimator then charges it before the read; anything else drops the script.
      * @return a MethodHandle that accepts the receiver as first argument, the index as second argument.
      *   It returns the loaded value.
      */
-    static MethodHandle lookupArrayLoad(Class<?> receiverClass) {
+    static MethodHandle lookupArrayLoad(PainlessLookup painlessLookup, Class<?> receiverClass, boolean scriptPushed) {
+        MethodHandle load;
         if (receiverClass.isArray()) {
-            return MethodHandles.arrayElementGetter(receiverClass);
+            load = MethodHandles.arrayElementGetter(receiverClass);
         } else if (Map.class.isAssignableFrom(receiverClass)) {
             // maps allow access like mymap[key]
-            return MAP_GET;
+            load = MAP_GET;
         } else if (List.class.isAssignableFrom(receiverClass)) {
-            return LIST_GET;
+            load = LIST_GET;
+        } else {
+            throw new IllegalArgumentException(
+                "Attempting to address a non-array type " + "[" + receiverClass.getCanonicalName() + "] as an array."
+            );
         }
-        throw new IllegalArgumentException(
-            "Attempting to address a non-array type " + "[" + receiverClass.getCanonicalName() + "] as an array."
+
+        if (scriptPushed == false) {
+            return load;
+        }
+        Method estimator = load == LIST_GET ? painlessLookup.lookupRuntimeAllocationEstimator(receiverClass, "get", 1) : null;
+        if (estimator == null) {
+            return MethodHandles.dropArguments(load, 2, PainlessScript.class);
+        }
+        // Charge with the script between receiver and index, the shape chargeAllocationBeforeCall expects, then put it last.
+        MethodHandle charged = chargeAllocationBeforeCall(
+            MethodHandles.dropArguments(load, 1, PainlessScript.class),
+            estimator,
+            new Object[0],
+            false
         );
+        MethodType type = load.type().appendParameterTypes(PainlessScript.class);
+        return MethodHandles.permuteArguments(charged, type, 0, 2, 1);
     }
 
     private static ClassCastException castException(Class<?> sourceClass, Class<?> targetClass, Boolean implicit) {

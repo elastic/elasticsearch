@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
+import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -228,7 +229,11 @@ final class RunningFileStatsFold {
             meta.config()
         );
         List<String> warnings = meta.warnings();
-        return warnings.isEmpty() ? slimMeta : slimMeta.withWarnings(warnings);
+        if (warnings.isEmpty() == false) {
+            slimMeta = slimMeta.withWarnings(warnings);
+        }
+        List<WidenedColumn> widenedColumns = meta.widenedColumns();
+        return widenedColumns.isEmpty() ? slimMeta : slimMeta.withWidenedColumns(widenedColumns);
     }
 
     private Map<String, Object> adjust(int index, SourceMetadata meta, Map<String, Object> flat) {

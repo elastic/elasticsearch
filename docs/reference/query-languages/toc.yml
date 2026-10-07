@@ -436,6 +436,7 @@ toc:
           - file: esql/esql-data-federation-datasets.md
             children:
               - file: esql/esql-data-federation-patterns.md
+              - file: esql/esql-data-federation-partition-spec.md
           - file: esql/esql-data-federation-querying.md
           - file: esql/esql-data-federation-security.md
           - file: esql/esql-data-federation-cluster-settings.md

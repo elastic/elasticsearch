@@ -38,9 +38,15 @@ public final class MlDatafeedRestCapabilities {
     }
 
     public static Set<String> supportedCapabilities(boolean mlCrossProjectSearchEnabled, boolean esqlDatafeedsEnabled) {
-        if (mlCrossProjectSearchEnabled) {
-            return esqlDatafeedsEnabled ? CAPABILITIES_CPS_AND_ESQL : CAPABILITIES_CPS_ONLY;
+        if (mlCrossProjectSearchEnabled && esqlDatafeedsEnabled) {
+            return CAPABILITIES_CPS_AND_ESQL;
         }
-        return esqlDatafeedsEnabled ? CAPABILITIES_ESQL_ONLY : CAPABILITIES_NONE;
+        if (mlCrossProjectSearchEnabled) {
+            return CAPABILITIES_CPS_ONLY;
+        }
+        if (esqlDatafeedsEnabled) {
+            return CAPABILITIES_ESQL_ONLY;
+        }
+        return CAPABILITIES_NONE;
     }
 }

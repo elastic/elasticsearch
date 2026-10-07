@@ -209,7 +209,7 @@ The `timeout` parameter of the [range](#promql-http-api-query-range) and [instan
 
 The dynamic cluster setting `xpack.prometheus.query.timeout` (default: `2m`) is both the default and the maximum timeout, like the Prometheus `-query.timeout` flag. A `timeout` parameter can only lower it. Set `xpack.prometheus.query.timeout` to `-1` to remove the default and the maximum. Unlike in Prometheus, where a timeout of `0` makes every query time out immediately, `0` is rejected.
 
-When the timeout elapses, {{es}} cancels the query and returns HTTP `503 Service Unavailable` with `errorType: timeout`. Queries are also cancelled when the client closes the connection before receiving the response.
+When the timeout elapses, {{es}} cancels the query and, once the cancelled query has stopped, returns HTTP `503 Service Unavailable` with `errorType: timeout`. Queries are also cancelled when the client closes the connection before receiving the response.
 
 ### `limit` [promql-http-api-limit]
 

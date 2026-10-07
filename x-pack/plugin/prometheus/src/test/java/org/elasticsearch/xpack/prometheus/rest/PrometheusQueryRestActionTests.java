@@ -18,6 +18,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
@@ -137,17 +138,17 @@ public class PrometheusQueryRestActionTests extends ESTestCase {
     private void assertQueryTimesOut(BaseRestHandler action, RestRequest request) throws Exception {
         FakeRestChannel channel = handle(action, request);
 
-        assertBusy(() -> assertThat(sentResponses(channel), equalTo(1)));
+        assertBusy(() -> assertThat(client.cancelRequests, hasSize(1)));
+        assertThat(client.cancelRequests.getFirst().getTargetTaskId(), equalTo(client.taskId()));
+        // the response is only sent once the cancelled query has completed
+        assertThat(sentResponses(channel), equalTo(0));
+
+        client.failQuery.accept(new TaskCancelledException("cancelled"));
+        assertThat(sentResponses(channel), equalTo(1));
         assertThat(channel.capturedResponse().status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         String body = channel.capturedResponse().content().utf8ToString();
         assertThat(body, containsString("\"errorType\":\"timeout\""));
         assertThat(body, containsString("query timed out after"));
-        assertBusy(() -> assertThat(client.cancelRequests, hasSize(1)));
-        assertThat(client.cancelRequests.getFirst().getTargetTaskId(), equalTo(client.taskId()));
-
-        // the cancelled query completing late must not produce a second response
-        client.failQuery.accept(new IllegalStateException("cancelled"));
-        assertThat(sentResponses(channel), equalTo(1));
         request.getHttpChannel().close();
     }
 

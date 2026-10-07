@@ -38,7 +38,8 @@ import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGet
  * HTTP request: the query is cancelled when the client disconnects, and when the Prometheus {@code timeout} elapses.
  * <p>
  * ES|QL has no query timeout of its own yet, so the timeout is enforced here by cancelling the query's task, which ES|QL already
- * honors. On timeout, the client receives a {@code 503} which maps to the Prometheus {@code timeout} error type.
+ * honors. This is an interim solution that can be removed once ES|QL supports query timeouts. Once the cancelled query has completed,
+ * the client receives a {@code 503} which maps to the Prometheus {@code timeout} error type.
  */
 final class PromqlQueryExecutor {
 
@@ -102,7 +103,7 @@ final class PromqlQueryExecutor {
             cancellableClient.execute(EsqlQueryAction.INSTANCE, esqlRequest, listener);
             return;
         }
-        var timeoutListener = new TimeoutListener(listener);
+        var timeoutListener = new TimeoutListener(listener, timeout);
         Task task;
         try {
             task = cancellableClient.executeAndReturnTask(EsqlQueryAction.INSTANCE, esqlRequest, timeoutListener);
@@ -111,7 +112,7 @@ final class PromqlQueryExecutor {
             return;
         }
         TaskId taskId = new TaskId(client.getLocalNodeId(), task.getId());
-        timeoutListener.scheduleTimeout(client.threadPool(), timeout, () -> cancelTask(client, taskId, timeout));
+        timeoutListener.scheduleTimeout(client.threadPool(), () -> cancelTask(client, taskId, timeout));
     }
 
     private static void cancelTask(NodeClient client, TaskId taskId, TimeValue timeout) {
@@ -123,28 +124,31 @@ final class PromqlQueryExecutor {
     }
 
     /**
-     * Completes the delegate with whichever comes first: the query's result, or a timeout failure.
+     * Cancels the query when the timeout elapses, but only completes the delegate once the query has completed, so that the response
+     * isn't sent before the query's child tasks have completed and released their resources. A query that completes after the timeout
+     * elapsed, whether due to the cancellation or not, is reported as timed out.
      */
     private static final class TimeoutListener implements ActionListener<EsqlQueryResponse> {
         private final ActionListener<EsqlQueryResponse> delegate;
+        private final TimeValue timeout;
         private final AtomicBoolean completed = new AtomicBoolean();
+        private volatile boolean timedOut;
         private volatile Scheduler.ScheduledCancellable scheduledTimeout;
 
-        TimeoutListener(ActionListener<EsqlQueryResponse> delegate) {
+        TimeoutListener(ActionListener<EsqlQueryResponse> delegate, TimeValue timeout) {
             this.delegate = delegate;
+            this.timeout = timeout;
         }
 
-        void scheduleTimeout(ThreadPool threadPool, TimeValue timeout, Runnable onTimeout) {
+        void scheduleTimeout(ThreadPool threadPool, Runnable cancelQuery) {
             scheduledTimeout = threadPool.schedule(() -> {
-                if (completed.compareAndSet(false, true)) {
-                    onTimeout.run();
-                    delegate.onFailure(
-                        new ElasticsearchStatusException("query timed out after [{}]", RestStatus.SERVICE_UNAVAILABLE, timeout)
-                    );
+                if (completed.get() == false) {
+                    timedOut = true;
+                    cancelQuery.run();
                 }
             }, timeout, threadPool.generic());
             // If the query completed before scheduledTimeout was set, its listener had nothing to cancel, so cancel it here.
-            // Even if the timeout fires first, it is a no-op because `completed` is already set.
+            // Even if the timeout fires first, it doesn't change the outcome because `completed` is already set.
             if (completed.get()) {
                 scheduledTimeout.cancel();
             }
@@ -154,7 +158,12 @@ final class PromqlQueryExecutor {
         public void onResponse(EsqlQueryResponse response) {
             if (completed.compareAndSet(false, true)) {
                 cancelScheduledTimeout();
-                delegate.onResponse(response);
+                if (timedOut) {
+                    // no need to release the response, the caller releases it after this listener returns
+                    delegate.onFailure(timeoutException());
+                } else {
+                    delegate.onResponse(response);
+                }
             }
         }
 
@@ -162,8 +171,12 @@ final class PromqlQueryExecutor {
         public void onFailure(Exception e) {
             if (completed.compareAndSet(false, true)) {
                 cancelScheduledTimeout();
-                delegate.onFailure(e);
+                delegate.onFailure(timedOut ? timeoutException() : e);
             }
+        }
+
+        private ElasticsearchStatusException timeoutException() {
+            return new ElasticsearchStatusException("query timed out after [{}]", RestStatus.SERVICE_UNAVAILABLE, timeout);
         }
 
         private void cancelScheduledTimeout() {

@@ -11,8 +11,11 @@ import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -21,14 +24,17 @@ import java.util.Map;
  */
 public class PlanTelemetry {
     private final EsqlFunctionRegistry functionRegistry;
+    private final List<QuerySettingDef<?>> applicableSettings;
     private final Map<String, Integer> commands = new HashMap<>();
     private final Map<String, Integer> functions = new HashMap<>();
     private final Map<String, Integer> settings = new HashMap<>();
+    private final Map<String, String> resolvedSettings = new HashMap<>();
     private Integer linkedProjectsCount = null;
     private boolean externalSource = false;
 
-    public PlanTelemetry(EsqlFunctionRegistry functionRegistry) {
+    public PlanTelemetry(EsqlFunctionRegistry functionRegistry, List<QuerySettingDef<?>> applicableSettings) {
         this.functionRegistry = functionRegistry;
+        this.applicableSettings = applicableSettings;
     }
 
     private static void add(Map<String, Integer> map, String key) {
@@ -82,6 +88,12 @@ public class PlanTelemetry {
         add(settings, name);
     }
 
+    public void resolvedSettings(ResolvedSettings resolvedSettings) {
+        for (QuerySettingDef<?> def : applicableSettings) {
+            this.resolvedSettings.put(def.name().toUpperCase(Locale.ROOT), def.telemetryLabel(resolvedSettings));
+        }
+    }
+
     public Map<String, Integer> commands() {
         return commands;
     }
@@ -92,5 +104,9 @@ public class PlanTelemetry {
 
     public Map<String, Integer> settings() {
         return settings;
+    }
+
+    public Map<String, String> resolvedSettings() {
+        return resolvedSettings;
     }
 }

@@ -403,6 +403,10 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             // time_zone should now be 1
             assertEquals(1L, planExecutor.metrics().stats().get("settings.time_zone"));
             assertEquals(0L, planExecutor.metrics().stats().get("settings.unmapped_fields"));
+            // every query reports the value of every setting, including defaults
+            assertEquals(1L, planExecutor.metrics().stats().get("resolved_settings.time_zone.default"));
+            assertEquals(1L, planExecutor.metrics().stats().get("resolved_settings.unmapped_fields.default"));
+            assertEquals(1L, planExecutor.metrics().stats().get("resolved_settings.approximation.false"));
 
             // Run another query with unmapped_fields setting
             request = new EsqlQueryRequest();
@@ -425,6 +429,10 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             // Both should now have values
             assertEquals(1L, planExecutor.metrics().stats().get("settings.time_zone"));
             assertEquals(1L, planExecutor.metrics().stats().get("settings.unmapped_fields"));
+            assertEquals(2L, planExecutor.metrics().stats().get("resolved_settings.time_zone.default"));
+            assertEquals(1L, planExecutor.metrics().stats().get("resolved_settings.unmapped_fields.default"));
+            assertEquals(1L, planExecutor.metrics().stats().get("resolved_settings.unmapped_fields.nullify"));
+            assertEquals(2L, planExecutor.metrics().stats().get("resolved_settings.approximation.false"));
 
             // Run a query with multiple settings
             request = new EsqlQueryRequest();

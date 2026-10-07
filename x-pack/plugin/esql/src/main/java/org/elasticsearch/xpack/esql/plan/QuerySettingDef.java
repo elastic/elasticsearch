@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 /**
@@ -175,6 +176,13 @@ public final class QuerySettingDef<T> {
     public static final String CLUSTER_SETTING_PREFIX = "esql.query.settings.";
 
     /**
+     * The telemetry labels of a setting that declares no custom ones (default and set).
+     * These are useful for unbounded settings that cannot declare their labels up front.
+     */
+    private static final String TELEMETRY_DEFAULT = "default";
+    private static final String TELEMETRY_SET = "set";
+
+    /**
      * The context a setting's own {@link Validator} runs under when an operator writes the cluster setting — on
      * {@code PUT _cluster/settings} and on the {@code elasticsearch.yml} pass at node startup.
      * <p>
@@ -207,7 +215,8 @@ public final class QuerySettingDef<T> {
                 }
                 throw new IllegalArgumentException("Setting [" + name + "] must be a boolean, got [" + value + "]");
             })
-            .streamFormat((out, value) -> out.writeBoolean(value), StreamInput::readBoolean);
+            .streamFormat((out, value) -> out.writeBoolean(value), StreamInput::readBoolean)
+            .withTelemetryLabels(List.of("true", "false"), value -> Boolean.toString(value));
     }
 
     /** Escape hatch for non-primitive types. Supply both a JSON and an expression parser. */
@@ -262,6 +271,8 @@ public final class QuerySettingDef<T> {
     private final Setting<T> clusterSetting;
     @Nullable
     private final FromString<T> clusterParser;
+    private final Function<T, String> telemetryLabeler;
+    private final List<String> telemetryLabels;
 
     private QuerySettingDef(Builder<T> b) {
         this.name = b.name;
@@ -282,6 +293,8 @@ public final class QuerySettingDef<T> {
         this.canonicalizer = b.canonicalizer;
         this.clusterSetting = b.derivedClusterSetting;
         this.clusterParser = b.clusterParser;
+        this.telemetryLabeler = b.telemetryLabeler;
+        this.telemetryLabels = List.copyOf(b.telemetryLabels);
     }
 
     /**
@@ -297,6 +310,25 @@ public final class QuerySettingDef<T> {
 
     public String name() {
         return name;
+    }
+
+    /**
+     * Every label {@link #telemetryLabel} can return, so telemetry can register a counter per label up front.
+     */
+    public List<String> telemetryLabels() {
+        return telemetryLabels;
+    }
+
+    /**
+     * The telemetry label for {@code value}, the value this setting resolved to for a query.
+     */
+    public String telemetryLabel(@Nullable T value) {
+        return telemetryLabeler.apply(value);
+    }
+
+    /** As {@link #telemetryLabel(Object)}, for the value this setting holds in {@code settings}. */
+    public String telemetryLabel(ResolvedSettings settings) {
+        return telemetryLabel(get(settings));
     }
 
     @Nullable
@@ -528,6 +560,8 @@ public final class QuerySettingDef<T> {
         private Setting<T> derivedClusterSetting;
         @Nullable
         private String declaredClusterDefault;
+        private Function<T, String> telemetryLabeler = value -> Objects.equals(value, defaultValue) ? TELEMETRY_DEFAULT : TELEMETRY_SET;
+        private List<String> telemetryLabels = List.of(TELEMETRY_DEFAULT, TELEMETRY_SET);
 
         private Builder(String name, @Nullable DataType type) {
             this.name = name;
@@ -627,6 +661,16 @@ public final class QuerySettingDef<T> {
 
         public Builder<T> withPreview() {
             this.preview = true;
+            return this;
+        }
+
+        /**
+         * Declare how telemetry reports this setting's value.
+         * {@code labeler} should map any value to one of the provided {@code labels}.
+         */
+        public Builder<T> withTelemetryLabels(List<String> labels, Function<T, String> labeler) {
+            this.telemetryLabeler = labeler;
+            this.telemetryLabels = labels;
             return this;
         }
 

@@ -13,7 +13,9 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -40,6 +42,7 @@ public class Metrics {
     protected static final String QUERIES_PREFIX = "queries.";
     protected static final String FEATURES_PREFIX = "features.";
     protected static final String SETTINGS_PREFIX = "settings.";
+    protected static final String RESOLVED_SETTINGS_PREFIX = "resolved_settings.";
     protected static final String FUNC_PREFIX = "functions.";
     protected static final String TOOK_PREFIX = "took.";
 
@@ -49,6 +52,8 @@ public class Metrics {
     private final Map<FeatureMetric, CounterMetric> featuresMetrics;
     // map that holds one counter per esql query setting (unmapped_fields, time_zone, etc.)
     private final Map<String, CounterMetric> settingsMetrics;
+    // map that holds one counter per esql query setting's resolved value (e.g. unmapped_fields.nullify, approximation.true)
+    private final Map<String, Map<String, CounterMetric>> resolvedSettingsMetrics;
     private final Map<String, CounterMetric> functionMetrics;
     private final TookMetrics tookMetrics = new TookMetrics();
 
@@ -94,10 +99,17 @@ public class Metrics {
 
         var applicable = QuerySettings.applicableIn(isSnapshot, isServerless);
         Map<String, CounterMetric> sMap = Maps.newLinkedHashMapWithExpectedSize(applicable.size());
+        Map<String, Map<String, CounterMetric>> rsMap = Maps.newLinkedHashMapWithExpectedSize(applicable.size());
         for (var def : applicable) {
             sMap.put(def.name(), new CounterMetric());
+            Map<String, CounterMetric> valueMap = Maps.newLinkedHashMapWithExpectedSize(def.telemetryLabels().size());
+            for (String label : def.telemetryLabels()) {
+                valueMap.put(label, new CounterMetric());
+            }
+            rsMap.put(def.name(), Collections.unmodifiableMap(valueMap));
         }
         settingsMetrics = Collections.unmodifiableMap(sMap);
+        resolvedSettingsMetrics = Collections.unmodifiableMap(rsMap);
 
         functionMetrics = initFunctionMetrics();
     }
@@ -150,6 +162,18 @@ public class Metrics {
         }
     }
 
+    public void incResolvedSettings(ResolvedSettings resolvedSettings) {
+        for (QuerySettingDef<?> def : QuerySettings.all()) {
+            Map<String, CounterMetric> valueCounters = this.resolvedSettingsMetrics.get(def.name());
+            if (valueCounters != null) {
+                CounterMetric counter = valueCounters.get(def.telemetryLabel(resolvedSettings));
+                if (counter != null) {
+                    counter.inc();
+                }
+            }
+        }
+    }
+
     public void incFunctionMetric(Class<?> functionType) {
         String functionName = classToFunctionName.get(functionType);
         if (functionName != null) {
@@ -185,6 +209,13 @@ public class Metrics {
         // settings metrics
         for (Entry<String, CounterMetric> entry : settingsMetrics.entrySet()) {
             counters.inc(SETTINGS_PREFIX + entry.getKey(), entry.getValue().count());
+        }
+
+        // resolved settings metrics
+        for (Entry<String, Map<String, CounterMetric>> setting : resolvedSettingsMetrics.entrySet()) {
+            for (Entry<String, CounterMetric> value : setting.getValue().entrySet()) {
+                counters.inc(RESOLVED_SETTINGS_PREFIX + setting.getKey() + "." + value.getKey(), value.getValue().count());
+            }
         }
 
         // function metrics

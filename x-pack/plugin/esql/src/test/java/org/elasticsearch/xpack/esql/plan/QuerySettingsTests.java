@@ -52,6 +52,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomizeCase;
 import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1512,4 +1513,37 @@ public class QuerySettingsTests extends ESTestCase {
         }
     }
 
+    public void testTelemetryLabels() {
+        // boolean
+        assertThat(QuerySettings.COLUMN_METADATA.telemetryLabel(true), equalTo("true"));
+        assertThat(QuerySettings.COLUMN_METADATA.telemetryLabel(false), equalTo("false"));
+        assertThat(QuerySettings.COLUMN_METADATA.telemetryLabels(), containsInAnyOrder("true", "false"));
+
+        // enum: every constant, lowercased, the default included
+        assertThat(QuerySettings.UNMAPPED_FIELDS.telemetryLabel(UnmappedResolution.NULLIFY), equalTo("nullify"));
+        assertThat(QuerySettings.UNMAPPED_FIELDS.telemetryLabel(UnmappedResolution.DEFAULT), equalTo("default"));
+        assertThat(QuerySettings.UNMAPPED_FIELDS.telemetryLabels(), containsInAnyOrder("default", "nullify", "load", "load_all"));
+
+        // string: never the value itself
+        assertThat(QuerySettings.TIME_ZONE.telemetryLabel(ZoneOffset.UTC), equalTo("default"));
+        assertThat(QuerySettings.TIME_ZONE.telemetryLabel(ZoneId.of("Europe/Rome")), equalTo("set"));
+        assertThat(QuerySettings.PROJECT_ROUTING.telemetryLabel((String) null), equalTo("default"));
+        assertThat(QuerySettings.PROJECT_ROUTING.telemetryLabel("_alias:_origin"), equalTo("set"));
+        assertThat(QuerySettings.PROJECT_ROUTING.telemetryLabels(), containsInAnyOrder("default", "set"));
+
+        // boolean or map
+        assertThat(QuerySettings.APPROXIMATION.telemetryLabel((ApproximationSettings) null), equalTo("false"));
+        assertThat(QuerySettings.APPROXIMATION.telemetryLabel(ApproximationSettings.DEFAULT), equalTo("true"));
+        assertThat(QuerySettings.APPROXIMATION.telemetryLabel(new ApproximationSettings(20_000, 0.95)), equalTo("map"));
+        assertThat(QuerySettings.APPROXIMATION.telemetryLabels(), containsInAnyOrder("false", "true", "map"));
+
+        // whatever a setting resolves to by default has a label to be counted under
+        for (QuerySettingDef<?> def : QuerySettings.all()) {
+            assertThat(def.name(), def.telemetryLabels(), hasItem(labelOfDefaultValue(def)));
+        }
+    }
+
+    private static <T> String labelOfDefaultValue(QuerySettingDef<T> def) {
+        return def.telemetryLabel(def.defaultValue());
+    }
 }

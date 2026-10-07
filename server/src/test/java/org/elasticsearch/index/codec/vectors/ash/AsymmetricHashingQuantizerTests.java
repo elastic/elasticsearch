@@ -17,13 +17,16 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.oneOf;
 
 /**
  * Tests for the core ASH algorithm components: SVD, quantizers, and the full pipeline.
@@ -49,122 +52,6 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         }
     }
 
-    public void testFullPipelineRandomMethod() throws IOException {
-        int nVectors = 100;
-        int dim = 16;
-        float projectedDimsFraction = 0.25f; // 16 * 0.25 = 4 projected dims
-        int bitsPerDim = 2;
-
-        float[][] vectors = new float[nVectors][];
-        for (int i = 0; i < nVectors; i++) {
-            vectors[i] = AshUtils.randomGaussians(random(), dim);
-        }
-
-        // Single centroid (mean)
-        float[] centroid = new float[dim];
-        for (int i = 0; i < nVectors; i++) {
-            for (int j = 0; j < dim; j++) {
-                centroid[j] += vectors[i][j];
-            }
-        }
-        for (int j = 0; j < dim; j++) {
-            centroid[j] /= nVectors;
-        }
-
-        // all assigned to the same centroid
-        CheckedIntFunction<float[], IOException> centroidGetter = i -> centroid;
-
-        AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
-            projectedDimsFraction,
-            bitsPerDim,
-            AsymmetricHashingQuantizer.Method.RANDOM,
-            0,
-            10,
-            42L
-        );
-
-        int expectedNDims = (int) (dim * projectedDimsFraction);
-        float[] wT = trainWT(quantizer, vectors, centroidGetter);
-        assertNotNull(wT);
-        assertEquals(dim * expectedNDims, wT.length);
-
-        // Encode per-cluster using the production path
-        AsymmetricHashingQuantizer.VectorAndNorm precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroid, wT);
-        for (int i = 0; i < nVectors; i++) {
-            AsymmetricHashingQuantizer.EncodedVector enc = quantizer.encode(vectors[i], centroid, wT, precomputed);
-            assertNotNull(enc.xEnc());
-            assertEquals(expectedNDims, enc.xEnc().length);
-        }
-    }
-
-    public void testFullPipelineLearnedMethod() throws IOException {
-        int nVectors = 200;
-        int dim = 32;
-        float projectedDimsFraction = 0.25f; // 32 * 0.25 = 8 projected dims
-        int bitsPerDim = 2;
-
-        float[][] vectors = new float[nVectors][];
-        for (int i = 0; i < nVectors; i++) {
-            vectors[i] = AshUtils.randomGaussians(random(), dim);
-        }
-
-        float[] centroid = new float[dim];
-        for (int i = 0; i < nVectors; i++) {
-            for (int j = 0; j < dim; j++) {
-                centroid[j] += vectors[i][j];
-            }
-        }
-        for (int j = 0; j < dim; j++) {
-            centroid[j] /= nVectors;
-        }
-
-        // all assigned to the same centroid
-        CheckedIntFunction<float[], IOException> centroidGetter = i -> centroid;
-
-        AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
-            projectedDimsFraction,
-            bitsPerDim,
-            AsymmetricHashingQuantizer.Method.LEARNED,
-            5,
-            10,
-            42L
-        );
-
-        float[] wT = trainWT(quantizer, vectors, centroidGetter);
-        int nDims = quantizer.nDims(dim);
-
-        // Encode per-cluster using the production path
-        AsymmetricHashingQuantizer.VectorAndNorm precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroid, wT);
-        float[][] encodedVectors = new float[nVectors][nDims];
-        float[] scales = new float[nVectors];
-        float[] offsets = new float[nVectors];
-        for (int i = 0; i < nVectors; i++) {
-            AsymmetricHashingQuantizer.EncodedVector enc = quantizer.encode(vectors[i], centroid, wT, precomputed);
-            encodedVectors[i] = enc.xEnc();
-            scales[i] = enc.scale();
-            offsets[i] = enc.offset();
-        }
-
-        // Score a query against the encoded vectors using the production scoring path
-        float[] query = AshUtils.randomGaussians(random(), dim);
-
-        // Project query: qt = wT @ query (raw, not centered)
-        float[] qt = ESVectorUtil.matrixVectorMultiply(wT, nDims, dim, query);
-        float queryDotCentroid = ESVectorUtil.dotProduct(query, centroid);
-
-        float[] scores = new float[nVectors];
-        for (int i = 0; i < nVectors; i++) {
-            byte[] packed = ESVectorUtil.ashPack(encodedVectors[i], bitsPerDim);
-            scores[i] = referenceScore(qt, new float[] { queryDotCentroid }, packed, 0, nDims, bitsPerDim, scales[i], offsets[i]);
-        }
-        assertEquals(nVectors, scores.length);
-
-        // Verify approximate dot products correlate with exact ones
-        double correlation = computeRankCorrelation(vectors, query, scores);
-        // With learned method, expect reasonable correlation
-        assertThat("Expected positive rank correlation", correlation, greaterThan(0.1));
-    }
-
     public void testReconstructedDotProductApproximatesTrueDotProduct() throws IOException {
         // With no dimensionality reduction (projectedDimsFraction=1.0, so nDims == originalDim and W
         // is a random orthogonal matrix -- a pure rotation, not a projection), the only source of
@@ -175,60 +62,73 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         // small, bitsPerDim-dependent bias -- but the pairs are tightly clustered around the line).
         //
         // Thresholds below were calibrated empirically (aggregate relative RMSE over many random
-        // query/vector/centroid trials, stable across seeds) with a safety margin of roughly 2x
-        // (4 bits) to 5x (8 bits) over the observed values, to catch a real regression without being
+        // query/vector/centroid trials, stable across seeds) with a safety margin of roughly
+        // 1.5x (3 bits), 2x (4 bits), 5x (8 bits) over the observed values, to catch a real regression without being
         // flaky.
         int dim = 128;
         int nVectors = 200;
+        // does not divide nVectors, so each run encodes full blocks and one partial block
+        int maxBlockSize = 32;
 
-        for (var config : new Object[][] { { 4, 0.35 }, { 8, 0.05 } }) {
-            int bitsPerDim = (int) config[0];
-            double relRmseThreshold = (double) config[1];
+        record Config(int bitsPerDim, double relRmseThreshold) {}
 
+        for (var config : List.of(new Config(3, 0.75), new Config(4, 0.35), new Config(8, 0.05))) {
             AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
                 1.0f,
-                bitsPerDim,
+                config.bitsPerDim(),
                 AsymmetricHashingQuantizer.Method.RANDOM,
                 0,
                 1,
                 42L
             );
-            float[] wT = trainWT(quantizer, new float[][] { new float[dim] }, i -> new float[dim]);
+            var w = train(quantizer, new float[][] { new float[dim] }, i -> new float[dim]);
             int nDims = quantizer.nDims(dim); // == dim since projectedDimsFraction=1.0
 
             float[] centroid = AshUtils.randomGaussians(random(), dim);
             float[] query = AshUtils.randomGaussians(random(), dim);
+            float[][] vectors = new float[nVectors][];
+            for (int i = 0; i < nVectors; i++) {
+                vectors[i] = AshUtils.randomGaussians(random(), dim);
+            }
 
             // Raw query projection: qt = wT @ query
-            float[] qt = ESVectorUtil.matrixVectorMultiply(wT, nDims, dim, query);
+            float[] qt = ESVectorUtil.matrixVectorMultiply(w.wT(), nDims, dim, query);
             float queryDotCentroid = ESVectorUtil.dotProduct(query, centroid, dim);
-            AsymmetricHashingQuantizer.VectorAndNorm precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroid, wT);
+            AsymmetricHashingQuantizer.VectorAndNorm precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroid, w.wT());
 
+            AsymmetricHashingQuantizer.BlockEncoder encoder = quantizer.newBlockEncoder(w.w(), dim, maxBlockSize);
             double sumSqErr = 0;
             double sumSqTrue = 0;
-            for (int i = 0; i < nVectors; i++) {
-                float[] vector = AshUtils.randomGaussians(random(), dim);
-                float trueDot = ESVectorUtil.dotProduct(query, vector, dim);
+            for (int start = 0; start < nVectors; start += maxBlockSize) {
+                int blockSize = Math.min(maxBlockSize, nVectors - start);
+                encoder.reset();
+                for (int j = 0; j < blockSize; j++) {
+                    encoder.add(vectors[start + j], centroid);
+                }
+                encoder.encode(precomputed);
 
-                AsymmetricHashingQuantizer.EncodedVector enc = quantizer.encode(vector, centroid, wT, precomputed);
-                byte[] packed = ESVectorUtil.ashPack(enc.xEnc(), bitsPerDim);
-                float reconstructed = referenceScore(
-                    qt,
-                    new float[] { queryDotCentroid },
-                    packed,
-                    0,
-                    nDims,
-                    bitsPerDim,
-                    enc.scale(),
-                    enc.offset()
-                );
+                for (int j = 0; j < blockSize; j++) {
+                    float trueDot = ESVectorUtil.dotProduct(query, vectors[start + j], dim);
 
-                double err = reconstructed - trueDot;
-                sumSqErr += err * err;
-                sumSqTrue += (double) trueDot * trueDot;
+                    byte[] packed = ESVectorUtil.ashPack(encoder.code(j), config.bitsPerDim());
+                    float reconstructed = referenceScore(
+                        qt,
+                        new float[] { queryDotCentroid },
+                        packed,
+                        0,
+                        nDims,
+                        config.bitsPerDim(),
+                        encoder.scale(j),
+                        encoder.offset(j)
+                    );
+
+                    double err = reconstructed - trueDot;
+                    sumSqErr += err * err;
+                    sumSqTrue += (double) trueDot * trueDot;
+                }
             }
             double relRmse = Math.sqrt(sumSqErr / sumSqTrue);
-            assertThat("bitsPerDim=" + bitsPerDim + " relative RMSE too high", relRmse, lessThan(relRmseThreshold));
+            assertThat("bitsPerDim=" + config.bitsPerDim() + " relative RMSE too high", relRmse, lessThan(config.relRmseThreshold()));
         }
     }
 
@@ -442,16 +342,16 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             AsymmetricHashingQuantizer.Method.LEARNED,
             5,
             10,
-            42L
+            seed
         );
-        float[] wT = trainWT(ash, vectors, centroidGetter);
+        var w = train(ash, vectors, centroidGetter);
         int nDims = ash.nDims(dim);
 
         // Precompute per-cluster values
         // Pre-transform each query: qt = wT @ q
         float[][] qt = new float[nQueries][];
         for (int q = 0; q < nQueries; q++) {
-            qt[q] = ESVectorUtil.matrixVectorMultiply(wT, nDims, dim, queries[q]);
+            qt[q] = ESVectorUtil.matrixVectorMultiply(w.wT(), nDims, dim, queries[q]);
         }
 
         // Score matrices: approx[q][i] = ASH-approximated dot(q, v_i), exact[q][i] = true dot
@@ -459,31 +359,55 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         double[][] approx = new double[nQueries][nVectors];
         AsymmetricHashingQuantizer.VectorAndNorm[] precomputedPerCluster = new AsymmetricHashingQuantizer.VectorAndNorm[nClusters];
         for (int c = 0; c < nClusters; c++) {
-            precomputedPerCluster[c] = AsymmetricHashingQuantizer.precomputeCentroid(centroids[c], wT);
+            precomputedPerCluster[c] = AsymmetricHashingQuantizer.precomputeCentroid(centroids[c], w.wT());
         }
 
+        // Group the vectors by cluster, so that a block of encodes shares a single centroid the way a
+        // posting list does, then encode cluster by cluster through the production block path.
+        int[][] clusterOrds = new int[nClusters][];
+        for (int c = 0; c < nClusters; c++) {
+            clusterOrds[c] = new int[counts[c]];
+        }
+        int[] filled = new int[nClusters];
         for (int i = 0; i < nVectors; i++) {
-            float[] c = centroids[assignments[i]];
-            AsymmetricHashingQuantizer.EncodedVector enc = ash.encode(vectors[i], c, wT, precomputedPerCluster[assignments[i]]);
-            byte[] packed = ESVectorUtil.ashPack(enc.xEnc(), bitsPerDim);
+            clusterOrds[assignments[i]][filled[assignments[i]]++] = i;
+        }
 
-            for (int q = 0; q < nQueries; q++) {
-                double exactDot = ESVectorUtil.dotProduct(queries[q], vectors[i]);
-                double qDotC = ESVectorUtil.dotProduct(queries[q], c);
+        int maxBlockSize = 32;
+        AsymmetricHashingQuantizer.BlockEncoder encoder = ash.newBlockEncoder(w.w(), dim, maxBlockSize);
+        for (int c = 0; c < nClusters; c++) {
+            int[] cluster = clusterOrds[c];
+            for (int start = 0; start < cluster.length; start += maxBlockSize) {
+                int blockSize = Math.min(maxBlockSize, cluster.length - start);
+                encoder.reset();
+                for (int j = 0; j < blockSize; j++) {
+                    encoder.add(vectors[cluster[start + j]], centroids[c]);
+                }
+                encoder.encode(precomputedPerCluster[c]);
 
-                float approxScore = referenceScore(
-                    qt[q],
-                    new float[] { (float) qDotC },
-                    packed,
-                    0,
-                    nDims,
-                    bitsPerDim,
-                    enc.scale(),
-                    enc.offset()
-                );
+                for (int j = 0; j < blockSize; j++) {
+                    int i = cluster[start + j];
+                    byte[] packed = ESVectorUtil.ashPack(encoder.code(j), bitsPerDim);
 
-                exact[q][i] = exactDot;
-                approx[q][i] = approxScore;
+                    for (int q = 0; q < nQueries; q++) {
+                        double exactDot = ESVectorUtil.dotProduct(queries[q], vectors[i]);
+                        double qDotC = ESVectorUtil.dotProduct(queries[q], centroids[c]);
+
+                        float approxScore = referenceScore(
+                            qt[q],
+                            new float[] { (float) qDotC },
+                            packed,
+                            0,
+                            nDims,
+                            bitsPerDim,
+                            encoder.scale(j),
+                            encoder.offset(j)
+                        );
+
+                        exact[q][i] = exactDot;
+                        approx[q][i] = approxScore;
+                    }
+                }
             }
         }
 
@@ -512,12 +436,71 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         assertThat("recall@" + k, recall, greaterThan(recallThreshold));
     }
 
-    private static float[] trainWT(
+    /**
+     * Covers the block encoder over both a full and a partial block: every gathered vector must come
+     * back with a code of the right width holding valid levels, and with the uncentered
+     * {@code ⟨x, μ⟩} that the EUCLIDEAN corrections are written from.
+     */
+    public void testBlockEncoderCoversFullAndPartialBlocks() throws IOException {
+        int nVectors = 100;
+        int dim = 32;
+        float projectedDimsFraction = 0.25f;
+        int bitsPerDim = 2;
+        int nDims = (int) (dim * projectedDimsFraction);
+        // deliberately does not divide nVectors, so the last block of the run is a partial one
+        int maxBlockSize = 7;
+
+        float[][] vectors = new float[nVectors][];
+        for (int i = 0; i < nVectors; i++) {
+            vectors[i] = AshUtils.randomGaussians(random(), dim);
+        }
+        float[] centroid = AshUtils.randomGaussians(random(), dim);
+        CheckedIntFunction<float[], IOException> centroidGetter = i -> centroid;
+
+        AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
+            projectedDimsFraction,
+            bitsPerDim,
+            AsymmetricHashingQuantizer.Method.LEARNED,
+            5,
+            10,
+            42L
+        );
+        var w = train(quantizer, vectors, centroidGetter);
+        AsymmetricHashingQuantizer.VectorAndNorm precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroid, w.wT());
+
+        AsymmetricHashingQuantizer.BlockEncoder encoder = quantizer.newBlockEncoder(w.w(), dim, maxBlockSize);
+        Float[] validLevels = new Float[] { -1.5f, -0.5f, 0.5f, 1.5f };
+
+        for (int start = 0; start < nVectors; start += maxBlockSize) {
+            int blockSize = Math.min(maxBlockSize, nVectors - start);
+            encoder.reset();
+            assertThat(encoder.size(), equalTo(0));
+            for (int j = 0; j < blockSize; j++) {
+                encoder.add(vectors[start + j], centroid);
+            }
+            encoder.encode(precomputed);
+
+            assertThat(encoder.size(), equalTo(blockSize));
+            for (int j = 0; j < blockSize; j++) {
+                float[] code = encoder.code(j);
+                assertThat(code.length, equalTo(nDims));
+                for (float level : code) {
+                    assertThat(level, oneOf(validLevels));
+                }
+                assertThat(encoder.scale(j), greaterThan(0f));
+                assertTrue(Float.isFinite(encoder.offset(j)));
+                // the dot product is taken before centering, so it must match the original vector
+                assertThat(encoder.vecCentroidDot(j), equalTo(ESVectorUtil.dotProduct(vectors[start + j], centroid)));
+            }
+        }
+    }
+
+    private static AsymmetricHashingQuantizer.TrainedProjection train(
         AsymmetricHashingQuantizer quantizer,
         float[][] vectors,
         CheckedIntFunction<float[], IOException> centroids
     ) throws IOException {
-        return quantizer.train(ord -> vectors[ord], vectors.length, vectors[0].length, centroids).wT();
+        return quantizer.train(ord -> vectors[ord], vectors.length, vectors[0].length, centroids);
     }
 
     /** Average overlap@k between approx-top-k and exact-top-k, per query. */
@@ -541,38 +524,6 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             .limit(k)
             .mapToInt(Integer::intValue)
             .toArray();
-    }
-
-    private static double computeRankCorrelation(float[][] vectors, float[] query, float[] approxScores) {
-        int n = vectors.length;
-        float[] exactScores = new float[n];
-        for (int i = 0; i < n; i++) {
-            exactScores[i] = ESVectorUtil.dotProduct(query, vectors[i]);
-        }
-
-        // Spearman rank correlation (simplified)
-        int[] exactRanks = ranks(exactScores);
-        int[] approxRanks = ranks(approxScores);
-        double sumD2 = 0;
-        for (int i = 0; i < n; i++) {
-            // no ESVectorUtil.squareDistance method with ints :(
-            double d = exactRanks[i] - approxRanks[i];
-            sumD2 = Math.fma(d, d, sumD2);
-        }
-        return 1.0 - 6.0 * sumD2 / (n * ((long) n * n - 1));
-    }
-
-    private static int[] ranks(float[] scores) {
-        int[] indices = IntStream.range(0, scores.length)
-            .boxed()
-            .sorted(Comparator.comparingDouble(i -> scores[i]))
-            .mapToInt(Integer::intValue)
-            .toArray();
-        int[] ranks = new int[indices.length];
-        for (int r = 0; r < indices.length; r++) {
-            ranks[indices[r]] = r;
-        }
-        return ranks;
     }
 
     /**

@@ -59,11 +59,7 @@ public final class PromqlDocsSupport {
         + DOCS_ROOT
         + "/promql-limitations.md#promql-limitations-unsupported-constructs)";
 
-    private static final String OR_CAVEAT = "{{es}} evaluates `or` only at the top level of an expression, and a "
-        + "top-level `or` chain supports at most 8 operands. A nested `or`, or a chain of more than 8 operands, "
-        + "returns a client error (4xx). See "
-        + UNSUPPORTED_CONSTRUCTS_LINK
-        + ".";
+    private static final String OR_CAVEAT = "For the restrictions on `or` in {{es}}, see " + UNSUPPORTED_CONSTRUCTS_LINK + ".";
 
     static final List<OperatorDefinition> OPERATOR_DEFS = List.of(
         // Arithmetic binary operators

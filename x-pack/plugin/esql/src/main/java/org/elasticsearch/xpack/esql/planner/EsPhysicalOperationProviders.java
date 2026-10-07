@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.ExtractableFields;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
@@ -195,7 +196,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         public boolean isExtractableMappedField(String name) {
-            return isMappedField(name) && mappingLookup().nestedLookup().hasNestedParent(name) == false;
+            return ExtractableFields.isExtractable(name, isMappedField(name), mappingLookup().nestedLookup());
         }
     }
 

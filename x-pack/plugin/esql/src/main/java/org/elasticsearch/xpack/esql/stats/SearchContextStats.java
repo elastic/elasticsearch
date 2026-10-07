@@ -37,6 +37,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
+import org.elasticsearch.xpack.esql.core.type.ExtractableFields;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -110,7 +111,7 @@ public class SearchContextStats implements SearchStats {
         // even if there are deleted documents, check the existence of a field
         // since if it's missing, deleted documents won't change that
         for (SearchExecutionContext context : contexts) {
-            if (isExtractableMappedField(context, field)) {
+            if (ExtractableFields.isExtractable(context, field)) {
                 MappedFieldType type = context.getFieldType(field);
                 if (fieldType == null) {
                     fieldType = type;
@@ -140,21 +141,11 @@ public class SearchContextStats implements SearchStats {
 
     private boolean fastNoCacheFieldExists(String field) {
         for (SearchExecutionContext context : contexts) {
-            if (isExtractableMappedField(context, field)) {
+            if (ExtractableFields.isExtractable(context, field)) {
                 return true;
             }
         }
         return false;
-    }
-
-    /**
-     * A field ES|QL can extract from this shard: present in the mapping and not under a nested
-     * parent. {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested}
-     * on the field-caps request, so treating nested subfields as present here would make
-     * {@code exists}/{@code count} disagree with extraction.
-     */
-    private static boolean isExtractableMappedField(SearchExecutionContext context, String field) {
-        return context.isMappedField(field) && isNestedSubfield(context, field) == false;
     }
 
     private static boolean isNestedSubfield(SearchExecutionContext context, String field) {
@@ -240,7 +231,7 @@ public class SearchContextStats implements SearchStats {
             // but field caps does not report it — see #154508) or a nested subfield (IndexResolver
             // applies -nested on the field-caps request; counting nested Lucene docs would disagree
             // with extraction — #154011).
-            if (isExtractableMappedField(context, field.string()) == false) {
+            if (ExtractableFields.isExtractable(context, field.string()) == false) {
                 continue;
             }
             for (LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
@@ -544,7 +535,7 @@ public class SearchContextStats implements SearchStats {
     private boolean doWithFieldLeafReaders(String field, FieldLeafReaderTester tester) {
         try {
             for (SearchExecutionContext context : contexts) {
-                if (isExtractableMappedField(context, field) == false) {
+                if (ExtractableFields.isExtractable(context, field) == false) {
                     continue;
                 }
                 MappedFieldType fieldType = context.getFieldType(field);

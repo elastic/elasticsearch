@@ -45,6 +45,8 @@ The following constructs are not evaluated yet, so they return a client error (4
 - Binary set operators: `and` and `unless`. The `or` operator is supported only at the top level of an expression and a top-level `or` chain supports at most 8 operands; a nested `or`, or a chain of more than 8 operands, returns a client error (4xx).
 - Comparison operators: evaluated only at the top level of an expression and only with a scalar literal on the right-hand side. Comparisons between two instant vectors, and nested comparisons, return a client error (4xx).
 - Group modifiers: `on(...)`, `ignoring(...)`, `group_left`, `group_right`
+- Binary operators between two operands that both read data: the operands must be aggregated alike, either both not aggregated (`a / b`) or both aggregated once across series (`sum(a) / sum(b)`). Mixing an aggregated and a non-aggregated operand (`sum(a) / b`), combining `scalar()` of a vector with a vector that has labels (`b / scalar(sum(a))`), nesting aggregations in an operand (`sum(a) / scalar(sum(b))`), and using `topk`, `bottomk`, or `limitk` in an operand return a client error (4xx). Operations with a number, such as `topk(1, a) * 2`, are supported.
+- `histogram_quantile` and `histogram_fraction` over `topk`, `bottomk`, `limitk`, or a `without` aggregation.
 - Functions: see [Not yet supported](functions.md#promql-not-supported) for the full list of recognized but unimplemented functions.
 
 ## Native histograms [promql-limitations-native-histograms]

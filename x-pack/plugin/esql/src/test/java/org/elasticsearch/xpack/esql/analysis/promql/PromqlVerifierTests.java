@@ -411,8 +411,8 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     /**
-     * An unmatched operator folds its two source-backed operands into one aggregate, which only works for operands aggregated
-     * alike. The other pairs failed later in planning with an error naming internals; each is rejected with what it is.
+     * An unmatched operator computes its two source-backed operands in one shared aggregation, so both must be aggregated alike:
+     * both per series, or both one level across series. Each other pairing is rejected with a message naming its shape.
      */
     public void testUnmatchedOperandsMustAggregateAlike() {
         String query = "PROMQL index=test step=5m ";
@@ -469,16 +469,41 @@ public class PromqlVerifierTests extends ESTestCase {
         }
     }
 
+    /** A vector-matched operator computes each operand on its own, so a reduction in one operand is accepted. */
+    public void testMatchedOperandsMayUseReduction() {
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        assertNotNull(
+            tsdb.query("PROMQL index=test step=5m sum by (host) (network.bytes_in) / on(host) topk(1, sum by (host) (network.connections))")
+        );
+    }
+
     /** A histogram function regroups by every label but {@code le}, which a reduction or a {@code without} already changed. */
     public void testHistogramOverReductionOrWithoutIsRejected() {
+        for (String function : List.of("histogram_quantile(0.9, ", "histogram_fraction(0, 0.2, ")) {
+            for (String buckets : List.of(
+                "topk(3, network.bytes_in)",
+                "bottomk(3, network.bytes_in)",
+                "limitk(3, network.bytes_in)",
+                "sum without (host) (network.bytes_in)"
+            )) {
+                tsdb.error(
+                    "PROMQL index=test step=5m " + function + buckets + ")",
+                    containsString("over topk, bottomk, limitk or a WITHOUT aggregate is not supported at this time")
+                );
+            }
+        }
+    }
+
+    /** A native histogram aggregated with {@code without} is rejected like classic buckets are. */
+    public void testNativeHistogramOverWithoutIsRejected() {
+        TestAnalyzer nativeHistograms = analyzer().addIndex("exp_histo", "exp_histo_sample-mappings.json", IndexMode.TIME_SERIES)
+            .stripErrorPrefix(true);
         for (String rejected : List.of(
-            "histogram_quantile(0.9, topk(3, network.bytes_in))",
-            "histogram_quantile(0.9, bottomk(3, network.bytes_in))",
-            "histogram_quantile(0.9, limitk(3, network.bytes_in))",
-            "histogram_quantile(0.9, sum without (host) (network.bytes_in))"
+            "histogram_quantile(0.5, sum without (instance) (responseTime))",
+            "histogram_fraction(0, 0.2, sum without (instance) (responseTime))"
         )) {
-            tsdb.error(
-                "PROMQL index=test step=5m " + rejected,
+            nativeHistograms.error(
+                "PROMQL index=exp_histo step=5m " + rejected,
                 containsString("over topk, bottomk, limitk or a WITHOUT aggregate is not supported at this time")
             );
         }

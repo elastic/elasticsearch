@@ -493,9 +493,9 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                         }
                     }
                 }
-                case HistogramQuantile histogram -> {
+                case HistogramFunctionCall histogram -> {
                     LogicalPlan buckets = histogram.child();
-                    if (buckets.anyMatch(AcrossSeriesReduction.class::isInstance) || usesWithoutGrouping(buckets)) {
+                    if (usesReduction(buckets) || usesWithoutGrouping(buckets)) {
                         failures.add(
                             fail(
                                 histogram,
@@ -585,21 +585,9 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                         // https://github.com/elastic/elasticsearch/issues/145308
                         failures.add(fail(lp, "binary expressions with WITHOUT are not supported at this time [{}]", lp.sourceText()));
                     }
-                    if (hasSourceBackedExpression(binaryOperator.left())
-                        && hasSourceBackedExpression(binaryOperator.right())
-                        && (usesNestedAcrossSeriesAggregation(binaryOperator.left())
-                            || usesNestedAcrossSeriesAggregation(binaryOperator.right()))) {
-                        // TODO: Support nested aggregations in binary operator operands.
-                        // https://github.com/elastic/elasticsearch/issues/158183
-                        failures.add(
-                            fail(lp, "binary expressions with nested aggregations are not supported at this time [{}]", lp.sourceText())
-                        );
-                    } else if (binaryOperator instanceof VectorBinarySet == false
-                        && binaryOperator.match() == VectorMatch.NONE
-                        && hasSourceBackedExpression(binaryOperator.left())
-                        && hasSourceBackedExpression(binaryOperator.right())) {
-                            verifyFusedOperands(failures, binaryOperator);
-                        }
+                    if (hasSourceBackedExpression(binaryOperator.left()) && hasSourceBackedExpression(binaryOperator.right())) {
+                        verifySourceBackedOperands(failures, binaryOperator);
+                    }
                     // Arithmetic/comparison binary operators merge both source-backed operands into a single
                     // TimeSeriesAggregate (one shared time bucket and timestamp), which cannot represent two
                     // different offsets. `or` (UNION) translates to independent branches, so per-branch offsets
@@ -755,15 +743,20 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     }
 
     /**
-     * An unmatched operator between two source-backed operands folds them into one aggregate, which only works for operands
-     * aggregated alike: both per series, or both one level across series. Every other pair failed later in planning with an
-     * error naming internals, or answered wrong; each is rejected here with what it is.
+     * Verifies the operands of a binary operator whose both sides read source data.
+     * <p>
+     * An arithmetic or comparison operator without {@code on}/{@code ignoring} is fused: both operands are computed in one
+     * shared aggregation, which only works for operands aggregated alike - both per series, or both one level across series,
+     * where {@code topk}/{@code bottomk}/{@code limitk} and {@code scalar()} count as a level too. Any other operator computes
+     * each operand on its own; there, only a {@code sum}-like aggregate nested inside another is unsupported.
      */
-    private static void verifyFusedOperands(Failures failures, VectorBinaryOperator binaryOperator) {
+    private static void verifySourceBackedOperands(Failures failures, VectorBinaryOperator binaryOperator) {
         LogicalPlan left = binaryOperator.left();
         LogicalPlan right = binaryOperator.right();
         String text = binaryOperator.sourceText();
-        if (scalarOfVector(left) && hasLabels(right) || scalarOfVector(right) && hasLabels(left)) {
+        boolean fused = binaryOperator instanceof VectorBinarySet == false && binaryOperator.match() == VectorMatch.NONE;
+        Predicate<LogicalPlan> isAggregation = fused ? PromqlCommand::isAcrossSeries : AcrossSeriesAggregate.class::isInstance;
+        if (fused && (scalarOfVector(left) && hasLabels(right) || scalarOfVector(right) && hasLabels(left))) {
             failures.add(
                 fail(
                     binaryOperator,
@@ -771,22 +764,21 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     text
                 )
             );
-        } else if (usesNestedAggregation(left) || usesNestedAggregation(right)) {
+        } else if (usesNestedAggregation(left, isAggregation) || usesNestedAggregation(right, isAggregation)) {
             // TODO: Support nested aggregations in binary operator operands.
             // https://github.com/elastic/elasticsearch/issues/158183
             failures.add(fail(binaryOperator, "binary expressions with nested aggregations are not supported at this time [{}]", text));
-        } else if (left.anyMatch(AcrossSeriesReduction.class::isInstance) || right.anyMatch(AcrossSeriesReduction.class::isInstance)) {
+        } else if (fused && (usesReduction(left) || usesReduction(right))) {
             failures.add(fail(binaryOperator, "binary operations over topk, bottomk or limitk are not supported at this time [{}]", text));
-        } else if (aggregatesAcrossSeries(left) != aggregatesAcrossSeries(right)) {
+        } else if (fused && aggregatesAcrossSeries(left) != aggregatesAcrossSeries(right)) {
             failures.add(
                 fail(binaryOperator, "binary operations between an aggregated and a raw vector are not supported at this time [{}]", text)
             );
         }
     }
 
-    /** Whether a node aggregating across series ({@code sum}, {@code topk}, {@code scalar}) sits under another one. */
-    private static boolean usesNestedAggregation(LogicalPlan plan) {
-        return usesNestedAggregation(plan, PromqlCommand::isAcrossSeries);
+    private static boolean usesReduction(LogicalPlan plan) {
+        return plan.anyMatch(AcrossSeriesReduction.class::isInstance);
     }
 
     private static boolean aggregatesAcrossSeries(LogicalPlan plan) {
@@ -808,10 +800,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         return PromqlPlan.returnsScalar(plan) == false && plan.output().isEmpty() == false;
     }
 
-    private static boolean usesNestedAcrossSeriesAggregation(LogicalPlan plan) {
-        return usesNestedAggregation(plan, AcrossSeriesAggregate.class::isInstance);
-    }
-
+    /** Whether a node matching {@code isAggregation} sits under another one. */
     private static boolean usesNestedAggregation(LogicalPlan plan, Predicate<LogicalPlan> isAggregation) {
         return plan.anyMatch(p -> isAggregation.test(p) && p instanceof UnaryPlan unary && unary.child().anyMatch(isAggregation));
     }

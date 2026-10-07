@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.document.column.BinaryColumn;
 import org.apache.lucene.document.column.Column;
 import org.apache.lucene.document.column.ColumnBatch;
@@ -29,15 +28,12 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat;
-import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.shard.IndexShard;
@@ -500,16 +496,7 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
     private void addBatch(MapperService mapperService, MappedColumns columns, int expectedDocs) throws IOException {
         final IndexWriterConfig iwc = new IndexWriterConfig(
             IndexShard.buildIndexAnalyzer(mapperService, mapperService.getMapperMetrics().tokenCountingMetrics())
-        ).setCodec(
-            new PerFieldMapperCodec(
-                Lucene104Codec.Mode.BEST_SPEED,
-                ElasticsearchStoredFieldsFormat.Mode.LUCENE,
-                ElasticsearchStoredFieldsFormat.Mode.LUCENE,
-                mapperService,
-                BigArrays.NON_RECYCLING_INSTANCE,
-                null
-            )
-        );
+        ).setCodec(productionCodec(mapperService));
         try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, iwc)) {
             iw.addBatch(columns.toColumnBatch());
             try (DirectoryReader reader = DirectoryReader.open(iw)) {

@@ -9,14 +9,12 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -2402,12 +2400,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         docWithoutField.version().setLongValue(1);
 
         try (Directory directory = newDirectory()) {
-            try (
-                RandomIndexWriter writer = TestIndexWriterBuilder.mapped(mapperService)
-                    .analyzer(new StandardAnalyzer())
-                    .mergePolicy(NoMergePolicy.INSTANCE)
-                    .build(directory)
-            ) {
+            try (RandomIndexWriter writer = TestIndexWriterBuilder.mapped(mapperService).disableMerges().build(directory)) {
                 writer.addDocuments(docWithField.docs());
                 writer.commit();
                 writer.addDocuments(docWithoutField.docs());
@@ -2473,12 +2466,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         docWithoutField.version().setLongValue(1);
 
         try (Directory directory = newDirectory()) {
-            try (
-                RandomIndexWriter writer = TestIndexWriterBuilder.mapped(mapperService)
-                    .analyzer(new StandardAnalyzer())
-                    .mergePolicy(NoMergePolicy.INSTANCE)
-                    .build(directory)
-            ) {
+            try (RandomIndexWriter writer = TestIndexWriterBuilder.mapped(mapperService).disableMerges().build(directory)) {
                 writer.addDocuments(docWithIgnored.docs());
                 writer.commit();
                 writer.addDocuments(docWithoutField.docs());

@@ -19,7 +19,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
@@ -489,20 +488,15 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         CheckedConsumer<RandomIndexWriter, IOException> builder,
         CheckedConsumer<DirectoryReader, IOException> test
     ) throws IOException {
-        IndexSortConfig sortConfig = new IndexSortConfig(mapperService.getIndexSettings());
-        Sort indexSort = sortConfig.buildIndexSort(
-            mapperService::fieldType,
-            (ft, s) -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "")).build(null, null)
-        );
-        IndexWriterConfig iwc = new IndexWriterConfig(
-            IndexShard.buildIndexAnalyzer(mapperService, mapperService.getMapperMetrics().tokenCountingMetrics())
-        ).setCodec(productionCodec(mapperService));
-        if (indexSort != null) {
-            iwc.setIndexSort(indexSort);
-        }
-        try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc)) {
+        try (
+            Directory dir = newDirectory();
+            RandomIndexWriter iw = TestIndexWriterBuilder.mapped(mapperService)
+                .overrideAnalyzer(IndexShard.buildIndexAnalyzer(mapperService, mapperService.getMapperMetrics().tokenCountingMetrics()))
+                .build(dir)
+        ) {
             builder.accept(iw);
             try (DirectoryReader reader = iw.getReader()) {
+                assertDocValuesWrittenAsMapped(mapperService, reader);
                 test.accept(reader);
             }
         }
@@ -975,8 +969,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     }
 
     protected RandomIndexWriter indexWriterForSyntheticSource(MapperService mapperService, Directory directory) throws IOException {
-        // MockAnalyzer (rarely) produces random payloads that lead to failures during assertReaderEquals.
-        return TestIndexWriterBuilder.mapped(mapperService).analyzer(new StandardAnalyzer()).build(directory);
+        return TestIndexWriterBuilder.mapped(mapperService).build(directory);
     }
 
     /**
@@ -1007,6 +1000,13 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
 
     protected static DocValuesFormat productionDocValuesFormat(MapperService mapperService, String field) {
         return productionCodec(mapperService).getDocValuesFormatForField(field);
+    }
+
+    static Sort productionIndexSort(MapperService mapperService) {
+        return new IndexSortConfig(mapperService.getIndexSettings()).buildIndexSort(
+            mapperService::fieldType,
+            (ft, s) -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "")).build(null, null)
+        );
     }
 
     static PerFieldMapperCodec productionCodec(MapperService mapperService) {

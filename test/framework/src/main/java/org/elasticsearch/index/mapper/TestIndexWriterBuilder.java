@@ -10,61 +10,76 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.engine.Engine;
 
 import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Builds a {@link RandomIndexWriter} that writes with the codec production picks for a mapping. The codec is fixed by
- * {@link #mapped} and the configuration is never exposed, so a test cannot write doc values in a format its mapping would not.
+ * Builds a {@link RandomIndexWriter} with the codec and index sort the engine would use for a mapping, with the parent field set
+ * whenever it sorts so nested documents stay together. The analyzer defaults to {@link StandardAnalyzer}. The configuration is not
+ * randomized and never exposed, so a test cannot write doc values in a format, or documents in an order, its mapping would not
+ * produce. Any other choice must be explicit: {@link #overrideAnalyzer}, {@link #overrideIndexSort} or {@link #disableMerges}.
  */
 public final class TestIndexWriterBuilder {
 
     private final Codec codec;
-    private Analyzer analyzer;
+    private final IndexVersion indexVersion;
+    private Analyzer analyzer = new StandardAnalyzer();
     private Sort indexSort;
-    private MergePolicy mergePolicy;
+    private boolean mergesDisabled;
 
-    private TestIndexWriterBuilder(Codec codec) {
+    private TestIndexWriterBuilder(Codec codec, IndexVersion indexVersion, Sort indexSort) {
         this.codec = codec;
+        this.indexVersion = indexVersion;
+        this.indexSort = indexSort;
     }
 
     public static TestIndexWriterBuilder mapped(MapperService mapperService) {
-        return new TestIndexWriterBuilder(MapperServiceTestCase.productionCodec(Objects.requireNonNull(mapperService)));
+        Objects.requireNonNull(mapperService);
+        return new TestIndexWriterBuilder(
+            MapperServiceTestCase.productionCodec(mapperService),
+            mapperService.getIndexSettings().getIndexVersionCreated(),
+            MapperServiceTestCase.productionIndexSort(mapperService)
+        );
     }
 
-    public TestIndexWriterBuilder analyzer(Analyzer analyzer) {
-        this.analyzer = analyzer;
+    public TestIndexWriterBuilder overrideAnalyzer(Analyzer analyzer) {
+        this.analyzer = Objects.requireNonNull(analyzer);
         return this;
     }
 
-    public TestIndexWriterBuilder indexSort(Sort indexSort) {
-        this.indexSort = indexSort;
+    public TestIndexWriterBuilder overrideIndexSort(Sort indexSort) {
+        this.indexSort = Objects.requireNonNull(indexSort);
         return this;
     }
 
-    public TestIndexWriterBuilder mergePolicy(MergePolicy mergePolicy) {
-        this.mergePolicy = mergePolicy;
+    public TestIndexWriterBuilder disableMerges() {
+        this.mergesDisabled = true;
         return this;
     }
 
     public RandomIndexWriter build(Directory directory) throws IOException {
-        final IndexWriterConfig config = analyzer == null
-            ? LuceneTestCase.newIndexWriterConfig()
-            : LuceneTestCase.newIndexWriterConfig(LuceneTestCase.random(), analyzer);
+        final IndexWriterConfig config = new IndexWriterConfig(analyzer);
         config.setCodec(codec);
         if (indexSort != null) {
             config.setIndexSort(indexSort);
+            if (indexVersion.onOrAfter(IndexVersions.INDEX_SORTING_ON_NESTED)) {
+                config.setParentField(Engine.ROOT_DOC_FIELD_NAME);
+            }
         }
-        if (mergePolicy != null) {
-            config.setMergePolicy(mergePolicy);
+        if (mergesDisabled) {
+            config.setMergePolicy(NoMergePolicy.INSTANCE);
         }
         return new RandomIndexWriter(LuceneTestCase.random(), directory, config);
     }

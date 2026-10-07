@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesSkipIndexType;
@@ -19,7 +18,6 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -1592,8 +1590,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             List<SyntheticSourceExample> examples = new ArrayList<>();
             try (
                 var iw = TestIndexWriterBuilder.mapped(mapperService)
-                    .analyzer(new StandardAnalyzer())
-                    .indexSort(new Sort(new SortField("sort", SortField.Type.LONG)))
+                    .overrideIndexSort(new Sort(new SortField("sort", SortField.Type.LONG)))
                     .build(directory)
             ) {
                 for (int seqNo = 0; seqNo < maxDocs; seqNo++) {
@@ -1685,8 +1682,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         try (Directory directory = newDirectory()) {
             try (
                 RandomIndexWriter iw = TestIndexWriterBuilder.mapped(mapperService)
-                    .analyzer(new MockAnalyzer(random()))
-                    .mergePolicy(NoMergePolicy.INSTANCE)
+                    .overrideAnalyzer(new MockAnalyzer(random()))
+                    .disableMerges()
                     .build(directory)
             ) {
                 for (int i = 0; i < count; i++) {

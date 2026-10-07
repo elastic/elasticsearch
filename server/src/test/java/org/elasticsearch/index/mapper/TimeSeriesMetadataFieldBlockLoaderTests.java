@@ -9,11 +9,8 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
@@ -25,15 +22,10 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexSortConfig;
-import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat;
-import org.elasticsearch.index.codec.PerFieldMapperCodec;
-import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.shard.IndexShard;
@@ -481,27 +473,13 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
         CheckedConsumer<RandomIndexWriter, IOException> indexer,
         CheckedBiConsumer<DirectoryReader, LeafReaderContext, IOException> test
     ) throws IOException {
-        IndexSortConfig sortConfig = new IndexSortConfig(mapperService.getIndexSettings());
-        Sort indexSort = sortConfig.buildIndexSort(
-            mapperService::fieldType,
-            (ft, s) -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "")).build(null, null)
-        );
-        IndexWriterConfig iwc = new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService)).setCodec(
-            new PerFieldMapperCodec(
-                Lucene104Codec.Mode.BEST_SPEED,
-                ElasticsearchStoredFieldsFormat.Mode.LUCENE,
-                ElasticsearchStoredFieldsFormat.Mode.LUCENE,
-                mapperService,
-                BigArrays.NON_RECYCLING_INSTANCE,
-                null
-            )
-        );
-        if (indexSort != null) {
-            iwc.setIndexSort(indexSort);
-        }
         try (Directory dir = newDirectory()) {
             ((BaseDirectoryWrapper) dir).setCheckIndexOnClose(false);
-            try (RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc)) {
+            try (
+                RandomIndexWriter iw = TestIndexWriterBuilder.mapped(mapperService)
+                    .overrideAnalyzer(IndexShard.buildIndexAnalyzer(mapperService))
+                    .build(dir)
+            ) {
                 indexer.accept(iw);
                 try (DirectoryReader reader = iw.getReader()) {
                     assertThat(reader.leaves(), hasSize(1));

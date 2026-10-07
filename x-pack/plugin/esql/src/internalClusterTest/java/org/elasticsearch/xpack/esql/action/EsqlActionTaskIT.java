@@ -383,6 +383,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                 assertThat(status.description(), anyOf(equalTo("data"), equalTo("node_reduce"), equalTo("final")));
                 if (status.description().equals("data")) {
                     assertThat(status.status(), equalTo(DriverStatus.Status.RUNNING));
+                    assertThat(status.threadName(), containsString("[esql_worker]"));
                 } else {
                     assertThat(status.status(), equalTo(DriverStatus.Status.ASYNC));
                 }

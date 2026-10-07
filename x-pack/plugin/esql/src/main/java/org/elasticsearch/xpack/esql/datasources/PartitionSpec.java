@@ -687,6 +687,8 @@ public final class PartitionSpec {
      * year-key only — never an independent month IN list. Source-column hints
      * ({@code @timestamp}, {@code ts}) are then dropped so they cannot join
      * listing-cache identity once the glob stays walkable ({@code year=2024/**}).
+     * They stay when no year IN is emitted, so a numeric bound that lands
+     * outside 1971–2100 still reaches {@link #emitListingNotices}.
      */
     public List<PartitionFilterHint> projectListingHints(List<PartitionFilterHint> hints) {
         return projectListingHints(hints, null);
@@ -697,6 +699,7 @@ public final class PartitionSpec {
             return hints == null ? List.of() : hints;
         }
         List<PartitionFilterHint> projected = new ArrayList<>(hints.size() + 2);
+        boolean emittedYearIn = false;
         for (PartitionFilterHint hint : hints) {
             List<Field> remaps = identityRemaps(hint.columnName(), detectedKeys);
             if (remaps.isEmpty()) {
@@ -724,8 +727,9 @@ public final class PartitionSpec {
             List<Object> values = new ArrayList<>(years.size());
             values.addAll(years);
             projected.add(new PartitionFilterHint(yearBind.key(), Operator.IN, values));
+            emittedYearIn = true;
         }
-        return List.copyOf(dropTemporalSourceHints(projected));
+        return List.copyOf(emittedYearIn ? dropTemporalSourceHints(projected) : projected);
     }
 
     /**

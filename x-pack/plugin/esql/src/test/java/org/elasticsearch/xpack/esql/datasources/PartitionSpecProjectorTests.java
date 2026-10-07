@@ -130,7 +130,7 @@ public class PartitionSpecProjectorTests extends ESTestCase {
     public void testUnboundedRangeDoesNotEmitInfiniteYearIn() {
         PartitionSpec spec = PartitionSpec.parse("year(ts)");
         List<PartitionFilterHint> hints = List.of(hint("ts", Operator.GREATER_THAN, MARCH_15_2024));
-        assertEquals(List.of(), spec.projectListingHints(hints));
+        assertEquals(hints, spec.projectListingHints(hints));
     }
 
     public void testMonthOnlySpecDoesNotInventYearIn() {
@@ -138,7 +138,7 @@ public class PartitionSpecProjectorTests extends ESTestCase {
         Instant start = Instant.parse("2024-03-15T00:00:00Z");
         Instant end = Instant.parse("2026-01-01T00:00:00Z");
         List<PartitionFilterHint> hints = List.of(hint("ts", Operator.GREATER_THAN_OR_EQUAL, start), hint("ts", Operator.LESS_THAN, end));
-        assertEquals(List.of(), spec.projectListingHints(hints));
+        assertEquals(hints, spec.projectListingHints(hints));
     }
 
     public void testIdentityRemapRewritesHintColumn() {
@@ -186,7 +186,7 @@ public class PartitionSpecProjectorTests extends ESTestCase {
         Instant end = Instant.parse("2025-01-01T00:00:00Z");
         List<PartitionFilterHint> hints = List.of(hint("ts", Operator.GREATER_THAN_OR_EQUAL, start), hint("ts", Operator.LESS_THAN, end));
 
-        assertEquals(List.of(), spec.projectListingHints(hints, Set.of("year")));
+        assertEquals(hints, spec.projectListingHints(hints, Set.of("year")));
         assertEquals(List.of(hint("yyy", Operator.IN, 2024)), spec.projectListingHints(hints, Set.of("yyy")));
 
         List<String> notices = new ArrayList<>();
@@ -222,7 +222,10 @@ public class PartitionSpecProjectorTests extends ESTestCase {
         PartitionSpec spec = PartitionSpec.parse("year(start), month(start)");
         List<PartitionFilterHint> hints = List.of(hint("start", Operator.LESS_THAN, 1_710_000_000L));
         assertTrue("wrong-unit < must not empty the 2024 folder", spec.overlaps(folder(2024, 6, null), hints));
-        assertEquals(List.of(), spec.projectListingHints(hints));
+        assertEquals(hints, spec.projectListingHints(hints));
+        List<String> notices = new ArrayList<>();
+        spec.emitListingNotices(Set.of("year", "month"), spec.projectListingHints(hints), notices::add);
+        assertThat(notices, hasItem(containsString("the unit is likely wrong")));
     }
 
     public void testWrongUnitDoesNotWarnForDatetimeLiteral() {

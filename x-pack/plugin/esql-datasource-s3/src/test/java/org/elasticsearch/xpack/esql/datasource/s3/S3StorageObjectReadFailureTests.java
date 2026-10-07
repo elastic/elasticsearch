@@ -415,6 +415,20 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
         verify(mockS3, never()).headObject(any(HeadObjectRequest.class));
     }
 
+    /** A HEAD refused as archived is not retried as a range GET either. */
+    public void testArchivedObjectOnHeadFallback() {
+        S3Client mockS3 = mock(S3Client.class);
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(s3Error(500, "InternalError"));
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenThrow(archived(StorageClass.GLACIER, null));
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalClientException ex = expectThrows(ExternalClientException.class, obj::length);
+        assertEquals(Condition.OBJECT_ARCHIVED, ex.condition());
+        assertThat(ex.getMessage(), containsString("storage class [GLACIER]"));
+        verify(mockS3, times(1)).getObject(any(GetObjectRequest.class));
+        verify(mockS3, times(1)).headObject(any(HeadObjectRequest.class));
+    }
+
     public void testArchivedObjectOnExists() {
         S3Client mockS3 = mock(S3Client.class);
         when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(

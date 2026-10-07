@@ -759,8 +759,14 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         } catch (NoSuchKeyException e) {
             setNotFound();
         } catch (Exception e) {
-            if (mapReadFailure("HeadObject request failed for", e) instanceof ExternalCredentialsExpiredException expired) {
+            Exception mapped = mapReadFailure("HeadObject request failed for", e);
+            if (mapped instanceof ExternalCredentialsExpiredException expired) {
                 throw expired;
+            }
+            if (mapped instanceof ExternalClientException archived
+                && archived.condition() == ExternalClientException.Condition.OBJECT_ARCHIVED) {
+                // S3 refuses every GET shape on an archived object, so the 403 range-GET fallback below cannot succeed.
+                throw archived;
             }
             if (e instanceof S3Exception s3e && s3e.statusCode() == 403) {
                 fetchMetadataViaRangeGet();

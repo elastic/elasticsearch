@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.client;
 
+import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.bedrockruntime.model.BedrockRuntimeException;
+import software.amazon.awssdk.services.bedrockruntime.model.CitationsDelta;
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockDelta;
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockDeltaEvent;
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockStart;
@@ -18,23 +20,32 @@ import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamOutput
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamResponseHandler;
 import software.amazon.awssdk.services.bedrockruntime.model.MessageStartEvent;
 import software.amazon.awssdk.services.bedrockruntime.model.MessageStopEvent;
+import software.amazon.awssdk.services.bedrockruntime.model.ReasoningContentBlockDelta;
 import software.amazon.awssdk.services.bedrockruntime.model.TokenUsage;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolUseBlockStart;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.inference.completion.ReasoningDetail;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessageResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsageResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsageResponse.PromptTokensDetails;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Flow;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.inference.services.anthropic.AnthropicChatCompletionStreamingProcessor.ANTHROPIC_CLAUDE_V1_FORMAT;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isA;
@@ -55,9 +66,13 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
 
     @Before
     public void createProcessor() throws Exception {
+        processor = createProcessor(randomFrom(AmazonBedrockProvider.values()));
+    }
+
+    private static AmazonBedrockChatCompletionStreamingProcessor createProcessor(AmazonBedrockProvider provider) {
         ThreadPool threadPool = mock();
         when(threadPool.executor(UTILITY_THREAD_POOL_NAME)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        processor = new AmazonBedrockChatCompletionStreamingProcessor(threadPool, "model");
+        return new AmazonBedrockChatCompletionStreamingProcessor(threadPool, "model", provider);
     }
 
     /**
@@ -116,7 +131,7 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
         ExecutorService executorService = mock();
         ThreadPool threadPool = mock();
         when(threadPool.executor(UTILITY_THREAD_POOL_NAME)).thenReturn(executorService);
-        processor = new AmazonBedrockChatCompletionStreamingProcessor(threadPool, "model");
+        processor = new AmazonBedrockChatCompletionStreamingProcessor(threadPool, "model", randomFrom(AmazonBedrockProvider.values()));
         doAnswer(ans -> {
             Runnable command = ans.getArgument(0);
             command.run();
@@ -174,6 +189,126 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
         assertThat(argument.getAllValues().get(0).chunks().size(), is(1));
         assertThat(argument.getAllValues().get(1).chunks().size(), is(1));
         assertThat(argument.getAllValues().get(2).chunks().size(), is(1));
+    }
+
+    public void testAnthropicReasoningDeltasEmitReasoningAndDetails() {
+        processor = createProcessor(AmazonBedrockProvider.ANTHROPIC);
+        var redacted = "redacted".getBytes(StandardCharsets.UTF_8);
+
+        var messages = messagesFrom(
+            contentBlockDeltaOutput(ContentBlockDelta.fromReasoningContent(ReasoningContentBlockDelta.fromText("thinking")), 0),
+            contentBlockDeltaOutput(ContentBlockDelta.fromReasoningContent(ReasoningContentBlockDelta.fromSignature("sig")), 0),
+            contentBlockDeltaOutput(
+                ContentBlockDelta.fromReasoningContent(ReasoningContentBlockDelta.fromRedactedContent(SdkBytes.fromByteArray(redacted))),
+                1
+            ),
+            contentBlockDeltaOutput(ContentBlockDelta.fromText("answer"), 2)
+        );
+
+        assertThat(messages.size(), is(4));
+        assertThat(messages.get(0).reasoning(), equalTo("thinking"));
+        assertThat(
+            messages.get(0).reasoningDetails(),
+            equalTo(List.of(new ReasoningDetail.TextReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, 0L, "thinking", null)))
+        );
+        assertNull(messages.get(1).reasoning());
+        assertThat(
+            messages.get(1).reasoningDetails(),
+            equalTo(List.of(new ReasoningDetail.TextReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, 0L, null, "sig")))
+        );
+        assertThat(
+            messages.get(2).reasoningDetails(),
+            equalTo(
+                List.of(
+                    new ReasoningDetail.EncryptedReasoningDetail(
+                        ANTHROPIC_CLAUDE_V1_FORMAT,
+                        null,
+                        1L,
+                        Base64.getEncoder().encodeToString(redacted)
+                    )
+                )
+            )
+        );
+        assertThat(messages.get(3).content(), equalTo("answer"));
+        assertNull(messages.get(3).reasoning());
+        assertNull(messages.get(3).reasoningDetails());
+    }
+
+    public void testNonAnthropicReasoningDeltasEmitReasoningTextOnly() {
+        processor = createProcessor(
+            randomValueOtherThan(AmazonBedrockProvider.ANTHROPIC, () -> randomFrom(AmazonBedrockProvider.values()))
+        );
+
+        var messages = messagesFrom(
+            contentBlockDeltaOutput(ContentBlockDelta.fromReasoningContent(ReasoningContentBlockDelta.fromText("thinking")), 0),
+            contentBlockDeltaOutput(ContentBlockDelta.fromReasoningContent(ReasoningContentBlockDelta.fromSignature("sig")), 0),
+            contentBlockDeltaOutput(
+                ContentBlockDelta.fromReasoningContent(ReasoningContentBlockDelta.fromRedactedContent(SdkBytes.fromUtf8String("redacted"))),
+                1
+            )
+        );
+
+        assertThat(messages.size(), is(1));
+        assertThat(messages.get(0).reasoning(), equalTo("thinking"));
+        assertNull(messages.get(0).reasoningDetails());
+    }
+
+    public void testUnknownStreamMembersAreSkipped() {
+        processor = createProcessor(AmazonBedrockProvider.ANTHROPIC);
+
+        var messages = messagesFrom(
+            contentBlockDeltaOutput(ContentBlockDelta.fromCitation(CitationsDelta.builder().build()), 0),
+            contentBlockDeltaOutput(ContentBlockDelta.builder().build(), 0),
+            contentBlockDeltaOutput(ContentBlockDelta.fromReasoningContent(ReasoningContentBlockDelta.builder().build()), 0),
+            contentBlockStartOutput(ContentBlockStart.builder().build(), 0)
+        );
+
+        assertThat(messages.size(), is(0));
+    }
+
+    /**
+     * Sends each output through the processor and returns the message of every chunk sent downstream.
+     */
+    private List<ChatCompletionMessageResponse> messagesFrom(ConverseStreamOutput... outputs) {
+        Flow.Subscription upstream = mock();
+        processor.onSubscribe(upstream);
+        Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream = mock();
+        processor.subscribe(downstream);
+
+        for (var output : outputs) {
+            processor.onNext(output);
+        }
+
+        verify(downstream, never()).onError(any());
+        ArgumentCaptor<StreamingUnifiedChatCompletionResults.Results> argument = ArgumentCaptor.forClass(
+            StreamingUnifiedChatCompletionResults.Results.class
+        );
+        verify(downstream, Mockito.atLeast(0)).onNext(argument.capture());
+        // Every skipped output asks upstream for the next item instead of sending a chunk downstream.
+        verify(upstream, times(outputs.length - argument.getAllValues().size())).request(1);
+        return argument.getAllValues().stream().map(results -> results.chunks().getFirst().choices().getFirst().message()).toList();
+    }
+
+    private ConverseStreamOutput contentBlockDeltaOutput(ContentBlockDelta delta, int contentBlockIndex) {
+        ConverseStreamOutput output = mock();
+        when(output.sdkEventType()).thenReturn(ConverseStreamOutput.EventType.CONTENT_BLOCK_DELTA);
+        doAnswer(ans -> {
+            ConverseStreamResponseHandler.Visitor visitor = ans.getArgument(0);
+            visitor.visitContentBlockDelta(ContentBlockDeltaEvent.builder().delta(delta).contentBlockIndex(contentBlockIndex).build());
+            return null;
+        }).when(output).accept(any());
+        return output;
+    }
+
+    private ConverseStreamOutput contentBlockStartOutput(ContentBlockStart start, int contentBlockIndex) {
+        ConverseStreamOutput output = mock();
+        when(output.sdkEventType()).thenReturn(ConverseStreamOutput.EventType.CONTENT_BLOCK_START);
+        doAnswer(ans -> {
+            ConverseStreamResponseHandler.Visitor visitor = ans.getArgument(0);
+            visitor.visitContentBlockStart(ContentBlockStartEvent.builder().start(start).contentBlockIndex(contentBlockIndex).build());
+            return null;
+        }).when(output).accept(any());
+        return output;
     }
 
     private ConverseStreamOutput messageStartOutput(String role) {

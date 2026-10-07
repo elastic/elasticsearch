@@ -114,7 +114,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
     // Other constants
     private static final String OBJECT_VALUE = "chat.completion.chunk";
     private static final String FUNCTION_TYPE = "function";
-    private static final String ANTHROPIC_CLAUDE_V1_FORMAT = "anthropic-claude-v1";
+    public static final String ANTHROPIC_CLAUDE_V1_FORMAT = "anthropic-claude-v1";
 
     // Per-stream state
     private String id;

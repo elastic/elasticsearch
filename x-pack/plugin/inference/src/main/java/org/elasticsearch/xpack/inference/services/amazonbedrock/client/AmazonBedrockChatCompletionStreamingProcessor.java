@@ -16,10 +16,12 @@ import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamOutput
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamResponseHandler;
 import software.amazon.awssdk.services.bedrockruntime.model.MessageStartEvent;
 import software.amazon.awssdk.services.bedrockruntime.model.MessageStopEvent;
+import software.amazon.awssdk.services.bedrockruntime.model.ReasoningContentBlockDelta;
 import software.amazon.awssdk.services.bedrockruntime.model.StopReason;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.completion.ReasoningDetail;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -31,10 +33,14 @@ import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionM
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCallResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsageResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsageResponse.PromptTokensDetails;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.translation.ChatCompletionRole;
 
 import java.util.ArrayDeque;
+import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Stream;
@@ -44,6 +50,7 @@ import static org.elasticsearch.xpack.inference.services.amazonbedrock.translati
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.translation.Constants.FINISH_REASON_STOP;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.translation.Constants.FINISH_REASON_TOOL_CALLS;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.translation.Constants.FUNCTION_TYPE;
+import static org.elasticsearch.xpack.inference.services.anthropic.AnthropicChatCompletionStreamingProcessor.ANTHROPIC_CLAUDE_V1_FORMAT;
 
 class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreamingProcessor<StreamingUnifiedChatCompletionResults.Results> {
     private static final Logger logger = LogManager.getLogger(AmazonBedrockChatCompletionStreamingProcessor.class);
@@ -52,12 +59,21 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
 
     private final String conversationId;
     private final String modelId;
+    /**
+     * Converse reasoning is only known to be Claude extended thinking when the endpoint's provider is Anthropic, so only then
+     * are reasoning details emitted, labelled like the Anthropic service's. Other providers get the reasoning text alone.
+     */
+    private final boolean emitReasoningDetails;
 
-    protected AmazonBedrockChatCompletionStreamingProcessor(ThreadPool threadPool, String modelId) {
+    private int reasoningBlockCount;
+    private final Map<Integer, Integer> contentBlockIndexToReasoningIndex = new HashMap<>();
+
+    protected AmazonBedrockChatCompletionStreamingProcessor(ThreadPool threadPool, String modelId, AmazonBedrockProvider provider) {
         super(threadPool);
 
         conversationId = Strings.format("unified-%s", UUID.randomUUID().toString());
         this.modelId = Objects.requireNonNull(modelId);
+        this.emitReasoningDetails = provider == AmazonBedrockProvider.ANTHROPIC;
     }
 
     @Override
@@ -324,8 +340,8 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
             return Stream.of(chunk);
         }
 
-        logger.debug("unhandled content block start type [{}].", type);
-        throw new IllegalArgumentException("unhandled content block start type [" + type + "]");
+        logger.debug("unhandled content block start type [{}], skipping.", type);
+        return Stream.empty();
     }
 
     /**
@@ -344,15 +360,76 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
                 var toolCall = handleToolUseDelta(event.delta());
                 yield new ChatCompletionMessageResponse(content, null, null, List.of(toolCall), null, null);
             }
+            case ContentBlockDelta.Type.REASONING_CONTENT -> handleReasoningDelta(
+                event.delta().reasoningContent(),
+                event.contentBlockIndex()
+            );
             default -> {
-                logger.debug("unknown content block delta type [{}].", type);
-                throw new IllegalArgumentException("unknown content block delta type [" + type + "]");
+                logger.debug("unknown content block delta type [{}], skipping.", type);
+                yield null;
             }
         };
+        if (message == null) {
+            return Stream.empty();
+        }
         var choice = new ChatCompletionChoiceResponse(message, null, event.contentBlockIndex());
 
         var chunk = createChatCompletionChunkResponse(List.of(choice), null);
         return Stream.of(chunk);
+    }
+
+    /**
+     * Maps a reasoning delta to a message, or returns null when there is nothing to emit for this endpoint.
+     * @param reasoning the reasoning delta
+     * @param contentBlockIndex the content block the delta belongs to
+     * @return the message, or null
+     */
+    @Nullable
+    private ChatCompletionMessageResponse handleReasoningDelta(ReasoningContentBlockDelta reasoning, int contentBlockIndex) {
+        var type = reasoning.type();
+        if (emitReasoningDetails == false) {
+            return type == ReasoningContentBlockDelta.Type.TEXT
+                ? new ChatCompletionMessageResponse(null, null, null, null, reasoning.text(), null)
+                : null;
+        }
+
+        // Converse sends no content block start for reasoning, so the first delta of a block assigns its reasoning index.
+        long reasoningIdx = contentBlockIndexToReasoningIndex.computeIfAbsent(contentBlockIndex, k -> reasoningBlockCount++);
+        return switch (type) {
+            case ReasoningContentBlockDelta.Type.TEXT -> new ChatCompletionMessageResponse(
+                null,
+                null,
+                null,
+                null,
+                reasoning.text(),
+                List.of(new ReasoningDetail.TextReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, reasoningIdx, reasoning.text(), null))
+            );
+            case ReasoningContentBlockDelta.Type.SIGNATURE -> new ChatCompletionMessageResponse(
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of(
+                    new ReasoningDetail.TextReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, reasoningIdx, null, reasoning.signature())
+                )
+            );
+            case ReasoningContentBlockDelta.Type.REDACTED_CONTENT -> {
+                var data = Base64.getEncoder().encodeToString(reasoning.redactedContent().asByteArray());
+                yield new ChatCompletionMessageResponse(
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    List.of(new ReasoningDetail.EncryptedReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, reasoningIdx, data))
+                );
+            }
+            default -> {
+                logger.debug("unknown reasoning content delta type [{}], skipping.", type);
+                yield null;
+            }
+        };
     }
 
     /**

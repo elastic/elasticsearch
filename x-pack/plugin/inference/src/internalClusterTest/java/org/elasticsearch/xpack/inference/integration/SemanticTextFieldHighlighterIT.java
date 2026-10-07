@@ -11,10 +11,12 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -33,10 +35,17 @@ public class SemanticTextFieldHighlighterIT extends AbstractInferenceFieldHighli
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return List.of(new Object[] { false }, new Object[] { true });
+        List<Object[]> parameters = new ArrayList<>();
+        for (boolean useLegacyFormat : List.of(false, true)) {
+            for (SourceFieldMapper.Mode sourceMode : SOURCE_MODES) {
+                parameters.add(new Object[] { sourceMode, useLegacyFormat });
+            }
+        }
+        return parameters;
     }
 
-    public SemanticTextFieldHighlighterIT(boolean useLegacyFormat) {
+    public SemanticTextFieldHighlighterIT(SourceFieldMapper.Mode sourceMode, boolean useLegacyFormat) {
+        super(sourceMode);
         this.useLegacyFormat = useLegacyFormat;
     }
 

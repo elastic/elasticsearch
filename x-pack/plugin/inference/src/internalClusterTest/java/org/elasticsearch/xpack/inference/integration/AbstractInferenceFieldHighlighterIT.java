@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.inference.integration;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -52,6 +54,7 @@ import static org.hamcrest.Matchers.equalTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 1, supportsDedicatedMasters = false)
 abstract class AbstractInferenceFieldHighlighterIT extends ESIntegTestCase {
     static final int VECTOR_DIMENSIONS = 128;  // Use a dimension count that is compatible with BIT element type
+    static final List<SourceFieldMapper.Mode> SOURCE_MODES = List.of(SourceFieldMapper.Mode.STORED, SourceFieldMapper.Mode.SYNTHETIC);
 
     private static final String INFERENCE_FIELD = "inference_field";
     private static final String SOURCE_FIELD = "source_field";
@@ -60,6 +63,19 @@ abstract class AbstractInferenceFieldHighlighterIT extends ESIntegTestCase {
     String indexName = null;
     private String inferenceId;
     private TaskType taskType;
+    private final SourceFieldMapper.Mode sourceMode;
+
+    AbstractInferenceFieldHighlighterIT(SourceFieldMapper.Mode sourceMode) {
+        this.sourceMode = sourceMode;
+    }
+
+    @Override
+    public Settings indexSettings() {
+        return Settings.builder()
+            .put(super.indexSettings())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), sourceMode)
+            .build();
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {

@@ -861,7 +861,9 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     false,
                     false,
                     null,
+                    null,
                     diff,
+                    null,
                     null,
                     null,
                     null,
@@ -904,6 +906,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 fieldCap.isInference(),
                 fieldCap.isDimension(),
                 fieldCap.metricType(),
+                fieldCap.isPassthrough(),
                 fieldCap.meta()
             );
         }

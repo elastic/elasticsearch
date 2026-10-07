@@ -45,7 +45,8 @@ if [ "$LOCAL" = true ]; then
     -t "$IMAGE" \
     .
   echo "Local build complete. Image tagged as $IMAGE."
-  echo "To use it: ./publish_vec_binaries.sh --local"
+  echo "To use it: NATIVE_TOOLCHAIN_IMAGE=$IMAGE <LIB>_NATIVE_BUILD=docker ./gradlew --no-daemon :libs:<lib>:test"
+  echo "       or: ./publish_<lib>_binaries.sh --local"
 else
   echo "Building and pushing $IMAGE (linux/amd64 + linux/arm64) ..."
   # Authenticate at https://docker-auth.elastic.co if not already logged in.
@@ -57,5 +58,5 @@ else
     -t "$IMAGE" \
     --push \
     .
-  echo "Done. Update publish_vec_binaries.sh to reference $REPOSITORY:$VERSION."
+  echo "Done. Point every reference to the toolchain image to $REPOSITORY:$VERSION."
 fi

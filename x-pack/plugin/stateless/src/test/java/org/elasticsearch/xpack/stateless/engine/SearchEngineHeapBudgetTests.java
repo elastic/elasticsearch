@@ -535,7 +535,7 @@ public class SearchEngineHeapBudgetTests extends AbstractEngineTestCase {
             searchTaskQueue.runAllRunnableTasks();
 
             // Open a reader that retain _0
-            Engine.Searcher pinnedR1 = searchEngine.acquireSearcher("test");
+            Engine.Searcher pinned = searchEngine.acquireSearcher("test");
             try {
                 // Create a second segment _1
                 indexEngine.index(randomDoc("doc1"));
@@ -566,11 +566,11 @@ public class SearchEngineHeapBudgetTests extends AbstractEngineTestCase {
                     hasItems(deferredCommitFiles.toArray(new String[0]))
                 );
 
-                // Now close the reader that retain _1. Its segment is shared with the latest refreshed reader, so no bytes are freed and
+                // Now close the reader that retain _0. Its segment is shared with the latest refreshed reader, so no bytes are freed and
                 // the budget-released immediate retry must not fire. The call to retainOpenReaderFiles by the close listener is the only
                 // effect.
-                pinnedR1.close();
-                pinnedR1 = null;
+                pinned.close();
+                pinned = null;
                 searchTaskQueue.runAllRunnableTasks();
 
                 assertThat(
@@ -589,8 +589,8 @@ public class SearchEngineHeapBudgetTests extends AbstractEngineTestCase {
                     hasItems(deferredCommitFiles.toArray(new String[0]))
                 );
             } finally {
-                if (pinnedR1 != null) {
-                    pinnedR1.close();
+                if (pinned != null) {
+                    pinned.close();
                 }
             }
         }

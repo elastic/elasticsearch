@@ -413,6 +413,11 @@ public class SearchEngine extends Engine {
 
                     @Override
                     public void onFailure(Exception e) {
+                        // The retain pass never ran (e.g. the task was rejected on shutdown), so clear the flag to let
+                        // a subsequent reader close enqueue another retain rather than leaving the retain owed forever.
+                        synchronized (openReaders) {
+                            openReadersChanged = false;
+                        }
                         logger.debug(() -> shardId + " failed to retain open reader files after reader close", e);
                     }
                 });

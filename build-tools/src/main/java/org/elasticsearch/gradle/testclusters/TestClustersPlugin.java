@@ -192,12 +192,7 @@ public class TestClustersPlugin implements Plugin<Project> {
             )
         );
         project.getExtensions().add(EXTENSION_NAME, container);
-        container.configureEach(cluster -> {
-            cluster.systemProperty("ingest.geoip.downloader.enabled.default", "false");
-            // The flag is on in snapshot builds and off in release builds, so mixed-version clusters disagree on the DLM
-            // lifecycle wire format unless it is off everywhere. See https://github.com/elastic/elasticsearch/issues/156594.
-            cluster.systemProperty("es.dlm_searchable_snapshots_feature_flag_enabled", "false");
-        });
+        container.configureEach(cluster -> cluster.systemProperty("ingest.geoip.downloader.enabled.default", "false"));
         return container;
     }
 

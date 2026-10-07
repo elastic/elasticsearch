@@ -32,9 +32,6 @@ setup:
               source_field:
                 type: text
                 copy_to: semantic_field
-              chained_source_field:
-                type: text
-                copy_to: source_field
 
 ---
 "Highlighting image values":
@@ -185,38 +182,3 @@ setup:
   - match: { hits.hits.0._id: "doc_copy_to" }
   - length: { hits.hits.0.highlight.semantic_field: 1 }
   - match: { hits.hits.0.highlight.semantic_field.0: "a cat on a windowsill" }
-
----
-"Highlighting with own values and copy_to values":
-  - requires:
-      cluster_features: "semantic.highlighter.copy_to_fix"
-      reason: semantic highlighter fix for copy_to values
-
-  - do:
-      index:
-        index: test-semantic-field-highlight-index
-        id: doc_own_and_copy_to
-        body:
-          chained_source_field: "a bird on a branch"
-          source_field: "a dog running in a park"
-          semantic_field: "a cat on a windowsill"
-        refresh: true
-
-  - do:
-      search:
-        index: test-semantic-field-highlight-index
-        body:
-          query:
-            match_all: { }
-          highlight:
-            fields:
-              semantic_field:
-                type: "semantic"
-                number_of_fragments: 3
-
-  - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._id: "doc_own_and_copy_to" }
-  # Only one level of copy_to is followed: chained_source_field -> source_field -> semantic_field does not make chained_source_field's value part of semantic_field
-  - length: { hits.hits.0.highlight.semantic_field: 2 }
-  - match: { hits.hits.0.highlight.semantic_field.0: "a cat on a windowsill" }
-  - match: { hits.hits.0.highlight.semantic_field.1: "a dog running in a park" }

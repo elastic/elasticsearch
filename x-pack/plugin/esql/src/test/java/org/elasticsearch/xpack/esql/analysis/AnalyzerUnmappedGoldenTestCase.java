@@ -59,6 +59,12 @@ abstract class AnalyzerUnmappedGoldenTestCase extends GoldenTestCase {
         load(query, variants).run();
     }
 
+    /** Runs the same query and views in the nullify, load, and LOAD_ALL modes. */
+    protected void runInNullifyLoadAndLoadAllModes(String query, Map<String, String> views, String... variants) {
+        runInNullifyAndLoadModes(query, views, variants);
+        loadAll(query, variants).views(views).run();
+    }
+
     /** Runs the same query and views in the nullify and load modes. */
     protected void runInNullifyAndLoadModes(String query, Map<String, String> views, String... variants) {
         nullify(query, variants).views(views).run();

@@ -37,12 +37,15 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.util.ArrayList;
@@ -55,6 +58,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs.nullifyField;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs.unmappedKeyword;
@@ -79,6 +83,13 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
 
     private static final Literal NULLIFIED = Literal.NULL;
 
+    /** {@link UnmappedResolution#DEFAULT} never reaches {@link #resolve}. */
+    private enum Resolution {
+        NULLIFY,
+        LOAD,
+        LOAD_ALL
+    }
+
     private static EsRelation withAdditionalAttributesUnlessLookup(EsRelation esr, List<? extends Attribute> fields) {
         if (esr.indexMode() == IndexMode.LOOKUP || fields.isEmpty()) {
             return esr;
@@ -94,12 +105,13 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
         return switch (context.unmappedResolution()) {
             case UnmappedResolution.DEFAULT -> plan;
-            case UnmappedResolution.NULLIFY -> resolve(plan, false);
-            case UnmappedResolution.LOAD, UnmappedResolution.LOAD_ALL -> resolve(plan, true);
+            case UnmappedResolution.NULLIFY -> resolve(plan, Resolution.NULLIFY);
+            case UnmappedResolution.LOAD -> resolve(plan, Resolution.LOAD);
+            case UnmappedResolution.LOAD_ALL -> resolve(plan, Resolution.LOAD_ALL);
         };
     }
 
-    private static LogicalPlan resolve(LogicalPlan plan, boolean load) {
+    private static LogicalPlan resolve(LogicalPlan plan, Resolution resolution) {
         if (plan.childrenResolved() == false) {
             return plan;
         }
@@ -118,8 +130,11 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
             allUnresolved.addAll(uas);
         }
 
-        var transformed = load ? load(plan, unresolved) : nullify(plan, unresolved);
-        return transformed == plan ? plan : refreshPlan(transformed, allUnresolved);
+        LogicalPlan transformed = switch (resolution) {
+            case NULLIFY -> nullify(plan, unresolved);
+            case LOAD, LOAD_ALL -> load(plan, unresolved);
+        };
+        return transformed == plan ? plan : refreshPlan(transformed, allUnresolved, resolution);
     }
 
     /**
@@ -244,15 +259,23 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     // being aligned after applying the changes.
     /**
      * Update the merge's top Projects in the subplans, and correspondingly, its output, to account for newly introduced aliases.
+     * Under {@code LOAD_ALL}, also patch a KEEP under a subquery; {@code nullify} and {@code load} stay on the top Project only.
      */
-    private static MergePlan patchMergePlan(MergePlan mergePlan) {
+    private static MergePlan patchMergePlan(MergePlan mergePlan, Resolution resolution) {
         Holder<Boolean> changed = new Holder<>(false);
         MergePlan transformed = (MergePlan) mergePlan.transformDownSkipBranch((plan, skip) -> {
             if (plan instanceof Project project) {
-                skip.set(true); // process top Project only (merge-injected)
-                plan = patchMergeProject(project);
-                if (plan != project) {
+                Project patched = patchMergeProject(project, resolution);
+                if (patched != project) {
                     changed.set(Boolean.TRUE);
+                    plan = patched;
+                }
+                // A subquery is not a stopping point under LOAD_ALL: keep walking so the KEEP under it is patched
+                // the same way as a bare KEEP. Stop once that KEEP is patched, and stop when this branch has no subquery.
+                if (resolution != Resolution.LOAD_ALL
+                    || project instanceof ResolvingProject
+                    || project.anyMatch(p -> p instanceof Subquery) == false) {
+                    skip.set(true);
                 }
             }
             return plan;
@@ -262,22 +285,22 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     }
 
     /**
-     * Add any missing attributes that are found in the child's output but not in the Project's output. These have been injected before
-     * by the evalUnresolvedAtopXXX methods and need to be "let through" the Project.
+     * Add attributes present on the child but missing from this projection. Under {@code LOAD_ALL}, a {@link ResolvingProject}
+     * has already chosen its columns, so a name it excluded stays excluded. Otherwise, and for a plain alignment projection,
+     * every missing child attribute is let through.
      */
-    // Maybe using ResolvingProjects at the top of the merge branches would be a more simple solution; adding the `*` pattern
-    // would let any newly introduced attribute through without the need to patch the Projects, we'd just have to refresh the merge output.
-    private static Project patchMergeProject(Project project) {
+    private static Project patchMergeProject(Project project, Resolution resolution) {
         List<Attribute> projectOutput = project.output();
         List<Attribute> childOutput = project.child().output();
-        if (projectOutput.equals(childOutput) == false) {
-            List<Attribute> delta = new ArrayList<>(childOutput);
-            delta.removeAll(projectOutput);
-            if (delta.isEmpty() == false) {
-                project = project.withProjections(mergeOutputAttributes(delta, projectOutput));
-            }
+        if (projectOutput.equals(childOutput)) {
+            return project;
         }
-        return project;
+        var projectSet = new HashSet<>(projectOutput);
+        Predicate<Attribute> resolvingPredicate = resolution == Resolution.LOAD_ALL && project instanceof ResolvingProject resolving
+            ? attr -> attr instanceof UnmappedFieldsAttribute || resolving.admitsLateUnmappedField(attr.name())
+            : unused -> true;
+        List<Attribute> delta = childOutput.stream().filter(attr -> projectSet.contains(attr) == false).filter(resolvingPredicate).toList();
+        return delta.isEmpty() ? project : project.withProjections(mergeOutputAttributes(delta, projectOutput));
     }
 
     /**
@@ -285,7 +308,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
      * unresolvable by attaching a custom message. This needs to be removed for {@link Analyzer.ResolveRefs} to attempt resolving them
      * again. That's what this method does.
      */
-    private static LogicalPlan refreshPlan(LogicalPlan plan, Set<UnresolvedAttribute> maybeNowResolvableAttributes) {
+    private static LogicalPlan refreshPlan(LogicalPlan plan, Set<UnresolvedAttribute> maybeNowResolvableAttributes, Resolution resolution) {
         Map<UnresolvedAttribute, UnresolvedAttribute> oldAttributesToNewAttributes = new HashMap<>();
         Function<UnresolvedAttribute, UnresolvedAttribute> refresh = ua -> {
             if (maybeNowResolvableAttributes.contains(ua)) {
@@ -299,7 +322,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         // Bottom-up: patchForkProject reads project.child().output(), and a Fork reports a stored output rather than recomputing it,
         // so a nested union has to be patched (and refreshOutput'd) before its parent reads it. Top-down leaves the outer branch's
         // alignment Project without the newly loaded attribute, and resolveFork then null-fills the column.
-        return refreshed.transformUp(MergePlan.class, ResolveUnmapped::patchMergePlan);
+        return refreshed.transformUp(MergePlan.class, mergePlan -> patchMergePlan(mergePlan, resolution));
     }
 
     /**

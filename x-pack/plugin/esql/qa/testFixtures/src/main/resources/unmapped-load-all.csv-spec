@@ -3111,6 +3111,1141 @@ FROM partial_mapping_sample_data
 2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42              | 43                       | 2                     | e                       | 1232383
 ;
 
+#########
+# VIEWS #
+#########
+
+loadAllViewPassthroughLoadsFromSource_KeepUnmapped
+required_capability: optional_fields_load_all_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_view
+| WHERE message == "42"
+| KEEP @timestamp, message, unmapped_message
+;
+
+@timestamp:datetime          | message:keyword | unmapped_message:keyword
+2024-10-23T13:33:34.937Z     | 42              | 43
+;
+
+loadAllViewPassthroughLoadsFromSource_WithStatsUnmapped
+required_capability: optional_fields_load_all_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_view
+| STATS loaded = COUNT(unmapped_message), rows = COUNT(*)
+;
+
+loaded:long | rows:long
+7           | 7
+;
+
+loadAllViewPassthrough_OuterEvalMaterializesUnmapped
+required_capability: optional_fields_load_all_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_view
+| WHERE message == "Connected to 10.1.0.3!"
+| EVAL upper = TO_UPPER(unmapped_message), len = LENGTH(unmapped_message)
+| KEEP message, upper, len
+;
+
+message:keyword        | upper:keyword              | len:integer
+Connected to 10.1.0.3! | DISCONNECTED FROM 10.1.0.3 | 26
+;
+
+loadAllViewPassthroughNoKeepExpandsUnmappedFields
+required_capability: optional_fields_load_all_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_view
+| WHERE message == "42"
+;
+
+@timestamp:datetime          | client_ip:ip | event_duration:long | message:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T13:33:34.937Z     | 173.21.0.5   | 1232381             | 42              | 2                     | e                       | 1232383                         | 43
+;
+
+loadAllViewUnmappedFieldInOneBranch
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_view | KEEP message, unmapped_message), (FROM employees | KEEP emp_no)
+| WHERE unmapped_message IS NOT NULL
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | 43
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+Connected to 10.1.0.2! | Disconnected from 10.1.0.2
+Connected to 10.1.0.3! | Disconnected from 10.1.0.3
+Connection error?      | Disconnection error
+Connection error?      | Disconnection error
+Connection error?      | Disconnection error
+;
+
+loadAllViewUnmappedFieldReferencedOnlyAboveUnion
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_view | WHERE message == "42"), (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | 43
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+;
+
+loadAllViewOuterEvalFunction_MaterializesUnmapped_AllBranches
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_view | WHERE message == "42"),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| EVAL upper = TO_UPPER(unmapped_message)
+| KEEP message, unmapped_message, upper
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword   | upper:keyword
+42                     | 43                         | 43
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | DISCONNECTED FROM 10.1.0.1
+;
+
+loadAllViewOuterStatsBy_MaterializesUnmapped_AllBranches
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_view | WHERE message == "42"),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| STATS c = COUNT(*) BY unmapped_message
+| SORT unmapped_message
+;
+
+c:long | unmapped_message:keyword
+1      | 43
+1      | Disconnected from 10.1.0.1
+;
+
+loadAllViewOuterSortDesc_MaterializesUnmapped_ThreeBranches
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_view | WHERE message == "42"),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!"),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.2!")
+| KEEP message, unmapped_message
+| SORT unmapped_message DESC
+;
+
+message:keyword        | unmapped_message:keyword
+Connected to 10.1.0.2! | Disconnected from 10.1.0.2
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+42                     | 43
+;
+
+loadAllViewDropUnmapped_InOneBranch_MaterializesUnmapped_Sibling
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_view | WHERE message == "42" | DROP unmapped_message),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | null
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+;
+
+loadAllViewKeepUnmapped_InOneBranch_ScopesFieldToBranch
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_view | WHERE message == "42" | KEEP message, unmapped_message),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!" | KEEP message)
+| EVAL has = unmapped_message IS NOT NULL
+| KEEP message, unmapped_message, has
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword | has:boolean
+42                     | 43                       | true
+Connected to 10.1.0.1! | null                     | false
+;
+
+loadAllViewEvalUnmappedInOneBranch_ScopesFieldToBranch
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_view | WHERE message == "42" | EVAL tag = unmapped_message),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, tag
+| SORT message
+;
+
+message:keyword        | tag:keyword
+42                     | 43
+Connected to 10.1.0.1! | null
+;
+
+loadAllViewRenameUnmapped_InOneBranch_OuterReferencesNewName
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_view | WHERE message == "42" | RENAME unmapped_message AS renamed),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, renamed
+| SORT message
+;
+
+message:keyword        | renamed:keyword
+42                     | 43
+Connected to 10.1.0.1! | null
+;
+
+loadAllViewMixedViewAndIndex_BranchesMaterializeUnmapped
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_view | WHERE message == "42"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | 43
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+;
+
+loadAllViewNoKeepExpandsUnmappedFields
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_view | WHERE message == "42"),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| SORT @timestamp
+;
+
+@timestamp:datetime          | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T13:33:34.937Z     | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:55:01.543Z     | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+;
+
+// event_duration is long on partial_mapping and unmapped in the view; LOAD_ALL casts the view's _source value to long.
+loadAllViewMappedLongCastsOnUnmappedView
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, no_mapping_view
+| KEEP event_duration
+| SORT event_duration
+| LIMIT 3
+;
+
+event_duration:long
+725447
+725447
+1232381
+;
+
+// The unmapped view is listed first; its fabricated keyword must still yield to the sibling long.
+loadAllViewUnmappedViewFirstLongCastsToSiblingType
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM no_mapping_view, partial_mapping_sample_data
+| KEEP event_duration
+| SORT event_duration
+| LIMIT 3
+;
+
+event_duration:long
+725447
+725447
+1232381
+;
+
+// txt is text on the mapped index; the view's _source string has no cast from keyword, so it stays null.
+loadAllViewMappedTextNullsOnUnmappedViewWithSourceValue
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM text_state_mapped, text_state_unmapped_view
+| KEEP doc_id, txt
+| SORT doc_id
+;
+warning:Field [txt] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+doc_id:keyword | txt:text
+mapped-1       | William Faulkner
+mapped-2       | Jane Austen
+unmapped-1     | null
+;
+
+// aggregate_metric_double has no cast from keyword, so the view row stays null even though _source holds the metric.
+loadAllViewMappedAmdNullsOnUnmappedViewWithSourceValue
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: aggregate_metric_double_v0
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM k8s-downsampled | WHERE cluster == "qa" AND pod == "three" AND @timestamp == "2024-05-09T23:30:00.000Z"),
+     (FROM k8s_unmapped_view | WHERE cluster == "qa" AND pod == "three" | SORT @timestamp | LIMIT 1)
+| KEEP network.eth0.tx
+;
+ignoreOrder:true
+warning:Field [network.eth0.tx] of type [aggregate_metric_double] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+network.eth0.tx:aggregate_metric_double
+{"min":605.0,"max":605.0,"sum":605.0,"value_count":1}
+null
+;
+
+// Wildcard KEEP inside a view must still align $$unmapped_fields with the other FROM branch.
+loadAllViewWildcardKeepUnionWithIndex
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, partial_mapping_view_message_wildcard | WHERE message == "42"
+;
+ignoreOrder:true
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+null                     | null         | null                | 42              | null                  | null                    | null                            | 43
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42              | 2                     | e                       | 1232383                         | 43
+;
+
+loadAllViewWildcardKeepUnionWithIndexSortLimit
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, partial_mapping_view_message_wildcard
+| WHERE message == "42"
+| SORT @timestamp
+| LIMIT 2
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42              | 2                     | e                       | 1232383                         | 43
+null                     | null         | null                | 42              | null                  | null                    | null                            | 43
+;
+
+loadAllViewWildcardKeepUnionWithSiblingView
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_view, partial_mapping_view_message_wildcard
+| WHERE message == "42"
+;
+ignoreOrder:true
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+null                     | null         | null                | 42              | null                  | null                    | null                            | 43
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42              | 2                     | e                       | 1232383                         | 43
+;
+
+loadAllViewWildcardKeepUnionWithNoMappingIndex
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM no_mapping_sample_data, partial_mapping_view_message_wildcard
+| WHERE message == "42"
+;
+ignoreOrder:true
+
+message:keyword | @timestamp:keyword       | client_ip:keyword | event_duration:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+42              | null                     | null              | null                   | null                  | null                    | null                            | 43
+42              | 2024-10-23T13:33:34.937Z | 173.21.0.5        | 1232381                | 2                     | e                       | 1232383                         | 43
+;
+
+loadAllReviewKeepUnmappedColumns
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, partial_mapping_view
+| WHERE message == "42"
+| KEEP message, unmapped_message, unmapped_event_duration
+;
+
+message:keyword | unmapped_message:keyword | unmapped_event_duration:keyword
+42              | 43                       | 1232383
+42              | 43                       | 1232383
+;
+
+loadAllReviewStatsAcrossViews
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_view, view_partial_mapping_sample_data
+| STATS c = COUNT(*), u = COUNT(unmapped_message), n = COUNT_DISTINCT(unmapped.nested)
+;
+
+c:long | u:long | n:long
+14     | 14     | 7
+;
+
+loadAllReviewUnionIndexAndView
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, partial_mapping_view
+| WHERE message == "42"
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42              | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42              | 2                     | e                       | 1232383                         | 43
+;
+
+loadAllReviewSortDescNullsLastLimit
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, partial_mapping_view_message_wildcard
+| SORT @timestamp DESC NULLS LAST
+| LIMIT 1
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+;
+
+loadAllReviewKeepMixedFields
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, partial_mapping_view_message_wildcard
+| WHERE message == "42"
+| KEEP message, unmapped_message, event_duration, unmapped_event_duration
+;
+ignoreOrder:true
+
+message:keyword | unmapped_message:keyword | event_duration:long | unmapped_event_duration:keyword
+42              | 43                       | null                | null
+42              | 43                       | 1232381             | 1232383
+;
+
+loadAllViewAndSubqueryKeepStarMessageCountUnmappedDuration
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, partial_mapping_view_message_wildcard
+| STATS c = COUNT(*), u = COUNT(unmapped_message), d = COUNT(unmapped_event_duration)
+;
+
+c:long | u:long | d:long
+14     | 14     | 7
+;
+
+loadAllSubqueryKeepStarMessageCountUnmappedDuration
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | KEEP *message*)
+| STATS c = COUNT(*), u = COUNT(unmapped_message), d = COUNT(unmapped_event_duration)
+;
+
+c:long | u:long | d:long
+14     | 14     | 7
+;
+
+loadAllReviewKeepDropsNonMatchingUnmapped
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, partial_mapping_view_message_wildcard
+| WHERE message == "42"
+| KEEP message, unmapped_event_duration
+;
+ignoreOrder:true
+
+message:keyword | unmapped_event_duration:keyword
+42              | 1232383
+42              | null
+;
+
+loadAllReviewStatsByNullEventDuration
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, partial_mapping_view_message_wildcard
+| STATS c = COUNT(*), u = COUNT(unmapped_message), d = COUNT(unmapped_event_duration) BY from_view = event_duration IS NULL
+| SORT from_view
+;
+
+c:long | u:long | d:long | from_view:boolean
+7      | 7      | 7      | false
+7      | 7      | 0      | true
+;
+
+loadAllReviewKeepUnmappedStar
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, partial_mapping_view
+| WHERE message == "42"
+| KEEP message, unmapped_*
+;
+
+message:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+42              | 1232383                         | 43
+42              | 1232383                         | 43
+;
+
+loadAllReviewWildcardViewName
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_match_wildcards
+
+SET unmapped_fields="LOAD_ALL"\;
+SET wildcards_match_views=true\;
+FROM partial_mapping_view*
+| WHERE message == "42"
+| KEEP message, unmapped_message, event_duration
+;
+ignoreOrder:true
+
+message:keyword | unmapped_message:keyword | event_duration:long
+42              | 43                       | 1232381
+42              | 43                       | null
+;
+
+loadAllReviewThreeBranches
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, no_mapping_view, partial_mapping_view
+| WHERE message == "42"
+| KEEP message, event_duration, unmapped_event_duration
+;
+
+message:keyword | event_duration:long | unmapped_event_duration:keyword
+42              | 1232381             | 1232383
+42              | 1232381             | 1232383
+42              | 1232381             | 1232383
+;
+
+loadAllReviewNestedView
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM nested_partial_mapping_view
+| WHERE message == "42"
+| KEEP message, unmapped_message, unmapped.nested
+;
+
+message:keyword | unmapped_message:keyword | unmapped.nested:keyword
+42              | 43                       | e
+42              | 43                       | e
+;
+
+loadAllReviewFilteredViewStats
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+request_time_filter: 2024-10-23T13:30:00.000Z,2024-10-23T14:00:00.000Z
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM filtered_partial_mapping_view
+| STATS c = COUNT(*), u = COUNT(unmapped_message), d = COUNT(unmapped_event_duration)
+;
+
+c:long | u:long | d:long
+4      | 4      | 4
+;
+
+loadAllReviewFilteredViewWhere
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+request_time_filter: 2024-10-23T13:30:00.000Z,2024-10-23T14:00:00.000Z
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM filtered_partial_mapping_view
+| WHERE message == "42"
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42              | 2                     | e                       | 1232383                         | 43
+;
+
+loadAllViewGapLiteralKeepCount
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, keep_messages_partial_mapping_view
+| STATS c = COUNT(*), d = COUNT(unmapped_event_duration)
+;
+
+c:long | d:long
+14     | 7
+;
+
+loadAllSubqueryGapLiteralKeepCount
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | KEEP message, unmapped_message)
+| STATS c = COUNT(*), d = COUNT(unmapped_event_duration)
+;
+
+c:long | d:long
+14     | 7
+;
+
+loadAllViewGapLiteralKeepOnlyOmittedField
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, keep_messages_partial_mapping_view
+| WHERE message == "42"
+| KEEP message, unmapped_event_duration
+;
+ignoreOrder:true
+
+message:keyword | unmapped_event_duration:keyword
+42              | 1232383
+42              | null
+;
+
+loadAllSubqueryGapLiteralKeepOnlyOmittedField
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | KEEP message, unmapped_message)
+| WHERE message == "42"
+| KEEP message, unmapped_event_duration
+;
+ignoreOrder:true
+
+message:keyword | unmapped_event_duration:keyword
+42              | 1232383
+42              | null
+;
+
+loadAllViewGapDropOneField
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, drop_unmapped_duration_partial_mapping_view
+| WHERE message == "42"
+| KEEP message, unmapped_event_duration
+;
+ignoreOrder:true
+
+message:keyword | unmapped_event_duration:keyword
+42              | 1232383
+42              | null
+;
+
+loadAllSubqueryGapDropOneField
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | DROP unmapped_event_duration)
+| WHERE message == "42"
+| KEEP message, unmapped_event_duration
+;
+ignoreOrder:true
+
+message:keyword | unmapped_event_duration:keyword
+42              | 1232383
+42              | null
+;
+
+loadAllViewGapDropWildcard
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, drop_unmapped_duration_wildcard_partial_mapping_view
+| WHERE message == "42"
+| KEEP message, unmapped_event_duration
+;
+ignoreOrder:true
+
+message:keyword | unmapped_event_duration:keyword
+42              | 1232383
+42              | null
+;
+
+loadAllSubqueryGapDropWildcard
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | DROP unmapped_e*)
+| WHERE message == "42"
+| KEEP message, unmapped_event_duration
+;
+ignoreOrder:true
+
+message:keyword | unmapped_event_duration:keyword
+42              | 1232383
+42              | null
+;
+
+loadAllViewGapRename
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, rename_unmapped_duration_partial_mapping_view
+| WHERE message == "42"
+| KEEP message, unmapped_event_duration, renamed_duration
+;
+ignoreOrder:true
+
+message:keyword | unmapped_event_duration:keyword | renamed_duration:keyword
+42              | 1232383                         | null
+42              | null                            | 1232383
+;
+
+loadAllSubqueryGapRename
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | RENAME unmapped_event_duration AS renamed_duration)
+| WHERE message == "42"
+| KEEP message, unmapped_event_duration, renamed_duration
+;
+ignoreOrder:true
+
+message:keyword | unmapped_event_duration:keyword | renamed_duration:keyword
+42              | 1232383                         | null
+42              | null                            | 1232383
+;
+
+loadAllViewGapStats
+required_capability: optional_fields_load_all_views
+required_capability: optional_fields_load_all_stats
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, stats_count_partial_mapping_view
+| WHERE message == "42" OR rows == 7
+| KEEP message, unmapped_event_duration, rows
+| SORT message NULLS LAST
+;
+
+message:keyword | unmapped_event_duration:keyword | rows:long
+42              | 1232383                         | null
+null            | null                            | 7
+;
+
+loadAllSubqueryGapStats
+required_capability: optional_fields_load_all_subqueries
+required_capability: optional_fields_load_all_stats
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | STATS rows = COUNT(*))
+| WHERE message == "42" OR rows == 7
+| KEEP message, unmapped_event_duration, rows
+| SORT message NULLS LAST
+;
+
+message:keyword | unmapped_event_duration:keyword | rows:long
+42              | 1232383                         | null
+null            | null                            | 7
+;
+
+loadAllViewGapSumMinDroppedLong
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, partial_mapping_view_message_wildcard
+| STATS s = SUM(event_duration), m = MIN(event_duration)
+;
+
+s:long   | m:long
+23231320 | 725447
+;
+
+loadAllSubqueryGapSumMinDroppedLong
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | KEEP *message*)
+| STATS s = SUM(event_duration), m = MIN(event_duration)
+;
+
+s:long   | m:long
+23231320 | 725447
+;
+
+loadAllViewGapWhereRemovedField
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, partial_mapping_view_message_wildcard
+| WHERE message == "42" AND unmapped_event_duration IS NOT NULL
+| KEEP message, unmapped_event_duration
+;
+
+message:keyword | unmapped_event_duration:keyword
+42              | 1232383
+;
+
+loadAllSubqueryGapWhereRemovedField
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | KEEP *message*)
+| WHERE message == "42" AND unmapped_event_duration IS NOT NULL
+| KEEP message, unmapped_event_duration
+;
+
+message:keyword | unmapped_event_duration:keyword
+42              | 1232383
+;
+
+loadAllViewGapSortRemovedField
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, partial_mapping_view_message_wildcard
+| WHERE message == "42"
+| SORT unmapped_event_duration DESC NULLS LAST
+| LIMIT 2
+| KEEP message, unmapped_event_duration
+;
+
+message:keyword | unmapped_event_duration:keyword
+42              | 1232383
+42              | null
+;
+
+loadAllSubqueryGapSortRemovedField
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | KEEP *message*)
+| WHERE message == "42"
+| SORT unmapped_event_duration DESC NULLS LAST
+| LIMIT 2
+| KEEP message, unmapped_event_duration
+;
+
+message:keyword | unmapped_event_duration:keyword
+42              | 1232383
+42              | null
+;
+
+loadAllViewGapNarrowKeep
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, partial_mapping_view_message_wildcard
+| WHERE message == "42"
+| KEEP unmapped_event_duration
+;
+ignoreOrder:true
+
+unmapped_event_duration:keyword
+1232383
+null
+;
+
+loadAllSubqueryGapNarrowKeep
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | KEEP *message*)
+| WHERE message == "42"
+| KEEP unmapped_event_duration
+;
+ignoreOrder:true
+
+unmapped_event_duration:keyword
+1232383
+null
+;
+
+loadAllViewGapWideKeep
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, partial_mapping_view_message_wildcard
+| WHERE message == "42"
+| KEEP message, unmapped_message, unmapped_event_duration
+;
+ignoreOrder:true
+
+message:keyword | unmapped_message:keyword | unmapped_event_duration:keyword
+42              | 43                       | 1232383
+42              | 43                       | null
+;
+
+loadAllSubqueryGapWideKeep
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | KEEP *message*)
+| WHERE message == "42"
+| KEEP message, unmapped_message, unmapped_event_duration
+;
+ignoreOrder:true
+
+message:keyword | unmapped_message:keyword | unmapped_event_duration:keyword
+42              | 43                       | 1232383
+42              | 43                       | null
+;
+
+loadAllViewGapRestrictingViewInMiddle
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, partial_mapping_view_message_wildcard, partial_mapping_view
+| WHERE message == "42"
+| KEEP message, unmapped_event_duration
+;
+ignoreOrder:true
+
+message:keyword | unmapped_event_duration:keyword
+42              | 1232383
+42              | null
+42              | 1232383
+;
+
+loadAllSubqueryGapRestrictingViewInMiddle
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | KEEP *message*), (FROM partial_mapping_sample_data)
+| WHERE message == "42"
+| KEEP message, unmapped_event_duration
+;
+ignoreOrder:true
+
+message:keyword | unmapped_event_duration:keyword
+42              | 1232383
+42              | null
+42              | 1232383
+;
+
+loadAllViewGapNestedKeep
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, nested_message_wildcard_view
+| WHERE message == "42"
+| KEEP message, unmapped_event_duration
+;
+ignoreOrder:true
+
+message:keyword | unmapped_event_duration:keyword
+42              | 1232383
+42              | 1232383
+42              | null
+;
+
+loadAllSubqueryGapNestedKeep
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | KEEP *message*)
+| WHERE message == "42"
+| KEEP message, unmapped_event_duration
+;
+ignoreOrder:true
+
+message:keyword | unmapped_event_duration:keyword
+42              | 1232383
+42              | null
+;
+
+loadAllViewGapDropText
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM text_state_mapped, text_state_unmapped_drop_txt_view
+| KEEP doc_id, txt
+| SORT doc_id
+;
+
+doc_id:keyword | txt:text
+mapped-1       | William Faulkner
+mapped-2       | Jane Austen
+unmapped-1     | null
+;
+
+loadAllSubqueryGapDropText
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM text_state_mapped, (FROM text_state_unmapped | DROP txt)
+| KEEP doc_id, txt
+| SORT doc_id
+;
+
+doc_id:keyword | txt:text
+mapped-1       | William Faulkner
+mapped-2       | Jane Austen
+unmapped-1     | null
+;
+
+loadAllViewGapDropAggregateMetric
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: aggregate_metric_double_v0
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM k8s-downsampled | WHERE cluster == "qa" AND pod == "three" AND @timestamp == "2024-05-09T23:30:00.000Z"),
+     (FROM k8s_unmapped_drop_tx_view | WHERE cluster == "qa" AND pod == "three" | SORT @timestamp | LIMIT 1)
+| KEEP network.eth0.tx
+;
+ignoreOrder:true
+
+network.eth0.tx:aggregate_metric_double
+{"min":605.0,"max":605.0,"sum":605.0,"value_count":1}
+null
+;
+
+loadAllSubqueryGapDropAggregateMetric
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: aggregate_metric_double_v0
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM k8s-downsampled | WHERE cluster == "qa" AND pod == "three" AND @timestamp == "2024-05-09T23:30:00.000Z"),
+     (FROM k8s_unmapped | DROP network.eth0.tx | WHERE cluster == "qa" AND pod == "three" | SORT @timestamp | LIMIT 1)
+| KEEP network.eth0.tx
+;
+ignoreOrder:true
+
+network.eth0.tx:aggregate_metric_double
+{"min":605.0,"max":605.0,"sum":605.0,"value_count":1}
+null
+;
+
 ###########################################################
 # Object and array expansion: flatten to leaf columns     #
 ###########################################################

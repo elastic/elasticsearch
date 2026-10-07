@@ -528,6 +528,103 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertInSubqueryRightHasNoUnmappedFields(plan);
     }
 
+    public void testViewNoKeepAnnotatesRelation() {
+        LogicalPlan plan = test().addView("v", "FROM test").statement(setUnmappedLoadAll("FROM v"));
+        UnmappedFieldsPattern pattern = EsqlTestUtils.singleValue(
+            CollectionUtils.collect(EsqlTestUtils.singleValue(plan.collect(EsRelation.class)).output(), UnmappedFieldsAttribute.class)
+        ).pattern();
+        assertKept(pattern, "unmapped_extra");
+        assertNotKept(pattern, excl());
+    }
+
+    public void testViewUnionAllSurfacesUnmappedFieldsAttribute() {
+        LogicalPlan plan = test().addView("v", "FROM test").statement(setUnmappedLoadAll("FROM test, v"));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
+        List<EsRelation> relations = plan.collect(EsRelation.class);
+        assertThat(relations, hasSize(2));
+        for (EsRelation relation : relations) {
+            UnmappedFieldsPattern pattern = EsqlTestUtils.singleValue(
+                CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)
+            ).pattern();
+            assertKept(pattern, "unmapped_extra");
+            assertNotKept(pattern, excl());
+        }
+    }
+
+    public void testViewKeepInOneBranchOmitsThatBranch() {
+        LogicalPlan plan = test().addView("kept", "FROM test | KEEP emp_no").statement(setUnmappedLoadAll("FROM test, kept"));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
+        int withAttribute = 0;
+        int withoutAttribute = 0;
+        for (EsRelation relation : plan.collect(EsRelation.class)) {
+            if (CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class).isEmpty()) {
+                withoutAttribute++;
+            } else {
+                withAttribute++;
+            }
+        }
+        assertThat(withAttribute, is(1));
+        assertThat(withoutAttribute, is(1));
+    }
+
+    public void testKeepExactNameInsideViewOmitsUnmappedFieldsAttribute() {
+        assertViewHasNoUnmappedFieldsAttribute("FROM test | KEEP emp_no", "FROM v");
+    }
+
+    public void testKeepWildcardInsideView() {
+        UnmappedFieldsPattern pattern = patternForView("FROM test | KEEP first_name*", "FROM v");
+        assertKept(pattern, "first_name_suffix", "first_name.sub", "first_name.sub.deeper");
+        assertNotKept(pattern, excl());
+        assertNotKept(pattern, "unmapped_extra", "salary_bonus");
+    }
+
+    public void testDropExactNameInsideView() {
+        UnmappedFieldsPattern pattern = patternForView("FROM test | DROP unmapped_extra", "FROM v");
+        assertKept(pattern, "first_name_suffix");
+        assertNotKept(pattern, excl("unmapped_extra"));
+        assertKeptAnyOtherName(pattern, excl("unmapped_extra"));
+    }
+
+    public void testDropWildcardInsideView() {
+        UnmappedFieldsPattern pattern = patternForView("FROM test | DROP first_name*", "FROM v");
+        assertKept(pattern, "unmapped_extra", "salary_bonus");
+        assertNotKept(pattern, "first_name_suffix", "first_name.sub");
+        assertNotKept(pattern, excl());
+    }
+
+    public void testStatsInsideViewOmitsUnmappedFieldsAttribute() {
+        assertViewHasNoUnmappedFieldsAttribute("FROM test | STATS c = COUNT(*)", "FROM v");
+    }
+
+    public void testKeepExactNameOutsideViewOmitsUnmappedFieldsAttribute() {
+        assertViewHasNoUnmappedFieldsAttribute("FROM test", "FROM v | KEEP emp_no");
+    }
+
+    public void testKeepWildcardOutsideView() {
+        UnmappedFieldsPattern pattern = patternForView("FROM test", "FROM v | KEEP first_name*");
+        assertKept(pattern, "first_name_suffix", "first_name.sub", "first_name.sub.deeper");
+        assertNotKept(pattern, excl());
+        assertNotKept(pattern, "unmapped_extra", "salary_bonus");
+    }
+
+    public void testDropExactNameOutsideView() {
+        UnmappedFieldsPattern pattern = patternForView("FROM test", "FROM v | DROP unmapped_extra");
+        assertKept(pattern, "first_name_suffix");
+        assertNotKept(pattern, excl("unmapped_extra"));
+        assertKeptAnyOtherName(pattern, excl("unmapped_extra"));
+    }
+
+    public void testDropWildcardOutsideView() {
+        UnmappedFieldsPattern pattern = patternForView("FROM test", "FROM v | DROP first_name*");
+        assertKept(pattern, "unmapped_extra", "salary_bonus");
+        assertNotKept(pattern, "first_name_suffix", "first_name.sub");
+        assertNotKept(pattern, excl());
+    }
+
+    public void testStatsOutsideViewOmitsUnmappedFieldsAttribute() {
+        assertViewHasNoUnmappedFieldsAttribute("FROM test", "FROM v | STATS c = COUNT(*)");
+    }
+
     public void testRenameUnmappedFieldsIsAnOrdinarySourceField() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | RENAME _unmapped_fields AS extras");
         assertKept(pattern, "unmapped_extra");
@@ -854,6 +951,18 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
 
     private UnmappedFieldsPattern patternFor(String query) {
         return patternOf(test().statement(setUnmappedLoadAll(query)));
+    }
+
+    private UnmappedFieldsPattern patternForView(String view, String query) {
+        return patternOf(test().addView("v", view).statement(setUnmappedLoadAll(query)));
+    }
+
+    private void assertViewHasNoUnmappedFieldsAttribute(String view, String query) {
+        LogicalPlan plan = test().addView("v", view).statement(setUnmappedLoadAll(query));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), empty());
+        for (EsRelation relation : plan.collect(EsRelation.class)) {
+            assertThat(unmappedFieldsAttributes(relation), empty());
+        }
     }
 
     private static UnmappedFieldsPattern patternOf(LogicalPlan plan) {

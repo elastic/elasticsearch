@@ -18,6 +18,7 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
@@ -61,6 +62,16 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
      * A single-branch {@code FROM (subquery)} has no {@code UnionAll}, so analysis still sees {@code Limit}
      * and reports {@code LIMIT} — covered by {@code VerifierTests}.
      */
+    public void testLoadAllWildcardKeepViewUnionWithIndex() {
+        TestAnalyzer analyzer = subqueryAnalyzer().unmappedResolution(UnmappedResolution.LOAD_ALL)
+            .addView("view_wildcard", "FROM sample_data | KEEP *message*");
+        String query = """
+            FROM sample_data, view_wildcard
+            | WHERE message == "42"
+            """;
+        optimize(analyzer.query(query));
+    }
+
     public void testFullTextAfterSubqueryTopNReportsSortAndLimit() {
         List<String> fullTextFunctions = List.of(
             "match(title, \"Meditation\")",

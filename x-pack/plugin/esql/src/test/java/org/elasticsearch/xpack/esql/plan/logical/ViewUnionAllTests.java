@@ -114,6 +114,16 @@ public class ViewUnionAllTests extends ESTestCase {
         assertEquals(List.of(child1, child2), replaced.children());
     }
 
+    public void testUnmappedFieldsOutputRewriteIsNotEqual() {
+        LogicalPlan child = relation("index1");
+        ViewUnionAll without = viewUnionAll(child);
+        Attribute unmapped = new UnmappedFieldsAttribute(Source.EMPTY, UnmappedFieldsPattern.ALL);
+        ViewUnionAll with = without.replaceSubPlansAndOutput(without.children(), List.of(unmapped));
+
+        assertNotEquals(without, with);
+        assertNotEquals(without.hashCode(), with.hashCode());
+    }
+
     public void testNotEqualToPlainUnionAll() {
         LogicalPlan child = relation("index1");
 

@@ -1629,6 +1629,15 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertWarnings(nonLoadablePunkWarning("tx", "aggregate_metric_double"));
     }
 
+    public void testLoadAllViewEvalThenKeepExactNamesDoesNotExpand() {
+        LogicalPlan plan = partialMappingTest().addView("v", "FROM partial_mapping_sample_data").statement(setUnmappedLoadAll("""
+            FROM v
+            | EVAL dur = unmapped_event_duration::long
+            | KEEP message, dur
+            """));
+        assertThat(Expressions.names(plan.output()), equalTo(List.of("message", "dur")));
+    }
+
     public void testLoadAllModeAllowsSubqueryWithLookupJoin() {
         test().addLanguagesLookup().statement(setUnmappedLoadAll("""
             FROM test,

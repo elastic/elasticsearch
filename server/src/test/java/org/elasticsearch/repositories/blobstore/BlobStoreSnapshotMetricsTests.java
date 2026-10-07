@@ -256,7 +256,7 @@ public class BlobStoreSnapshotMetricsTests extends ESTestCase {
         return new BlobStoreSnapshotMetrics(
             projectId,
             repoMetadata,
-            new SnapshotMetrics(new RecordingMeterRegistry(), List::of, List::of, List::of, List::of)
+            new SnapshotMetrics(new RecordingMeterRegistry(), m -> {}, m -> {}, m -> {}, m -> {})
         );
     }
 }

@@ -816,9 +816,8 @@ public class ExternalSourceCacheService implements Closeable {
             return Map.of(); // no sibling to evict — the fallback is never consulted; skip the whole-cache sweep
         }
         // One whole-cache forEach, filtered to the contribution paths. This cannot be a set of per-path
-        // get()s: SchemaCacheKey is a multi-component record (dataset identity, path, mtime, file-set
-        // fingerprint, declaredStrict, read config), so a contribution path alone does not reconstruct a
-        // key, and forEach
+        // get()s: SchemaCacheKey is a multi-component record (dataset identity, path, mtime,
+        // declaredStrict), so a contribution path alone does not reconstruct a key, and forEach
         // is the only path-agnostic enumeration the Cache exposes that is safe against concurrent LRU
         // mutation (keys()/values() walk the lock-free LRU list). The sweep is O(cache) for a multi-path
         // reconcile, but that is the price of capturing each sibling's pre-eviction entry before the first

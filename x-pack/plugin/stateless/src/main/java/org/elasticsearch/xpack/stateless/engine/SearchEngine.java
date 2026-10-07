@@ -432,6 +432,15 @@ public class SearchEngine extends Engine {
      * files that a subsequent commit notification might be slow to arrive and clean up on its own.
      */
     private void retainOpenReaderFiles() {
+        // A commit notification first calls SearchDirectory#updateCommit (adding the new commit's files to the
+        // directory metadata) and only then refreshes the reader that references those files. If that refresh was
+        // deferred by the reader-heap breaker, the directory metadata already contains the deferred commit's files
+        // but openReaders does not reference them yet. Recomputing filesToRetain now would prematurely evict those
+        // files. Leave the retain "owed" (openReadersChanged stays set); processing the deferred notification clears
+        // pendingDeferredNotification and calls this method again, which recomputes once the reader has advanced.
+        if (pendingDeferredNotification != null) {
+            return;
+        }
         Set<String> filesToRetain;
         synchronized (openReaders) {
             filesToRetain = openReaders.values()

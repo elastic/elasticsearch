@@ -16,36 +16,78 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.metadata.View;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 
 public class ViewIT extends AbstractEsqlIntegTestCase {
 
+    /**
+     * Registers a historic (not net-new) system index, so that accessing it without a system origin only issues a deprecation warning.
+     */
+    public static class TestSystemIndexPlugin extends Plugin implements SystemIndexPlugin {
+
+        private static final String SYSTEM_INDEX_NAME = ".system-index";
+
+        @Override
+        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+            return List.of(
+                SystemIndexDescriptor.builder()
+                    .setIndexPattern(SYSTEM_INDEX_NAME + "*")
+                    .setDescription("test system index for views")
+                    .setType(SystemIndexDescriptor.Type.INTERNAL_UNMANAGED)
+                    .build()
+            );
+        }
+
+        @Override
+        public String getFeatureName() {
+            return "view-it-system-index";
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return "test system index for views";
+        }
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(
-            CollectionUtils.appendToCopy(super.nodePlugins(), DataStreamsPlugin.class),
-            ReindexPlugin.class
-        );
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(DataStreamsPlugin.class);
+        plugins.add(ReindexPlugin.class);
+        plugins.add(TestSystemIndexPlugin.class);
+        return plugins;
     }
 
     public void testIndicesAreNotValidateUponCreation() {
@@ -91,6 +133,36 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse response = run("FROM alias-view")) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(42))));
         }
+    }
+
+    public void testViewOverSystemIndex() {
+        prepareIndex(TestSystemIndexPlugin.SYSTEM_INDEX_NAME).setSource("f1", 42)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        assertAcked(createView("system-view", "FROM " + TestSystemIndexPlugin.SYSTEM_INDEX_NAME + " | KEEP f1"));
+
+        DiscoveryNode coordinator = randomFrom(clusterService().state().nodes().stream().toList());
+        ThreadContext threadContext = internalCluster().getInstance(TransportService.class, coordinator.getName())
+            .getThreadPool()
+            .getThreadContext();
+
+        Tuple<List<String>, List<List<Object>>> result = safeAwait(listener -> {
+            client(coordinator.getName()).filterWithHeader(Map.of(SystemIndices.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, "false"))
+                .execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest("FROM system-view"), listener.map(r -> {
+                    List<String> warnings = threadContext.getResponseHeaders()
+                        .getOrDefault("Warning", List.of())
+                        .stream()
+                        .map(w -> HeaderWarning.decodeAndUnescape(HeaderWarning.extractWarningValueFromWarningHeader(w, false)))
+                        .toList();
+                    return Tuple.tuple(warnings, getValuesList(r));
+                }));
+        });
+
+        assertThat(
+            result.v1(),
+            hasItem(containsString("this request accesses system indices: [" + TestSystemIndexPlugin.SYSTEM_INDEX_NAME + "]"))
+        );
+        assertThat(result.v2(), equalTo(List.of(List.of(42L))));
     }
 
     public void testViewOverDataStream() throws IOException {

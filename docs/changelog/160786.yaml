@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160786
+summary: Report bytes when a limit closes drivers
+type: bug

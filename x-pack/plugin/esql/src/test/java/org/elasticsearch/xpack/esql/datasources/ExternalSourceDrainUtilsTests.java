@@ -41,7 +41,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class ExternalSourceDrainUtilsTests extends ESTestCase {
 
     private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("none"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     private ExecutorService exec;
@@ -137,6 +137,31 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
         assertNull(error.get());
         assertEquals(3, buffer.size());
         buffer.finish(true);
+    }
+
+    public void testDrainPagesAsyncStopsWhenPredicateTrue() throws Exception {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+        List<Page> pages = List.of(createTestPage(1, 10), createTestPage(1, 10), createTestPage(1, 10), createTestPage(1, 10));
+        AtomicInteger delivered = new AtomicInteger();
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        ExternalSourceDrainUtils.drainPagesAsync(iteratorOf(pages), buffer, exec, () -> false, () -> delivered.get() >= 2, page -> {
+            page.allowPassingToDifferentDriver();
+            buffer.addPage(page);
+            delivered.incrementAndGet();
+        }, ActionListener.wrap(v -> latch.countDown(), e -> {
+            error.set(e);
+            latch.countDown();
+        }));
+
+        assertTrue(latch.await(10, TimeUnit.SECONDS));
+        assertNull(error.get());
+        assertEquals(2, buffer.size());
+        assertEquals(2, delivered.get());
+        buffer.finish(true);
+        for (int i = 2; i < pages.size(); i++) {
+            pages.get(i).releaseBlocks();
+        }
     }
 
     public void testDrainAsyncRespectsPagesBackpressure() throws Exception {

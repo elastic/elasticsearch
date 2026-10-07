@@ -13,9 +13,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -45,11 +47,22 @@ public class FormatReaderRegistry {
     private final Map<String, Supplier<FormatReader>> byName = new ConcurrentHashMap<>();
     private final Map<String, Supplier<FormatReader>> byExtension = new ConcurrentHashMap<>();
     private final DecompressionCodecRegistry codecRegistry;
+    private volatile AdmissionTracker admissionTracker = AdmissionTracker.NOOP;
+    private final NodeByteBudget nodeByteBudget;
     private volatile int maxDecompressionRatio = ExternalSourceSettings.MAX_DECOMPRESSION_RATIO.getDefault(Settings.EMPTY);
     private volatile int maxDecompressionRatioZstd = ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD.getDefault(Settings.EMPTY);
 
     public FormatReaderRegistry(DecompressionCodecRegistry codecRegistry) {
+        this(codecRegistry, null);
+    }
+
+    public FormatReaderRegistry(DecompressionCodecRegistry codecRegistry, @Nullable NodeByteBudget nodeByteBudget) {
         this.codecRegistry = codecRegistry;
+        this.nodeByteBudget = nodeByteBudget;
+    }
+
+    public void setAdmissionTracker(AdmissionTracker admissionTracker) {
+        this.admissionTracker = admissionTracker == null ? AdmissionTracker.NOOP : admissionTracker;
     }
 
     public void setMaxDecompressionRatio(int ratio) {
@@ -79,7 +92,8 @@ public class FormatReaderRegistry {
                 if (instance == null) {
                     synchronized (this) {
                         if (instance == null) {
-                            FormatReader created = factory.create(settings, blockFactory);
+                            FormatReader created = factory.create(settings, blockFactory, nodeByteBudget);
+                            created.bindAdmissionTracker(admissionTracker);
                             // Claim extension mappings before publishing the instance, under the same
                             // conflict rule as registerExtension: a reader-declared extension already
                             // owned by another format fails loudly instead of silently stealing the
@@ -293,8 +307,7 @@ public class FormatReaderRegistry {
      * {@code canHandle}, honours it. Sourcing the message from the claiming maps means such a reader
      * cannot make the advice lie.
      *
-     * @param displayPath what the user asked for, quoted back to them — the full location on the resolver
-     *                    path, the object name here
+     * @param displayPath quoted back to the user; never the full location, which the user may not be allowed to see
      * @param objectName  the object name to diagnose the extension from
      */
     UnreadableObjectException unreadableObject(String displayPath, String objectName) {

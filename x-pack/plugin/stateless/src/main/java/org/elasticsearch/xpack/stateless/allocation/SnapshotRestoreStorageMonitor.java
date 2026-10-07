@@ -52,10 +52,8 @@ public class SnapshotRestoreStorageMonitor {
     private volatile TimeValue rerouteInterval;
     // Accessed only by onNewInfo callbacks. InternalClusterInfoService serializes these callbacks and
     // safely publishes their writes through the synchronized refresh handoff, even when the callback thread changes.
-    private Map<String, Storage> nodeStorage = Map.of();
+    private Map<String, ClusterInfo.ReservedSpace> nodeReservations = Map.of();
     private long lastRerouteTimeMillis;
-
-    private record Storage(String path, ClusterInfo.ReservedSpace reservations) {}
 
     public SnapshotRestoreStorageMonitor(
         ClusterSettings clusterSettings,
@@ -72,20 +70,20 @@ public class SnapshotRestoreStorageMonitor {
     public void onNewInfo(ClusterInfo info) {
         var state = clusterState.get();
         if (state.nodes().isLocalNodeElectedMaster() == false) {
-            nodeStorage = Map.of();
+            nodeReservations = Map.of();
             return;
         }
-        Map<String, Storage> nodeStorageNow = new HashMap<>();
+        Map<String, ClusterInfo.ReservedSpace> nodeReservationsNow = new HashMap<>();
         for (var node : state.nodes()) {
             if (node.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE)) {
                 var disk = info.getNodeMostAvailableDiskUsages().get(node.getId());
                 if (disk != null) {
-                    nodeStorageNow.put(node.getId(), new Storage(disk.path(), info.getReservedSpace(node.getId(), disk.path())));
+                    nodeReservationsNow.put(node.getId(), info.getReservedSpace(node.getId(), disk.path()));
                 }
             }
         }
-        boolean structuralChange = nodeStorageNow.equals(nodeStorage) == false;
-        nodeStorage = Collections.unmodifiableMap(nodeStorageNow);
+        boolean structuralChange = nodeReservationsNow.equals(nodeReservations) == false;
+        nodeReservations = Collections.unmodifiableMap(nodeReservationsNow);
 
         boolean hasUnassignedSnapshotPrimary = state.getRoutingNodes()
             .unassigned()
@@ -99,7 +97,7 @@ public class SnapshotRestoreStorageMonitor {
         boolean intervalElapsed = (now - lastRerouteTimeMillis) >= rerouteInterval.millis();
         if (structuralChange) {
             reroute("snapshot restore storage updated", now);
-        } else if (intervalElapsed && nodeStorageNow.isEmpty() == false) {
+        } else if (intervalElapsed && nodeReservationsNow.isEmpty() == false) {
             reroute("snapshot restore storage retry", now);
         }
     }

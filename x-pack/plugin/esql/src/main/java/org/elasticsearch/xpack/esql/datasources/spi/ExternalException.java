@@ -59,6 +59,8 @@ public abstract class ExternalException extends QlException {
         ACCESS_DENIED("Access denied reading [{}]", "Access denied reading external data"),
         /** The requested object does not exist at the storage path. */
         OBJECT_NOT_FOUND("External data object not found: [{}]", "External data object not found"),
+        /** The object is in an archive storage class or tier and cannot be read until it is restored. */
+        OBJECT_ARCHIVED("External data object [{}] is archived", "External data object is archived"),
         /** Session or temporary credentials have expired; the caller must refresh and retry. */
         CREDENTIALS_EXPIRED {
             @Override

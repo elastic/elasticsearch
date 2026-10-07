@@ -238,6 +238,96 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(1, result.splits().size());
     }
 
+    public void testListingHintsForQueryDropsTimestampKeepsYearIn() {
+        FieldAttribute ts = new FieldAttribute(
+            SRC,
+            "@timestamp",
+            new EsField("@timestamp", DataType.DATETIME, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        Instant start = Instant.parse("2024-06-15T00:00:00Z");
+        Instant end = Instant.parse("2024-06-16T00:00:00Z");
+        Expression filter = new And(
+            SRC,
+            new GreaterThanOrEqual(SRC, ts, new Literal(SRC, start.toEpochMilli(), DataType.DATETIME)),
+            new LessThan(SRC, ts, new Literal(SRC, end.toEpochMilli(), DataType.DATETIME))
+        );
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = FileSplitProvider.listingHintsForQuery(
+            List.of(filter),
+            Set.of(),
+            Set.of("year", "month", "day"),
+            PartitionSpec.parse("year(@timestamp), month(@timestamp), day(@timestamp)")
+        );
+        assertTrue(
+            "data column @timestamp must not join the listing cache identity",
+            hints.stream().noneMatch(h -> h.columnName().equals("@timestamp"))
+        );
+        assertEquals(
+            List.of(new PartitionFilterHintExtractor.PartitionFilterHint("year", PartitionFilterHintExtractor.Operator.IN, List.of(2024))),
+            hints
+        );
+    }
+
+    public void testListingHintsForQueryMvInRangeDropsTimestampKeepsYearIn() {
+        FieldAttribute ts = new FieldAttribute(
+            SRC,
+            "@timestamp",
+            new EsField("@timestamp", DataType.DATETIME, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        Instant start = Instant.parse("2024-06-15T00:00:00Z");
+        Instant end = Instant.parse("2024-06-16T00:00:00Z");
+        // Kibana time-picker shape: request.filter range rewrites to MV_IN_RANGE, not AND(GTE, LT).
+        Expression filter = new MvInRange(
+            SRC,
+            ts,
+            new Literal(SRC, start.toEpochMilli(), DataType.DATETIME),
+            new Literal(SRC, end.toEpochMilli(), DataType.DATETIME)
+        );
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = FileSplitProvider.listingHintsForQuery(
+            List.of(filter),
+            Set.of(),
+            Set.of("year", "month", "day"),
+            PartitionSpec.parse("year(@timestamp), month(@timestamp), day(@timestamp)")
+        );
+        assertTrue(
+            "data column @timestamp must not join the listing cache identity",
+            hints.stream().noneMatch(h -> h.columnName().equals("@timestamp"))
+        );
+        assertEquals(
+            List.of(new PartitionFilterHintExtractor.PartitionFilterHint("year", PartitionFilterHintExtractor.Operator.IN, List.of(2024))),
+            hints
+        );
+    }
+
+    public void testListingHintsForQueryEmptySpecEqualsListingExtract() {
+        Expression filter = new Equals(SRC, fieldAttr("year"), intLiteral(2024));
+        List<Expression> filters = List.of(filter);
+        Set<String> hive = Set.of("year");
+        assertEquals(
+            PartitionFilterHintExtractor.fromConjuncts(filters, Set.of(), hive),
+            FileSplitProvider.listingHintsForQuery(filters, Set.of(), hive, PartitionSpec.EMPTY)
+        );
+    }
+
+    public void testListingHintsForQueryIdentityRemapKeepsHiveKey() {
+        Expression filter = new Equals(SRC, keywordField("region"), Literal.keyword(SRC, "eu"));
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = FileSplitProvider.listingHintsForQuery(
+            List.of(filter),
+            Set.of(),
+            Set.of("aws-region"),
+            PartitionSpec.parse("aws-region=region")
+        );
+        assertEquals(
+            List.of(
+                new PartitionFilterHintExtractor.PartitionFilterHint(
+                    "aws-region",
+                    PartitionFilterHintExtractor.Operator.EQUALS,
+                    List.of("eu")
+                )
+            ),
+            hints
+        );
+    }
+
     /**
      * The signal the coordinator relies on to swap in {@link FileList#EMPTY}: when a partition filter prunes every
      * file of a resolved, non-empty fileList, {@link FileSplitProvider} emits zero splits, reports

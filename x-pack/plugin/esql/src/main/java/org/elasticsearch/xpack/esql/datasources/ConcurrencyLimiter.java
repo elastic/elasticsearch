@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionGate;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
@@ -18,11 +20,19 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException
 import org.elasticsearch.xpack.esql.datasources.spi.QueryAdmission;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BooleanSupplier;
 
 /**
  * Limits the number of concurrent in-flight cloud storage API requests per node.
@@ -37,12 +47,19 @@ class ConcurrencyLimiter implements AdmissionGate {
 
     static final ConcurrencyLimiter UNLIMITED = new ConcurrencyLimiter(QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS);
 
+    private static TaskCancelledException cancelled() {
+        return new TaskCancelledException("Cancelled while waiting for a concurrency permit");
+    }
+
     private final Semaphore semaphore;
     private final String scheme;
     private final ExternalSourceSettings.BlobStoreConcurrency concurrency;
     private final long acquireTimeoutMs;
     private final AdmissionTracker tracker;
     private final AtomicLong lastWarnLogTime = new AtomicLong(0);
+    private final ReentrantLock asyncLock = new ReentrantLock();
+    private final ArrayDeque<AsyncWaiter> asyncWaiters = new ArrayDeque<>();
+    private final ArrayList<Runnable> pendingCompletions = new ArrayList<>();
 
     private static final long WARN_LOG_INTERVAL_MS = 30_000;
     private static final long WARN_WAIT_THRESHOLD_MS = 5_000;
@@ -117,6 +134,11 @@ class ConcurrencyLimiter implements AdmissionGate {
         }
     }
 
+    /**
+     * {@link #release()} prefers queued tickets, so leftover sync {@code readBytes}
+     * is not FIFO with {@link #acquireAsync}. Spare permits sitting on the semaphore
+     * are drained to tickets first so sync cannot barge those.
+     */
     void acquire() throws TimeoutException, InterruptedException {
         if (semaphore == null) {
             return;
@@ -129,6 +151,7 @@ class ConcurrencyLimiter implements AdmissionGate {
         AdmissionTracker.Wait wait = tracker.waitStarted(name(), Thread.currentThread().getName());
         boolean acquired;
         try {
+            drainSparesToTickets();
             acquired = semaphore.tryAcquire(acquireTimeoutMs, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             wait.finished();
@@ -201,9 +224,93 @@ class ConcurrencyLimiter implements AdmissionGate {
     }
 
     void release() {
-        if (semaphore != null) {
-            semaphore.release();
+        if (semaphore == null) {
+            return;
         }
+        List<Runnable> completions;
+        asyncLock.lock();
+        try {
+            failCancelledLocked();
+            AsyncWaiter head = asyncWaiters.peekFirst();
+            if (head != null) {
+                asyncWaiters.removeFirst();
+                head.completeGrant();
+            } else {
+                semaphore.release();
+            }
+            completions = takePendingCompletions();
+        } finally {
+            asyncLock.unlock();
+        }
+        runCompletions(completions);
+    }
+
+    /**
+     * Async permit ticket. Completes on grant; fails on cancel. Uncontended grants complete
+     * on the caller; contended grants are forked onto {@code executor}. Fair FIFO among
+     * ticket waiters. Leftover sync {@link #acquire} can time out while tickets are queued.
+     */
+    SubscribableListener<Void> acquireAsync(BooleanSupplier cancelSignal, Executor executor) {
+        SubscribableListener<Void> listener = new SubscribableListener<>();
+        if (semaphore == null) {
+            listener.onResponse(null);
+            return listener;
+        }
+        if (executor == null) {
+            throw new IllegalArgumentException("executor is required");
+        }
+        BooleanSupplier cancel = cancelSignal == null ? () -> false : cancelSignal;
+        if (cancel.getAsBoolean()) {
+            listener.onFailure(cancelled());
+            return listener;
+        }
+        List<Runnable> completions = List.of();
+        Exception failNow = null;
+        asyncLock.lock();
+        try {
+            if (cancel.getAsBoolean()) {
+                failNow = cancelled();
+            } else if (asyncWaiters.isEmpty() && semaphore.tryAcquire()) {
+                AsyncWaiter waiter = new AsyncWaiter(listener, executor, cancel);
+                waiter.completeGrantInline();
+                completions = takePendingCompletions();
+            } else {
+                AsyncWaiter waiter = new AsyncWaiter(listener, executor, cancel);
+                waiter.tracked = tracker.waitStarted(name(), Thread.currentThread().getName());
+                asyncWaiters.addLast(waiter);
+                grantSparesLocked();
+                completions = takePendingCompletions();
+            }
+        } finally {
+            asyncLock.unlock();
+        }
+        if (failNow != null) {
+            listener.onFailure(failNow);
+            return listener;
+        }
+        runCompletions(completions);
+        return listener;
+    }
+
+    int asyncWaiterCount() {
+        asyncLock.lock();
+        try {
+            return asyncWaiters.size();
+        } finally {
+            asyncLock.unlock();
+        }
+    }
+
+    void wakeAsyncWaiters() {
+        List<Runnable> completions;
+        asyncLock.lock();
+        try {
+            failCancelledLocked();
+            completions = takePendingCompletions();
+        } finally {
+            asyncLock.unlock();
+        }
+        runCompletions(completions);
     }
 
     boolean isEnabled() {
@@ -270,5 +377,123 @@ class ConcurrencyLimiter implements AdmissionGate {
             maxPermits(),
             key
         );
+    }
+
+    private void failCancelledLocked() {
+        Iterator<AsyncWaiter> it = asyncWaiters.iterator();
+        while (it.hasNext()) {
+            AsyncWaiter waiter = it.next();
+            if (waiter.cancel.getAsBoolean()) {
+                it.remove();
+                waiter.fail(cancelled());
+            }
+        }
+    }
+
+    /**
+     * Gives leftover semaphore permits to the FIFO ticket queue. Called after enqueue
+     * (waiters skip {@code tryAcquire} when the queue is already non-empty) and before
+     * leftover sync {@link #acquire} waits on the semaphore.
+     */
+    private void grantSparesLocked() {
+        failCancelledLocked();
+        while (asyncWaiters.isEmpty() == false && semaphore.tryAcquire()) {
+            asyncWaiters.removeFirst().completeGrant();
+        }
+    }
+
+    private void drainSparesToTickets() {
+        List<Runnable> completions;
+        asyncLock.lock();
+        try {
+            grantSparesLocked();
+            completions = takePendingCompletions();
+        } finally {
+            asyncLock.unlock();
+        }
+        runCompletions(completions);
+    }
+
+    private List<Runnable> takePendingCompletions() {
+        if (pendingCompletions.isEmpty()) {
+            return List.of();
+        }
+        List<Runnable> batch = new ArrayList<>(pendingCompletions);
+        pendingCompletions.clear();
+        return batch;
+    }
+
+    private static void runCompletions(List<Runnable> completions) {
+        for (Runnable completion : completions) {
+            completion.run();
+        }
+    }
+
+    private final class AsyncWaiter {
+        private final SubscribableListener<Void> listener;
+        private final Executor executor;
+        private final BooleanSupplier cancel;
+        private final AtomicBoolean completed = new AtomicBoolean();
+        private AdmissionTracker.Wait tracked = AdmissionTracker.NOOP_WAIT;
+
+        private AsyncWaiter(SubscribableListener<Void> listener, Executor executor, BooleanSupplier cancel) {
+            this.listener = listener;
+            this.executor = executor;
+            this.cancel = cancel;
+        }
+
+        private void completeGrant() {
+            pendingCompletions.add(() -> forkGrant(this::deliverGrant));
+        }
+
+        private void completeGrantInline() {
+            pendingCompletions.add(this::deliverGrant);
+        }
+
+        private void deliverGrant() {
+            if (completed.compareAndSet(false, true) == false) {
+                return;
+            }
+            if (cancel.getAsBoolean()) {
+                tracked.finished();
+                release();
+                listener.onFailure(cancelled());
+                return;
+            }
+            tracked.granted();
+            listener.onResponse(null);
+        }
+
+        private void fail(Exception e) {
+            pendingCompletions.add(() -> fork(() -> {
+                if (completed.compareAndSet(false, true)) {
+                    tracked.finished();
+                    listener.onFailure(e);
+                }
+            }));
+        }
+
+        private void forkGrant(Runnable task) {
+            try {
+                executor.execute(task);
+            } catch (Exception e) {
+                if (completed.compareAndSet(false, true)) {
+                    tracked.finished();
+                    release();
+                    listener.onFailure(e);
+                }
+            }
+        }
+
+        private void fork(Runnable task) {
+            try {
+                executor.execute(task);
+            } catch (Exception e) {
+                if (completed.compareAndSet(false, true)) {
+                    tracked.finished();
+                    listener.onFailure(e);
+                }
+            }
+        }
     }
 }

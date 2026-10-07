@@ -29,43 +29,45 @@ public class PartitionSpecTests extends ESTestCase {
         assertEquals(explicit, implicit);
         assertEquals(
             List.of(
-                new Field("year", Transform.YEAR, "ts", Unit.MILLIS),
-                new Field("month", Transform.MONTH, "ts", Unit.MILLIS),
-                new Field("day", Transform.DAY, "ts", Unit.MILLIS)
+                new Field("year", Transform.YEAR, "ts", Unit.EPOCH_MILLIS),
+                new Field("month", Transform.MONTH, "ts", Unit.EPOCH_MILLIS),
+                new Field("day", Transform.DAY, "ts", Unit.EPOCH_MILLIS)
             ),
             implicit.fields()
         );
     }
 
     public void testParseVpcSecondsImplicitEqualsExplicit() {
-        PartitionSpec implicit = PartitionSpec.parse("year(start, second), month(start, second), day(start, second)");
-        PartitionSpec explicit = PartitionSpec.parse("year=year(start, second), month=month(start, second), day=day(start, second)");
+        PartitionSpec implicit = PartitionSpec.parse("year(start, epoch_second), month(start, epoch_second), day(start, epoch_second)");
+        PartitionSpec explicit = PartitionSpec.parse(
+            "year=year(start, epoch_second), month=month(start, epoch_second), day=day(start, epoch_second)"
+        );
         assertEquals(explicit, implicit);
         assertEquals(
             List.of(
-                new Field("year", Transform.YEAR, "start", Unit.SECOND),
-                new Field("month", Transform.MONTH, "start", Unit.SECOND),
-                new Field("day", Transform.DAY, "start", Unit.SECOND)
+                new Field("year", Transform.YEAR, "start", Unit.EPOCH_SECOND),
+                new Field("month", Transform.MONTH, "start", Unit.EPOCH_SECOND),
+                new Field("day", Transform.DAY, "start", Unit.EPOCH_SECOND)
             ),
             implicit.fields()
         );
     }
 
     public void testParseBareColumnIsIdentity() {
-        assertEquals(List.of(new Field("region", Transform.IDENTITY, "region", Unit.MILLIS)), PartitionSpec.parse("region").fields());
+        assertEquals(List.of(new Field("region", Transform.IDENTITY, "region", Unit.EPOCH_MILLIS)), PartitionSpec.parse("region").fields());
     }
 
     public void testParseAtTimestampAndQuotedName() {
         assertEquals(
-            List.of(new Field("year", Transform.YEAR, "@timestamp", Unit.MILLIS)),
+            List.of(new Field("year", Transform.YEAR, "@timestamp", Unit.EPOCH_MILLIS)),
             PartitionSpec.parse("year(@timestamp)").fields()
         );
         assertEquals(
-            List.of(new Field("year", Transform.YEAR, "event time", Unit.MILLIS)),
+            List.of(new Field("year", Transform.YEAR, "event time", Unit.EPOCH_MILLIS)),
             PartitionSpec.parse("year(`event time`)").fields()
         );
         assertEquals(
-            List.of(new Field("aws-region", Transform.IDENTITY, "region", Unit.MILLIS)),
+            List.of(new Field("aws-region", Transform.IDENTITY, "region", Unit.EPOCH_MILLIS)),
             PartitionSpec.parse("`aws-region`=region").fields()
         );
         PartitionSpec.validate(
@@ -85,18 +87,18 @@ public class PartitionSpecTests extends ESTestCase {
 
     public void testParseIdentityRemap() {
         assertEquals(
-            List.of(new Field("aws-region", Transform.IDENTITY, "region", Unit.MILLIS)),
+            List.of(new Field("aws-region", Transform.IDENTITY, "region", Unit.EPOCH_MILLIS)),
             PartitionSpec.parse("aws-region=region").fields()
         );
     }
 
     public void testParseIdentityCall() {
         assertEquals(
-            List.of(new Field("identity", Transform.IDENTITY, "region", Unit.MILLIS)),
+            List.of(new Field("identity", Transform.IDENTITY, "region", Unit.EPOCH_MILLIS)),
             PartitionSpec.parse("identity(region)").fields()
         );
         assertEquals(
-            List.of(new Field("aws-region", Transform.IDENTITY, "region", Unit.MILLIS)),
+            List.of(new Field("aws-region", Transform.IDENTITY, "region", Unit.EPOCH_MILLIS)),
             PartitionSpec.parse("aws-region=identity(region)").fields()
         );
     }
@@ -104,22 +106,22 @@ public class PartitionSpecTests extends ESTestCase {
     public void testParseCaseInsensitiveTransformAndUnit() {
         assertEquals(
             List.of(
-                new Field("year", Transform.YEAR, "start", Unit.SECOND),
-                new Field("month", Transform.MONTH, "event_time", Unit.MILLIS)
+                new Field("year", Transform.YEAR, "start", Unit.EPOCH_SECOND),
+                new Field("month", Transform.MONTH, "event_time", Unit.EPOCH_MILLIS)
             ),
-            PartitionSpec.parse("YEAR(start, SECOND), Month(event_time, Millis)").fields()
+            PartitionSpec.parse("YEAR(start, EPOCH_SECOND), Month(event_time, Epoch_Millis)").fields()
         );
     }
 
     public void testRejectMixedUnitsOnSameColumn() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> PartitionSpec.parse("year(start, second), month(start)")
+            () -> PartitionSpec.parse("year(start, epoch_second), month(start)")
         );
         assertThat(e.getMessage(), containsString(CONFIG_PARTITION_SPEC));
         assertThat(e.getMessage(), containsString("start"));
-        assertThat(e.getMessage(), containsString("second"));
-        assertThat(e.getMessage(), containsString("millis"));
+        assertThat(e.getMessage(), containsString("epoch_second"));
+        assertThat(e.getMessage(), containsString("epoch_millis"));
         assertThat(e.getMessage(), containsString("one unit per source column"));
     }
 
@@ -135,15 +137,15 @@ public class PartitionSpecTests extends ESTestCase {
     }
 
     public void testParseWhitespaceAroundTokens() {
-        PartitionSpec spec = PartitionSpec.parse(" year ( start , second ) , month ( start , second ) ");
+        PartitionSpec spec = PartitionSpec.parse(" year ( start , epoch_second ) , month ( start , epoch_second ) ");
         assertEquals(2, spec.fields().size());
-        assertEquals(Unit.SECOND, spec.fields().get(0).unit());
-        assertEquals(Unit.SECOND, spec.fields().get(1).unit());
+        assertEquals(Unit.EPOCH_SECOND, spec.fields().get(0).unit());
+        assertEquals(Unit.EPOCH_SECOND, spec.fields().get(1).unit());
     }
 
-    public void testParseHourAndMicros() {
-        PartitionSpec spec = PartitionSpec.parse("hour(event_time, micros)");
-        assertEquals(new Field("hour", Transform.HOUR, "event_time", Unit.MICROS), spec.fields().get(0));
+    public void testParseHourEpochSecond() {
+        PartitionSpec spec = PartitionSpec.parse("hour(event_time, epoch_second)");
+        assertEquals(new Field("hour", Transform.HOUR, "event_time", Unit.EPOCH_SECOND), spec.fields().get(0));
     }
 
     public void testFromConfigAbsentIsEmpty() {
@@ -273,7 +275,7 @@ public class PartitionSpecTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(CONFIG_PARTITION_SPEC));
         assertThat(e.getMessage(), containsString("year(start, banana)"));
         assertThat(e.getMessage(), containsString("banana"));
-        assertThat(e.getMessage(), containsString("second, millis, micros"));
+        assertThat(e.getMessage(), containsString("epoch_second, epoch_millis"));
         assertThat(e.getMessage(), containsString("omit the unit"));
     }
 
@@ -282,15 +284,30 @@ public class PartitionSpecTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("unknown unit"));
         assertThat(e.getMessage(), containsString("year(start, {second})"));
         assertThat(e.getMessage(), containsString("{second}"));
-        assertThat(e.getMessage(), containsString("second, millis, micros"));
+        assertThat(e.getMessage(), containsString("epoch_second, epoch_millis"));
+    }
+
+    public void testRejectLegacyUnitTokens() {
+        for (String unit : List.of("second", "millis", "micros")) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> PartitionSpec.parse("year(start, " + unit + ")")
+            );
+            assertThat(e.getMessage(), containsString(CONFIG_PARTITION_SPEC));
+            assertThat(e.getMessage(), containsString("unknown unit [" + unit + "]"));
+            assertThat(e.getMessage(), containsString("take [epoch_second, epoch_millis]"));
+        }
     }
 
     public void testRejectIdentityWithUnit() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PartitionSpec.parse("identity(region, millis)"));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PartitionSpec.parse("identity(region, epoch_millis)")
+        );
         assertThat(e.getMessage(), containsString(CONFIG_PARTITION_SPEC));
-        assertThat(e.getMessage(), containsString("identity(region, millis)"));
+        assertThat(e.getMessage(), containsString("identity(region, epoch_millis)"));
         assertThat(e.getMessage(), containsString("does not take a unit"));
-        assertThat(e.getMessage(), containsString("millis"));
+        assertThat(e.getMessage(), containsString("epoch_millis"));
     }
 
     public void testRejectMissingClose() {
@@ -338,9 +355,9 @@ public class PartitionSpecTests extends ESTestCase {
         assertReject("region=", "missing a column after [=]", "key=transform(column)");
         assertReject("(ts)", "missing a transform name", "[(]");
         assertReject("year(ts,)", "empty argument", "remove the extra comma");
-        assertReject("year(, second)", "empty argument", "remove the extra comma");
+        assertReject("year(, epoch_second)", "empty argument", "remove the extra comma");
         assertReject("year(start))", "stray closing [)]", "field list");
-        assertReject("year(ts, millis, extra)", "leftover text [extra]", "remove [extra]");
+        assertReject("year(ts, epoch_millis, extra)", "leftover text [extra]", "remove [extra]");
         assertReject(",year(ts)", "empty field", "extra comma");
         assertReject("year(ts),,month(ts)", "empty field", "extra comma");
         assertReject("9col", "invalid identifier [9col]", IDENTIFIER_HINT);

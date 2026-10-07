@@ -13,17 +13,13 @@ import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
-import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.xcontent.XContentBuilder;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -90,48 +86,6 @@ public class DenseVectorFieldMapperTestUtils {
         }
 
         return Collections.unmodifiableSet(elementTypes);
-    }
-
-    /**
-     * Adds a {@code dense_vector} field named {@code fieldName} to {@code builder}. Null {@code similarity} or
-     * {@code indexOptions} are omitted.
-     */
-    public static XContentBuilder addDenseVectorField(
-        XContentBuilder builder,
-        String fieldName,
-        int dims,
-        boolean index,
-        @Nullable DenseVectorFieldMapper.VectorSimilarity similarity,
-        @Nullable DenseVectorFieldMapper.DenseVectorIndexOptions indexOptions
-    ) throws IOException {
-        return addDenseVectorField(builder, fieldName, dims, index, similarity, b -> {
-            if (indexOptions != null) {
-                b.field("index_options", indexOptions);
-            }
-        });
-    }
-
-    /**
-     * Adds a {@code dense_vector} field named {@code fieldName} to {@code builder}, calling {@code buildRest} to write any
-     * further field parameters. A null {@code similarity} is omitted.
-     */
-    public static XContentBuilder addDenseVectorField(
-        XContentBuilder builder,
-        String fieldName,
-        int dims,
-        boolean index,
-        @Nullable DenseVectorFieldMapper.VectorSimilarity similarity,
-        CheckedConsumer<XContentBuilder, IOException> additionalParamBuilder
-    ) throws IOException {
-        builder.startObject(fieldName);
-        builder.field("type", DenseVectorFieldMapper.CONTENT_TYPE);
-        builder.field("dims", dims);
-        builder.field("index", index);
-        if (similarity != null) {
-            builder.field("similarity", similarity.toString());
-        }
-        additionalParamBuilder.accept(builder);
-        return builder.endObject();
     }
 
     /**

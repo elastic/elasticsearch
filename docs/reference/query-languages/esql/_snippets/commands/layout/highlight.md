@@ -250,18 +250,18 @@ computed column like the original field, set the `analyzer` option in `WITH`.
 If the queried indices map a field with different analyzers, each row uses the
 analyzer of the index it comes from.
 
-`HIGHLIGHT` returns an error when it cannot choose an analyzer for each row:
+`HIGHLIGHT` returns an error when:
 
-* Indices map the field with different analyzers, but `HIGHLIGHT` can no longer
-  tell which index a value came from. This happens after commands that mix rows
-  from those indices, such as `STATS`, `DEDUP`, or `LOOKUP JOIN`.
-* Branches of `FORK`, or subqueries in `FROM`, give the same column different
-  analyzers. For example, one branch reads the field from an index and another
-  computes the column with a different analyzer.
+* Queried indices map the field with different analyzers and `HIGHLIGHT` cannot
+  determine which index supplied the value (for example, after `STATS`, `DEDUP`,
+  or across a `LOOKUP JOIN`).
+* Branches of `FORK`, or subqueries in `FROM`, define conflicting analyzers for
+  the same column (for example, when one branch reads the field from an index and
+  another computes the column with a different analyzer).
 
-To choose one analyzer for every row, set the `analyzer` option in the `WITH`
-clause. When a branch computes the column, you can instead set the `analyzer`
-option of `TO_TEXT` so that column uses the same analyzer as the index field.
+To resolve this, set the `analyzer` option in the `WITH` clause. For a computed
+column, you can instead set the `analyzer` option of `TO_TEXT` to match the
+analyzer of the index field.
 
 Analyzers defined in index settings, and analyzers that are not reported, fall
 back to `standard` with a warning, as described later in this section.

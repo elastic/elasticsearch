@@ -514,13 +514,19 @@ public class FileSplitProvider implements SplitProvider {
      * <p>
      * One place answers this so no caller has to ask whether the listing it was handed happens to be complete. A
      * complete one — {@code union_by_name}, {@code strict}, whose schemas span every file — is the query's file set
-     * already and is returned unchanged. A prefix — {@code first_file_wins}, whose schema needed one file — is not,
-     * so this lists the dataset with the query's own filters. Continuing from the prefix rather than listing again
-     * is the obvious refinement and is not done yet: the page the schema read is listed twice, one request against
-     * the full listing's many.
+     * already and is returned unchanged. An inference-anchor listing is a schema stash, not a scan set, so this
+     * swaps in empty rather than listing again. A prefix — {@code first_file_wins}, whose schema needed one file —
+     * is not complete, so this lists the dataset with the query's own filters. Continuing from the prefix rather
+     * than listing again is the obvious refinement and is not done yet: the page the schema read is listed twice,
+     * one request against the full listing's many.
      */
     private SplitDiscoveryContext overTheQuerysFileSet(SplitDiscoveryContext handed, ListingExtents extents) throws Exception {
         DatasetDiscovery discovery = DatasetDiscovery.shared(handed.fileList());
+        if (handed.fileList().isInferenceAnchor()) {
+            // The leftover file is a schema stash. A re-list with the same hints is another anchor (cache hit);
+            // skip it and scan nothing. Certified skip of that one file would also yield zero rows.
+            return handed.withScanFileSet(FileList.EMPTY);
+        }
         if (discovery.schemaListingIsComplete()) {
             // The listing is the query's file set, so there is nothing to swap and nothing derived from it to move.
             return handed;
@@ -748,10 +754,11 @@ public class FileSplitProvider implements SplitProvider {
         try {
             PartitionMetadata partitionInfo = context.partitionInfo();
             Set<String> partitionKeys = partitionInfo == null ? Set.of() : partitionInfo.partitionColumns().keySet();
-            List<PartitionFilterHintExtractor.PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(
+            List<PartitionFilterHintExtractor.PartitionFilterHint> hints = listingHintsForQuery(
                 context.filterHints(),
                 context.metadataColumnNames(),
-                partitionKeys
+                partitionKeys,
+                PartitionSpec.fromConfig(config)
             );
             List<PartitionFilterHintExtractor.PartitionFilterHint> narrowing = hints.isEmpty() ? null : hints;
             if (extents.boundsFileSet()) {
@@ -797,6 +804,48 @@ public class FileSplitProvider implements SplitProvider {
         } finally {
             StorageProviderCache.closeLease(provider);
         }
+    }
+
+    /**
+     * Listing-cache hints: hive keys and requested {@code _file.*} from the LISTING
+     * extract, plus spec-projected {@code year IN} / identity remaps. Data columns
+     * such as {@code @timestamp} never join the listing cache identity.
+     */
+    static List<PartitionFilterHintExtractor.PartitionFilterHint> listingHintsForQuery(
+        List<Expression> filters,
+        Set<String> requestedMetadata,
+        Set<String> partitionKeys,
+        PartitionSpec spec
+    ) {
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(
+            filters,
+            requestedMetadata,
+            partitionKeys
+        );
+        if (spec == null || spec.isEmpty()) {
+            return hints;
+        }
+        List<PartitionFilterHintExtractor.PartitionFilterHint> merged = new ArrayList<>(hints);
+        merged.addAll(
+            PartitionFilterHintExtractor.fromConjuncts(filters, Set.of(), spec.boundColumns(), PartitionFilterHintExtractor.TEMPORAL)
+        );
+        return dropNonListingKeys(spec.projectListingHints(merged), partitionKeys, requestedMetadata);
+    }
+
+    static List<PartitionFilterHintExtractor.PartitionFilterHint> dropNonListingKeys(
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        Set<String> partitionKeys,
+        Set<String> requestedMetadata
+    ) {
+        List<PartitionFilterHintExtractor.PartitionFilterHint> kept = new ArrayList<>(hints.size());
+        for (PartitionFilterHintExtractor.PartitionFilterHint hint : hints) {
+            String column = hint.columnName();
+            if (partitionKeys.contains(column)
+                || (FileMetadataColumns.isFileMetadataColumn(column) && requestedMetadata.contains(column))) {
+                kept.add(hint);
+            }
+        }
+        return kept;
     }
 
     @Override
@@ -1235,6 +1284,7 @@ public class FileSplitProvider implements SplitProvider {
         );
         Set<String> metadataColumnNames = context.metadataColumnNames();
         Set<String> retainedPartitionKeys = context.retainedPartitionKeys();
+        PartitionSpec spec = PartitionSpec.fromConfig(config);
         PartitionValueLayout layout = PartitionValueLayout.of(retainedPartitionKeys, partitionInfo);
 
         int fileCount = fileList.fileCount();
@@ -1291,6 +1341,7 @@ public class FileSplitProvider implements SplitProvider {
                 long modifiedMillis = fileList.lastModifiedMillis(i);
                 Instant modified = modifiedMillis == 0L ? null : Instant.ofEpochMilli(modifiedMillis);
                 FileMetadataColumns.putValues(scratch, filePath, fileList.size(i), modified, filterDirectoryIntern, locationToWrite);
+                spec.aliasIdentityValues(scratch);
                 // Filter against the scratch. The survivor map is the shared tuple or the overlay view, never this map.
                 Map<String, Object> listingValues = Collections.unmodifiableMap(scratch);
                 SchemaReconciliation.FileSchemaInfo fileSchemaInfo = schemaInfo.get(filePath);
@@ -1300,6 +1351,10 @@ public class FileSplitProvider implements SplitProvider {
                         ? discoveryFilterValues(listingValues, metadataColumnNames, overlayPerFileConstants, unboundFileMetadataNames)
                         : listingValues;
                     if (filterValues.isEmpty() == false && matchesPartitionFilters(filterValues, filterHints, regexAutomata) == false) {
+                        certifiedSkips++;
+                        continue;
+                    }
+                    if (spec.overlapsExpressions(scratch, filterHints) == false) {
                         certifiedSkips++;
                         continue;
                     }

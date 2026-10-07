@@ -30,6 +30,7 @@ import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
 import org.apache.lucene.search.uhighlight.CharArrayMatcher;
 import org.apache.lucene.search.uhighlight.CustomSeparatorBreakIterator;
 import org.apache.lucene.search.uhighlight.LabelledCharArrayMatcher;
+import org.apache.lucene.search.uhighlight.Passage;
 import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.apache.lucene.search.uhighlight.SplittingBreakIterator;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
@@ -120,10 +121,21 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         }
     }
 
+    /** {@link SimpleHTMLEncoder} writes at most 6 chars per char, as in {@code &quot;}. */
+    private static final int MAX_HTML_ENCODED_CHARS = 6;
+    /**
+     * Rough upper bound on the heap per snippet char before it is copied into a block. The formatter's StringBuilder
+     * and the String it returns take up to 2 bytes per char each, the builder more while it grows, and
+     * {@link BytesRef#BytesRef(CharSequence)} allocates 3.
+     */
+    private static final int SNIPPET_BYTES_PER_CHAR = 8;
+
     private final BlockFactory blockFactory;
     private final HighlightConfig config;
     private final List<String> fieldNames;
     private final PassageFormatter formatter;
+    /** Bytes {@link BreakingPassageFormatter} charged for the field being highlighted. */
+    private long snippetBytes;
     private final int indexMaxAnalyzedOffset;
     private final QueryMaxAnalyzedOffset queryMaxAnalyzedOffset;
     private final int highlighterNumberOfFragments;
@@ -150,8 +162,11 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         assert fieldNames.size() == fieldEvaluators.length
             : "HIGHLIGHT ON field count [" + fieldNames.size() + "] does not match ON expression count [" + fieldEvaluators.length + "]";
         assert config.groupByIndex().isEmpty() || indexEvaluator != null : "HIGHLIGHT per-index analyzers need the row's _index";
-        Encoder encoder = HighlightConfig.HTML_ENCODER.equals(config.encoder()) ? new SimpleHTMLEncoder() : new DefaultEncoder();
-        this.formatter = new CustomPassageFormatter(config.preTag(), config.postTag(), encoder, config.numberOfFragments());
+        boolean html = HighlightConfig.HTML_ENCODER.equals(config.encoder());
+        this.formatter = new BreakingPassageFormatter(
+            html ? new SimpleHTMLEncoder() : new DefaultEncoder(),
+            html ? MAX_HTML_ENCODED_CHARS : 1
+        );
         // Coordinator-side highlighting has no IndexSettings yet, so the index cap is just the default. Clamping the
         // user's max_analyzed_offset to it (rather than overwriting the index cap) prevents raising the default.
         this.indexMaxAnalyzedOffset = IndexSettings.MAX_ANALYZED_OFFSET_SETTING.get(Settings.EMPTY);
@@ -390,7 +405,39 @@ public class HighlightOperator extends AbstractPageMappingOperator {
                 appendSnippets(field.builder, highlight(memoryIndexReader, group, fieldIndex, field.rowText));
             } catch (IOException e) {
                 throw new IllegalStateException("HIGHLIGHT failed for ON field [" + field.name + "]", e);
+            } finally {
+                blockFactory.adjustBreaker(-snippetBytes);
+                snippetBytes = 0;
             }
+        }
+    }
+
+    /**
+     * Charges the breaker for the snippet strings before {@link CustomPassageFormatter} builds them. They are not in a
+     * block until {@link #appendSnippets} copies them, and the tags repeat around every match, so they can be far larger
+     * than the input. {@link #highlightRow} releases the charge after the copy.
+     */
+    private final class BreakingPassageFormatter extends CustomPassageFormatter {
+        private final int tagsLength;
+        private final int maxEncodedCharsPerChar;
+
+        BreakingPassageFormatter(Encoder encoder, int maxEncodedCharsPerChar) {
+            super(config.preTag(), config.postTag(), encoder, config.numberOfFragments());
+            this.tagsLength = config.preTag().length() + config.postTag().length();
+            this.maxEncodedCharsPerChar = maxEncodedCharsPerChar;
+        }
+
+        @Override
+        public Snippet[] format(Passage[] passages, String content) {
+            long chars = 0;
+            for (Passage passage : passages) {
+                long text = passage.getEndOffset() - passage.getStartOffset();
+                chars += text * maxEncodedCharsPerChar + (long) passage.getNumMatches() * tagsLength;
+            }
+            long bytes = chars * SNIPPET_BYTES_PER_CHAR;
+            blockFactory.adjustBreaker(bytes);
+            snippetBytes += bytes;
+            return super.format(passages, content);
         }
     }
 

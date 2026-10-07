@@ -79,11 +79,12 @@ resolve to a literal are accepted; column references are not.
 `pre_tags`
 :   (Optional) Opening tag inserted before each highlighted term. Accepts a string
     or a single-element array of strings. Defaults to `<em>`. Multiple rotating
-    tags are not supported.
+    tags are not supported. At most 256 characters.
 
 `post_tags`
 :   (Optional) Closing tag inserted after each highlighted term. Accepts a string
-    or a single-element array of strings. Defaults to `</em>`.
+    or a single-element array of strings. Defaults to `</em>`. At most 256
+    characters.
 
 `encoder`
 :   (Optional) Text encoding applied before adding highlight tags. Accepts

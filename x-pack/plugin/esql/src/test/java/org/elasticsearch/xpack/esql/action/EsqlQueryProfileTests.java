@@ -54,7 +54,8 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomNonNegativeLong()
+            randomNonNegativeLong(),
+            randomIntBetween(0, 1000)
         );
     }
 
@@ -82,7 +83,8 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
         long externalPlanningRequests = instance.externalPlanningRequests();
         long externalResolutionBytes = instance.externalResolutionBytesRead();
         long externalResolutionRequests = instance.externalResolutionRequests();
-        switch (randomIntBetween(0, 21)) {
+        int splitDiscoveryProbes = instance.splitDiscoveryProbes();
+        switch (randomIntBetween(0, 22)) {
             case 0 -> query = randomValueOtherThan(query, EsqlQueryProfileTests::randomTimeSpan);
             case 1 -> planning = randomValueOtherThan(planning, EsqlQueryProfileTests::randomTimeSpan);
             case 2 -> parsing = randomValueOtherThan(parsing, EsqlQueryProfileTests::randomTimeSpan);
@@ -105,6 +107,7 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
             case 19 -> externalPlanningRequests = randomValueOtherThan(externalPlanningRequests, ESTestCase::randomNonNegativeLong);
             case 20 -> externalResolutionBytes = randomValueOtherThan(externalResolutionBytes, ESTestCase::randomNonNegativeLong);
             case 21 -> externalResolutionRequests = randomValueOtherThan(externalResolutionRequests, ESTestCase::randomNonNegativeLong);
+            case 22 -> splitDiscoveryProbes = randomValueOtherThan(splitDiscoveryProbes, () -> randomIntBetween(0, 1000));
         }
         return new EsqlQueryProfile(
             query,
@@ -128,7 +131,8 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
             externalPlanningBytes,
             externalPlanningRequests,
             externalResolutionBytes,
-            externalResolutionRequests
+            externalResolutionRequests,
+            splitDiscoveryProbes
         );
     }
 
@@ -238,6 +242,22 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
         EsqlQueryProfile warm = new EsqlQueryProfile();
         warm.addExternalWarmAggregates(2);
         assertThat(toJson(warm), containsString("\"external_warm_aggregates\":2"));
+    }
+
+    public void testSplitDiscoveryProbesIsAdditive() {
+        EsqlQueryProfile profile = new EsqlQueryProfile();
+        profile.addSplitDiscoveryProbes(4);
+        profile.addSplitDiscoveryProbes(12);
+        assertEquals(16, profile.splitDiscoveryProbes());
+    }
+
+    public void testSplitDiscoveryProbesOnlyEmittedWhenIssued() throws IOException {
+        EsqlQueryProfile none = new EsqlQueryProfile();
+        assertThat(toJson(none), not(containsString("split_discovery_probes")));
+
+        EsqlQueryProfile withProbes = new EsqlQueryProfile();
+        withProbes.addSplitDiscoveryProbes(16);
+        assertThat(toJson(withProbes), containsString("\"split_discovery_probes\":16"));
     }
 
     private static String toJson(EsqlQueryProfile profile) throws IOException {

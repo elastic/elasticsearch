@@ -621,6 +621,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
+    /**
+     * Answers {@code _class} and {@code _name} for every view and subquery branch of a {@code FROM}. It runs while the branch
+     * wrappers still say which is which, before {@link UnwrapNamedSubqueries} removes the view wrappers.
+     */
     private static class ResolveSubqueryRelationColumns extends ParameterizedAnalyzerRule<UnresolvedMetadata, AnalyzerContext> {
 
         @Override
@@ -655,19 +659,30 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static LogicalPlan answer(LogicalPlan branch, List<NamedExpression> relationColumns, Source src, boolean lone) {
-            if (branch instanceof Subquery == false) {
-                return branch;
-            }
-            Subquery subquery = (Subquery) branch;
-            boolean view = subquery instanceof NamedSubquery;
-            // TODO unwraps a lone subquery just like LogicalPlanBuilder did before
-            LogicalPlan base = lone && view == false ? subquery.child() : subquery;
+            return switch (branch) {
+                case NamedSubquery view -> withRelationColumns(view, relationColumns, src, RelationClass.VIEW, view.name());
+                case Subquery subquery -> withRelationColumns(
+                    lone ? subquery.child() : subquery,
+                    relationColumns,
+                    src,
+                    RelationClass.SUBQUERY,
+                    null
+                );
+                case LogicalPlan relation -> relation;
+            };
+        }
+
+        private static LogicalPlan withRelationColumns(
+            LogicalPlan base,
+            List<NamedExpression> relationColumns,
+            Source src,
+            RelationClass relationClass,
+            @Nullable String name
+        ) {
             if (relationColumns.isEmpty()) {
                 return base;
             }
-
-            RelationClass relationClass = view ? RelationClass.VIEW : RelationClass.SUBQUERY;
-            Expression relationName = MetadataAttribute.keywordOrNull(src, view ? ((NamedSubquery) subquery).name() : null);
+            Expression relationName = MetadataAttribute.keywordOrNull(src, name);
             List<Alias> values = new ArrayList<>(relationColumns.size());
             for (NamedExpression column : relationColumns) {
                 values.add(

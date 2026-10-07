@@ -458,8 +458,11 @@ public class PromqlParserTests extends ESTestCase {
             as(parse("PROMQL index=test step=5m foo offset -1.0007").promqlPlan(), InstantSelector.class).evaluation().offset().value(),
             equalTo(Duration.ofMillis(-1000))
         );
-        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test step=5m foo[0.0009]"));
-        assertThat(e.getMessage(), containsString("Duration must be at least 1ms, got [9.0E-4]s"));
+        assertThat(
+            as(parse("PROMQL index=test step=5m foo[0.0009]").promqlPlan(), RangeSelector.class).range().fold(null),
+            equalTo(Duration.ofMillis(1))
+        );
+        assertWarnings("Line 1:31: duration [0.0009] is shorter than 1ms, using 1ms instead");
     }
 
     public void testCaseInsensitivityKeywords() {

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.parser.promql;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -240,11 +241,20 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
                 if (millis >= Long.MAX_VALUE) {
                     throw new ParsingException(source(ctx), "Duration out of range");
                 }
-                // Below a millisecond a range truncates to zero, which would read as no window at all.
-                if (positive && (long) millis == 0) {
-                    throw new ParsingException(source(ctx), "Duration must be at least 1ms, got [{}]s", num);
+                long wholeMillis = (long) millis;
+                // Below a millisecond a range truncates to zero, which would read as no window at all; plans only keep
+                // milliseconds, so it becomes the shortest range there is, with a warning.
+                if (positive && wholeMillis == 0) {
+                    Source source = source(ctx);
+                    HeaderWarning.addWarning(
+                        "Line {}:{}: duration [{}] is shorter than 1ms, using 1ms instead",
+                        source.source().getLineNumber(),
+                        source.source().getColumnNumber(),
+                        source.text()
+                    );
+                    wholeMillis = 1;
                 }
-                Duration duration = Duration.ofMillis((long) millis);
+                Duration duration = Duration.ofMillis(wholeMillis);
                 // Validate the resulting duration is within acceptable range
                 validateDurationRange(source(ctx), duration);
                 yield duration;

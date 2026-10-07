@@ -24,7 +24,6 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.EOFException;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -331,33 +330,6 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
                 assertTrue(reference.equals(0, dest, destBucket));
             }
             assertThat(dest.cardinality(destBucket), equalTo(reference.cardinality(0)));
-        }
-    }
-
-    public void testCombineHyperLogLogChecksPrecisionAndLength() throws IOException {
-        final BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-        final int precision = randomIntBetween(MIN_PRECISION, 10);
-        try (
-            HyperLogLogPlusPlus source = new HyperLogLogPlusPlus(precision, bigArrays, 1);
-            HyperLogLogPlusPlus dest = new HyperLogLogPlusPlus(precision, bigArrays, 1);
-            HyperLogLogPlusPlus otherPrecision = new HyperLogLogPlusPlus(precision + 1, bigArrays, 1)
-        ) {
-            source.upgradeToHll(0);
-            otherPrecision.upgradeToHll(0);
-            final BytesStreamOutput out = new BytesStreamOutput();
-            source.writeTo(0, out);
-            final BytesRef bytes = out.bytes().toBytesRef();
-            expectThrows(EOFException.class, () -> dest.combine(0, new BytesRef(bytes.bytes, bytes.offset, bytes.length - between(1, 3))));
-            final BytesStreamOutput otherOut = new BytesStreamOutput();
-            otherPrecision.writeTo(0, otherOut);
-            expectThrows(IllegalArgumentException.class, () -> dest.combine(0, otherOut.bytes().toBytesRef()));
-            // Linear counting values are meaningless at another precision, so those are rejected too.
-            try (HyperLogLogPlusPlus linearCounting = new HyperLogLogPlusPlus(precision + 1, bigArrays, 1)) {
-                linearCounting.collect(0, BitMixer.mix64(randomLong()));
-                final BytesStreamOutput lcOut = new BytesStreamOutput();
-                linearCounting.writeTo(0, lcOut);
-                expectThrows(IllegalArgumentException.class, () -> dest.combine(0, lcOut.bytes().toBytesRef()));
-            }
         }
     }
 

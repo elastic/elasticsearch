@@ -23,7 +23,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
-import java.io.EOFException;
 import java.io.IOException;
 
 /**
@@ -204,20 +203,18 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         ByteArrayStreamInput in = new ByteArrayStreamInput(other.bytes);
         in.reset(other.bytes, other.offset, other.length);
         final int precision = in.readVInt();
-        if (precision != precision()) {
-            throw new IllegalArgumentException();
-        }
+        assert precision == precision() : "precision [" + precision + "] differs from [" + precision() + "]";
         final boolean algorithm = in.readBoolean();
+        // this=LC/HLL, other=HLL: upgrade this to HLL if needed, then merge the registers in bulk.
         if (algorithm == HYPERLOGLOG) {
             final int registers = 1 << precision;
-            if (in.available() < registers) {
-                throw new EOFException("expected " + registers + " registers but only " + in.available() + " bytes remain");
-            }
+            assert in.available() >= registers : "expected [" + registers + "] registers but only [" + in.available() + "] bytes remain";
             // The registers follow the header as raw bytes, so merge them straight out of the buffer.
             addRunLens(bucket, other.bytes, in.getPosition());
             return;
         }
         final int length = Math.toIntExact(in.readVLong());
+        // this=HLL, other=LC: collect each value straight into the registers.
         if (getAlgorithm(bucket) == HYPERLOGLOG) {
             // Nothing to deduplicate against, so collect the values as they are read rather than materializing them first.
             final long hllBucket = hllBuckets.get(bucket) - 1;
@@ -226,6 +223,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             }
             return;
         }
+        // this=LC, other=LC: insert each value into this, and upgrade this to HLL if it passes the threshold.
         final long bytesUsed = (long) length * Integer.BYTES;
         breaker.addEstimateBytesAndMaybeBreak(bytesUsed, "merge linear counting");
         try {

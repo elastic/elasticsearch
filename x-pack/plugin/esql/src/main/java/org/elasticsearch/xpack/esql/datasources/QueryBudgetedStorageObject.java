@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
@@ -28,6 +30,8 @@ import java.time.Instant;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 
 /**
  * Decorates a {@link StorageObject} with per-query concurrency budget enforcement. Each I/O
@@ -198,6 +202,85 @@ class QueryBudgetedStorageObject implements StorageObject, ResumeBypassingStorag
         ActionListener<DirectReadBuffer> listener,
         boolean barge
     ) {
+        if (barge) {
+            return startReadBytesAsyncBarge(position, length, factory, executor, listener);
+        }
+        StorageIoAffinity.Scope scope = StorageIoAffinity.current();
+        RowGroupIo lease = scope == null ? null : scope.lease();
+        boolean countGets = scope != null && scope.countGets;
+        BooleanSupplier cancel = StorageRetryCancellation.current() == null ? () -> false : StorageRetryCancellation.current();
+        AtomicBoolean cancelled = new AtomicBoolean();
+        AtomicBoolean permitReleased = new AtomicBoolean();
+        AtomicReference<Releasable> getHandle = new AtomicReference<>();
+        SubscribableListener<Void> ticket = budget.acquireAsync(lease, countGets, () -> cancelled.get() || cancel.getAsBoolean(), executor);
+        ticket.addListener(new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                if (cancelled.get()) {
+                    releasePermitOnce(lease, countGets, permitReleased);
+                    listener.onFailure(new TaskCancelledException("Cancelled while waiting for query concurrency budget permit"));
+                    return;
+                }
+                try {
+                    StorageRetryCancellation.runWithCancellation(cancel, () -> {
+                        if (scope != null) {
+                            try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(lease, countGets)) {
+                                startDelegate(
+                                    position,
+                                    length,
+                                    factory,
+                                    executor,
+                                    listener,
+                                    lease,
+                                    countGets,
+                                    permitReleased,
+                                    getHandle,
+                                    cancelled
+                                );
+                            }
+                        } else {
+                            startDelegate(
+                                position,
+                                length,
+                                factory,
+                                executor,
+                                listener,
+                                lease,
+                                countGets,
+                                permitReleased,
+                                getHandle,
+                                cancelled
+                            );
+                        }
+                    });
+                } catch (Exception e) {
+                    releasePermitOnce(lease, countGets, permitReleased);
+                    listener.onFailure(e);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
+        return () -> {
+            cancelled.set(true);
+            budget.wakeAsyncWaiters();
+            Releasable handle = getHandle.get();
+            if (handle != null) {
+                handle.close();
+            }
+        };
+    }
+
+    private Releasable startReadBytesAsyncBarge(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
         final PermitToken token;
         try {
             token = acquirePermit();
@@ -206,11 +289,6 @@ class QueryBudgetedStorageObject implements StorageObject, ResumeBypassingStorag
             return () -> {};
         }
         try {
-            // We intentionally use a raw ActionListener instead of ActionListener.wrap so a
-            // throw from listener.onResponse(result) does NOT get auto-routed to our onFailure
-            // lambda — that would double-release the budget and double-fire the downstream
-            // listener (onResponse + onFailure for the same I/O). The token captures the lease
-            // from the calling thread; SDK callbacks must not read StorageIoAffinity.current().
             return delegate.startReadBytesAsync(position, length, factory, executor, new ActionListener<>() {
                 @Override
                 public void onResponse(DirectReadBuffer result) {
@@ -218,10 +296,6 @@ class QueryBudgetedStorageObject implements StorageObject, ResumeBypassingStorag
                     try {
                         listener.onResponse(result);
                     } catch (Exception e) {
-                        // listener.onResponse was already invoked; routing via listener.onFailure
-                        // here would violate the single-completion contract. Close the buffer to
-                        // free the breaker reservation and propagate so the caller observes the
-                        // failure instead of a silent swallow.
                         try {
                             result.close();
                         } catch (Exception closeFailure) {
@@ -236,7 +310,7 @@ class QueryBudgetedStorageObject implements StorageObject, ResumeBypassingStorag
                     releasePermit(token);
                     listener.onFailure(e);
                 }
-            }, barge);
+            }, true);
         } catch (Exception e) {
             releasePermit(token);
             listener.onFailure(e);
@@ -313,8 +387,59 @@ class QueryBudgetedStorageObject implements StorageObject, ResumeBypassingStorag
         return new PermitToken(lease, countGets);
     }
 
+    private void startDelegate(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener,
+        RowGroupIo lease,
+        boolean countGets,
+        AtomicBoolean permitReleased,
+        AtomicReference<Releasable> getHandle,
+        AtomicBoolean cancelled
+    ) {
+        try {
+            Releasable handle = delegate.startReadBytesAsync(position, length, factory, executor, new ActionListener<>() {
+                @Override
+                public void onResponse(DirectReadBuffer result) {
+                    releasePermitOnce(lease, countGets, permitReleased);
+                    try {
+                        listener.onResponse(result);
+                    } catch (Exception e) {
+                        try {
+                            result.close();
+                        } catch (Exception closeFailure) {
+                            e.addSuppressed(closeFailure);
+                        }
+                        throw ExceptionsHelper.convertToRuntime(e);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    releasePermitOnce(lease, countGets, permitReleased);
+                    listener.onFailure(e);
+                }
+            }, false);
+            getHandle.set(handle);
+            if (cancelled.get()) {
+                handle.close();
+            }
+        } catch (Exception e) {
+            releasePermitOnce(lease, countGets, permitReleased);
+            listener.onFailure(e);
+        }
+    }
+
     private void releasePermit(PermitToken token) {
         budget.release(token.lease, token.countGets);
+    }
+
+    private void releasePermitOnce(RowGroupIo lease, boolean countGets, AtomicBoolean permitReleased) {
+        if (permitReleased.compareAndSet(false, true)) {
+            budget.release(lease, countGets);
+        }
     }
 
     private record PermitToken(RowGroupIo lease, boolean countGets) {}

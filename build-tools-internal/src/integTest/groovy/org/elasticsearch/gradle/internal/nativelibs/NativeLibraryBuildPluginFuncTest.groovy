@@ -92,6 +92,26 @@ class NativeLibraryBuildPluginFuncTest extends AbstractGradleInternalPluginFuncT
         result.output.contains(PLATFORM)
     }
 
+    def "uses the declared toolchain image unless overridden from the environment"() {
+        given:
+        buildFile << """
+        tasks.register('printToolchainImage') {
+          def image = tasks.named('buildNativeLibrary').flatMap { it.toolchainImage }
+          doLast { println "toolchainImage=" + image.get() }
+        }
+        """
+
+        when:
+        def declared = gradleRunner("printToolchainImage").withEnvironment(["TEST_NATIVE_BUILD": "docker"]).build()
+        def overridden = gradleRunner("printToolchainImage").withEnvironment(
+            ["TEST_NATIVE_BUILD": "docker", (NativeLibraryBuildPlugin.TOOLCHAIN_IMAGE_OVERRIDE): "example/toolchain:local"]
+        ).build()
+
+        then:
+        declared.output.contains("toolchainImage=example/toolchain:1")
+        overridden.output.contains("toolchainImage=example/toolchain:local")
+    }
+
     def "exposes the built tree as a consumable variant produced by the task"() {
         given:
         buildFile << """

@@ -54,6 +54,7 @@ public class QueryFailureTelemetryTests extends ESTestCase {
         EXPECTED_BY_CONDITION.put(Condition.OBJECT_CHANGED, "storage_unavailable");
         EXPECTED_BY_CONDITION.put(Condition.ACCESS_DENIED, "storage_auth");
         EXPECTED_BY_CONDITION.put(Condition.OBJECT_NOT_FOUND, "storage_not_found");
+        EXPECTED_BY_CONDITION.put(Condition.OBJECT_ARCHIVED, "storage_not_found");
         EXPECTED_BY_CONDITION.put(Condition.CREDENTIALS_EXPIRED, "storage_auth");
         EXPECTED_BY_CONDITION.put(Condition.MALFORMED_DATA, "format");
         EXPECTED_BY_CONDITION.put(Condition.METADATA_UNAVAILABLE, "discovery");

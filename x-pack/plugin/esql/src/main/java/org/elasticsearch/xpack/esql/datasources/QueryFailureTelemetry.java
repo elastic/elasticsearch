@@ -123,7 +123,7 @@ public final class QueryFailureTelemetry {
         }
         return switch (condition) {
             case ACCESS_DENIED, CREDENTIALS_EXPIRED, CLOCK_SKEW -> DataSourceUsageAccumulator.ERROR_TYPE_STORAGE_AUTH;
-            case OBJECT_NOT_FOUND -> DataSourceUsageAccumulator.ERROR_TYPE_STORAGE_NOT_FOUND;
+            case OBJECT_NOT_FOUND, OBJECT_ARCHIVED -> DataSourceUsageAccumulator.ERROR_TYPE_STORAGE_NOT_FOUND;
             case STORE_THROTTLED -> DataSourceUsageAccumulator.ERROR_TYPE_STORAGE_THROTTLED;
             case STORE_UNAVAILABLE, OBJECT_CHANGED -> DataSourceUsageAccumulator.ERROR_TYPE_STORAGE_UNAVAILABLE;
             case MALFORMED_DATA -> DataSourceUsageAccumulator.ERROR_TYPE_FORMAT;

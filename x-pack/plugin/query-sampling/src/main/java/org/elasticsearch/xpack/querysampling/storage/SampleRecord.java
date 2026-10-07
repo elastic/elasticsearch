@@ -115,6 +115,26 @@ public final class SampleRecord {
     }
 
     /**
+     * The fields of a document that change when its ground truth becomes known, as a partial update.
+     */
+    public static XContentBuilder groundTruthUpdate(XContentBuilder builder, GroundTruth groundTruth, long nowMillis) throws IOException {
+        builder.startObject();
+        builder.startObject("ground_truth");
+        hits(builder, "neighbors", groundTruth.neighbors());
+        builder.endObject();
+        builder.field("has_ground_truth", true);
+        builder.field("updated_at", nowMillis);
+        return builder.endObject();
+    }
+
+    /**
+     * Only marks the document as looked at, so that documents that cannot be processed make way for others.
+     */
+    public static XContentBuilder touch(XContentBuilder builder, long nowMillis) throws IOException {
+        return builder.startObject().field("updated_at", nowMillis).endObject();
+    }
+
+    /**
      * Reads a document back, the inverse of {@link #document}.
      *
      * @param source   the source of the document

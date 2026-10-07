@@ -240,6 +240,10 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
                 if (millis >= Long.MAX_VALUE) {
                     throw new ParsingException(source(ctx), "Duration out of range");
                 }
+                // Below a millisecond a range truncates to zero, which would read as no window at all.
+                if (positive && (long) millis == 0) {
+                    throw new ParsingException(source(ctx), "Duration must be at least 1ms, got [{}]s", num);
+                }
                 Duration duration = Duration.ofMillis((long) millis);
                 // Validate the resulting duration is within acceptable range
                 validateDurationRange(source(ctx), duration);

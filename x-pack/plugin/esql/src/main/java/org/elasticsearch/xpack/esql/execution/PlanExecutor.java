@@ -314,9 +314,9 @@ public class PlanExecutor {
      * Creates the query's external-planning reservation, which charges listings, schema maps and split shells to the
      * request breaker, and returns {@code listener} wrapped to close it. Creating and closing it here, around the whole
      * session, releases it for every caller whether the session succeeds, fails, or throws synchronously out of
-     * {@code session.execute}. The release runs after the query metrics and logging in {@link #onQuerySuccess} and
-     * {@link #onQueryFailure}, so those can still read the reservation. Without a breaker there is nothing to charge
-     * and {@code listener} is returned as is.
+     * {@code session.execute}. The release runs after this class's telemetry in {@link #onQuerySuccess} and
+     * {@link #onQueryFailure} and before {@code listener}, so callers must not use the reservation once notified.
+     * Without a breaker there is nothing to charge and {@code listener} is returned as is.
      */
     private static ActionListener<Versioned<Result>> bindPlanningReservation(
         TransportActionServices services,

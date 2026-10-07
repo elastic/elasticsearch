@@ -93,6 +93,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
@@ -302,9 +303,10 @@ public class PlanExecutorMetricsTests extends ESTestCase {
 
     /**
      * {@link PlanExecutor#esql} owns the query's external-planning reservation: it binds one to the execution info and
-     * closes it when the session completes, on success and on failure, so no transport action has to. The plan runner
-     * stands in for resolution and compute by charging the reservation, so a missing release shows up on a real
-     * request breaker.
+     * closes it when the session completes, on success, on failure, and when the session throws synchronously, so no
+     * transport action has to. The plan runner stands in for resolution and compute by charging the query-scoped
+     * reservation and a {@link ExternalPlanningReservation.Run} it leaves open, so a missing release of either shows up
+     * on a real request breaker.
      */
     public void testExternalPlanningReservationReleasedOnSuccessAndFailure() throws Exception {
         CircuitBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(1));
@@ -315,7 +317,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             new BlockFactoryProvider(blockFactory)
         );
         long baseline = breaker.getUsed();
-        long charge = randomLongBetween(1, 64 * 1024);
+        long queryCharge = randomLongBetween(1, 64 * 1024);
+        long runCharge = randomLongBetween(1, 64 * 1024);
 
         try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
             var planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
@@ -323,32 +326,49 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             request.query("from test | stats m = max(foo)");
             request.allowPartialResults(false);
 
-            for (boolean succeed : new boolean[] { true, false }) {
+            for (Outcome outcome : Outcome.values()) {
                 var executionInfo = createEsqlExecutionInfo(randomBoolean());
+                AtomicReference<ExternalPlanningReservation.Run> openRun = new AtomicReference<>();
                 EsqlSession.PlanRunner runPhase = (role, p, configuration, foldContext, planTimeProfile, r) -> {
-                    executionInfo.externalPlanning().chargeQuery(charge);
-                    assertEquals(baseline + charge, breaker.getUsed());
-                    if (succeed) {
-                        r.onResponse(createPlanRunnerResult(configuration, executionInfo));
-                    } else {
-                        r.onFailure(new IllegalStateException("simulated compute failure"));
+                    ExternalPlanningReservation reservation = executionInfo.externalPlanning();
+                    reservation.chargeQuery(queryCharge);
+                    // Left open on purpose: closing the query reservation must refund a run its owner never closed.
+                    ExternalPlanningReservation.Run run = reservation.openRun();
+                    run.charge(runCharge);
+                    openRun.set(run);
+                    assertEquals(baseline + queryCharge + runCharge, breaker.getUsed());
+                    switch (outcome) {
+                        case SUCCESS -> r.onResponse(createPlanRunnerResult(configuration, executionInfo));
+                        case FAILURE -> r.onFailure(new IllegalStateException("simulated compute failure"));
+                        case THROW -> throw new IllegalStateException("simulated synchronous failure");
                     }
                 };
                 PlainActionFuture<Versioned<Result>> future = new PlainActionFuture<>();
                 executeEsql(planExecutor, services, request, executionInfo, runPhase, future);
-                if (succeed) {
-                    future.actionGet();
-                } else {
-                    expectThrows(IllegalStateException.class, future::actionGet);
+                switch (outcome) {
+                    case SUCCESS -> future.actionGet();
+                    case FAILURE, THROW -> expectThrows(IllegalStateException.class, future::actionGet);
                 }
 
                 ExternalPlanningReservation reservation = executionInfo.externalPlanning();
                 assertNotNull(reservation);
+                assertNotNull("plan runner did not run for " + outcome, openRun.get());
                 assertEquals(0L, reservation.queryHeld());
+                assertEquals(0L, openRun.get().held());
                 assertEquals(baseline, breaker.getUsed());
                 expectThrows(IllegalStateException.class, reservation::openRun);
+
+                // A second close, e.g. from a caller that still releases it itself, must not refund again.
+                reservation.close();
+                assertEquals(baseline, breaker.getUsed());
             }
         }
+    }
+
+    private enum Outcome {
+        SUCCESS,
+        FAILURE,
+        THROW
     }
 
     public void testSettingsMetric() throws Exception {

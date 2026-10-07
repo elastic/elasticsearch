@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.plugins.Plugin;
@@ -16,6 +17,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.dataset.GetDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.nio.charset.StandardCharsets;
@@ -224,6 +226,69 @@ public class ExternalSourceResolutionWarningsIT extends AbstractExternalDataSour
             + "] is shadowed by METADATA; the METADATA value is used; rename it in the dataset mapping to read both";
         assertThat(warningsOf("FROM " + dataset + " METADATA _id | KEEP emp_no"), hasItem(containsString(notice)));
         assertThat(warningsOf("FROM " + dataset + " | KEEP emp_no"), not(hasItem(containsString("shadowed by METADATA"))));
+    }
+
+    public void testMixedLayoutPartitionSpecWarnsOnColdAndCachedListing() throws Exception {
+        Path dir = createTempDir().resolve("spec_mixed");
+        Path part = dir.resolve("year=2024");
+        Files.createDirectories(part);
+        Files.writeString(part.resolve("a.csv"), "id:integer,ts:datetime\n1,2024-06-15T00:00:00.000Z\n", StandardCharsets.UTF_8);
+        Path other = dir.resolve("other");
+        Files.createDirectories(other);
+        Files.writeString(other.resolve("b.csv"), "id:integer,ts:datetime\n2,2024-06-16T00:00:00.000Z\n", StandardCharsets.UTF_8);
+        String glob = StoragePath.fileUri(dir) + "/*" + "*/*.csv";
+        String dataset = registerDataset(
+            "spec_mixed",
+            glob,
+            Map.of("partition_detection", "hive", "partition_spec", "year(ts)", "schema_resolution", "first_file_wins")
+        );
+        String query = "FROM " + dataset + " | KEEP id";
+        String unmatched = "names key [year] which was not detected";
+        String mixed = "the layout is mixed";
+        assertThat("cold listing", warningsOf(query), hasItem(containsString(unmatched)));
+        assertThat("cold listing mixed", warningsOf(query), hasItem(containsString(mixed)));
+        assertThat("cached listing", warningsOf(query), hasItem(containsString(unmatched)));
+        assertThat("cached listing mixed", warningsOf(query), hasItem(containsString(mixed)));
+    }
+
+    public void testPutRewritesPartitionSpecPathToLogicalName() throws Exception {
+        Path dir = createTempDir().resolve("spec_put_rewrite");
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("a.csv"), "id:integer,start:long\n1,1718409600\n", StandardCharsets.UTF_8);
+        LinkedHashMap<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("@timestamp", new DatasetFieldMapping("date", "start"));
+        String name = registerStrictDataset(
+            "spec_put_rewrite",
+            StoragePath.fileUri(dir.resolve("a.csv")),
+            properties,
+            Map.of("partition_spec", "year(start, epoch_second)")
+        );
+        GetDatasetAction.Request get = new GetDatasetAction.Request(TIMEOUT);
+        get.indices(name);
+        Dataset ds = client().execute(GetDatasetAction.INSTANCE, get).actionGet(TIMEOUT).getDatasets().iterator().next();
+        String stored = (String) ds.settings().get("partition_spec");
+        assertThat(stored, containsString("year(@timestamp)"));
+        assertThat(stored, not(containsString("start")));
+        assertThat(stored, not(containsString("epoch_second")));
+    }
+
+    public void testPutRejectsPartitionSpecColumnMissingFromMapping() throws Exception {
+        Path dir = createTempDir().resolve("spec_put_nope");
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("a.csv"), "id:integer,ts:datetime\n1,2024-06-15T00:00:00.000Z\n", StandardCharsets.UTF_8);
+        LinkedHashMap<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("@timestamp", new DatasetFieldMapping("date", "ts"));
+        Exception e = expectThrows(
+            Exception.class,
+            () -> registerStrictDataset(
+                "spec_put_nope",
+                StoragePath.fileUri(dir.resolve("a.csv")),
+                properties,
+                Map.of("partition_spec", "year(nope)")
+            )
+        );
+        assertThat(e.toString(), containsString("nope"));
+        assertThat(e.toString(), containsString("path source"));
     }
 
     /** Runs {@code query} over HTTP and returns the {@code Warning} header messages of the response. */

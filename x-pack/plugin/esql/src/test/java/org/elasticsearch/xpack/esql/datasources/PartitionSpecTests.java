@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.PartitionSpec.Field;
@@ -22,6 +24,7 @@ import static org.elasticsearch.xpack.esql.datasources.PartitionConfig.CONFIG_PA
 import static org.elasticsearch.xpack.esql.datasources.PartitionConfig.CONFIG_PARTITIONING_PATH;
 import static org.elasticsearch.xpack.esql.datasources.PartitionSpec.CONFIG_PARTITION_SPEC;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 public class PartitionSpecTests extends ESTestCase {
 
@@ -427,6 +430,57 @@ public class PartitionSpecTests extends ESTestCase {
 
     public void testConfigKeysIsExactlyPartitionSpec() {
         assertEquals(Set.of(CONFIG_PARTITION_SPEC), PartitionSpec.CONFIG_KEYS);
+    }
+
+    public void testAlignWithMappingRewritesPathAndDropsDateUnit() {
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, Map.of("@timestamp", new DatasetFieldMapping("date", "start")))
+        );
+        PartitionSpec spec = PartitionSpec.parse("year(start, epoch_second), month(start, epoch_second), lag(start, 15m)");
+        PartitionSpec aligned = spec.alignWithMapping(mapping);
+        assertEquals(
+            List.of(
+                new Field("year", Transform.YEAR, "@timestamp", Unit.EPOCH_MILLIS),
+                new Field("month", Transform.MONTH, "@timestamp", Unit.EPOCH_MILLIS)
+            ),
+            aligned.fields()
+        );
+        assertEquals(TimeValue.timeValueMinutes(15), aligned.windows().get("@timestamp").lag());
+        assertThat(aligned.toSpecString(), containsString("year(@timestamp)"));
+        assertThat(aligned.toSpecString(), not(containsString("start")));
+        assertThat(aligned.toSpecString(), not(containsString("epoch_second")));
+        Map<String, Object> settings = Map.of(CONFIG_PARTITION_SPEC, "year(start, epoch_second)");
+        assertEquals("year(@timestamp)", PartitionSpec.alignWithMapping(settings, mapping).get(CONFIG_PARTITION_SPEC));
+    }
+
+    public void testAlignWithMappingRejectsUnknownColumnWhenMappingPresent() {
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, Map.of("@timestamp", new DatasetFieldMapping("date", null)))
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PartitionSpec.parse("year(nope)").alignWithMapping(mapping)
+        );
+        assertThat(e.getMessage(), containsString(CONFIG_PARTITION_SPEC));
+        assertThat(e.getMessage(), containsString("nope"));
+        assertThat(e.getMessage(), containsString("path source"));
+    }
+
+    public void testAlignWithMappingAcceptsNoMapping() {
+        PartitionSpec spec = PartitionSpec.parse("year(start, epoch_second)");
+        assertEquals(spec, spec.alignWithMapping(null));
+        Map<String, Object> settings = Map.of(CONFIG_PARTITION_SPEC, "year(start, epoch_second)");
+        assertEquals(settings, PartitionSpec.alignWithMapping(settings, null));
+    }
+
+    public void testAlignWithMappingAcceptsIdentityNotInMapping() {
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, Map.of("@timestamp", new DatasetFieldMapping("date", "start")))
+        );
+        PartitionSpec spec = PartitionSpec.parse("aws-region=region, year(start, epoch_second)");
+        PartitionSpec aligned = spec.alignWithMapping(mapping);
+        assertEquals(new Field("aws-region", Transform.IDENTITY, "region", Unit.EPOCH_MILLIS), aligned.fields().get(0));
+        assertEquals(new Field("year", Transform.YEAR, "@timestamp", Unit.EPOCH_MILLIS), aligned.fields().get(1));
     }
 
     private static final String IDENTIFIER_HINT = PartitionSpec.IDENTIFIER_RULE;

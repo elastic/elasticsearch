@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -300,6 +302,142 @@ public final class PartitionSpec {
             columns.add(field.column());
         }
         return columns;
+    }
+
+    /**
+     * PUT rewrite: temporal and lag/lead columns that match a mapping {@code path} become the logical
+     * field name. A date / date_nanos field drops {@code epoch_second} (the unit is unused). Identity
+     * columns missing from the mapping stay. No mapping, or a mapping with no properties, is a no-op.
+     */
+    public static Map<String, Object> alignWithMapping(@Nullable Map<String, Object> settings, @Nullable DatasetMapping mapping) {
+        if (settings == null || settings.containsKey(CONFIG_PARTITION_SPEC) == false) {
+            return settings;
+        }
+        Object raw = settings.get(CONFIG_PARTITION_SPEC);
+        if (raw instanceof String == false) {
+            return settings;
+        }
+        String specText = (String) raw;
+        if (specText.isBlank()) {
+            return settings;
+        }
+        PartitionSpec spec;
+        try {
+            spec = parse(specText);
+        } catch (IllegalArgumentException e) {
+            return settings;
+        }
+        PartitionSpec aligned = spec.alignWithMapping(mapping);
+        String rewritten = aligned.toSpecString();
+        if (specText.equals(rewritten)) {
+            return settings;
+        }
+        Map<String, Object> copy = new LinkedHashMap<>(settings);
+        copy.put(CONFIG_PARTITION_SPEC, rewritten);
+        return copy;
+    }
+
+    /**
+     * Mapping {@code path} → logical name for fields that rename a physical column. Empty when there
+     * is no mapping. Used at PUT and for the BWC query-time warning.
+     */
+    static Map<String, String> pathToLogical(@Nullable DatasetMapping mapping) {
+        Map<String, DatasetFieldMapping> properties = mappingProperties(mapping);
+        if (properties == null) {
+            return Map.of();
+        }
+        Map<String, String> out = new LinkedHashMap<>();
+        for (Map.Entry<String, DatasetFieldMapping> entry : properties.entrySet()) {
+            String path = entry.getValue().path();
+            if (path != null && path.equals(entry.getKey()) == false) {
+                out.put(path, entry.getKey());
+            }
+        }
+        return out;
+    }
+
+    @Nullable
+    private static Map<String, DatasetFieldMapping> mappingProperties(@Nullable DatasetMapping mapping) {
+        if (mapping == null || mapping.mappings() == null) {
+            return null;
+        }
+        Map<String, DatasetFieldMapping> properties = mapping.mappings().properties();
+        return properties == null || properties.isEmpty() ? null : properties;
+    }
+
+    PartitionSpec alignWithMapping(@Nullable DatasetMapping mapping) {
+        Map<String, DatasetFieldMapping> properties = mappingProperties(mapping);
+        if (properties == null) {
+            return this;
+        }
+        Map<String, String> pathToLogical = pathToLogical(mapping);
+        Set<String> logicalNames = properties.keySet();
+        List<Field> rewrittenFields = new ArrayList<>(fields.size());
+        for (Field field : fields) {
+            rewrittenFields.add(alignField(field, properties, logicalNames, pathToLogical));
+        }
+        if (windows.isEmpty()) {
+            return new PartitionSpec(rewrittenFields);
+        }
+        Map<String, Window> rewrittenWindows = new LinkedHashMap<>();
+        for (Map.Entry<String, Window> entry : windows.entrySet()) {
+            String column = resolveMappedColumn(entry.getKey(), logicalNames, pathToLogical, false);
+            Window previous = rewrittenWindows.put(column, entry.getValue());
+            if (previous != null) {
+                rewrittenWindows.put(
+                    column,
+                    new Window(
+                        previous.lag().millis() == 0 ? entry.getValue().lag() : previous.lag(),
+                        previous.lead().millis() == 0 ? entry.getValue().lead() : previous.lead()
+                    )
+                );
+            }
+        }
+        return new PartitionSpec(rewrittenFields, rewrittenWindows);
+    }
+
+    private static Field alignField(
+        Field field,
+        Map<String, DatasetFieldMapping> properties,
+        Set<String> logicalNames,
+        Map<String, String> pathToLogical
+    ) {
+        boolean identity = field.transform() == Transform.IDENTITY;
+        String column = resolveMappedColumn(field.column(), logicalNames, pathToLogical, identity);
+        Unit unit = field.unit();
+        if (identity == false) {
+            DatasetFieldMapping declared = properties.get(column);
+            if (declared != null && isDateMappingType(declared.type())) {
+                unit = Unit.EPOCH_MILLIS;
+            }
+        }
+        return new Field(field.key(), field.transform(), column, unit);
+    }
+
+    private static String resolveMappedColumn(
+        String column,
+        Set<String> logicalNames,
+        Map<String, String> pathToLogical,
+        boolean identity
+    ) {
+        if (logicalNames.contains(column)) {
+            return column;
+        }
+        String mapped = pathToLogical.get(column);
+        if (mapped != null) {
+            return mapped;
+        }
+        if (identity) {
+            return column;
+        }
+        throw new IllegalArgumentException(
+            "[" + CONFIG_PARTITION_SPEC + "] column [" + column + "] is not a mapping field or a path source"
+        );
+    }
+
+    private static boolean isDateMappingType(String typeName) {
+        DataType type = DataType.fromNameOrAlias(typeName);
+        return type == DataType.DATETIME || type == DataType.DATE_NANOS;
     }
 
     /**
@@ -1095,10 +1233,25 @@ public final class PartitionSpec {
         @Nullable Map<String, DataType> columnTypes,
         Consumer<String> sink
     ) {
+        emitListingNotices(detectedKeys, hints, columnTypes, null, sink);
+    }
+
+    /**
+     * Same as {@link #emitListingNotices(Set, List, Map, Consumer)} plus the BWC path-rename warning
+     * when the spec still names a physical column a mapping field consumed with {@code path}.
+     */
+    public void emitListingNotices(
+        @Nullable Set<String> detectedKeys,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, DataType> columnTypes,
+        @Nullable Map<String, String> pathToLogical,
+        Consumer<String> sink
+    ) {
         if (isEmpty() || sink == null) {
             return;
         }
         emitIdentityOnDateNotices(hints, columnTypes, sink);
+        emitPathRenameNotices(pathToLogical, sink);
         if (detectedKeys != null) {
             for (Field field : fields) {
                 if (detectedKeys.contains(field.key()) == false) {
@@ -1182,6 +1335,37 @@ public final class PartitionSpec {
                     + "]; identity compares values and cannot skip date folders. Use year/month/day/hour."
             );
         }
+    }
+
+    private void emitPathRenameNotices(@Nullable Map<String, String> pathToLogical, Consumer<String> sink) {
+        if (pathToLogical == null || pathToLogical.isEmpty()) {
+            return;
+        }
+        Set<String> warned = new LinkedHashSet<>();
+        for (Field field : fields) {
+            warnPathRename(field.column(), pathToLogical, warned, sink);
+        }
+        for (String column : windows.keySet()) {
+            warnPathRename(column, pathToLogical, warned, sink);
+        }
+    }
+
+    private static void warnPathRename(String column, Map<String, String> pathToLogical, Set<String> warned, Consumer<String> sink) {
+        String logical = pathToLogical.get(column);
+        if (logical == null || warned.add(column) == false) {
+            return;
+        }
+        sink.accept(
+            "["
+                + CONFIG_PARTITION_SPEC
+                + "] binds ["
+                + column
+                + "], which mapping field ["
+                + logical
+                + "] renames with path; bind ["
+                + logical
+                + "]"
+        );
     }
 
     private static boolean isDateColumn(String column, @Nullable List<PartitionFilterHint> hints, @Nullable Map<String, DataType> types) {

@@ -1912,10 +1912,24 @@ public class ExternalSourceResolver {
             return;
         }
         PartitionMetadata meta = listing.partitionMetadata();
-        // null metadata: listing never produced keys (do not warn). Empty key set:
-        // detection ran and found nothing — every bind is unmatched.
-        Set<String> detected = meta == null ? null : meta.partitionColumns().keySet();
-        spec.emitListingNotices(detected, hints, declaredColumnTypes(declaredMapping), pendingListingWarnings::add);
+        // Hive EMPTY is stored as null. A non-empty spec with no detected keys is mixed layout
+        // (or detection found nothing) — unmatched-key notices used to be skipped; do not suppress.
+        boolean mixed = meta == null;
+        Set<String> detected = mixed ? Set.of() : meta.partitionColumns().keySet();
+        spec.emitListingNotices(
+            detected,
+            hints,
+            declaredColumnTypes(declaredMapping),
+            PartitionSpec.pathToLogical(declaredMapping),
+            pendingListingWarnings::add
+        );
+        if (mixed) {
+            pendingListingWarnings.add(
+                "["
+                    + PartitionSpec.CONFIG_PARTITION_SPEC
+                    + "] listing did not detect partition keys; the layout is mixed and binds are ignored"
+            );
+        }
     }
 
     @Nullable

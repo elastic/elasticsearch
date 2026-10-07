@@ -438,6 +438,16 @@ public class PartitionSpecProjectorTests extends ESTestCase {
         assertThat(notices, empty());
     }
 
+    public void testPathRenameWarnsWithoutRewriting() {
+        PartitionSpec spec = PartitionSpec.parse("year(start)");
+        List<String> notices = new ArrayList<>();
+        spec.emitListingNotices(Set.of("year"), List.of(), null, Map.of("start", "@timestamp"), notices::add);
+        assertThat(notices, hasItem(containsString("binds [start]")));
+        assertThat(notices, hasItem(containsString("mapping field [@timestamp]")));
+        assertThat(notices, hasItem(containsString("renames with path")));
+        assertThat(notices, hasItem(containsString("bind [@timestamp]")));
+    }
+
     public void testLagKeepsNextHourAndDay() {
         PartitionSpec noLag = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
         PartitionSpec lag = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts), lag(ts, 15m)");

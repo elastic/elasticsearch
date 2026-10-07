@@ -12,8 +12,8 @@ package org.elasticsearch.index;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.FeatureFlag;
-import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.rest.RestRequest;
 
 import java.util.regex.Pattern;
@@ -91,7 +91,15 @@ public final class SliceIndexing {
         }
         if (slice.length() > MAX_SLICE_VALUE_LENGTH) {
             throw new IllegalArgumentException(
-                "invalid [" + FIELD_NAME + "] value [" + slice + "]: length [" + slice.length() + "] exceeds max [" + MAX_SLICE_VALUE_LENGTH + "]"
+                "invalid ["
+                    + FIELD_NAME
+                    + "] value ["
+                    + slice
+                    + "]: length ["
+                    + slice.length()
+                    + "] exceeds max ["
+                    + MAX_SLICE_VALUE_LENGTH
+                    + "]"
             );
         }
         if (SLICE_ALL.equals(slice)) {
@@ -99,7 +107,13 @@ public final class SliceIndexing {
         }
         if (VALID_SLICE_VALUE_PATTERN.matcher(slice).matches() == false) {
             throw new IllegalArgumentException(
-                "invalid [" + FIELD_NAME + "] value [" + slice + "]: only [a-zA-Z0-9._:-] are allowed and max length is [" + MAX_SLICE_VALUE_LENGTH + "]"
+                "invalid ["
+                    + FIELD_NAME
+                    + "] value ["
+                    + slice
+                    + "]: only [a-zA-Z0-9._:-] are allowed and max length is ["
+                    + MAX_SLICE_VALUE_LENGTH
+                    + "]"
             );
         }
     }
@@ -244,7 +258,13 @@ public final class SliceIndexing {
     ) {
         if (sliceEnabled == false && routingFromSlice) {
             throw new IllegalArgumentException(
-                "[" + FIELD_NAME + "] is not allowed when [index.slice.enabled] is false for " + requestDescription + " targeting [" + target + "]"
+                "["
+                    + FIELD_NAME
+                    + "] is not allowed when [index.slice.enabled] is false for "
+                    + requestDescription
+                    + " targeting ["
+                    + target
+                    + "]"
             );
         }
         if (sliceEnabled && routingFromSlice == false) {
@@ -254,11 +274,19 @@ public final class SliceIndexing {
                         + requestDescription
                         + " targeting ["
                         + target
-                        + "], use [" + FIELD_NAME + "] instead"
+                        + "], use ["
+                        + FIELD_NAME
+                        + "] instead"
                 );
             }
             throw new IllegalArgumentException(
-                "[" + FIELD_NAME + "] is required when [index.slice.enabled] is true for " + requestDescription + " targeting [" + target + "]"
+                "["
+                    + FIELD_NAME
+                    + "] is required when [index.slice.enabled] is true for "
+                    + requestDescription
+                    + " targeting ["
+                    + target
+                    + "]"
             );
         }
     }
@@ -283,12 +311,20 @@ public final class SliceIndexing {
                     + requestDescription
                     + " targeting ["
                     + target
-                    + "], use [" + FIELD_NAME + "] instead"
+                    + "], use ["
+                    + FIELD_NAME
+                    + "] instead"
             );
         }
         if (routingFromSlice && anySliceEnabled == false && allowSliceWhenNoLocalSliceEnabled == false) {
             throw new IllegalArgumentException(
-                "[" + FIELD_NAME + "] is not allowed when [index.slice.enabled] is false for " + requestDescription + " targeting [" + target + "]"
+                "["
+                    + FIELD_NAME
+                    + "] is not allowed when [index.slice.enabled] is false for "
+                    + requestDescription
+                    + " targeting ["
+                    + target
+                    + "]"
             );
         }
         if (routingFromSlice) {

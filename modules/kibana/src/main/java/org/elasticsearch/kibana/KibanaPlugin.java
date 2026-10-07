@@ -220,11 +220,6 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         }
     }
 
-    /**
-     * The Notification Center feed. Registered as a system data stream so that it is excluded from index privileges
-     * granted without {@code allow_restricted_indices}, which is the only mechanism Elasticsearch offers for
-     * subtracting an index from a role grant Kibana does not control.
-     */
     private static SystemDataStreamDescriptor notificationCenterSystemDataStreamDescriptor() {
         try {
             ComposableIndexTemplate composableIndexTemplate = loadDataStreamComposableTemplate(

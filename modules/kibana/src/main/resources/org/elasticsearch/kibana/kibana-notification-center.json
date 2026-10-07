@@ -16,7 +16,8 @@
     "mappings": {
       "_meta": {
         "version": "${kibana.notification.center.version}",
-        "managed_index_mappings_version": ${kibana.notification.center.managed.index.version}
+        "managed_index_mappings_version": ${kibana.notification.center.managed.index.version
+        }
       },
       "dynamic": false,
       "properties": {
@@ -48,6 +49,6 @@
     }
   },
   "composed_of": [],
-  "priority": 500,
+  "priority": 200,
   "version": 1
 }

@@ -48,7 +48,6 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
     public static final int DEFAULT_PRECISION = 14;
 
     private final BigArrays bigArrays;
-    private final CircuitBreaker breaker;
     private LongArray hllBuckets;
     final HyperLogLog hll;
     private final LinearCounting lc;
@@ -89,7 +88,6 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         super(precision);
         // TODO if initialBucketCount is > 0 we allocate dense arrays for each one.
         this.bigArrays = bigArrays;
-        this.breaker = breaker;
         HyperLogLog hll = null;
         LinearCounting lc = null;
         LongArray hllBuckets = null;
@@ -224,28 +222,20 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             return;
         }
         // this=LC, other=LC: insert each value into this, and upgrade this to HLL if it passes the threshold.
-        final long bytesUsed = (long) length * Integer.BYTES;
-        breaker.addEstimateBytesAndMaybeBreak(bytesUsed, "merge linear counting");
-        try {
-            int[] values = new int[length];
-            for (int i = 0; i < length; i++) {
-                values[i] = in.readInt();
+        int i = 0;
+        long hllBucket = -1;
+        while (i < length) {
+            i++;
+            final int size = lc.addEncoded(bucket, in.readInt());
+            if (size > lc.threshold) {
+                hllBucket = upgradeToHll(bucket);
+                break;
             }
-            int i = 0;
-            long hllBucket = -1;
-            while (i < length) {
-                // TODO: bulk
-                int size = lc.addEncoded(bucket, values[i++]);
-                if (size > lc.threshold) {
-                    hllBucket = upgradeToHll(bucket);
-                    break;
-                }
-            }
-            while (i < length) {
-                hll.collectEncoded(hllBucket, values[i++]);
-            }
-        } finally {
-            breaker.addWithoutBreaking(-bytesUsed);
+        }
+        // The values that remain go straight into the registers.
+        while (i < length) {
+            hll.collectEncoded(hllBucket, in.readInt());
+            i++;
         }
     }
 

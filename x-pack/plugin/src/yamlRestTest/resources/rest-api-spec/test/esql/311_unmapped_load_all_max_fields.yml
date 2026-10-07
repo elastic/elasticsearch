@@ -72,3 +72,36 @@ teardown:
   - match: { columns.1.name: f1000 }
   - match: { values.0: [ "0", null ] }
   - match: { values.1: [ "1", "1000" ] }
+
+---
+'DROP applies before the cap':
+  # f000* removes f0000 - f0009, so only 991 fields are discovered: all of them are returned, with no warning, f1000 included.
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_max | DROP f000* | SORT id | LIMIT 10'
+  - length: { columns: 992 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: f0010 }
+  - match: { columns.991.name: f1000 }
+  - match: { values.0.1: "10" }
+  - match: { values.0.991: null }
+  - match: { values.1.1: null }
+  - match: { values.1.991: "1000" }
+
+---
+'a field replaced by EVAL does not count towards the cap':
+  # EVAL makes f0000 a column of the query rather than a discovered field, so 1000 fields are discovered (f0001 - f1000): exactly
+  # the cap, with no warning.
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_max | EVAL f0000 = "foo" | SORT id | LIMIT 10'
+  - length: { columns: 1002 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: f0001 }
+  - match: { columns.1000.name: f1000 }
+  - match: { columns.1001.name: f0000 }
+  - match: { values.0.1001: "foo" }
+  - match: { values.1.1000: "1000" }
+  - match: { values.1.1001: "foo" }

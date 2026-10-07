@@ -83,8 +83,8 @@ public class ExternalPartitionSpecRequestFilterIT extends AbstractExternalDataSo
     }
 
     public void testMidnightRangeSkipsNextDayFolderHoldingLateEvent() throws Exception {
-        // start=23:59:50 of day D lives under day D+1. No-lag listing skips that folder for a
-        // range ending 23:59:59.999Z of day D. A lag PR flips this.
+        // start=23:59:50 of day D lives under day D+1. Year listing still walks day=02;
+        // overlapsExpressions at split drops that file. A lag PR flips this.
         String dataset = registerTree("spec_rf_midnight");
         assertPruneFilter(
             dataset,

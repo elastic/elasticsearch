@@ -267,6 +267,37 @@ public class FileSplitProviderTests extends ESTestCase {
         );
     }
 
+    public void testListingHintsForQueryMvInRangeDropsTimestampKeepsYearIn() {
+        FieldAttribute ts = new FieldAttribute(
+            SRC,
+            "@timestamp",
+            new EsField("@timestamp", DataType.DATETIME, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        Instant start = Instant.parse("2024-06-15T00:00:00Z");
+        Instant end = Instant.parse("2024-06-16T00:00:00Z");
+        // Kibana time-picker shape: request.filter range rewrites to MV_IN_RANGE, not AND(GTE, LT).
+        Expression filter = new MvInRange(
+            SRC,
+            ts,
+            new Literal(SRC, start.toEpochMilli(), DataType.DATETIME),
+            new Literal(SRC, end.toEpochMilli(), DataType.DATETIME)
+        );
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = FileSplitProvider.listingHintsForQuery(
+            List.of(filter),
+            Set.of(),
+            Set.of("year", "month", "day"),
+            PartitionSpec.parse("year(@timestamp), month(@timestamp), day(@timestamp)")
+        );
+        assertTrue(
+            "data column @timestamp must not join the listing cache identity",
+            hints.stream().noneMatch(h -> h.columnName().equals("@timestamp"))
+        );
+        assertEquals(
+            List.of(new PartitionFilterHintExtractor.PartitionFilterHint("year", PartitionFilterHintExtractor.Operator.IN, List.of(2024))),
+            hints
+        );
+    }
+
     public void testListingHintsForQueryEmptySpecEqualsListingExtract() {
         Expression filter = new Equals(SRC, fieldAttr("year"), intLiteral(2024));
         List<Expression> filters = List.of(filter);

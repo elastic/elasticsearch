@@ -106,7 +106,7 @@ $$$dlm-frozen-transition-enabled$$$
 $$$dlm-frozen-transition-health-stuck-threshold$$$
 
 `dlm.frozen_transitions.health.stuck_threshold` {applies_to}`stack: ga 9.6`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), [time unit value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) How long a backing index can remain past its `frozen_after` age without completing its frozen tier transition before the `dlm_frozen_transitions` indicator of the [Health API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-health-report) reports it as overdue and changes to `yellow`. Indices with a transition that is currently running are not counted as overdue. Must be at least `1m`. Defaults to `24h`.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), [time unit value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) How long a backing index can remain past its `frozen_after` age without completing its frozen tier transition before the `dlm_frozen_transitions` indicator of the [Health API]({{es-apis}}operation/operation-health-report) reports it as overdue and changes to `yellow`. Indices with a transition that is currently running are not counted as overdue. Must be at least `1m`. Defaults to `24h`.
 
 $$$dlm-frozen-transition-health-publish-interval$$$
 

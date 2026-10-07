@@ -202,7 +202,9 @@ public class ExternalPartitionSpecPruningIT extends AbstractExternalDataSourceIT
         String dataset = registerAwsTextLayoutHeaderlessSecondsTree("spec_aws_text_headerless");
         long start = Instant.parse("2024-06-16T00:00:00Z").getEpochSecond();
         long end = Instant.parse("2024-06-16T00:30:00Z").getEpochSecond();
-        assertPrune(dataset, "WHERE start >= " + start + " AND start < " + end, 4, 2, List.of(2L, 3L));
+        long t2 = Instant.parse("2024-06-16T00:05:00Z").getEpochSecond();
+        long t3 = Instant.parse("2024-06-16T00:20:00Z").getEpochSecond();
+        assertPrune(dataset, "WHERE start >= " + start + " AND start < " + end, 4, 2, List.of(t2, t3), "start");
     }
 
     // docs example 10, exclusive upper bound must not empty the scan
@@ -217,13 +219,29 @@ public class ExternalPartitionSpecPruningIT extends AbstractExternalDataSourceIT
     }
 
     private void assertPrune(String dataset, String filterClause, int expectedFilesScanned, List<Long> expectedIds) {
-        assertPrune(dataset, filterClause, TOTAL_FILES, expectedFilesScanned, expectedIds);
+        assertPrune(dataset, filterClause, TOTAL_FILES, expectedFilesScanned, expectedIds, "id");
     }
 
     private void assertPrune(String dataset, String filterClause, int totalFiles, int expectedFilesScanned, List<Long> expectedIds) {
+        assertPrune(dataset, filterClause, totalFiles, expectedFilesScanned, expectedIds, "id");
+    }
+
+    private void assertPrune(
+        String dataset,
+        String filterClause,
+        int totalFiles,
+        int expectedFilesScanned,
+        List<Long> expectedIds,
+        String keepColumn
+    ) {
         internalCluster().ensureAtLeastNumDataNodes(2);
 
-        List<List<Object>> rows = runPruned(dataset, filterClause + " | KEEP id | SORT id ASC", totalFiles, expectedFilesScanned);
+        List<List<Object>> rows = runPruned(
+            dataset,
+            filterClause + " | KEEP " + keepColumn + " | SORT " + keepColumn + " ASC",
+            totalFiles,
+            expectedFilesScanned
+        );
         List<Long> actualIds = rows.stream().map(row -> ((Number) row.get(0)).longValue()).toList();
         assertThat(
             "[" + filterClause + "] must return exactly the matching rows, dropping none and inventing none",
@@ -350,8 +368,7 @@ public class ExternalPartitionSpecPruningIT extends AbstractExternalDataSourceIT
                 "partition_detection",
                 "hive",
                 "partition_spec",
-                "aws-region=region, year(start, epoch_second), month(start, epoch_second),"
-                    + " day(start, epoch_second), hour(start, epoch_second)"
+                "year(start, epoch_second), month(start, epoch_second), day(start, epoch_second), hour(start, epoch_second)"
             )
         );
     }
@@ -365,7 +382,7 @@ public class ExternalPartitionSpecPruningIT extends AbstractExternalDataSourceIT
         Files.createDirectories(dir);
         Files.writeString(
             dir.resolve(fileName),
-            "id:integer,start:long,region:keyword\n" + id + "," + start.getEpochSecond() + ",us-east-1\n",
+            "id:integer,start:long\n" + id + "," + start.getEpochSecond() + "\n",
             StandardCharsets.UTF_8
         );
     }
@@ -384,9 +401,8 @@ public class ExternalPartitionSpecPruningIT extends AbstractExternalDataSourceIT
         @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
         String glob = StoragePath.fileUri(root) + "/**/*.csv";
         LinkedHashMap<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("id", new DatasetFieldMapping("integer", "col0"));
-        properties.put("start", new DatasetFieldMapping("long", "col1"));
-        return registerStrictDataset(
+        properties.put("start", new DatasetFieldMapping("long", "col10"));
+        return registerNonStrictDataset(
             name,
             glob,
             properties,
@@ -409,7 +425,7 @@ public class ExternalPartitionSpecPruningIT extends AbstractExternalDataSourceIT
         throws IOException {
         Path dir = regionRoot.resolve(Integer.toString(year)).resolve(pad2(month)).resolve(pad2(day));
         Files.createDirectories(dir);
-        Files.writeString(dir.resolve(fileName), id + " " + start.getEpochSecond() + "\n", StandardCharsets.UTF_8);
+        Files.writeString(dir.resolve(fileName), vpcHeaderlessRow(id, start), StandardCharsets.UTF_8);
     }
 
     private String registerSecondsTree(String name) throws IOException {
@@ -541,5 +557,14 @@ public class ExternalPartitionSpecPruningIT extends AbstractExternalDataSourceIT
 
     private static String pad2(int v) {
         return v < 10 ? "0" + v : Integer.toString(v);
+    }
+
+    /**
+     * Default VPC Flow Logs v2 layout so {@code start} is {@code col10}. Only {@code start} is declared
+     * (non-strict overlay), matching the docs PUT.
+     */
+    private static String vpcHeaderlessRow(int id, Instant start) {
+        long epoch = start.getEpochSecond();
+        return "2 123456789012 eni-aaaaaaaa 10.0.0.1 10.0.0.2 12345 80 6 1 " + id + " " + epoch + " " + (epoch + 1) + " ACCEPT OK\n";
     }
 }

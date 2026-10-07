@@ -88,13 +88,14 @@ PUT /_query/dataset/vpc_flow
   "data_source": "prod_s3_logs",
   "resource": "s3://logs/AWSLogs/aws-account-id=*/aws-service=vpcflowlogs/aws-region=*/year=*/month=*/day=*/hour=*/*.parquet",
   "settings": {
-    "partition_spec": "aws-region=region, year(start, epoch_second), month(start, epoch_second), day(start, epoch_second), hour(start, epoch_second)"
+    "partition_spec": "year(start, epoch_second), month(start, epoch_second), day(start, epoch_second), hour(start, epoch_second)"
   }
 }
 ```
 
-`aws-region=region` is `key=column` (see row 3 in the table below). `aws-account-id` and `aws-service` stay unlisted
-identity keys.
+`aws-account-id`, `aws-service`, and `aws-region` stay unlisted identity keys; filter them on those names.
+`aws-region=region` (row 3) applies only when the file itself has a `region` column. Default VPC Flow Logs Parquet
+does not.
 
 Default text layout uses no `key=value` folders. A segment is a placeholder only when it is exactly `{name}`; a
 literal such as `vpcflowlogs` stays a required path segment. VPC Flow Logs have no header, so CSV settings must set

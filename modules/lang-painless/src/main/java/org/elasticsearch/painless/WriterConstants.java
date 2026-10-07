@@ -207,8 +207,9 @@ public final class WriterConstants {
     /**
      * Bootstrap for the per-invocation allocation charge inside a charging lambda's interface method (see
      * {@code LambdaBootstrap.chargeBootstrap}). Static args: the index of the script capture within the call-site
-     * parameters, then the estimator method handle. Call-site type is {@code (captures..., samArgs...) -> void} with the
-     * script at that index (0 for the common script-first case; after the receiver for a dynamic bound reference).
+     * parameters, the estimator method handle, where the delegate's injected constants go in the estimator, and those
+     * constants. Call-site type is {@code (captures..., samArgs...) -> void} with the script at that index (0 for the common
+     * script-first case; after the receiver for a dynamic bound reference).
      */
     public static final MethodType CHARGE_BOOTSTRAP_TYPE = MethodType.methodType(
         CallSite.class,
@@ -216,7 +217,9 @@ public final class WriterConstants {
         String.class,
         MethodType.class,
         int.class,
-        MethodHandle.class
+        MethodHandle.class,
+        int.class,
+        Object[].class
     );
     public static final Handle CHARGE_BOOTSTRAP_HANDLE = new Handle(
         Opcodes.H_INVOKESTATIC,

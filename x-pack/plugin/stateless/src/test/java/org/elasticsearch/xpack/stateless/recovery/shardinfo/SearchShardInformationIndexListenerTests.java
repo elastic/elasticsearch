@@ -8,16 +8,28 @@
 package org.elasticsearch.xpack.stateless.recovery.shardinfo;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.support.AbstractClient;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -35,25 +47,33 @@ import org.elasticsearch.telemetry.TelemetryProvider.NoopTelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService;
+import org.elasticsearch.xpack.stateless.cache.ShardWarmVolumes;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.cluster.metadata.Metadata.DEFAULT_PROJECT_ID;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction.SHARD_HAS_MOVED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -87,10 +107,12 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
     private final CountDownLatch latch = new CountDownLatch(1);
     private final LatchedActionListener<Void> latchedActionListener = new LatchedActionListener<>(ActionListener.noop(), latch);
     private final RecordingClient client = new RecordingClient();
+    private final ClusterService clusterService = mock(ClusterService.class);
     private MockLog mockLog;
 
     @Before
     public void setupMockLogger() {
+        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         mockLog = MockLog.capture("org.elasticsearch.xpack.stateless.recovery.shardinfo.SearchShardInformationIndexListener");
 
         // ensure no error log messages have been run
@@ -118,12 +140,7 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
         when(indexShard.routingEntry()).thenReturn(shardRouting);
         when(indexShard.shardId()).thenReturn(shardId);
 
-        SearchShardInformationIndexListener listener = new SearchShardInformationIndexListener(
-            client,
-            collector,
-            clusterSettings,
-            System::currentTimeMillis
-        );
+        SearchShardInformationIndexListener listener = newListener();
 
         listener.beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
 
@@ -148,12 +165,7 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
         when(indexShard.routingEntry()).thenReturn(shardRouting);
         when(indexShard.shardId()).thenReturn(shardId);
 
-        SearchShardInformationIndexListener listener = new SearchShardInformationIndexListener(
-            client,
-            collector,
-            clusterSettings,
-            System::currentTimeMillis
-        );
+        SearchShardInformationIndexListener listener = newListener();
 
         listener.beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
 
@@ -174,12 +186,7 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
         when(indexShard.routingEntry()).thenReturn(shardRouting);
         when(indexShard.shardId()).thenReturn(shardId);
 
-        SearchShardInformationIndexListener listener = new SearchShardInformationIndexListener(
-            client,
-            collector,
-            clusterSettings,
-            System::currentTimeMillis
-        );
+        SearchShardInformationIndexListener listener = newListener();
 
         listener.beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
 
@@ -204,12 +211,7 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
         when(indexShard.routingEntry()).thenReturn(shardRouting);
         when(indexShard.shardId()).thenReturn(shardId);
 
-        SearchShardInformationIndexListener listener = new SearchShardInformationIndexListener(
-            client,
-            collector,
-            clusterSettings,
-            System::currentTimeMillis
-        );
+        SearchShardInformationIndexListener listener = newListener();
 
         listener.beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
 
@@ -232,12 +234,7 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
         when(indexShard.routingEntry()).thenReturn(shardRouting);
         when(indexShard.shardId()).thenReturn(shardId);
 
-        SearchShardInformationIndexListener listener = new SearchShardInformationIndexListener(
-            client,
-            collector,
-            clusterSettings,
-            System::currentTimeMillis
-        );
+        SearchShardInformationIndexListener listener = newListener();
 
         listener.beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
 
@@ -269,12 +266,7 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
         when(indexShard.routingEntry()).thenReturn(shardRouting);
         when(indexShard.shardId()).thenReturn(shardId);
 
-        SearchShardInformationIndexListener listener = new SearchShardInformationIndexListener(
-            client,
-            collector,
-            clusterSettings,
-            System::currentTimeMillis
-        );
+        SearchShardInformationIndexListener listener = newListener();
 
         listener.beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
 
@@ -309,12 +301,7 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
         AtomicLong time = new AtomicLong(0);
         LongSupplier controllableTime = time::get;
 
-        SearchShardInformationIndexListener listener = new SearchShardInformationIndexListener(
-            client,
-            collector,
-            clusterSettings,
-            controllableTime
-        );
+        SearchShardInformationIndexListener listener = newListener(controllableTime);
 
         listener.beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
 
@@ -359,12 +346,7 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
     }
 
     public void testSetInactive() {
-        SearchShardInformationIndexListener listener = new SearchShardInformationIndexListener(
-            client,
-            collector,
-            clusterSettings,
-            System::currentTimeMillis
-        );
+        SearchShardInformationIndexListener listener = newListener();
 
         // simulate a settings update
         Settings newSettings = Settings.builder()
@@ -379,12 +361,7 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
     }
 
     public void testSwitchBetweenActiveAndInactive() {
-        SearchShardInformationIndexListener listener = new SearchShardInformationIndexListener(
-            client,
-            collector,
-            clusterSettings,
-            System::currentTimeMillis
-        );
+        SearchShardInformationIndexListener listener = newListener();
         IndexShard indexShard = mock(IndexShard.class);
         ShardRouting shardRouting = createSearchOnlyShard(shardId, "search_node_1").moveToStarted(1);
         when(indexShard.routingEntry()).thenReturn(shardRouting);
@@ -420,12 +397,7 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
         when(indexShard.routingEntry()).thenReturn(shardRouting);
         when(indexShard.shardId()).thenReturn(shardId);
 
-        SearchShardInformationIndexListener listener = new SearchShardInformationIndexListener(
-            client,
-            collector,
-            clusterSettings,
-            System::currentTimeMillis
-        );
+        SearchShardInformationIndexListener listener = newListener();
 
         listener.beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
 
@@ -445,6 +417,205 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
             .getMeasurements(InstrumentType.LONG_COUNTER, SearchShardInformationMetricsCollector.REQUESTS_SHARD_MOVED_TOTAL);
         assertThat(measurements, hasSize(1));
         assertThat(measurements.get(0).getLong(), equalTo(1L));
+    }
+
+    public void testPutHappensBeforeShardMovedSentinel() {
+        long generation = randomNonNegativeLong();
+        ClusterState state = drainState(index, "source", "target", generation);
+        when(clusterService.state()).thenReturn(state);
+        ShardWarmVolumes volumes = newVolumes();
+        IndexShard indexShard = relocatingDrainShard("source");
+
+        newListener(System::currentTimeMillis, volumes).beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
+
+        RecordingClient.Execution<
+            TransportFetchSearchShardInformationAction.Request,
+            TransportFetchSearchShardInformationAction.Response> execution = client.lastExecution();
+        assertTrue(execution.request().wantVolumes());
+        execution.listener()
+            .onResponse(
+                new TransportFetchSearchShardInformationAction.Response(SHARD_HAS_MOVED, "source", generation, Map.of(shardId, 11L))
+            );
+
+        assertThat(volumes.get(state, "source").volumes(), equalTo(Map.of(shardId, 11L)));
+        verify(indexShard, never()).waitForEngineOrClosedShard(any());
+        List<Measurement> measurements = meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, SearchShardInformationMetricsCollector.REQUESTS_SHARD_MOVED_TOTAL);
+        assertThat(measurements, hasSize(1));
+        assertThat(measurements.get(0).getLong(), equalTo(1L));
+    }
+
+    public void testDidNotCollectClearsClaimForRetry() {
+        long generation = randomNonNegativeLong();
+        ClusterState state = drainState(index, "source", "target", generation);
+        when(clusterService.state()).thenReturn(state);
+        ShardWarmVolumes volumes = newVolumes();
+        IndexShard indexShard = relocatingDrainShard("source");
+
+        newListener(System::currentTimeMillis, volumes).beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
+        RecordingClient.Execution<
+            TransportFetchSearchShardInformationAction.Request,
+            TransportFetchSearchShardInformationAction.Response> execution = client.lastExecution();
+        assertTrue(execution.request().wantVolumes());
+        execution.listener().onResponse(new TransportFetchSearchShardInformationAction.Response(5L));
+        assertThat(volumes.get(state, "source"), nullValue());
+        assertTrue(volumes.claimFetch(state, "source"));
+    }
+
+    public void testFailureClearsClaimForRetry() {
+        long generation = randomNonNegativeLong();
+        ClusterState state = drainState(index, "source", "target", generation);
+        when(clusterService.state()).thenReturn(state);
+        ShardWarmVolumes volumes = newVolumes();
+        IndexShard indexShard = relocatingDrainShard("source");
+
+        newListener(System::currentTimeMillis, volumes).beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
+        client.lastExecution().listener().onFailure(new RuntimeException("rpc failed"));
+        assertMetrics(0, 1);
+        assertTrue(volumes.claimFetch(state, "source"));
+    }
+
+    public void testSecondShardDoesNotClaimVolumesWhileFetchInFlight() {
+        long generation = randomNonNegativeLong();
+        ClusterState state = drainState(index, "source", "target", generation);
+        when(clusterService.state()).thenReturn(state);
+        ShardWarmVolumes volumes = newVolumes();
+        IndexShard firstShard = relocatingDrainShard("source", shardId);
+        IndexShard secondShard = relocatingDrainShard("source", new ShardId(index, 1));
+
+        SearchShardInformationIndexListener listener = newListener(System::currentTimeMillis, volumes);
+        listener.beforeIndexShardRecovery(firstShard, indexSettings, ActionListener.noop());
+        listener.beforeIndexShardRecovery(secondShard, indexSettings, latchedActionListener);
+
+        assertThat(client.executionCount(), equalTo(2));
+        RecordingClient.Execution<
+            TransportFetchSearchShardInformationAction.Request,
+            TransportFetchSearchShardInformationAction.Response> first = client.execution(0);
+        RecordingClient.Execution<
+            TransportFetchSearchShardInformationAction.Request,
+            TransportFetchSearchShardInformationAction.Response> second = client.execution(1);
+        assertTrue(first.request().wantVolumes());
+        assertFalse(second.request().wantVolumes());
+        first.listener().onResponse(new TransportFetchSearchShardInformationAction.Response(5L));
+        assertTrue(volumes.claimFetch(state, "source"));
+        second.listener().onResponse(new TransportFetchSearchShardInformationAction.Response(5L));
+    }
+
+    public void testExecuteThrowsReleasesClaim() {
+        long generation = randomNonNegativeLong();
+        ClusterState state = drainState(index, "source", "target", generation);
+        when(clusterService.state()).thenReturn(state);
+        ShardWarmVolumes volumes = newVolumes();
+        IndexShard indexShard = relocatingDrainShard("source");
+        Client throwingClient = mock(Client.class);
+        doThrow(new RuntimeException("synchronous execute failure")).when(throwingClient).execute(any(), any(), any());
+
+        new SearchShardInformationIndexListener(
+            throwingClient,
+            collector,
+            clusterSettings,
+            System::currentTimeMillis,
+            clusterService,
+            volumes
+        ).beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
+        assertTrue(volumes.claimFetch(state, "source"));
+        assertMetrics(0, 1);
+    }
+
+    private SearchShardInformationIndexListener newListener() {
+        return newListener(System::currentTimeMillis, ShardWarmVolumes.NOOP);
+    }
+
+    private SearchShardInformationIndexListener newListener(LongSupplier now) {
+        return newListener(now, ShardWarmVolumes.NOOP);
+    }
+
+    private SearchShardInformationIndexListener newListener(LongSupplier now, ShardWarmVolumes volumes) {
+        return new SearchShardInformationIndexListener(client, collector, clusterSettings, now, clusterService, volumes);
+    }
+
+    private IndexShard relocatingDrainShard(String sourceId) {
+        return relocatingDrainShard(sourceId, shardId);
+    }
+
+    private IndexShard relocatingDrainShard(String sourceId, ShardId sid) {
+        IndexShard indexShard = mock(IndexShard.class);
+        ShardRouting shardRouting = TestShardRouting.shardRoutingBuilder(sid, "target", false, INITIALIZING)
+            .withRelocatingNodeId(sourceId)
+            .withRole(ShardRouting.Role.SEARCH_ONLY)
+            .build();
+        when(indexShard.routingEntry()).thenReturn(shardRouting);
+        when(indexShard.shardId()).thenReturn(sid);
+        return indexShard;
+    }
+
+    private static ShardWarmVolumes newVolumes() {
+        return new ShardWarmVolumes(
+            new ClusterSettings(
+                Settings.builder()
+                    .put(SearchRecoveryTimeoutCalculationService.SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING.getKey(), true)
+                    .build(),
+                Set.of(SearchRecoveryTimeoutCalculationService.SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING)
+            )
+        );
+    }
+
+    private static ClusterState drainState(Index index, String sourceNodeId, String targetNodeId, long startedAtMillis) {
+        return drainStateTwoSources(index, sourceNodeId, startedAtMillis, null, 0L, targetNodeId);
+    }
+
+    private static ClusterState drainStateTwoSources(
+        Index index,
+        String sourceNodeId,
+        long sourceGen,
+        String otherNodeId,
+        long otherGen,
+        String targetNodeId
+    ) {
+        IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
+            .settings(indexSettings(IndexVersion.current(), index.getUUID(), 1, 1))
+            .build();
+        Map<String, SingleNodeShutdownMetadata> shutdowns = new HashMap<>();
+        shutdowns.put(
+            sourceNodeId,
+            SingleNodeShutdownMetadata.builder()
+                .setNodeId(sourceNodeId)
+                .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+                .setReason("test")
+                .setStartedAtMillis(sourceGen)
+                .setNodeSeen(true)
+                .build()
+        );
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.create(sourceNodeId))
+            .add(DiscoveryNodeUtils.create(targetNodeId))
+            .localNodeId(targetNodeId)
+            .masterNodeId(targetNodeId);
+        ClusterState.Builder state = ClusterState.builder(new ClusterName("test"))
+            .putCompatibilityVersions(sourceNodeId, TransportVersion.current(), Map.of())
+            .putCompatibilityVersions(targetNodeId, TransportVersion.current(), Map.of());
+        if (otherNodeId != null) {
+            shutdowns.put(
+                otherNodeId,
+                SingleNodeShutdownMetadata.builder()
+                    .setNodeId(otherNodeId)
+                    .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+                    .setReason("test")
+                    .setStartedAtMillis(otherGen)
+                    .setNodeSeen(true)
+                    .build()
+            );
+            nodes.add(DiscoveryNodeUtils.create(otherNodeId));
+            state.putCompatibilityVersions(otherNodeId, TransportVersion.current(), Map.of());
+        }
+        return state.nodes(nodes.build())
+            .metadata(
+                Metadata.builder()
+                    .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(shutdowns))
+                    .put(ProjectMetadata.builder(DEFAULT_PROJECT_ID).put(indexMetadata, false))
+                    .build()
+            )
+            .build();
     }
 
     private void assertMetrics(long expectedSuccessfulRequests, long expectedErrors) {
@@ -510,6 +681,11 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
 
         int executionCount() {
             return executions.size();
+        }
+
+        @SuppressWarnings("unchecked")
+        <Request extends ActionRequest, Response extends ActionResponse> Execution<Request, Response> execution(int index) {
+            return (Execution<Request, Response>) executions.get(index);
         }
 
         @SuppressWarnings("unchecked")

@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.stateless.recovery.shardinfo;
 
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -16,8 +18,10 @@ import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -28,39 +32,67 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.transport.CapturingTransport;
+import org.elasticsearch.test.transport.StubbableConnectionManager;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
+import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
+import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
+import org.junit.After;
+import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.Metadata.DEFAULT_PROJECT_ID;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction.NO_OTHER_SHARDS_FOUND_RESPONSE;
+import static org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction.SHARD_HAS_MOVED;
 import static org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction.SHARD_HAS_MOVED_RESPONSE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -70,14 +102,13 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
     private final Index index = new Index("my_index", "uuid");
     private final ShardId shardId = new ShardId(index, 0);
     private final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "");
-    private final ShardRouting.RecoveryPriority recoveryPriority = ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY;
     private final ShardRouting newUnassignedPrimaryIndexOnly = ShardRouting.newUnassigned(
         shardId,
         true,
         RecoverySource.EmptyStoreRecoverySource.INSTANCE,
         unassignedInfo,
         ShardRouting.Role.INDEX_ONLY,
-        recoveryPriority
+        ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
     );
 
     private final ThreadPool threadPool = mock(ThreadPool.class);
@@ -85,14 +116,41 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
     private final TransportService transportService = mock(TransportService.class);
     private final IndicesService indicesService = mock(IndicesService.class);
 
+    private TestThreadPool testThreadPool;
+    private ClusterService sourceClusterService;
+
+    {
+        when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+    }
+
+    private static final WarmingRatioProvider UNIT_RATIO = (range, ts, now) -> 1.0d;
+
     private final TransportFetchSearchShardInformationAction action = new TransportFetchSearchShardInformationAction(
         threadPool,
         clusterService,
         DefaultProjectResolver.INSTANCE,
         transportService,
         ActionFilters.EMPTY,
-        indicesService
+        indicesService,
+        UNIT_RATIO
     );
+
+    @Before
+    public void startSourceClusterService() {
+        testThreadPool = new TestThreadPool(getTestName());
+        sourceClusterService = ClusterServiceUtils.createClusterService(testThreadPool, DiscoveryNodeUtils.create("source"));
+    }
+
+    @After
+    public void stopSourceClusterService() {
+        try {
+            if (sourceClusterService != null) {
+                sourceClusterService.close();
+            }
+        } finally {
+            terminate(testThreadPool);
+        }
+    }
 
     public void testShardOperationThrowsException() {
         RuntimeException exc = new RuntimeException("failure");
@@ -172,7 +230,7 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             unassignedInfo,
             ShardRouting.Role.INDEX_ONLY,
-            recoveryPriority
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
         ).initialize("index_node", null, randomNonNegativeLong()).moveToStarted(1);
         ShardRouting searchShard = createSearchOnlyShard(otherShardId, "search_node_1").moveToStarted(1);
 
@@ -258,6 +316,23 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
         }, 10, TimeUnit.SECONDS);
     }
 
+    public void testWantVolumesDroppedWhenResponderIsNotClaimedNode() {
+        var request = new TransportFetchSearchShardInformationAction.Request("missing_source", shardId, true);
+        ShardRouting resolved = createSearchOnlyShard(shardId, "search_node_1").moveToStarted(1);
+        var response = TransportFetchSearchShardInformationAction.requestForResolvedShard(request, resolved);
+        assertFalse(response.wantVolumes());
+        assertThat(response.getNodeId(), equalTo("missing_source"));
+        assertThat(response.getShardId(), equalTo(shardId));
+    }
+
+    public void testWantVolumesKeptWhenResponderIsClaimedNode() {
+        var request = new TransportFetchSearchShardInformationAction.Request("search_node_1", shardId, true);
+        ShardRouting resolved = createSearchOnlyShard(shardId, "search_node_1").moveToStarted(1);
+        var response = TransportFetchSearchShardInformationAction.requestForResolvedShard(request, resolved);
+        assertTrue(response.wantVolumes());
+        assertThat(response.getNodeId(), equalTo("search_node_1"));
+    }
+
     public void testNodeIdFromRequestHasPrecedence() {
         ShardRouting primaryShard = newUnassignedPrimaryIndexOnly.initialize("index_node", null, randomNonNegativeLong()).moveToStarted(1);
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(index)
@@ -309,6 +384,67 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
         }, e -> fail("should not happen")));
 
         verifyNoInteractions(transportService);
+    }
+
+    public void testWantVolumesSkipsDataStreamWriteIndexShortcut() {
+        String indexName = ".ds-logs-2025-01-28-000002";
+        final Index backingIndex = new Index(indexName, randomUUID());
+        final ShardId shardId = new ShardId(backingIndex, 0);
+
+        ShardRouting primaryShard = createPrimaryShard(shardId);
+        ShardRouting searchShard = createSearchOnlyShard(shardId, "search_node_1").moveToStarted(1)
+            .relocate("search_node_1000", 1, ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
+
+        IndexRoutingTable.Builder builder = IndexRoutingTable.builder(backingIndex)
+            .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(primaryShard))
+            .addShard(searchShard);
+        RoutingTable routingTable = RoutingTable.builder().add(builder).build();
+        ClusterState clusterState = createClusterStateWithDataStreams(routingTable, 2, idx -> System.currentTimeMillis(), backingIndex);
+        DiscoveryNode localNode = sourceClusterService.localNode();
+        setState(
+            sourceClusterService,
+            ClusterState.builder(clusterState)
+                .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(localNode).localNodeId(localNode.getId()))
+                .build()
+        );
+
+        TransportFetchSearchShardInformationAction.Request request = new TransportFetchSearchShardInformationAction.Request(
+            "search_node_1",
+            shardId,
+            true
+        );
+        CapturingTransport capturing = new CapturingTransport();
+        TransportService capturingTransportService = capturing.createTransportService(
+            sourceClusterService.getSettings(),
+            testThreadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            bound -> localNode,
+            null,
+            Set.of()
+        );
+        ((StubbableConnectionManager) capturingTransportService.getConnectionManager()).setDefaultNodeConnectedBehavior((cm, node) -> true);
+        try {
+            capturingTransportService.start();
+            capturingTransportService.acceptIncomingRequests();
+            TransportFetchSearchShardInformationAction volumesAction = new TransportFetchSearchShardInformationAction(
+                testThreadPool,
+                sourceClusterService,
+                DefaultProjectResolver.INSTANCE,
+                capturingTransportService,
+                ActionFilters.EMPTY,
+                indicesService,
+                UNIT_RATIO
+            );
+            volumesAction.doExecute(createTask(), request, ActionListener.noop());
+            CapturingTransport.CapturedRequest[] captured = capturing.capturedRequests();
+            assertThat(captured.length, equalTo(1));
+            TransportFetchSearchShardInformationAction.Request sent = (TransportFetchSearchShardInformationAction.Request) captured[0]
+                .request();
+            assertThat(sent, equalTo(TransportFetchSearchShardInformationAction.requestForResolvedShard(request, searchShard)));
+            assertTrue(sent.wantVolumes());
+        } finally {
+            capturingTransportService.close();
+        }
     }
 
     public void testIndexWithinDataStreamOlderIndexIsNotSetToNow() {
@@ -481,7 +617,7 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
             RecoverySource.PeerRecoverySource.INSTANCE,
             unassignedInfo,
             ShardRouting.Role.SEARCH_ONLY,
-            recoveryPriority
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
         ).initialize(nodeId, null, randomNonNegativeLong());
     }
 
@@ -492,7 +628,244 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             unassignedInfo,
             ShardRouting.Role.INDEX_ONLY,
-            recoveryPriority
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
         ).initialize("index_node", null, randomNonNegativeLong()).moveToStarted(1);
+    }
+
+    public void testEstimateWarmVolumeRatioZeroIsZero() {
+        BlobFileRanges first = range("blob-a", 0, 10);
+        BlobFileRanges second = range("blob-a", 5, 20);
+        assertThat(estimateWarmVolume(List.of(first, second), 0.0d), equalTo(0L));
+    }
+
+    public void testEstimateWarmVolumeRatioOneMatchesFullPrefix() {
+        BlobFileRanges first = range("blob-a", 0, 10);
+        BlobFileRanges second = range("blob-a", 5, 20);
+        assertThat(estimateWarmVolume(List.of(first, second), 1.0d), equalTo(25L));
+        assertThat(estimateWarmVolume(List.of(), 1.0d), equalTo(0L));
+    }
+
+    public void testEstimateWarmVolumeFractionalRatio() {
+        BlobFileRanges file = range("blob-a", 0, 100);
+        assertThat(estimateWarmVolume(List.of(file), 0.4d), equalTo(40L));
+    }
+
+    public void testEstimateWarmVolumeUsesPerCommitRatio() {
+        var oldCommit = new StatelessCompoundCommit.TimestampFieldValueRange(1, 2);
+        var recentCommit = new StatelessCompoundCommit.TimestampFieldValueRange(10, 20);
+        BlobFileRanges oldRange = range("blob-a", 0, 40, oldCommit);
+        BlobFileRanges recentRange = range("blob-a", 40, 60, recentCommit);
+        WarmingRatioProvider provider = (tsRange, resolved, now) -> oldCommit.equals(tsRange) ? 1.0d : 0.5d;
+        assertThat(estimateWarmVolume(shuffledList(List.of(oldRange, recentRange)), provider), equalTo(70L));
+    }
+
+    public void testEstimateWarmVolumeFilesOfOneCommitFormOneExtent() {
+        var commit = new StatelessCompoundCommit.TimestampFieldValueRange(1, 2);
+        BlobFileRanges first = range("blob-a", 0, 30, commit);
+        BlobFileRanges second = range("blob-a", 50, 50, commit);
+        assertThat(estimateWarmVolume(List.of(first, second), 0.5d), equalTo(50L));
+    }
+
+    public void testEstimateWarmVolumeMissingRangeUsesResolverFallback() {
+        BlobFileRanges noRange = range("blob-a", 0, 50);
+        long fallback = 999L;
+        WarmingRatioProvider provider = (tsRange, resolved, now) -> {
+            assertNull(tsRange);
+            assertThat(resolved, equalTo(fallback));
+            return 1.0d;
+        };
+        assertThat(TransportFetchSearchShardInformationAction.estimateWarmVolume(List.of(noRange), provider, tsRange -> {
+            assertNull(tsRange);
+            return fallback;
+        }, 0L), equalTo(50L));
+    }
+
+    public void testEstimateWarmVolumeSeveralBlobsAreSummed() {
+        BlobFileRanges blobA = range("blob-a", 0, 10);
+        BlobFileRanges blobB = range("blob-b", 3, 7);
+        assertThat(estimateWarmVolume(List.of(blobA, blobB), 1.0d), equalTo(20L));
+    }
+
+    public void testSnapshotSearchableShardsSkipsNonSearchable() {
+        Index idx = new Index("idx", randomUUID());
+        IndexShard searchable = mockShard(idx, 0, ShardRouting.Role.SEARCH_ONLY);
+        IndexShard indexing = mockShard(idx, 1, ShardRouting.Role.INDEX_ONLY);
+        // There is no real IndicesService in unit tests.
+        IndexService indexService = mock(IndexService.class);
+        when(indexService.iterator()).thenReturn(List.of(searchable, indexing).iterator());
+        IndicesService services = mock(IndicesService.class);
+        when(services.iterator()).thenReturn(List.of(indexService).iterator());
+
+        List<IndexShard> snapshot = TransportFetchSearchShardInformationAction.snapshotSearchableShards(services);
+        assertThat(snapshot, equalTo(List.of(searchable)));
+    }
+
+    public void testEstimateSkippedWhenStoreRefNotAcquired() {
+        Index idx = new Index("idx", randomUUID());
+        IndexShard shard = mockShard(idx, 0, ShardRouting.Role.SEARCH_ONLY);
+        when(shard.store()).thenReturn(closedStore(new ShardId(idx, 0)));
+
+        assertThat(action.tryEstimateShardWarmVolume(shard, 0L), equalTo(OptionalLong.empty()));
+    }
+
+    public void testEstimateReleasesStoreRefWhenDirectoryThrows() throws Exception {
+        Index idx = new Index("idx", randomUUID());
+        ShardId sid = new ShardId(idx, 0);
+        IndexShard shard = mockShard(idx, 0, ShardRouting.Role.SEARCH_ONLY);
+        IndexMetadata indexMetadata = IndexMetadata.builder(idx.getName())
+            .settings(indexSettings(IndexVersion.current(), idx.getUUID(), 1, 1))
+            .build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        // A plain directory hits assert false in unwrapDirectory and the resulting AssertionError escapes catch (Exception).
+        Store store = spy(new Store(sid, indexSettings, new ByteBuffersDirectory(), new DummyShardLock(sid)));
+        try {
+            doThrow(new RuntimeException("directory failed")).when(store).directory();
+            when(shard.store()).thenReturn(store);
+            int refsBefore = store.refCount();
+            assertThat(action.tryEstimateShardWarmVolume(shard, 0L), equalTo(OptionalLong.empty()));
+            assertThat(store.refCount(), equalTo(refsBefore));
+        } finally {
+            store.close();
+        }
+    }
+
+    public void testOneFailureYieldsPartialMap() {
+        Index idx = new Index("idx", randomUUID());
+        IndexShard ok = mockShard(idx, 0, ShardRouting.Role.SEARCH_ONLY);
+        IndexShard failing = mockShard(idx, 1, ShardRouting.Role.SEARCH_ONLY);
+        when(failing.store()).thenReturn(closedStore(new ShardId(idx, 1)));
+
+        Map<ShardId, Long> volumes = TransportFetchSearchShardInformationAction.collectWarmVolumes(List.of(ok, failing), shard -> {
+            if (shard == ok) {
+                return OptionalLong.of(40L);
+            }
+            return action.tryEstimateShardWarmVolume(shard, 0L);
+        });
+        assertThat(volumes, equalTo(Map.of(new ShardId(idx, 0), 40L)));
+    }
+
+    public void testShardMovedWithWantVolumesStillCollects() {
+        long generation = randomNonNegativeLong();
+        IndicesService services = mock(IndicesService.class);
+        when(services.getShardOrNull(shardId)).thenReturn(null);
+        when(services.iterator()).thenReturn(List.<IndexService>of().iterator());
+
+        TransportFetchSearchShardInformationAction volumesAction = newAction(services, localState("source", generation));
+        PlainActionFuture<TransportFetchSearchShardInformationAction.Response> future = new PlainActionFuture<>();
+        volumesAction.shardOperation(new TransportFetchSearchShardInformationAction.Request("source", shardId, true), future);
+        var response = future.actionGet();
+        assertThat(response.getLastSearcherAcquiredTime(), equalTo(SHARD_HAS_MOVED));
+        assertTrue(response.volumesCollected());
+        assertThat(response.respondingNodeId(), equalTo("source"));
+        assertThat(response.volumesGeneration(), equalTo(generation));
+        assertTrue(response.volumes().isEmpty());
+    }
+
+    public void testSourceMemoDoesNotRewalkSameGeneration() {
+        long generation = randomNonNegativeLong();
+        AtomicInteger walks = new AtomicInteger();
+        IndicesService services = mock(IndicesService.class);
+        when(services.getShardOrNull(any())).thenReturn(null);
+        when(services.iterator()).thenAnswer(invocation -> {
+            walks.incrementAndGet();
+            return List.<IndexService>of().iterator();
+        });
+
+        TransportFetchSearchShardInformationAction volumesAction = newAction(services, localState("source", generation));
+        var request = new TransportFetchSearchShardInformationAction.Request("source", shardId, true);
+        PlainActionFuture<TransportFetchSearchShardInformationAction.Response> first = new PlainActionFuture<>();
+        volumesAction.shardOperation(request, first);
+        first.actionGet();
+        PlainActionFuture<TransportFetchSearchShardInformationAction.Response> second = new PlainActionFuture<>();
+        volumesAction.shardOperation(request, second);
+        second.actionGet();
+        assertThat(walks.get(), equalTo(1));
+
+        setState(sourceClusterService, localState("source", generation + 1));
+        PlainActionFuture<TransportFetchSearchShardInformationAction.Response> third = new PlainActionFuture<>();
+        volumesAction.shardOperation(request, third);
+        third.actionGet();
+        assertThat(walks.get(), equalTo(2));
+    }
+
+    private TransportFetchSearchShardInformationAction newAction(IndicesService indicesService, ClusterState state) {
+        setState(sourceClusterService, state);
+        return new TransportFetchSearchShardInformationAction(
+            testThreadPool,
+            sourceClusterService,
+            DefaultProjectResolver.INSTANCE,
+            mock(TransportService.class),
+            ActionFilters.EMPTY,
+            indicesService,
+            UNIT_RATIO
+        );
+    }
+
+    private ClusterState localState(String localNodeId, long startedAtMillis) {
+        DiscoveryNode localNode = sourceClusterService.localNode();
+        assertThat(localNode.getId(), equalTo(localNodeId));
+        Index idx = new Index("idx", randomUUID());
+        IndexMetadata indexMetadata = IndexMetadata.builder(idx.getName())
+            .settings(indexSettings(IndexVersion.current(), idx.getUUID(), 1, 1))
+            .build();
+        SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
+            .setNodeId(localNodeId)
+            .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+            .setReason("test")
+            .setStartedAtMillis(startedAtMillis)
+            .setNodeSeen(true)
+            .build();
+        return ClusterState.builder(new ClusterName("test"))
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNodeId).masterNodeId(localNodeId))
+            .metadata(
+                Metadata.builder()
+                    .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(Map.of(localNodeId, shutdown)))
+                    .put(ProjectMetadata.builder(DEFAULT_PROJECT_ID).put(indexMetadata, false))
+                    .build()
+            )
+            .build();
+    }
+
+    // There is no lightweight real stateless IndexShard.
+    private static IndexShard mockShard(Index index, int shard, ShardRouting.Role role) {
+        ShardId sid = new ShardId(index, shard);
+        ShardRouting routing = TestShardRouting.shardRoutingBuilder(sid, "node", false, STARTED).withRole(role).build();
+        IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.routingEntry()).thenReturn(routing);
+        when(indexShard.shardId()).thenReturn(sid);
+        return indexShard;
+    }
+
+    private static Store closedStore(ShardId sid) {
+        IndexMetadata indexMetadata = IndexMetadata.builder(sid.getIndexName())
+            .settings(indexSettings(IndexVersion.current(), sid.getIndex().getUUID(), 1, 1))
+            .build();
+        Store store = new Store(sid, new IndexSettings(indexMetadata, Settings.EMPTY), new ByteBuffersDirectory(), new DummyShardLock(sid));
+        store.close();
+        return store;
+    }
+
+    private static long estimateWarmVolume(List<BlobFileRanges> ranges, double ratio) {
+        return estimateWarmVolume(ranges, (tsRange, resolved, now) -> ratio);
+    }
+
+    private static long estimateWarmVolume(List<BlobFileRanges> ranges, WarmingRatioProvider ratioProvider) {
+        return TransportFetchSearchShardInformationAction.estimateWarmVolume(ranges, ratioProvider, tsRange -> 0L, 0L);
+    }
+
+    private static BlobFileRanges range(String blobName, long offset, long length) {
+        return range(blobName, offset, length, null);
+    }
+
+    private static BlobFileRanges range(
+        String blobName,
+        long offset,
+        long length,
+        StatelessCompoundCommit.TimestampFieldValueRange timestampRange
+    ) {
+        return new BlobFileRanges(
+            new BlobLocation(new BlobFile(blobName, new PrimaryTermAndGeneration(1, -1)), offset, length),
+            timestampRange
+        );
     }
 }

@@ -14,6 +14,7 @@ import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.test.cluster.MutableSettingsProvider;
 import org.elasticsearch.test.cluster.util.Version;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.List;
@@ -134,4 +135,11 @@ public interface LocalClusterHandle extends ClusterHandle {
      * storage is currently supported
      */
     void updateStoredSecureSettings();
+
+    /**
+     * Checks whether all nodes in this cluster are alive by inspecting their OS processes.
+     *
+     * @throws IOException if any node's process has died, with a message that includes a tail of the node's server log
+     */
+    void checkHealth() throws IOException;
 }

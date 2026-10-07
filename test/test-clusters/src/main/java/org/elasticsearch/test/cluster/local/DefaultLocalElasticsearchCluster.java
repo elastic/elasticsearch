@@ -15,6 +15,7 @@ import org.elasticsearch.test.cluster.util.Version;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationTargetException;
@@ -192,6 +193,13 @@ public class DefaultLocalElasticsearchCluster<S extends LocalClusterSpec, H exte
     public void updateStoredSecureSettings() {
         checkHandle();
         handle.updateStoredSecureSettings();
+    }
+
+    @Override
+    public void checkHealth() throws IOException {
+        if (handle != null) {
+            handle.checkHealth();
+        }
     }
 
     protected H getHandle() {

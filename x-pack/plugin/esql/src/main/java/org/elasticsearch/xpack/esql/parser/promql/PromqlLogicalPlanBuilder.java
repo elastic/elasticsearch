@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -200,8 +201,10 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         if (ctx == null) {
             return null;
         }
-        Source source = source(ctx);
-        Object result = visit(ctx);
+        return wrapLiteral(source(ctx), visit(ctx));
+    }
+
+    private static LogicalPlan wrapLiteral(Source source, Object result) {
         return switch (result) {
             case LogicalPlan plan -> plan;
             case Literal literal -> new LiteralSelector(source, literal);
@@ -412,8 +415,13 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
     @Override
     public LogicalPlan visitArithmeticBinary(PromqlBaseParser.ArithmeticBinaryContext ctx) {
         Source source = source(ctx);
-        LogicalPlan le = wrapLiteral(ctx.left);
-        LogicalPlan re = wrapLiteral(ctx.right);
+        Object left = visit(ctx.left);
+        Object right = visit(ctx.right);
+        if (left instanceof Instant || right instanceof Instant) {
+            return timeRange(ctx, left, right);
+        }
+        LogicalPlan le = wrapLiteral(source(ctx.left), left);
+        LogicalPlan re = wrapLiteral(source(ctx.right), right);
 
         boolean bool = ctx.BOOL() != null;
         int opType = ctx.op.getType();
@@ -509,6 +517,27 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             case OR -> VectorBinarySet.SetOp.UNION;
             default -> throw new ParsingException(source(opType), "Unknown arithmetic {}", opType.getText());
         };
+    }
+
+    /**
+     * The duration between two timestamp parameters, such as the start and end of a dashboard's time range in
+     * {@code [?_tend - ?_tstart]}. A timestamp is only ever an operand of a subtraction (see {@code visitTimeValue}).
+     */
+    private LiteralSelector timeRange(PromqlBaseParser.ArithmeticBinaryContext ctx, Object left, Object right) {
+        Source source = source(ctx);
+        if (left instanceof Instant end && right instanceof Instant start && ctx.modifier() == null) {
+            if (end.isAfter(start) == false) {
+                throw new ParsingException(
+                    source,
+                    "Time range [{}] must end after it starts, got [{}] and [{}]",
+                    source.text(),
+                    end,
+                    start
+                );
+            }
+            return new LiteralSelector(source, Literal.timeDuration(source, Duration.between(start, end)));
+        }
+        throw new ParsingException(source, "A timestamp parameter can only be subtracted from another timestamp, got [{}]", source.text());
     }
 
     /**

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.parser.promql;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.expression.promql.subquery.Subquery;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.PromqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
@@ -30,6 +31,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -388,6 +390,124 @@ public class PromqlParserTests extends ESTestCase {
             () -> TEST_PARSER.parseQuery("PROMQL index=test step=5m rate(foo[?_bad])", paramsAsConstant("_bad", 42))
         );
         assertThat(e.getMessage(), containsString("Expected parameter [?_bad] to be of type string, but found [INTEGER]"));
+    }
+
+    /** A dashboard's time range, passed as its start and end timestamps, is a range: {@code [?_tend - ?_tstart]}. */
+    public void testTimeRangeParametersInDuration() {
+        Map<String, Duration> ranges = Map.of(
+            "?_tend - ?_tstart",
+            Duration.ofMinutes(90),
+            "(?_tend - ?_tstart)",
+            Duration.ofMinutes(90),
+            "(?_tend) - (?_tstart)",
+            Duration.ofMinutes(90),
+            "(?_tend - ?_tstart) / 2",
+            Duration.ofMinutes(45),
+            "?_tend - ?_tstart + 5m",
+            Duration.ofMinutes(95)
+        );
+        for (Map.Entry<String, Duration> range : ranges.entrySet()) {
+            PromqlCommand promql = as(
+                TEST_PARSER.parseQuery("PROMQL index=test time=?_tend increase(foo[" + range.getKey() + "])", timeRangeParams()),
+                PromqlCommand.class
+            );
+            List<RangeSelector> rangeSelectors = promql.promqlPlan().collect(RangeSelector.class);
+            assertThat(rangeSelectors, hasSize(1));
+            assertThat(range.getKey(), rangeSelectors.getFirst().range().fold(null), equalTo(range.getValue()));
+        }
+    }
+
+    public void testTimeRangePositionalParametersInDuration() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery(
+                "PROMQL index=test time=?2 increase(foo[?2 - ?1])",
+                new QueryParams(
+                    List.of(paramAsConstant(null, "2025-10-31T00:00:00.000Z"), paramAsConstant(null, "2025-10-31T01:30:00.000Z"))
+                )
+            ),
+            PromqlCommand.class
+        );
+        List<RangeSelector> rangeSelectors = promql.promqlPlan().collect(RangeSelector.class);
+        assertThat(rangeSelectors, hasSize(1));
+        assertThat(rangeSelectors.getFirst().range().fold(null), equalTo(Duration.ofMinutes(90)));
+    }
+
+    public void testTimeRangeParametersWithZoneOffset() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery(
+                "PROMQL index=test step=5m increase(foo[?_tend - ?_tstart])",
+                new QueryParams(
+                    List.of(paramAsConstant("_tstart", "2025-10-31T00:00:00Z"), paramAsConstant("_tend", "2025-10-31T02:30:00+01:00"))
+                )
+            ),
+            PromqlCommand.class
+        );
+        List<RangeSelector> rangeSelectors = promql.promqlPlan().collect(RangeSelector.class);
+        assertThat(rangeSelectors, hasSize(1));
+        assertThat(rangeSelectors.getFirst().range().fold(null), equalTo(Duration.ofMinutes(90)));
+    }
+
+    public void testTimeRangeParametersInSubqueryRange() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery("PROMQL index=test time=?_tend max_over_time(rate(foo[5m])[?_tend - ?_tstart:1m])", timeRangeParams()),
+            PromqlCommand.class
+        );
+        List<Subquery> subqueries = promql.promqlPlan().collect(Subquery.class);
+        assertThat(subqueries, hasSize(1));
+        assertThat(subqueries.getFirst().range().fold(null), equalTo(Duration.ofMinutes(90)));
+    }
+
+    public void testTimeRangeParametersInOffset() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery("PROMQL index=test time=?_tend foo offset (?_tend - ?_tstart)", timeRangeParams()),
+            PromqlCommand.class
+        );
+        List<InstantSelector> selectors = promql.promqlPlan().collect(InstantSelector.class);
+        assertThat(selectors, hasSize(1));
+        assertThat(selectors.getFirst().evaluation().offset().fold(null), equalTo(Duration.ofMinutes(90)));
+    }
+
+    public void testTimeRangeParametersOutsideSubtractionError() {
+        for (String query : List.of(
+            "foo[?_tstart]",
+            "foo offset ?_tstart",
+            "foo @ ?_tstart",
+            "foo[?_tend + ?_tstart]",
+            "foo[?_tend - ?_tstart * 2]",
+            "vector(?_tstart)",
+            "-?_tstart",
+            "max_over_time(foo[5m:?_tstart])"
+        )) {
+            ParsingException e = assertThrows(
+                ParsingException.class,
+                () -> TEST_PARSER.parseQuery("PROMQL index=test step=5m " + query, timeRangeParams())
+            );
+            assertThat(query, e.getMessage(), containsString("] can only be subtracted from another timestamp, as in [?_tend - ?_tstart]"));
+        }
+    }
+
+    public void testTimeRangeParameterSubtractedFromDurationError() {
+        for (String range : List.of("?_tend - 5m", "5m - ?_tstart", "?_tend - ?_tstart - ?_tstart")) {
+            ParsingException e = assertThrows(
+                ParsingException.class,
+                () -> TEST_PARSER.parseQuery("PROMQL index=test step=5m foo[" + range + "]", timeRangeParams())
+            );
+            assertThat(range, e.getMessage(), containsString("A timestamp parameter can only be subtracted from another timestamp"));
+        }
+    }
+
+    public void testTimeRangeParametersReversedError() {
+        ParsingException e = assertThrows(
+            ParsingException.class,
+            () -> TEST_PARSER.parseQuery("PROMQL index=test step=5m foo[?_tstart - ?_tend]", timeRangeParams())
+        );
+        assertThat(e.getMessage(), containsString("Time range [?_tstart - ?_tend] must end after it starts"));
+    }
+
+    private static QueryParams timeRangeParams() {
+        return new QueryParams(
+            List.of(paramAsConstant("_tstart", "2025-10-31T00:00:00.000Z"), paramAsConstant("_tend", "2025-10-31T01:30:00.000Z"))
+        );
     }
 
     public void testRangeVectorExpectedSupportsInstantSelector() {

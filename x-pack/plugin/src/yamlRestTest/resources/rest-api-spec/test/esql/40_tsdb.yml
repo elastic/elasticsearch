@@ -1156,6 +1156,36 @@ PromQL increase on counter field:
   - match: {values.3.1: "2021-04-28T18:52:00.000Z"}
 
 ---
+PromQL time range params as range selector duration:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_time_range_params]
+      reason: "PromQL time range params support"
+  # The window (18:50:30, 18:52:00] holds the last two samples of each pod.
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=test time=?_tend samples=(sum(count_over_time(k8s.pod.network.tx[?_tend - ?_tstart])))'
+          params: [{"_tstart": "2021-04-28T18:50:30.000Z"}, {"_tend": "2021-04-28T18:52:00.000Z"}]
+
+  - match: {columns.0.name: "samples"}
+  - match: {columns.1.name: "step"}
+  - length: {values: 1}
+  - match: {values.0.0: 4.0}
+  - match: {values.0.1: "2021-04-28T18:52:00.000Z"}
+
+  - do:
+      catch: /Time range \[\?_tstart - \?_tend\] must end after it starts/
+      esql.query:
+        body:
+          query: 'PROMQL index=test time=?_tend samples=(sum(count_over_time(k8s.pod.network.tx[?_tstart - ?_tend])))'
+          params: [{"_tstart": "2021-04-28T18:50:30.000Z"}, {"_tend": "2021-04-28T18:52:00.000Z"}]
+
+---
 PromQL max_over_time:
   - requires:
       test_runner_features: [capabilities]

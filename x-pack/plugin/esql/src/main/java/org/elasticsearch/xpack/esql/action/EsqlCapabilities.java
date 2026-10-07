@@ -4289,6 +4289,13 @@ public class EsqlCapabilities {
          */
         FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE,
 
+        /**
+         * PromQL durations can be the difference of two timestamp parameters, such as {@code [?_tend - ?_tstart]}, so an
+         * instant query can cover a dashboard's whole time range:
+         * <a href="https://github.com/elastic/elasticsearch/issues/161115">#161115</a>
+         */
+        PROMQL_TIME_RANGE_PARAMS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

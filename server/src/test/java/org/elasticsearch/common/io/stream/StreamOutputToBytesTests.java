@@ -173,6 +173,24 @@ public class StreamOutputToBytesTests extends ESTestCase {
         assertArrayEquals("wrote out of bounds", bufferPoolCopy, bufferPool);
     }
 
+    public void testWriteIntsAndLongsLE() throws IOException {
+        final var ints = new int[] { 0x04030201, 0x08070605, 0x0c0b0a09 };
+        final var longs = new long[] { 0x0807060504030201L, 0x100f0e0d0c0b0a09L };
+        final var expected = new BytesArray(new byte[] { 5, 6, 7, 8, 9, 10, 11, 12, 9, 10, 11, 12, 13, 14, 15, 16 });
+        try (
+            var mockRecycler = new MockBytesRefRecycler();
+            var recyclerBytesStream = new RecyclerBytesStreamOutput(mockRecycler);
+            var plainBytesStream = new BytesStreamOutput()
+        ) {
+            for (var stream : List.of(recyclerBytesStream, plainBytesStream)) {
+                stream.writeIntsLE(ints, 1, 2);
+                stream.writeLongsLE(longs, 1, 1);
+            }
+            assertThat(recyclerBytesStream.bytes(), equalBytes(expected));
+            assertThat(plainBytesStream.bytes(), equalBytes(expected));
+        }
+    }
+
     public void testDoubleClose() throws IOException {
         var buffered = new BufferedStreamOutput(new AssertClosedOnceOutputStream(), new BytesRef(new byte[10], 0, 10));
         buffered.close();

@@ -786,7 +786,7 @@ public class CsvColumnarIT extends CsvIT {
          *       makes BM25 scores bit-identical so all score-asserting specs remain valid.</li>
          *   <li>Injects {@code "index_options": "positions"} into every {@code text} field that omits
          *       {@code "index_options"}.
-         *       Strictly columnar mode defaults text {@code index_options} to {@code freqs} (no
+         *       Strictly columnar mode defaults text {@code index_options} to {@code docs} (no
          *       positions), which breaks positional queries (e.g. {@code MATCH_PHRASE},
          *       {@code QSTR}/{@code KQL} phrases). Restoring the standard-mode {@code positions}
          *       default keeps those queries valid so the csv-spec oracle remains valid.</li>
@@ -870,7 +870,7 @@ public class CsvColumnarIT extends CsvIT {
          * Recursively walks the mapping and injects {@code "index_options": "positions"} into every
          * {@code text} field that does not already declare {@code "index_options"}.
          *
-         * <p>Strictly columnar mode defaults text {@code index_options} to {@code freqs} (no positions),
+         * <p>Strictly columnar mode defaults text {@code index_options} to {@code docs} (no positions),
          * because positions are not needed to reconstruct values from doc values. That breaks positional
          * queries (e.g. {@code MATCH_PHRASE}, {@code QSTR}/{@code KQL} phrases), which fail on a field
          * indexed without position data and therefore diverge from the csv-spec oracle. Restoring the

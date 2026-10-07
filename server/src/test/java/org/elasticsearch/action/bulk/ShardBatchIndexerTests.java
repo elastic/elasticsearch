@@ -774,7 +774,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
      * {@code IndexingChain}'s {@code fieldGen/first} logic.
      */
     public void testBatchIndexTextFieldPositionIncrementGap() throws Exception {
-        // Columnar text defaults to index_options=freqs (no positions); this test asserts positional phrase behavior, so it must
+        // Columnar text defaults to index_options=docs (no positions); this test asserts positional phrase behavior, so it must
         // opt back into positions explicitly.
         String defaultGapMapping = """
             {

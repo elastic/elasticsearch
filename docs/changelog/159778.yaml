@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 159778
+summary: Add an experimental kNN recall evaluation endpoint for bbq_disk fields
+type: feature

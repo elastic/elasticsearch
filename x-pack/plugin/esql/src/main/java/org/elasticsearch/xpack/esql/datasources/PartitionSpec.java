@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -308,6 +307,8 @@ public final class PartitionSpec {
      * PUT rewrite: temporal and lag/lead columns that match a mapping {@code path} become the logical
      * field name. A date / date_nanos field drops {@code epoch_second} (the unit is unused). Identity
      * columns missing from the mapping stay. No mapping, or a mapping with no properties, is a no-op.
+     * After rewrite the spec is re-parsed so duplicate keys or lag/lead on the same column fail PUT
+     * instead of storing a spec that GET cannot PUT again.
      */
     public static Map<String, Object> alignWithMapping(@Nullable Map<String, Object> settings, @Nullable DatasetMapping mapping) {
         if (settings == null || settings.containsKey(CONFIG_PARTITION_SPEC) == false) {
@@ -376,24 +377,48 @@ public final class PartitionSpec {
         for (Field field : fields) {
             rewrittenFields.add(alignField(field, properties, logicalNames, pathToLogical));
         }
-        if (windows.isEmpty()) {
-            return new PartitionSpec(rewrittenFields);
-        }
         Map<String, Window> rewrittenWindows = new LinkedHashMap<>();
         for (Map.Entry<String, Window> entry : windows.entrySet()) {
             String column = resolveMappedColumn(entry.getKey(), logicalNames, pathToLogical, false);
-            Window previous = rewrittenWindows.put(column, entry.getValue());
-            if (previous != null) {
-                rewrittenWindows.put(
-                    column,
-                    new Window(
-                        previous.lag().millis() == 0 ? entry.getValue().lag() : previous.lag(),
-                        previous.lead().millis() == 0 ? entry.getValue().lead() : previous.lead()
-                    )
-                );
-            }
+            putRewrittenWindow(rewrittenWindows, column, entry.getValue());
         }
-        return new PartitionSpec(rewrittenFields, rewrittenWindows);
+        return parse(new PartitionSpec(rewrittenFields, rewrittenWindows).toSpecString());
+    }
+
+    /**
+     * Two windows on the same logical column after path rewrite: complementary lag+lead merge;
+     * two lags or two leads are a PUT error (first-wins would not round-trip GET → PUT).
+     */
+    private static void putRewrittenWindow(Map<String, Window> dest, String column, Window next) {
+        Window previous = dest.put(column, next);
+        if (previous == null) {
+            return;
+        }
+        if (previous.lag().millis() != 0 && next.lag().millis() != 0) {
+            throw duplicateWindow("lag", column);
+        }
+        if (previous.lead().millis() != 0 && next.lead().millis() != 0) {
+            throw duplicateWindow("lead", column);
+        }
+        dest.put(
+            column,
+            new Window(
+                previous.lag().millis() == 0 ? next.lag() : previous.lag(),
+                previous.lead().millis() == 0 ? next.lead() : previous.lead()
+            )
+        );
+    }
+
+    private static IllegalArgumentException duplicateWindow(String name, String column) {
+        return new IllegalArgumentException(
+            "["
+                + CONFIG_PARTITION_SPEC
+                + "] names ["
+                + name
+                + "("
+                + column
+                + ", ...)] more than once after mapping rewrite; each column+direction must appear once"
+        );
     }
 
     private static Field alignField(

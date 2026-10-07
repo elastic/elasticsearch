@@ -4403,9 +4403,9 @@ public class FileSplitProvider implements SplitProvider {
         IdentityHashMap<Expression, ByteRunAutomaton> regexAutomata
     ) {
         return switch (filter) {
-            case Equals eq -> evaluateComparison(eq.left(), eq.right(), partitionValues, PartitionValueMatcher::compareEquals);
+            case Equals eq -> evaluateComparison(eq.left(), eq.right(), partitionValues, PartitionValueMatcher::equalIfComparable);
             case NotEquals neq -> {
-                Boolean result = evaluateComparison(neq.left(), neq.right(), partitionValues, PartitionValueMatcher::compareEquals);
+                Boolean result = evaluateComparison(neq.left(), neq.right(), partitionValues, PartitionValueMatcher::equalIfComparable);
                 yield result != null ? result == false : null;
             }
             case GreaterThanOrEqual gte -> evaluateComparison(
@@ -4436,9 +4436,14 @@ public class FileSplitProvider implements SplitProvider {
                     if (listItem instanceof Literal lit) {
                         if (zerosOfOppositeSign(partitionValue, lit.value())) {
                             found = null;
-                        } else if (PartitionValueMatcher.compareEquals(partitionValue, lit.value())) {
-                            found = true;
-                            break;
+                        } else {
+                            Boolean eq = PartitionValueMatcher.equalIfComparable(partitionValue, lit.value());
+                            if (eq == null) {
+                                found = null;
+                            } else if (eq) {
+                                found = true;
+                                break;
+                            }
                         }
                     } else {
                         yield null;
@@ -4467,7 +4472,7 @@ public class FileSplitProvider implements SplitProvider {
                 mvContains.left(),
                 mvContains.right(),
                 partitionValues,
-                PartitionValueMatcher::compareEquals
+                PartitionValueMatcher::equalIfComparable
             );
             case MvIntersects mvIntersects -> evaluateMvIntersects(mvIntersects, partitionValues);
             case MvInRange mvInRange -> {
@@ -4632,15 +4637,22 @@ public class FileSplitProvider implements SplitProvider {
         }
         List<?> values = literalValue instanceof List<?> list ? list : List.of(literalValue);
         boolean sawValue = false;
+        boolean undecidable = false;
         for (Object value : values) {
             if (value != null) {
                 sawValue = true;
-                if (PartitionValueMatcher.compareEquals(partitionValue, value)) {
+                Boolean eq = PartitionValueMatcher.equalIfComparable(partitionValue, value);
+                if (eq == null) {
+                    undecidable = true;
+                } else if (eq) {
                     return true;
                 }
             }
         }
-        return sawValue ? false : null;
+        if (sawValue == false) {
+            return null;
+        }
+        return undecidable ? null : false;
     }
 
     /**

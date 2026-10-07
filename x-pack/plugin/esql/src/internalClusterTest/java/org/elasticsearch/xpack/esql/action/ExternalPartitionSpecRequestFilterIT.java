@@ -77,6 +77,8 @@ public class ExternalPartitionSpecRequestFilterIT extends AbstractExternalDataSo
     private static final int ID_NY_EVE = 3;
     private static final int ID_NY_DAY = 4;
     private static final int ID_NY_LATE = 31;
+    private static final int ID_LAG_END = 20;
+    private static final int ID_LEAD_END = 21;
 
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
@@ -87,7 +89,6 @@ public class ExternalPartitionSpecRequestFilterIT extends AbstractExternalDataSo
     protected boolean addMockHttpTransport() {
         return false;
     }
-
 
     public void testRequestFilterOneDaySkipsOtherDayFolders() throws Exception {
         String dataset = registerParquetTree("spec_rf_day");
@@ -104,7 +105,13 @@ public class ExternalPartitionSpecRequestFilterIT extends AbstractExternalDataSo
         QueryParams params = new QueryParams(
             List.of(paramAsConstant("_tstart", JUNE_15_START.toString()), paramAsConstant("_tend", JUNE_16_START.toString()))
         );
-        assertPruneWhere(dataset, "WHERE @timestamp >= ?_tstart AND @timestamp < ?_tend", params, 1, List.of((long) parquetIdFor(2024, 6, 15)));
+        assertPruneWhere(
+            dataset,
+            "WHERE @timestamp >= ?_tstart AND @timestamp < ?_tend",
+            params,
+            1,
+            List.of((long) parquetIdFor(2024, 6, 15))
+        );
     }
 
     public void testMidnightRangeSkipsNextDayFolderHoldingLateEvent() throws Exception {
@@ -155,22 +162,28 @@ public class ExternalPartitionSpecRequestFilterIT extends AbstractExternalDataSo
 
     public void testNewYearLateRowWithLag() throws Exception {
         for (Layout layout : List.of(Layout.HIVE_HOURLY_AWS, Layout.TEMPLATE_HOURLY)) {
+            Pair noLag = registerPair(layout, specFor(layout), "nynolag");
             Pair lag = registerPair(layout, specFor(layout) + ", lag(@timestamp, 15m)", "nylag");
             Instant start = Instant.parse("2024-12-31T23:50:00Z");
-            Instant end = Instant.parse("2025-01-01T00:05:00Z");
-            Result spec = queryIds(lag.spec, null, whereParams(start, end));
-            Result twin = queryIds(lag.twin, null, whereParams(start, end));
-            assertThat(layout + " New Year lag ids", spec.ids, equalTo(twin.ids));
-            assertThat(layout + " New Year lag keeps the late row", spec.ids, hasItem((long) ID_NY_LATE));
+            Instant end = Instant.parse("2025-01-01T00:00:00Z");
+            Result twin = queryIds(noLag.twin, null, whereParams(start, end));
+            Result without = queryIds(noLag.spec, null, whereParams(start, end));
+            Result with = queryIds(lag.spec, null, whereParams(start, end));
+            assertThat(layout + " twin includes the New Year late row", twin.ids, hasItem((long) ID_NY_LATE));
+            assertThat(layout + " no lag drops the New Year late row", without.ids, not(hasItem((long) ID_NY_LATE)));
+            assertThat(layout + " lag keeps the New Year late row", with.ids, equalTo(twin.ids));
+            assertThat(layout + " lag scans one more file", with.filesScanned, equalTo(without.filesScanned + 1));
         }
     }
 
     public void testZonedDateMathListingNotTighterThanTwin() throws Exception {
         Pair pair = registerPair(Layout.HIVE_HOURLY_AWS, hourlySpec(), "zoned");
-        var filter = new RangeQueryBuilder("@timestamp").lte("2024-06-15||/d").timeZone("America/New_York");
+        var filter = new RangeQueryBuilder("@timestamp").gte("2024-06-15||/d").lte("2024-06-15||/d").timeZone("America/New_York");
         Result spec = queryIds(pair.spec, filter, null);
         Result twin = queryIds(pair.twin, filter, null);
         assertThat("zoned listing must not drop rows the twin keeps", spec.ids, equalTo(twin.ids));
+        assertThat("row filter dropped so 2025 folders stay", spec.ids, hasItem((long) ID_NY_DAY));
+        assertThat("RANGE_QUERY listing injects no year IN", spec.filesScanned, equalTo(twin.filesScanned));
     }
 
     public void testIdentityOnTimestampMatchesTwinAndWarns() throws Exception {
@@ -204,6 +217,16 @@ public class ExternalPartitionSpecRequestFilterIT extends AbstractExternalDataSo
         String stored = (String) ds.settings().get("partition_spec");
         assertThat(stored, containsString("@timestamp"));
         assertThat(stored, not(containsString("start")));
+        String again = registerStrictDataset(
+            "put_rewrite_roundtrip",
+            glob,
+            properties,
+            Map.of("partition_detection", "hive", "partition_spec", stored)
+        );
+        GetDatasetAction.Request getAgain = new GetDatasetAction.Request(TIMEOUT);
+        getAgain.indices(again);
+        Dataset dsAgain = client().execute(GetDatasetAction.INSTANCE, getAgain).actionGet(TIMEOUT).getDatasets().iterator().next();
+        assertThat((String) dsAgain.settings().get("partition_spec"), equalTo(stored));
     }
 
     public void testMixedDepthExtraFileMatchesTwinAndWarns() throws Exception {
@@ -227,27 +250,85 @@ public class ExternalPartitionSpecRequestFilterIT extends AbstractExternalDataSo
         assertThat(httpWarnings("FROM " + spec + " | KEEP id"), hasItem(containsString("the layout is mixed")));
     }
 
-    public void testStartAndEndIndependentLags() throws Exception {
-        Pair pair = registerPair(
-            Layout.HIVE_HOURLY_AWS,
-            hourlySpec() + ", year(end), month(end), day(end), hour(end), lag(@timestamp, 20m), lag(end, 10m)",
-            "both"
+    public void testLagOnEndKeepsNextFolder() throws Exception {
+        Path root = createTempDir().resolve("lag_end");
+        Path hive = awsHive(root);
+        writeCsv(hive.resolve("year=2024").resolve("month=06").resolve("day=15").resolve("hour=10"), List.of(row(ID_IN_10, IN_HOUR_10)));
+        writeCsv(
+            hive.resolve("year=2024").resolve("month=06").resolve("day=15").resolve("hour=11"),
+            List.of(new FileRow(ID_LAG_END, Instant.parse("2024-06-15T10:50:00Z"), Instant.parse("2024-06-15T10:59:50Z")))
         );
-        Result spec = queryIds(pair.spec, null, whereParams(HOUR_10, HOUR_11));
-        Result twin = queryIds(pair.twin, null, whereParams(HOUR_10, HOUR_11));
-        assertThat(spec.ids, equalTo(twin.ids));
+        String glob = awsHourlyGlob(root);
+        LinkedHashMap<String, DatasetFieldMapping> properties = mapping();
+        String endSpec = "year(end), month(end), day(end), hour(end)";
+        String noLag = registerStrictDataset(
+            "spec_lag_end_nolag",
+            glob,
+            properties,
+            Map.of("partition_detection", "hive", "partition_spec", endSpec)
+        );
+        String lag = registerStrictDataset(
+            "spec_lag_end_lag",
+            glob,
+            properties,
+            Map.of("partition_detection", "hive", "partition_spec", endSpec + ", lag(end, 15m)")
+        );
+        String twin = registerStrictDataset("twin_lag_end", glob, properties, Map.of("partition_detection", "hive"));
+        QueryParams window = whereParams(HOUR_10, HOUR_11);
+        Result twinResult = queryIds(twin, null, window, "end");
+        Result without = queryIds(noLag, null, window, "end");
+        Result with = queryIds(lag, null, window, "end");
+        assertThat("twin includes the late-end row", twinResult.ids, hasItem((long) ID_LAG_END));
+        assertThat("no lag drops the late-end row", without.ids, not(hasItem((long) ID_LAG_END)));
+        assertThat("no lag keeps the in-folder row", without.ids, equalTo(List.of((long) ID_IN_10)));
+        assertThat("lag keeps the late-end row", with.ids, equalTo(twinResult.ids));
+        assertThat("lag scans one more file", with.filesScanned, equalTo(without.filesScanned + 1));
     }
 
     public void testLeadOnEndKeepsPreviousFolder() throws Exception {
-        Pair pair = registerPair(
-            Layout.HIVE_HOURLY_AWS,
-            hourlySpec() + ", year(end), month(end), day(end), hour(end), lead(end, 15m)",
-            "lead"
+        Path root = createTempDir().resolve("lead_end");
+        Path hive = awsHive(root);
+        writeCsv(
+            hive.resolve("year=2024").resolve("month=06").resolve("day=15").resolve("hour=10"),
+            List.of(new FileRow(ID_LEAD_END, Instant.parse("2024-06-15T10:50:00Z"), Instant.parse("2024-06-15T11:05:00Z")))
         );
-        Result spec = queryIds(pair.spec, null, whereParams(HOUR_11, Instant.parse("2024-06-15T12:00:00Z")));
-        Result twin = queryIds(pair.twin, null, whereParams(HOUR_11, Instant.parse("2024-06-15T12:00:00Z")));
-        assertThat(spec.ids, equalTo(twin.ids));
-        assertThat(spec.ids, hasItem((long) ID_IN_11));
+        writeCsv(hive.resolve("year=2024").resolve("month=06").resolve("day=15").resolve("hour=11"), List.of(row(ID_IN_11, IN_HOUR_11)));
+        String glob = awsHourlyGlob(root);
+        LinkedHashMap<String, DatasetFieldMapping> properties = mapping();
+        String endSpec = "year(end), month(end), day(end), hour(end)";
+        String noLead = registerStrictDataset(
+            "spec_lead_end_nolead",
+            glob,
+            properties,
+            Map.of("partition_detection", "hive", "partition_spec", endSpec)
+        );
+        String lead = registerStrictDataset(
+            "spec_lead_end_lead",
+            glob,
+            properties,
+            Map.of("partition_detection", "hive", "partition_spec", endSpec + ", lead(end, 15m)")
+        );
+        String twin = registerStrictDataset("twin_lead_end", glob, properties, Map.of("partition_detection", "hive"));
+        QueryParams window = whereParams(HOUR_11, Instant.parse("2024-06-15T12:00:00Z"));
+        Result twinResult = queryIds(twin, null, window, "end");
+        Result without = queryIds(noLead, null, window, "end");
+        Result with = queryIds(lead, null, window, "end");
+        assertThat("twin includes the previous-folder row", twinResult.ids, hasItem((long) ID_LEAD_END));
+        assertThat("no lead drops the previous-folder row", without.ids, not(hasItem((long) ID_LEAD_END)));
+        assertThat("no lead keeps the in-folder row", without.ids, equalTo(List.of((long) ID_IN_11)));
+        assertThat("lead keeps the previous-folder row", with.ids, equalTo(twinResult.ids));
+        assertThat("lead scans one more file", with.filesScanned, equalTo(without.filesScanned + 1));
+    }
+
+    public void testInferredMappingIdentityOnEndWarns() throws Exception {
+        Path root = writeHourlyHive(createTempDir().resolve("inferred_ident"));
+        String spec = registerNonStrictDataset(
+            "inferred_ident_end",
+            awsHourlyGlob(root),
+            mapping(),
+            Map.of("partition_detection", "hive", "partition_spec", "dt=end, " + hourlySpec())
+        );
+        assertThat(httpWarnings("FROM " + spec + " | KEEP id"), hasItem(containsString("identity to the date column [end]")));
     }
 
     private static String hourlySpec() {
@@ -279,11 +360,19 @@ public class ExternalPartitionSpecRequestFilterIT extends AbstractExternalDataSo
     }
 
     private Result queryIds(String dataset, Object filter, QueryParams params) {
+        return queryIds(dataset, filter, params, "@timestamp");
+    }
+
+    private Result queryIds(String dataset, Object filter, QueryParams params, String timeColumn) {
         String query = "FROM " + dataset + " | KEEP id | SORT id";
         if (params != null) {
             query = "FROM "
                 + dataset
-                + " | WHERE `@timestamp` >= ?_tstart::datetime AND `@timestamp` < ?_tend::datetime | KEEP id | SORT id";
+                + " | WHERE `"
+                + timeColumn
+                + "` >= ?_tstart::datetime AND `"
+                + timeColumn
+                + "` < ?_tend::datetime | KEEP id | SORT id";
         }
         var request = syncEsqlQueryRequest(query);
         request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), "round_robin").build()));
@@ -387,11 +476,20 @@ public class ExternalPartitionSpecRequestFilterIT extends AbstractExternalDataSo
         abstract Map<String, Object> settings();
     }
 
-    private static Path writeHourlyHive(Path root) throws IOException {
-        Path hive = root.resolve("AWSLogs")
+    private static Path awsHive(Path root) {
+        return root.resolve("AWSLogs")
             .resolve("aws-account-id=123456789012")
             .resolve("aws-service=vpcflowlogs")
             .resolve("aws-region=us-east-1");
+    }
+
+    private static String awsHourlyGlob(Path root) {
+        return StoragePath.fileUri(root)
+            + "/AWSLogs/aws-account-id=*/aws-service=vpcflowlogs/aws-region=*/year=*/month=*/day=*/hour=*/*.csv";
+    }
+
+    private static Path writeHourlyHive(Path root) throws IOException {
+        Path hive = awsHive(root);
         writeCsv(hive.resolve("year=2024").resolve("month=06").resolve("day=15").resolve("hour=10"), List.of(row(ID_IN_10, IN_HOUR_10)));
         writeCsv(
             hive.resolve("year=2024").resolve("month=06").resolve("day=15").resolve("hour=11"),
@@ -417,7 +515,6 @@ public class ExternalPartitionSpecRequestFilterIT extends AbstractExternalDataSo
         }
         Files.writeString(dir.resolve("f.csv"), body, StandardCharsets.UTF_8);
     }
-
 
     private static final int[] PARQUET_YEARS = { 2024, 2025 };
     private static final int[] PARQUET_MONTHS = { 1, 6 };
@@ -511,7 +608,14 @@ public class ExternalPartitionSpecRequestFilterIT extends AbstractExternalDataSo
         for (int year : PARQUET_YEARS) {
             for (int month : PARQUET_MONTHS) {
                 for (int day : PARQUET_DAYS) {
-                    writeParquetFile(root, year, month, day, parquetFolderStart(year, month, day).getEpochSecond(), parquetIdFor(year, month, day));
+                    writeParquetFile(
+                        root,
+                        year,
+                        month,
+                        day,
+                        parquetFolderStart(year, month, day).getEpochSecond(),
+                        parquetIdFor(year, month, day)
+                    );
                 }
             }
         }

@@ -483,6 +483,43 @@ public class PartitionSpecTests extends ESTestCase {
         assertEquals(new Field("year", Transform.YEAR, "@timestamp", Unit.EPOCH_MILLIS), aligned.fields().get(1));
     }
 
+    public void testAlignWithMappingRejectsDuplicateYearAfterRewrite() {
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, Map.of("@timestamp", new DatasetFieldMapping("date", "start")))
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PartitionSpec.parse("year(start), year(@timestamp)").alignWithMapping(mapping)
+        );
+        assertThat(e.getMessage(), containsString("year"));
+        assertThat(e.getMessage(), containsString("@timestamp"));
+        assertThat(e.getMessage(), containsString("more than once"));
+    }
+
+    public void testAlignWithMappingRejectsDuplicateLagAfterRewrite() {
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, Map.of("@timestamp", new DatasetFieldMapping("date", "start")))
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PartitionSpec.parse("year(start), hour(@timestamp), lag(start, 20m), lag(@timestamp, 10m)").alignWithMapping(mapping)
+        );
+        assertThat(e.getMessage(), containsString("lag"));
+        assertThat(e.getMessage(), containsString("@timestamp"));
+        assertThat(e.getMessage(), containsString("more than once"));
+    }
+
+    public void testAlignWithMappingMergesComplementaryLagAndLead() {
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, Map.of("@timestamp", new DatasetFieldMapping("date", "start")))
+        );
+        PartitionSpec aligned = PartitionSpec.parse("year(start), hour(@timestamp), lag(start, 20m), lead(@timestamp, 10m)")
+            .alignWithMapping(mapping);
+        assertEquals(TimeValue.timeValueMinutes(20), aligned.windows().get("@timestamp").lag());
+        assertEquals(TimeValue.timeValueMinutes(10), aligned.windows().get("@timestamp").lead());
+        assertEquals(aligned, PartitionSpec.parse(aligned.toSpecString()));
+    }
+
     private static final String IDENTIFIER_HINT = PartitionSpec.IDENTIFIER_RULE;
 
     private static void assertReject(String spec, String badToken, String fix) {

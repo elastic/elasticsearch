@@ -1264,6 +1264,16 @@ public class FileSplitProviderTests extends ESTestCase {
             null
         );
         assertNull(FileSplitProvider.evaluateFilter(instantBound, Map.of("@timestamp", "2024-06-15")));
+        Literal dt = Literal.dateTime(SRC, Instant.parse("2024-06-15T00:00:00Z"));
+        assertNull(FileSplitProvider.evaluateFilter(new Equals(SRC, ts, dt), Map.of("@timestamp", "2024-06-15")));
+        assertNull(FileSplitProvider.evaluateFilter(new In(SRC, ts, List.of(dt)), Map.of("@timestamp", "2024-06-15")));
+        assertNull(FileSplitProvider.evaluateFilter(new MvContains(SRC, ts, dt), Map.of("@timestamp", "2024-06-15")));
+        assertNull(
+            FileSplitProvider.evaluateFilter(
+                new MvIntersects(SRC, ts, new Literal(SRC, List.of(Instant.parse("2024-06-15T00:00:00Z")), DataType.DATETIME)),
+                Map.of("@timestamp", "2024-06-15")
+            )
+        );
     }
 
     public void testMatchesPartitionFiltersAllMatch() {

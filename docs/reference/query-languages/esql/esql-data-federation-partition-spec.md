@@ -87,8 +87,7 @@ CloudTrail and VPC Flow Logs often land under a **delivery** date that lags the 
 filter on the event-time column can miss a folder that still holds matching rows. Add `lag(column, duration)`
 to extend the listing window after the filter, and `lead(column, duration)` to extend it before. `lag(start, 15m)`
 keeps the next hour (or day) folder so a row that arrived late is still listed. `lead` keeps the previous folder.
-Lag and lead only widen; they never skip a folder the filter would keep. Path-key filters such as
-`WHERE year == 2024` stay exact.
+Lag and lead only widen; they never skip a folder the filter would keep.
 
 The following example registers a Hive-compatible hourly VPC Flow Logs dataset. `start` and `end` are unix
 epoch seconds. The resource uses keyed `key=*` segments, not `**`, so listing can walk past unhinted identity

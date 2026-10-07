@@ -1323,6 +1323,7 @@ public class ExternalSourceResolver {
             fileConfig,
             schemaResolution,
             cacheable,
+            declaredMapping,
             demand,
             ActionListener.wrap(listing -> {
                 // Listing is done; release the lease before the (potentially async) anchor footer read.
@@ -1811,6 +1812,7 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         FormatReader.SchemaResolution schemaResolution,
         boolean cacheable,
+        @Nullable DatasetMapping declaredMapping,
         ResolutionDemand demand,
         ActionListener<FileList> listener
     ) {
@@ -1827,7 +1829,7 @@ public class ExternalSourceResolver {
             assert listing.isTruncated() == false || extents.boundsFileSet()
                 : "a listing was truncated without a file-set extent being asked for";
             pendingListingWarnings.addAll(listing.listingWarnings());
-            emitPartitionSpecNotices(listing, hints, config, null);
+            emitPartitionSpecNotices(listing, hints, config, declaredMapping);
             recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), schemaResolution);
             listener.onResponse(listing);
         }, listener::onFailure);

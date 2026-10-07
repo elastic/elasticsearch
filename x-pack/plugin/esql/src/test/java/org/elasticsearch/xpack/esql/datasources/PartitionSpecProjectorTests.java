@@ -132,17 +132,11 @@ public class PartitionSpecProjectorTests extends ESTestCase {
         Instant start = Instant.parse("2026-10-13T10:00:00Z");
         Instant end = Instant.parse("2026-10-13T10:15:00Z");
         List<PartitionFilterHint> hints = List.of(hint("ts", Operator.GREATER_THAN_OR_EQUAL, start), hint("ts", Operator.LESS_THAN, end));
-        assertEquals(
-            List.of(
-                hint("ts", Operator.GREATER_THAN_OR_EQUAL, start),
-                hint("ts", Operator.LESS_THAN, end),
-                hint("year", Operator.IN, 2026),
-                hint("month", Operator.IN, 10),
-                hint("day", Operator.IN, 13),
-                hint("hour", Operator.IN, 10)
-            ),
-            spec.projectListingHints(hints)
-        );
+        List<PartitionFilterHint> projected = spec.projectListingHints(hints);
+        assertEquals(List.of(2026), inValues(projected, "year"));
+        assertEquals(List.of(10), inValues(projected, "month"));
+        assertEquals(List.of(13), inValues(projected, "day"));
+        assertEquals(List.of(10), inValues(projected, "hour"));
     }
 
     public void testThreeDayWindowSkipsCompleteHourIn() {

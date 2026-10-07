@@ -84,7 +84,7 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
                 maxRetries,
                 RETRY_FAILED_API,
                 ReferenceDocs.ALLOCATION_EXPLAIN_MAX_RETRY,
-                info.toString()
+                info
             );
         } else {
             return allocation.decision(

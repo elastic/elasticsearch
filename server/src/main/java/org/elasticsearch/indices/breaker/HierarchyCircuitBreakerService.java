@@ -29,14 +29,13 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.GcNames;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.LongCounter;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -267,41 +266,28 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         this.overLimitStrategy = overLimitStrategyFactory.apply(this.trackRealMemoryUsage);
         this.parentTripCountTotalMetric = metrics.getTripCount();
 
-        metrics.registerMemoryGauges(this::collectMemoryLimits, this::collectMemoryEstimates);
+        metrics.registerMemoryGauges(this::recordMemoryLimits, this::recordMemoryEstimates);
     }
 
-    private Collection<LongWithAttributes> collectMemoryLimits() {
-        List<LongWithAttributes> out = new ArrayList<>(this.breakers.size() + 1);
+    private void recordMemoryLimits(LongAsyncMeasurement measurement) {
         for (CircuitBreaker breaker : this.breakers.values()) {
-            out.add(
-                new LongWithAttributes(
-                    breaker.getLimit(),
-                    Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, breaker.getName())
-                )
-            );
+            measurement.record(breaker.getLimit(), Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, breaker.getName()));
         }
-        out.add(
-            new LongWithAttributes(
-                this.parentSettings.getLimit(),
-                Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, CircuitBreaker.PARENT)
-            )
+        measurement.record(
+            this.parentSettings.getLimit(),
+            Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, CircuitBreaker.PARENT)
         );
-        return out;
     }
 
-    private Collection<LongWithAttributes> collectMemoryEstimates() {
-        List<LongWithAttributes> out = new ArrayList<>(this.breakers.size() + 1);
+    private void recordMemoryEstimates(LongAsyncMeasurement measurement) {
         for (CircuitBreaker breaker : this.breakers.values()) {
             long estimated = (long) (breaker.getUsed() * breaker.getOverhead());
-            out.add(new LongWithAttributes(estimated, Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, breaker.getName())));
+            measurement.record(estimated, Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, breaker.getName()));
         }
-        out.add(
-            new LongWithAttributes(
-                memoryUsed(0L).totalUsage,
-                Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, CircuitBreaker.PARENT)
-            )
+        measurement.record(
+            memoryUsed(0L).totalUsage,
+            Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, CircuitBreaker.PARENT)
         );
-        return out;
     }
 
     private void updateCircuitBreakerSettings(String name, ByteSizeValue newLimit, Double newOverhead) {

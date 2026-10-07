@@ -1112,7 +1112,7 @@ public class EsqlSessionTests extends ESTestCase {
         PlainActionFuture<EsqlSession.PreAnalysisResult> future = new PlainActionFuture<>();
         EsqlSession.preAnalyzeExternalSources(capturingResolver, plan, preAnalysis, result, future, TEST_CFG, new EsqlFunctionRegistry());
         future.actionGet();
-        assertTrue("resolve must be invoked when icebergPaths is non-empty", resolveCalled.get());
+        assertTrue("resolve must be invoked when externalSourcePaths is non-empty", resolveCalled.get());
         return new CapturedExternalResolve(capturedStats.get(), capturedNoRows.get(), capturedHints.get());
     }
 

@@ -429,12 +429,12 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     /**
-     * The blank must read the same on both sides of the prefetch boundary. An inferred schema is sampled twice
-     * -- {@code schema_sample_size} rows to infer, then another {@code schema_sample_size} as the widening
-     * window ({@code collectWideningWindowAndPrefetch}) -- and every prefetched row is replayed through the
-     * shared conversion before the direct walkers see anything. So with {@code schema_sample_size: 2} the
-     * boundary sits after row 4: the blank in row 2 is decided by the replay and the one in row 5 by the direct
-     * loop. Six rows rather than four is what puts a row past the boundary at all.
+     * The blank must read the same on both sides of the prefetch boundary. An inferred schema samples
+     * {@code schema_sample_size} rows to infer, and every one of those sampled rows is replayed through
+     * the shared conversion before the direct walkers see anything past it. So with
+     * {@code schema_sample_size: 2} the boundary sits after row 2: the blank in row 2 is decided by the
+     * replay and the one in row 5 by the direct loop. Six rows rather than two is what puts a row past
+     * the boundary at all.
      * Both blanks in {@code phrase} read {@code ""} (string column); the trailing blank in {@code tail} also
      * reads {@code ""} because tail infers as keyword too.
      */
@@ -622,7 +622,10 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     public void testDatetimeFormatNumericFallbackWhenPatternDoesNotMatch() throws IOException {
         long epoch = 1609459200000L; // 2021-01-01T00:00:00Z; 13 digits, no match for yyyy-MM-dd HH:mm:ss
         assertEquals(List.of(row(epoch)), read(false, Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"), "ts:datetime\n" + epoch + "\n"));
-        assertEquals(List.of(row(epoch)), read(false, Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"), "ts:date_nanos\n" + epoch + "\n"));
+        assertEquals(
+            List.of(row(epoch * 1_000_000L)),
+            read(false, Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"), "ts:date_nanos\n" + epoch + "\n")
+        );
         // Negative epoch is numeric and unmatchable by the pattern; it stays epoch.
         assertEquals(List.of(row(-1000L)), read(false, Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"), "ts:datetime\n-1000\n"));
         // With no file-level pattern at all, the shortcut is untouched.

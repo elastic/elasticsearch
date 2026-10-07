@@ -4294,15 +4294,6 @@ public class EsqlCapabilities {
          */
         EXTERNAL_DATASET_DATE_NANOS_BARE_NUMBER_IS_EPOCH_MILLIS,
 
-        /**
-         * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull} folds a null-propagating function
-         * ({@link org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull}) to null when an argument is NULL-typed,
-         * even if that argument is a {@code COALESCE} or {@code CASE} reporting unknown nullability. Older nodes leave such
-         * an expression in the plan and fail building its evaluator, e.g. {@code Unsupported type NULL} for
-         * {@code COALESCE(null, null) * 2}.
-         */
-        FOLD_NULL_ARGS_TO_NULL_PROPAGATING_FUNCTIONS,
-
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

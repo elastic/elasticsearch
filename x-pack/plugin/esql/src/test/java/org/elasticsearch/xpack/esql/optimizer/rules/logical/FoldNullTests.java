@@ -308,8 +308,8 @@ public class FoldNullTests extends ESTestCase {
         assertEquals(add.dataType(), folded.dataType());
     }
 
-    // COALESCE, CASE and MV_UNION report UNKNOWN nullability even when NULL-typed, and that propagates to the parent. A
-    // null-propagating parent must still fold: its evaluator has no NULL branch, so leaving it in the plan throws.
+    // A null-propagating function over a NULL-typed COALESCE, CASE or MV_UNION must fold to null: its evaluator has no
+    // NULL branch, so leaving it in the plan throws once any rule folds it.
     public void testNullPropagatingFunctionOverNullTypedCoalesceIsFolded() {
         Coalesce coalesce = nullTypedCoalesce();
         assertNullLiteral(foldNull(new Mul(EMPTY, coalesce, L(2))));

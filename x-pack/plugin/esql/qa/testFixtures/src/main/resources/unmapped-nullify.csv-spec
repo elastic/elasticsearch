@@ -1788,11 +1788,11 @@ FROM sample_data
 2023-10-23T13:55:01.543Z | 172.21.3.15  | 1756467
 ;
 
-// COALESCE, CASE and MV_UNION over exclusively nullified fields are NULL-typed but report unknown nullability; a
-// null-propagating function around them must still fold to null, since its evaluator has no NULL branch.
+// COALESCE, CASE and MV_UNION over exclusively nullified fields are NULL-typed; a null-propagating function around them
+// must fold to null, since its evaluator has no NULL branch.
 dateExtractOverCoalesceOfNullifiedFields
 required_capability: optional_fields_nullify_tech_preview
-required_capability: fold_null_args_to_null_propagating_functions
+required_capability: fix_fold_null
 
 SET unmapped_fields="nullify"\;
 FROM employees
@@ -1809,7 +1809,7 @@ null
 
 arithmeticOverCaseOfNullifiedFields
 required_capability: optional_fields_nullify_tech_preview
-required_capability: fold_null_args_to_null_propagating_functions
+required_capability: fix_fold_null
 
 SET unmapped_fields="nullify"\;
 FROM employees
@@ -1826,7 +1826,7 @@ null
 
 absOverMvUnionOfNullifiedFields
 required_capability: optional_fields_nullify_tech_preview
-required_capability: fold_null_args_to_null_propagating_functions
+required_capability: fix_fold_null
 
 SET unmapped_fields="nullify"\;
 FROM employees
@@ -1843,7 +1843,7 @@ null
 
 toStringOverCoalesceOfNullifiedFields
 required_capability: optional_fields_nullify_tech_preview
-required_capability: fold_null_args_to_null_propagating_functions
+required_capability: fix_fold_null
 
 SET unmapped_fields="nullify"\;
 FROM employees
@@ -1862,7 +1862,7 @@ null
 // pruning rule fold every constant alias under the sort.
 arithmeticOverCoalesceOfNullifiedAggregateUnderSort
 required_capability: optional_fields_nullify_tech_preview
-required_capability: fold_null_args_to_null_propagating_functions
+required_capability: fix_fold_null
 
 SET unmapped_fields="nullify"\;
 FROM employees

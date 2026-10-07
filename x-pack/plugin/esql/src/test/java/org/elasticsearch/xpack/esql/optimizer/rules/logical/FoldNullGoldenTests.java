@@ -16,9 +16,8 @@ import org.elasticsearch.xpack.esql.optimizer.UnmappedGoldenTestCase;
 import java.util.EnumSet;
 
 /**
- * A NULL-typed {@code COALESCE} reports unknown nullability, yet the null-propagating expression around it must still be
- * folded to null by {@link FoldNull}: any later rule that folds it builds its evaluator, which has no NULL branch and
- * throws {@code Unsupported type NULL}.
+ * A null-propagating expression over a NULL-typed {@code COALESCE} must be folded to null by {@link FoldNull}: any later
+ * rule that folds it builds its evaluator, which has no NULL branch and throws {@code Unsupported type NULL}.
  */
 public class FoldNullGoldenTests extends UnmappedGoldenTestCase {
 

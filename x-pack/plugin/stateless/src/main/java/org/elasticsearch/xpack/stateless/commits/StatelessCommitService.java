@@ -885,6 +885,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             public void onResponse(BccUploadResult uploadResult) {
                 maybeLogSlowBccUpload(virtualBcc, uploadResult);
                 final BatchedCompoundCommit uploadedBcc = uploadResult.batchedCompoundCommit();
+                logger.debug(
+                    "{} uploaded BCC [{}] (last cc generation [{}]), marking as uploaded",
+                    virtualBcc.getShardId(),
+                    virtualBcc.getPrimaryTermAndGeneration().generation(),
+                    uploadedBcc.lastCompoundCommit().generation()
+                );
                 try {
                     // Use the largest translog release file from all CCs to release translog files for cleaning.
                     // markBccUploaded fires the local-upload generation listeners, allowing the next upload to
@@ -930,6 +936,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     // Serialise copies via a per-shard single-slot runner so that
                     // fireUploadedGenerationListeners is always called in generation order.
                     // (ES-12456)
+                    logger.debug(
+                        "{} enqueueing copy of BCC [{}] (last cc generation [{}]) to split targets {}",
+                        virtualBcc.getShardId(),
+                        virtualBcc.getPrimaryTermAndGeneration().generation(),
+                        ccGeneration,
+                        splitTargets
+                    );
                     commitState.splitTargetCopyExecutor.execute(() -> {
                         try {
                             for (ShardId targetShardId : splitTargets) {
@@ -937,6 +950,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                                 while (commitState.isClosed() == false) {
                                     try {
                                         objectStoreService.copyCommit(virtualBcc, targetShardId);
+                                        logger.debug(
+                                            "{} copied BCC [{}] (last cc generation [{}]) to split target [{}]",
+                                            virtualBcc.getShardId(),
+                                            virtualBcc.getPrimaryTermAndGeneration().generation(),
+                                            ccGeneration,
+                                            targetShardId
+                                        );
                                         break;
                                     } catch (Exception e) {
                                         if (commitState.isClosed()) {
@@ -998,6 +1018,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     if (commitState.isClosed()) {
                         return;
                     }
+                    logger.debug(
+                        "{} firing fully-uploaded generation listeners for BCC [{}] up to cc generation [{}]",
+                        virtualBcc.getShardId(),
+                        gen,
+                        ccGeneration
+                    );
                     commitState.fireUploadedGenerationListeners(ccGeneration);
                     commitState.sendNewUploadedCommitNotification(blobReference, uploadedBcc, cleanup);
                     cleanup = null;

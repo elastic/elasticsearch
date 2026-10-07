@@ -24,9 +24,7 @@ dependencies {
   implementation project(':libs:logging')
   implementation "org.apache.lucene:lucene-core:${versions.lucene}"
 
-  // PosixGuardPageAllocator (test fixture) reaches into PosixCLibrary from libs:native.
-  testFixturesImplementation project(':libs:native')
-
+  testImplementation project(':libs:foreign-library:testing')
   testImplementation(testArtifact(project(':x-pack:plugin:searchable-snapshots')))
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'native'

@@ -1000,6 +1000,62 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         }
     }
 
+    /// If neither the time nor the cluster state changed since a plan was computed, a re-evaluation has nothing to add: the fresh share
+    /// equals the one the previous plan was computed from, so the extension is exactly 0, and so it stays on further re-evaluations.
+    public void testReevaluationWithNothingChangedExtendsByNothing() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            final Settings settings = Settings.builder()
+                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
+                .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
+                .build();
+            final var service = newCalculationService(threadPool, settings, 0L);
+
+            final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
+            final long startedAtMillis = threadPool.absoluteTimeInMillis();
+            final var index = new Index("idx", randomUUID());
+            final String sourceNodeId = "source-node";
+            final String targetNodeId = "target-node";
+
+            // 4 shards on the source: 3 relocating (1 of them to targetNodeId) and 1 pending, so remaining time is not simply handed out
+            final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
+                3,
+                1,
+                index,
+                sourceNodeId,
+                targetNodeId,
+                startedAtMillis,
+                1
+            );
+            final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
+                .shardRoutingTable(new ShardId(index, 0))
+                .shardsWithState(RELOCATING)
+                .getFirst()
+                .getTargetRelocatingShard();
+
+            // 2000ms into the 10s grace -> remaining = 8000ms, equal share = 8000 / 4 = 2000ms
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
+            final var firstPlan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L, null);
+            assertThat(firstPlan.timeout().millis(), equalTo(2000L));
+            assertThat(firstPlan.perShardShareMs(), equalTo(2000.0));
+
+            var previous = firstPlan;
+            for (int i = 0; i < 3; i++) {
+                final var reevaluated = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L, previous);
+                assertThat("re-evaluation " + i, reevaluated.timeout().millis(), equalTo(0L));
+                assertThat(reevaluated.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
+                assertThat(reevaluated.perShardShareMs(), equalTo(2000.0));
+                previous = reevaluated;
+            }
+        }
+    }
+
     /// With no shard pending on the source nobody waits for a slice behind the relocating shards, which wait concurrently, so a
     /// re-evaluation extends by all the remaining grace even when nothing was saved. With a pending shard, nothing saved means no
     /// extension: 10s grace, 4 shards on the source gives each 2500ms; 2000ms later the fresh share is 2000ms, below what was budgeted.

@@ -842,6 +842,44 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         }
     }
 
+    /// When nothing changed since the previous equal-share plan there is nothing to add: the re-evaluated plan is still extendable, but
+    /// its timeout is below the abort threshold, so the wait times out at once instead of rescheduling an ever shorter slice.
+    public void testReevaluationLoopTimesOutImmediatelyWhenNothingWasSaved() {
+        final var sliceSize = TimeValue.timeValueMillis(200);
+        final var abortThreshold = TimeValue.timeValueMillis(50);
+        final var settings = Settings.builder()
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
+            .put(
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(),
+                abortThreshold
+            )
+            .build();
+
+        try (var threadPool = new ReEvaluationThreadPool(getTestName())) {
+            // nothing saved: zero, or at most a sliver below the abort threshold
+            final var nothingSaved = new SearchRecoveryTimeout(
+                TimeValue.timeValueMillis(randomLongBetween(0, abortThreshold.millis() - 1)),
+                TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE,
+                2500.0
+            );
+            assertThat(nothingSaved.extendable(), is(true));
+            final var service = newReevaluatingService(threadPool, settings, () -> nothingSaved);
+            final var resume = new PlainActionFuture<Void>();
+            service.searchRecoveryWarmingListener(
+                new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE, 2500.0),
+                () -> null, // unused in this test case
+                randomMockIndexShard(),
+                mockDirectory(),
+                0L,
+                resume
+            );
+
+            threadPool.drainTask().run();
+            safeGet(resume);
+            assertThat("the loop must not reschedule", threadPool.drainTask(), nullValue());
+        }
+    }
+
     /// A total timeout cap of 0 disables extensions: only the initial slice is ever waited for.
     public void testReevaluationLoopDoesNotExtendWhenTotalTimeoutCapIsZero() {
         final var sliceSize = TimeValue.timeValueMillis(200);

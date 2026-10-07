@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.concurrent.Executor;
@@ -826,8 +827,11 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
 
         /**
          * Resume re-open: barge ({@link ConcurrencyLimiter#tryAcquire()}) then poll until a permit
-         * or {@link StorageObject#admissionWaitTimeoutMs()}. Misses stay outside
-         * {@link RetryPolicy#execute} so they cannot burn a storage retry.
+         * or {@link StorageObject#admissionWaitTimeoutMs()}. The poll lives inside one
+         * {@link RetryPolicy#execute} supplier so a 503 whose retry then misses the permit cannot
+         * restart execute at attempt 0 and keep issuing GETs until the admission clock.
+         * {@link ConcurrencyLimiter.PermitMissException} is not an
+         * {@link ExternalUnavailableException}, so {@code decide} will not retry it as a store fault.
          * <p>
          * Sync analogue of {@link #scheduleAdmissionRetry}, not an async ticket. Resume runs inside
          * {@link InputStream#read}; there is no listener to hop onto {@code retryScheduler} without
@@ -840,24 +844,45 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
         private InputStream openResumeAdmitted(long resumeFrom, long resumeLength, String operationName) throws IOException {
             long timeoutMs = Math.max(1L, delegate.admissionWaitTimeoutMs());
             long deadlineNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
+            try {
+                return retryPolicy.execute(
+                    () -> openResumeOnce(resumeFrom, resumeLength, deadlineNanos),
+                    operationName,
+                    delegate.path(),
+                    retryCounters::addRetry,
+                    storageTelemetry
+                );
+            } catch (UncheckedIOException uio) {
+                if (uio.getCause() instanceof IOException io) {
+                    throw io;
+                }
+                throw uio;
+            } catch (ConcurrencyLimiter.PermitMissException miss) {
+                ExternalUnavailableException timedOut = miss.toUnavailable();
+                recordTerminalFailure(timedOut, 0L);
+                throw timedOut;
+            }
+        }
+
+        /**
+         * One execute attempt: barge, poll on miss, GET only after a permit. Admission timeout
+         * throws {@link ConcurrencyLimiter.PermitMissException} so execute does not treat it as a
+         * retryable store fault. Abort/interrupt wrap as {@link UncheckedIOException} so
+         * execute does not retry them as {@link IOException}.
+         */
+        private InputStream openResumeOnce(long resumeFrom, long resumeLength, long deadlineNanos) throws IOException {
             while (true) {
                 if (aborted) {
-                    throw new IOException("read aborted");
+                    throw new UncheckedIOException(new IOException("read aborted"));
                 }
                 try {
-                    return retryPolicy.execute(
-                        () -> StoragePermitBarge.call(() -> delegate.newStream(resumeFrom, resumeLength)),
-                        operationName,
-                        delegate.path(),
-                        retryCounters::addRetry,
-                        storageTelemetry
-                    );
+                    return StoragePermitBarge.call(() -> delegate.newStream(resumeFrom, resumeLength));
                 } catch (ConcurrencyLimiter.PermitMissException miss) {
                     if (aborted) {
-                        throw new IOException("read aborted");
+                        throw new UncheckedIOException(new IOException("read aborted"));
                     }
                     if (System.nanoTime() >= deadlineNanos) {
-                        throw miss.toUnavailable();
+                        throw miss;
                     }
                     long remainingMs = Math.max(1L, TimeUnit.NANOSECONDS.toMillis(deadlineNanos - System.nanoTime()));
                     try {
@@ -866,13 +891,17 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
                         );
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
-                        throw new IOException(
-                            "interrupted while waiting for a concurrency permit to resume read of [" + delegate.path().objectName() + "]",
-                            ie
+                        throw new UncheckedIOException(
+                            new IOException(
+                                "interrupted while waiting for a concurrency permit to resume read of ["
+                                    + delegate.path().objectName()
+                                    + "]",
+                                ie
+                            )
                         );
                     }
                     if (aborted) {
-                        throw new IOException("read aborted");
+                        throw new UncheckedIOException(new IOException("read aborted"));
                     }
                 }
             }

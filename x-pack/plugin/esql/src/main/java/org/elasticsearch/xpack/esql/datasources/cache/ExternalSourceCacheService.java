@@ -161,6 +161,7 @@ public class ExternalSourceCacheService implements Closeable {
     private final LongAdder datasetAggregateHits = new LongAdder();
     private final LongAdder datasetAggregateMisses = new LongAdder();
     private final LongAdder statsAggregateIncomplete = new LongAdder();
+    private final LongAdder schemaFanOutRefused = new LongAdder();
 
     /**
      * Soft floor for {@link #perEntryCeiling(long)}: when a cache slice is deliberately tiny (warm-fold
@@ -507,6 +508,21 @@ public class ExternalSourceCacheService implements Closeable {
      */
     public void recordStatsAggregateIncomplete() {
         statsAggregateIncomplete.increment();
+    }
+
+    /**
+     * Counts a schema fan-out whose entries were refused: the listing's file count times the first entry's
+     * size overran {@link #schemaBudget}, so none of the gather's entries will be retained. One increment per
+     * gather, because the verdict is taken once and latched.
+     * <p>
+     * Reported because the verdict now forks the read path, not just the cache: a refused fan-out is what
+     * licenses the resolver to stop reading per-file metadata at all (see
+     * {@code ExternalSourceResolver#remainingReadsBuyNothing}). Without this counter neither support nor an
+     * integration test can tell whether that stop engaged on a given dataset, and the budget it was compared
+     * against is already reported as {@code schema_budget_bytes}.
+     */
+    public void recordSchemaFanOutRefused() {
+        schemaFanOutRefused.increment();
     }
 
     /**
@@ -1727,6 +1743,7 @@ public class ExternalSourceCacheService implements Closeable {
             stats.put("dataset_aggregate.pending", pendingDatasetAggregates.size());
         }
         stats.put("stats_aggregate.incomplete", statsAggregateIncomplete.sum());
+        stats.put("schema_fan_out.refused", schemaFanOutRefused.sum());
 
         return stats;
     }

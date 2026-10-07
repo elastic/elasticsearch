@@ -3017,6 +3017,42 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
     }
 
+    /**
+     * The refusal is now counted, so the verdict that forks the read path is observable. Pinned alongside the
+     * threshold test because a counter nobody asserts is a counter that silently stops incrementing.
+     */
+    public void testAdmissionRefusalIsCounted() throws Exception {
+        Settings refusing = Settings.builder()
+            .put("esql.external.cache.size", "1kb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
+            .build();
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(refusing)) {
+            assertEquals(0L, cacheService.usageStats().get("schema_fan_out.refused"));
+            String glob = "s3://bucket/nd/*.ndjson";
+            String a = "s3://bucket/nd/a.ndjson", b = "s3://bucket/nd/b.ndjson", c = "s3://bucket/nd/c.ndjson";
+            List<Attribute> schema = List.of(attr("x", DataType.LONG));
+            Map<String, List<Attribute>> schemas = Map.of(a, schema, b, schema, c, schema);
+            StubStorageProvider provider = new StubStorageProvider(
+                Map.of("s3://bucket/nd/", List.of(entry(a, 100), entry(b, 200), entry(c, 300))),
+                schemas
+            );
+            ExternalSourceResolver resolver = ndjsonPromiseResolver(provider, schemas, Map.of(), cacheService, null);
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(
+                List.of(glob),
+                Map.of(glob, new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS))),
+                null,
+                null,
+                Set.of(glob),
+                future
+            );
+            assertNotNull(future.actionGet().resolvedSource(glob));
+            assertEquals("the refused fan-out must be counted once", 1L, cacheService.usageStats().get("schema_fan_out.refused"));
+            assertNotNull("the budget it was compared against is reported too", cacheService.usageStats().get("schema_budget_bytes"));
+        }
+    }
+
     /** Three ndjson files, no row counts (dead fold), strict policy, at the given total cache size. */
     private int gatherReadsWithCacheBytes(long cacheBytes) throws Exception {
         Settings settings = Settings.builder()

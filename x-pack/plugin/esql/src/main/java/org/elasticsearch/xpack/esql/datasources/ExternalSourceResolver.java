@@ -3031,6 +3031,15 @@ public class ExternalSourceResolver {
                     sized = true;
                     if ((long) fileCount * entry.estimatedBytes() > cacheService.schemaBudget()) {
                         refuse = true;
+                        cacheService.recordSchemaFanOutRefused();
+                        // The three numbers behind the verdict. Nothing else reports them, and the verdict
+                        // decides whether the gather keeps reading per-file metadata at all.
+                        LOGGER.debug(
+                            "schema fan-out refused: [{}] files x [{}] estimated bytes exceeds schema budget [{}]",
+                            fileCount,
+                            entry.estimatedBytes(),
+                            cacheService.schemaBudget()
+                        );
                         return false;
                     }
                 }

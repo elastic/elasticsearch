@@ -7,23 +7,14 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.cluster.metadata.View;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap;
-import org.elasticsearch.xpack.esql.view.DeleteViewAction;
-import org.elasticsearch.xpack.esql.view.PutViewAction;
-import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
-import static java.util.Collections.nCopies;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.equalTo;
@@ -31,47 +22,12 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
-public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
+public class ViewMetadataIT extends AbstractViewSubqueryIntegTestCase {
 
-    private final List<String> createdViews = new ArrayList<>();
-
-    private void createView(String name, String query) {
-        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest(name, query)));
-        createdViews.add(name);
-    }
-
-    @After
-    public void deleteViews() {
-        for (var name : createdViews) {
-            try {
-                client().execute(DeleteViewAction.INSTANCE, deleteViewRequest(name)).actionGet();
-            } catch (ResourceNotFoundException ignored) {} catch (Exception e) {
-                logger.warn("view cleanup [{}] failed", name, e);
-            }
-        }
-        createdViews.clear();
-    }
-
-    @Before
-    public void createLanguagesIndex() {
-        if (indexExists("languages")) {
-            return;
-        }
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("languages")
-                .setMapping("language_code", "type=integer", "language_name", "type=keyword")
-                .get()
-        );
-        BulkRequestBuilder bulk = client().prepareBulk();
-        bulk.add(prepareIndex("languages").setSource("language_code", 1, "language_name", "English"));
-        bulk.add(prepareIndex("languages").setSource("language_code", 2, "language_name", "French"));
-        bulk.add(prepareIndex("languages").setSource("language_code", 3, "language_name", "Spanish"));
-        bulk.add(prepareIndex("languages").setSource("language_code", 4, "language_name", "German"));
-        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        ensureGreen("languages");
+    @BeforeClass
+    public static void requireCapabilities() {
+        assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
+        assumeTrue("requires VIEWS_WITH_NO_BRANCHING", Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
     }
 
     @Before
@@ -86,8 +42,6 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testNestedViewMetadataPassesThroughAllLevels() {
-        assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
-        assumeTrue("requires VIEWS_WITH_NO_BRANCHING", Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
         createView("view_languages_nested_c_it", "FROM languages METADATA _index | EVAL viewC_index = _index");
         createView("view_languages_nested_b_it", "FROM view_languages_nested_c_it METADATA _index | EVAL viewB_index = _index");
         createView("view_languages_nested_a_it", "FROM view_languages_nested_b_it METADATA _index | EVAL viewA_index = _index");
@@ -121,8 +75,6 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
      * {@code NamedSubquery}.
      */
     public void testNestedViewMetadataPassesThroughAllLevelsPureFROM() {
-        assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
-        assumeTrue("requires VIEWS_WITH_NO_BRANCHING", Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
         createView("view_languages_pure_c_it", "FROM languages");
         createView("view_languages_pure_b_it", "FROM view_languages_pure_c_it METADATA _index");
         createView("view_languages_pure_a_it", "FROM view_languages_pure_b_it");
@@ -143,8 +95,6 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testNestedViewOuterMetadataNullWhenNotDeclaredInChain() {
-        assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
-        assumeTrue("requires VIEWS_WITH_NO_BRANCHING", Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
         createView("view_languages_nested_c_it", "FROM languages METADATA _index | EVAL viewC_index = _index");
         createView("view_languages_nested_b_it", "FROM view_languages_nested_c_it METADATA _index | EVAL viewB_index = _index");
         createView("view_languages_nested_a_it", "FROM view_languages_nested_b_it METADATA _index | EVAL viewA_index = _index");
@@ -165,8 +115,6 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testViewAllMetadataInBodyPassesThrough() {
-        assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
-        assumeTrue("requires VIEWS_WITH_NO_BRANCHING", Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
         createView("view_languages_all_metadata_it", "FROM languages METADATA _index, _id, _version, _score, _ignored, _index_mode");
 
         try (
@@ -191,8 +139,6 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testViewMetadataWildcardPatternExpandsToNullColumns() {
-        assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
-        assumeTrue("requires VIEWS_WITH_NO_BRANCHING", Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
         createView("view_languages_it", "FROM languages");
 
         try (
@@ -214,8 +160,6 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMetadataPatternInsideViewBodyExpandsAndCarriesValues() {
-        assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
-        assumeTrue("requires VIEWS_WITH_NO_BRANCHING", Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
         createView("view_languages_pattern_it", "FROM languages METADATA _in*");
 
         try (
@@ -238,8 +182,6 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testViewBodySubqueryMetadataSurvivesViewResolution() {
-        assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
-        assumeTrue("requires VIEWS_WITH_NO_BRANCHING", Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
         createView("view_languages_subquery_meta_it", "FROM (FROM languages) METADATA _index");
 
         try (
@@ -257,8 +199,6 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testViewMetadataUnknownFieldRaisesVerificationException() {
-        assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
-        assumeTrue("requires VIEWS_WITH_NO_BRANCHING", Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
         createView("view_languages_it", "FROM languages");
 
         VerificationException ex = expectThrows(VerificationException.class, () -> run("FROM view_languages_it METADATA _fake").close());
@@ -270,8 +210,6 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testViewWithIndexPatternExclusionOmitsExcludedIndex() {
-        assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
-        assumeTrue("requires VIEWS_WITH_NO_BRANCHING", Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
         createView("view_logs_exclusion_it", "FROM view_it_logs*, -view_it_logs_archive");
 
         try (var response = run("FROM view_logs_exclusion_it METADATA _index | KEEP tag, _index | SORT tag")) {
@@ -285,7 +223,6 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testViewExclusionScopeDoesNotBleedToSiblingSource() {
-        assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
         assumeTrue("requires VIEWS_WITH_BRANCHING", Cap.VIEWS_WITH_BRANCHING.isEnabled());
         createView("view_logs_exclusion_it", "FROM view_it_logs*, -view_it_logs_archive");
 
@@ -303,7 +240,6 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMixedViewAndIndexWithMetadataPatternExpandsPerBranch() {
-        assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
         assumeTrue("requires VIEWS_WITH_BRANCHING", Cap.VIEWS_WITH_BRANCHING.isEnabled());
         createView("view_logs_exclusion_it", "FROM view_it_logs*, -view_it_logs_archive");
 
@@ -320,7 +256,6 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMixedViewAndIndexOrderNotImportant() {
-        assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
         assumeTrue("requires VIEWS_WITH_BRANCHING", Cap.VIEWS_WITH_BRANCHING.isEnabled());
         createView("view_logs_b_it", "FROM view_it_logs_b");
 
@@ -341,7 +276,6 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMultiSourceViewBodyMetadataPassesThrough() {
-        assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
         assumeTrue("requires VIEWS_WITH_BRANCHING", Cap.VIEWS_WITH_BRANCHING.isEnabled());
         createView("view_multi_source_metadata_it", "FROM view_it_logs_a, view_it_logs_b METADATA _index");
 
@@ -353,208 +287,5 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
             assertThat(rows.get(1).get(0), equalTo("view_it_logs_b"));
             assertThat(rows.get(1).get(1), equalTo("view_it_logs_b"));
         }
-    }
-
-    public void testClassAndNameForSingleView() {
-        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
-        createView("view_langs_it", "FROM languages");
-        try (var response = run("FROM view_langs_it METADATA _class, _name | SORT language_code")) {
-            assertThat(column(response, "_class"), equalTo(nCopies(4, "view")));
-            assertThat(column(response, "_name"), equalTo(nCopies(4, "view_langs_it")));
-        }
-        // _class alone must also keep a pass-through view from being inlined into its index.
-        try (var response = run("FROM view_langs_it METADATA _class | SORT language_code")) {
-            assertThat(column(response, "_class"), equalTo(nCopies(4, "view")));
-        }
-    }
-
-    public void testClassAndNameViaWildcardPattern() {
-        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
-        createView("view_langs_wildcard_it", "FROM languages");
-        try (var response = run("FROM view_langs_wildcard_it METADATA _cl*, _na* | SORT language_code")) {
-            assertThat(column(response, "_class"), equalTo(nCopies(4, "view")));
-            assertThat(column(response, "_name"), equalTo(nCopies(4, "view_langs_wildcard_it")));
-        }
-    }
-
-    public void testClassAnsweredWhileIndexNullFilledOnView() {
-        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
-        createView("view_langs_nullfill_it", "FROM languages");
-        try (var response = run("FROM view_langs_nullfill_it METADATA _class, _name, _index | SORT language_code")) {
-            assertThat(column(response, "_class"), equalTo(nCopies(4, "view")));
-            assertThat(column(response, "_name"), equalTo(nCopies(4, "view_langs_nullfill_it")));
-            assertThat(column(response, "_index"), equalTo(nCopies(4, null)));
-        }
-    }
-
-    public void testClassAndNameOnViewEndingInWildcardKeep() {
-        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
-        createView("view_langs_keep_star_it", "FROM languages | KEEP *");
-        try (var response = run("FROM view_langs_keep_star_it METADATA _class, _name | SORT language_code")) {
-            assertThat(column(response, "_class"), equalTo(nCopies(4, "view")));
-            assertThat(column(response, "_name"), equalTo(nCopies(4, "view_langs_keep_star_it")));
-        }
-    }
-
-    public void testOuterWildcardKeepExposesClassAndName() {
-        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
-        createView("view_langs_outer_star_it", "FROM languages");
-        List<String> indexColumns;
-        try (var response = run("FROM languages METADATA _class, _name | KEEP * | SORT language_code")) {
-            indexColumns = response.columns().stream().map(ColumnInfoImpl::name).toList();
-        }
-        try (var response = run("FROM view_langs_outer_star_it METADATA _class, _name | KEEP * | SORT language_code")) {
-            assertThat(response.columns().stream().map(ColumnInfoImpl::name).toList(), equalTo(indexColumns));
-            assertThat(column(response, "_class"), equalTo(nCopies(4, "view")));
-            assertThat(column(response, "_name"), equalTo(nCopies(4, "view_langs_outer_star_it")));
-        }
-    }
-
-    public void testClassAndNameViewBesideIndex() {
-        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
-        assumeTrue("requires VIEWS_WITH_BRANCHING", Cap.VIEWS_WITH_BRANCHING.isEnabled());
-        createView("view_langs_beside_it", "FROM languages | WHERE language_code <= 2");
-
-        assertThat(
-            countsByClassAndName("FROM languages, view_langs_beside_it METADATA _class, _name"),
-            equalTo(List.of(row(4L, "index", "languages"), row(2L, "view", "view_langs_beside_it")))
-        );
-    }
-
-    public void testNestedViewInnerBodyClassAndNameOuterWins() {
-        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
-        assumeTrue("requires VIEWS_WITH_NO_BRANCHING", Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
-        createView("view_langs_inner_class_it", "FROM languages METADATA _class, _name");
-        createView("view_langs_outer_class_it", "FROM view_langs_inner_class_it");
-
-        try (var response = run("FROM view_langs_outer_class_it | SORT language_code")) {
-            assertThat(column(response, "_class"), equalTo(nCopies(4, "index")));
-            assertThat(column(response, "_name"), equalTo(nCopies(4, "languages")));
-        }
-        try (var response = run("FROM view_langs_outer_class_it METADATA _class, _name | SORT language_code")) {
-            assertThat(column(response, "_class"), equalTo(nCopies(4, "view")));
-            assertThat(column(response, "_name"), equalTo(nCopies(4, "view_langs_outer_class_it")));
-        }
-    }
-
-    public void testViewBodyDeclaresClassAndName() {
-        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
-        assumeTrue("requires VIEWS_WITH_NO_BRANCHING", Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
-        createView("view_langs_body_meta_it", "FROM languages METADATA _class, _name");
-
-        assertThat(countsByClassAndName("FROM view_langs_body_meta_it"), equalTo(List.of(row(4L, "index", "languages"))));
-        assertThat(
-            countsByClassAndName("FROM view_langs_body_meta_it METADATA _class, _name"),
-            equalTo(List.of(row(4L, "view", "view_langs_body_meta_it")))
-        );
-    }
-
-    public void testViewAndSubqueryBodiesDeclareClassAndNameOuterWins() {
-        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
-        assumeTrue("requires VIEWS_WITH_BRANCHING", Cap.VIEWS_WITH_BRANCHING.isEnabled());
-        createView("view_langs_both_bodies_it", "FROM languages METADATA _class, _name");
-
-        assertThat(
-            countsByClassAndName(
-                "FROM view_langs_both_bodies_it, (FROM languages METADATA _class, _name | WHERE language_code <= 2) METADATA _class, _name"
-            ),
-            equalTo(List.of(row(2L, "subquery", null), row(4L, "view", "view_langs_both_bodies_it")))
-        );
-    }
-
-    public void testViewWithBranchingBodyAndTrailingEvalAnswersTheView() {
-        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
-        assumeTrue("requires VIEWS_WITH_BRANCHING", Cap.VIEWS_WITH_BRANCHING.isEnabled());
-        createView(
-            "view_langs_union_eval_it",
-            "FROM languages, (FROM languages | WHERE language_code <= 2) | EVAL doubled = language_code * 2"
-        );
-
-        assertThat(
-            countsByClassAndName("FROM view_langs_union_eval_it METADATA _class, _name"),
-            equalTo(List.of(row(6L, "view", "view_langs_union_eval_it")))
-        );
-    }
-
-    public void testViewWithBareUnionBodyAnswersTheViewWhenFlattened() {
-        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
-        assumeTrue("requires VIEWS_WITH_BRANCHING", Cap.VIEWS_WITH_BRANCHING.isEnabled());
-        createView("view_langs_union_it", "FROM languages, (FROM languages | WHERE language_code <= 2)");
-
-        assertThat(
-            countsByClassAndName("FROM view_langs_union_it METADATA _class, _name"),
-            equalTo(List.of(row(6L, "view", "view_langs_union_it")))
-        );
-        assertThat(
-            countsByClassAndName("FROM view_langs_union_it, languages METADATA _class, _name"),
-            equalTo(List.of(row(4L, "index", "languages"), row(6L, "view", "view_langs_union_it")))
-        );
-    }
-
-    public void testViewOfViewsAnswersTheOuterView() {
-        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
-        assumeTrue("requires VIEWS_WITH_BRANCHING", Cap.VIEWS_WITH_BRANCHING.isEnabled());
-        createView("view_langs_low_it", "FROM languages | WHERE language_code <= 2");
-        createView("view_langs_high_it", "FROM languages | WHERE language_code > 2");
-        createView("view_langs_of_views_it", "FROM view_langs_low_it, view_langs_high_it");
-
-        assertThat(
-            countsByClassAndName("FROM view_langs_of_views_it METADATA _class, _name"),
-            equalTo(List.of(row(4L, "view", "view_langs_of_views_it")))
-        );
-        assertThat(
-            countsByClassAndName("FROM view_langs_of_views_it, languages METADATA _class, _name"),
-            equalTo(List.of(row(4L, "index", "languages"), row(4L, "view", "view_langs_of_views_it")))
-        );
-    }
-
-    public void testSubqueryAroundViewsAnswersSubquery() {
-        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
-        assumeTrue("requires VIEWS_WITH_BRANCHING", Cap.VIEWS_WITH_BRANCHING.isEnabled());
-        createView("view_langs_low_it", "FROM languages | WHERE language_code <= 2");
-        createView("view_langs_high_it", "FROM languages | WHERE language_code > 2");
-
-        assertThat(
-            countsByClassAndName("FROM (FROM view_langs_low_it) METADATA _class, _name"),
-            equalTo(List.of(row(2L, "subquery", null)))
-        );
-        assertThat(
-            countsByClassAndName("FROM languages, (FROM view_langs_low_it) METADATA _class, _name"),
-            equalTo(List.of(row(4L, "index", "languages"), row(2L, "subquery", null)))
-        );
-        assertThat(
-            countsByClassAndName("FROM languages, (FROM view_langs_low_it, view_langs_high_it) METADATA _class, _name"),
-            equalTo(List.of(row(4L, "index", "languages"), row(4L, "subquery", null)))
-        );
-    }
-
-    public void testViewBodyAsksClassAndNameOfItsUnionBodyView() {
-        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
-        assumeTrue("requires VIEWS_WITH_BRANCHING", Cap.VIEWS_WITH_BRANCHING.isEnabled());
-        createView("view_langs_union_it", "FROM languages, (FROM languages | WHERE language_code <= 2)");
-        createView("view_langs_asks_it", "FROM view_langs_union_it, languages METADATA _class, _name");
-
-        assertThat(
-            countsByClassAndName("FROM view_langs_asks_it"),
-            equalTo(List.of(row(4L, "index", "languages"), row(6L, "view", "view_langs_union_it")))
-        );
-    }
-
-    private List<List<Object>> countsByClassAndName(String from) {
-        try (var response = run(from + " | STATS n = COUNT(*) BY _class, _name | SORT _class, _name")) {
-            return getValuesList(response);
-        }
-    }
-
-    private static List<Object> row(Object... values) {
-        return Arrays.asList(values);
-    }
-
-    private static PutViewAction.Request putViewRequest(String name, String query) {
-        return new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(name, query));
-    }
-
-    private static DeleteViewAction.Request deleteViewRequest(String name) {
-        return new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { name });
     }
 }

@@ -80,8 +80,14 @@ public interface IndexStorePlugin {
          * @param shardRouting the routing entry for the shard being created
          * @param localNode    the node on which the shard is being created
          * @param sourceNode   the node from which the shard is being recovered, or {@code null} for non-peer recoveries
+         * @param localRetries how many times this shard's recovery has already failed and been retried locally on this data node
          */
-        RecoveryState newRecoveryState(ShardRouting shardRouting, DiscoveryNode localNode, @Nullable DiscoveryNode sourceNode);
+        RecoveryState newRecoveryState(
+            ShardRouting shardRouting,
+            DiscoveryNode localNode,
+            @Nullable DiscoveryNode sourceNode,
+            int localRetries
+        );
     }
 
     /**

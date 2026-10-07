@@ -203,7 +203,7 @@ public class NdJsonPageDecoder implements Closeable {
      * Set when the BYTE-ARRAY path drops an oversized record and keeps decoding. Unlike {@link #truncated}
      * (streaming, which stops at the record), the byte-array path recovers, so the emitted rows are complete
      * EXCEPT the dropped one — a {@code external_max_record_size}-dependent under-count. Since {@code external_max_record_size}
-     * is a query pragma and not in the cache fingerprint ({@code SchemaCacheKey.FORMAT_AFFECTING_PARAMS}), a
+     * is a query pragma and so is in no participant's declared keys, and therefore in no cache identity, a
      * warm aggregate under a different cap would count differently, so {@link NdJsonPageIterator} must keep
      * this scan out of the stats cache (safe-miss). Mirrors CSV's {@code recordCapDropped} guard.
      */
@@ -263,6 +263,12 @@ public class NdJsonPageDecoder implements Closeable {
     /** Informational warning sink for absent declared columns; {@code null} when no sink is wired. */
     @Nullable
     private Consumer<String> absentColumnWarningSink;
+    /**
+     * Streaming chunks close independently. Only the file-final chunk may emit absent-column
+     * warnings; an interior compressed chunk would otherwise treat a sparse overlay column as
+     * missing. Defaults to {@code true} so whole-file and test-only decoder construction still warn.
+     */
+    private boolean reportAbsentDeclaredColumns = true;
     private final ErrorPolicy errorPolicy;
     /** The file as messages name it; callers pass it already redacted. */
     private final String sourceLocation;
@@ -995,6 +1001,16 @@ public class NdJsonPageDecoder implements Closeable {
     }
 
     /**
+     * Gates {@link #close()}'s absent-declared-column warning on whether this decoder saw the file's
+     * true end. Interior streaming chunks must pass {@code false}: {@code schema_sample_size:1}
+     * overlay columns often appear only in later records, and a first gzip/zstd chunk would warn
+     * spuriously.
+     */
+    void setReportAbsentDeclaredColumns(boolean report) {
+        this.reportAbsentDeclaredColumns = report;
+    }
+
+    /**
      * Whether the per-record {@code external_max_record_size} check runs in the decode loop. False on the
      * byte-array hot path when the whole segment is within the cap (no record can exceed the buffer
      * that contains it) — the streaming-parallel chunk case that issue 965 must keep free of any
@@ -1446,7 +1462,7 @@ public class NdJsonPageDecoder implements Closeable {
         // when all records were dropped by skip_row (totalRowCount > 0 but nothing committed). A column
         // absent from every committed record is effectively absent from the file, so we use
         // absentDeclaredColumnMessage to deduplicate cleanly with Parquet/SAI warnings via InformationalWarningBudget.
-        if (absentColumnWarningSink != null && committedRowCount > 0) {
+        if (reportAbsentDeclaredColumns && absentColumnWarningSink != null && committedRowCount > 0) {
             for (int i = 0; i < projectedAttributes.size(); i++) {
                 if (columnEverPresent.get(i) == false) {
                     Attribute attr = projectedAttributes.get(i);

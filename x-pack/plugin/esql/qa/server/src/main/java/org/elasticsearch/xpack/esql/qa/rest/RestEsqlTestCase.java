@@ -1390,40 +1390,33 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     public void testSubqueryWithFork() throws IOException {
         bulkLoadTestData(10);
-
-        ResponseException re = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(
-                requestObjectBuilder().query(
-                    format(
-                        null,
-                        "from {}, (from {} | where integer > 1) | fork (where long > 2) (where ip == \"127.0.0.1\") | stats count(*)",
-                        testIndexName(),
-                        testIndexName()
-                    )
+        // 10 docs with integer/long = i and ip = 127.0.0.i for i in [0, 9].
+        // Main: 10 rows. Subquery integer > 1: 8 rows (2-9). Union: 18 rows.
+        // FORK (long > 2): 7 main + 7 subquery. FORK (ip == 127.0.0.1): 1 main + 0 subquery. Total 15.
+        Map<String, Object> result = runEsql(
+            requestObjectBuilder().query(
+                format(
+                    null,
+                    "from {}, (from {} | where integer > 1) | fork (where long > 2) (where ip == \"127.0.0.1\") | stats count(*)",
+                    testIndexName(),
+                    testIndexName()
                 )
             )
         );
-        String error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
-        assertThat(error, containsString("VerificationException"));
-        assertThat(error, containsString("FORK after subquery is not supported"));
+        assertResultMap(result, matchesList().item(matchesMap().entry("name", "count(*)").entry("type", "long")), List.of(List.of(15)));
 
-        re = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(
-                requestObjectBuilder().query(
-                    format(
-                        null,
-                        "from {}, (from {} | where integer > 1 | fork (where long > 2) ( where ip == \"127.0.0.1\")) | stats count(*)",
-                        testIndexName(),
-                        testIndexName()
-                    )
+        // Main: 10 rows. Subquery integer > 1 then FORK: long > 2 keeps 7, ip == 127.0.0.1 keeps 0. Total 17.
+        result = runEsql(
+            requestObjectBuilder().query(
+                format(
+                    null,
+                    "from {}, (from {} | where integer > 1 | fork (where long > 2) (where ip == \"127.0.0.1\")) | stats count(*)",
+                    testIndexName(),
+                    testIndexName()
                 )
             )
         );
-        error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
-        assertThat(error, containsString("VerificationException"));
-        assertThat(error, containsString("FORK inside subquery is not supported"));
+        assertResultMap(result, matchesList().item(matchesMap().entry("name", "count(*)").entry("type", "long")), List.of(List.of(17)));
     }
 
     private static String queryWithComplexFieldNames(int field) {

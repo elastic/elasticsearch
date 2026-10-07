@@ -129,8 +129,8 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
     public void testPrefetchWithTightBreakerLimit() throws Exception {
         MessageType wideSchema = buildWideSchema(10);
         byte[] parquetData = createMultiRowGroupFile(wideSchema, 5000, 50 * 1024);
-        // Cover the clamped window (file length, or 4 MiB if the object is larger) and leave ~2 MB
-        // so decode or prefetch allocations may still trip the breaker.
+        // The budget is that clamped size plus ~2 MiB so decode or prefetch may still trip; it is
+        // not a claim that the sliding window stays reserved for the read.
         long windowCharge = Math.min(parquetData.length, ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE);
         var breaker = new TrackingBreaker("test", ByteSizeValue.ofBytes(windowCharge + 2 * 1024 * 1024));
         BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
@@ -212,8 +212,8 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
         }
         assertTrue("Should have read rows", totalRows > 0);
         assertEquals("Breaker should return to zero", 0, breaker.getUsed());
-        // Peak includes the clamped window (file length when the object fits, else 4 MiB) plus
-        // prefetch/decode. Bound against that window, not the historical 4 MiB floor.
+        // The bound has room for a clamped window plus prefetch and decode; it does not require
+        // the window to have been charged.
         long windowCharge = Math.min(parquetData.length, ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE);
         assertTrue(
             "Peak prefetch breaker usage should be bounded (was " + breaker.peakUsed + " bytes)",

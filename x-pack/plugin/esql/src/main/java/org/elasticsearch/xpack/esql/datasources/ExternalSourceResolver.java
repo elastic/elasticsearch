@@ -1693,7 +1693,7 @@ public class ExternalSourceResolver {
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingSchemaWarnings::add);
         }
 
-        // _file.* columns are request-driven now; no auto-attach to the schema.
+        // _file.* columns are request-driven; they are not auto-attached to the schema.
 
         // FFW: every file's readSchema is the anchor's physical schema; the mapping is identity unless a partition
         // key shadows a physical column, in which case it narrows the output to the data-only columns (the shadowed
@@ -2554,7 +2554,7 @@ public class ExternalSourceResolver {
                         extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingSchemaWarnings::add);
                     }
 
-                    // _file.* columns are request-driven now; no auto-attach to the schema.
+                    // _file.* columns are request-driven; they are not auto-attached to the schema.
 
                     Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = result.perFileInfo();
                     resolved = new ExternalSourceResolution.ResolvedSource(extMetadata, fileList, schemaMap);
@@ -2950,13 +2950,14 @@ public class ExternalSourceResolver {
         // describes the file and is the same answer whoever asks, so when it already carries THIS read's
         // measurements there is nothing a read-addressed record could add.
         //
-        // The order is what keeps the second lookup off the common path. Under first_file_wins a file whose own
-        // schema IS the one the query binds is stamped with this very read, so for the non-divergent majority
-        // the statistics get never happens. Asking for it first cost a guaranteed miss per file: Cache#get
-        // counts every absent lookup, so it both doubled the segment traffic across N files and reported a
-        // miss per file in schema_cache.misses, which is the ratio an operator reads to size this cache.
+        // The order is what keeps the second lookup off the common path. Under first_file_wins a text file whose
+        // own schema IS the one the query binds is stamped with this very read; a columnar file is never stamped
+        // and can have no statistics record at all. Either way the statistics get does not happen. Asking for it
+        // first cost a guaranteed miss per file: Cache#get counts every absent lookup, so it both doubled the
+        // segment traffic across N files and reported a miss per file in schema_cache.misses, which is the ratio
+        // an operator reads to size this cache.
         SchemaCacheEntry cached = cacheService.getSchemaIfPresent(schemaKey);
-        if (cached != null && committedUnderRead(cached, boundReadConfig)) {
+        if (cached != null && schemaRecordAnswersTheRead(cached, boundReadConfig)) {
             pendingMetadataWarnings.addAll(cached.warnings());
             listener.onResponse(buildMetadataFromCache(cached, cached.toAttributes(), config));
             return;
@@ -2988,15 +2989,28 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Whether a schema record's committed statistics were harvested under the read this resolve binds, which is
-     * what decides if the read-addressed statistics record needs consulting at all.
+     * Whether the schema record can answer this read on its own, which is what decides if the read-addressed
+     * statistics record needs consulting at all. False only when a statistics record could both exist and hold
+     * something this record does not.
      * <p>
-     * A record carries the stamp of the read that produced it. Enrichment does not move it: a licensed subset
-     * contributes a row count and no stamp, so a record enriched by a foreign read still reports its own. An
-     * unbound resolve (no bound read) is served by any record, because nothing pins what it must have measured.
+     * Three ways it answers. An unbound resolve pins nothing about what must have been measured. A read
+     * configuration that resolved to {@link ReadConfigFingerprint#UNKNOWN} addresses nothing of its own —
+     * {@code withReadConfig("")} returns the same key — so consulting it would re-fetch this very record. And a
+     * columnar record is never stamped at all, deliberately: see {@link #stampInferredReadConfig}, whose harvests
+     * are footer-derived and carry no read configuration, so {@code reconcileSourceStats} never files a statistics
+     * record for one. Asking for that address would be a guaranteed miss on every columnar file — and
+     * {@code Cache#get} counts an absent key as a miss, so it would also be a per-file distortion of
+     * {@code schema_cache.misses} on the format that dominates.
+     * <p>
+     * Otherwise the stamp decides. A record carries the stamp of the read that produced it, and enrichment does
+     * not move it: a licensed subset contributes a row count and no stamp, so a record enriched by a foreign read
+     * still reports its own.
      */
-    private static boolean committedUnderRead(SchemaCacheEntry entry, @Nullable String boundReadConfig) {
-        if (boundReadConfig == null) {
+    private static boolean schemaRecordAnswersTheRead(SchemaCacheEntry entry, @Nullable String boundReadConfig) {
+        if (boundReadConfig == null || boundReadConfig.isEmpty()) {
+            return true;
+        }
+        if (FILE_TYPED_FORMATS.contains(entry.sourceType())) {
             return true;
         }
         return boundReadConfig.equals(entry.safeMetadata().get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY));

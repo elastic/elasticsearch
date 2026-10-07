@@ -1941,31 +1941,111 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     /**
-     * A stripe delta must not land on a statistics record. The record holds no types of its own - it carries the
-     * columns of the schema record it was built beside, which belong to a DIFFERENT read - and the per-stripe
-     * coercion normalises each extremum against those types. Landing there marks the column unservable on the one
-     * record that actually measured it.
+     * A stripe delta must not land on a statistics record, and the consequence is a ROUNDED extremum, not only a
+     * lost one.
      * <p>
-     * Shape: read "own" resolves the file and its schema record types {@code v} as KEYWORD. A whole-file harvest
-     * from read "other" files a statistics record under "other" (carrying the schema record's KEYWORD type for
-     * {@code v}). A stripe delta from read "other" then arrives. Both records match the path and mtime, and the
-     * statistics record passes the read-shape gate because its own stamp IS "other" - so without the guard the
-     * delta lands on it and coerces a numeric min against KEYWORD.
+     * A statistics record holds no types of its own: it carries the columns of the schema record it was built
+     * beside, which belong to a DIFFERENT read. The per-stripe coercion normalises each extremum against those
+     * types, so a delta landing there is measured against another read's resolution.
      * <p>
-     * Inject the defect by deleting the {@code isStatisticsRecord()} continue in {@code applyStripeDelta}: the
-     * unservable marker appears on the statistics record and the assertion below turns red.
+     * Two independent files, because one cannot show both halves: a delta only passes the read-shape gate on a
+     * record stamped with its own read, so in the scenario where a statistics record exists the schema record
+     * beside it is stamped differently and takes nothing.
+     * <ul>
+     *   <li>{@code control.csv} - a schema record stamped with the delta's own read and typing {@code v} as
+     *       DOUBLE. The delta lands, and the committed stripe holds the ROUNDED value, not the long harvested.
+     *       This is what makes the guard load-bearing rather than hypothetical. A KEYWORD column here would be
+     *       vacuous: {@code coerceColumnStatsToResolvedTypes} skips a column whose resolved type is not numeric,
+     *       so nothing would be coerced with or without the guard.</li>
+     *   <li>{@code guarded.csv} - a schema record stamped with a different read, so a foreign harvest files a
+     *       statistics record. The delta from that read must take none of it.</li>
+     * </ul>
+     * Inject the defect by deleting the {@code isStatisticsRecord()} continue in {@code applyStripeDelta}: stripe
+     * state appears on the statistics record and the guarded assertions turn red.
      */
     public void testAStripeDeltaDoesNotLandOnAStatisticsRecord() throws Exception {
+        long mtime = 1000L;
+        long pastExactDoubleRange = 9007199254740993L; // 2^53 + 1
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
-            String path = "file:///data/v.csv";
-            long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, TestDatasetIdentities.identity(".csv", "id", Map.of()), false);
-            // The schema record resolves v as KEYWORD - the anchor's resolution, not this file's own.
-            List<Attribute> schema = List.of(
-                new ReferenceAttribute(Source.EMPTY, null, "v", DataType.KEYWORD, Nullability.TRUE, null, false)
+
+            // ---- control: the delta lands on a record stamped with its own read, and DOUBLE rounds it ----
+            String control = "file:///data/control.csv";
+            SchemaCacheKey controlKey = seedDoubleTypedRecord(service, control, mtime, "other");
+            Map<String, Object> controlDelta = stripeFragment(mtime, "fp", 30L, 100L, 0, 0, 100, true, true, false);
+            controlDelta.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "other");
+            controlDelta.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "v.min", pastExactDoubleRange);
+            service.reconcileSourceStatsFromContributions(Map.of(control, List.of(controlDelta)));
+
+            SchemaCacheEntry controlRecord = service.getSchemaIfPresent(controlKey);
+            assertNotNull(controlRecord);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> stripe0 = (Map<String, Object>) controlRecord.safeMetadata().get(ExternalStats.STRIPE_ENTRY_PREFIX + "0");
+            assertNotNull("the delta must land where the read matches", stripe0);
+            Object coerced = stripe0.get(SourceStatisticsSerializer.STATS_COL_PREFIX + "v.min");
+            assertTrue("DOUBLE coercion is live on this path, got " + coerced, coerced instanceof Double);
+            // Compared as a long, not as a double: casting the long to double rounds it the same way, so a
+            // double-to-double comparison would be comparing the rounded value with itself.
+            assertNotEquals(
+                "2^53+1 does not survive DOUBLE, which is why it must not reach a record it does not type",
+                pastExactDoubleRange,
+                ((Number) coerced).longValue()
             );
+
+            // ---- guarded: a statistics record exists, and the delta from its read must not touch it ----
+            String guarded = "file:///data/guarded.csv";
+            SchemaCacheKey guardedKey = seedDoubleTypedRecord(service, guarded, mtime, "own");
+            Map<String, Object> foreign = new LinkedHashMap<>();
+            foreign.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
+            foreign.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
+            foreign.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "other");
+            foreign.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "v.min", pastExactDoubleRange);
+            service.reconcileSourceStats(Map.of(guarded, foreign));
+
+            SchemaCacheKey statsKey = guardedKey.withReadConfig("other");
+            assertNotNull("the foreign read must have its own record", service.getSchemaIfPresent(statsKey));
+
+            Map<String, Object> guardedDelta = stripeFragment(mtime, "fp", 30L, 100L, 0, 0, 100, true, true, false);
+            guardedDelta.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "other");
+            guardedDelta.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "v.min", pastExactDoubleRange);
+            service.reconcileSourceStatsFromContributions(Map.of(guarded, List.of(guardedDelta)));
+
+            SchemaCacheEntry stats = service.getSchemaIfPresent(statsKey);
+            assertNotNull(stats);
+            assertNull(
+                "no stripe state may fold onto a statistics record",
+                stats.safeMetadata().get(ExternalStats.STRIPE_ENTRY_PREFIX + "0")
+            );
+            assertNull("nor a grid stamp", stats.safeMetadata().get(ExternalStats.STRIPE_GRID_KEY));
+            assertEquals(
+                "and its own harvested measurement stays exact",
+                pastExactDoubleRange,
+                ((Number) stats.safeMetadata().get(SourceStatisticsSerializer.STATS_COL_PREFIX + "v.min")).longValue()
+            );
+        }
+    }
+
+    /**
+     * A declared-strict key gets no statistics record, because nothing could ever read one.
+     * <p>
+     * {@code strictSingleFileMetadata} is the only site that mints {@code declaredStrict=true}, and every lookup
+     * builds its key with {@code declaredStrict=false}. So a statistics record derived from a strict key is
+     * write-only: it charges the schema budget and evicts live entries through the LRU to hold an address nothing
+     * asks for. Wiring that rail is a separate change; until then it is not written.
+     * <p>
+     * Inject the defect by dropping {@code key.declaredStrict() == false} from the filing condition in
+     * {@code reconcileSourceStats}: the record appears and the first assertion turns red.
+     */
+    public void testAStrictDeclaredKeyGetsNoStatisticsRecord() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/strict.csv";
+            long mtime = 1000L;
+            DatasetIdentity id = TestDatasetIdentities.identity(".csv", "id", Map.of());
+            SchemaCacheKey strictKey = SchemaCacheKey.build(path, mtime, id, true);
+            assertTrue("precondition: this is the declared-strict rail", strictKey.declaredStrict());
+
+            List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "a", DataType.LONG, Nullability.TRUE, null, false));
             service.getOrComputeSchema(
-                key,
+                strictKey,
                 k -> SchemaCacheEntry.from(
                     schema,
                     "csv",
@@ -1982,31 +2062,70 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 )
             );
 
-            // A foreign read's whole-file harvest, which files a statistics record addressed by "other".
+            // A harvest from a different read, which on a non-strict key would file a read-addressed record.
             Map<String, Object> foreign = new LinkedHashMap<>();
             foreign.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
             foreign.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
             foreign.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "other");
-            foreign.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "v.min", 7L);
+            foreign.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "a.max", 42L);
             service.reconcileSourceStats(Map.of(path, foreign));
 
-            SchemaCacheKey statsKey = key.withReadConfig("other");
-            assertNotNull("the foreign read must have its own record", service.getSchemaIfPresent(statsKey));
-
-            // Now a stripe delta from that same read. It passes the read-shape gate on the statistics record.
-            Map<String, Object> delta = stripeFragment(mtime, "fp", 30L, 100L, 0, 0, 100, true, true, false);
-            delta.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "other");
-            delta.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "v.min", 7L);
-            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(delta)));
-
-            SchemaCacheEntry stats = service.getSchemaIfPresent(statsKey);
-            assertNotNull(stats);
             assertNull(
-                "a stripe delta must not coerce the statistics record against the schema record's types",
-                stats.safeMetadata().get(SourceStatisticsSerializer.columnMinUnservableKey("v"))
+                "no statistics record may be filed against a declared-strict key: no lookup can reach it",
+                service.getSchemaIfPresent(strictKey.withReadConfig("other"))
             );
-            assertNull("and must not fold stripe state onto it", stats.safeMetadata().get(ExternalStats.STRIPE_ENTRY_PREFIX + "0"));
+
+            // Positive control over the same harvest: on the inferred key for the same file it IS filed, so the
+            // assertion above is about the strict rail and not about the harvest being unfileable.
+            SchemaCacheKey inferredKey = SchemaCacheKey.build(path, mtime, id, false);
+            service.getOrComputeSchema(
+                inferredKey,
+                k -> SchemaCacheEntry.from(
+                    schema,
+                    "csv",
+                    path,
+                    Map.of(
+                        ExternalStats.CONFIG_FINGERPRINT_KEY,
+                        "fp",
+                        ExternalStats.MTIME_MILLIS_KEY,
+                        mtime,
+                        ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
+                        "own"
+                    ),
+                    Map.of()
+                )
+            );
+            service.reconcileSourceStats(Map.of(path, foreign));
+            assertNotNull(
+                "the same harvest on the inferred key does file one",
+                service.getSchemaIfPresent(inferredKey.withReadConfig("other"))
+            );
         }
+    }
+
+    /** A per-file schema record typing {@code v} as DOUBLE, stamped with the given read configuration. */
+    private static SchemaCacheKey seedDoubleTypedRecord(ExternalSourceCacheService service, String path, long mtime, String readConfig)
+        throws Exception {
+        SchemaCacheKey key = SchemaCacheKey.build(path, mtime, TestDatasetIdentities.identity(".csv", "id", Map.of()), false);
+        List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "v", DataType.DOUBLE, Nullability.TRUE, null, false));
+        service.getOrComputeSchema(
+            key,
+            k -> SchemaCacheEntry.from(
+                schema,
+                "csv",
+                path,
+                Map.of(
+                    ExternalStats.CONFIG_FINGERPRINT_KEY,
+                    "fp",
+                    ExternalStats.MTIME_MILLIS_KEY,
+                    mtime,
+                    ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
+                    readConfig
+                ),
+                Map.of()
+            )
+        );
+        return key;
     }
 
     public void testReconcileAccumulatesStripesAcrossQueries() throws Exception {
@@ -3269,7 +3388,6 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         assertNull("stripe 1 must not commit", entry.safeMetadata().get(ExternalStats.STRIPE_ENTRY_PREFIX + "1"));
     }
 
-    /** {@link #seedSchemaCache} plus a resolved read-configuration fingerprint on the entry's metadata. */
     /**
      * The licensed branch files the rest of the harvest too. Under a strict error policy the producer licenses the
      * physical row count to cross read configurations, so the admission is PARTIAL: the count enriches the schema
@@ -3380,13 +3498,6 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     /**
-     * A statistics record holds no types of its own — it is built beside a schema record and carries that record's
-     * columns — so a harvest from a DIFFERENT read must not enrich it. Contribution matching compares path, mtime and
-     * format config and never the read, so every statistics record for a path is matched by every contribution for it.
-     * Without the read check, the second one lands on the first one's address and is coerced through the schema
-     * record's types, which belong to neither.
-     */
-    /**
      * A statistics record accumulates across queries rather than being replaced. Different cold queries harvest
      * different columns under PROJECTED scope, so a harvest of MIN(a) followed by one of MIN(b) must leave both:
      * if the second replaces the first, a divergent file queried with alternating projections re-reads every
@@ -3454,6 +3565,13 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * A statistics record holds no types of its own — it is built beside a schema record and carries that record's
+     * columns — so a harvest from a DIFFERENT read must not enrich it. Contribution matching compares path, mtime and
+     * format config and never the read, so every statistics record for a path is matched by every contribution for it.
+     * Without the read check, the second one lands on the first one's address and is coerced through the schema
+     * record's types, which belong to neither.
+     */
     public void testAForeignReadDoesNotEnrichAStatisticsRecord() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "s3://bucket/data/a.csv";
@@ -3503,6 +3621,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    /** {@link #seedSchemaCache} plus a resolved read-configuration fingerprint on the entry's metadata. */
     private static void seedSchemaCacheWithReadConfig(
         ExternalSourceCacheService service,
         SchemaCacheKey key,

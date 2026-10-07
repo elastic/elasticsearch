@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
@@ -23,6 +24,69 @@ import java.util.Set;
 public class SchemaCacheKeyTests extends ESTestCase {
 
     private static final String PATTERN = "s3://bucket/data/*.ndjson";
+
+    /** A realistic per-file identity: a folded participant string, a definition version and a secret digest. */
+    private static DatasetIdentity identity() {
+        return DatasetIdentity.of(
+            "9f86d081884c7d65",
+            "2c26b46b68ffc68f",
+            "s3|eu-west-1|bucket",
+            "csv|sep=,|header=true",
+            "fail_fast:0:0.0|first_file_wins"
+        );
+    }
+
+    /**
+     * The key's footprint, measured. Shrinking the key is the point of this shape: a schema record's key holds a
+     * dataset identity, a path reference, an mtime and a flag, and the identity is six {@code long}s and an int
+     * behind one reference rather than a set of strings rebuilt per key.
+     * <p>
+     * {@link RamUsageEstimator#shallowSizeOf} is used rather than {@code sizeOfObject}: the latter cannot
+     * introspect a plain object and returns {@code UNKNOWN_DEFAULT_RAM_BYTES_USED}, a 256-byte constant, which
+     * looks exactly like a measurement and is not one. Shallow sizes are computed from the class layout, so the
+     * retained graph is summed explicitly here - which also makes it visible that the path string, not the key,
+     * is what dominates, and the path is not this change's to shrink.
+     * <p>
+     * Ceilings rather than equalities, because object layout varies with the JVM and with compressed oops. They
+     * are tight enough that adding a string component back to the key, or giving the identity a nested object or
+     * a retained string, fails them.
+     */
+    public void testThePerFileKeyFootprintStaysSmall() {
+        DatasetIdentity identity = identity();
+        SchemaCacheKey key = SchemaCacheKey.build("s3://bucket/data/part-00000.csv", 1730000000000L, identity, false);
+
+        long keyShallow = RamUsageEstimator.shallowSizeOf(key);
+        long identityShallow = RamUsageEstimator.shallowSizeOf(identity);
+
+        // Six longs, an int and a header. A nested object or a retained string in the identity breaks this.
+        assertTrue("DatasetIdentity should stay at or under 80B, measured " + identityShallow + "B", identityShallow <= 80);
+        // The key itself: one reference, a long, a boolean, two nullable references, and a header. A string
+        // component added back costs a reference here plus ~40B of object overhead before its characters.
+        assertTrue("the per-file key should stay at or under 64B, measured " + keyShallow + "B", keyShallow <= 64);
+        // What the key costs over and above the path it has to name, which is the figure this shape improves.
+        assertTrue(
+            "key plus identity should stay at or under 128B, measured " + (keyShallow + identityShallow) + "B",
+            keyShallow + identityShallow <= 128
+        );
+    }
+
+    /**
+     * A schema record's key retains no read-configuration string. Only a statistics record is addressed by its
+     * read, so that is the one kind of key that pays for the extra component, and it pays for it in the
+     * reference the key already has rather than in a wider object.
+     */
+    public void testASchemaRecordKeyRetainsNoReadConfiguration() {
+        SchemaCacheKey schema = SchemaCacheKey.build("s3://bucket/data/a.csv", 1L, identity(), false);
+        assertNull("a schema record is not addressed by a read", schema.readConfig());
+
+        SchemaCacheKey stats = schema.withReadConfig("0123456789abcdef0123456789abcdef");
+        assertNotNull("a statistics record is", stats.readConfig());
+        assertEquals(
+            "and it costs no extra field to say so",
+            RamUsageEstimator.shallowSizeOf(schema),
+            RamUsageEstimator.shallowSizeOf(stats)
+        );
+    }
 
     public void testDatasetAggregateKeyStableForSameInputs() {
         SchemaCacheKey a = SchemaCacheKey.forDatasetAggregate(

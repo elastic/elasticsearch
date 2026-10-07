@@ -4462,9 +4462,71 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         // The lane that does the work, named explicitly so a future reader does not have to re-derive it.
         assertThat(FileSourceFactory.coordinatorIdentity(asCsv), not(equalTo(FileSourceFactory.coordinatorIdentity(asNdjson))));
-        // And the lane that does NOT: the reader slot is blind to the format here, which is why the key cannot
-        // lean on it. Pinned so that moving the format key into the inert set cannot pass quietly.
-        assertThat(resolver.formatConfigIdentity(object, asCsv), equalTo(resolver.formatConfigIdentity(object, asNdjson)));
+        // And the lane that does NOT. Asserted on the real readers rather than through the resolver: this
+        // fixture registers only a parquet reader, so resolver.formatConfigIdentity would return "" for both
+        // formats because neither reader resolves, and comparing "" to "" would prove nothing about either one.
+        String csvLane = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfigTrackingConsumedKeys(asCsv).identity();
+        String ndjsonLane = new NdJsonFormatReader(Settings.EMPTY, blockFactory, null).withConfigTrackingConsumedKeys(asNdjson).identity();
+        assertThat(
+            "neither reader's identity carries a format name, which is why the key cannot lean on this lane",
+            csvLane,
+            equalTo(ndjsonLane)
+        );
+        // Positive control for the assertion above: a reader's identity is non-empty once its config carries a
+        // setting it recognizes, so the equality is about the format name being absent and not about the whole
+        // lane being empty for every input.
+        assertThat(
+            new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfigTrackingConsumedKeys(
+                Map.of(FormatNameResolver.CONFIG_FORMAT, "csv", "separator", ";")
+            ).identity(),
+            not(equalTo(""))
+        );
+    }
+
+    /**
+     * A warm columnar resolve must cost ONE schema-cache lookup per file, not two.
+     * <p>
+     * The read-addressed statistics record is consulted only when the schema record cannot answer the bound read.
+     * A columnar record is never stamped ({@code stampInferredReadConfig} returns it unchanged for
+     * {@code FILE_TYPED_FORMATS}) and no statistics record is ever filed for one, so asking for that address is a
+     * guaranteed miss. {@code Cache#get} counts an absent key, so the cost is both a doubled lookup per file and a
+     * per-file distortion of {@code schema_cache.misses} — the ratio an operator reads to size this cache — on the
+     * format that dominates.
+     * <p>
+     * It has to be a MULTI-file first-file-wins resolve: that is the rail that binds a read configuration. A
+     * single-file resolve passes no bound read at all, so it never reaches the arm under test and would pass
+     * whatever the predicate said.
+     * <p>
+     * Inject the defect by dropping the {@code FILE_TYPED_FORMATS} arm of {@code schemaRecordAnswersTheRead}: the
+     * warm resolve then books one miss per file and the miss assertion turns red.
+     */
+    public void testAWarmColumnarResolveBooksNoExtraSchemaCacheMiss() throws Exception {
+        String glob = "s3://bucket/data/*.parquet";
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER), attr("y", DataType.KEYWORD));
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        List<StorageEntry> listing = new ArrayList<>();
+        for (String n : List.of("a", "b", "c")) {
+            schemas.put("s3://bucket/data/" + n + ".parquet", schema);
+            listing.add(entry("s3://bucket/data/" + n + ".parquet", 100));
+        }
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemas);
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
+
+            assertNotNull(resolveWith(resolver, glob, Map.of(), FormatReader.SchemaResolution.FIRST_FILE_WINS).resolvedSource(glob));
+            long missesAfterCold = ((Number) cacheService.usageStats().get("schema_cache.misses")).longValue();
+
+            assertNotNull(resolveWith(resolver, glob, Map.of(), FormatReader.SchemaResolution.FIRST_FILE_WINS).resolvedSource(glob));
+
+            Map<String, Object> after = cacheService.usageStats();
+            assertEquals(
+                "a warm columnar resolve must book no further miss: there is no statistics address to ask for",
+                missesAfterCold,
+                ((Number) after.get("schema_cache.misses")).longValue()
+            );
+            assertTrue("and it must book a hit per file", ((Number) after.get("schema_cache.hits")).longValue() >= listing.size());
+        }
     }
 
     // ===== Empty resolution =====

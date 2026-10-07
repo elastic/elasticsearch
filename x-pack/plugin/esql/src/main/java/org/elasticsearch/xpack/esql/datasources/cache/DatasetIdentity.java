@@ -30,8 +30,9 @@ import java.util.Map;
  *       BOTH the dataset's definition and its data source's into one value. So the separation the next
  *       lane exists for is prepared and not yet real: editing a data source still moves this lane. The
  *       split needs {@code DefinitionVersion} to vend the two halves separately, which it does not.</li>
- *   <li><b>source</b> - currently only the digest of the declared-secret settings the provider consumed;
- *       {@code dataSourceVersion} is null at every call site until that split exists.</li>
+ *   <li><b>source</b> - the digest of the declared-secret settings the provider consumed, and only that. The
+ *       data source's own definition version does not reach this lane: there is no parameter for it, because
+ *       the dataset lane above already folds it. This lane separates from that one once the split exists.</li>
  *   <li><b>participants</b> - what the resolved parties say identifies them: the storage provider's own
  *       identity, the format reader's identity for its configuration, and the coordinator's for its own.
  *       Separate from the two definitions because a query can reach these stores with no stored dataset

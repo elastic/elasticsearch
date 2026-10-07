@@ -251,8 +251,15 @@ public class ReadConfigFingerprintDerivationSitesTests extends ESTestCase {
      * anchor schema shipped down per split. The two must agree, or the lookup addresses a record the harvest never
      * writes and the file stays permanently cold — the failure this whole address exists to end.
      * <p>
-     * The second assertion is the one that matters for the defect: the file's OWN schema derives a DIFFERENT
+     * What this case pins is the half a unit test can decide: the file's OWN schema derives a DIFFERENT
      * fingerprint, which is why addressing statistics by it (as the schema record does) cannot serve this read.
+     * <p>
+     * It does NOT pin that the two production sides agree. Both would be
+     * {@code ReadConfigFingerprint.of(anchorSchema, DeclaredReadSpec.NONE)} here, so asserting them equal would
+     * compare one expression with itself and would survive any change to the pairing it claims to cover. The
+     * agreement is covered where both sides are really derived, by
+     * {@code ExternalMultiFileWarmAggregateFoldIT#testCsvHeterogeneousCorpusWarmCountServedUnderNullFieldFirstFileWins},
+     * which goes cold the moment the lookup and the harvest disagree.
      */
     public void testFirstFileWinsStatisticsLookupAgreesWithTheHarvestOverThePin() {
         List<Attribute> anchorSchema = List.of(attr("a", DataType.LONG), attr("b", DataType.LONG));
@@ -260,16 +267,9 @@ public class ReadConfigFingerprintDerivationSitesTests extends ESTestCase {
         List<Attribute> thisFilesOwnSchema = List.of(attr("a", DataType.LONG), attr("b", DataType.LONG), attr("c", DataType.LONG));
 
         String lookupSide = ReadConfigFingerprint.of(anchorSchema, DeclaredReadSpec.NONE);
-        String harvestSide = ReadConfigFingerprint.of(anchorSchema, DeclaredReadSpec.NONE);
         String ownSchemaSide = ReadConfigFingerprint.of(thisFilesOwnSchema, DeclaredReadSpec.NONE);
 
         assertNotEquals(ReadConfigFingerprint.UNKNOWN, lookupSide);
-        assertEquals(
-            "the statistics lookup (the anchor's schema) and the harvest (perFileReadSchema, the same anchor schema) "
-                + "must derive the same fingerprint — a disagreement addresses a record nobody writes",
-            harvestSide,
-            lookupSide
-        );
         assertNotEquals(
             "a file's own schema must NOT derive the read's fingerprint: addressing statistics by it is what leaves a "
                 + "file unlike the anchor permanently cold",

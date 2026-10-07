@@ -846,8 +846,8 @@ public class ExternalSourceCacheService implements Closeable {
             return Map.of(); // no sibling to evict — the fallback is never consulted; skip the whole-cache sweep
         }
         // One whole-cache forEach, filtered to the contribution paths. This cannot be a set of per-path
-        // get()s: SchemaCacheKey is a multi-component record (dataset identity, path, mtime, file-set fingerprint,
-        // region, fileSetFingerprint, definitionVersion), so a contribution path alone does not reconstruct a
+        // get()s: SchemaCacheKey is a multi-component record (dataset identity, path, mtime, file-set
+        // fingerprint, declaredStrict, read config), so a contribution path alone does not reconstruct a
         // key, and forEach
         // is the only path-agnostic enumeration the Cache exposes that is safe against concurrent LRU
         // mutation (keys()/values() walk the lock-free LRU list). The sweep is O(cache) for a multi-path
@@ -1697,6 +1697,10 @@ public class ExternalSourceCacheService implements Closeable {
                     // LRU to hold an address nothing asks for. Wiring that rail is a separate change.
                     if (applicable != mergedStats && contributionReadConfig != null && key.declaredStrict() == false) {
                         SchemaCacheKey statsKey = key.withReadConfig(contributionReadConfig);
+                        // Counts a hit or a miss and promotes the entry: the shared Cache exposes no
+                        // non-counting read, so the first filing for a divergent file books a miss in
+                        // schema_cache.misses. Bounded by the number of divergent files per reconcile rather
+                        // than by the file count, unlike the per-file lookup that order was changed to avoid.
                         SchemaCacheEntry priorStats = schemaCache.get(statsKey);
                         putSchemaIfWithinCeiling(
                             statsKey,
@@ -1719,14 +1723,11 @@ public class ExternalSourceCacheService implements Closeable {
     }
 
     /**
-     * The metadata of a statistics record: the two keys contribution matching compares on, carried over from the schema
-     * record beside it, plus this read's measurements. Deliberately NOT the schema record's whole metadata map - that
-     * carries another read's measurements, and inheriting them is how a record filed under one read came to answer with
-     * another's extrema.
-     */
-    /**
-     * The metadata a statistics record carries: the identity it is matched by, plus every measurement this read
-     * has committed for the file.
+     * The metadata a statistics record carries: the two keys contribution matching compares on, carried over from
+     * the schema record beside it, plus every measurement this read has committed for the file.
+     * <p>
+     * Deliberately NOT the schema record's whole metadata map - that carries another read's measurements, and
+     * inheriting them is how a record filed under one read came to answer with another's extrema.
      * <p>
      * {@code prior} is the statistics record already at this address, when there is one, and seeding from it is
      * what makes the record accumulate rather than replace. Different cold queries harvest different columns

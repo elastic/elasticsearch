@@ -213,7 +213,6 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
         assertWarmCountShortCircuits(dataset, total);
     }
 
-    // yet lifted
     @AwaitsFix(bugUrl = "union_by_name retypes per file, and the pinned-column poison is not lifted yet")
     public void testCsvHeterogeneousCorpusWarmCountServedUnderNullFieldUnionByName() throws Exception {
         Path dir = createTempDir();
@@ -413,7 +412,6 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
         assertWarmCountShortCircuits(dataset, total);
     }
 
-    // yet lifted
     @AwaitsFix(bugUrl = "union_by_name retypes per file, and the pinned-column poison is not lifted yet")
     public void testNdjsonHeterogeneousCorpusWarmCountServedUnderNullFieldUnionByName() throws Exception {
         Path dir = createTempDir();
@@ -563,7 +561,11 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
      * property of the read. The sparse-only corpus is deliberate: it has nothing for {@code skip_row} to drop, so
      * what this measures is the licence behaviour rather than row loss, and the expected totals stay exact.
      */
-    @AwaitsFix(bugUrl = "lenient reads stay off the warm path: warmsRowCountSafely is isStrict(), so a survivor count is never served")
+    @AwaitsFix(
+        bugUrl = "lenient reads stay off the warm path under first_file_wins and union_by_name: "
+            + "warmsRowCountSafely is isStrict(), so a survivor count is never served. "
+            + "Fails identically on main; tracked by elastic/esql-planning#2201"
+    )
     public void testCsvSparseCorpusWarmMinMaxServedUnderSkipRowFirstFileWins() throws Exception {
         Path dir = createTempDir();
         long total = writeSparseOnlyCsvCorpus(dir);
@@ -584,7 +586,11 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
     }
 
     /** The count under {@code skip_row}, which has no licence and so depends entirely on the read-addressed record. */
-    @AwaitsFix(bugUrl = "lenient reads stay off the warm path: warmsRowCountSafely is isStrict(), so a survivor count is never served")
+    @AwaitsFix(
+        bugUrl = "lenient reads stay off the warm path under first_file_wins and union_by_name: "
+            + "warmsRowCountSafely is isStrict(), so a survivor count is never served. "
+            + "Fails identically on main; tracked by elastic/esql-planning#2201"
+    )
     public void testCsvSparseCorpusWarmCountServedUnderSkipRowFirstFileWins() throws Exception {
         Path dir = createTempDir();
         long total = writeSparseOnlyCsvCorpus(dir);
@@ -707,22 +713,28 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
         assertWarmMatrixCell("m_minmax_fail_stri", "fail_fast", "strict", true);
     }
 
-    @AwaitsFix(bugUrl = "lenient reads stay off the warm path: warmsRowCountSafely is isStrict(), so a survivor count is never served")
+    @AwaitsFix(
+        bugUrl = "lenient reads stay off the warm path under first_file_wins and union_by_name: "
+            + "warmsRowCountSafely is isStrict(), so a survivor count is never served. "
+            + "Fails identically on main; tracked by elastic/esql-planning#2201"
+    )
     public void testMatrixCountSkipRowUnionByName() throws Exception {
         assertWarmMatrixCell("m_count_skip_unio", "skip_row", "union_by_name", false);
     }
 
-    @AwaitsFix(bugUrl = "lenient reads stay off the warm path: warmsRowCountSafely is isStrict(), so a survivor count is never served")
+    @AwaitsFix(
+        bugUrl = "lenient reads stay off the warm path under first_file_wins and union_by_name: "
+            + "warmsRowCountSafely is isStrict(), so a survivor count is never served. "
+            + "Fails identically on main; tracked by elastic/esql-planning#2201"
+    )
     public void testMatrixMinMaxSkipRowUnionByName() throws Exception {
         assertWarmMatrixCell("m_minmax_skip_unio", "skip_row", "union_by_name", true);
     }
 
-    @AwaitsFix(bugUrl = "lenient reads stay off the warm path: warmsRowCountSafely is isStrict(), so a survivor count is never served")
     public void testMatrixCountSkipRowStrict() throws Exception {
         assertWarmMatrixCell("m_count_skip_stri", "skip_row", "strict", false);
     }
 
-    @AwaitsFix(bugUrl = "lenient reads stay off the warm path: warmsRowCountSafely is isStrict(), so a survivor count is never served")
     public void testMatrixMinMaxSkipRowStrict() throws Exception {
         assertWarmMatrixCell("m_minmax_skip_stri", "skip_row", "strict", true);
     }
@@ -761,12 +773,20 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
         assertWarmMatrixCell("m_count_null_stri", "null_field", "strict", false);
     }
 
-    @AwaitsFix(bugUrl = "lenient reads stay off the warm path: warmsRowCountSafely is isStrict(), so a survivor count is never served")
+    @AwaitsFix(
+        bugUrl = "lenient reads stay off the warm path under first_file_wins and union_by_name: "
+            + "warmsRowCountSafely is isStrict(), so a survivor count is never served. "
+            + "Fails identically on main; tracked by elastic/esql-planning#2201"
+    )
     public void testMatrixMinMaxSkipRowFirstFileWins() throws Exception {
         assertWarmMatrixCell("m_minmax_skip_firs", "skip_row", "first_file_wins", true);
     }
 
-    @AwaitsFix(bugUrl = "lenient reads stay off the warm path: warmsRowCountSafely is isStrict(), so a survivor count is never served")
+    @AwaitsFix(
+        bugUrl = "lenient reads stay off the warm path under first_file_wins and union_by_name: "
+            + "warmsRowCountSafely is isStrict(), so a survivor count is never served. "
+            + "Fails identically on main; tracked by elastic/esql-planning#2201"
+    )
     public void testMatrixCountSkipRowFirstFileWins() throws Exception {
         assertWarmMatrixCell("m_count_skip_firs", "skip_row", "first_file_wins", false);
     }

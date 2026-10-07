@@ -259,18 +259,41 @@ public class ObjectMapper extends Mapper {
             return null;
         }
 
-        protected final Map<String, Mapper> buildMappers(MapperBuilderContext mapperBuilderContext) {
+        /**
+         * The context this builder's children are normalized and built under
+         */
+        protected MapperBuilderContext childContext(MapperBuilderContext context) {
+            return context.createChildContext(leafName(), dynamic);
+        }
+
+        /**
+         * Merges duplicate children and flattens plain object children under {@code subobjects: false}
+         */
+        @Override
+        public void normalize(MapperBuilderContext context) {
+            MapperBuilderContext childContext = childContext(context);
+            for (Mapper.Builder child : mappersBuilders) {
+                child.normalize(childContext);
+            }
             // Assuming all features are supported is safe here. Builders that went through a merge have no duplicates left, and the
             // duplicates added while building a dynamic mapping update are copies of the same object, so merging them changes nothing.
             // That update is merged again on the master, which checks the features the cluster supports.
             Map<String, Mapper.Builder> dedupedBuilders = flattenBuildersIfNeeded(
                 mappersBuilders,
-                mapperBuilderContext,
-                MapperMergeContext.fromBuilderContext(mapperBuilderContext, Long.MAX_VALUE, f -> true)
+                childContext,
+                MapperMergeContext.fromBuilderContext(childContext, Long.MAX_VALUE, f -> true)
             );
+            mappersBuilders.clear();
+            mappersBuilders.addAll(dedupedBuilders.values());
+        }
+
+        /**
+         * Builds the children of this builder. Requires that {@link #normalize} has already been applied.
+         */
+        protected final Map<String, Mapper> buildMappers(MapperBuilderContext childContext) {
             Map<String, Mapper> mappers = new HashMap<>();
-            for (Mapper.Builder builder : dedupedBuilders.values()) {
-                Mapper mapper = builder.build(mapperBuilderContext);
+            for (Mapper.Builder builder : mappersBuilders) {
+                Mapper mapper = builder.build(childContext);
                 mappers.put(mapper.leafName(), mapper);
             }
             return mappers;
@@ -572,6 +595,7 @@ public class ObjectMapper extends Mapper {
 
         @Override
         public ObjectMapper build(MapperBuilderContext context) {
+            normalize(context);
             return new ObjectMapper(
                 leafName(),
                 context.buildFullName(leafName()),
@@ -579,7 +603,7 @@ public class ObjectMapper extends Mapper {
                 subobjects,
                 sourceKeepMode,
                 dynamic,
-                buildMappers(context.createChildContext(leafName(), dynamic))
+                buildMappers(childContext(context))
             );
         }
     }

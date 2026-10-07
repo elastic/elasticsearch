@@ -197,6 +197,11 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
         @Override
+        protected MapperBuilderContext childContext(MapperBuilderContext context) {
+            return context.createChildContext(null, dynamic);
+        }
+
+        @Override
         public RootObjectMapper build(MapperBuilderContext context) {
             if (context.isStrictColumnar() && enabled.explicit() && enabled.value() == false) {
                 throw new MapperParsingException(
@@ -204,9 +209,10 @@ public class RootObjectMapper extends ObjectMapper {
                         + " this would prevent all fields from being indexed"
                 );
             }
-            // Build child mappers first so that flattenBuildersIfNeeded has a chance to populate
+            // Normalize and build child mappers first so that flattening has a chance to populate
             // prefixProperties before we pass them to the RootObjectMapper constructor.
-            Map<String, Mapper> mappers = buildMappers(context.createChildContext(null, dynamic));
+            normalize(context);
+            Map<String, Mapper> mappers = buildMappers(childContext(context));
             return new RootObjectMapper(
                 leafName(),
                 enabled,

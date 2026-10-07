@@ -122,7 +122,7 @@ public final class AsymmetricHashingQuantizer {
      * owner of this distinction, so callers must not re-derive it. A random (non-learned) matrix must
      * not be inherited/warm-started at merge time.
      *
-     * @param w       the projection matrix W^T in row-major order, shape (originalDim, nDims)
+     * @param w       the projection matrix W in row-major order, shape (originalDim, nDims)
      * @param wT      the transposed projection matrix W^T in row-major order, shape (nDims, originalDim)
      * @param learned {@code true} if W was learned; {@code false} if it is a random orthonormal fallback
      */

@@ -44,9 +44,10 @@ import java.util.function.Predicate;
 import static org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlightIndexKey.rowSourceOf;
 
 /**
- * Gives HIGHLIGHT back the mapping of text ON columns that {@code RENAME}, a plain {@code EVAL} copy, an unchanged
- * {@code FORK} or {@code UNION ALL}, or {@code FUSE} turned into a {@link ReferenceAttribute}. A copy keeps the field's
- * mapping, so it is analyzed the same way as the field. A merged column gets one of these mappings:
+ * Gives HIGHLIGHT back the mapping of text ON columns that {@code RENAME}, a plain {@code EVAL} copy, a
+ * {@code STATS BY} alias, an unchanged {@code FORK} or {@code UNION ALL}, or {@code FUSE} turned into a
+ * {@link ReferenceAttribute}. A copy keeps the field's mapping, so it is analyzed the same way as the field. A merged
+ * column gets one of these mappings:
  * <ul>
  *     <li>the mapping every branch agrees on;</li>
  *     <li>a mapping that names each index's analyzer, when branches over different indices disagree;</li>

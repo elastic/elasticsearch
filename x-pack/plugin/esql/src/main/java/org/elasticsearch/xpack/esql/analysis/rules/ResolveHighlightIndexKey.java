@@ -96,21 +96,27 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
     }
 
     /**
-     * {@link AliasBindings} under {@code plan}, plus the {@code FIRST} that FUSE reads each column through. FUSE merges
-     * the rows of one document, so each column it outputs still holds the values of the column below it.
+     * {@link AliasBindings} under {@code plan}, plus STATS {@code BY} aliases and the {@code FIRST} that FUSE reads each
+     * column through. A {@code BY} alias holds the values of the expression it groups by. FUSE merges the rows of one
+     * document, so each column it outputs still holds the values of the column below it.
      */
     static AttributeMap<Expression> aliases(LogicalPlan plan) {
-        AttributeMap.Builder<Expression> fused = AttributeMap.builder();
-        plan.forEachDown(Aggregate.class, fuse -> {
-            if (fuse.child() instanceof FuseScoreEval) {
-                for (NamedExpression column : fuse.aggregates()) {
+        AttributeMap.Builder<Expression> aggregated = AttributeMap.builder();
+        plan.forEachDown(Aggregate.class, aggregate -> {
+            for (Expression grouping : aggregate.groupings()) {
+                if (grouping instanceof Alias alias) {
+                    aggregated.put(alias.toAttribute(), alias.child());
+                }
+            }
+            if (aggregate.child() instanceof FuseScoreEval) {
+                for (NamedExpression column : aggregate.aggregates()) {
                     if (column instanceof Alias alias && alias.child() instanceof First first) {
-                        fused.put(alias.toAttribute(), first.field());
+                        aggregated.put(alias.toAttribute(), first.field());
                     }
                 }
             }
         });
-        return AliasBindings.of(plan).combine(fused.build());
+        return AliasBindings.of(plan).combine(aggregated.build());
     }
 
     /**

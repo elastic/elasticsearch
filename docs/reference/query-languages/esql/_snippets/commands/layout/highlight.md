@@ -240,7 +240,8 @@ applies:
 * The `standard` analyzer for all other columns, including `keyword` fields.
 
 An index `text` field keeps its mapped analyzer when you rename it with
-`RENAME`, copy it with `EVAL` (such as `EVAL t = title`), or pass it unchanged
+`RENAME`, copy it with `EVAL` (such as `EVAL t = title`), group by it with
+`STATS` or `INLINE STATS` (such as `BY t = title`), or pass it unchanged
 through [`FORK`](/reference/query-languages/esql/commands/fork.md),
 [`FUSE`](/reference/query-languages/esql/commands/fuse.md), or
 [subqueries in `FROM`](/reference/query-languages/esql/esql-from-subquery.md).

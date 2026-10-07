@@ -189,9 +189,9 @@ public class StorageObjectAbortChainTests extends ESTestCase {
      * opened to end-of-file. A decorator that ignored the requested length would trip the assertion here.
      */
     public void testMacroSplitDiscoveryDrainsBoundedWindowsThroughDecoratorChain() throws IOException {
-        // A stride at the drain threshold caps every window there too, so no probe has more than
-        // MAX_DRAIN_BYTES left to transfer and all of them drain.
-        long stride = RecordBoundaryProbe.MAX_DRAIN_BYTES;
+        // A stride at the S3 close-drain threshold caps every window there too, so leftover after
+        // the first row is still drained by close() (not abort-on-close) and all probes pool.
+        long stride = DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES;
         String row = "0123456789,0123456789,012345678\n";
         byte[] payload = row.repeat(Math.toIntExact(32 * stride / row.length())).getBytes(StandardCharsets.UTF_8);
         long fileLength = payload.length;
@@ -201,7 +201,7 @@ public class StorageObjectAbortChainTests extends ESTestCase {
 
         StorageObject chain = new RetryableStorageObject(raw, new RetryPolicy(3, 1, 10));
 
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         // Plain mode: the abort-chain contract is format-agnostic; macro-split discovery now refuses non-strided
         // (default/quoted) CSV. Plain CSV keeps strided probing.
         SegmentableFormatReader csvReader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
@@ -255,7 +255,7 @@ public class StorageObjectAbortChainTests extends ESTestCase {
 
         StorageObject chain = new RetryableStorageObject(raw, new RetryPolicy(3, 1, 10));
 
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         // Plain mode: the abort-chain contract is format-agnostic; computeSegments now refuses non-strided
         // (default/quoted) CSV. Plain CSV keeps strided probing.
         SegmentableFormatReader csvReader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));

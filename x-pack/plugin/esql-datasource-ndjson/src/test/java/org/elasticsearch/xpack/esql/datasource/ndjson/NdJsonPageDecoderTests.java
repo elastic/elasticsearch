@@ -28,7 +28,9 @@ import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.datasources.CountingBreaker;
 import org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorExcerpts;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.hamcrest.Matchers;
@@ -56,7 +58,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     /**
@@ -162,6 +164,63 @@ public class NdJsonPageDecoderTests extends ESTestCase {
                 capacityAfter >= 3 * longValue.length()
             );
         }
+    }
+
+    /**
+     * Interior streaming chunks must not warn for a declared column that is merely absent from this
+     * chunk. Gzip/zstd clamp-to-compressed-size fills often decode only the first record of a sparse
+     * overlay; the column appears later.
+     */
+    public void testAbsentDeclaredColumnWarningSkippedWhenNotFileFinal() throws IOException {
+        String ndjson = "{\"id\":1}\n";
+        List<String> warnings = new ArrayList<>();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("id", DataType.LONG), attribute("spin_id", DataType.KEYWORD)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.STRICT,
+                "test://overlay-chunk",
+                new NdJsonReaderCounters(),
+                warnings::add
+            )
+        ) {
+            decoder.setReportAbsentDeclaredColumns(false);
+            try (Page page = decoder.decodePage()) {
+                assertEquals(1, page.getPositionCount());
+            }
+        }
+        assertTrue(warnings.isEmpty());
+    }
+
+    /**
+     * File-final (and whole-file) decoders still warn when a declared column never appears.
+     */
+    public void testAbsentDeclaredColumnWarningFiresWhenFileFinal() throws IOException {
+        String ndjson = "{\"id\":1}\n";
+        List<String> warnings = new ArrayList<>();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("id", DataType.LONG), attribute("spin_id", DataType.KEYWORD)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.STRICT,
+                "test://overlay-file",
+                new NdJsonReaderCounters(),
+                warnings::add
+            )
+        ) {
+            try (Page page = decoder.decodePage()) {
+                assertEquals(1, page.getPositionCount());
+            }
+        }
+        assertEquals(List.of(SkipWarnings.absentDeclaredColumnMessage("spin_id")), warnings);
     }
 
     /**
@@ -1379,22 +1438,67 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
-     * A numeric token in a declared date_nanos column with NO declared format is epoch NANOSECONDS — the
-     * declared type names the numeric unit (datetime = millis, date_nanos = nanos) — matching the CSV numeric
-     * rail and the columnar whole-number identity coercion. NOT the mapper-ingest millis reading.
+     * A numeric token in a declared date_nanos column with NO declared format is epoch MILLISECONDS widened to nanos,
+     * exactly as in a datetime column — matching the CSV numeric rail and the columnar whole-number coercion.
      */
-    public void testDeclaredDateNanosNumericTokenIsEpochNanos() throws IOException {
-        long nanos = 1_700_000_000_123_456_789L;
-        try (Page page = decodeOneColumn("{\"v\":" + nanos + "}\n", DataType.DATE_NANOS, ErrorPolicy.STRICT)) {
+    public void testDeclaredDateNanosNumericTokenIsEpochMillis() throws IOException {
+        try (Page page = decodeOneColumn("{\"v\":1719828000000}\n", DataType.DATE_NANOS, ErrorPolicy.STRICT)) {
             LongBlock block = page.getBlock(0);
-            assertEquals("identity epoch-nanos reinterpret, no scaling", nanos, block.getLong(0));
+            assertEquals(EsqlDataTypeConverter.dateNanosToLong("2024-07-01T10:00:00.000000000Z"), block.getLong(0));
         }
+    }
+
+    /** The seconds half of the unit pair: a declared {@code epoch_second} reads the same instant from seconds. */
+    public void testDeclaredDateNanosEpochSecondFormatReadsSeconds() throws IOException {
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream("{\"ts\":1719828000}\n".getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("ts", DataType.DATE_NANOS)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.STRICT,
+                "test://declared-date-nanos-epoch-second",
+                new NdJsonReaderCounters(),
+                Map.of("ts", "epoch_second")
+            )
+        ) {
+            try (Page page = decoder.decodePage()) {
+                assertNotNull(page);
+                assertEquals(
+                    EsqlDataTypeConverter.dateNanosToLong("2024-07-01T10:00:00.000000000Z"),
+                    ((LongBlock) page.getBlock(0)).getLong(0)
+                );
+            }
+        }
+    }
+
+    /**
+     * A bare nanosecond count is out of range read as epoch millis (far past 2262): the cell nulls under null_field
+     * and fails the read under fail_fast — it never reads as an instant.
+     */
+    public void testDeclaredDateNanosNanosecondCountIsOutOfRange() throws IOException {
+        String ndjson = "{\"v\":1719828000000000000}\n{\"v\":1719828000000}\n";
+        try (Page page = decodeOneColumn(ndjson, DataType.DATE_NANOS, ErrorPolicy.PERMISSIVE)) {
+            LongBlock block = page.getBlock(0);
+            assertTrue("a nanosecond count nulls the cell", block.isNull(0));
+            assertEquals(
+                EsqlDataTypeConverter.dateNanosToLong("2024-07-01T10:00:00.000000000Z"),
+                block.getLong(block.getFirstValueIndex(1))
+            );
+        }
+        drainWarnings();
+        expectThrows(
+            ParsingException.class,
+            () -> decodeOneColumn("{\"v\":1719828000000000000}\n", DataType.DATE_NANOS, ErrorPolicy.STRICT)
+        );
     }
 
     /**
      * A declared `format` is authoritative and OVERRIDES the numeric-epoch shortcut, exactly as the datetime
      * arm does: a column declared {date_nanos, format:"yyyyMMdd"} reads the token 20260101 as 2026-01-01, NOT
-     * as an epoch-nanos number. This is the unit rule — the format names the unit, else the type does.
+     * as an epoch-millis number. This is the unit rule — the format names the unit, else the number is epoch millis.
      */
     public void testDeclaredDateNanosFormatOverridesNumericShortcut() throws IOException {
         String ndjson = "{\"ts\":20260101}\n";
@@ -1427,7 +1531,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         try (Page page = decodeOneColumn("{\"v\":-1}\n{\"v\":5}\n", DataType.DATE_NANOS, ErrorPolicy.PERMISSIVE)) {
             LongBlock block = page.getBlock(0);
             assertTrue("negative epoch nulls the cell", block.isNull(0));
-            assertEquals("the good cell still decodes", 5L, block.getLong(block.getFirstValueIndex(1)));
+            assertEquals("the good cell still decodes", 5_000_000L, block.getLong(block.getFirstValueIndex(1)));
         }
         drainWarnings();
         expectThrows(ParsingException.class, () -> decodeOneColumn("{\"v\":-1}\n", DataType.DATE_NANOS, ErrorPolicy.STRICT));
@@ -1435,16 +1539,16 @@ public class NdJsonPageDecoderTests extends ESTestCase {
 
     /**
      * With NO declared format, a boolean or a fractional number in a date_nanos column is an unsupported cross-kind
-     * drift. The fractional case differs from the datetime arm on purpose: a fraction of a nanosecond has no meaning
-     * (nanos is this type's finest unit), whereas a fractional epoch-milli rounds. With a declared format a fractional
-     * token IS meaningful and parses — pinned by {@link #testDeclaredDateNanosFractionalTokenParsesThroughFormat}.
+     * drift. The fractional case differs from the datetime arm on purpose, matching CSV and the columnar rails, where
+     * a double source does not coerce into date_nanos. With a declared format a fractional token parses — pinned by
+     * {@link #testDeclaredDateNanosFractionalTokenParsesThroughFormat}.
      */
     public void testDeclaredDateNanosCrossKindDrift() throws IOException {
         try (Page page = decodeOneColumn("{\"v\":true}\n{\"v\":1.5}\n{\"v\":7}\n", DataType.DATE_NANOS, ErrorPolicy.PERMISSIVE)) {
             LongBlock block = page.getBlock(0);
             assertTrue("boolean in a date_nanos column nulls the cell", block.isNull(0));
             assertTrue("fractional number with no format nulls the cell", block.isNull(1));
-            assertEquals(7L, block.getLong(block.getFirstValueIndex(2)));
+            assertEquals(7_000_000L, block.getLong(block.getFirstValueIndex(2)));
         }
         drainWarnings();
     }
@@ -1452,7 +1556,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     /**
      * A fractional token under a declared format parses through it: {@code epoch_second} on {@code 1704067200.5} is
      * sub-second precision that date_nanos can represent exactly. The unit rule again — the format names the unit, so
-     * the token is a fractional SECOND, not a fractional nanosecond.
+     * the token is a fractional SECOND.
      */
     public void testDeclaredDateNanosFractionalTokenParsesThroughFormat() throws IOException {
         try (
@@ -1801,6 +1905,61 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         // SkipWarnings.add() emits a one-time summary header on the first call, then the detail — 2 messages total.
         assertEquals("one summary + one detail warning for the nulled cell", 2, warnings.size());
         assertThat(warnings.get(1), Matchers.containsString("not_a_number"));
+    }
+
+    /**
+     * A multi-megabyte value that does not coerce to its column's type must not reach the client whole: the same
+     * message is the {@code Warning} detail under the lenient modes and the error under {@code fail_fast}. The value
+     * is cut to {@link ErrorExcerpts#MAX_EXCERPT_CHARS}; the frame -- column and target type -- stays.
+     */
+    public void testLongUnparseableValueIsTruncatedInWarningAndException() throws IOException {
+        int length = 2_000_000;
+        String big = "Z".repeat(length);
+        // The frame around the value is well under 64 chars; the fail-fast hint and ParsingException's
+        // position prefix add under 96 more. A value embedded twice, or whole, overshoots either bound.
+        int warningBound = ErrorExcerpts.MAX_EXCERPT_CHARS + 64;
+        int exceptionBound = warningBound + 96;
+        for (String bad : List.of("\"" + big + "\"", "[1,\"" + big + "\"]")) {
+            String ndjson = "{\"id\":1,\"v\":\"a\"}\n{\"id\":" + bad + ",\"v\":\"b\"}\n";
+            for (ErrorPolicy lenient : List.of(ErrorPolicy.PERMISSIVE, ErrorPolicy.LENIENT)) {
+                List<String> warnings = new ArrayList<>();
+                try (Page page = decodeIdAndV(ndjson, lenient, warnings)) {
+                    assertNotNull(page);
+                }
+                String detail = warnings.stream().filter(w -> w.contains("cannot read [")).findFirst().orElseThrow();
+                assertThat("warning carried the whole value", detail.length(), Matchers.lessThan(warningBound));
+                assertThat(detail, Matchers.containsString("column [id]"));
+                assertThat(detail, Matchers.containsString("] as [long]"));
+                assertThat(detail, Matchers.containsString("(truncated, " + length + " chars total)"));
+            }
+
+            ParsingException e = expectThrows(ParsingException.class, () -> decodeIdAndV(ndjson, ErrorPolicy.STRICT, new ArrayList<>()));
+            String message = e.getMessage();
+            assertThat("exception carried the whole value", message.length(), Matchers.lessThan(exceptionBound));
+            assertThat(message, Matchers.containsString("column [id]: cannot read ["));
+            assertThat(message, Matchers.containsString("] as [long]"));
+            assertThat(message, Matchers.containsString("(truncated, " + length + " chars total)"));
+            assertThat(message, Matchers.containsString("set [error_mode] to [null_field]"));
+        }
+    }
+
+    private Page decodeIdAndV(String ndjson, ErrorPolicy policy, List<String> warnings) throws IOException {
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("id", DataType.LONG), attribute("v", DataType.KEYWORD)),
+                null,
+                10,
+                blockFactory,
+                policy,
+                "test://long-bad-value",
+                new NdJsonReaderCounters(),
+                warnings::add
+            )
+        ) {
+            return decoder.decodePage();
+        }
     }
 
     // ---------------------------------------------------------------------------------------------

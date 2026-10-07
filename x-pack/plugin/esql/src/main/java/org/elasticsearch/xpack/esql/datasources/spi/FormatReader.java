@@ -442,6 +442,12 @@ public interface FormatReader extends Closeable {
     }
 
     /**
+     * Binds this reader to the node's admission stall tracker. The registry calls this once on
+     * the lazily created singleton. Default is a no-op; Parquet forwards it to the byte watermark.
+     */
+    default void bindAdmissionTracker(AdmissionTracker tracker) {}
+
+    /**
      * Returns this reader's {@link RowPositionStrategy} — the dispatcher applies it polymorphically
      * to wrap (or pass through) the reader's emitted page iterator so each page has the
      * {@code _rowPosition} slot populated. Every reader must explicitly declare a strategy:

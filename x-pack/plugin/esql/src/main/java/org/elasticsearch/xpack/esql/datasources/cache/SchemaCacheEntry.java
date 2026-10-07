@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -48,6 +49,7 @@ public final class SchemaCacheEntry {
     private final Map<String, Object> safeMetadata;
     private final Map<String, Object> connectorConfig;
     private final List<String> warnings;
+    private final List<WidenedColumn> widenedColumns;
     private final long estimatedBytes;
 
     public SchemaCacheEntry(
@@ -59,7 +61,8 @@ public final class SchemaCacheEntry {
         String location,
         Map<String, Object> safeMetadata,
         Map<String, Object> connectorConfig,
-        List<String> warnings
+        List<String> warnings,
+        List<WidenedColumn> widenedColumns
     ) {
         if (columnNames.length != columnTypes.length
             || columnNames.length != columnNullabilities.length
@@ -75,6 +78,7 @@ public final class SchemaCacheEntry {
         this.safeMetadata = safeMetadata != null ? Map.copyOf(safeMetadata) : Map.of();
         this.connectorConfig = connectorConfig != null ? Map.copyOf(connectorConfig) : Map.of();
         this.warnings = warnings != null ? List.copyOf(warnings) : List.of();
+        this.widenedColumns = widenedColumns != null ? List.copyOf(widenedColumns) : List.of();
         this.estimatedBytes = computeEstimatedBytes();
     }
 
@@ -114,6 +118,11 @@ public final class SchemaCacheEntry {
         return warnings;
     }
 
+    /** Columns the reader widened within one file; cached for the same reason the schema is. */
+    public List<WidenedColumn> widenedColumns() {
+        return widenedColumns;
+    }
+
     /**
      * Component-wise, which compares the four arrays by reference and not by content - the semantics a
      * component-wise {@code Objects.equals} gives. Two entries holding equal column names in different arrays
@@ -136,7 +145,8 @@ public final class SchemaCacheEntry {
                 && Objects.equals(location, other.location)
                 && Objects.equals(safeMetadata, other.safeMetadata)
                 && Objects.equals(connectorConfig, other.connectorConfig)
-                && Objects.equals(warnings, other.warnings);
+                && Objects.equals(warnings, other.warnings)
+                && Objects.equals(widenedColumns, other.widenedColumns);
         }
         return false;
     }
@@ -152,7 +162,8 @@ public final class SchemaCacheEntry {
             location,
             safeMetadata,
             connectorConfig,
-            warnings
+            warnings,
+            widenedColumns
         );
     }
 
@@ -171,7 +182,8 @@ public final class SchemaCacheEntry {
             location,
             metadata,
             connectorConfig,
-            warnings
+            warnings,
+            widenedColumns
         );
     }
 
@@ -182,17 +194,21 @@ public final class SchemaCacheEntry {
         Map<String, Object> metadata,
         Map<String, Object> connectorConfig
     ) {
-        return from(schema, sourceType, location, metadata, connectorConfig, List.of());
+        return from(schema, sourceType, location, metadata, connectorConfig, List.of(), List.of());
     }
 
-    /** @param warnings see {@link SourceMetadata#warnings()}; cached so a warm resolve replays them like a cold one. */
+    /**
+     * @param warnings see {@link SourceMetadata#warnings()}; cached so a warm resolve replays them like a cold one.
+     * @param widenedColumns see {@link SourceMetadata#widenedColumns()}; cached for the same reason.
+     */
     public static SchemaCacheEntry from(
         List<Attribute> schema,
         String sourceType,
         String location,
         Map<String, Object> metadata,
         Map<String, Object> connectorConfig,
-        List<String> warnings
+        List<String> warnings,
+        List<WidenedColumn> widenedColumns
     ) {
         int size = schema.size();
         String[] names = new String[size];
@@ -206,7 +222,18 @@ public final class SchemaCacheEntry {
             nullabilities[i] = attr.nullable();
             synthetics[i] = attr.synthetic();
         }
-        return new SchemaCacheEntry(names, types, nullabilities, synthetics, sourceType, location, metadata, connectorConfig, warnings);
+        return new SchemaCacheEntry(
+            names,
+            types,
+            nullabilities,
+            synthetics,
+            sourceType,
+            location,
+            metadata,
+            connectorConfig,
+            warnings,
+            widenedColumns
+        );
     }
 
     /** Reconstructs fresh Attributes with fresh NameIds -- safe for concurrent queries */
@@ -234,7 +261,7 @@ public final class SchemaCacheEntry {
         Map<String, Object> enrichedMeta = meta.statistics()
             .map(stats -> SourceStatisticsSerializer.embedStatistics(meta.sourceMetadata(), stats))
             .orElse(meta.sourceMetadata());
-        return from(meta.schema(), meta.sourceType(), meta.location(), enrichedMeta, meta.config(), meta.warnings());
+        return from(meta.schema(), meta.sourceType(), meta.location(), enrichedMeta, meta.config(), meta.warnings(), meta.widenedColumns());
     }
 
     /** The weight computed once at construction; see the class javadoc for why this is not computed per call. */
@@ -256,6 +283,9 @@ public final class SchemaCacheEntry {
         bytes += estimatedStringBytes(location);
         for (String warning : warnings) {
             bytes += estimatedStringBytes(warning);
+        }
+        for (WidenedColumn widened : widenedColumns) {
+            bytes += estimatedStringBytes(widened.columnName()) + estimatedStringBytes(widened.value()) + 48;
         }
         // ~100B per map entry (key String + value Object) plus the payload of variable-width values
         // (keyword/text extrema as String or BytesRef). Nested maps (per-stripe stats under

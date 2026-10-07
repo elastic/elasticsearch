@@ -46,6 +46,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             path,
             meta,
             Map.of(),
+            List.of(),
             List.of()
         );
     }
@@ -111,6 +112,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             "s3://b/f.csv",
             meta,
             Map.of(),
+            List.of(),
             List.of()
         );
         SchemaCacheEntry longName = new SchemaCacheEntry(
@@ -122,6 +124,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             "s3://b/f.csv",
             meta,
             Map.of(),
+            List.of(),
             List.of()
         );
         assertThat(longName.estimatedBytes(), greaterThan(shortName.estimatedBytes()));
@@ -137,6 +140,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             "s3://b/f.csv",
             Map.of(),
             Map.of("k", "a"),
+            List.of(),
             List.of()
         );
         SchemaCacheEntry large = new SchemaCacheEntry(
@@ -148,6 +152,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             "s3://b/f.csv",
             Map.of(),
             Map.of("k", "x".repeat(50_000)),
+            List.of(),
             List.of()
         );
         assertThat(large.estimatedBytes(), greaterThan(small.estimatedBytes()));
@@ -173,6 +178,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             "s3://b/f.csv",
             emptyStripes,
             Map.of(),
+            List.of(),
             List.of()
         );
         SchemaCacheEntry striped = new SchemaCacheEntry(
@@ -184,6 +190,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             "s3://b/f.csv",
             withStripes,
             Map.of(),
+            List.of(),
             List.of()
         );
         assertThat(
@@ -229,6 +236,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
                         "s3://bucket/f" + i + ".csv",
                         meta,
                         Map.of(),
+                        List.of(),
                         List.of()
                     )
                 );
@@ -334,6 +342,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
                     "s3://bucket/mid" + i + ".csv",
                     meta,
                     Map.of(),
+                    List.of(),
                     List.of()
                 );
                 assertThat(entry.estimatedBytes(), lessThanOrEqualTo(maxEntry));
@@ -422,6 +431,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             path,
             meta,
             Map.of(),
+            List.of(),
             List.of()
         );
     }

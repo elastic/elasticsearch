@@ -376,6 +376,7 @@ public class CsvTestsDataLoader {
                 )
             ),
         new TestDataset("books").withSetting("books-settings.json"),
+        new TestDataset("books_english", "mapping-books_english.json", "books.csv").withSetting("books-settings.json"),
         new TestDataset("text_state_mapped"),
         new TestDataset("text_state_unmapped", "mapping-text_state_mapped.json", "text_state_unmapped.csv").withTypeMapping(
             removeFields("txt")

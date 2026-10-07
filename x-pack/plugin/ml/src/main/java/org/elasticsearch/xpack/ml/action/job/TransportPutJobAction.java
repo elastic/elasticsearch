@@ -96,8 +96,11 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
                 listener.onResponse(jobCreated);
                 return;
             }
+            // The credential carried from the coordinating node is owned (and released) by the job request, which outlives this put.
+            PutDatafeedAction.Request datafeedRequest = new PutDatafeedAction.Request(jobCreated.getResponse().getDatafeedConfig().get());
+            datafeedRequest.setCloudCredential(request.getCloudCredential());
             datafeedManager.putDatafeed(
-                new PutDatafeedAction.Request(jobCreated.getResponse().getDatafeedConfig().get()),
+                datafeedRequest,
                 // Use newer state from cluster service as the job creation may have created shared indexes
                 clusterService.state(),
                 securityContext,
@@ -142,10 +145,16 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
 
     @Override
     protected void doExecute(Task task, PutJobAction.Request request, ActionListener<PutJobAction.Response> listener) {
+        final ActionListener<PutJobAction.Response> releasingListener = ActionListener.releaseAfter(listener, request);
         if (MachineLearningField.ML_API_FEATURE.check(licenseState)) {
-            super.doExecute(task, request, listener);
+            if (request.getJobBuilder().getDatafeedConfig() != null) {
+                // Transient headers do not serialize coordinator -> master, so the embedded datafeed's caller credential
+                // has to travel on the request, exactly as for the standalone put datafeed action.
+                datafeedManager.carryCallerCredential(threadPool, securityContext, request::setCloudCredential);
+            }
+            super.doExecute(task, request, releasingListener);
         } else {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
+            releasingListener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
         }
     }
 }

@@ -116,6 +116,39 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertMetricResults(responsePath);
     }
 
+    public void testQueryRangeWithTimeout() throws Exception {
+        ingestTestData("test_gauge_qr");
+
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query_range",
+            new BasicNameValuePair("query", "test_gauge_qr{job=\"test_job\"}"),
+            new BasicNameValuePair("start", "2026-01-01T00:00:00Z"),
+            new BasicNameValuePair("end", "2026-01-01T00:05:00Z"),
+            new BasicNameValuePair("step", "60s"),
+            new BasicNameValuePair("timeout", "1m")
+        );
+
+        ObjectPath responsePath = ObjectPath.createFromResponse(client().performRequest(request));
+        assertThat(responsePath.evaluate("status"), equalTo("success"));
+        assertThat(responsePath.evaluate("data.resultType"), equalTo("matrix"));
+        assertMetricResults(responsePath);
+    }
+
+    public void testQueryRangeWithInvalidTimeoutReturnsBadRequest() throws Exception {
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query_range",
+            new BasicNameValuePair("query", "up"),
+            new BasicNameValuePair("start", "2026-01-01T00:00:00Z"),
+            new BasicNameValuePair("end", "2026-01-01T00:05:00Z"),
+            new BasicNameValuePair("step", "60s"),
+            new BasicNameValuePair("timeout", "soon")
+        );
+
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("invalid parameter \\\"timeout\\\""));
+    }
+
     public void testQueryRangeSumByEachLabel() throws Exception {
         ingestLabelledSeries(METRIC);
 
@@ -525,6 +558,35 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
     private void assertBinopRangeDuplicate(String expression) {
         ResponseException error = expectThrows(ResponseException.class, () -> executeBinopRangeQuery(expression));
         assertThat(error.getMessage(), containsString("duplicate"));
+    }
+
+    /**
+     * The range twin of {@code PrometheusInstantQueryRestIT#testInstantRangeVectorIsRejected}: a range query over a range
+     * vector is a type error in Prometheus too, reported with its message.
+     */
+    public void testRangeRangeVectorIsRejected() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query_range",
+            new BasicNameValuePair("query", "tx[5m]"),
+            new BasicNameValuePair("start", RANGE_START),
+            new BasicNameValuePair("end", RANGE_END),
+            new BasicNameValuePair("step", RANGE_STEP)
+        );
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("for range query, must be scalar or instant vector"));
+    }
+
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantWithoutOverAClosedBinaryOperator}. */
+    public void testRangeWithoutOverAClosedBinaryOperator() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeGroups(
+            "sum without (host) (sum by (host, cluster) (tx) / sum by (host, cluster) (rx))",
+            "cluster",
+            Map.of("prod", 15.0, "qa", 3.0)
+        );
+        assertBinopRangeValues("sum without (host, cluster) (sum by (host, cluster) (tx) / sum by (host, cluster) (rx))", 18);
     }
 
     /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantFractionalKIsTruncated}. */

@@ -31,9 +31,13 @@ import static org.hamcrest.Matchers.hasItem;
  * <p>
  * The two tests differ in where the distinct names come from: spread thinly across many moderately sized documents, or packed
  * into a handful of huge ones.
+ * <p>
+ * Each index maps a single {@link #MAPPED_FIELD}, so the queries exercise the expansion rather than whatever an index with no
+ * mapped fields at all would plan to.
  */
 public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
     private static final int MAX_EXPANDED_FIELDS = 1000;
+    private static final String MAPPED_FIELD = "id";
 
     @Before
     public void requireLoadAll() {
@@ -56,16 +60,13 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
         String index = "load_all_many_docs";
         int docs = 5_000;
         int fieldsPerDoc = 1_000;
-        createUnmappedIndex(index);
+        createMostlyUnmappedIndex(index);
         StringBuilder bulk = new StringBuilder();
         int docsPerBulk = 500;
         for (int d = 0; d < docs; d++) {
-            bulk.append("{\"create\":{}}\n{");
+            bulk.append("{\"create\":{}}\n{\"").append(MAPPED_FIELD).append("\":\"").append(d).append('"');
             for (int f = 0; f < fieldsPerDoc; f++) {
-                if (f > 0) {
-                    bulk.append(',');
-                }
-                bulk.append('"').append(manyDocsFieldName(d * fieldsPerDoc + f)).append("\":1");
+                bulk.append(",\"").append(manyDocsFieldName(d * fieldsPerDoc + f)).append("\":1");
             }
             bulk.append("}\n");
             if (d % docsPerBulk == docsPerBulk - 1) {
@@ -100,15 +101,12 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
         int docs = 5;
         int objectsPerDoc = 1_000;
         int leavesPerObject = 1_000;
-        createUnmappedIndex(index);
+        createMostlyUnmappedIndex(index);
         for (int d = 0; d < docs; d++) {
             StringBuilder bulk = new StringBuilder();
-            bulk.append("{\"create\":{}}\n{");
+            bulk.append("{\"create\":{}}\n{\"").append(MAPPED_FIELD).append("\":\"").append(d).append('"');
             for (int o = 0; o < objectsPerDoc; o++) {
-                if (o > 0) {
-                    bulk.append(',');
-                }
-                bulk.append('"').append(hugeDocsObjectName(d, o)).append("\":{");
+                bulk.append(",\"").append(hugeDocsObjectName(d, o)).append("\":{");
                 for (int l = 0; l < leavesPerObject; l++) {
                     if (l > 0) {
                         bulk.append(',');
@@ -131,21 +129,25 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
         assertLoadAllCapped(index, docs, expected);
     }
 
-    private void createUnmappedIndex(String index) throws IOException {
+    private void createMostlyUnmappedIndex(String index) throws IOException {
         CreateIndexResponse response = createIndex(index, Settings.EMPTY, """
             {
               "dynamic": false,
-              "properties": {}
-            }""");
+              "properties": {
+                "%s": { "type": "keyword" }
+              }
+            }""".formatted(MAPPED_FIELD));
         assertTrue(response.isAcknowledged());
     }
 
     /**
-     * Runs {@code LOAD_ALL} over all of {@code index} and asserts it returns exactly {@code expectedColumns}. Only the columns are
+     * Runs {@code LOAD_ALL} over all of {@code index} and asserts it returns {@link #MAPPED_FIELD} plus exactly the discovered
+     * {@code expectedDiscovered}, in that order among themselves. Where the mapped field lands relative to them is the ordering
+     * replay's business, not this test's, so it is only checked for presence. Only the columns are
      * fetched: {@code filter_path} drops the values on the server, after the response has been built, so the expansion is fully
      * exercised without shipping a {@code rows x 1000} table of mostly nulls to the test.
      */
-    private void assertLoadAllCapped(String index, int limit, List<String> expectedColumns) throws IOException {
+    private void assertLoadAllCapped(String index, int limit, List<String> expectedDiscovered) throws IOException {
         StringBuilder query = startQuery();
         query.append("SET unmapped_fields=\\\"LOAD_ALL\\\";\n");
         query.append("FROM ").append(index).append("\n");
@@ -158,7 +160,9 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
         for (Object column : columns) {
             names.add((String) ((Map<?, ?>) column).get("name"));
         }
-        assertThat(names, equalTo(expectedColumns));
+        assertThat(names, hasItem(MAPPED_FIELD));
+        names.remove(MAPPED_FIELD);
+        assertThat(names, equalTo(expectedDiscovered));
         assertThat(response.getWarnings(), hasItem(containsString("only the first [" + MAX_EXPANDED_FIELDS + "]")));
     }
 

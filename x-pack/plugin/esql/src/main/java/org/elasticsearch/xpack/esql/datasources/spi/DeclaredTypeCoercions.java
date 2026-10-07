@@ -120,7 +120,7 @@ import java.util.function.IntFunction;
  *       default format ({@code strict_date_optional_time||epoch_millis} and
  *       {@code strict_date_optional_time_nanos||epoch_millis}), and the unit
  *       {@code QueryDslTranslator} reads a numeric request-filter bound in, so the filter and the
- *       read agree on the same column. No format names epoch nanoseconds, so a column of raw
+ *       read agree on the same column. There is no epoch-nanoseconds format, so a column of raw
  *       nanosecond counts is declared {@code long} and converted with {@code TO_DATE_NANOS}.</li>
  * </ol>
  * The type always fixes what is <i>stored</i> ({@code datetime} is a millis long, {@code date_nanos}

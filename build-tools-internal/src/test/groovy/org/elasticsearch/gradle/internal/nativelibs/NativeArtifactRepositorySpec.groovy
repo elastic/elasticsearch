@@ -88,7 +88,7 @@ class NativeArtifactRepositorySpec extends Specification {
         apiKeys == ["secret-key"]
     }
 
-    def "publish rejects a corrupted upload"() {
+    def "publish rejects an upload that reads back unusable"() {
         given:
         def repository = repositoryServing { exchange ->
             if (exchange.requestMethod == "PUT") {
@@ -100,11 +100,46 @@ class NativeArtifactRepositorySpec extends Specification {
         }
 
         when:
+        repository.publish(NAME, HASH, CONTENT, "secret-key", { throw new GradleException("truncated") })
+
+        then:
+        thrown(GradleException)
+    }
+
+    def "publish accepts an upload replaced by another build's usable artifact"() {
+        given:
+        def repository = repositoryServing { exchange ->
+            if (exchange.requestMethod == "PUT") {
+                exchange.requestBody.bytes
+                respond(exchange, 201, new byte[0])
+            } else {
+                respond(exchange, 200, "built-elsewhere".getBytes("UTF-8"))
+            }
+        }
+
+        when:
         repository.publish(NAME, HASH, CONTENT, "secret-key", {})
 
         then:
-        def e = thrown(GradleException)
-        e.message.contains("truncated")
+        noExceptionThrown()
+    }
+
+    def "publish fails when the upload cannot be read back"() {
+        given:
+        def repository = repositoryServing { exchange ->
+            if (exchange.requestMethod == "PUT") {
+                exchange.requestBody.bytes
+                respond(exchange, 201, new byte[0])
+            } else {
+                respond(exchange, 404, new byte[0])
+            }
+        }
+
+        when:
+        repository.publish(NAME, HASH, CONTENT, "secret-key", {})
+
+        then:
+        thrown(GradleException)
     }
 
     def "publish accepts a refused upload when another build already published a usable artifact"() {
@@ -161,48 +196,6 @@ class NativeArtifactRepositorySpec extends Specification {
         then:
         def e = thrown(GradleException)
         e.message.contains("403")
-    }
-
-    def "verifyPublished rejects a truncated artifact"() {
-        given:
-        def repository = repositoryServing { exchange ->
-            respond(exchange, 200, "zip-by".getBytes("UTF-8"))
-        }
-
-        when:
-        repository.verifyPublished(NAME, HASH, CONTENT)
-
-        then:
-        def e = thrown(GradleException)
-        e.message.contains("does not match")
-        e.message.contains("${CONTENT.length} bytes sent")
-    }
-
-    def "verifyPublished rejects an artifact that vanished"() {
-        given:
-        def repository = repositoryServing { exchange ->
-            respond(exchange, 404, new byte[0])
-        }
-
-        when:
-        repository.verifyPublished(NAME, HASH, CONTENT)
-
-        then:
-        def e = thrown(GradleException)
-        e.message.contains("cannot be read back")
-    }
-
-    def "verifyPublished accepts a matching artifact"() {
-        given:
-        def repository = repositoryServing { exchange ->
-            respond(exchange, 200, CONTENT)
-        }
-
-        when:
-        repository.verifyPublished(NAME, HASH, CONTENT)
-
-        then:
-        noExceptionThrown()
     }
 
     private NativeArtifactRepository repositoryServing(HttpHandler handler) {

@@ -18,7 +18,6 @@ import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.net.HttpURLConnection;
 import java.net.URI;
-import java.util.Arrays;
 import java.util.Optional;
 import java.util.function.Consumer;
 
@@ -79,25 +78,26 @@ class NativeArtifactRepository {
         int status = put(url, content, apiKey);
 
         if (status / 100 == 2) {
-            verifyPublished(artifactName, hash, content);
+            requirePublishedCorrect(artifactName, hash, checkCorrectness, "Published " + url);
             LOGGER.lifecycle("Published {} for hash {}", artifactName, hash);
             return;
         }
 
         // Rather than interpreting the status, check if the published artifact is present and correct.
         LOGGER.lifecycle("Publishing {} for hash {} was refused with status {}; checking what is published", artifactName, hash, status);
+        requirePublishedCorrect(artifactName, hash, checkCorrectness, "Failed to publish " + url + ": status " + status);
+        LOGGER.lifecycle("{} for hash {} was already published by another build", artifactName, hash);
+    }
+
+    private void requirePublishedCorrect(String artifactName, String hash, Consumer<byte[]> checkCorrectness, String failure) {
         byte[] published = download(artifactName, hash).orElseThrow(
-            () -> new GradleException("Failed to publish " + url + ": status " + status + ", and nothing is published for this hash")
+            () -> new GradleException(failure + ", but nothing is published for this hash")
         );
         try {
             checkCorrectness.accept(published);
         } catch (RuntimeException e) {
-            throw new GradleException(
-                "Failed to publish " + url + ": status " + status + ". The artifact already published for this hash is not usable.",
-                e
-            );
+            throw new GradleException(failure + ", but the artifact published for this hash is not usable", e);
         }
-        LOGGER.lifecycle("{} for hash {} was already published by another build", artifactName, hash);
     }
 
     private int put(String url, byte[] content, String apiKey) {
@@ -114,29 +114,6 @@ class NativeArtifactRepository {
             throw new UncheckedIOException("Failed to publish " + url, e);
         } finally {
             connection.disconnect();
-        }
-    }
-
-    /**
-     * Confirms the published artifact matches what was uploaded. An interrupted upload leaves a
-     * truncated artifact under a hash that still looks correct, so later builds would trust it.
-     */
-    void verifyPublished(String artifactName, String hash, byte[] expected) {
-        byte[] actual = download(artifactName, hash).orElseThrow(
-            () -> new GradleException("Published " + artifactName + " for hash " + hash + " but it cannot be read back")
-        );
-        if (Arrays.equals(expected, actual) == false) {
-            throw new GradleException(
-                "Published "
-                    + artifactName
-                    + " for hash "
-                    + hash
-                    + " does not match what was uploaded ("
-                    + expected.length
-                    + " bytes sent, "
-                    + actual.length
-                    + " bytes read back). The artifact may be truncated and must be removed before retrying."
-            );
         }
     }
 

@@ -3811,27 +3811,36 @@ public class ExternalSourceResolver {
         boolean everyFileNeededForThePromise,
         ActionListener<Map<String, Object>> listener
     ) {
-        gatherPerFile(listing, storageIdentity, secretIdentity, config, false, fold, everyFileNeededForThePromise, ActionListener.wrap(allMeta -> {
-            collectReadConfigs(listing, allMeta, readConfigsOut);
-            collectInferredTypes(listing, allMeta, inferredTypesOut);
-            collectSlimStatistics(listing, allMeta, slimStatsOut);
-            listener.onResponse(fold.finish());
-        }, e -> {
-            // Cancellation is not a "could not aggregate stats" condition — propagate it so the query aborts promptly
-            // instead of silently degrading to partial stats and continuing. A read that failed *because* the query
-            // was cancelled mid-flight can arrive wrapped (the schema cache wraps loader failures), so consult the
-            // cancellation state directly rather than matching only on the exception type.
-            if (e instanceof TaskCancelledException) {
-                listener.onFailure(e);
-                return;
-            }
-            if (isCancelled()) {
-                listener.onFailure(new TaskCancelledException(RESOLUTION_CANCELLED_MESSAGE));
-                return;
-            }
-            LOGGER.debug(() -> "Failed to read per-file stats in parallel, will use partial stats: " + e.getMessage());
-            listener.onResponse(null);
-        }));
+        gatherPerFile(
+            listing,
+            storageIdentity,
+            secretIdentity,
+            config,
+            false,
+            fold,
+            everyFileNeededForThePromise,
+            ActionListener.wrap(allMeta -> {
+                collectReadConfigs(listing, allMeta, readConfigsOut);
+                collectInferredTypes(listing, allMeta, inferredTypesOut);
+                collectSlimStatistics(listing, allMeta, slimStatsOut);
+                listener.onResponse(fold.finish());
+            }, e -> {
+                // Cancellation is not a "could not aggregate stats" condition — propagate it so the query aborts promptly
+                // instead of silently degrading to partial stats and continuing. A read that failed *because* the query
+                // was cancelled mid-flight can arrive wrapped (the schema cache wraps loader failures), so consult the
+                // cancellation state directly rather than matching only on the exception type.
+                if (e instanceof TaskCancelledException) {
+                    listener.onFailure(e);
+                    return;
+                }
+                if (isCancelled()) {
+                    listener.onFailure(new TaskCancelledException(RESOLUTION_CANCELLED_MESSAGE));
+                    return;
+                }
+                LOGGER.debug(() -> "Failed to read per-file stats in parallel, will use partial stats: " + e.getMessage());
+                listener.onResponse(null);
+            })
+        );
     }
 
     /**

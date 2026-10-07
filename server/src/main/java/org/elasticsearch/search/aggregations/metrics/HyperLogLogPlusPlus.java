@@ -177,14 +177,6 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         hll.mergeRegisters(hllBucket, registers, offset);
     }
 
-    void addRunLen(long bucketOrd, int register, int runLen) {
-        long hllBucket = bucketOrd < hllBuckets.size() ? hllBuckets.get(bucketOrd) - 1 : -1;
-        if (hllBucket < 0) {
-            hllBucket = upgradeToHll(bucketOrd);
-        }
-        hll.addRunLen(hllBucket, register, runLen);
-    }
-
     long upgradeToHll(long bucketOrd) {
         long hllBucket = bucketOrd < hllBuckets.size() ? hllBuckets.get(bucketOrd) : 0;
         if (hllBucket > 0) {

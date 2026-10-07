@@ -1241,6 +1241,7 @@ public class FileSplitProvider implements SplitProvider {
         );
         Set<String> metadataColumnNames = context.metadataColumnNames();
         Set<String> retainedPartitionKeys = context.retainedPartitionKeys();
+        PartitionSpec spec = PartitionSpec.fromConfig(config);
         PartitionValueLayout layout = PartitionValueLayout.of(retainedPartitionKeys, partitionInfo);
 
         int fileCount = fileList.fileCount();
@@ -1297,6 +1298,7 @@ public class FileSplitProvider implements SplitProvider {
                 long modifiedMillis = fileList.lastModifiedMillis(i);
                 Instant modified = modifiedMillis == 0L ? null : Instant.ofEpochMilli(modifiedMillis);
                 FileMetadataColumns.putValues(scratch, filePath, fileList.size(i), modified, filterDirectoryIntern, locationToWrite);
+                spec.aliasIdentityValues(scratch);
                 // Filter against the scratch. The survivor map is the shared tuple or the overlay view, never this map.
                 Map<String, Object> listingValues = Collections.unmodifiableMap(scratch);
                 SchemaReconciliation.FileSchemaInfo fileSchemaInfo = schemaInfo.get(filePath);
@@ -1306,6 +1308,10 @@ public class FileSplitProvider implements SplitProvider {
                         ? discoveryFilterValues(listingValues, metadataColumnNames, overlayPerFileConstants, unboundFileMetadataNames)
                         : listingValues;
                     if (filterValues.isEmpty() == false && matchesPartitionFilters(filterValues, filterHints, regexAutomata) == false) {
+                        certifiedSkips++;
+                        continue;
+                    }
+                    if (spec.overlapsExpressions(scratch, filterHints) == false) {
                         certifiedSkips++;
                         continue;
                     }

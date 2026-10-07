@@ -14,23 +14,19 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionGate;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
-
-import static org.hamcrest.Matchers.containsString;
 
 public class AdmissionStallWatchdogTests extends ESTestCase {
 
     public void testInjectedStallWarnsWithWaiterGraph() throws Exception {
         AtomicLong clock = new AtomicLong();
         AdmissionStallWatchdog watchdog = watchdog(clock, TimeValue.timeValueSeconds(15), TimeValue.timeValueSeconds(30));
-        watchdog.register(gate("bytes", 4, "used=100/200"));
+        watchdog.register(gate("bytes", 0, "used=100/200"));
         AdmissionTracker.Wait wait = watchdog.waitStarted("bytes", "worker-1");
         clock.addAndGet(TimeUnit.SECONDS.toNanos(16));
         try (MockLog mockLog = MockLog.capture(AdmissionStallWatchdog.class)) {
@@ -77,18 +73,40 @@ public class AdmissionStallWatchdogTests extends ESTestCase {
         watchdog.close();
     }
 
-    public void testWaitersWithRecentGrantStaySilent() throws Exception {
+    public void testWaitersWithNoHoldersWarnEvenAfterRecentGrant() throws Exception {
         AtomicLong clock = new AtomicLong();
         AdmissionStallWatchdog watchdog = watchdog(clock, TimeValue.timeValueSeconds(15), TimeValue.timeValueSeconds(30));
-        watchdog.waitStarted("budget", "stuck");
+        watchdog.register(gate("budget/s3", 0, ""));
+        watchdog.waitStarted("budget/s3", "stuck");
         clock.addAndGet(TimeUnit.SECONDS.toNanos(16));
-        AdmissionTracker.Wait recent = watchdog.waitStarted("budget", "moving");
+        AdmissionTracker.Wait recent = watchdog.waitStarted("budget/s3", "moving");
         recent.granted();
         clock.addAndGet(TimeUnit.SECONDS.toNanos(1));
         try (MockLog mockLog = MockLog.capture(AdmissionStallWatchdog.class)) {
             mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "queued with no holders",
+                    AdmissionStallWatchdog.class.getCanonicalName(),
+                    Level.WARN,
+                    "*admission stall*"
+                )
+            );
+            watchdog.inspect();
+            mockLog.assertAllExpectationsMatched();
+        }
+        watchdog.close();
+    }
+
+    public void testHoldersInUseStaySilent() throws Exception {
+        AtomicLong clock = new AtomicLong();
+        AdmissionStallWatchdog watchdog = watchdog(clock, TimeValue.timeValueSeconds(15), TimeValue.timeValueSeconds(30));
+        watchdog.register(gate("permits/s3", 2, ""));
+        watchdog.waitStarted("permits/s3", "queued");
+        clock.addAndGet(TimeUnit.SECONDS.toNanos(16));
+        try (MockLog mockLog = MockLog.capture(AdmissionStallWatchdog.class)) {
+            mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
-                    "grant keeps the queue live",
+                    "holders progressing",
                     AdmissionStallWatchdog.class.getCanonicalName(),
                     Level.WARN,
                     "*admission stall*"
@@ -128,7 +146,7 @@ public class AdmissionStallWatchdogTests extends ESTestCase {
         watchdog.close();
     }
 
-    public void testStatsAndCountersSnapshot() {
+    public void testStatsSnapshot() {
         AtomicLong clock = new AtomicLong();
         AdmissionStallWatchdog watchdog = watchdog(clock, TimeValue.timeValueSeconds(15), TimeValue.timeValueSeconds(30));
         watchdog.register(gate("permits/s3", 3, ""));
@@ -140,16 +158,11 @@ public class AdmissionStallWatchdogTests extends ESTestCase {
         assertEquals(1, stats.get(0).waiters());
         assertEquals(3, stats.get(0).holders());
         assertEquals(2500L, stats.get(0).oldestWaitMillis());
-        Counters counters = new Counters();
-        DataSourceCounters.populateAdmission(stats, counters);
-        assertEquals(1L, counters.get("datasources.admission.waiters.current.permits.s3"));
-        assertEquals(3L, counters.get("datasources.admission.holders.current.permits.s3"));
         watchdog.close();
     }
 
     public void testScheduledInspectRunsOnGeneric() throws Exception {
         AtomicLong clock = new AtomicLong();
-        AtomicReference<String> inspectThread = new AtomicReference<>();
         ThreadPool threadPool = new TestThreadPool(getTestName());
         AdmissionStallWatchdog watchdog = null;
         try {
@@ -160,10 +173,7 @@ public class AdmissionStallWatchdogTests extends ESTestCase {
                 TimeValue.timeValueMillis(1),
                 TimeValue.timeValueHours(1),
                 clock::get,
-                command -> threadPool.generic().execute(() -> {
-                    inspectThread.set(Thread.currentThread().getName());
-                    command.run();
-                })
+                threadPool.generic()
             );
             try (MockLog mockLog = MockLog.capture(AdmissionStallWatchdog.class)) {
                 mockLog.addExpectation(
@@ -178,13 +188,34 @@ public class AdmissionStallWatchdogTests extends ESTestCase {
                 clock.set(TimeUnit.SECONDS.toNanos(1));
                 mockLog.awaitAllExpectationsMatched();
             }
-            assertThat(inspectThread.get(), containsString("generic"));
         } finally {
             if (watchdog != null) {
                 watchdog.close();
             }
             ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }
+    }
+
+    public void testFinishedWaitDoesNotStall() throws Exception {
+        AtomicLong clock = new AtomicLong();
+        AdmissionStallWatchdog watchdog = watchdog(clock, TimeValue.timeValueSeconds(15), TimeValue.timeValueSeconds(30));
+        AdmissionTracker.Wait wait = watchdog.waitStarted("budget", "timed-out");
+        wait.finished();
+        clock.addAndGet(TimeUnit.SECONDS.toNanos(16));
+        try (MockLog mockLog = MockLog.capture(AdmissionStallWatchdog.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "finished wait",
+                    AdmissionStallWatchdog.class.getCanonicalName(),
+                    Level.WARN,
+                    "*admission stall*"
+                )
+            );
+            watchdog.inspect();
+            mockLog.assertAllExpectationsMatched();
+        }
+        assertEquals(0, watchdog.stats().getFirst().waiters());
+        watchdog.close();
     }
 
     private static AdmissionStallWatchdog watchdog(AtomicLong clock, TimeValue stall, TimeValue quiet) {

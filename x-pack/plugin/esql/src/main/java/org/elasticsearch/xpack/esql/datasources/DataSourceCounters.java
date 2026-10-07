@@ -106,20 +106,4 @@ public final class DataSourceCounters {
             counters.inc("datasources.discovery.bytes_scanned." + cs.get(b), acc.discoveryBytesScanned(b));
         }
     }
-
-    /**
-     * Snapshot of admission queue depth, keyed like inventory gauges ({@code .current.}).
-     * Oldest-wait stays on the per-node APM gauge: phone-home {@link Counters} merge with
-     * {@code Long::sum}, which would add wait times across nodes.
-     */
-    static void populateAdmission(List<AdmissionStallWatchdog.GateStats> stats, Counters counters) {
-        if (stats == null) {
-            return;
-        }
-        for (AdmissionStallWatchdog.GateStats gate : stats) {
-            String key = AdmissionStallWatchdog.GateStats.counterKey(gate.name());
-            counters.inc("datasources.admission.waiters.current." + key, gate.waiters());
-            counters.inc("datasources.admission.holders.current." + key, gate.holders());
-        }
-    }
 }

@@ -36,6 +36,7 @@ class ConcurrencyBudgetAllocator implements AdmissionGate {
     private final int totalBudget;
     private final long acquireTimeoutMs;
     private final AdmissionTracker tracker;
+    private final String scheme;
     private final Set<QueryConcurrencyBudget> activeBudgets = ConcurrentHashMap.newKeySet();
 
     ConcurrencyBudgetAllocator(int totalBudget, long acquireTimeoutMs) {
@@ -43,9 +44,14 @@ class ConcurrencyBudgetAllocator implements AdmissionGate {
     }
 
     ConcurrencyBudgetAllocator(int totalBudget, long acquireTimeoutMs, AdmissionTracker tracker) {
+        this(totalBudget, acquireTimeoutMs, tracker, null);
+    }
+
+    ConcurrencyBudgetAllocator(int totalBudget, long acquireTimeoutMs, AdmissionTracker tracker, String scheme) {
         this.totalBudget = totalBudget;
         this.acquireTimeoutMs = acquireTimeoutMs;
         this.tracker = tracker == null ? AdmissionTracker.NOOP : tracker;
+        this.scheme = scheme;
         this.tracker.register(this);
     }
 
@@ -116,7 +122,7 @@ class ConcurrencyBudgetAllocator implements AdmissionGate {
 
     @Override
     public String name() {
-        return AdmissionTracker.GATE_BUDGET;
+        return scheme == null ? AdmissionTracker.GATE_BUDGET : AdmissionTracker.budget(scheme);
     }
 
     @Override

@@ -23,8 +23,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
@@ -34,17 +36,17 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
 /**
- * Warns when an external-source admission gate has waiters and has not granted for
- * {@link #DEFAULT_STALL}. {@code lastGrant} is per gate token (bytes, budget, permits/scheme,
- * segmentators): progress on any waiter of that token is node liveness. Per-query starvation
- * on a live gate is out of scope.
+ * Warns when an external-source admission gate has waiters and no holders for
+ * {@link #DEFAULT_STALL}. Holders that keep a unit for a whole stream (permits, segmentators)
+ * are healthy saturation: {@code lastGrant} is telemetry, not a stall signal. Per-query
+ * starvation on a live gate is out of scope.
  * <p>
  * Inspect runs on {@code GENERIC} via {@link ThreadPool#scheduleWithFixedDelay} as a
- * force-execution task: the timer thread only enqueues the check, so a stuck {@code [scheduler]}
- * (C5) does not run the graph walk. Queue depth and oldest-wait gauges share the
+ * force-execution task: the timer thread only enqueues the check, so a stuck scheduler
+ * thread does not run the graph walk. Queue depth and oldest-wait gauges share the
  * {@code es.esql.datasources.admission.*} namespace so a later query-slot admission surface
- * can join the same series. Waiters and holders are copied into the ES|QL node stats payload;
- * oldest-wait stays on the APM gauge because phone-home counters sum across nodes.
+ * can join the same series. Oldest-wait stays on the APM gauge because phone-home counters
+ * sum across nodes.
  */
 final class AdmissionStallWatchdog implements AdmissionTracker, Closeable {
 
@@ -138,7 +140,7 @@ final class AdmissionStallWatchdog implements AdmissionTracker, Closeable {
     public Wait waitStarted(String gate, String waiter) {
         GateWaitState state = waits.computeIfAbsent(gate, g -> new GateWaitState());
         WaitImpl wait = new WaitImpl(waiter == null ? "" : waiter, nanoTime.getAsLong(), state);
-        state.outstanding.put(wait, Boolean.TRUE);
+        state.outstanding.add(wait);
         return wait;
     }
 
@@ -162,18 +164,17 @@ final class AdmissionStallWatchdog implements AdmissionTracker, Closeable {
             if (waiterCount == 0) {
                 continue;
             }
-            long oldestStart = Long.MAX_VALUE;
-            for (WaitImpl wait : state.outstanding.keySet()) {
-                if (wait.startedNanos < oldestStart) {
-                    oldestStart = wait.startedNanos;
-                }
-            }
-            long oldestWait = now - oldestStart;
-            long lastGrant = state.lastGrantNanos.get();
-            long sinceGrant = lastGrant == 0L ? oldestWait : now - lastGrant;
-            if (oldestWait < stallNanos || sinceGrant < stallNanos) {
+            AdmissionGate probe = probe(entry.getKey());
+            int holders = probe == null ? 0 : Math.max(0, probe.holders());
+            if (holders > 0) {
                 continue;
             }
+            long oldestWait = now - state.oldestStartNanos();
+            if (oldestWait < stallNanos) {
+                continue;
+            }
+            long lastGrant = state.lastGrantNanos.get();
+            long sinceGrant = lastGrant == 0L ? oldestWait : now - lastGrant;
             long lastWarn = state.lastWarnNanos.get();
             if (lastWarn != 0L && now - lastWarn < quietNanos) {
                 continue;
@@ -193,7 +194,7 @@ final class AdmissionStallWatchdog implements AdmissionTracker, Closeable {
         }
         if (graph != null) {
             logger.warn(
-                "external-source admission stall: waiters with no grant for [{}ms]: {}",
+                "external-source admission stall: waiters with no holders for [{}ms]: {}",
                 TimeUnit.NANOSECONDS.toMillis(oldestStalled),
                 graph
             );
@@ -202,7 +203,7 @@ final class AdmissionStallWatchdog implements AdmissionTracker, Closeable {
 
     List<GateStats> stats() {
         long now = nanoTime.getAsLong();
-        Map<String, AdmissionGate> probes = new ConcurrentHashMap<>();
+        Map<String, AdmissionGate> probes = new HashMap<>();
         for (AdmissionGate gate : gates) {
             probes.putIfAbsent(gate.name(), gate);
         }
@@ -218,17 +219,11 @@ final class AdmissionStallWatchdog implements AdmissionTracker, Closeable {
         return out;
     }
 
-    private GateStats statsOf(String name, GateWaitState state, @Nullable AdmissionGate probe, long now) {
+    private static GateStats statsOf(String name, GateWaitState state, @Nullable AdmissionGate probe, long now) {
         int waiterCount = state.outstanding.size();
         long oldestWaitMillis = 0L;
         if (waiterCount > 0) {
-            long oldestStart = Long.MAX_VALUE;
-            for (WaitImpl wait : state.outstanding.keySet()) {
-                if (wait.startedNanos < oldestStart) {
-                    oldestStart = wait.startedNanos;
-                }
-            }
-            oldestWaitMillis = TimeUnit.NANOSECONDS.toMillis(now - oldestStart);
+            oldestWaitMillis = TimeUnit.NANOSECONDS.toMillis(now - state.oldestStartNanos());
         }
         long lastGrant = state.lastGrantNanos.get();
         long sinceGrant = lastGrant == 0L ? -1L : TimeUnit.NANOSECONDS.toMillis(now - lastGrant);
@@ -262,7 +257,7 @@ final class AdmissionStallWatchdog implements AdmissionTracker, Closeable {
         }
         sb.append(" waiters=[");
         int n = 0;
-        for (WaitImpl wait : state.outstanding.keySet()) {
+        for (WaitImpl wait : state.outstanding) {
             if (n == LABEL_CAP) {
                 sb.append("...");
                 break;
@@ -333,16 +328,22 @@ final class AdmissionStallWatchdog implements AdmissionTracker, Closeable {
         oldestWaitGauge.close();
     }
 
-    record GateStats(String name, int waiters, int holders, long oldestWaitMillis, long millisSinceGrant) {
-        static String counterKey(String name) {
-            return name.replace('/', '.');
-        }
-    }
+    record GateStats(String name, int waiters, int holders, long oldestWaitMillis, long millisSinceGrant) {}
 
     private static final class GateWaitState {
-        private final ConcurrentHashMap<WaitImpl, Boolean> outstanding = new ConcurrentHashMap<>();
+        private final Set<WaitImpl> outstanding = ConcurrentHashMap.newKeySet();
         private final AtomicLong lastGrantNanos = new AtomicLong();
         private final AtomicLong lastWarnNanos = new AtomicLong();
+
+        long oldestStartNanos() {
+            long oldest = Long.MAX_VALUE;
+            for (WaitImpl wait : outstanding) {
+                if (wait.startedNanos < oldest) {
+                    oldest = wait.startedNanos;
+                }
+            }
+            return oldest;
+        }
     }
 
     private final class WaitImpl implements Wait {

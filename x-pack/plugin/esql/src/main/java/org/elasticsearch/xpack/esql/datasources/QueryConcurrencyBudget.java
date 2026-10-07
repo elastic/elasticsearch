@@ -88,6 +88,10 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
         return acquireTimeoutMs;
     }
 
+    private String budgetGate() {
+        return allocator == null ? AdmissionTracker.GATE_BUDGET : allocator.name();
+    }
+
     /**
      * Registers {@code io} so later grants and overshoot pins can rank it. Assigns {@code startSeq}
      * once. A second bind of the same instance is a no-op besides re-attaching this scheduler.
@@ -146,7 +150,7 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
             }
             Waiter waiter = new Waiter(lease, countGets);
             waiters.add(waiter);
-            AdmissionTracker.Wait tracked = tracker.waitStarted(AdmissionTracker.GATE_BUDGET, budgetWaiterLabel(lease));
+            AdmissionTracker.Wait tracked = tracker.waitStarted(budgetGate(), budgetWaiterLabel(lease));
             try {
                 while (waiter.granted == false) {
                     if (closed) {

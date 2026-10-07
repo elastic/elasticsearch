@@ -139,6 +139,33 @@ public class ConcurrencyLimiterTests extends ESTestCase {
         ConcurrencyLimiter.UNLIMITED.release();
     }
 
+    public void testUncontendedAcquireDoesNotRecordWait() throws Exception {
+        RecordingTracker tracker = new RecordingTracker();
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter(
+            "s3",
+            new ExternalSourceSettings.BlobStoreConcurrency(2, false),
+            60_000L,
+            tracker
+        );
+        limiter.acquire();
+        limiter.acquire();
+        assertEquals(0, tracker.outstanding.get());
+        assertEquals(0, tracker.grants.get());
+        limiter.release();
+        limiter.release();
+    }
+
+    public void testTimeoutRecordsFinished() throws Exception {
+        RecordingTracker tracker = new RecordingTracker();
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false), 50L, tracker);
+        limiter.acquire();
+        expectThrows(TimeoutException.class, limiter::acquire);
+        assertEquals(0, tracker.outstanding.get());
+        assertEquals(0, tracker.grants.get());
+        assertEquals(1, tracker.finished.get());
+        limiter.release();
+    }
+
     public void testContendedAcquireRecordsWaitAndGrant() throws Exception {
         RecordingTracker tracker = new RecordingTracker();
         ConcurrencyLimiter limiter = new ConcurrencyLimiter(
@@ -166,7 +193,8 @@ public class ConcurrencyLimiterTests extends ESTestCase {
             blocker.join(TimeUnit.SECONDS.toMillis(5));
             assertFalse(blocker.isAlive());
             assertEquals(0, tracker.outstanding.get());
-            assertEquals(2, tracker.grants.get());
+            assertEquals(1, tracker.grants.get());
+            assertEquals(0, tracker.finished.get());
         } finally {
             blocker.interrupt();
             blocker.join(TimeUnit.SECONDS.toMillis(5));
@@ -176,6 +204,7 @@ public class ConcurrencyLimiterTests extends ESTestCase {
     private static final class RecordingTracker implements AdmissionTracker {
         private final AtomicInteger outstanding = new AtomicInteger();
         private final AtomicInteger grants = new AtomicInteger();
+        private final AtomicInteger finished = new AtomicInteger();
         private volatile Runnable onWait = () -> {};
 
         @Override
@@ -192,6 +221,7 @@ public class ConcurrencyLimiterTests extends ESTestCase {
                 @Override
                 public void finished() {
                     outstanding.decrementAndGet();
+                    finished.incrementAndGet();
                 }
             };
         }

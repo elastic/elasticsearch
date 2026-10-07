@@ -16,7 +16,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
@@ -506,16 +505,6 @@ public final class DataSourceModule implements Closeable {
     @Nullable
     AdmissionStallWatchdog admissionWatchdog() {
         return admissionWatchdog;
-    }
-
-    /**
-     * Copies live admission queue depth and wait time into {@code counters} for the ES|QL node
-     * stats payload. No-op when this module has no watchdog.
-     */
-    public void populateAdmissionStats(Counters counters) {
-        if (admissionWatchdog != null) {
-            DataSourceCounters.populateAdmission(admissionWatchdog.stats(), counters);
-        }
     }
 
     public DecompressionCodecRegistry codecRegistry() {

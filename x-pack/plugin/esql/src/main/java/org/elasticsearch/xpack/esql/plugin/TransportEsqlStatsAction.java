@@ -91,9 +91,6 @@ public class TransportEsqlStatsAction extends TransportNodesAction<
         if (acc != null) {
             DataSourceCounters.populate(acc, counters);
         }
-        if (planExecutor.dataSourceModule() != null) {
-            planExecutor.dataSourceModule().populateAdmissionStats(counters);
-        }
         statsResponse.setStats(counters);
         return statsResponse;
     }

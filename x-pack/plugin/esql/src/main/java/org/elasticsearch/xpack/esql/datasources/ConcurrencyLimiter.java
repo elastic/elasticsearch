@@ -121,6 +121,10 @@ class ConcurrencyLimiter implements AdmissionGate {
         if (semaphore == null) {
             return;
         }
+        // Fair zero-timeout acquire: fails when waiters exist, so lastGrant only moves on a real park.
+        if (semaphore.tryAcquire(0, TimeUnit.NANOSECONDS)) {
+            return;
+        }
         long startNanos = System.nanoTime();
         AdmissionTracker.Wait wait = tracker.waitStarted(name(), Thread.currentThread().getName());
         boolean acquired;

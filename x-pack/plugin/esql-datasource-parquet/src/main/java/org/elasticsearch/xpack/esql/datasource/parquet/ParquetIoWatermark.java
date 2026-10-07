@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -79,6 +80,7 @@ final class ParquetIoWatermark implements AdmissionGate {
     private final long limit;
     private final long admitWaitMs;
     private final AtomicLong used = new AtomicLong();
+    private final AtomicInteger holds = new AtomicInteger();
     private final AtomicLong forcedAdmits = new AtomicLong();
     private final AtomicLong waitNanos = new AtomicLong();
     private final AtomicLong lastWarnLogTime = new AtomicLong();
@@ -349,6 +351,10 @@ final class ParquetIoWatermark implements AdmissionGate {
 
     @Override
     public int holders() {
+        int live = Math.max(0, holds.get());
+        if (live > 0) {
+            return live;
+        }
         return used.get() > 0L ? 1 : 0;
     }
 
@@ -529,10 +535,16 @@ final class ParquetIoWatermark implements AdmissionGate {
     static final class AdmitHold {
         private final ParquetIoWatermark watermark;
         private final AtomicLong remaining;
+        private final boolean counted;
 
         private AdmitHold(ParquetIoWatermark watermark, long bytes) {
             this.watermark = watermark;
-            this.remaining = new AtomicLong(Math.max(0L, bytes));
+            long reserved = Math.max(0L, bytes);
+            this.remaining = new AtomicLong(reserved);
+            this.counted = reserved > 0L;
+            if (counted) {
+                watermark.holds.incrementAndGet();
+            }
         }
 
         /**
@@ -551,6 +563,9 @@ final class ParquetIoWatermark implements AdmissionGate {
                 long release = Math.min(current, bytes);
                 if (remaining.compareAndSet(current, current - release)) {
                     watermark.release(release);
+                    if (current - release == 0L && counted) {
+                        watermark.holds.decrementAndGet();
+                    }
                     return;
                 }
             }

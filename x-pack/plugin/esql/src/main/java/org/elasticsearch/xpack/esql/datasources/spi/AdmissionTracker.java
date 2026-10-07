@@ -13,9 +13,8 @@ package org.elasticsearch.xpack.esql.datasources.spi;
  * completes it on grant or on timeout/cancel. The stall watchdog polls these events on
  * {@code GENERIC}; it does not run on {@code [scheduler]}.
  * <p>
- * Call {@link #waitStarted} when a caller may park. A blocking acquire that returns immediately
- * still records a wait of negligible duration. {@link #NOOP} is the default when no watchdog is
- * installed (tests, short constructors).
+ * Call {@link #waitStarted} when a caller actually parks. Uncontended acquires skip this hook.
+ * {@link #NOOP} is the default when no watchdog is installed (tests, short constructors).
  */
 public interface AdmissionTracker {
 
@@ -25,6 +24,10 @@ public interface AdmissionTracker {
 
     static String permits(String scheme) {
         return "permits/" + scheme;
+    }
+
+    static String budget(String scheme) {
+        return "budget/" + scheme;
     }
 
     Wait NOOP_WAIT = new Wait() {

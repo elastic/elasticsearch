@@ -299,43 +299,24 @@ public class CrossClusterSubqueryUnavailableRemotesIT extends AbstractCrossClust
     }
 
     /*
-     * Two merge branches target the same skip_unavailable remote. The first leaf's CLUSTER_ACTION fails before any pages return (runtime
-     * SKIPPED). The second leaf still dispatches because planning left the cluster RUNNING, and it returns shards. Status must become
-     * PARTIAL, not stay SKIPPED.
+     * Two merge branches target the same skip_unavailable remote. One leaf's CLUSTER_ACTION fails before any pages return (runtime
+     * SKIPPED); the other returns shards. Branch order is randomized so both skip-then-success and success-then-failure are covered.
+     * Status must become PARTIAL: a later success must not leave the cluster SKIPPED, and a later empty failure must not overwrite
+     * earlier shard counts as SKIPPED.
      */
-    public void testSameRemoteSkipThenSuccessIsPartial() {
+    public void testSameClusterRemoteSkipAndSuccessIsPartial() {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
-        assertSameRemoteRuntimeMergeStatus(
-            LoggerMessageFormat.format(
-                null,
-                "FROM (FROM {}:{}), (FROM {}:{}) | KEEP v, tag",
-                REMOTE_CLUSTER_1,
-                FAIL_INDEX,
-                REMOTE_CLUSTER_1,
-                REMOTE_INDEX
-            )
+        boolean failFirst = randomBoolean();
+        String firstIndex = failFirst ? FAIL_INDEX : REMOTE_INDEX;
+        String secondIndex = failFirst ? REMOTE_INDEX : FAIL_INDEX;
+        String query = LoggerMessageFormat.format(
+            null,
+            "FROM (FROM {}:{}), (FROM {}:{}) | KEEP v, tag",
+            REMOTE_CLUSTER_1,
+            firstIndex,
+            REMOTE_CLUSTER_1,
+            secondIndex
         );
-    }
-
-    /*
-     * Reverse order of {@link #testSameRemoteSkipThenSuccessIsPartial}: a successful leaf writes shard counts first, then a later empty
-     * failure must not overwrite the cluster as SKIPPED.
-     */
-    public void testSameRemoteSuccessThenFailureIsPartial() {
-        assumeTrue("requires query pragmas", canUseQueryPragmas());
-        assertSameRemoteRuntimeMergeStatus(
-            LoggerMessageFormat.format(
-                null,
-                "FROM (FROM {}:{}), (FROM {}:{}) | KEEP v, tag",
-                REMOTE_CLUSTER_1,
-                REMOTE_INDEX,
-                REMOTE_CLUSTER_1,
-                FAIL_INDEX
-            )
-        );
-    }
-
-    private void assertSameRemoteRuntimeMergeStatus(String query) {
         setSkipUnavailable(REMOTE_CLUSTER_1, true);
         populateRemoteIndices(REMOTE_CLUSTER_1, FAIL_INDEX, randomIntBetween(1, 5));
         Exception simulatedFailure = mockClusterActionFailureForIndex(FAIL_INDEX);
@@ -379,10 +360,7 @@ public class CrossClusterSubqueryUnavailableRemotesIT extends AbstractCrossClust
     }
 
     private static boolean targetsIndex(TransportRequest request, String indexName) {
-        if (request instanceof IndicesRequest indicesRequest) {
-            return Arrays.stream(indicesRequest.indices()).anyMatch(index -> index.contains(indexName));
-        }
-        return false;
+        return request instanceof IndicesRequest indicesRequest && Arrays.asList(indicesRequest.indices()).contains(indexName);
     }
 
     private void clearRemoteClusterActionMocks() {

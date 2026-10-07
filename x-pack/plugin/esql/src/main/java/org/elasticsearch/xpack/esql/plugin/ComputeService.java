@@ -1798,6 +1798,11 @@ public class ComputeService {
      * {@code receivedResults} is true when this branch produced a {@link ComputeResponse} or fetched pages. Coordinator finalization must
      * pass {@code false} so a planning-time {@code SKIPPED} is not promoted. A first-branch failure with no results and no prior shard
      * counts stays {@code SKIPPED}.
+     * <p>
+     * Promotions are not gated on {@code allow_partial_results}. A later failure reaches this method only after the caller already chose
+     * to continue — via {@code skip_unavailable}/{@link EsqlExecutionInfo#shouldSkipOnFailure} or {@code allow_partial_results}. Those
+     * gates are independent: CCS with {@code skip_unavailable=true} still records {@code PARTIAL} when {@code allow_partial_results} is
+     * false.
      */
     static void applyClusterStatusAfterBranch(
         EsqlExecutionInfo.Cluster.Builder builder,

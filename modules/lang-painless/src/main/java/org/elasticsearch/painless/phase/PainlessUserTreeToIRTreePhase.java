@@ -605,7 +605,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             irCallSubDefNode.attachDecoration(new IRDExpressionType(def.class));
             irCallSubDefNode.attachDecoration(new IRDName("get"));
             // Same rule as any def call: a get(default) may reach a @script_aware or @allocates field read.
-            if (defCallNeedsScript(scriptScope, "get", 1)) {
+            if (DefaultSemanticAnalysisPhase.defCallNeedsScript(scriptScope, "get", 1)) {
                 irCallSubDefNode.attachCondition(IRCScriptAware.class);
             }
 

@@ -2685,6 +2685,19 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
      * Checks: type validation, method resolution, field resolution
      */
     /**
+     * Whether a def call to {@code methodName} with {@code argumentCount} arguments must pass the script instance: some
+     * allowlisted method of that shape is {@code @script_aware}, or, with tracking on, {@code @allocates}. The receiver is
+     * unknown here, so this goes by name and arity. The semantic phase uses it to make an enclosing lambda capture the
+     * script, and the IR phase to push it at the call site, so both must agree.
+     */
+    static boolean defCallNeedsScript(ScriptScope scriptScope, String methodName, int argumentCount) {
+        PainlessLookup painlessLookup = scriptScope.getPainlessLookup();
+        return painlessLookup.hasAnnotationAwareMethod(ScriptAwareAnnotation.class, methodName, argumentCount)
+            || (scriptScope.getCompilerSettings().isAllocationTrackingEnabled()
+                && painlessLookup.hasAnnotationAwareMethod(AllocatesAnnotation.class, methodName, argumentCount));
+    }
+
+    /**
      * Whether a def load of the shortcut {@code name} must pass the script instance: some allowlisted class has a
      * {@code @script_aware} getter for it, or tracking is on and some class has a getter for it with an {@code @allocates}
      * estimator to charge.
@@ -3369,9 +3382,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
             semanticScope.setCondition(userCallNode, DynamicInvocation.class);
 
-            if (semanticScope.getScriptScope()
-                .getPainlessLookup()
-                .hasAnnotationAwareMethod(ScriptAwareAnnotation.class, methodName, userArgumentsSize)) {
+            // The call site pushes the script under the same rule, so an enclosing lambda must capture it.
+            if (defCallNeedsScript(semanticScope.getScriptScope(), methodName, userArgumentsSize)) {
                 semanticScope.setUsesInstanceMethod();
             }
         } else {

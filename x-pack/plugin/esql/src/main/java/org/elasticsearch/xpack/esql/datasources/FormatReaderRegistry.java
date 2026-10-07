@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
@@ -45,11 +46,16 @@ public class FormatReaderRegistry {
     private final Map<String, Supplier<FormatReader>> byName = new ConcurrentHashMap<>();
     private final Map<String, Supplier<FormatReader>> byExtension = new ConcurrentHashMap<>();
     private final DecompressionCodecRegistry codecRegistry;
+    private volatile AdmissionTracker admissionTracker = AdmissionTracker.NOOP;
     private volatile int maxDecompressionRatio = ExternalSourceSettings.MAX_DECOMPRESSION_RATIO.getDefault(Settings.EMPTY);
     private volatile int maxDecompressionRatioZstd = ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD.getDefault(Settings.EMPTY);
 
     public FormatReaderRegistry(DecompressionCodecRegistry codecRegistry) {
         this.codecRegistry = codecRegistry;
+    }
+
+    public void setAdmissionTracker(AdmissionTracker admissionTracker) {
+        this.admissionTracker = admissionTracker == null ? AdmissionTracker.NOOP : admissionTracker;
     }
 
     public void setMaxDecompressionRatio(int ratio) {
@@ -80,6 +86,7 @@ public class FormatReaderRegistry {
                     synchronized (this) {
                         if (instance == null) {
                             FormatReader created = factory.create(settings, blockFactory);
+                            created.bindAdmissionTracker(admissionTracker);
                             // Claim extension mappings before publishing the instance, under the same
                             // conflict rule as registerExtension: a reader-declared extension already
                             // owned by another format fails loudly instead of silently stealing the

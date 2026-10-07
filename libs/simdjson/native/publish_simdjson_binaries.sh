@@ -18,7 +18,7 @@
 # Environment:
 #   TOOLCHAIN_IMAGE      Docker image for cross-compilation
 #                        (default: es-native-cross-toolchain:local with --local, built on demand;
-#                         or docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:7)
+#                         or docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:8)
 #   ARTIFACTORY_API_KEY  Required for upload (non --local, or --force-upload)
 
 set -euo pipefail
@@ -27,7 +27,7 @@ VERSION="0.3.0"
 ARTIFACT_ID="libsimdjson"
 VEC_NATIVE_DIR="$(cd "$(dirname "$0")/../../simdvec/native" && pwd)"
 LOCAL_TOOLCHAIN_IMAGE="es-native-cross-toolchain:local"
-REMOTE_TOOLCHAIN_IMAGE="docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:7"
+REMOTE_TOOLCHAIN_IMAGE="docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:8"
 
 LOCAL=false
 FORCE_UPLOAD=false

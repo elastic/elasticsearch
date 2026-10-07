@@ -523,13 +523,19 @@ public class FileSplitProvider implements SplitProvider {
      * <p>
      * One place answers this so no caller has to ask whether the listing it was handed happens to be complete. A
      * complete one — {@code union_by_name}, {@code strict}, whose schemas span every file — is the query's file set
-     * already and is returned unchanged. A prefix — {@code first_file_wins}, whose schema needed one file — is not,
-     * so this lists the dataset with the query's own filters. Continuing from the prefix rather than listing again
-     * is the obvious refinement and is not done yet: the page the schema read is listed twice, one request against
-     * the full listing's many.
+     * already and is returned unchanged. An inference-anchor listing is a schema stash, not a scan set, so this
+     * swaps in empty rather than listing again. A prefix — {@code first_file_wins}, whose schema needed one file —
+     * is not complete, so this lists the dataset with the query's own filters. Continuing from the prefix rather
+     * than listing again is the obvious refinement and is not done yet: the page the schema read is listed twice,
+     * one request against the full listing's many.
      */
     private SplitDiscoveryContext overTheQuerysFileSet(SplitDiscoveryContext handed, ListingExtents extents) throws Exception {
         DatasetDiscovery discovery = DatasetDiscovery.shared(handed.fileList());
+        if (handed.fileList().isInferenceAnchor()) {
+            // The leftover file is a schema stash. A re-list with the same hints is another anchor (cache hit);
+            // skip it and scan nothing. Certified skip of that one file would also yield zero rows.
+            return handed.withScanFileSet(FileList.EMPTY);
+        }
         if (discovery.schemaListingIsComplete()) {
             // The listing is the query's file set, so there is nothing to swap and nothing derived from it to move.
             return handed;

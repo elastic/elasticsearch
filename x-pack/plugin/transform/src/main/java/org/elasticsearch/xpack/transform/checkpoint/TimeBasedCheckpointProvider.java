@@ -104,14 +104,18 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
     }
 
     @Override
-    public void createNextCheckpoint(final TransformCheckpoint lastCheckpoint, final ActionListener<TransformCheckpoint> listener) {
+    public void createNextCheckpoint(
+        final TransformCheckpoint lastCheckpoint,
+        final TimeValue timeout,
+        final ActionListener<TransformCheckpoint> listener
+    ) {
         final long timestamp = clock.millis();
         final long checkpoint = TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? 1 : lastCheckpoint.getCheckpoint() + 1;
 
         // for time based synchronization
         final long timeUpperBound = alignTimestamp.apply(timestamp - timeSyncConfig.getDelay().millis());
 
-        getIndexCheckpoints(INTERNAL_GET_INDEX_CHECKPOINTS_TIMEOUT, ActionListener.wrap(checkpointsByIndex -> {
+        getIndexCheckpoints(timeout, ActionListener.wrap(checkpointsByIndex -> {
             listener.onResponse(
                 new TransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, timeUpperBound)
             );

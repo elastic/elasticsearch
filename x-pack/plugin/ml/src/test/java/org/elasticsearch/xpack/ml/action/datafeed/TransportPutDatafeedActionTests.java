@@ -60,7 +60,7 @@ import static org.mockito.Mockito.when;
 public class TransportPutDatafeedActionTests extends ESTestCase {
 
     public void testEsqlDatafeedWhenFlagOnShouldPutDatafeed() {
-        // Flag-off rejection is covered by DatafeedEsqlGatesTests and release-build manual checks (see manual-test-plan §1.11).
+        // Flag-off rejection is covered by DatafeedEsqlGatesTests; release builds need -Des.esql_datafeeds_feature_flag_enabled=true.
         assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
         JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);

@@ -55,10 +55,9 @@ import static org.mockito.Mockito.verify;
 public class TransportStartDatafeedActionTests extends ESTestCase {
 
     public void testEsqlDatafeedWhenFlagOnShouldAllowStart() {
-        // MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG is enabled automatically in snapshot/test builds and fixed for
-        // the process lifetime, so the disabled-rejection path (Messages.DATAFEED_ESQL_START_DISABLED) is no longer
-        // unit-testable here; see docs/projects/esql-datafeeds/testing/manual-test-plan.md §1.11 for the flag-off
-        // manual check on a release build.
+        // ESQL_DATAFEEDS_FEATURE_FLAG is on in snapshot/test JVMs and fixed for the process lifetime, so the
+        // flag-off rejection path (Messages.DATAFEED_ESQL_START_DISABLED) is covered in DatafeedEsqlGatesTests;
+        // on a release build, verify with -Des.esql_datafeeds_feature_flag_enabled=false.
         assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
         DatafeedConfig datafeed = new DatafeedConfig.Builder("esql-datafeed", "job").setEsqlQuery("FROM logs")
             .setSourceTimeField("@timestamp")

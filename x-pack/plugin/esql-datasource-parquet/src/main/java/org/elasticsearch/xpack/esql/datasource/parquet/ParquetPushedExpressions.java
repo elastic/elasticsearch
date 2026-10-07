@@ -1000,7 +1000,7 @@ final class ParquetPushedExpressions {
      * are delegated to the shared {@link DeclaredTypeCoercions.RawDecodeRelation} authority (via
      * {@link #temporalBandPredicate} for {@code ==} and {@link #temporalBoundToRaw} for the ordered ops), which
      * derives the relation from {@link ParquetColumnDecoding#rawDecodeRelation} — timestamps in all three units plus
-     * the un-annotated signed INT64 identity case push; everything else (TIME, unsigned, unknown) resolves to a null
+     * the un-annotated signed INT64 (epoch-millis, scaled x1e6) push; everything else (TIME, unsigned, unknown) resolves to a null
      * relation and declines rather than pushing a raw-unit predicate that silently prunes matching row groups. The
      * bound is rounded outward so the pushed predicate is never stricter than the true nanosecond predicate. Safe
      * because temporal pushdown is always RECHECK (see {@link ParquetFilterPushdownSupport#isFullyEvaluable}), so
@@ -1280,9 +1280,9 @@ final class ParquetPushedExpressions {
      * pushdown gate requires each literal's {@link DataType} to match the column;
      * {@link #temporalInPredicate} resolves the
      * raw-to-decoded relation from {@link ParquetColumnDecoding#rawDecodeRelation} and pushes each element's exact
-     * raw equality band: an identity column (NANOS, or the un-annotated signed INT64 a declared {@code date_nanos}
-     * reads as raw epoch-nanos) pushes every value exactly; a scaled column (MICROS, MILLIS, or a declared epoch
-     * format) drops the non-tick elements that no stored value can equal and pushes the rest; an un-pushable
+     * raw equality band: an identity column (NANOS) pushes every value exactly; a scaled column (MICROS, MILLIS, a
+     * declared epoch format, or the un-annotated signed INT64 a declared {@code date_nanos} reads as epoch-millis)
+     * drops the non-tick elements that no stored value can equal and pushes the rest; an un-pushable
      * physical (TIME, unsigned INT64, unknown) resolves to a null relation and declines entirely.
      */
     private FilterPredicate translateDateNanosIn(

@@ -6846,8 +6846,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // only. Every rail goes through EsqlDataTypeConverter.dateNanosToLong — the SAME string -> date_nanos
             // conversion the columnar declared coercion (DeclaredTypeCoercions.scalarCoercer, which threads the
             // declared format) and the NDJSON decode arm use — so identical bytes with an identical declared format
-            // yield the same instant across every format. A bare numeric cell is epoch NANOS: the declared type names
-            // the numeric unit (datetime = millis, date_nanos = nanos; see DeclaredTypeCoercions).
+            // yield the same instant across every format. A bare numeric cell is epoch millis, exactly as under
+            // datetime, widened to nanos (the unit rule; see DeclaredTypeCoercions).
             if (columnIndex >= 0
                 && declaredFormatters != null
                 && columnIndex < declaredFormatters.length
@@ -6860,7 +6860,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
             }
             // See tryParseDatetime: the file-level pattern outranks the epoch shortcut when it matches the cell, and a
-            // numeric cell it does not match stays epoch nanos.
+            // numeric cell it does not match stays epoch millis.
             if (datetimeFormatter != null) {
                 if (looksNumeric(value) == false || datetimeFormatter.tryParse(value) != null) {
                     try {
@@ -6871,23 +6871,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     }
                 }
                 Long epoch = parseEpoch(value);
-                if (epoch == null || epoch < 0) {
-                    // A negative epoch has no date_nanos representation (the TO_DATE_NANOS range rule), so it fails the
-                    // cell through the error policy rather than ever emitting a negative nanos long.
+                Long nanos = epoch == null ? null : epochMillisToNanos(epoch);
+                if (nanos == null) {
                     lastFieldError = cannotRead(value, DataType.DATE_NANOS);
-                    return null;
                 }
-                return epoch;
+                return nanos;
             }
             if (looksNumeric(value)) {
                 Long epoch = parseEpoch(value);
-                if (epoch != null && epoch >= 0) {
-                    return epoch;
-                }
                 if (epoch != null) {
-                    // A negative epoch is not a representable date_nanos; fail the cell rather than emit it.
-                    lastFieldError = cannotRead(value, DataType.DATE_NANOS);
-                    return null;
+                    Long nanos = epochMillisToNanos(epoch);
+                    if (nanos == null) {
+                        lastFieldError = cannotRead(value, DataType.DATE_NANOS);
+                    }
+                    return nanos;
                 }
                 // Overflowed a long; fall through to the ISO fallback, which will report the failure.
             }
@@ -7031,6 +7028,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
             try {
                 return Long.parseLong(value);
             } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+
+        /**
+         * Widens a bare epoch-millis cell to a {@code date_nanos} value, or {@code null} when the instant is before the
+         * epoch or after 2262 and so has no {@code date_nanos} representation (the {@code TO_DATE_NANOS} range rule).
+         */
+        private static Long epochMillisToNanos(long millis) {
+            try {
+                return org.elasticsearch.common.time.DateUtils.toNanoSeconds(millis);
+            } catch (IllegalArgumentException e) {
                 return null;
             }
         }

@@ -622,7 +622,10 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     public void testDatetimeFormatNumericFallbackWhenPatternDoesNotMatch() throws IOException {
         long epoch = 1609459200000L; // 2021-01-01T00:00:00Z; 13 digits, no match for yyyy-MM-dd HH:mm:ss
         assertEquals(List.of(row(epoch)), read(false, Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"), "ts:datetime\n" + epoch + "\n"));
-        assertEquals(List.of(row(epoch)), read(false, Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"), "ts:date_nanos\n" + epoch + "\n"));
+        assertEquals(
+            List.of(row(epoch * 1_000_000L)),
+            read(false, Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"), "ts:date_nanos\n" + epoch + "\n")
+        );
         // Negative epoch is numeric and unmatchable by the pattern; it stays epoch.
         assertEquals(List.of(row(-1000L)), read(false, Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"), "ts:datetime\n-1000\n"));
         // With no file-level pattern at all, the shortcut is untouched.

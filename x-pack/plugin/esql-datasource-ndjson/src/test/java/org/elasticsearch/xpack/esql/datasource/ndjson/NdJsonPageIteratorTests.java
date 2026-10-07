@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -3044,11 +3045,16 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     /**
-     * Default segment size: 4 MiB, larger than the SPI's 1 MiB default. Locked in so a refactor
-     * that drops the override (and silently falls back to 1 MiB) trips a precommit failure.
+     * Default segment size: 4 MiB less the array header, larger than the SPI's 1 MiB default. Locked in so a
+     * refactor that drops the override (and silently falls back to 1 MiB) trips a precommit failure, and so the
+     * header carve-out that keeps each chunk array out of an extra G1 humongous region is not rounded back
+     * up to an exact 4 MiB.
      */
-    public void testMinimumSegmentSizeDefaultIsFourMiB() {
-        assertEquals(4L * 1024 * 1024, new NdJsonFormatReader(Settings.EMPTY, blockFactory).minimumSegmentSize());
+    public void testMinimumSegmentSizeDefaultIsRegionFriendlyFourMiB() {
+        assertEquals(
+            HeapFootprint.regionFriendlyLength(4 * 1024 * 1024),
+            new NdJsonFormatReader(Settings.EMPTY, blockFactory).minimumSegmentSize()
+        );
     }
 
     /**
@@ -3058,7 +3064,29 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      */
     public void testMinimumSegmentSizeRespectsNodeSetting() {
         var settings = Settings.builder().put(NdJsonFormatReader.SEGMENT_SIZE_SETTING, "8mb").build();
-        assertEquals(8L * 1024 * 1024, new NdJsonFormatReader(settings, blockFactory).minimumSegmentSize());
+        assertEquals(
+            HeapFootprint.regionFriendlyLength(8 * 1024 * 1024),
+            new NdJsonFormatReader(settings, blockFactory).minimumSegmentSize()
+        );
+    }
+
+    /**
+     * A configured size is trimmed by the array header, whether it comes from the node setting or {@code WITH}: an
+     * exact power of two such as {@code 4mb} would make every chunk array spill into an extra G1 humongous region.
+     * Other values lose only the header. The 64 KiB minimum is checked against the value as configured.
+     */
+    public void testConfiguredSegmentSizeIsTrimmedByArrayHeader() {
+        var reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
+        for (String size : List.of("4mb", "16mb", "5mb", "64kb")) {
+            long configured = ByteSizeValue.parseBytesSizeValue(size, "test").getBytes();
+            long expected = HeapFootprint.lengthFittingIn(configured);
+            assertThat(expected, Matchers.lessThan(configured));
+            assertThat(configured - expected, Matchers.lessThan(32L));
+            var nodeSettings = Settings.builder().put(NdJsonFormatReader.SEGMENT_SIZE_SETTING, size).build();
+            assertEquals(size, expected, new NdJsonFormatReader(nodeSettings, blockFactory).minimumSegmentSize());
+            assertEquals(size, expected, ((NdJsonFormatReader) reader.withConfig(Map.of("segment_size", size))).minimumSegmentSize());
+        }
+        assertEquals(HeapFootprint.regionFriendlyLength(4 * 1024 * 1024), HeapFootprint.lengthFittingIn(4 * 1024 * 1024));
     }
 
     /**
@@ -3070,8 +3098,16 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         var reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
         FormatReader tuned = reader.withConfig(Map.of("segment_size", "2mb"));
         assertNotSame(reader, tuned);
-        assertEquals("Per-query override applied", 2L * 1024 * 1024, ((NdJsonFormatReader) tuned).minimumSegmentSize());
-        assertEquals("Original reader still uses the default", 4L * 1024 * 1024, reader.minimumSegmentSize());
+        assertEquals(
+            "Per-query override applied",
+            HeapFootprint.regionFriendlyLength(2 * 1024 * 1024),
+            ((NdJsonFormatReader) tuned).minimumSegmentSize()
+        );
+        assertEquals(
+            "Original reader still uses the default",
+            HeapFootprint.lengthFittingIn(NdJsonFormatReader.DEFAULT_SEGMENT_SIZE.getBytes()),
+            reader.minimumSegmentSize()
+        );
     }
 
     /** Configurations that hurt more than they help (sub-64 KiB) must be rejected up front. */

@@ -4294,6 +4294,14 @@ public class EsqlCapabilities {
          */
         FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE,
 
+        /**
+         * A whole number in an external dataset column declared or inferred as {@code date_nanos}, without a
+         * {@code format}, is read as epoch milliseconds widened to nanoseconds, matching {@code date} columns. Parquet
+         * filter pushdown and TopN pruning scale their bounds the same way. Older nodes read such a number as epoch
+         * nanoseconds, so tests that assert the millisecond read require this capability to skip against them.
+         */
+        EXTERNAL_DATASET_DATE_NANOS_BARE_NUMBER_IS_EPOCH_MILLIS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

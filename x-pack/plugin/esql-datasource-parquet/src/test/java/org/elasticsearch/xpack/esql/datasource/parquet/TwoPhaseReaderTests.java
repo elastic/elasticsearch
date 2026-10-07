@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -388,7 +389,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
             assertTrue(iterator.hasNext());
             assertEquals(
                 "the only post-open storage-buffer reservation must be the whole projection chunk fallback",
-                expectedFallbackBytes,
+                HeapFootprint.byteArrayBytes(expectedFallbackBytes),
                 trackingBreaker.storageReadReservations.get() - afterOpen
             );
             do {

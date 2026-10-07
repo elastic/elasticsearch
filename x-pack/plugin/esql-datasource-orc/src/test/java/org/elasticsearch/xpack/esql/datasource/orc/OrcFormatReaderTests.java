@@ -1766,6 +1766,71 @@ public class OrcFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * An ORC int64 column declared {@code date_nanos} reads a bare number as epoch MILLIS widened to nanos — the same
+     * unit as under {@code datetime} — and, with {@code format: epoch_second}, as epoch seconds. Both name the same
+     * instant here. A bare nanosecond count is out of range as millis and fails the strict read.
+     */
+    public void testLongDeclaredDateNanosReadsMillisOrDeclaredSeconds() throws Exception {
+        long expectedNanos = 1_719_828_000_000_000_000L; // 2024-07-01T10:00:00Z
+        List<Attribute> asDateNanos = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATE_NANOS));
+        TypeDescription schema = TypeDescription.createStruct().addField("ts", TypeDescription.createLong());
+        record Cell(long raw, Map<String, String> formats) {}
+        for (Cell cell : List.of(new Cell(1_719_828_000_000L, Map.of()), new Cell(1_719_828_000L, Map.of("ts", "epoch_second")))) {
+            byte[] orcData = createOrcFile(schema, batch -> {
+                batch.size = 1;
+                ((LongColumnVector) batch.cols[0]).vector[0] = cell.raw();
+            });
+            OrcFormatReader reader = (OrcFormatReader) declaredReader("ts").withDeclaredDateFormats(cell.formats());
+            try (
+                CloseableIterator<Page> it = reader.readRange(
+                    createStorageObject(orcData),
+                    new RangeReadContext(List.of("ts"), 10, 0, orcData.length, asDateNanos, ErrorPolicy.STRICT)
+                )
+            ) {
+                Page page = it.next();
+                assertEquals("formats " + cell.formats(), expectedNanos, ((LongBlock) page.getBlock(0)).getLong(0));
+                page.releaseBlocks();
+            }
+        }
+
+        byte[] nanosCount = createOrcFile(schema, batch -> {
+            batch.size = 2;
+            LongColumnVector col = (LongColumnVector) batch.cols[0];
+            col.vector[0] = expectedNanos;
+            col.vector[1] = 1_719_828_000_000L;
+        });
+        // null_field: the nanosecond count nulls with a Warning naming the column; the millis row survives.
+        try (
+            CloseableIterator<Page> it = declaredReader("ts").readRange(
+                createStorageObject(nanosCount),
+                new RangeReadContext(List.of("ts"), 10, 0, nanosCount.length, asDateNanos, ErrorPolicy.PERMISSIVE)
+            )
+        ) {
+            Page page = it.next();
+            LongBlock longs = (LongBlock) page.getBlock(0);
+            assertTrue("a nanosecond count is out of range as epoch millis", longs.isNull(0));
+            assertEquals(expectedNanos, longs.getLong(longs.getFirstValueIndex(1)));
+            page.releaseBlocks();
+        }
+        List<String> warnings = drainWarnings();
+        assertThat(warnings.toString(), allOf(containsString("[ts]"), containsString("date_nanos"), containsString("2262")));
+
+        Exception failure = expectThrows(Exception.class, () -> {
+            try (
+                CloseableIterator<Page> it = declaredReader("ts").readRange(
+                    createStorageObject(nanosCount),
+                    new RangeReadContext(List.of("ts"), 10, 0, nanosCount.length, asDateNanos, ErrorPolicy.STRICT)
+                )
+            ) {
+                while (it.hasNext()) {
+                    it.next().releaseBlocks();
+                }
+            }
+        });
+        assertThat(failure.getMessage(), allOf(containsString("[ts]"), containsString("2262")));
+    }
+
     public void testLongDeclaredEpochSecondOverflowHonorsErrorPolicy() throws Exception {
         // The epoch-scaling overflow leg of the unit rule: an int64 declared `date` WITH `format: epoch_second` scales
         // the raw seconds to millis (x1000). A value too large to scale (Long.MAX_VALUE seconds) must FAIL PER CELL and

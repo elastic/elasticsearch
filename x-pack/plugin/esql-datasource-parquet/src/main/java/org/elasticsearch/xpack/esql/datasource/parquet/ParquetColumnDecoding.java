@@ -133,7 +133,8 @@ final class ParquetColumnDecoding {
         return switch (declaredType) {
             // Identity reads never null; every rescaling read can overflow at its edge.
             case DATETIME -> (logical == null || millisAnnotated) == false;
-            // Bare INT64 rejects negatives via castBlock; NANOS is the identity; MICROS/MILLIS scale and can overflow.
+            // Bare INT64 widens millis->nanos via castBlock and nulls pre-epoch/post-2262 values; NANOS is the identity;
+            // MICROS/MILLIS scale and can overflow.
             case DATE_NANOS -> nanosAnnotated == false;
             default -> true;
         };
@@ -175,8 +176,13 @@ final class ParquetColumnDecoding {
             return scale == null ? null : new DeclaredTypeCoercions.RawDecodeRelation.ScaleUp(scale);
         }
         if (logical == null) {
-            // A bare INT64 reads as the declared type's own unit — the fused identity.
-            return new DeclaredTypeCoercions.RawDecodeRelation.Identity();
+            // A bare INT64 is epoch millis (DeclaredTypeCoercions' unit rule): the fused identity under datetime, the
+            // castBlock millis->nanos widen under date_nanos — the same relation a declared epoch_millis format has.
+            return switch (declaredType) {
+                case DATETIME -> new DeclaredTypeCoercions.RawDecodeRelation.Identity();
+                case DATE_NANOS -> new DeclaredTypeCoercions.RawDecodeRelation.ScaleUp(NANOS_PER_MILLI);
+                default -> null;
+            };
         }
         if (logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
             return switch (declaredType) {

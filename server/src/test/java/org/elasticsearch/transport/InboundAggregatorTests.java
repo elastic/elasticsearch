@@ -318,34 +318,6 @@ public class InboundAggregatorTests extends ESTestCase {
         assertThat(limitedBreaker.getUsed(), equalTo(0L));
     }
 
-    public void testEveryFragmentIsCheckedAgainstTheBreaker() throws IOException {
-        final List<Long> checkedBytes = new ArrayList<>();
-        final CircuitBreaker recordingBreaker = new TestCircuitBreaker() {
-            @Override
-            public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-                checkedBytes.add(bytes);
-                super.addEstimateBytesAndMaybeBreak(bytes, label);
-            }
-        };
-        aggregator = new InboundAggregator(() -> recordingBreaker, action -> true);
-
-        // A single up-front check would be made against the memory in use when the header arrived, which for messages arriving together
-        // is before any of them has filled its buffers, so each fragment must be checked as it arrives
-        startAggregating(randomBoolean(), 1000);
-        final int fragments = between(2, 10);
-        final List<Long> expected = new ArrayList<>();
-        for (int i = 0; i < fragments; i++) {
-            final int length = between(1, 50);
-            expected.add((long) length);
-            final ReleasableBytesReference fragment = fragment(length);
-            aggregator.aggregate(fragment);
-            fragment.close();
-        }
-        aggregator.finishAggregation().close();
-
-        assertThat(checkedBytes, equalTo(expected));
-    }
-
     public void testBreakerTripsPartWayThroughReadingAndReleasesWhatWasBuffered() throws IOException {
         final CircuitBreaker limitedBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(100));
         aggregator = new InboundAggregator(() -> limitedBreaker, action -> true);

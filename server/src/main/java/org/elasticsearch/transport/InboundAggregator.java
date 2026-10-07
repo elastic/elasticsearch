@@ -83,7 +83,7 @@ public class InboundAggregator implements Releasable {
         if (isShortCircuited() == false) {
             // Charging each fragment as it arrives, rather than reserving the declared size once up front, means every fragment is checked
             // against the memory in use at that moment, so a message that arrives alongside others trips as the heap fills. Only requests
-            // whose action name is already known can be charged, anything else is charged in checkBreaker once it has all been read.
+            // whose action name is already known can be charged, anything else is charged in chargeContent once it has all been read.
             if (currentHeader.isRequest() && currentHeader.needsToReadVariableHeader() == false && content.length() > 0) {
                 if (reserveBreakerBytes(content.length(), currentHeader.getActionName())) {
                     chargedBytes += content.length();
@@ -129,14 +129,15 @@ public class InboundAggregator implements Releasable {
         final InboundMessage aggregated = new InboundMessage(currentHeader, releasableContent, breakerControl);
         boolean success = false;
         try {
-            if (aggregated.getHeader().needsToReadVariableHeader()) {
+            final boolean headerParsedWithContent = aggregated.getHeader().needsToReadVariableHeader();
+            if (headerParsedWithContent) {
                 aggregated.getHeader().finishParsingHeader(aggregated.openOrGetStreamInput());
                 if (aggregated.getHeader().isRequest()) {
                     initializeRequestState();
                 }
             }
-            if (isShortCircuited() == false) {
-                checkBreaker(aggregated.getHeader(), aggregated.getContentLength(), breakerControl);
+            if (headerParsedWithContent && isShortCircuited() == false) {
+                chargeContent(aggregated.getHeader(), aggregated.getContentLength(), breakerControl);
             }
             if (isShortCircuited()) {
                 aggregated.close();
@@ -249,18 +250,13 @@ public class InboundAggregator implements Releasable {
         return true;
     }
 
-    private void checkBreaker(final Header header, final int contentLength, final BreakerControl breakerControl) {
-        if (header.isRequest() == false) {
-            return;
-        }
-        assert header.needsToReadVariableHeader() == false;
-
-        // Everything was charged fragment by fragment as it arrived, unless the action name was only parsed along with the content, in
-        // which case nothing could be charged until now.
-        final int uncharged = contentLength - breakerControl.reservedBytes();
-        assert uncharged >= 0 : "charged more than the content length: " + uncharged;
-        if (uncharged > 0 && reserveBreakerBytes(uncharged, header.getActionName())) {
-            breakerControl.addReservedBytes(uncharged);
+    /**
+     * Charges the whole content of a request whose action name was only parsed along with the content, so nothing could be charged
+     * while it was being read. Everything else has already been charged fragment by fragment in {@link #aggregate}.
+     */
+    private void chargeContent(final Header header, final int contentLength, final BreakerControl breakerControl) {
+        if (header.isRequest() && reserveBreakerBytes(contentLength, header.getActionName())) {
+            breakerControl.addReservedBytes(contentLength);
         }
     }
 
@@ -278,10 +274,6 @@ public class InboundAggregator implements Releasable {
         private void addReservedBytes(int reservedBytes) {
             final int updated = bytesToRelease.addAndGet(reservedBytes);
             assert updated >= 0 : "Expected bytesToRelease to be non-negative, found " + updated;
-        }
-
-        private int reservedBytes() {
-            return bytesToRelease.get();
         }
 
         @Override

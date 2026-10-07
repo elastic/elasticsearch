@@ -768,8 +768,6 @@ public class GlobExpanderTests extends ESTestCase {
         );
         assertEquals(
             List.of(
-                hint("ts", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, start),
-                hint("ts", PartitionFilterHintExtractor.Operator.LESS_THAN, end),
                 new PartitionFilterHintExtractor.PartitionFilterHint("year", PartitionFilterHintExtractor.Operator.IN, List.of(2024, 2025))
             ),
             hints

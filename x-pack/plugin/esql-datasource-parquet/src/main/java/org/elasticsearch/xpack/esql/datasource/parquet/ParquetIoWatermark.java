@@ -15,12 +15,15 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.xpack.esql.datasources.StorageRetryCancellation;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionGate;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -40,7 +43,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * Lease cancellation still fails that GET with {@link EsRejectedExecutionException}. The
  * REQUEST circuit breaker remains the hard stop for allocation.
  */
-final class ParquetIoWatermark {
+final class ParquetIoWatermark implements AdmissionGate {
 
     private static final Logger logger = LogManager.getLogger(ParquetIoWatermark.class);
 
@@ -77,12 +80,14 @@ final class ParquetIoWatermark {
     private final long limit;
     private final long admitWaitMs;
     private final AtomicLong used = new AtomicLong();
+    private final AtomicInteger holds = new AtomicInteger();
     private final AtomicLong forcedAdmits = new AtomicLong();
     private final AtomicLong waitNanos = new AtomicLong();
     private final AtomicLong lastWarnLogTime = new AtomicLong();
     private final ReentrantLock lock = new ReentrantLock();
     private final Condition notFull = lock.newCondition();
     private RowGroupIo overshootOwner;
+    private volatile AdmissionTracker tracker = AdmissionTracker.NOOP;
 
     static ParquetIoWatermark forHeap() {
         long heapBytes = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
@@ -102,6 +107,11 @@ final class ParquetIoWatermark {
         }
         this.limit = limit;
         this.admitWaitMs = admitWaitMs;
+    }
+
+    void bindTracker(AdmissionTracker tracker) {
+        this.tracker = tracker == null ? AdmissionTracker.NOOP : tracker;
+        this.tracker.register(this);
     }
 
     /**
@@ -176,82 +186,94 @@ final class ParquetIoWatermark {
         }
         boolean enteredWait = false;
         boolean forced = false;
+        boolean success = false;
         long waitStartedNanos = 0L;
         boolean ambientCancelled = StorageRetryCancellation.isCancelled();
-        AdmitHold hold;
-        lock.lock();
+        AdmissionTracker.Wait trackedWait = AdmissionTracker.NOOP_WAIT;
+        AdmitHold hold = null;
         try {
-            while (true) {
-                if (lease.isCancelled()) {
-                    throw cancelled();
-                }
-                long current = used.get();
-                long next = current + bytes;
-                if (next < 0L) {
-                    throw new EsRejectedExecutionException("parquet I/O byte reservation overflow");
-                }
-                if (next <= limit) {
-                    used.set(next);
-                    hold = new AdmitHold(this, bytes);
-                    break;
-                }
-                if (overshootOwner == lease) {
-                    used.set(next);
-                    hold = new AdmitHold(this, bytes);
-                    break;
-                }
-                if (overshootOwner == null) {
-                    // Expired wait plus ambient cancel must not pin the node-wide overshoot slot.
-                    // Under-cap and same-owner admits above still proceed; admitWaitMs==0 can still
-                    // take a vacant owner when not cancelled.
-                    if (deadlineNanos - System.nanoTime() <= 0L && ambientCancelled) {
+            lock.lock();
+            try {
+                while (true) {
+                    if (lease.isCancelled()) {
                         throw cancelled();
                     }
-                    if (tryBecomeOwner(lease, next)) {
+                    long current = used.get();
+                    long next = current + bytes;
+                    if (next < 0L) {
+                        throw new EsRejectedExecutionException("parquet I/O byte reservation overflow");
+                    }
+                    if (next <= limit) {
+                        used.set(next);
                         hold = new AdmitHold(this, bytes);
                         break;
                     }
-                }
-                lease.setWake(this::signalWaiters);
-                if (lease.isCancelled()) {
-                    throw cancelled();
-                }
-                long remainingNanos = deadlineNanos - System.nanoTime();
-                if (remainingNanos <= 0L) {
-                    if (ambientCancelled) {
+                    if (overshootOwner == lease) {
+                        used.set(next);
+                        hold = new AdmitHold(this, bytes);
+                        break;
+                    }
+                    if (overshootOwner == null) {
+                        // Expired wait plus ambient cancel must not pin the node-wide overshoot slot.
+                        // Under-cap and same-owner admits above still proceed; admitWaitMs==0 can still
+                        // take a vacant owner when not cancelled.
+                        if (deadlineNanos - System.nanoTime() <= 0L && ambientCancelled) {
+                            throw cancelled();
+                        }
+                        if (tryBecomeOwner(lease, next)) {
+                            hold = new AdmitHold(this, bytes);
+                            break;
+                        }
+                    }
+                    lease.setWake(this::signalWaiters);
+                    if (lease.isCancelled()) {
                         throw cancelled();
                     }
-                    if (next > forceAdmitLimit()) {
-                        throw overForceLimit(bytes, next);
+                    long remainingNanos = deadlineNanos - System.nanoTime();
+                    if (remainingNanos <= 0L) {
+                        if (ambientCancelled) {
+                            throw cancelled();
+                        }
+                        if (next > forceAdmitLimit()) {
+                            throw overForceLimit(bytes, next);
+                        }
+                        used.set(next);
+                        forcedAdmits.incrementAndGet();
+                        forced = true;
+                        hold = new AdmitHold(this, bytes);
+                        break;
                     }
-                    used.set(next);
-                    forcedAdmits.incrementAndGet();
-                    forced = true;
-                    hold = new AdmitHold(this, bytes);
-                    break;
+                    if (enteredWait == false) {
+                        enteredWait = true;
+                        waitStartedNanos = System.nanoTime();
+                        trackedWait = tracker.waitStarted(AdmissionTracker.GATE_BYTES, Thread.currentThread().getName());
+                    }
+                    try {
+                        notFull.awaitNanos(remainingNanos);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new EsRejectedExecutionException("Interrupted while waiting for parquet I/O bytes: " + e);
+                    }
+                    lock.unlock();
+                    try {
+                        ambientCancelled = StorageRetryCancellation.isCancelled();
+                    } finally {
+                        lock.lock();
+                    }
                 }
-                if (enteredWait == false) {
-                    enteredWait = true;
-                    waitStartedNanos = System.nanoTime();
-                }
-                try {
-                    notFull.awaitNanos(remainingNanos);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new EsRejectedExecutionException("Interrupted while waiting for parquet I/O bytes: " + e);
+                success = true;
+            } finally {
+                if (enteredWait) {
+                    waitNanos.addAndGet(System.nanoTime() - waitStartedNanos);
                 }
                 lock.unlock();
-                try {
-                    ambientCancelled = StorageRetryCancellation.isCancelled();
-                } finally {
-                    lock.lock();
-                }
             }
         } finally {
-            if (enteredWait) {
-                waitNanos.addAndGet(System.nanoTime() - waitStartedNanos);
+            if (success) {
+                trackedWait.granted();
+            } else {
+                trackedWait.finished();
             }
-            lock.unlock();
         }
         if (forced) {
             maybeLogForcedAdmit(bytes);
@@ -320,6 +342,27 @@ final class ParquetIoWatermark {
         } finally {
             lock.unlock();
         }
+    }
+
+    @Override
+    public String name() {
+        return AdmissionTracker.GATE_BYTES;
+    }
+
+    @Override
+    public int holders() {
+        int live = Math.max(0, holds.get());
+        if (live > 0) {
+            return live;
+        }
+        return used.get() > 0L ? 1 : 0;
+    }
+
+    @Override
+    public String holderSummary() {
+        RowGroupIo owner = overshootOwner();
+        String ownerLabel = owner == null ? "none" : "lease#" + owner.startSeq();
+        return "used=" + used.get() + "/" + limit + " owner=" + ownerLabel;
     }
 
     @Nullable
@@ -492,10 +535,16 @@ final class ParquetIoWatermark {
     static final class AdmitHold {
         private final ParquetIoWatermark watermark;
         private final AtomicLong remaining;
+        private final boolean counted;
 
         private AdmitHold(ParquetIoWatermark watermark, long bytes) {
             this.watermark = watermark;
-            this.remaining = new AtomicLong(Math.max(0L, bytes));
+            long reserved = Math.max(0L, bytes);
+            this.remaining = new AtomicLong(reserved);
+            this.counted = reserved > 0L;
+            if (counted) {
+                watermark.holds.incrementAndGet();
+            }
         }
 
         /**
@@ -514,6 +563,9 @@ final class ParquetIoWatermark {
                 long release = Math.min(current, bytes);
                 if (remaining.compareAndSet(current, current - release)) {
                     watermark.release(release);
+                    if (current - release == 0L && counted) {
+                        watermark.holds.decrementAndGet();
+                    }
                     return;
                 }
             }

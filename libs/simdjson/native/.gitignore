@@ -1,0 +1,2 @@
+# Build artifacts produced by publish_simdjson_binaries.sh
+libsimdjson-*.zip

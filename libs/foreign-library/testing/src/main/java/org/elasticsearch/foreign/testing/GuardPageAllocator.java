@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.simdvec;
+package org.elasticsearch.foreign.testing;
 
 import org.elasticsearch.foreign.Platform;
 

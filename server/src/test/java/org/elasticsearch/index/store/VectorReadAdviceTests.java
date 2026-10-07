@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.store;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.DirectoryReader;
@@ -37,66 +39,67 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 
-/**
- * What each vectors file says when it is opened or written, and the advice the directory derives for search. The format says
- * whether its raw vectors are reused, and only raw vectors kept to rescore are not; whatever reads or writes a file says how.
- */
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+
+/** The hints each vectors file is opened and written with, and the advice the directory derives for search. */
 public class VectorReadAdviceTests extends MapperServiceTestCase {
 
     private static final Optional<ReadAdvice> UNADVISED = Optional.of(Constants.DEFAULT_READADVICE);
 
+    private final Case each;
+
+    public VectorReadAdviceTests(Case each) {
+        this.each = each;
+    }
+
+    @ParametersFactory(argumentFormatting = "%s")
+    public static Iterable<Object[]> parameters() {
+        return VectorReadHintsTests.parameters();
+    }
+
     public void testOnlyRawVectorsKeptToRescoreAreAdvisedForSearch() throws IOException {
         var advice = FsDirectoryFactory.getReadAdviceFunc();
-        for (Case each : VectorReadHintsTests.cases(this)) {
-            for (Open open : VectorReadHintsTests.searchOpens(each.codec())) {
-                if (open.isVectorData() == false) {
-                    continue;
-                }
-                Optional<ReadAdvice> expected = open.isRawVectors() && each.rescoresFromRaw() ? Optional.of(ReadAdvice.RANDOM) : UNADVISED;
-                assertEquals(each + ": " + open, expected, advice.apply(open.name(), open.context()));
+        for (Open open : VectorReadHintsTests.searchOpens(each.codec(this))) {
+            if (open.isVectorData() == false) {
+                continue;
             }
+            Optional<ReadAdvice> expected = open.isRawVectors() && each.rescoresFromRaw() ? Optional.of(ReadAdvice.RANDOM) : UNADVISED;
+            assertThat(open.toString(), advice.apply(open.name(), open.context()), equalTo(expected));
         }
     }
 
     /**
-     * A merge reads the raw vectors it copies through a mapping of its own, front to back, and says they are not reused only
-     * when the format does. The raw vectors written, by a flush or a merge, say the same, and so does everything a graph build
-     * or a disk BBQ merge reads back.
+     * A merge maps the source raw vectors again to read them sequentially, not reused only when the format says so; the raw
+     * vectors written and the files read back say the same.
      */
     public void testAMergeSaysHowItReadsAndWritesEachFile() throws IOException {
-        List<String> failures = new ArrayList<>();
-        for (Case each : VectorReadHintsTests.cases(this)) {
-            if (each.walkedByGraph() == false && each.rescoresFromRaw() == false) {
-                continue;
-            }
-            List<Open> opens = new ArrayList<>();
-            List<Open> creates = new ArrayList<>();
-            List<Open> flushCreates = new ArrayList<>();
-            Set<String> sourceFiles = new HashSet<>();
-            try (Directory dir = new RecordingDirectory(newDirectory(), opens, creates)) {
-                IndexWriterConfig iwc = new IndexWriterConfig().setCodec(each.codec()).setUseCompoundFile(false);
-                try (IndexWriter writer = new IndexWriter(dir, iwc)) {
-                    indexTwoSegments(writer);
-                    // a search holds the segments open, so the merge reads through the readers searches use
-                    try (DirectoryReader reader = DirectoryReader.open(writer)) {
-                        for (LeafReaderContext leaf : reader.leaves()) {
-                            sourceFiles.addAll(((SegmentReader) leaf.reader()).getSegmentInfo().files());
-                        }
-                        synchronized (opens) {
-                            flushCreates.addAll(creates);
-                            opens.clear();
-                            creates.clear();
-                        }
-                        writer.forceMerge(1);
+        assumeTrue("nothing reads the raw vectors at random", each.walkedByGraph() || each.rescoresFromRaw());
+        List<Open> opens = new CopyOnWriteArrayList<>();
+        List<Open> creates = new CopyOnWriteArrayList<>();
+        List<Open> flushCreates = new ArrayList<>();
+        Set<String> sourceFiles = new HashSet<>();
+        try (Directory dir = new RecordingDirectory(newDirectory(), opens, creates)) {
+            IndexWriterConfig iwc = new IndexWriterConfig().setCodec(each.codec(this)).setUseCompoundFile(false);
+            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                indexTwoSegments(writer);
+                // a search holds the segments open, so the merge reads through the readers searches use
+                try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                    for (LeafReaderContext leaf : reader.leaves()) {
+                        sourceFiles.addAll(((SegmentReader) leaf.reader()).getSegmentInfo().files());
                     }
+                    flushCreates.addAll(creates);
+                    opens.clear();
+                    creates.clear();
+                    writer.forceMerge(1);
                 }
             }
-            synchronized (opens) {
-                checkMerge(each, sourceFiles, opens, creates, flushCreates, failures);
-            }
         }
-        assertEquals(List.of(), failures);
+        List<String> failures = new ArrayList<>();
+        checkMerge(each, sourceFiles, opens, creates, flushCreates, failures);
+        assertThat(failures, empty());
     }
 
     private static void checkMerge(
@@ -207,12 +210,11 @@ public class VectorReadAdviceTests extends MapperServiceTestCase {
         }
     }
 
-    /** Records every open and every file created, in order; inputs are returned as opened, native scorers read the mapping. */
+    /** Records every open and created file, in order; inputs are returned unwrapped so native scorers read the mapping. */
     private static class RecordingDirectory extends FilterDirectory {
         private final List<Open> opens;
         private final List<Open> creates;
 
-        /** Both lists are guarded by {@code opens}. */
         RecordingDirectory(Directory in, List<Open> opens, List<Open> creates) {
             super(in);
             this.opens = opens;
@@ -221,27 +223,21 @@ public class VectorReadAdviceTests extends MapperServiceTestCase {
 
         @Override
         public IndexOutput createOutput(String name, IOContext context) throws IOException {
-            record(creates, name, context);
+            creates.add(new Open(name, context));
             return super.createOutput(name, context);
         }
 
         @Override
         public IndexOutput createTempOutput(String prefix, String suffix, IOContext context) throws IOException {
             IndexOutput output = super.createTempOutput(prefix, suffix, context);
-            record(creates, output.getName(), context);
+            creates.add(new Open(output.getName(), context));
             return output;
         }
 
         @Override
         public IndexInput openInput(String name, IOContext context) throws IOException {
-            record(opens, name, context);
+            opens.add(new Open(name, context));
             return super.openInput(name, context);
-        }
-
-        private void record(List<Open> to, String name, IOContext context) {
-            synchronized (opens) {
-                to.add(new Open(name, context));
-            }
         }
     }
 }

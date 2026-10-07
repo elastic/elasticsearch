@@ -16,21 +16,20 @@ import org.apache.lucene.store.FileTypeHint;
 import org.apache.lucene.store.NoReuseHint;
 
 /**
- * How the vectors a format reads through a flat format are read. The format on top says so, because the same raw vectors
- * are walked by a graph in one format and only read to rescore in another. Quantized vectors are never marked as not
- * reused: they are small and every search reads them. The directory decides the read advice from these hints, see
+ * How a format reads the vectors it keeps in a flat format: the same raw vectors may be walked by a graph or only read to
+ * rescore. The directory derives the read advice from these hints, see
  * {@link org.elasticsearch.index.store.FsDirectoryFactory#getReadAdviceFunc()}.
  */
 public final class VectorReadHints {
 
     private VectorReadHints() {}
 
-    /** Vectors walked by a graph: read at random, and again by every search, so they stay cached. */
+    /** Vectors a graph walks: read at random and reused. */
     public static SegmentReadState walkedByGraph(SegmentReadState state) {
         return state.withHints(FileTypeHint.DATA, FileDataHint.KNN_VECTORS, DataAccessHint.RANDOM);
     }
 
-    /** Raw vectors a quantized format keeps only to rescore: read at random, a few at a time, and not reused. */
+    /** Raw vectors kept only to rescore: read at random and not reused. */
     public static SegmentReadState readToRescore(SegmentReadState state) {
         return state.withHints(FileTypeHint.DATA, FileDataHint.KNN_VECTORS, DataAccessHint.RANDOM, NoReuseHint.INSTANCE);
     }

@@ -159,10 +159,8 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
     }
 
     /**
-     * The advice a mapping is opened with, from what the caller says about the file. Random and sequential advice take a
-     * mapping out of the recency tracking that decides which pages the kernel reclaims first, so they are only given to a
-     * file whose pages are not reused, a no-reuse or read-once hint; the access hint then picks which. A merge or flush
-     * context alone gives no advice: a merge that builds a graph reads its vectors at random, over and over.
+     * The advice a mapping is opened with. Random and sequential advice take pages out of the kernel's recency tracking, so
+     * only files that are not reused (a no-reuse or read-once hint) get them, following the access hint.
      */
     public static BiFunction<String, IOContext, Optional<ReadAdvice>> getReadAdviceFunc() {
         return (name, context) -> {

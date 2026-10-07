@@ -68,12 +68,13 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
     private final IOContext dataContext;
     private final Directory directory;
     private final String vectorDataFN;
-    // the reader merge instances come from, which holds the mapping they share
+    // the search reader, which holds the mapping its merge instances share
     private final ES93BFloat16FlatVectorsReader original;
-    // on the original: the mapping merges read, and how many merge instances hold it
+    // Several merge instances may be held at once, from any thread, so the merge state is guarded by the original's lock.
+    // On the original: the merge mapping and how many merge instances hold it.
     private IndexInput mergeVectorData;
     private int mergeInstances;
-    // on a merge instance: whether it gave the mapping back, guarded by the original's lock
+    // On a merge instance: whether it released the mapping.
     private boolean finished;
 
     public ES93BFloat16FlatVectorsReader(SegmentReadState state, FlatVectorsScorer scorer) throws IOException {
@@ -204,8 +205,8 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
     }
 
     /**
-     * A merge reads the vectors front to back, while searches may read them at random. Advice belongs to a mapping, so merges
-     * read the file through a mapping of their own, shared by concurrent merges, each through a clone.
+     * Merges read the vectors sequentially and searches at random, and advice applies to a whole mapping, so merges share a
+     * mapping of their own, each through a clone.
      */
     @Override
     public FlatVectorsReader getMergeInstance() throws IOException {
@@ -213,19 +214,15 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
             return this;
         }
         IndexInput data = original.mergeVectorData();
-        boolean success = false;
         try {
-            FlatVectorsReader mergeInstance = new ES93BFloat16FlatVectorsReader(original, data.clone());
-            success = true;
-            return mergeInstance;
-        } finally {
-            if (success == false) {
-                IOUtils.closeWhileHandlingException(original.release());
-            }
+            return new ES93BFloat16FlatVectorsReader(original, data.clone());
+        } catch (Throwable t) {
+            IOUtils.closeWhileHandlingException(original.release());
+            throw t;
         }
     }
 
-    /** Only when searches read the file at random; a reader a merge opened already reads it the way a merge does. */
+    /** Only when searches read the file at random and this reader was not opened by a merge. */
     private boolean mergeNeedsItsOwnMapping() {
         return dataContext.context() != IOContext.Context.MERGE && dataContext.hints().contains(DataAccessHint.RANDOM);
     }
@@ -245,7 +242,7 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
         return mergeVectorData;
     }
 
-    /** The caller's context as a merge reading the file front to back: only the access changes. */
+    /** The caller's context as a merge with sequential access. */
     private IOContext mergeContext() {
         IOContext.FileOpenHint[] hints = Stream.concat(
             dataContext.hints().stream().filter(hint -> hint instanceof DataAccessHint == false),
@@ -329,7 +326,7 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
         throw new UnsupportedOperationException(field + " only supports float vectors");
     }
 
-    /** Gives back this merge instance's hold on the merge mapping, once. A no-op on the reader merge instances come from. */
+    /** Releases this merge instance's hold on the merge mapping, once; a no-op on the search reader. */
     @Override
     public void finishMerge() throws IOException {
         if (original != this) {
@@ -337,7 +334,7 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
         }
     }
 
-    /** Gives back the hold of {@code mergeInstance}, once; returns the mapping to close, if any. */
+    /** Releases the hold of {@code mergeInstance}, once; returns the mapping to close, if any. */
     private synchronized IndexInput releaseMergeVectorData(ES93BFloat16FlatVectorsReader mergeInstance) {
         assert original == this && mergeInstance.original == this;
         if (mergeInstance.finished) {
@@ -347,7 +344,7 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
         return release();
     }
 
-    /** Gives back one hold on the mapping. Once none is left, returns it for the caller to close outside the lock. */
+    /** Releases one hold; once none is left, returns the mapping to close outside the lock. */
     private synchronized IndexInput release() {
         assert original == this && mergeInstances > 0;
         if (--mergeInstances > 0) {
@@ -363,7 +360,7 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
         IOUtils.close(vectorData, takeMergeVectorData());
     }
 
-    /** Takes the merge mapping under its lock, so a merge finishing later does not close it again. */
+    /** Takes the merge mapping, so a merge finishing later does not close it again. */
     private synchronized IndexInput takeMergeVectorData() {
         if (original != this || mergeVectorData == vectorData) {
             return null;

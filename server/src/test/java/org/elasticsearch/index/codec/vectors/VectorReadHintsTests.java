@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.codec.vectors;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
@@ -28,6 +30,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.NoReuseHint;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
@@ -41,42 +44,58 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorIndexType;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
-/** The hints each vectors file is opened with for search, for every vectors format, see {@link VectorReadHints}. */
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
+
+/** The hints each vectors file is opened with for search, see {@link VectorReadHints}. */
 public class VectorReadHintsTests extends MapperServiceTestCase {
 
     private static final int DIMS = 64;
 
-    public void testEveryIndexTypeSaysHowItsVectorsAreRead() throws IOException {
-        for (Case each : cases(this)) {
-            List<Open> opens = searchOpens(each.codec());
-            List<Open> vectorData = opens.stream().filter(Open::isVectorData).toList();
-            assertTrue(each + " opened no raw vectors: " + opens, vectorData.stream().anyMatch(Open::isRawVectors));
+    private final Case each;
 
-            for (Open open : vectorData) {
-                var hints = open.context().hints();
-                if (open.isRawVectors()) {
-                    assertEquals(
-                        each + ": only raw vectors read to rescore are not read again, " + open,
-                        each.rescoresFromRaw(),
-                        hints.contains(NoReuseHint.INSTANCE)
-                    );
-                    boolean walkedOrRescored = each.rescoresFromRaw() || each.walkedByGraph();
-                    assertEquals(
-                        each + ": raw vectors say how they are read, " + open,
-                        walkedOrRescored,
-                        hints.contains(DataAccessHint.RANDOM)
-                    );
-                    assertFalse(each + ": nothing streams them for search, " + open, hints.contains(DataAccessHint.SEQUENTIAL));
-                } else {
-                    assertFalse(each + ": quantized vectors and graphs are read again, " + open, hints.contains(NoReuseHint.INSTANCE));
-                }
+    public VectorReadHintsTests(Case each) {
+        this.each = each;
+    }
+
+    @ParametersFactory(argumentFormatting = "%s")
+    public static Iterable<Object[]> parameters() {
+        return cases().stream().map(c -> new Object[] { c }).toList();
+    }
+
+    public void testRawVectorsSayHowTheyAreRead() throws IOException {
+        List<Open> opens = searchOpens(each.codec(this));
+        List<Open> vectorData = opens.stream().filter(Open::isVectorData).toList();
+        assertTrue("opened no raw vectors: " + opens, vectorData.stream().anyMatch(Open::isRawVectors));
+
+        for (Open open : vectorData) {
+            var hints = open.context().hints();
+            if (open.isRawVectors()) {
+                assertThat(
+                    "only raw vectors read to rescore are not read again, " + open,
+                    hints,
+                    has(NoReuseHint.INSTANCE, each.rescoresFromRaw())
+                );
+                boolean walkedOrRescored = each.rescoresFromRaw() || each.walkedByGraph();
+                assertThat("raw vectors say how they are read, " + open, hints, has(DataAccessHint.RANDOM, walkedOrRescored));
+                assertThat("nothing streams them for search, " + open, hints, not(hasItem(DataAccessHint.SEQUENTIAL)));
+            } else {
+                assertThat("quantized vectors and graphs are read again, " + open, hints, not(hasItem(NoReuseHint.INSTANCE)));
             }
         }
+    }
+
+    /** Matches hints that hold {@code hint} if {@code present}, and hints that don't otherwise. */
+    public static Matcher<Iterable<? super IOContext.FileOpenHint>> has(IOContext.FileOpenHint hint, boolean present) {
+        return present ? hasItem(hint) : not(hasItem(hint));
     }
 
     /** One open of a file, with the context it was opened with. */
@@ -90,22 +109,26 @@ public class VectorReadHintsTests extends MapperServiceTestCase {
         }
     }
 
-    /**
-     * A vectors format to check: what a mapping asks for, whether a graph walks its raw vectors, and whether it keeps them
-     * only to rescore.
-     */
-    public record Case(String name, Codec codec, boolean walkedByGraph, boolean rescoresFromRaw) {
+    /** A vectors format, whether a graph walks its raw vectors, and whether it keeps them only to rescore. */
+    public record Case(
+        String name,
+        CheckedFunction<MapperServiceTestCase, Codec, IOException> codecFor,
+        boolean walkedByGraph,
+        boolean rescoresFromRaw
+    ) {
+        /** The codec; an index type's comes from a mapping, so it needs the test's mapper service. */
+        public Codec codec(MapperServiceTestCase test) throws IOException {
+            return codecFor.apply(test);
+        }
+
         @Override
         public String toString() {
             return name;
         }
     }
 
-    /**
-     * Every index type a mapping can ask for, over float and bfloat16 vectors, plus formats built directly: disk BBQ, which a
-     * mapping only gets with a license, and the formats older segments are still read with.
-     */
-    public static List<Case> cases(MapperServiceTestCase test) throws IOException {
+    /** Every index type over float and bfloat16, plus disk BBQ and the formats older segments are read with. */
+    public static List<Case> cases() {
         List<Case> cases = new ArrayList<>();
         for (VectorIndexType type : VectorIndexType.values()) {
             if (type == VectorIndexType.BBQ_DISK) {
@@ -114,8 +137,14 @@ public class VectorReadHintsTests extends MapperServiceTestCase {
             for (ElementType elementType : List.of(ElementType.FLOAT, ElementType.BFLOAT16)) {
                 if (type.supportsElementType(elementType)) {
                     boolean graph = type == VectorIndexType.HNSW || type.getName().endsWith("_hnsw");
-                    Codec codec = codecFor(test, type, elementType);
-                    cases.add(new Case(type.getName() + " over " + elementType, codec, graph, type.isQuantized()));
+                    cases.add(
+                        new Case(
+                            type.getName() + " over " + elementType,
+                            test -> codecFor(test, type, elementType),
+                            graph,
+                            type.isQuantized()
+                        )
+                    );
                 }
             }
         }
@@ -125,26 +154,43 @@ public class VectorReadHintsTests extends MapperServiceTestCase {
         cases.add(diskCase("ESNextDiskBBQVectorsFormat", new ESNextDiskBBQVectorsFormat(384, 16, null)));
         cases.add(diskCase("ESNextDiskASHVectorsFormat", new ESNextDiskASHVectorsFormat()));
         cases.add(
-            new Case("ES814HnswScalarQuantizedVectorsFormat", new OneFormatCodec(new ES814HnswScalarQuantizedRWVectorsFormat()), true, true)
+            new Case(
+                "ES814HnswScalarQuantizedVectorsFormat",
+                test -> new OneFormatCodec(new ES814HnswScalarQuantizedRWVectorsFormat()),
+                true,
+                true
+            )
         );
         cases.add(
-            new Case("ES816BinaryQuantizedVectorsFormat", new OneFormatCodec(new ES816BinaryQuantizedRWVectorsFormat()), false, true)
+            new Case(
+                "ES816BinaryQuantizedVectorsFormat",
+                test -> new OneFormatCodec(new ES816BinaryQuantizedRWVectorsFormat()),
+                false,
+                true
+            )
         );
-        cases.add(new Case("ES813Int8FlatVectorFormat", new OneFormatCodec(new ES813Int8FlatRWVectorFormat()), false, true));
-        cases.add(new Case("ES93ScalarQuantizedVectorsFormat", new OneFormatCodec(new ES93ScalarQuantizedVectorsFormat()), false, true));
+        cases.add(new Case("ES813Int8FlatVectorFormat", test -> new OneFormatCodec(new ES813Int8FlatRWVectorFormat()), false, true));
         cases.add(
-            new Case("ES93HnswScalarQuantizedVectorsFormat", new OneFormatCodec(new ES93HnswScalarQuantizedVectorsFormat()), true, true)
+            new Case("ES93ScalarQuantizedVectorsFormat", test -> new OneFormatCodec(new ES93ScalarQuantizedVectorsFormat()), false, true)
+        );
+        cases.add(
+            new Case(
+                "ES93HnswScalarQuantizedVectorsFormat",
+                test -> new OneFormatCodec(new ES93HnswScalarQuantizedVectorsFormat()),
+                true,
+                true
+            )
         );
         return cases;
     }
 
     private static Case diskCase(String name, KnnVectorsFormat format) {
-        return new Case(name, new OneFormatCodec(format), false, true);
+        return new Case(name, test -> new OneFormatCodec(format), false, true);
     }
 
-    /** Indexes a segment with {@code codec}, opens it for search, and returns every file the search opened, with its context. */
+    /** Every file a search opens on a segment written with {@code codec}, with its context. */
     public static List<Open> searchOpens(Codec codec) throws IOException {
-        List<Open> opens = new ArrayList<>();
+        List<Open> opens = new CopyOnWriteArrayList<>();
         try (Directory dir = new RecordingDirectory(newDirectory(), opens)) {
             IndexWriterConfig iwc = new IndexWriterConfig().setCodec(codec).setUseCompoundFile(false);
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
@@ -155,15 +201,11 @@ public class VectorReadHintsTests extends MapperServiceTestCase {
                 }
                 writer.commit();
             }
-            synchronized (opens) {
-                opens.clear();
-            }
+            opens.clear();
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
-                assertEquals(1, reader.leaves().size());
+                assertThat(reader.leaves(), hasSize(1));
             }
-            synchronized (opens) {
-                return List.copyOf(opens);
-            }
+            return List.copyOf(opens);
         }
     }
 
@@ -183,14 +225,10 @@ public class VectorReadHintsTests extends MapperServiceTestCase {
     }
 
     public static float[] randomVector() {
-        float[] v = new float[DIMS];
-        for (int i = 0; i < DIMS; i++) {
-            v[i] = randomFloat();
-        }
-        return v;
+        return VectorTestUtils.randomFloatVector(DIMS);
     }
 
-    /** Uses one vectors format for every field, keeping the default codec's name so the segment can be read back. */
+    /** One vectors format for every field, under the default codec's name so the segment can be read back. */
     private static class OneFormatCodec extends FilterCodec {
         private final KnnVectorsFormat format;
 
@@ -221,9 +259,7 @@ public class VectorReadHintsTests extends MapperServiceTestCase {
 
         @Override
         public IndexInput openInput(String name, IOContext context) throws IOException {
-            synchronized (opens) {
-                opens.add(new Open(name, context));
-            }
+            opens.add(new Open(name, context));
             return super.openInput(name, context);
         }
     }

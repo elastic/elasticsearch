@@ -38,9 +38,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
+
 /**
- * How bfloat16 vectors are read by merges while searches read them at random: through one mapping of their own, opened by
- * the first merge, shared by the merges that follow, and closed once the last one is done or with the reader.
+ * Merges of bfloat16 vectors that searches read at random share one mapping of their own, closed by the last merge or with
+ * the reader.
  */
 public class ES93BFloat16FlatVectorsReaderMergeTests extends ESTestCase {
 
@@ -58,34 +64,41 @@ public class ES93BFloat16FlatVectorsReaderMergeTests extends ESTestCase {
             try (FlatVectorsReader reader = openReader(dir, searchContext)) {
                 FlatVectorsReader first = reader.getMergeInstance();
                 FlatVectorsReader second = reader.getMergeInstance();
-                assertNotSame(reader, first);
-                assertNotSame(first, second);
-                assertEquals("merges share one mapping", 1, dir.mergeOpens.size());
+                assertThat(first, not(sameInstance(reader)));
+                assertThat(second, not(sameInstance(first)));
+                assertThat("merges share one mapping", dir.mergeOpens, hasSize(1));
                 IOContext mergeContext = dir.mergeOpens.get(0);
-                assertSame(IOContext.Context.MERGE, mergeContext.context());
-                assertTrue(mergeContext.hints().contains(DataAccessHint.SEQUENTIAL));
-                assertFalse(mergeContext.hints().contains(DataAccessHint.RANDOM));
-                assertTrue("keeps what the caller said about the file", mergeContext.hints().contains(CallerHint.INSTANCE));
-                assertEquals("keeps what the caller said about reuse", noReuse, mergeContext.hints().contains(NoReuseHint.INSTANCE));
+                assertThat(mergeContext.context(), equalTo(IOContext.Context.MERGE));
+                assertThat(mergeContext.hints(), hasItem(DataAccessHint.SEQUENTIAL));
+                assertThat(mergeContext.hints(), not(hasItem(DataAccessHint.RANDOM)));
+                assertThat("keeps what the caller said about the file", mergeContext.hints(), hasItem(CallerHint.INSTANCE));
+                assertThat(
+                    "keeps what the caller said about reuse",
+                    mergeContext.hints(),
+                    noReuse ? hasItem(NoReuseHint.INSTANCE) : not(hasItem(NoReuseHint.INSTANCE))
+                );
                 assertVectors(vectors, first);
                 assertVectors(vectors, second);
 
                 first.finishMerge();
                 first.finishMerge();
                 reader.finishMerge();
-                assertEquals("a merge gives the mapping back once, and the reader holds none", 0, dir.mergeCloses.get());
+                assertThat("a merge gives the mapping back once, and the reader holds none", dir.mergeCloses.get(), equalTo(0));
                 assertVectors(vectors, second);
 
                 second.finishMerge();
-                assertEquals("closed after the last merge", 1, dir.mergeCloses.get());
+                assertThat("closed after the last merge", dir.mergeCloses.get(), equalTo(1));
 
                 FlatVectorsReader third = reader.getMergeInstance();
-                assertEquals("a later merge maps the file again", 2, dir.mergeOpens.size());
-                assertVectors(vectors, third);
-                reader.close();
-                assertEquals("closing the reader closes the mapping", 2, dir.mergeCloses.get());
-                third.finishMerge();
-                assertEquals("and a merge finishing later does not close it again", 2, dir.mergeCloses.get());
+                try {
+                    assertThat("a later merge maps the file again", dir.mergeOpens, hasSize(2));
+                    assertVectors(vectors, third);
+                    reader.close();
+                    assertThat("closing the reader closes the mapping", dir.mergeCloses.get(), equalTo(2));
+                } finally {
+                    third.finishMerge();
+                }
+                assertThat("and a merge finishing later does not close it again", dir.mergeCloses.get(), equalTo(2));
             }
         }
     }
@@ -102,9 +115,9 @@ public class ES93BFloat16FlatVectorsReaderMergeTests extends ESTestCase {
                 try (FlatVectorsReader reader = openReader(dir, context)) {
                     int opened = dir.mergeOpens.size();
                     FlatVectorsReader mergeInstance = reader.getMergeInstance();
-                    assertSame(context.toString(), reader, mergeInstance);
+                    assertThat(context.toString(), mergeInstance, sameInstance(reader));
                     mergeInstance.finishMerge();
-                    assertEquals(context.toString(), opened, dir.mergeOpens.size());
+                    assertThat(context.toString(), dir.mergeOpens, hasSize(opened));
                 }
             }
         }
@@ -119,7 +132,7 @@ public class ES93BFloat16FlatVectorsReaderMergeTests extends ESTestCase {
                 FlatVectorsReader mergeInstance = reader.getMergeInstance();
                 assertVectors(vectors, mergeInstance);
                 mergeInstance.finishMerge();
-                assertEquals(0, dir.mergeCloses.get());
+                assertThat(dir.mergeCloses.get(), equalTo(0));
                 // the search mapping is still open
                 assertVectors(vectors, reader);
             }
@@ -160,7 +173,7 @@ public class ES93BFloat16FlatVectorsReaderMergeTests extends ESTestCase {
 
     private static void assertVectors(float[][] expected, FlatVectorsReader reader) throws IOException {
         FloatVectorValues values = reader.getFloatVectorValues("field");
-        assertEquals(expected.length, values.size());
+        assertThat(values.size(), equalTo(expected.length));
         for (int ord = 0; ord < expected.length; ord++) {
             assertArrayEquals(expected[values.ordToDoc(ord)], values.vectorValue(ord), 0f);
         }
@@ -171,7 +184,7 @@ public class ES93BFloat16FlatVectorsReaderMergeTests extends ESTestCase {
         INSTANCE
     }
 
-    /** Writes vectors with the bfloat16 format directly, so that a reader can be opened over the segment it wrote. */
+    /** Writes vectors with the bfloat16 format, so a reader can be opened over the segment directly. */
     private static class BFloat16Codec extends FilterCodec {
         BFloat16Codec() {
             super(Codec.getDefault().getName(), Codec.getDefault());
@@ -183,7 +196,7 @@ public class ES93BFloat16FlatVectorsReaderMergeTests extends ESTestCase {
         }
     }
 
-    /** Records the vectors opened under a merge context and counts their closes; can pretend the file is gone. */
+    /** Records merge opens of the vectors and counts their closes; can pretend the file is gone. */
     private static class TrackingDirectory extends FilterDirectory {
         final List<IOContext> mergeOpens = new ArrayList<>();
         final AtomicInteger mergeCloses = new AtomicInteger();

@@ -243,10 +243,7 @@ public class FsDirectoryFactoryTests extends ESTestCase {
         return direct;
     }
 
-    /**
-     * Random and sequential advice both cost a mapping its recency, so only a file that says it is not read again gets
-     * either, and the access pattern then picks which. How the file came to be opened, by a merge or a flush, decides nothing.
-     */
+    /** Only files that are not reused get random or sequential advice, following the access hint; a merge or flush alone gets none. */
     public void testReadAdviceFollowsWhatTheFileSays() {
         var advice = FsDirectoryFactory.getReadAdviceFunc();
         Optional<ReadAdvice> unadvised = Optional.of(Constants.DEFAULT_READADVICE);

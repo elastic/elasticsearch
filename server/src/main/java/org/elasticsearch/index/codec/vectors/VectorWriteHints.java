@@ -13,15 +13,12 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.NoReuseHint;
 
-/**
- * How the raw vectors a format writes through a flat format are written, mirroring how it reads them, see
- * {@link VectorReadHints}.
- */
+/** How a format writes the raw vectors it keeps in a flat format, matching {@link VectorReadHints}. */
 public final class VectorWriteHints {
 
     private VectorWriteHints() {}
 
-    /** Raw vectors a quantized format keeps only to rescore: written front to back, and not reused. */
+    /** Raw vectors kept only to rescore: written sequentially and not reused. */
     public static SegmentWriteState writtenToRescore(SegmentWriteState state) {
         return new SegmentWriteState(state, state.context.union(DataAccessHint.SEQUENTIAL, NoReuseHint.INSTANCE));
     }

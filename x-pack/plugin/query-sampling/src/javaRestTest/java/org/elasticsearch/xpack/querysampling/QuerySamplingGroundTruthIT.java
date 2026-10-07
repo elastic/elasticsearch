@@ -18,10 +18,12 @@ import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
@@ -48,16 +50,13 @@ public class QuerySamplingGroundTruthIT extends ESRestTestCase {
     public void testGroundTruthOfASampledSearchIsComputed() throws Exception {
         setUpIndexAndSampling();
 
-        // the node keeps what it sampled between tests, so this query must be new to it and counts are relative
+        // the node keeps what it sampled between tests, so counts are relative
         long buffered = nodeStat("buffered");
         long withGroundTruth = nodeStat("with_ground_truth");
-        Request search = knnSearch(randomFloat());
 
-        // the sampler picks a new query with a probability below one, so repeat the search until it did
-        assertBusy(() -> {
-            client().performRequest(search);
-            assertThat(nodeStat("buffered"), equalTo(buffered + 1));
-        });
+        // a new query is picked with a probability below one, so search for several different ones
+        searchDistinctQueries();
+        assertBusy(() -> assertThat(nodeStat("buffered"), greaterThan(buffered)));
         assertThat(nodeStat("with_ground_truth"), equalTo(withGroundTruth));
 
         ObjectPath result = ObjectPath.createFromResponse(client().performRequest(new Request("POST", "/_query_sampling/ground_truth")));
@@ -67,37 +66,38 @@ public class QuerySamplingGroundTruthIT extends ESRestTestCase {
         assertThat(nodeValue(result, "failed"), equalTo(0L));
         assertThat(nodeStat("with_ground_truth"), equalTo(withGroundTruth + computed));
 
-        // nothing is pending any more
-        result = ObjectPath.createFromResponse(client().performRequest(new Request("POST", "/_query_sampling/ground_truth")));
-        assertThat(nodeValue(result, "computed"), equalTo(0L));
+        // nothing stays pending: a call does at most 100 queries, so ask until one has nothing left to do
+        long last = computed;
+        for (int i = 0; i < 100 && last > 0; i++) {
+            result = ObjectPath.createFromResponse(client().performRequest(new Request("POST", "/_query_sampling/ground_truth")));
+            last = nodeValue(result, "computed");
+        }
+        assertThat(last, equalTo(0L));
     }
 
     public void testSampledQueriesAreWrittenToTheIndex() throws Exception {
         setUpIndexAndSampling();
-        float x = randomFloat();
-        Request search = knnSearch(x);
+        List<Float> sent = searchDistinctQueries();
 
-        // the query is picked with a probability below one and written once the flush interval has passed
-        assertBusy(() -> {
-            client().performRequest(search);
-            assertTrue("a document has the vector of the search", isSampled(x));
-        });
+        // the queries are written once the flush interval has passed
+        assertBusy(() -> assertNotNull("a document has the vector of one of the searches", sampledVector(sent)));
     }
 
     public void testWeightsOfStoredQueriesAreRefreshed() throws Exception {
         setUpIndexAndSampling();
-        float x = randomFloat();
-        Request search = knnSearch(x);
+        List<Float> sent = searchDistinctQueries();
+        Float[] sampled = new Float[1];
         assertBusy(() -> {
-            client().performRequest(search);
-            assertTrue("a document has the vector of the search", isSampled(x));
+            sampled[0] = sampledVector(sent);
+            assertNotNull("a document has the vector of one of the searches", sampled[0]);
         });
 
         // the document was written when the query was picked, the arrivals that follow only reach it as an update
+        float x = sampled[0];
         double before = storedMultiplicity(x);
         int arrivals = 5;
         for (int i = 0; i < arrivals; i++) {
-            client().performRequest(search);
+            client().performRequest(knnSearch(x));
         }
         assertBusy(() -> assertThat(storedMultiplicity(x), greaterThanOrEqualTo(before + arrivals)));
     }
@@ -120,6 +120,20 @@ public class QuerySamplingGroundTruthIT extends ESRestTestCase {
         client().performRequest(settings);
     }
 
+    /**
+     * Searches with many different vectors, so that it is practically certain that some of them are picked: a
+     * new query is picked with a probability of about 0.69, and one that repeats is less and less likely to be.
+     */
+    private static List<Float> searchDistinctQueries() throws IOException {
+        List<Float> sent = new ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            float x = randomFloat();
+            sent.add(x);
+            client().performRequest(knnSearch(x));
+        }
+        return sent;
+    }
+
     private static Request knnSearch(float x) {
         Request search = new Request("POST", "/vectors/_search");
         search.setJsonEntity("{ \"knn\": { \"field\": \"vec\", \"query_vector\": [" + x + ", 1.0], \"k\": 3, \"num_candidates\": 10 } }");
@@ -127,10 +141,15 @@ public class QuerySamplingGroundTruthIT extends ESRestTestCase {
     }
 
     /**
-     * Whether a document of the index of the sample holds a query vector that starts with {@code x}.
+     * The first of the vectors that has a document in the index of the sample, or {@code null}.
      */
-    private static boolean isSampled(float x) throws IOException {
-        return storedMultiplicity(x) >= 0;
+    private static Float sampledVector(List<Float> vectors) throws IOException {
+        for (float x : vectors) {
+            if (storedMultiplicity(x) >= 0) {
+                return x;
+            }
+        }
+        return null;
     }
 
     /**
@@ -145,7 +164,7 @@ public class QuerySamplingGroundTruthIT extends ESRestTestCase {
         } catch (ResponseException e) {
             return -1; // the index does not exist before the first write
         }
-        Request search = new Request("GET", "/.query_sampling/_search");
+        Request search = new Request("GET", "/.query_sampling/_search?size=10000");
         search.setOptions(systemIndexAccess());
         ObjectPath result = ObjectPath.createFromResponse(client().performRequest(search));
         List<?> hits = result.evaluate("hits.hits");

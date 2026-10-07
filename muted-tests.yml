@@ -220,6 +220,9 @@ tests:
 - class: org.elasticsearch.indices.mapping.UpdateMappingIntegrationIT
   method: testDynamicUpdates
   issue: https://github.com/elastic/elasticsearch/issues/161200
+- class: org.elasticsearch.indices.mapping.UpdateMappingIntegrationIT
+  method: testUpdateMappingConcurrently
+  issue: https://github.com/elastic/elasticsearch/issues/161201
 
 # Examples:
 #

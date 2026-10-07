@@ -464,19 +464,14 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
         FormatReadContext ctx = FormatReadContext.of(null, 1024);
         // Tiny cap: the first empty-queue admit is the node-wide overshoot. The sliding window is
         // not charged until a read, so this must not be sized around a reserved window. Look-ahead
-        // fill must not block; a second iterator's 50ms PER_GET is a hang-breaker versus the 60s
-        // default if the first lease still owns the overshoot slot.
-        ParquetIoWatermark watermark = new ParquetIoWatermark(1);
+        // fill must not block; 0ms budget so the second first-group PER_GET charges immediately.
+        // Look-ahead still tryAdmit-refuses.
+        ParquetIoWatermark watermark = new ParquetIoWatermark(1, 0L);
         try (
             CloseableIterator<Page> first = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
                 .read(new CountingStorageObject(parquetData, asyncIoExecutor), ctx);
             CloseableIterator<Page> second = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
-                .read(new CountingStorageObject(parquetData, asyncIoExecutor) {
-                    @Override
-                    public long admissionWaitTimeoutMs() {
-                        return 50L;
-                    }
-                }, ctx)
+                .read(new CountingStorageObject(parquetData, asyncIoExecutor), ctx)
         ) {
             OptimizedParquetColumnIterator opi1 = (OptimizedParquetColumnIterator) first;
             OptimizedParquetColumnIterator opi2 = (OptimizedParquetColumnIterator) second;
@@ -493,12 +488,19 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
             assertEquals(secondQueued, opi2.pendingPrefetchCount());
             assertEquals(32_000_000L, OptimizedParquetColumnIterator.MAX_QUEUED_PREFETCH_BYTES);
         }
+        long forcedAfterClose = watermark.forcedAdmits();
+        assertEquals("closing both iterators must release watermark bytes", 0, watermark.used());
         try (
             CloseableIterator<Page> next = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
                 .read(new CountingStorageObject(parquetData, asyncIoExecutor), ctx)
         ) {
             OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) next;
             assertEquals("release on close allows the next iterator", 1, opi.pendingPrefetchCount());
+            assertEquals(
+                "third constructor must take the vacant owner, not force-admit a leak",
+                forcedAfterClose,
+                watermark.forcedAdmits()
+            );
         }
     }
 

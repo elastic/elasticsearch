@@ -56,8 +56,13 @@ public class SnapshotRestoreAllocationDecider extends AllocationDecider {
             return Decision.YES;
         }
         Long shardSize = allocation.snapshotShardSizeInfo().getShardSize(shard);
-        // Still-fetching (null) is deferred by StatelessExistingShardsAllocator before we run.
-        assert shardSize != null : "snapshot shard size should be fetched before capacity decisions";
+        if (shardSize == null) {
+            return allocation.decision(
+                allocation.isSimulating() ? Decision.NOT_PREFERRED : Decision.THROTTLE,
+                NAME,
+                "snapshot shard size is still being fetched"
+            );
+        }
         if (shardSize == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE) {
             if (live) {
                 diskPressure.clear(shard.shardId());

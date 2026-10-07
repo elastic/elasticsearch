@@ -22,8 +22,8 @@ import java.util.function.Predicate;
  * Existing-shards allocator for stateless. Shard data lives in the object store, so this allocator does not
  * recover from local copies. It only defers unassigned snapshot primaries until
  * {@link org.elasticsearch.snapshots.InternalSnapshotsInfoService} has fetched their size (mirroring
- * {@code PrimaryShardAllocator}'s {@code FETCHING_SHARD_DATA} gate); desired balance then assigns them with
- * {@link SnapshotRestoreAllocationDecider} enforcing disk capacity.
+ * {@code PrimaryShardAllocator}'s {@code FETCHING_SHARD_DATA} gate). Desired-balance reconciliation then
+ * assigns them with {@link SnapshotRestoreAllocationDecider} enforcing disk capacity.
  */
 public class StatelessExistingShardsAllocator implements ExistingShardsAllocator {
 

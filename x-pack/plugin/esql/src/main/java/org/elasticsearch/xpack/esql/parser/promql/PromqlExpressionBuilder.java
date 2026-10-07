@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Locale;
 
@@ -40,12 +41,18 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.PATTERN;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
+import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.ArithmeticBinaryContext;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.AtContext;
+import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.ConstantContext;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.DecimalLiteralContext;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.DurationContext;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.EvaluationContext;
+import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.MINUS;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.OffsetContext;
+import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.ParenthesizedContext;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.TimeValueContext;
+import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.ValueContext;
+import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.ValueExpressionContext;
 
 class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
 
@@ -166,7 +173,8 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
                 }
                 at = end;
             } else {
-                Duration timeValue = visitTimeValue(atCtx.timeValue());
+                // a timestamp parameter is only returned as an operand of a subtraction, so this is always a duration
+                Duration timeValue = (Duration) visitTimeValue(atCtx.timeValue());
                 // the value can have a floating point
                 long seconds = timeValue.getSeconds();
                 int nanos = timeValue.getNano();
@@ -239,8 +247,13 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         return Literal.timeDuration(source(ctx), d);
     }
 
+    /**
+     * A duration, or - for a string parameter holding an RFC 3339 timestamp - an {@link Instant}. The time range a
+     * dashboard passes as its start and end timestamps is turned into a range by subtracting them
+     * ({@code [?_tend - ?_tstart]}), so a timestamp is only valid as an operand of a subtraction.
+     */
     @Override
-    public Duration visitTimeValue(TimeValueContext ctx) {
+    public Object visitTimeValue(TimeValueContext ctx) {
         if (ctx.NAMED_OR_POSITIONAL_PARAM() != null) {
             TerminalNode node = ctx.NAMED_OR_POSITIONAL_PARAM();
             QueryParam param = ExpressionBuilder.paramByNameOrPosition(node, source(node), params);
@@ -260,7 +273,25 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
                 );
             }
             Source source = source(ctx.NAMED_OR_POSITIONAL_PARAM());
-            return parseTimeValue(source, param.value().toString());
+            String value = param.value().toString();
+            try {
+                return parseTimeValue(source, value);
+            } catch (ParsingException e) {
+                Instant timestamp;
+                try {
+                    timestamp = Instant.parse(value);
+                } catch (DateTimeParseException notATimestamp) {
+                    throw e;
+                }
+                if (isSubtractionOperand(ctx) == false) {
+                    throw new ParsingException(
+                        source,
+                        "Timestamp parameter [{}] can only be subtracted from another timestamp, as in [?_tend - ?_tstart]",
+                        node.getText()
+                    );
+                }
+                return timestamp;
+            }
         }
 
         if (ctx.number() != null) {
@@ -385,6 +416,22 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     public Literal visitString(StringContext ctx) {
         Source source = source(ctx);
         return Literal.keyword(source, string(ctx.STRING()));
+    }
+
+    /**
+     * Whether the time value is, possibly in parentheses, an operand of a subtraction. Walks up the
+     * {@code timeValue -> constant -> value -> expression} rules of {@code PromqlBaseParser.g4}; if the grammar adds
+     * rules in between, timestamps are rejected rather than accepted elsewhere.
+     */
+    private static boolean isSubtractionOperand(TimeValueContext ctx) {
+        ParserRuleContext parent = ctx.getParent();
+        while (parent instanceof ConstantContext
+            || parent instanceof ValueContext
+            || parent instanceof ValueExpressionContext
+            || parent instanceof ParenthesizedContext) {
+            parent = parent.getParent();
+        }
+        return parent instanceof ArithmeticBinaryContext binary && binary.op.getType() == MINUS;
     }
 
     private static Duration parseTimeValue(Source source, String text) {

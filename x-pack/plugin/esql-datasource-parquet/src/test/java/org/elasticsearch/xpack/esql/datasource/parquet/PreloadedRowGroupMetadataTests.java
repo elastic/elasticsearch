@@ -30,7 +30,9 @@ import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
@@ -94,6 +96,42 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
     public void initBlockFactoryAndAllocator() throws Exception {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
         breaker = blockFactory.breaker();
+    }
+
+    public void testAwaitCoalescedTimesOutWhenReadNeverCompletes() {
+        PlainActionFuture<String> future = new PlainActionFuture<>();
+        long start = System.nanoTime();
+        ElasticsearchTimeoutException ex = expectThrows(
+            ElasticsearchTimeoutException.class,
+            () -> PreloadedRowGroupMetadata.awaitCoalesced(future, 50)
+        );
+        assertTrue(ex.getMessage().contains("50"));
+        long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+        assertTrue("timeout must fire promptly, took " + elapsedMs + "ms", elapsedMs < 1_000);
+    }
+
+    public void testPreloadTimesOutWhenAsyncReadNeverCompletes() throws IOException {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("v").named("schema");
+        long[] values = new long[65_536];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = i % 16;
+        }
+        byte[] parquetData = writeDictionaryEncodedInt64Parquet(schema, values);
+        AtomicInteger streamReads = new AtomicInteger();
+        StorageObject hung = createHungAsyncStorageObject(parquetData, streamReads);
+
+        ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
+        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(hung, footerByteCache, breaker), options)) {
+            streamReads.set(0);
+            long start = System.nanoTime();
+            expectThrows(
+                ElasticsearchTimeoutException.class,
+                () -> PreloadedRowGroupMetadata.preload(reader, hung, Set.of("v"), breaker, 50L)
+            );
+            long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+            assertTrue("timeout must fire promptly, took " + elapsedMs + "ms", elapsedMs < 1_000);
+            assertEquals("coalesced timeout must not fall back to sequential stream reads", 0, streamReads.get());
+        }
     }
 
     /**
@@ -1206,6 +1244,60 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
             @Override
             public StoragePath path() {
                 return StoragePath.of("memory://preload-async-test.parquet");
+            }
+        };
+    }
+
+    private static StorageObject createHungAsyncStorageObject(byte[] data, AtomicInteger streamReads) {
+        return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
+            public InputStream newStream() {
+                streamReads.incrementAndGet();
+                return new ByteArrayInputStream(data);
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                streamReads.incrementAndGet();
+                int pos = (int) position;
+                int len = (int) Math.min(length, data.length - position);
+                return new ByteArrayInputStream(data, pos, len);
+            }
+
+            @Override
+            public void readBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor ignored,
+                ActionListener<DirectReadBuffer> listener
+            ) {
+                // Never complete: coalesced preload must time out instead of parking forever.
+            }
+
+            @Override
+            public long length() {
+                return data.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.ofEpochMilli(0);
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://preload-hung-test.parquet");
             }
         };
     }

@@ -655,7 +655,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             } else {
                 answered = answer(child, relationColumns, src, true);
             }
-            return answered == child ? unresolvedMetadata : new UnresolvedMetadata(src, answered, metadataFields);
+            return answered.equals(child) ? unresolvedMetadata : new UnresolvedMetadata(src, answered, metadataFields);
         }
 
         private static LogicalPlan answer(LogicalPlan branch, List<NamedExpression> relationColumns, Source src, boolean lone) {

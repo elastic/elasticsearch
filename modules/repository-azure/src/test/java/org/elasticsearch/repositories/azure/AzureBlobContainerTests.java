@@ -9,10 +9,16 @@
 
 package org.elasticsearch.repositories.azure;
 
+import fixture.azure.AzureHttpHandler;
+import fixture.azure.MockAzureBlobStore;
+
 import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.ConcurrentMultipartHelper;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -21,21 +27,38 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.file.NoSuchFileException;
 import java.util.Base64;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomFiniteRetryingPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
 @SuppressForbidden(reason = "use a http server")
 public class AzureBlobContainerTests extends AbstractAzureServerTestCase {
+
+    private AzureHttpHandler azureHttpHandler;
+
+    @Before
+    public void configureAzureHandler() {
+        azureHttpHandler = new AzureHttpHandler(ACCOUNT, CONTAINER, null, MockAzureBlobStore.LeaseExpiryPredicate.NEVER_EXPIRE);
+        httpServer.createContext("/", azureHttpHandler);
+    }
 
     public void testCanConfigureReadTimeout() {
         final byte[] bytes = randomBlobContent();
@@ -155,6 +178,81 @@ public class AzureBlobContainerTests extends AbstractAzureServerTestCase {
             }
             return super.read(b, off, Math.min(len, pos < stallAfter ? stallAfter - pos : len));
         }
+    }
+
+    public void testConcurrentMultipartCopySingleThread() throws Exception {
+        testConcurrentMultipartCopy(true);
+    }
+
+    public void testConcurrentMultipartCopyMultipleThreads() throws Exception {
+        testConcurrentMultipartCopy(false);
+    }
+
+    private void testConcurrentMultipartCopy(boolean singleThread) throws Exception {
+        final AzureBlobContainer blobContainer = asInstanceOf(AzureBlobContainer.class, createBlobContainer(between(1, 3)));
+        final AzureBlobStore blobStore = blobContainer.getBlobStore();
+        final long partSize = blobStore.maxCopySizeBeforeMultipart();
+        final int nbParts = randomIntBetween(2, 5);
+        final long blobSize = randomLongBetween((nbParts - 1) * partSize + 1, nbParts * partSize);
+        assertThat(ConcurrentMultipartHelper.numberOfParts(blobSize, partSize), equalTo(nbParts));
+
+        final String sourceBlobName = randomIdentifier();
+        final String destBlobName = randomIdentifier();
+        final byte[] data = randomByteArrayOfLength(Math.toIntExact(blobSize));
+        blobStore.writeBlob(OperationPurpose.CLUSTER_STATE, sourceBlobName, BytesReference.fromByteBuffer(ByteBuffer.wrap(data)), false);
+
+        final AtomicInteger stageBlockFromUrlCalls = new AtomicInteger();
+        // Wrap the default handler so we can count Put Block From URL requests
+        final HttpHandler previousHandler = azureHttpHandler;
+        httpServer.removeContext("/");
+        httpServer.createContext("/", exchange -> {
+            final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI();
+            if (request.contains("blockid=") && exchange.getRequestHeaders().getFirst("x-ms-copy-source") != null) {
+                stageBlockFromUrlCalls.incrementAndGet();
+            }
+            previousHandler.handle(exchange);
+        });
+
+        final int numThreads = singleThread ? 1 : nbParts;
+        final ExecutorService executorService = Executors.newFixedThreadPool(numThreads);
+        try {
+            blobContainer.copyBlob(randomPurpose(), blobContainer, sourceBlobName, destBlobName, blobSize, executorService);
+        } finally {
+            ESTestCase.terminate(executorService);
+        }
+
+        assertThat(stageBlockFromUrlCalls.get(), equalTo(nbParts));
+        assertArrayEquals(data, BytesReference.toBytes(Streams.readFully(blobContainer.readBlob(randomPurpose(), destBlobName))));
+    }
+
+    public void testConcurrentMultipartCopyMissingSource() {
+        final AzureBlobContainer blobContainer = asInstanceOf(AzureBlobContainer.class, createBlobContainer(between(1, 3)));
+        final long blobSize = blobContainer.getBlobStore().maxCopySizeBeforeMultipart() + 1;
+        expectThrows(
+            NoSuchFileException.class,
+            () -> blobContainer.copyBlob(
+                randomPurpose(),
+                blobContainer,
+                "missing-" + randomIdentifier(),
+                randomIdentifier(),
+                blobSize,
+                Runnable::run
+            )
+        );
+    }
+
+    public void testSmallCopyWithExecutorUsesBeginCopy() throws IOException {
+        final AzureBlobContainer blobContainer = asInstanceOf(AzureBlobContainer.class, createBlobContainer(between(1, 3)));
+        final AzureBlobStore blobStore = blobContainer.getBlobStore();
+        // Below the multipart copy threshold, even with an executor we use async Copy Blob
+        final byte[] data = randomByteArrayOfLength(between(1, Math.toIntExact(blobStore.maxCopySizeBeforeMultipart())));
+        final String sourceBlobName = randomIdentifier();
+        final String destBlobName = randomIdentifier();
+        blobStore.writeBlob(OperationPurpose.CLUSTER_STATE, sourceBlobName, BytesReference.fromByteBuffer(ByteBuffer.wrap(data)), false);
+
+        blobContainer.copyBlob(randomPurpose(), blobContainer, sourceBlobName, destBlobName, data.length, Runnable::run);
+        assertArrayEquals(data, BytesReference.toBytes(Streams.readFully(blobContainer.readBlob(randomPurpose(), destBlobName))));
+        assertThat(blobStore.stats().get(AzureBlobStore.Operation.COPY_BLOB.getKey()).operations(), greaterThan(0L));
     }
 
     protected void sendBlobHeaders(HttpExchange exchange, byte[] blobContents) {

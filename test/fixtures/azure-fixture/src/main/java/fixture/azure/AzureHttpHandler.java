@@ -142,11 +142,46 @@ public class AzureHttpHandler implements HttpHandler {
         try {
             if (Regex.simpleMatch("PUT /" + account + "/" + container + "/*blockid=*", request)) {
                 // Put Block (https://docs.microsoft.com/en-us/rest/api/storageservices/put-block)
+                // or Put Block From URL (https://learn.microsoft.com/en-us/rest/api/storageservices/put-block-from-url)
                 final var params = RequestParams.fromQueryString(exchange.getRequestURI().getRawQuery());
 
                 final String blockId = params.get("blockid");
                 assert assertValidBlockId(blockId);
-                mockAzureBlobStore.putBlock(blobPath(exchange), blockId, Streams.readFully(exchange.getRequestBody()), leaseId(exchange));
+                final String copySourceUrl = exchange.getRequestHeaders().getFirst(X_MS_COPY_SOURCE);
+                final BytesReference blockContents;
+                if (copySourceUrl != null) {
+                    // Put Block From URL: body must be empty, content is copied from the source URL range
+                    assert exchange.getRequestBody().read() == -1 : "Put Block From URL request body should be empty";
+                    final String sourceBlobPath = stripPrefix(
+                        "/" + account + "/" + container + "/",
+                        URI.create(RestUtils.decodeComponent(copySourceUrl)).getPath()
+                    );
+                    final MockAzureBlobStore.AzureBlockBlob sourceBlob = mockAzureBlobStore.getBlob(sourceBlobPath, null);
+                    final BytesReference sourceContents = sourceBlob.getContents();
+                    final String sourceRangeHeader = exchange.getRequestHeaders().getFirst("x-ms-source-range");
+                    if (sourceRangeHeader == null) {
+                        blockContents = sourceContents;
+                    } else {
+                        final HttpHeaderParser.Range range = HttpHeaderParser.parseRangeHeader(sourceRangeHeader);
+                        if (range == null) {
+                            throw new MockAzureBlobStore.BadRequestException(
+                                "InvalidHeaderValue",
+                                "x-ms-source-range header does not match expected format: " + sourceRangeHeader
+                            );
+                        }
+                        final HttpHeaderParser.ResolvedRange resolved = range.resolveAgainst(sourceContents.length());
+                        if (resolved == null) {
+                            throw new MockAzureBlobStore.BadRequestException(
+                                "InvalidHeaderValue",
+                                "x-ms-source-range is not satisfiable: " + sourceRangeHeader
+                            );
+                        }
+                        blockContents = sourceContents.slice(Math.toIntExact(resolved.start()), Math.toIntExact(resolved.length()));
+                    }
+                } else {
+                    blockContents = Streams.readFully(exchange.getRequestBody());
+                }
+                mockAzureBlobStore.putBlock(blobPath(exchange), blockId, blockContents, leaseId(exchange));
                 exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
 
             } else if (Regex.simpleMatch("PUT /" + account + "/" + container + "/*comp=blocklist*", request)) {

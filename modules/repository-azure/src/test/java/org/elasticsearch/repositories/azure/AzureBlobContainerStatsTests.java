@@ -103,7 +103,8 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
 
         String blobName = randomIdentifier();
         // PUT_BLOB
-        blobStore.writeBlob(purpose, blobName, BytesReference.fromByteBuffer(ByteBuffer.wrap(randomBlobContent())), false);
+        final byte[] blobBytes = randomBlobContent();
+        blobStore.writeBlob(purpose, blobName, BytesReference.fromByteBuffer(ByteBuffer.wrap(blobBytes)), false);
         // LIST_BLOBS
         blobStore.listBlobsByPrefix(purpose, randomIdentifier(), randomIdentifier());
         // GET_BLOB_PROPERTIES
@@ -117,7 +118,7 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
         // BLOB_BATCH
         blobStore.deleteBlobs(purpose, List.of(randomIdentifier(), randomIdentifier(), randomIdentifier()).iterator());
         // COPY_BLOB
-        blobStore.copyBlob(purpose, blobName, blobStore, randomIdentifier());
+        blobStore.copyBlob(purpose, blobName, blobStore, randomIdentifier(), blobBytes.length, null);
 
         Map<String, BlobStoreActionStats> stats = blobStore.stats();
         String statsMapString = stats.toString();
@@ -131,6 +132,29 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
         assertEquals(statsMapString, 1L, stats.get(statsKey(purpose, AzureBlobStore.Operation.COPY_BLOB)).operations());
     }
 
+    public void testConcurrentMultipartCopyIsReflectedInBlobStoreStats() throws IOException {
+        serverlessMode = true;
+        AzureBlobContainer blobContainer = asInstanceOf(AzureBlobContainer.class, createBlobContainer(between(1, 3)));
+        AzureBlobStore blobStore = blobContainer.getBlobStore();
+        OperationPurpose purpose = randomFrom(OperationPurpose.values());
+
+        final long partSize = blobStore.maxCopySizeBeforeMultipart();
+        final int nbParts = randomIntBetween(2, 4);
+        final long blobSize = (nbParts - 1) * partSize + 1;
+        final byte[] data = randomByteArrayOfLength(Math.toIntExact(blobSize));
+        final String sourceBlobName = randomIdentifier();
+        final String destBlobName = randomIdentifier();
+
+        blobStore.writeBlob(purpose, sourceBlobName, BytesReference.fromByteBuffer(ByteBuffer.wrap(data)), false);
+        blobContainer.copyBlob(purpose, blobContainer, sourceBlobName, destBlobName, blobSize, Runnable::run);
+
+        Map<String, BlobStoreActionStats> stats = blobStore.stats();
+        String statsMapString = stats.toString();
+        assertEquals(statsMapString, nbParts, stats.get(statsKey(purpose, AzureBlobStore.Operation.PUT_BLOCK_FROM_URL)).operations());
+        assertEquals(statsMapString, 1L, stats.get(statsKey(purpose, AzureBlobStore.Operation.PUT_BLOCK_LIST)).operations());
+        assertNull(statsMapString, stats.get(statsKey(purpose, AzureBlobStore.Operation.COPY_BLOB)));
+    }
+
     public void testOperationPurposeIsNotReflectedInBlobStoreStatsWhenNotServerless() throws IOException {
         serverlessMode = false;
         AzureBlobContainer blobContainer = asInstanceOf(AzureBlobContainer.class, createBlobContainer(between(1, 3)));
@@ -142,7 +166,8 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
 
             String blobName = randomIdentifier();
             // PUT_BLOB
-            blobStore.writeBlob(purpose, blobName, BytesReference.fromByteBuffer(ByteBuffer.wrap(randomBlobContent())), false);
+            final byte[] blobBytes = randomBlobContent();
+            blobStore.writeBlob(purpose, blobName, BytesReference.fromByteBuffer(ByteBuffer.wrap(blobBytes)), false);
             // LIST_BLOBS
             blobStore.listBlobsByPrefix(purpose, randomIdentifier(), randomIdentifier());
             // GET_BLOB_PROPERTIES
@@ -156,7 +181,7 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
             // BLOB_BATCH
             blobStore.deleteBlobs(purpose, List.of(randomIdentifier(), randomIdentifier(), randomIdentifier()).iterator());
             // COPY_BLOB
-            blobStore.copyBlob(purpose, blobName, blobStore, randomIdentifier());
+            blobStore.copyBlob(purpose, blobName, blobStore, randomIdentifier(), blobBytes.length, null);
         }
 
         Map<String, BlobStoreActionStats> stats = blobStore.stats();

@@ -56,6 +56,7 @@ import java.util.concurrent.TimeUnit;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.CONTAINER_SETTING;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.COPY_POLL_INTERVAL;
+import static org.elasticsearch.repositories.azure.AzureRepository.Repository.MAX_COPY_SIZE_BEFORE_MULTIPART_SETTING;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.ACCOUNT_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.ENDPOINT_SUFFIX_SETTING;
@@ -163,6 +164,7 @@ public class AzureBlobContainerAccessTierTests extends ESTestCase {
                 .put(CONTAINER_SETTING.getKey(), CONTAINER)
                 .put(ACCOUNT_SETTING.getKey(), clientName)
                 .put(MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
+                .put(MAX_COPY_SIZE_BEFORE_MULTIPART_SETTING.getKey(), ByteSizeValue.of(5, ByteSizeUnit.MB))
                 .put(COPY_POLL_INTERVAL.getKey(), TimeValue.timeValueMillis(100))
                 .build()
         );
@@ -335,5 +337,23 @@ public class AzureBlobContainerAccessTierTests extends ESTestCase {
         container.copyBlob(OperationPurpose.SNAPSHOT_METADATA, container, sourceBlobName, destBlobName, data.length, null);
 
         asserAccessTier(metadataAccessTier, destBlobName);
+    }
+
+    public void testDataAccessTierSentOnConcurrentMultipartCopyBlob() throws IOException {
+        String dataAccessTier = getRandomAllowedAccessTierString();
+        final AzureBlobContainer container = buildContainer(dataAccessTier, null);
+        final String sourceBlobName = randomIdentifier();
+        final String destBlobName = randomIdentifier();
+        // Larger than the multipart copy threshold so copyBlob takes the Put Block From URL path
+        final int blobSize = (int) (container.getBlobStore().maxCopySizeBeforeMultipart() + 1);
+        final byte[] data = randomByteArrayOfLength(blobSize);
+
+        container.getBlobStore()
+            .writeBlob(OperationPurpose.CLUSTER_STATE, sourceBlobName, BytesReference.fromByteBuffer(ByteBuffer.wrap(data)), false);
+        assertNull(azureHttpHandler.getMockBlobStore().getBlob(sourceBlobName, null).accessTier());
+
+        container.copyBlob(OperationPurpose.SNAPSHOT_DATA, container, sourceBlobName, destBlobName, data.length, Runnable::run);
+
+        asserAccessTier(dataAccessTier, destBlobName);
     }
 }

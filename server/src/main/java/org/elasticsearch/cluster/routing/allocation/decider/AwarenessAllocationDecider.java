@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.core.Nullable;
 
 import java.util.HashMap;
 import java.util.List;
@@ -26,8 +27,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
-
-import static java.util.stream.Collectors.toList;
 
 /**
  * This {@link AllocationDecider} controls shard allocation based on
@@ -220,8 +219,8 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                     awarenessAttribute,
                     node.node().getAttributes().get(awarenessAttribute),
                     valueCount,
-                    actualAttributeValues.stream().sorted().collect(toList()),
-                    forcedValues == null ? null : forcedValues.stream().sorted().collect(toList()),
+                    actualAttributeValues,
+                    forcedValues,
                     shardsForTargetAttributeValue,
                     maximumShardsPerAttributeValue
                 );
@@ -237,11 +236,21 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         String attributeName,
         String attributeValue,
         int numberOfAttributes,
-        List<String> realAttributes,
-        List<String> forcedAttributes,
+        Set<String> realAttributes,
+        @Nullable List<String> forcedAttributes,
         int actualShardCount,
         int maximumShardCount
     ) {
+        // Only prepare these parameters if debugDecision is on, they won't be used otherwise
+        final var sortedRealAttributes = allocation.debugDecision() ? realAttributes.stream().sorted().toList() : null;
+        final String forcedAwarenessString;
+        if (allocation.debugDecision()) {
+            forcedAwarenessString = forcedAttributes == null
+                ? "no forced awareness"
+                : forcedAttributes.stream().sorted().toList() + " from forced awareness";
+        } else {
+            forcedAwarenessString = null;
+        }
         return allocation.decision(
             Decision.NO,
             NAME,
@@ -251,8 +260,8 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             shardCount,
             numberOfAttributes,
             attributeName,
-            realAttributes,
-            forcedAttributes == null ? "no forced awareness" : forcedAttributes + " from forced awareness",
+            sortedRealAttributes,
+            forcedAwarenessString,
             maximumShardCount,
             actualShardCount,
             attributeName,

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161303
+summary: Fold null-propagating functions over NULL-typed arguments
+type: bug

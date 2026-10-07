@@ -22,6 +22,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * An {@link ExchangeSourceHandler} asynchronously fetches pages and status from multiple {@link RemoteSink}s
@@ -58,6 +59,7 @@ public final class ExchangeSourceHandler {
 
     private final AtomicInteger nextSinkId = new AtomicInteger();
     private final Map<Integer, RemoteSink> remoteSinks = ConcurrentCollections.newConcurrentMap();
+    private final AtomicLong rowsReceived = new AtomicLong();
 
     /**
      * Creates a new ExchangeSourceHandler.
@@ -75,6 +77,14 @@ public final class ExchangeSourceHandler {
 
     public boolean isFinished() {
         return buffer.isFinished();
+    }
+
+    /**
+     * Positions fetched from remote sinks so far, including pages not yet consumed.
+     * A remote sink completes only after its pages are counted here.
+     */
+    public long receivedPositions() {
+        return rowsReceived.get();
     }
 
     private void checkFailure() {
@@ -199,6 +209,7 @@ public final class ExchangeSourceHandler {
                     Page page = resp.takePage();
                     if (page != null) {
                         onPageFetched.run();
+                        rowsReceived.addAndGet(page.getPositionCount());
                         buffer.addPage(page);
                     }
                     if (resp.finished()) {

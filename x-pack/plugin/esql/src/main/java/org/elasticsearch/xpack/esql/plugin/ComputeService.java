@@ -1558,6 +1558,7 @@ public class ComputeService {
                             Set.of(localConcreteIndices.indices()),
                             localOriginalIndices,
                             exchangeSource,
+                            PlannerUtils.rowsNeededFromDataNodes(coordinatorPlan),
                             retainSearchContexts,
                             remoteFetchRetainedSessionReleaser,
                             cancelQueryOnFailure,

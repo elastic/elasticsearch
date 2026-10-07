@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -73,6 +74,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
@@ -266,6 +268,23 @@ public class PlannerUtils {
             return p;
         });
         return new Tuple<>(coordinatorPlan, dataNodePlan.get());
+    }
+
+    /**
+     * @return how many rows received from data nodes are enough: the {@code LIMIT} the coordinator applies directly to the rows it
+     * receives through its exchange, or {@code null} if anything else reads them first. Once that many rows have been received,
+     * querying more data nodes cannot change the result.
+     */
+    @Nullable
+    public static Integer rowsNeededFromDataNodes(PhysicalPlan coordinatorPlan) {
+        if (coordinatorPlan.collect(ExchangeSourceExec.class).size() != 1) {
+            return null;
+        }
+        List<LimitExec> limits = coordinatorPlan.collect(LimitExec.class, limit -> limit.child() instanceof ExchangeSourceExec);
+        if (limits.size() == 1 && limits.getFirst().limit() instanceof Literal literal && literal.value() instanceof Integer limit) {
+            return limit;
+        }
+        return null;
     }
 
     /**

@@ -27,12 +27,14 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -46,9 +48,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -302,6 +306,155 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
             assertThat(exchanges.get(), lessThanOrEqualTo(2));
         } finally {
             coordinatorNodeTransport.clearAllRules();
+        }
+    }
+
+    private static final String ONE_SHARD_PER_NODE_INDEX = "one-shard-per-node";
+
+    /**
+     * With one node queried at a time and a {@code LIMIT} satisfied by the first node, the remaining nodes must be skipped
+     * even if the coordinator's final driver has not consumed the rows yet. See {@link #queryWithStarvedCoordinator}.
+     */
+    public void testSkipNodesWhenReceivedRowsSatisfyLimit() throws Exception {
+        assumeTrue("Requires pragmas", canUseQueryPragmas());
+        internalCluster().ensureAtLeastNumDataNodes(3);
+        long minDocsPerShard = createOneShardPerNodeIndex(between(50, 100) * internalCluster().numDataNodes());
+        int limit = between(1, Math.toIntExact(minDocsPerShard));
+        int exchanges = queryWithStarvedCoordinator(
+            "FROM " + ONE_SHARD_PER_NODE_INDEX + " | LIMIT " + limit,
+            result -> assertThat(Iterables.size(result.rows()), equalTo((long) limit))
+        );
+        assertThat(exchanges, equalTo(1));
+    }
+
+    /**
+     * A {@code LIMIT} that no single node can satisfy must still return all the rows it asks for, so no node may be skipped.
+     */
+    public void testQueryAllNodesWhenNoNodeSatisfiesLimit() throws Exception {
+        assumeTrue("Requires pragmas", canUseQueryPragmas());
+        internalCluster().ensureAtLeastNumDataNodes(3);
+        int numDocs = between(50, 100) * internalCluster().numDataNodes();
+        createOneShardPerNodeIndex(numDocs);
+        int exchanges = queryWithStarvedCoordinator(
+            "FROM " + ONE_SHARD_PER_NODE_INDEX + " | LIMIT " + numDocs,
+            result -> assertThat(Iterables.size(result.rows()), equalTo((long) numDocs))
+        );
+        assertThat(exchanges, equalTo(internalCluster().numDataNodes()));
+    }
+
+    /**
+     * Without an explicit {@code LIMIT} the default result limit applies, which is larger than the whole index here.
+     */
+    public void testQueryAllNodesWithoutLimit() throws Exception {
+        assumeTrue("Requires pragmas", canUseQueryPragmas());
+        internalCluster().ensureAtLeastNumDataNodes(3);
+        int numDocs = between(50, 100) * internalCluster().numDataNodes();
+        createOneShardPerNodeIndex(numDocs);
+        int exchanges = queryWithStarvedCoordinator(
+            "FROM " + ONE_SHARD_PER_NODE_INDEX,
+            result -> assertThat(Iterables.size(result.rows()), equalTo((long) numDocs))
+        );
+        assertThat(exchanges, equalTo(internalCluster().numDataNodes()));
+    }
+
+    /**
+     * The coordinator aggregates the rows it receives, so no {@code LIMIT} reads the exchange directly and every node is needed.
+     */
+    public void testQueryAllNodesForStats() throws Exception {
+        assumeTrue("Requires pragmas", canUseQueryPragmas());
+        internalCluster().ensureAtLeastNumDataNodes(3);
+        int numDocs = between(50, 100) * internalCluster().numDataNodes();
+        createOneShardPerNodeIndex(numDocs);
+        int exchanges = queryWithStarvedCoordinator(
+            "FROM " + ONE_SHARD_PER_NODE_INDEX + " | STATS c = COUNT(*)",
+            result -> assertThat(EsqlTestUtils.getValuesList(result), equalTo(List.of(List.of((long) numDocs))))
+        );
+        assertThat(exchanges, equalTo(internalCluster().numDataNodes()));
+    }
+
+    /**
+     * Creates an index with exactly one shard on each data node. A node holding a single shard completes without waiting
+     * for the coordinator to drain its pages, so the coordinator cannot rely on backpressure to stop early.
+     *
+     * @return the smallest number of documents in any shard
+     */
+    private long createOneShardPerNodeIndex(int numDocs) {
+        client().admin()
+            .indices()
+            .prepareCreate(ONE_SHARD_PER_NODE_INDEX)
+            .setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, internalCluster().numDataNodes())
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put("index.routing.allocation.total_shards_per_node", 1)
+            )
+            .setMapping("user", "type=keyword")
+            .get();
+        BulkRequestBuilder bulk = client().prepareBulk(ONE_SHARD_PER_NODE_INDEX).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int d = 0; d < numDocs; d++) {
+            bulk.add(client().prepareIndex().setSource("user", "u" + d));
+        }
+        bulk.get();
+        ensureGreen(ONE_SHARD_PER_NODE_INDEX);
+        long minDocsPerShard = Long.MAX_VALUE;
+        for (var shardStats : client().admin().indices().prepareStats(ONE_SHARD_PER_NODE_INDEX).clear().setDocs(true).get().getShards()) {
+            long docs = shardStats.getStats().getDocs().getCount();
+            assertThat("no doc for shard " + shardStats.getShardRouting().shardId(), docs, greaterThan(0L));
+            minDocsPerShard = Math.min(minDocsPerShard, docs);
+        }
+        return minDocsPerShard;
+    }
+
+    /**
+     * Runs {@code esqlQuery} from a new coordinating-only node, querying one data node at a time. Once the first exchange is
+     * opened, the coordinator's ES|QL worker threads are kept busy, so its final driver cannot consume any rows before the next
+     * node is picked. The coordinator holds no shards, so every exchange it opens goes through the mock transport and is counted.
+     *
+     * @return the number of exchanges the coordinator opened
+     */
+    private int queryWithStarvedCoordinator(String esqlQuery, Consumer<EsqlQueryResponse> checkResult) throws Exception {
+        String coordinatingNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        var exchanges = new AtomicInteger();
+        var releaseWorkers = new CountDownLatch(1);
+        var coordinatorTransport = MockTransportService.getInstance(coordinatingNode);
+        coordinatorTransport.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(ExchangeService.OPEN_EXCHANGE_ACTION_NAME)) {
+                if (exchanges.incrementAndGet() == 1) {
+                    blockWorkers(coordinatorTransport.getThreadPool(), releaseWorkers);
+                } else {
+                    releaseWorkers.countDown();
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        var query = syncEsqlQueryRequest(esqlQuery).pragmas(
+            new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_NODES_PER_CLUSTER.getKey(), 1).build())
+        );
+        try (var result = safeGet(client(coordinatingNode).execute(EsqlQueryAction.INSTANCE, query))) {
+            checkResult.accept(result);
+            return exchanges.get();
+        } finally {
+            releaseWorkers.countDown();
+            coordinatorTransport.clearAllRules();
+            internalCluster().stopNode(coordinatingNode);
+        }
+    }
+
+    /**
+     * Occupies every ES|QL worker thread so that no driver can run until {@code release} is counted down or a few seconds pass,
+     * which is far longer than querying the remaining data nodes takes.
+     */
+    private static void blockWorkers(ThreadPool threadPool, CountDownLatch release) {
+        int workers = threadPool.info(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME).getMax();
+        for (int i = 0; i < workers; i++) {
+            threadPool.executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME).execute(() -> {
+                try {
+                    release.await(3, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
         }
     }
 

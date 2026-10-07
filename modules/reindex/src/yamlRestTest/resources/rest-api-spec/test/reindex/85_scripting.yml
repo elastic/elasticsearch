@@ -168,15 +168,17 @@
       get:
         index:   new_twitter
         id:      "1"
-        slice: kimchy
-  - match: { _slice: kimchy }
+        _slice: kimchy
+  - match: { _id: "1" }
+  - match: { _source.user: kimchy }
 
   - do:
       get:
         index:   new_twitter
         id:      "2"
-        slice: foo
-  - match: { _slice: foo }
+        _slice: foo
+  - match: { _id: "2" }
+  - match: { _source.user: foo }
 
 ---
 "Script that does not assign _slice fails gracefully for a slice-enabled destination":

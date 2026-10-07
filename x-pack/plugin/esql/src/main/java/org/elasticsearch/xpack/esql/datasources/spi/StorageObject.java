@@ -300,6 +300,23 @@ public interface StorageObject {
     }
 
     /**
+     * Async start with optional permit barge. Default ignores {@code barge} and delegates to
+     * {@link #startReadBytesAsync(long, long, DirectBufferFactory, Executor, ActionListener)}.
+     * Limiters honor {@code barge}: untimed try-acquire so a retry continuation never parks.
+     * Wrappers that sit between retry and the limiter must forward {@code barge}.
+     */
+    default Releasable startReadBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener,
+        boolean barge
+    ) {
+        return startReadBytesAsync(position, length, factory, executor, listener);
+    }
+
+    /**
      * Async byte read into a caller-provided ByteBuffer.
      * <p>
      * Avoids per-call allocation by reading directly into the target buffer.

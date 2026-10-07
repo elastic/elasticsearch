@@ -1338,22 +1338,19 @@ public class EsqlCapabilities {
          */
         COMPLETION,
         /**
-         * Support for the DENSE_VECTOR command. Dev/snapshot-only — the command is gated behind
-         * {@code isDevVersion()} in the grammar.
+         * Support for the DENSE_VECTOR command.
          */
-        DENSE_VECTOR_COMMAND(Build.current().isSnapshot()),
+        DENSE_VECTOR_COMMAND,
         /**
          * Adds the {@code type} option (text|image) and endpoint-driven multimodal routing to the DENSE_VECTOR command.
-         * Dev/snapshot-only, like {@link #DENSE_VECTOR_COMMAND}.
          */
-        DENSE_VECTOR_COMMAND_V2(Build.current().isSnapshot()),
+        DENSE_VECTOR_COMMAND_V2,
         /**
          * Adds custom output naming to the DENSE_VECTOR command: {@code vec = field} names a single generated column, and
          * {@code suffix = "_dv" ON f1, f2} replaces the default {@code _dense_vector} suffix on every listed field. Also covers
          * the warning emitted when an input position holds more than one value, which ships alongside the naming forms.
-         * Dev/snapshot-only, like {@link #DENSE_VECTOR_COMMAND}.
          */
-        DENSE_VECTOR_COMMAND_V3(Build.current().isSnapshot()),
+        DENSE_VECTOR_COMMAND_V3,
         /**
          * Allow mixed numeric types in conditional functions - case, greatest and least
          */
@@ -4280,6 +4277,14 @@ public class EsqlCapabilities {
          * answer {@code null}.
          */
         EXTERNAL_SOURCE_SCORE_FIX,
+
+        /**
+         * Fix for {@code DocumentParser#parseArrayDynamic}: with {@code subobjects:false} and {@code dynamic:false},
+         * arrays of objects now correctly walk mapped dotted fields (e.g. {@code "objarr.k"}), consistent
+         * with the plain-object path. Previously the array was silently skipped and the values dropped.
+         * Fixed in <a href="https://github.com/elastic/elasticsearch/issues/160012">#160012</a>.
+         */
+        FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

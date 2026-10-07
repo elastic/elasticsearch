@@ -25,6 +25,7 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.NavigableSet;
 import java.util.function.Predicate;
@@ -415,13 +416,10 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      * <p>On a {@code PLAIN} column the values are compared directly, which is what {@link #match} would do
      * with a set membership predicate.
      *
-     * <p>{@code terms} must order and compare equal exactly as {@link BytesRef#compareTo} does. Order matters
-     * because every layout bisects the set against a column that is in byte order. Equality matters because a
-     * plain column, and the escaped values of a dictionary column, are decided by {@code contains}, which a
-     * set answers through its own comparator. A set under natural ordering satisfies both.
+     * <p>The set's own comparator cannot change the answer. A set iterating in byte order costs less, since
+     * each term is then resolved from where the one before it stopped, but any order is answered the same.
      */
     public DocIdSetIterator matchAnyOf(NavigableSet<BytesRef> terms) throws IOException {
-        assert ascendingByBytes(terms) : "the terms are bisected against a column in byte order";
         if (numDocsWithField() == 0 || terms.isEmpty()) {
             return DocIdSetIterator.empty();
         }
@@ -433,28 +431,6 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
 
     /** Documents whose value is in {@code terms}, for a column that knows how its values are reached. */
     protected abstract DocIdSetIterator unorderedAnyOfMatches(NavigableSet<BytesRef> terms) throws IOException;
-
-    /**
-     * Whether the set iterates in ascending byte order. This is a debug check rather than a proof of the
-     * contract: the terms the set holds say nothing about how its comparator would judge the ones it does not.
-     *
-     * <p>A null comparator settles it, since natural ordering of a {@link BytesRef} is byte order, and that is
-     * the only case a hot path reaches. An explicit comparator is walked rather than refused, because it may
-     * order by bytes all the same.
-     */
-    private static boolean ascendingByBytes(NavigableSet<BytesRef> terms) {
-        if (terms.comparator() == null) {
-            return true;
-        }
-        BytesRef previous = null;
-        for (BytesRef term : terms) {
-            if (previous != null && previous.compareTo(term) >= 0) {
-                return false;
-            }
-            previous = term;
-        }
-        return true;
-    }
 
     /**
      * Documents holding a value that has {@code term} somewhere inside it.
@@ -513,7 +489,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         // multiValued() is still false. A column holding a null is never sorted, so the bisection also never
         // meets a slot with no value to compare.
         if (meta.valuesSorted() && meta.hasValueAddresses() == false) {
-            return documents(sortedRange(prefix, exact));
+            return documents(sortedRange(prefix, exact, 0));
         }
         return unorderedMatches(prefix, exact);
     }
@@ -530,28 +506,40 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      * found by bisection over the values, which needs only the order and no ordinals: a term costs a couple
      * of dozen block reads instead of a comparison per document.
      */
-    private RankRange sortedRange(BytesRef prefix, BytesRef exact) throws IOException {
+    private RankRange sortedRange(BytesRef prefix, BytesRef exact, int from) throws IOException {
         final int count = meta.numDocsWithField();
         final BytesRef target = exact != null ? exact : prefix;
-        final int first = firstAtLeast(target, count);
-        if (first == count) {
-            return RankRange.EMPTY;
+        final int first = firstAtLeast(target, from, count);
+        // NOTE: an empty range still reports where the search stopped, which bounds the next target below.
+        if (first == count || matches(valueAt(first), prefix, exact) == false) {
+            return new RankRange(first, first);
         }
-        if (matches(valueAt(first), prefix, exact) == false) {
-            return RankRange.EMPTY;
+        return new RankRange(first, runEnd(first, prefix, exact, count));
+    }
+
+    /**
+     * The rank one past the run starting at {@code first}, whose value is known to match. Doubling the step
+     * before bisecting the bracket keeps the reads next to {@code first}, where a short run ends, rather
+     * than bisecting the whole column above it.
+     */
+    private int runEnd(int first, BytesRef prefix, BytesRef exact, int count) throws IOException {
+        int lo = first;
+        long step = 1;
+        int hi = (int) Math.min(first + step, count);
+        while (hi < count && matches(valueAt(hi), prefix, exact)) {
+            lo = hi;
+            step <<= 1;
+            hi = (int) Math.min(first + step, count);
         }
-        // The run ends where the values stop carrying it, which is again a boundary in value order.
-        int low = first;
-        int high = count;
-        while (low < high) {
-            final int mid = (low + high) >>> 1;
+        while (lo + 1 < hi) {
+            final int mid = lo + ((hi - lo) >>> 1);
             if (matches(valueAt(mid), prefix, exact)) {
-                low = mid + 1;
+                lo = mid;
             } else {
-                high = mid;
+                hi = mid;
             }
         }
-        return new RankRange(first, low);
+        return hi;
     }
 
     /**
@@ -576,7 +564,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         if (lower == null) {
             from = 0;
         } else {
-            from = firstAtLeast(lower, count);
+            from = firstAtLeast(lower, 0, count);
             if (includeLower == false && from < count && valueAt(from).compareTo(lower) == 0) {
                 int lo = from;
                 int hi = count;
@@ -617,18 +605,28 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
 
     /**
      * The runs of ranks holding each of {@code terms}, for a column whose values arrive in term order, ascending
-     * and disjoint: the terms are distinct and visited in term order, so each run starts where the one before it
-     * ended or later. Terms the column does not hold contribute nothing.
+     * and disjoint. Terms the column does not hold contribute nothing.
+     *
+     * <p>Each search starts where the one before it stopped, so an ascending set costs one forward pass over
+     * the values rather than one bisection of the column per term. A term that does not follow its
+     * predecessor drops that bound, and the runs are ordered afterwards, so any order is answered correctly.
      */
     private List<RankRange> sortedRangesOfTerms(NavigableSet<BytesRef> terms) throws IOException {
         final List<RankRange> ranges = new ArrayList<>();
+        BytesRef previous = null;
+        int from = 0;
         for (BytesRef term : terms) {
-            final RankRange range = sortedRange(term, term);
+            if (previous != null && previous.compareTo(term) >= 0) {
+                from = 0;
+            }
+            previous = term;
+            final RankRange range = sortedRange(term, term, from);
+            from = range.to();
             if (range.isEmpty() == false) {
-                assert ranges.isEmpty() || ranges.getLast().to() <= range.from() : "runs out of order: " + ranges.getLast() + ", " + range;
                 ranges.add(range);
             }
         }
+        ranges.sort(Comparator.comparingInt(RankRange::from));
         return ranges;
     }
 
@@ -649,19 +647,34 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         return true;
     }
 
-    /** The first rank whose value sorts at or after {@code target}, by bisection over ordered values. */
-    private int firstAtLeast(BytesRef target, int count) throws IOException {
-        int low = 0;
-        int high = count;
-        while (low < high) {
-            final int mid = (low + high) >>> 1;
-            if (valueAt(mid).compareTo(target) < 0) {
-                low = mid + 1;
-            } else {
-                high = mid;
+    /**
+     * The first rank at or after {@code from} whose value sorts at or after {@code target}. Doubling the step
+     * before bisecting the bracket costs reads proportional to the distance rather than to the column, and
+     * keeps them close enough together to share a decoded block.
+     */
+    private int firstAtLeast(BytesRef target, int from, int count) throws IOException {
+        int lo = from;
+        int hi = count;
+        // NOTE: doubling only pays while the target is near `from`, which is so for a cursor carried across
+        // ascending targets and not for a lone bound that can sit anywhere.
+        if (from > 0) {
+            long step = 1;
+            hi = (int) Math.min(from + step, count);
+            while (hi < count && valueAt(hi).compareTo(target) < 0) {
+                lo = hi;
+                step <<= 1;
+                hi = (int) Math.min(from + step, count);
             }
         }
-        return low;
+        while (lo < hi) {
+            final int mid = (lo + hi) >>> 1;
+            if (valueAt(mid).compareTo(target) < 0) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        return lo;
     }
 
     /** A value of the wrong length cannot be the term, and cannot be shorter than the prefix. */

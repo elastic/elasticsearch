@@ -74,6 +74,30 @@ public class StringAnyOfTests extends ColumnarStringTestCase {
         assertAnyOf(docValues, DictionaryPolicy.NONE);
     }
 
+    public void testAnyOrderOfTermsMatchesTheSame() throws IOException {
+        final NavigableSet<BytesRef> ascending = termsOf("alpha", "alpine", "delta", "zulu");
+        final NavigableSet<BytesRef> naturalOrder = new TreeSet<>(Comparator.naturalOrder());
+        naturalOrder.addAll(ascending);
+        final NavigableSet<BytesRef> descending = new TreeSet<>(Comparator.reverseOrder());
+        descending.addAll(ascending);
+        final NavigableSet<BytesRef> byLength = new TreeSet<>(Comparator.comparingInt((BytesRef t) -> t.length).thenComparing(t -> t));
+        byLength.addAll(ascending);
+
+        for (boolean inTermOrder : List.of(true, false)) {
+            final BytesRef[] docValues = inTermOrder ? sorted(repeated(between(400, 2000))) : repeated(between(400, 2000));
+            for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, dictionaryPolicy())) {
+                withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
+                    final String how = "sorted=" + inTermOrder + " policy=" + policy;
+                    final List<Integer> expected = expectedAnyOf(docValues, ascending);
+                    assertEquals(how + " ascending", expected, matched(reader.matchAnyOf(ascending)));
+                    assertEquals(how + " natural order", expected, matched(reader.matchAnyOf(naturalOrder)));
+                    assertEquals(how + " descending", expected, matched(reader.matchAnyOf(descending)));
+                    assertEquals(how + " by length", expected, matched(reader.matchAnyOf(byLength)));
+                });
+            }
+        }
+    }
+
     public void testEmptyTermSet() throws IOException {
         final BytesRef[] docValues = repeated(between(400, 1500));
         for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, dictionaryPolicy())) {
@@ -185,21 +209,6 @@ public class StringAnyOfTests extends ColumnarStringTestCase {
             values[d] = new BytesRef(TERMS[d % TERMS.length]);
         }
         return values;
-    }
-
-    public void testASetOrderedByAnExplicitComparator() throws IOException {
-        final BytesRef[] docValues = repeated(between(400, 2000));
-        final NavigableSet<BytesRef> naturalOrder = new TreeSet<>(Comparator.naturalOrder());
-        naturalOrder.add(new BytesRef(TERMS[0]));
-        naturalOrder.add(new BytesRef(TERMS[1]));
-        final NavigableSet<BytesRef> reversed = new TreeSet<>(Comparator.reverseOrder());
-        reversed.addAll(naturalOrder);
-        final DictionaryPolicy policy = randomBoolean() ? DictionaryPolicy.NONE : dictionaryPolicy();
-        withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
-            // NOTE: ordering by bytes is the requirement, which a comparator meets as much as natural ordering.
-            assertEquals(expectedAnyOf(docValues, naturalOrder), matched(reader.matchAnyOf(naturalOrder)));
-            expectThrows(AssertionError.class, () -> reader.matchAnyOf(reversed));
-        });
     }
 
     private static NavigableSet<BytesRef> termsOf(String... values) {

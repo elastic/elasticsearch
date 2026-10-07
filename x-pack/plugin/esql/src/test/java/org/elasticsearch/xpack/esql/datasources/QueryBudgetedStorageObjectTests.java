@@ -31,6 +31,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -136,7 +137,7 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
             ActionListener<DirectReadBuffer> listener = inv.getArgument(4);
             listener.onResponse(result);
             return (Releasable) () -> {};
-        }).when(delegate).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class));
+        }).when(delegate).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class), anyBoolean());
 
         QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
         CountDownLatch latch = new CountDownLatch(1);
@@ -160,7 +161,7 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
             ActionListener<DirectReadBuffer> listener = inv.getArgument(4);
             listener.onFailure(new IOException("async error"));
             return (Releasable) () -> {};
-        }).when(delegate).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class));
+        }).when(delegate).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class), anyBoolean());
 
         QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
         CountDownLatch latch = new CountDownLatch(1);
@@ -282,7 +283,7 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
             held.set(inv.getArgument(4));
             firstStarted.countDown();
             return (Releasable) () -> {};
-        }).when(delegate).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class));
+        }).when(delegate).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class), anyBoolean());
 
         QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
         try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(farther, true)) {

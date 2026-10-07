@@ -20,8 +20,11 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.IntelligentTieringAccessTier;
+import software.amazon.awssdk.services.s3.model.InvalidObjectStateException;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.model.StorageClass;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -69,6 +72,11 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
     private static final String BUCKET = "test-bucket";
     private static final String KEY = "data/file.parquet";
     private static final StoragePath PATH = StoragePath.of("s3://" + BUCKET + "/" + KEY);
+
+    /** What S3 answers when a key policy explicitly denies the reading principal {@code kms:Decrypt} on an SSE-KMS object. */
+    private static final String KMS_DENIAL = "User: arn:aws:sts::123456789012:assumed-role/reader/session is not authorized to perform: "
+        + "kms:Decrypt on resource: arn:aws:kms:us-east-1:123456789012:key/11111111-2222-3333-4444-555555555555 "
+        + "with an explicit deny in a resource-based policy";
 
     /**
      * AWS Standard retry semantics (same classification and attempt budget as production) but with
@@ -295,6 +303,172 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
         assertSame(missing, ex.getCause());
     }
 
+    /**
+     * An SSE-KMS object read by a principal denied {@code kms:Decrypt} on its key: S3 answers 403 {@code AccessDenied} and
+     * names the refused action in its message. The remedy is that permission, not new credentials or anonymous access,
+     * and the principal and key ARNs from S3's message are not repeated.
+     */
+    public void testKmsDecryptDeniedNamesThePermissionNotTheCredentials() {
+        S3Client mockS3 = mock(S3Client.class);
+        S3Exception denied = s3Error(403, "AccessDenied", KMS_DENIAL);
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(denied);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalClientException ex = expectThrows(ExternalClientException.class, obj::newStream);
+        assertEquals(Condition.ACCESS_DENIED, ex.condition());
+        assertThat(ex.getMessage(), containsString("not authorized to perform [kms:Decrypt]"));
+        assertThat(ex.getMessage(), containsString("encrypted with a KMS key that principal cannot use. Allow it on that key"));
+        assertThat(ex.getMessage(), containsString("HTTP 403 AccessDenied"));
+        assertNoCredentialsRemedy(ex.getMessage());
+        assertThat(ex.getMessage(), not(containsString("arn:aws:kms")));
+        assertThat(ex.getMessage(), not(containsString("arn:aws:sts")));
+        assertSame(denied, ex.getCause());
+    }
+
+    public void testDeniedActionOtherThanKmsNamesTheAction() {
+        S3Client mockS3 = mock(S3Client.class);
+        S3Exception denied = s3Error(
+            403,
+            "AccessDenied",
+            "User: arn:aws:iam::123456789012:user/reader is not authorized to perform: s3:GetObject on resource: "
+                + "\"arn:aws:s3:::test-bucket/data/file.parquet\" because no identity-based policy allows the s3:GetObject action"
+        );
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(denied);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalClientException ex = expectThrows(ExternalClientException.class, obj::newStream);
+        assertEquals(Condition.ACCESS_DENIED, ex.condition());
+        assertThat(ex.getMessage(), containsString("not authorized to perform [s3:GetObject]. Allow it for that principal"));
+        assertThat(ex.getMessage(), not(containsString("KMS")));
+        assertThat(ex.getMessage(), not(containsString("arn:aws:")));
+        assertThat(ex.getMessage(), not(containsString(BUCKET)));
+        assertNoCredentialsRemedy(ex.getMessage());
+    }
+
+    /**
+     * A 403 whose message names no action -- what a refused anonymous request and S3-compatible stores answer -- gets a
+     * remedy that holds for every auth mode: it names no setting and does not suggest anonymous access.
+     */
+    public void testAccessDeniedNamingNoActionIsAuthModeAgnostic() {
+        S3Client mockS3 = mock(S3Client.class);
+        S3Exception denied = s3Error(403, "AccessDenied", "Access Denied");
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(denied);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalClientException ex = expectThrows(ExternalClientException.class, obj::newStream);
+        assertEquals(Condition.ACCESS_DENIED, ex.condition());
+        assertThat(ex.getMessage(), containsString("Verify that the data source is allowed to read this object"));
+        assertNoCredentialsRemedy(ex.getMessage());
+        assertSame(denied, ex.getCause());
+    }
+
+    /** S3's own verdict that the credentials are not valid: an unknown key id or a signature that does not match. */
+    public void testRejectedCredentialsSayTheStoreDidNotAcceptThem() {
+        for (String code : new String[] { "InvalidAccessKeyId", "SignatureDoesNotMatch" }) {
+            S3Client mockS3 = mock(S3Client.class);
+            when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(s3Error(403, code));
+
+            S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+            ExternalClientException ex = expectThrows(ExternalClientException.class, obj::newStream);
+            assertEquals(Condition.ACCESS_DENIED, ex.condition());
+            assertThat(ex.getMessage(), containsString("HTTP 403 " + code));
+            assertThat(ex.getMessage(), containsString("did not accept the credentials the data source is configured with"));
+            assertNoCredentialsRemedy(ex.getMessage());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testKmsDecryptDeniedOnAsyncRead() throws Exception {
+        S3AsyncClient mockAsyncS3 = asyncClientFailingWith(s3Error(403, "AccessDenied", KMS_DENIAL));
+        Throwable thrown = readAsyncFailure(mockAsyncS3, 10);
+
+        assertThat(thrown, instanceOf(ExternalClientException.class));
+        assertEquals(Condition.ACCESS_DENIED, ((ExternalClientException) thrown).condition());
+        assertThat(thrown.getMessage(), containsString("[kms:Decrypt]"));
+        assertThat(thrown.getMessage(), not(containsString("arn:aws:")));
+        assertNoCredentialsRemedy(thrown.getMessage());
+        // Standard does not retry a 403.
+        verify(mockAsyncS3, times(1)).getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class));
+    }
+
+    /**
+     * An object in an archive storage class is refused with 403 {@code InvalidObjectState} until it is restored. That is
+     * reported as such, naming the storage class, and the metadata fetch does not retry it as a range GET, since every
+     * GET is refused the same way.
+     */
+    public void testArchivedObjectIsNotReportedAsAccessDenied() {
+        S3Client mockS3 = mock(S3Client.class);
+        InvalidObjectStateException archived = archived(StorageClass.GLACIER, null);
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(archived);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalClientException ex = expectThrows(ExternalClientException.class, obj::length);
+        assertEquals(Condition.OBJECT_ARCHIVED, ex.condition());
+        assertEquals(
+            "External data object [file.parquet] is archived (HTTP 403 InvalidObjectState). It is in storage class [GLACIER]; "
+                + "restore it, or wait for a restore in progress to finish, before reading it.",
+            ex.getMessage()
+        );
+        assertSame(archived, ex.getCause());
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(ex)));
+        verify(mockS3, times(1)).getObject(any(GetObjectRequest.class));
+        verify(mockS3, never()).headObject(any(HeadObjectRequest.class));
+    }
+
+    /** A HEAD refused as archived is not retried as a range GET either. */
+    public void testArchivedObjectOnHeadFallback() {
+        S3Client mockS3 = mock(S3Client.class);
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(s3Error(500, "InternalError"));
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenThrow(archived(StorageClass.GLACIER, null));
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalClientException ex = expectThrows(ExternalClientException.class, obj::length);
+        assertEquals(Condition.OBJECT_ARCHIVED, ex.condition());
+        assertThat(ex.getMessage(), containsString("storage class [GLACIER]"));
+        verify(mockS3, times(1)).getObject(any(GetObjectRequest.class));
+        verify(mockS3, times(1)).headObject(any(HeadObjectRequest.class));
+    }
+
+    public void testArchivedObjectOnExists() {
+        S3Client mockS3 = mock(S3Client.class);
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(
+            archived(StorageClass.INTELLIGENT_TIERING, IntelligentTieringAccessTier.DEEP_ARCHIVE_ACCESS)
+        );
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalClientException ex = expectThrows(ExternalClientException.class, obj::exists);
+        assertEquals(Condition.OBJECT_ARCHIVED, ex.condition());
+        assertThat(ex.getMessage(), containsString("storage class [INTELLIGENT_TIERING] and access tier [DEEP_ARCHIVE_ACCESS]"));
+        verify(mockS3, times(1)).getObject(any(GetObjectRequest.class));
+    }
+
+    /** A refusal carrying the code but no storage class still reads as archived, with the remedy alone. */
+    public void testArchivedObjectWithoutTierOnNewStream() {
+        S3Client mockS3 = mock(S3Client.class);
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(archived(null, null));
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalClientException ex = expectThrows(ExternalClientException.class, obj::newStream);
+        assertEquals(Condition.OBJECT_ARCHIVED, ex.condition());
+        assertThat(
+            ex.getMessage(),
+            containsString("(HTTP 403 InvalidObjectState). Restore it, or wait for a restore in progress to finish, before reading it.")
+        );
+        assertNoCredentialsRemedy(ex.getMessage());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testArchivedObjectOnAsyncRead() throws Exception {
+        S3AsyncClient mockAsyncS3 = asyncClientFailingWith(archived(StorageClass.DEEP_ARCHIVE, null));
+        Throwable thrown = readAsyncFailure(mockAsyncS3, 10);
+
+        assertThat(thrown, instanceOf(ExternalClientException.class));
+        assertEquals(Condition.OBJECT_ARCHIVED, ((ExternalClientException) thrown).condition());
+        assertThat(thrown.getMessage(), containsString("storage class [DEEP_ARCHIVE]"));
+        // Standard does not retry a 403.
+        verify(mockAsyncS3, times(1)).getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class));
+    }
+
     public void testProgrammingIllegalStateExceptionStays500() {
         S3Client mockS3 = mock(S3Client.class);
         IllegalStateException ise = new IllegalStateException("broken invariant");
@@ -428,6 +602,36 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
             .message(errorCode)
             .awsErrorDetails(AwsErrorDetails.builder().errorCode(errorCode).build())
             .build();
+    }
+
+    private static S3Exception s3Error(int status, String errorCode, String errorMessage) {
+        return (S3Exception) S3Exception.builder()
+            .statusCode(status)
+            .message(errorMessage)
+            .awsErrorDetails(AwsErrorDetails.builder().errorCode(errorCode).errorMessage(errorMessage).build())
+            .build();
+    }
+
+    /** The exception the SDK builds for a 403 {@code InvalidObjectState}, carrying what the error body reported. */
+    private static InvalidObjectStateException archived(StorageClass storageClass, IntelligentTieringAccessTier accessTier) {
+        return InvalidObjectStateException.builder()
+            .storageClass(storageClass)
+            .accessTier(accessTier)
+            .statusCode(403)
+            .message("The operation is not valid for the object's storage class")
+            .awsErrorDetails(
+                AwsErrorDetails.builder()
+                    .errorCode("InvalidObjectState")
+                    .errorMessage("The operation is not valid for the object's storage class")
+                    .build()
+            )
+            .build();
+    }
+
+    private static void assertNoCredentialsRemedy(String message) {
+        assertThat(message, not(containsString("access_key")));
+        assertThat(message, not(containsString("secret_key")));
+        assertThat(message, not(containsString("auth=anonymous")));
     }
 
     /** Reads {@code length} bytes through the native async path and returns the failure handed to the listener. */

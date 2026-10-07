@@ -26,6 +26,7 @@ public class ExternalExceptionConditionTests extends ESTestCase {
         );
         assertRendered(Condition.ACCESS_DENIED, "Access denied reading [x.csv]", "Access denied reading external data");
         assertRendered(Condition.OBJECT_NOT_FOUND, "External data object not found: [x.csv]", "External data object not found");
+        assertRendered(Condition.OBJECT_ARCHIVED, "External data object [x.csv] is archived", "External data object is archived");
         assertRendered(Condition.MALFORMED_DATA, "Malformed data in [x.csv]", "Malformed external data");
         assertRendered(Condition.METADATA_UNAVAILABLE, "Failed to get metadata for [x.csv]", "Failed to get external data metadata");
         assertRendered(Condition.LISTING_FAILED, "Failed to list external data objects", "Failed to list external data objects");
@@ -51,6 +52,10 @@ public class ExternalExceptionConditionTests extends ESTestCase {
         assertEquals(
             "External data object [x.csv] was modified during read (HTTP 412). Re-run the query.",
             Condition.OBJECT_CHANGED.render("x.csv", "HTTP 412", "Re-run the query.")
+        );
+        assertEquals(
+            "External data object [x.csv] is archived (HTTP 403 InvalidObjectState). Restore it.",
+            Condition.OBJECT_ARCHIVED.render("x.csv", "HTTP 403 InvalidObjectState", "Restore it.")
         );
         assertEquals(
             "Malformed data in [x.csv] (bad magic). Check the format.",

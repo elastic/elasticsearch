@@ -91,7 +91,7 @@ $$$partition-spec$$$
 
     - **Default:** None
     - **Valid values:** A comma-separated list of bindings, each in one of these forms:
-      - `[key=]transform(column[, unit])`: A temporal or identity transform. `transform` is `identity`, `year`, `month`, `day`, or `hour`. `unit` is `second`, `millis`, or `micros`, and applies only to temporal transforms. The default unit is `millis`.
+      - `[key=]transform(column[, unit])`: A temporal or identity transform. `transform` is `identity`, `year`, `month`, `day`, or `hour`. `unit` is `epoch_second` or `epoch_millis`, and applies only to temporal transforms. The default unit is `epoch_millis`. Unit names follow the [date format](/reference/elasticsearch/mapping-reference/mapping-date-format.md) names.
       - `key=column`: Maps a column to a differently named key.
       - `column`: Maps a column to the key with the same name.
     - **Requires:** Each key to be a `{name}` placeholder in `partition_path`, when `partition_path` is set

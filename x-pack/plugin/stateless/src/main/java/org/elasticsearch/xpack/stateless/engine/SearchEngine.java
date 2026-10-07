@@ -399,7 +399,7 @@ public class SearchEngine extends Engine {
             boolean shouldEnqueueRetain;
             synchronized (openReaders) {
                 openReaders.remove(directoryReader);
-                shouldEnqueueRetain = openReadersChanged == false;
+                shouldEnqueueRetain = openReadersChanged == false && isClosed.get() == false;
                 openReadersChanged = true;
             }
             if (shouldEnqueueRetain) {

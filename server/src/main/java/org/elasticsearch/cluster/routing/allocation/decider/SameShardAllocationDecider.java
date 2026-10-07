@@ -90,7 +90,7 @@ public class SameShardAllocationDecider extends AllocationDecider {
                 // check if its on the same host as the one we want to allocate to
                 assert Strings.hasLength(checkNode.getHostAddress()) : checkNode;
                 if (checkNode.getHostAddress().equals(node.node().getHostAddress())) {
-                    return debugNoAlreadyAllocatedToHost(node, checkNode, allocation);
+                    return createAlreadyAllocatedToHostNoDecision(node, checkNode, allocation);
                 }
             }
         }
@@ -102,7 +102,11 @@ public class SameShardAllocationDecider extends AllocationDecider {
         return canAllocate(shardRouting, node, allocation);
     }
 
-    private static Decision debugNoAlreadyAllocatedToHost(RoutingNode newNode, DiscoveryNode existingNode, RoutingAllocation allocation) {
+    private static Decision createAlreadyAllocatedToHostNoDecision(
+        RoutingNode newNode,
+        DiscoveryNode existingNode,
+        RoutingAllocation allocation
+    ) {
         return allocation.decision(
             Decision.NO,
             NAME,
@@ -133,13 +137,17 @@ public class SameShardAllocationDecider extends AllocationDecider {
     ) {
         for (ShardRouting assignedShard : assignedShards) {
             if (node.nodeId().equals(assignedShard.currentNodeId())) {
-                return debugNo(allocation, shardRouting, assignedShard);
+                return createAlreadyAllocatedToNodeNoDecision(allocation, shardRouting, assignedShard);
             }
         }
         return YES_NO_COPY;
     }
 
-    private static Decision debugNo(RoutingAllocation allocation, ShardRouting shardRouting, ShardRouting assignedShard) {
+    private static Decision createAlreadyAllocatedToNodeNoDecision(
+        RoutingAllocation allocation,
+        ShardRouting shardRouting,
+        ShardRouting assignedShard
+    ) {
         if (assignedShard.isSameAllocation(shardRouting)) {
             return allocation.decision(Decision.NO, NAME, "this shard is already allocated to this node [%s]", shardRouting);
         } else {

@@ -437,6 +437,45 @@ public class CsvModeReadTests extends ESTestCase {
     }
 
     /**
+     * A condensed repro: a column inferred {@code integer}
+     * from its first two rows widens to {@code keyword} on a third, non-numeric row still inside the
+     * sample. The widen must be reported — naming the column, the forced type, and the value — exactly
+     * like the {@code \N} hint above, and must never land on this thread's response headers either.
+     * Checked on both inference entry points: {@code metadata()} (planning) and {@code read()} without a
+     * pre-resolved schema (the cold-resolve inline-inference path a first-split read without a schema
+     * handed down by planning takes) — a within-file widen must warn on either.
+     */
+    public void testWithinSampleKeywordWideningEmitsWarning() throws IOException {
+        CsvFormatReader reader = csvReader(Map.of());
+        StorageObject object = new InMemoryStorageObject("a,b\n1,r1\n2,r2\noops,r3\n".getBytes(StandardCharsets.UTF_8));
+
+        assertWideningWarning(reader.metadata(object).warnings());
+        assertTrue("the widening notice must never land on this thread's response headers", drainWarnings().isEmpty());
+
+        assertWideningWarning(readAllCollectingWarnings(reader, object));
+        assertTrue("the widening notice must never land on this thread's response headers", drainWarnings().isEmpty());
+    }
+
+    /**
+     * A column that only ever moves losslessly (here {@code integer -> long}) must stay silent, matching
+     * the cross-file emitters' own gating ({@code emitKeywordFallbackWarnings} /
+     * {@code emitPrecisionLossWarnings}, which likewise never fire on a lossless promotion).
+     */
+    public void testLosslessPromotionEmitsNoWideningWarning() throws IOException {
+        CsvFormatReader reader = csvReader(Map.of());
+        StorageObject object = new InMemoryStorageObject("a\n1\n9999999999\n".getBytes(StandardCharsets.UTF_8));
+
+        assertTrue("a lossless promotion must not be reported", reader.metadata(object).warnings().isEmpty());
+    }
+
+    private static void assertWideningWarning(List<String> warnings) {
+        assertTrue(
+            "expected a within-sample widening warning naming the column, the forced type, and the value, got: " + warnings,
+            warnings.stream().anyMatch(w -> w.contains("column [a]") && w.contains("[keyword]") && w.contains("oops"))
+        );
+    }
+
+    /**
      * A read context without a sink (tests, benchmarks) falls back to this thread's response headers, the same fallback
      * {@code SkipWarnings} uses, so the two read-time channels agree. Production read paths always supply a sink.
      */

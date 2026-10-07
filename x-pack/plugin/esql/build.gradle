@@ -21,7 +21,6 @@ apply plugin: 'elasticsearch.string-templates'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.esql-function'
 apply plugin: 'elasticsearch.esql-release'
-apply plugin: 'elasticsearch.benchmark'
 
 versions << [
   'hadoop': '3.4.3',
@@ -39,8 +38,6 @@ base {
 }
 
 dependencies {
-  // esql-core is an extended plugin: on the compile classpath, but a plain JMH runtime classpath needs it spelled out.
-  benchmarkImplementation project(xpackModule('esql-core'))
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(xpackModule('ml'))
   compileOnly project(':x-pack:plugin:encryption:spi')

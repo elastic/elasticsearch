@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
@@ -1850,6 +1851,7 @@ public class ExternalSourceResolver {
         assert listing.isTruncated() == false || extents.boundsFileSet()
             : "a listing was truncated without a file-set extent being asked for";
         pendingListingWarnings.addAll(listing.listingWarnings());
+        emitPartitionSpecNotices(listing, hints, config);
         recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), schemaResolution);
         return listing;
     }
@@ -1905,6 +1907,32 @@ public class ExternalSourceResolver {
      */
     static boolean schemaAnswerableFromAPrefix(@Nullable FormatReader.SchemaResolution schemaResolution) {
         return schemaResolution == null || schemaResolution == FormatReader.SchemaResolution.FIRST_FILE_WINS;
+    }
+
+    /**
+     * Unmatched-bind and wrong-unit notices. Recomputed on every resolve (cold and
+     * cached) so they do not depend on listing-cache identity. Uses the resolver
+     * sink, not {@code HeaderWarning}, because this runs on the metadata executor.
+     */
+    private void emitPartitionSpecNotices(
+        FileList listing,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        Map<String, Object> config
+    ) {
+        String unusable = PartitionSpec.unusableNotice(config);
+        if (unusable != null) {
+            pendingListingWarnings.add(unusable);
+            return;
+        }
+        PartitionSpec spec = PartitionSpec.fromConfig(config);
+        if (spec.isEmpty()) {
+            return;
+        }
+        PartitionMetadata meta = listing.partitionMetadata();
+        // null metadata: listing never produced keys (do not warn). Empty key set:
+        // detection ran and found nothing — every bind is unmatched.
+        Set<String> detected = meta == null ? null : meta.partitionColumns().keySet();
+        spec.emitListingNotices(detected, hints, pendingListingWarnings::add);
     }
 
     /**
@@ -2207,6 +2235,11 @@ public class ExternalSourceResolver {
             @Override
             public Optional<SourceStatistics> statistics() {
                 return Optional.ofNullable(harvestedStatistics);
+            }
+
+            @Override
+            public List<WidenedColumn> widenedColumns() {
+                return entry.widenedColumns();
             }
         };
     }
@@ -2865,6 +2898,11 @@ public class ExternalSourceResolver {
             @Override
             public List<String> warnings() {
                 return metadata.warnings();
+            }
+
+            @Override
+            public List<WidenedColumn> widenedColumns() {
+                return metadata.widenedColumns();
             }
 
             @Override
@@ -4533,6 +4571,7 @@ public class ExternalSourceResolver {
         }
         // Split discovery still lists the rest of the query's file set when this listing is bounded.
         pendingListingWarnings.addAll(listing.listingWarnings());
+        emitPartitionSpecNotices(listing, hints, config);
         recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), effectiveSchemaResolution(config));
         chargeListingPlanning(listing);
         if (listing.fileCount() == 0) {

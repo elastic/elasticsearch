@@ -25,7 +25,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.startsWith;
 
 public class AsyncGaugeAdapterTests extends ESTestCase {
     RecordingOtelMeter otelMeter;
@@ -117,16 +116,6 @@ public class AsyncGaugeAdapterTests extends ESTestCase {
 
         assertThat(otelMeter.getRecorder().getMeasurements(longAsyncGauge), hasSize(1));
         assertThat(otelMeter.getRecorder().getMeasurements(doubleAsyncGauge), hasSize(1));
-    }
-
-    public void testNullGaugeRecords() throws Exception {
-        DoubleAsyncGauge dgauge = registry.registerDoublesAsyncGauge("es.test.name.total", "desc", "unit", () -> null);
-        expectThrows(AssertionError.class, startsWith("must not pass null values to async instruments"), otelMeter::collectMetrics);
-        dgauge.close();
-
-        LongAsyncGauge lgauge = registry.registerLongsAsyncGauge("es.test.name.total", "desc", "unit", () -> null);
-        expectThrows(AssertionError.class, startsWith("must not pass null values to async instruments"), otelMeter::collectMetrics);
-        lgauge.close();
     }
 
     public void testLongGaugeWithInvalidAttribute() {

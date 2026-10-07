@@ -239,10 +239,15 @@ public class IpFieldMapper extends FieldMapper {
                 // Disable skippers if using binary doc values
                 return IndexType.points(indexed.get(), true);
             }
-            if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
+            if (indexSettings.getIndexVersionCreated().before(IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES)
+                && useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
+                // NOTE: older time series indices ignored [index] and [doc_values], so their segments have skippers and no points
                 return IndexType.skippers();
             }
             if (indexed.get() == false && docValuesParameters.get().enabled()) {
+                if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
+                    return IndexType.skippers();
+                }
                 if (indexSettings.useDocValuesSkipper()
                     && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)) {
                     return IndexType.skippers();

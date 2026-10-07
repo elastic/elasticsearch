@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -18,6 +19,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
@@ -37,6 +39,7 @@ import java.net.InetAddress;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -303,6 +306,79 @@ public class IpFieldMapperTests extends MapperTestCase {
             b.field("@timestamp", Instant.now());
         }));
         assertThat(doc.docs().get(0).getFields("field"), hasSize(greaterThan(1)));
+    }
+
+    public void testTimeSeriesHonorsIndexAndDocValues() throws IOException {
+        final IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES,
+            IndexVersion.current()
+        );
+        assertTimeSeriesIndexTypes(
+            indexVersion,
+            (indexed, docValues) -> indexed == false && docValues ? IndexType.skippers() : IndexType.points(indexed, docValues)
+        );
+    }
+
+    public void testTimeSeriesKeepsSkippersOnOlderIndices() throws IOException {
+        final IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_ALL_FIELDS_USE_SKIPPERS,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES)
+        );
+        assertTimeSeriesIndexTypes(indexVersion, (indexed, docValues) -> IndexType.skippers());
+    }
+
+    private void assertTimeSeriesIndexTypes(IndexVersion indexVersion, BiFunction<Boolean, Boolean, IndexType> expectedIndexType)
+        throws IOException {
+        for (boolean dimension : new boolean[] { true, false }) {
+            for (boolean indexed : new boolean[] { true, false }) {
+                for (boolean docValues : new boolean[] { true, false }) {
+                    if (dimension && docValues == false) {
+                        continue;
+                    }
+                    assertTimeSeriesIndexType(indexVersion, dimension, indexed, docValues, expectedIndexType.apply(indexed, docValues));
+                }
+            }
+        }
+    }
+
+    private void assertTimeSeriesIndexType(
+        IndexVersion indexVersion,
+        boolean dimension,
+        boolean indexed,
+        boolean docValues,
+        IndexType expected
+    ) throws IOException {
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+            .build();
+        final MapperService mapperService = createMapperService(indexVersion, settings, fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_dimension", dimension);
+            b.field("index", indexed);
+            b.field("doc_values", docValues);
+        }));
+        final String description = "dimension=" + dimension + ", index=" + indexed + ", doc_values=" + docValues;
+        assertThat(description, mapperService.fieldType("field").indexType(), equalTo(expected));
+
+        final ParsedDocument doc = mapperService.documentMapper().parse(source(null, b -> {
+            b.field("field", NetworkAddress.format(randomIp(randomBoolean())));
+            b.field("@timestamp", Instant.now());
+            b.field("dim", "foo");
+        }, TimeSeriesRoutingHashFieldMapper.encode(randomInt())));
+        final List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertThat(description, fields.stream().anyMatch(f -> f.fieldType().pointDimensionCount() > 0), equalTo(expected.hasPoints()));
+        assertThat(
+            description,
+            fields.stream().anyMatch(f -> f.fieldType().docValuesType() != DocValuesType.NONE),
+            equalTo(expected.hasDocValues())
+        );
+        assertThat(
+            description,
+            fields.stream().anyMatch(f -> f.fieldType().docValuesSkipIndexType() == DocValuesSkipIndexType.RANGE),
+            equalTo(expected.hasDocValuesSkipper())
+        );
     }
 
     @Override

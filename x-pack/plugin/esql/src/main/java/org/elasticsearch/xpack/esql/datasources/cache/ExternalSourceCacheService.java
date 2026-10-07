@@ -521,8 +521,7 @@ public class ExternalSourceCacheService implements Closeable {
      * already reported as {@code schema_budget_bytes}.
      * <p>
      * This map has no REST surface today - every caller of {@link #usageStats()} is a test - so the counter
-     * serves tests, and the DEBUG line at the refusal site is what a running node offers. Exposing the map is
-     * tracked separately; it is not this counter's to fix.
+     * serves tests, and the DEBUG line at the refusal site is what a running node offers.
      */
     public void recordSchemaFanOutRefused() {
         schemaFanOutRefused.increment();

@@ -1455,10 +1455,12 @@ public class ExternalSourceResolver {
                 // Under skip_row a narrow-read parse failure drops the whole row, so the unread files' counts are
                 // stripped at commit (dropRowCount) and the dataset-aggregate promise can never be fulfilled -
                 // every warm COUNT(*) would re-scan, which is worse than the reads the stop saves. The predicate
-                // is the SAME one the strip uses, so the two cannot disagree about which policy strips. Not
-                // warmsRowCountSafely: that governs the shared-entry warm path and also excludes null_field,
-                // which keeps rows and so keeps the count trustworthy. A resolve registering no promise is
-                // unaffected, so the stop still applies there.
+                // is the SAME one the strip uses (EsqlSession.collectPinnedReads), so the two cannot disagree
+                // about which policy strips. Not warmsRowCountSafely: that asks the wider question of whether a
+                // committed count equals the physical record count, and under null_field it does not either -
+                // a structurally malformed row is dropped there too. What makes null_field safe here is
+                // narrower: nothing strips its count, so an unread file costs it nothing. A resolve
+                // registering no promise is unaffected, so the stop still applies there.
                 boolean everyFileNeededForThePromise = datasetPrefetch.key() != null && resolvesToSkipRow(base.sourceType(), config);
                 // Filled by the gather below, before this listener runs. The fold drops each file's column
                 // map as it completes; file-level counts are what the schema map keeps.
@@ -3032,8 +3034,8 @@ public class ExternalSourceResolver {
                     if ((long) fileCount * entry.estimatedBytes() > cacheService.schemaBudget()) {
                         refuse = true;
                         cacheService.recordSchemaFanOutRefused();
-                        // The three numbers behind the verdict. Nothing else reports them, and the verdict
-                        // decides whether the gather keeps reading per-file metadata at all.
+                        // The three numbers behind the verdict; nothing else reports them. The verdict is one
+                        // of the conditions that lets the gather stop, not the whole of it.
                         LOGGER.debug(
                             "schema fan-out refused: [{}] files x [{}] estimated bytes exceeds schema budget [{}]",
                             fileCount,

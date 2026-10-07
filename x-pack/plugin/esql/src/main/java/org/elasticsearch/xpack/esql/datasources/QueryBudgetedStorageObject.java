@@ -186,6 +186,18 @@ class QueryBudgetedStorageObject implements StorageObject, ResumeBypassingStorag
         Executor executor,
         ActionListener<DirectReadBuffer> listener
     ) {
+        return startReadBytesAsync(position, length, factory, executor, listener, false);
+    }
+
+    @Override
+    public Releasable startReadBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener,
+        boolean barge
+    ) {
         final PermitToken token;
         try {
             token = acquirePermit();
@@ -224,7 +236,7 @@ class QueryBudgetedStorageObject implements StorageObject, ResumeBypassingStorag
                     releasePermit(token);
                     listener.onFailure(e);
                 }
-            });
+            }, barge);
         } catch (Exception e) {
             releasePermit(token);
             listener.onFailure(e);

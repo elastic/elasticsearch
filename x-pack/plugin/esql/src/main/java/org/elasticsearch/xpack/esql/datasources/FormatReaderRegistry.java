@@ -61,6 +61,12 @@ public class FormatReaderRegistry {
         this.nodeByteBudget = nodeByteBudget;
     }
 
+    /** Shared node I/O byte tickets; {@code null} in tests that construct a registry without one. */
+    @Nullable
+    NodeByteBudget nodeByteBudget() {
+        return nodeByteBudget;
+    }
+
     public void setAdmissionTracker(AdmissionTracker admissionTracker) {
         this.admissionTracker = admissionTracker == null ? AdmissionTracker.NOOP : admissionTracker;
     }

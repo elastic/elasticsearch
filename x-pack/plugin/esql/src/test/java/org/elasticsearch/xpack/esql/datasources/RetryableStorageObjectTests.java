@@ -2073,6 +2073,232 @@ public class RetryableStorageObjectTests extends ESTestCase {
     }
 
     /**
+     * A mid-stream resume must barge ({@link ConcurrencyLimiter#tryAcquire()}) rather than park on
+     * {@link ConcurrencyLimiter#acquire()}. The first GET still uses the blocking acquire.
+     */
+    public void testResumeReopensWithBargePermit() throws Exception {
+        AtomicInteger acquireCalls = new AtomicInteger();
+        AtomicInteger tryAcquireCalls = new AtomicInteger();
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false)) {
+            @Override
+            void acquire() throws java.util.concurrent.TimeoutException, InterruptedException {
+                assertFalse("first GET must not barge", StoragePermitBarge.active());
+                acquireCalls.incrementAndGet();
+                super.acquire();
+            }
+
+            @Override
+            boolean tryAcquire() {
+                assertTrue("resume re-open must barge", StoragePermitBarge.active());
+                tryAcquireCalls.incrementAndGet();
+                return super.tryAcquire();
+            }
+        };
+        byte[] payload = new byte[80];
+        for (int i = 0; i < payload.length; i++) {
+            payload[i] = (byte) i;
+        }
+        StoragePath path = StoragePath.of("s3://bucket/key");
+        AtomicInteger opens = new AtomicInteger();
+        StorageObject inner = new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
+            public InputStream newStream() {
+                return newStream(0, payload.length);
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                int pos = Math.toIntExact(position);
+                int len = length == READ_TO_END ? payload.length - pos : Math.toIntExact(Math.min(length, payload.length - pos));
+                byte[] slice = Arrays.copyOfRange(payload, pos, pos + len);
+                if (opens.getAndIncrement() == 0) {
+                    return new InputStream() {
+                        private int p = 0;
+
+                        @Override
+                        public int read() throws IOException {
+                            byte[] one = new byte[1];
+                            int n = read(one, 0, 1);
+                            return n < 0 ? -1 : (one[0] & 0xFF);
+                        }
+
+                        @Override
+                        public int read(byte[] b, int off, int len) throws IOException {
+                            if (p >= 20) {
+                                throw new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "", "", false, 0L);
+                            }
+                            int n = Math.min(len, 20 - p);
+                            System.arraycopy(slice, p, b, off, n);
+                            p += n;
+                            return n;
+                        }
+                    };
+                }
+                return new ByteArrayInputStream(slice);
+            }
+
+            @Override
+            public long length() {
+                return payload.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return null;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return path;
+            }
+
+            @Override
+            public int readBytes(long position, ByteBuffer target) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public StorageObjectMetrics metrics() {
+                return new StorageObjectMetrics(opens.get(), 0, 0, 0);
+            }
+        };
+        ConcurrencyLimitedStorageObject limited = new ConcurrencyLimitedStorageObject(inner, limiter);
+        RetryableStorageObject obj = new RetryableStorageObject(limited, new RetryPolicy(3, 1, 10));
+        byte[] read;
+        try (InputStream in = obj.newStream(0, payload.length)) {
+            read = in.readAllBytes();
+        }
+        assertArrayEquals(payload, read);
+        assertEquals("first GET uses blocking acquire", 1, acquireCalls.get());
+        assertTrue("resume must barge, tryAcquire calls=" + tryAcquireCalls.get(), tryAcquireCalls.get() >= 1);
+        assertEquals(2, opens.get());
+    }
+
+    /**
+     * Resume barge that misses the only permit until {@link StorageObject#admissionWaitTimeoutMs()}
+     * fails as {@link ExternalUnavailableException} without a second GET or a storage-retry count.
+     * The discarded first GET's {@code release()} is re-held so {@code tryAcquire} cannot succeed
+     * the way {@link #testResumeReopensWithBargePermit} does when the permit is free.
+     */
+    public void testResumeBargeMissTimesOutWithoutStorageRetry() throws Exception {
+        AtomicInteger tryAcquireCalls = new AtomicInteger();
+        AtomicBoolean stolen = new AtomicBoolean();
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false), 0L) {
+            @Override
+            boolean tryAcquire() {
+                tryAcquireCalls.incrementAndGet();
+                return super.tryAcquire();
+            }
+
+            @Override
+            void release() {
+                super.release();
+                // Re-hold the only permit so the resume barge misses.
+                if (stolen.compareAndSet(false, true)) {
+                    assertTrue(super.tryAcquire());
+                }
+            }
+        };
+        byte[] payload = new byte[80];
+        for (int i = 0; i < payload.length; i++) {
+            payload[i] = (byte) i;
+        }
+        StoragePath path = StoragePath.of("s3://bucket/key");
+        AtomicInteger opens = new AtomicInteger();
+        StorageObject inner = new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
+            public InputStream newStream() {
+                return newStream(0, payload.length);
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                int pos = Math.toIntExact(position);
+                int len = length == READ_TO_END ? payload.length - pos : Math.toIntExact(Math.min(length, payload.length - pos));
+                byte[] slice = Arrays.copyOfRange(payload, pos, pos + len);
+                opens.getAndIncrement();
+                return new InputStream() {
+                    private int p = 0;
+
+                    @Override
+                    public int read() throws IOException {
+                        byte[] one = new byte[1];
+                        int n = read(one, 0, 1);
+                        return n < 0 ? -1 : (one[0] & 0xFF);
+                    }
+
+                    @Override
+                    public int read(byte[] b, int off, int len) throws IOException {
+                        if (p >= 20) {
+                            throw new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "", "", false, 0L);
+                        }
+                        int n = Math.min(len, 20 - p);
+                        System.arraycopy(slice, p, b, off, n);
+                        p += n;
+                        return n;
+                    }
+                };
+            }
+
+            @Override
+            public long length() {
+                return payload.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return null;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return path;
+            }
+
+            @Override
+            public int readBytes(long position, ByteBuffer target) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public StorageObjectMetrics metrics() {
+                return new StorageObjectMetrics(opens.get(), 0, 0, 0);
+            }
+        };
+        ConcurrencyLimitedStorageObject limited = new ConcurrencyLimitedStorageObject(inner, limiter);
+        RetryableStorageObject obj = new RetryableStorageObject(limited, new RetryPolicy(3, 1, 10));
+        try (InputStream in = obj.newStream(0, payload.length)) {
+            ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, in::readAllBytes);
+            assertThat(e.getMessage(), containsString("No concurrency permit available"));
+        } finally {
+            limiter.release();
+        }
+        assertEquals("resume miss must not issue a second GET", 1, opens.get());
+        assertTrue("resume must barge, tryAcquire calls=" + tryAcquireCalls.get(), tryAcquireCalls.get() >= 1);
+        assertEquals("admission timeout must not count a storage retry", 0L, obj.metrics().retryCount());
+    }
+
+    /**
      * {@code reopenOrThrow} discards the faulted GET with {@code closeQuietly}. A large unread
      * remainder must abort rather than drain that GET.
      */

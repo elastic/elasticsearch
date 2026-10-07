@@ -84,6 +84,21 @@ public class LetResolverTests extends ESTestCase {
     }
 
     // -----------------------------------------------------------------------
+    // LET binding shadows an ES index with the same name
+    // -----------------------------------------------------------------------
+
+    public void testLetBindingShadowsIndexWithSameName() {
+        // LET languages = (FROM employees | LIMIT 5);
+        // FROM languages
+        // The LET binding named "languages" takes precedence over the ES index "languages".
+        // FROM languages in the main query resolves to the binding body, not the index.
+        LogicalPlan body = withLimit(relation("employees"));
+        LetBinding languages = binding("languages", body);
+        LogicalPlan result = LetResolver.resolve(relation("languages"), List.of(languages));
+        assertThat(result, sameInstance(body));
+    }
+
+    // -----------------------------------------------------------------------
     // Unmatched name → left as UnresolvedRelation
     // -----------------------------------------------------------------------
 

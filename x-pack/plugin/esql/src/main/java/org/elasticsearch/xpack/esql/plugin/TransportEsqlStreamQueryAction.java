@@ -368,6 +368,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             externalSourceConcurrency(),
             ((CancellableTask) task)::isCancelled,
             ActionListener.wrap(versionedResult -> {
+                TransportEsqlQueryAction.releaseExternalPlanningBytes(executionInfo);
                 transportEsqlQueryAction.recordCCSTelemetry(task, executionInfo, request, null);
                 Result result = versionedResult.inner();
                 markPartialFromCompletionInfo(result);
@@ -417,6 +418,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                 transportEsqlQueryAction.collectMetrics(result);
                 listener.onResponse(ActionResponse.Empty.INSTANCE);
             }, ex -> {
+                TransportEsqlQueryAction.releaseExternalPlanningBytes(executionInfo);
                 transportEsqlQueryAction.recordCCSTelemetry(task, executionInfo, request, ex);
                 if (streamStarted.get()) {
                     long tookMillis = executionInfo.overallTook() != null ? executionInfo.overallTook().millis() : 0L;

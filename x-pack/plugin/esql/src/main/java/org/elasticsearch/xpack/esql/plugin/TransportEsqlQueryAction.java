@@ -455,7 +455,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     /**
      * Closes the query's external-planning reservation. Both the success and failure listeners of
-     * {@link #innerExecute} call this; {@link org.elasticsearch.xpack.esql.action.ExternalPlanningReservation#close()}
+     * {@link #innerExecute} and of {@link TransportEsqlStreamQueryAction} call this; {@link org.elasticsearch.xpack.esql.action.ExternalPlanningReservation#close()}
      * is idempotent. Timeout callbacks must not call it — the query is still running.
      */
     static void releaseExternalPlanningBytes(EsqlExecutionInfo executionInfo) {

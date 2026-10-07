@@ -4287,6 +4287,14 @@ public class EsqlCapabilities {
         FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE,
 
         /**
+         * A whole number in an external dataset column declared or inferred as {@code date_nanos}, without a
+         * {@code format}, is read as epoch milliseconds widened to nanoseconds, matching {@code date} columns. Parquet
+         * filter pushdown and TopN pruning scale their bounds the same way. Older nodes read such a number as epoch
+         * nanoseconds, so tests that assert the millisecond read require this capability to skip against them.
+         */
+        EXTERNAL_DATASET_DATE_NANOS_BARE_NUMBER_IS_EPOCH_MILLIS,
+
+        /**
          * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull} folds a null-propagating function
          * ({@link org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull}) to null when an argument is NULL-typed,
          * even if that argument is a {@code COALESCE} or {@code CASE} reporting unknown nullability. Older nodes leave such

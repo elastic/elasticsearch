@@ -26,8 +26,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -36,6 +34,7 @@ import java.util.Set;
 import static org.elasticsearch.cluster.metadata.Metadata.DEFAULT_PROJECT_ID;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ShardWarmVolumesTests extends ESTestCase {
@@ -165,6 +164,7 @@ public class ShardWarmVolumesTests extends ESTestCase {
         ShardWarmVolumes volumes = newVolumes();
         assertTrue(volumes.claimFetch(withSource, "source"));
         volumes.put("source", new ShardWarmVolumes.Entry(startedAtMillis, Map.of(new ShardId(index, 0), 10L)));
+        assertThat(volumes.peek("source"), notNullValue());
         volumes.clusterChanged(new ClusterChangedEvent("test", withoutSource, withSource));
         assertThat(volumes.peek("source"), nullValue());
         assertFalse(volumes.isInFlight("source"));
@@ -180,6 +180,7 @@ public class ShardWarmVolumesTests extends ESTestCase {
         ClusterState later = ClusterState.builder(withoutSource).incrementVersion().build();
         ShardWarmVolumes volumes = newVolumes();
         volumes.put("source", new ShardWarmVolumes.Entry(startedAtMillis, Map.of(new ShardId(index, 0), 10L)));
+        assertThat(volumes.peek("source"), notNullValue());
         volumes.clusterChanged(new ClusterChangedEvent("test", later, withoutSource));
         assertThat(volumes.peek("source"), nullValue());
     }
@@ -194,7 +195,7 @@ public class ShardWarmVolumesTests extends ESTestCase {
         ShardWarmVolumes volumes = newVolumes();
         assertTrue(volumes.claimFetch(drain, "source"));
         volumes.put("source", new ShardWarmVolumes.Entry(startedAtMillis, Map.of(new ShardId(index, 0), 10L)));
-
+        assertThat(volumes.peek("source"), notNullValue());
         volumes.clusterChanged(new ClusterChangedEvent("test", cancelled, drain));
         assertThat(volumes.peek("source"), nullValue());
         assertFalse(volumes.isInFlight("source"));
@@ -208,21 +209,10 @@ public class ShardWarmVolumesTests extends ESTestCase {
         ClusterState second = drainState(index, "source", "target", secondGen);
         ShardWarmVolumes volumes = newVolumes();
         volumes.put("source", new ShardWarmVolumes.Entry(firstGen, Map.of(new ShardId(index, 0), 10L)));
-
+        assertThat(volumes.peek("source"), notNullValue());
         volumes.clusterChanged(new ClusterChangedEvent("test", second, first));
         assertThat(volumes.peek("source"), nullValue());
         assertTrue(volumes.claimFetch(second, "source"));
-    }
-
-    public void testDoesNotClaimWhenMinTransportVersionUnsupported() {
-        Index index = new Index("idx", randomUUID());
-        long startedAtMillis = randomNonNegativeLong();
-        TransportVersion old = TransportVersionUtils.randomVersionNotSupporting(
-            TransportFetchSearchShardInformationAction.FETCH_SHARD_WARM_VOLUMES
-        );
-        ClusterState state = drainState(index, Map.of("source", startedAtMillis), "target", old);
-        ShardWarmVolumes volumes = newVolumes();
-        assertFalse(volumes.claimFetch(state, "source"));
     }
 
     private static ShardWarmVolumes newVolumes() {

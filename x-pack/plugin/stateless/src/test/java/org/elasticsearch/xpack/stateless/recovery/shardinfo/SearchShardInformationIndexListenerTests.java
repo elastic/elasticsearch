@@ -111,8 +111,13 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
     private MockLog mockLog;
 
     @Before
-    public void setupMockLogger() {
+    public void stubEmptyClusterState() {
+        // Mockito returns null unless stubbed; beforeIndexShardRecovery always calls clusterService.state().
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+    }
+
+    @Before
+    public void setupMockLogger() {
         mockLog = MockLog.capture("org.elasticsearch.xpack.stateless.recovery.shardinfo.SearchShardInformationIndexListener");
 
         // ensure no error log messages have been run

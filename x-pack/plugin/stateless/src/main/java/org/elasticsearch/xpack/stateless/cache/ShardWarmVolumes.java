@@ -101,7 +101,7 @@ public class ShardWarmVolumes implements ClusterStateListener {
      * Any stored entry for this source's current shutdown generation, including empty.
      */
     @Nullable
-    public Entry entryForGeneration(ClusterState state, String sourceNodeId) {
+    Entry entryForGeneration(ClusterState state, String sourceNodeId) {
         Entry entry = memo.get(sourceNodeId);
         if (entry == null) {
             return null;

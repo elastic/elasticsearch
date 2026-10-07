@@ -239,7 +239,7 @@ public class IpFieldMapper extends FieldMapper {
                 // Disable skippers if using binary doc values
                 return IndexType.points(indexed.get(), true);
             }
-            if (indexSettings.getIndexVersionCreated().before(IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES)
+            if (timeSeriesSkippersHonorIndexAndDocValues(indexSettings.getIndexVersionCreated()) == false
                 && useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
                 // NOTE: older time series indices ignored [index] and [doc_values], so their segments have skippers and no points
                 return IndexType.skippers();
@@ -254,6 +254,18 @@ public class IpFieldMapper extends FieldMapper {
                 }
             }
             return IndexType.points(indexed.get(), docValuesParameters.get().enabled());
+        }
+
+        private static boolean timeSeriesSkippersHonorIndexAndDocValues(IndexVersion indexVersionCreated) {
+            return indexVersionCreated.onOrAfter(IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES)
+                || indexVersionCreated.between(
+                    IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_5,
+                    IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG
+                )
+                || indexVersionCreated.between(
+                    IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_4,
+                    IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES
+                );
         }
 
         @Override

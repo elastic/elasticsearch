@@ -309,22 +309,44 @@ public class IpFieldMapperTests extends MapperTestCase {
     }
 
     public void testTimeSeriesHonorsIndexAndDocValues() throws IOException {
-        final IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
+        final List<IndexVersion> indexVersions = List.of(
+            IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_4,
+            IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_5,
             IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES,
-            IndexVersion.current()
+            IndexVersionUtils.randomVersionBetween(IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES, IndexVersion.current())
         );
-        assertTimeSeriesIndexTypes(
-            indexVersion,
-            (indexed, docValues) -> indexed == false && docValues ? IndexType.skippers() : IndexType.points(indexed, docValues)
-        );
+        for (IndexVersion indexVersion : indexVersions) {
+            assertTimeSeriesIndexTypes(
+                indexVersion,
+                (indexed, docValues) -> indexed == false && docValues ? IndexType.skippers() : IndexType.points(indexed, docValues)
+            );
+        }
     }
 
     public void testTimeSeriesKeepsSkippersOnOlderIndices() throws IOException {
-        final IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
-            IndexVersions.TIME_SERIES_ALL_FIELDS_USE_SKIPPERS,
-            IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES)
+        final IndexVersion lastBefore94Backport = IndexVersionUtils.getPreviousVersion(
+            IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_4
         );
-        assertTimeSeriesIndexTypes(indexVersion, (indexed, docValues) -> IndexType.skippers());
+        final IndexVersion lastBefore95Backport = IndexVersionUtils.getPreviousVersion(
+            IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_5
+        );
+        final IndexVersion lastBeforeFix = IndexVersionUtils.getPreviousVersion(
+            IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES
+        );
+        final List<IndexVersion> indexVersions = List.of(
+            IndexVersions.TIME_SERIES_ALL_FIELDS_USE_SKIPPERS,
+            IndexVersionUtils.randomVersionBetween(IndexVersions.TIME_SERIES_ALL_FIELDS_USE_SKIPPERS, lastBefore94Backport),
+            lastBefore94Backport,
+            IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES,
+            IndexVersionUtils.randomVersionBetween(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES, lastBefore95Backport),
+            lastBefore95Backport,
+            IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG,
+            IndexVersionUtils.randomVersionBetween(IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG, lastBeforeFix),
+            lastBeforeFix
+        );
+        for (IndexVersion indexVersion : indexVersions) {
+            assertTimeSeriesIndexTypes(indexVersion, (indexed, docValues) -> IndexType.skippers());
+        }
     }
 
     private void assertTimeSeriesIndexTypes(IndexVersion indexVersion, BiFunction<Boolean, Boolean, IndexType> expectedIndexType)
@@ -359,7 +381,7 @@ public class IpFieldMapperTests extends MapperTestCase {
             b.field("index", indexed);
             b.field("doc_values", docValues);
         }));
-        final String description = "dimension=" + dimension + ", index=" + indexed + ", doc_values=" + docValues;
+        final String description = indexVersion + ": dimension=" + dimension + ", index=" + indexed + ", doc_values=" + docValues;
         assertThat(description, mapperService.fieldType("field").indexType(), equalTo(expected));
 
         final ParsedDocument doc = mapperService.documentMapper().parse(source(null, b -> {

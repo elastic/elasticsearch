@@ -79,6 +79,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
@@ -103,6 +104,7 @@ import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswo
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -770,6 +772,51 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                 .prepareSearch("query_index")
                 .setQuery(percolateQuery),
             0
+        );
+    }
+
+    public void testPercolatorConstantKeywordQueryDependsOnIndexingUsersFls() throws IOException {
+        // This test documents the current behaviour, and shouldn't necessarily be taken as documentation of the _desired_ behaviour.
+        // Broadly: when a user creates a percolator query, their FLS policy gets baked into the query, so other users with different
+        // policies get restricted in the same way.
+        assertAcked(
+            indicesAdmin().prepareCreate("query_index")
+                .setMapping("query", "type=percolator", "field1", "type=constant_keyword,value=prod", "field2", "type=text")
+        );
+
+        var percolatorQuery = """
+            {"query": {"term": {"field1": "prod"}}}""";
+
+        client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+            .prepareIndex("query_index")
+            .setId("restricted-writer")
+            .setSource(percolatorQuery, XContentType.JSON)
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+        client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
+            .prepareIndex("query_index")
+            .setId("unrestricted-writer")
+            .setSource(percolatorQuery, XContentType.JSON)
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+
+        var percolateQuery = new PercolateQueryBuilder(
+            "query",
+            BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field2", "value2").endObject()),
+            XContentType.JSON
+        );
+        
+        assertSearchHitsWithoutFailures(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
+                .prepareSearch("query_index")
+                .setQuery(percolateQuery),
+            "unrestricted-writer"
+        );
+        assertSearchHitsWithoutFailures(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("query_index")
+                .setQuery(percolateQuery),
+            "unrestricted-writer"
         );
     }
 

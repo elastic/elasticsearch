@@ -292,7 +292,7 @@ public final class TextFieldMapper extends FieldMapper {
 
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> ((TextFieldMapper) m).similarity);
 
-        final Parameter<String> indexOptions = TextParams.textIndexOptions(m -> ((TextFieldMapper) m).indexOptions);
+        final Parameter<String> indexOptions;
         final Parameter<String> termVectors = TextParams.termVectors(m -> ((TextFieldMapper) m).termVectors);
 
         final Parameter<Boolean> fieldData = Parameter.boolParam("fielddata", true, m -> ((TextFieldMapper) m).fieldData, false);
@@ -346,6 +346,9 @@ public final class TextFieldMapper extends FieldMapper {
                 indexSettings.getMode().isStrictColumnar()
             );
             this.index = Parameter.indexParam(m -> ((TextFieldMapper) m).index, true);
+            // Strictly columnar indices default index_options to "freqs" since positions are not needed there; others keep "positions".
+            String defaultIndexOptions = indexSettings.getMode().isStrictColumnar() ? "freqs" : "positions";
+            this.indexOptions = TextParams.textIndexOptions(m -> ((TextFieldMapper) m).indexOptions, defaultIndexOptions);
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
                 m -> ((TextFieldMapper) m).indexAnalyzer,

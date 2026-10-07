@@ -149,8 +149,8 @@ public final class TextParams {
         });
     }
 
-    public static Parameter<String> textIndexOptions(Function<FieldMapper, String> initializer) {
-        return Parameter.stringParam("index_options", false, initializer, "positions").addValidator(v -> {
+    public static Parameter<String> textIndexOptions(Function<FieldMapper, String> initializer, String defaultValue) {
+        return Parameter.stringParam("index_options", false, initializer, defaultValue).addValidator(v -> {
             switch (v) {
                 case "positions":
                 case "docs":

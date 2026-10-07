@@ -277,12 +277,12 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
         Settings settings = Settings.builder().put("esql.external.cache.size", "48kb").build();
         try (ExternalSourceCacheService cache = new ExternalSourceCacheService(settings)) {
             long daCeiling = (Long) cache.usageStats().get("dataset_aggregate_max_entry_bytes");
-            SchemaCacheKey key = SchemaCacheKey.forDatasetAggregate(
+            DatasetAggregateKey key = DatasetAggregateKey.of(
                 "file:///tmp/warm-fold/*.ndjson",
                 new FileSetFingerprint(11, 22),
                 TestDatasetIdentities.identity("ndjson", "", Map.of("format", "ndjson"))
             );
-            cache.putDatasetAggregate(key, 828_090L, "ndjson", "file:///tmp/warm-fold/*.ndjson");
+            cache.putDatasetAggregate(key, 828_090L);
             assertThat(
                 "48kb total budget must still retain the dataset-aggregate row-count entry (ceiling=" + daCeiling + ")",
                 cache.getDatasetAggregate(key),

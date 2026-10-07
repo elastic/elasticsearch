@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.cache.DatasetAggregateKey;
 import org.elasticsearch.xpack.esql.datasources.cache.DatasetIdentity;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
@@ -2231,7 +2232,7 @@ public class ExternalSourceResolver {
      * promise registration together. (Precedent: {@code strictSingleFileMetadata} refuses
      * {@code FILE_TYPED_FORMATS} on its warm rail for the same reason family.)
      * <p>
-     * Keyed on the listing's file-set fingerprint (see {@link SchemaCacheKey#forDatasetAggregate}), so it
+     * Keyed on the listing's file-set fingerprint (see {@link DatasetAggregateKey}), so it
      * needs no invalidation: any add/remove/mtime/size change in the set derives a different key. Listing
      * order and compression/alias suffixes ({@code a.csv}+{@code b.csv.gz}) cannot mint two identities for
      * one file set, because the reader lane is derived from {@code listing.path(0)} through
@@ -2245,7 +2246,7 @@ public class ExternalSourceResolver {
      * for a reader-overridden resolve. Package-private for testing.
      */
     @Nullable
-    SchemaCacheKey datasetAggregateKey(FileList listing, String storageIdentity, String secretIdentity, Map<String, Object> config) {
+    DatasetAggregateKey datasetAggregateKey(FileList listing, String storageIdentity, String secretIdentity, Map<String, Object> config) {
         if (listing == null || listing.fileSetFingerprint() == null || listing.fileCount() < 2) {
             return null;
         }
@@ -2253,7 +2254,7 @@ public class ExternalSourceResolver {
         if (format == null) {
             return null;
         }
-        return SchemaCacheKey.forDatasetAggregate(
+        return DatasetAggregateKey.of(
             listing.originalPattern(),
             listing.fileSetFingerprint(),
             datasetIdentity(listing.path(0).objectName(), storageIdentity, secretIdentity, storageConfig(config))
@@ -2308,7 +2309,7 @@ public class ExternalSourceResolver {
      * memoized aggregate if present. Read BEFORE the per-file gather; see {@link #applyDatasetAggregate}
      * for why post-gather reads self-defeat under cache pressure. Package-private for testing.
      */
-    record DatasetAggregatePrefetch(@Nullable SchemaCacheKey key, @Nullable Map<String, Object> prefetched) {}
+    record DatasetAggregatePrefetch(@Nullable DatasetAggregateKey key, @Nullable Map<String, Object> prefetched) {}
 
     private DatasetAggregatePrefetch prefetchDatasetAggregate(
         FileList listing,
@@ -2317,7 +2318,7 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         boolean cacheable
     ) {
-        SchemaCacheKey key = cacheable ? datasetAggregateKey(listing, storageIdentity, secretIdentity, config) : null;
+        DatasetAggregateKey key = cacheable ? datasetAggregateKey(listing, storageIdentity, secretIdentity, config) : null;
         return new DatasetAggregatePrefetch(key, key != null ? cacheService.getDatasetAggregate(key) : null);
     }
 
@@ -2353,7 +2354,7 @@ public class ExternalSourceResolver {
         SourceMetadata referenceMeta,
         Map<String, Object> config
     ) {
-        SchemaCacheKey datasetKey = prefetch.key();
+        DatasetAggregateKey datasetKey = prefetch.key();
         if (datasetKey == null) {
             return aggregatedStats;
         }
@@ -2372,7 +2373,7 @@ public class ExternalSourceResolver {
                 // immediately is a pre-existing main bug tracked separately (GA issue); this guard only
                 // keeps the dataset aggregate from memoizing it.
                 if (rowCount instanceof Number n && listingPathsAreDistinct(listing)) {
-                    cacheService.putDatasetAggregate(datasetKey, n.longValue(), referenceMeta.sourceType(), listing.originalPattern());
+                    cacheService.putDatasetAggregate(datasetKey, n.longValue());
                 }
             }
             return aggregatedStats;

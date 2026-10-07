@@ -9,17 +9,16 @@ package org.elasticsearch.xpack.esql.datasources.cache;
 
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 
 import java.util.Map;
 import java.util.Set;
 
 /**
- * Locks the identity contract of {@link SchemaCacheKey#forDatasetAggregate}: the key must change with
- * the listing's file-set fingerprint, the format-affecting config, and the source type — and must be
- * structurally distinct from every per-file key so the per-file reconcile/lookup paths can never
- * touch a dataset-aggregate entry.
+ * Locks the identity contract of {@link SchemaCacheKey}, the per-file address: it must change with the
+ * file's path and mtime, with the dataset identity behind it, with the declared-strict rail, and with the
+ * read a statistics record was harvested under. The dataset-level fold is a different type in a different
+ * store — see {@link DatasetAggregateKeyTests}.
  */
 public class SchemaCacheKeyTests extends ESTestCase {
 
@@ -86,83 +85,6 @@ public class SchemaCacheKeyTests extends ESTestCase {
             "and it costs no extra field to say so",
             RamUsageEstimator.shallowSizeOf(schema),
             RamUsageEstimator.shallowSizeOf(stats)
-        );
-    }
-
-    public void testDatasetAggregateKeyStableForSameInputs() {
-        SchemaCacheKey a = SchemaCacheKey.forDatasetAggregate(
-            PATTERN,
-            new FileSetFingerprint(11, 22),
-            TestDatasetIdentities.identity("ndjson", "", Map.of("format", "ndjson"))
-        );
-        SchemaCacheKey b = SchemaCacheKey.forDatasetAggregate(
-            PATTERN,
-            new FileSetFingerprint(11, 22),
-            TestDatasetIdentities.identity("ndjson", "", Map.of("format", "ndjson"))
-        );
-        assertEquals(a, b);
-    }
-
-    public void testDatasetAggregateKeyChangesWithEitherFingerprintLane() {
-        SchemaCacheKey base = SchemaCacheKey.forDatasetAggregate(
-            PATTERN,
-            new FileSetFingerprint(11, 22),
-            TestDatasetIdentities.identity("ndjson", "", Map.of())
-        );
-        assertNotEquals(
-            base,
-            SchemaCacheKey.forDatasetAggregate(
-                PATTERN,
-                new FileSetFingerprint(12, 22),
-                TestDatasetIdentities.identity("ndjson", "", Map.of())
-            )
-        );
-        assertNotEquals(
-            base,
-            SchemaCacheKey.forDatasetAggregate(
-                PATTERN,
-                new FileSetFingerprint(11, 23),
-                TestDatasetIdentities.identity("ndjson", "", Map.of())
-            )
-        );
-    }
-
-    /**
-     * Two data sources differing only in their credentials must not share an address. This reverses what this
-     * suite previously pinned - that they DO share one, on the reasoning that credentials are not
-     * row-interpretation-affecting and so two users over the same files may share the aggregate. That reasoning
-     * is sound about interpretation and answers a different question than the one that matters: a row count and a
-     * column extremum are facts about the data, not interpretations of it, and the listing and footer-byte stores
-     * already separate principals for exactly that reason.
-     * <p>
-     * It is a second layer of defence and not the authorization control. It cannot see a principal who may list
-     * but not read within ONE data source, it cannot see a revoked credential, which digests to the value it had
-     * while it was valid, and it cannot see a federated token, which arrives at read time and belongs to no
-     * definition. An authorization check on the resolve path is the control.
-     * <p>
-     * It also costs sharing that is legitimately correct, since S3 authorizes per object and two data sources
-     * over the same files hold facts equally true for both. That trade is deliberate.
-     */
-    public void testDatasetAggregateKeySeparatesPrincipals() {
-        SchemaCacheKey a = SchemaCacheKey.forDatasetAggregate(
-            PATTERN,
-            new FileSetFingerprint(11, 22),
-            TestDatasetIdentities.identity("ndjson", "", "digest-of-userA-secret", Map.of())
-        );
-        SchemaCacheKey b = SchemaCacheKey.forDatasetAggregate(
-            PATTERN,
-            new FileSetFingerprint(11, 22),
-            TestDatasetIdentities.identity("ndjson", "", "digest-of-userB-secret", Map.of())
-        );
-        assertNotEquals("two data sources differing only in their credentials must not share an aggregate", a, b);
-        assertEquals(
-            "and two resolves under the same credentials must still share it",
-            a,
-            SchemaCacheKey.forDatasetAggregate(
-                PATTERN,
-                new FileSetFingerprint(11, 22),
-                TestDatasetIdentities.identity("ndjson", "", "digest-of-userA-secret", Map.of())
-            )
         );
     }
 
@@ -237,36 +159,6 @@ public class SchemaCacheKeyTests extends ESTestCase {
         assertEquals(none, SchemaCacheKey.build("s3://b/f.ndjson", 1L, TestDatasetIdentities.identity("ndjson", "", "", Map.of()), false));
     }
 
-    public void testDatasetAggregateKeyChangesWithTheReaderIdentity() {
-        SchemaCacheKey ndjson = SchemaCacheKey.forDatasetAggregate(
-            PATTERN,
-            new FileSetFingerprint(11, 22),
-            TestDatasetIdentities.identity("ndjson", "", Map.of())
-        );
-        SchemaCacheKey csv = SchemaCacheKey.forDatasetAggregate(
-            PATTERN,
-            new FileSetFingerprint(11, 22),
-            TestDatasetIdentities.identity("csv", "", Map.of())
-        );
-        assertNotEquals(ndjson, csv);
-    }
-
-    public void testDatasetAggregateKeyChangesWithRegion() {
-        // region is a dataset-level key; two identical file sets accessed with different regions
-        // must not share the same aggregate cache entry.
-        SchemaCacheKey usEast = SchemaCacheKey.forDatasetAggregate(
-            PATTERN,
-            new FileSetFingerprint(11, 22),
-            TestDatasetIdentities.identity("ndjson", Configured.identityOf(Map.of("region", "us-east-1"), Set.of("region")), Map.of())
-        );
-        SchemaCacheKey euWest = SchemaCacheKey.forDatasetAggregate(
-            PATTERN,
-            new FileSetFingerprint(11, 22),
-            TestDatasetIdentities.identity("ndjson", Configured.identityOf(Map.of("region", "eu-west-1"), Set.of("region")), Map.of())
-        );
-        assertNotEquals(usEast, euWest);
-    }
-
     public void testPerFileKeyChangesWithRegion() {
         // region is a dataset-level key; the same file at the same mtime on different regions
         // must not share a per-file schema cache entry.
@@ -285,23 +177,6 @@ public class SchemaCacheKeyTests extends ESTestCase {
             false
         );
         assertNotEquals(usEast, euWest);
-    }
-
-    public void testDatasetAggregateKeyDistinctFromPerFileKeys() {
-        // A per-file key cannot equal a dataset key: the file-set fingerprint rides its own component, which
-        // every per-file key leaves null. canonicalPath stays the plain glob pattern, for diagnostics.
-        SchemaCacheKey dataset = SchemaCacheKey.forDatasetAggregate(
-            PATTERN,
-            new FileSetFingerprint(11, 22),
-            TestDatasetIdentities.identity("ndjson", "", Map.of())
-        );
-        SchemaCacheKey perFile = SchemaCacheKey.build(PATTERN, 11L, TestDatasetIdentities.identity("ndjson", "", Map.of()), false);
-        assertNotEquals(dataset, perFile);
-        assertTrue(dataset.isDatasetAggregate());
-        assertFalse(perFile.isDatasetAggregate());
-        assertEquals(PATTERN, dataset.canonicalPath());
-        assertEquals(new FileSetFingerprint(11, 22), dataset.fileSetFingerprint());
-        assertNull(perFile.fileSetFingerprint());
     }
 
     /**
@@ -330,29 +205,29 @@ public class SchemaCacheKeyTests extends ESTestCase {
 
     /**
      * Everything but the read is carried across, so a statistics record can never drift from the schema record
-     * it belongs to — same file, same version, same format, same participants.
+     * it belongs to — same file, same mtime, same dataset identity, same rail.
+     * <p>
+     * It is derived from a PER-FILE key, and that is now the only thing it can be derived from. This case used
+     * to build a dataset-aggregate key and derive a statistics address from it, asserting that the aggregate
+     * kind "survived the derivation" — an address that was reachable, meaningless, and written by nothing. A
+     * dataset fold is a {@link DatasetAggregateKey} now, which has no {@code withReadConfig}, so the state does
+     * not exist to assert about.
      */
     public void testStatisticsAddressCarriesEveryOtherComponent() {
-        SchemaCacheKey dataset = SchemaCacheKey.forDatasetAggregate(
-            PATTERN,
-            new FileSetFingerprint(11, 22),
-            TestDatasetIdentities.identity("ndjson", "id", Map.of())
-        );
-        SchemaCacheKey stats = dataset.withReadConfig("cccc3333");
+        SchemaCacheKey file = SchemaCacheKey.build(PATTERN, 11L, TestDatasetIdentities.identity("ndjson", "id", Map.of()), true);
+        SchemaCacheKey stats = file.withReadConfig("cccc3333");
 
         // Pin that a key was actually derived first. Without these two the carrying assertions below hold
         // trivially when withReadConfig returns its receiver, and the test passes whether or not it works.
-        assertNotSame(dataset, stats);
+        assertNotSame(file, stats);
         assertEquals("cccc3333", stats.readConfig());
 
-        assertEquals(dataset.canonicalPath(), stats.canonicalPath());
-        assertEquals(dataset.lastModifiedEpochMillis(), stats.lastModifiedEpochMillis());
-        assertEquals(dataset.dataset(), stats.dataset());
-        assertEquals(dataset.fileSetFingerprint(), stats.fileSetFingerprint());
-        assertEquals(dataset.declaredStrict(), stats.declaredStrict());
-        // The record kind survives the derivation, so isDatasetAggregate() keeps answering for the aggregate's
-        // own statistics record rather than silently becoming a per-file one.
-        assertTrue(stats.isDatasetAggregate());
+        assertEquals(file.canonicalPath(), stats.canonicalPath());
+        assertEquals(file.lastModifiedEpochMillis(), stats.lastModifiedEpochMillis());
+        assertEquals(file.dataset(), stats.dataset());
+        // The rail survives the derivation: a strict-declared record's statistics stay on the strict rail
+        // rather than silently becoming the inferred record's.
+        assertTrue("the declared-strict rail must survive", stats.declaredStrict());
     }
 
     /**

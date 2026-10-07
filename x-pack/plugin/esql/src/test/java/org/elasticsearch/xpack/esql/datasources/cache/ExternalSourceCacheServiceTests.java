@@ -1047,7 +1047,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 pathB,
                 "fp"
             );
-            SchemaCacheKey key = datasetKey();
+            DatasetAggregateKey key = datasetKey();
             service.registerPendingDatasetAggregate(
                 key,
                 Map.of(pathA, mtime, pathB, mtime),
@@ -1129,7 +1129,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             String pathA = "file:///data/a.ndjson";
             String pathB = "file:///data/b.ndjson";
             long mtime = 1000L;
-            SchemaCacheKey key = datasetKey();
+            DatasetAggregateKey key = datasetKey();
             service.registerPendingDatasetAggregate(
                 key,
                 Map.of(pathA, mtime, pathB, mtime),
@@ -2716,8 +2716,8 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
     // --- dataset-level aggregate (warm COUNT(*) survival independent of per-file entries) ---
 
-    private static SchemaCacheKey datasetKey() {
-        return SchemaCacheKey.forDatasetAggregate(
+    private static DatasetAggregateKey datasetKey() {
+        return DatasetAggregateKey.of(
             "s3://bucket/data/*.csv",
             new FileSetFingerprint(111, 222),
             TestDatasetIdentities.identity("csv", "", Map.of("format", "csv"))
@@ -2726,9 +2726,9 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
     public void testDatasetAggregateRoundtrip() {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
-            SchemaCacheKey key = datasetKey();
+            DatasetAggregateKey key = datasetKey();
             assertNull("miss before put", service.getDatasetAggregate(key));
-            service.putDatasetAggregate(key, 123L, "csv", "s3://bucket/data/*.csv");
+            service.putDatasetAggregate(key, 123L);
             Map<String, Object> served = service.getDatasetAggregate(key);
             assertNotNull(served);
             assertEquals(123L, served.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
@@ -2761,8 +2761,8 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             .put("esql.external.cache.listing.ttl", "30s")
             .build();
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
-            SchemaCacheKey dsKey = datasetKey();
-            service.putDatasetAggregate(dsKey, 42L, "csv", "s3://bucket/data/*.csv");
+            DatasetAggregateKey dsKey = datasetKey();
+            service.putDatasetAggregate(dsKey, 42L);
             assertNotNull("aggregate present right after put", service.getDatasetAggregate(dsKey));
             assertEquals(1, service.usageStats().get("dataset_aggregate_cache.count"));
 
@@ -2881,7 +2881,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 for (int i = 0; i < pathsPerGlob; i++) {
                     paths.put("s3://bucket/g" + g + "/f" + i + ".csv", (long) i);
                 }
-                SchemaCacheKey key = SchemaCacheKey.forDatasetAggregate(
+                DatasetAggregateKey key = DatasetAggregateKey.of(
                     "s3://bucket/g" + g + "/*.csv",
                     new FileSetFingerprint(g, g),
                     TestDatasetIdentities.identity("csv", "", Map.of("format", "csv"))
@@ -2904,12 +2904,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         // reconcile would enrich the entry and overwrite the whole-set 100 with the contribution's 42.
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String glob = "s3://bucket/data/*.csv";
-            SchemaCacheKey key = SchemaCacheKey.forDatasetAggregate(
+            DatasetAggregateKey key = DatasetAggregateKey.of(
                 glob,
                 new FileSetFingerprint(1, 2),
                 TestDatasetIdentities.identity("csv", "", Map.of("format", "csv"))
             );
-            service.putDatasetAggregate(key, 100L, "csv", glob);
+            service.putDatasetAggregate(key, 100L);
 
             Map<String, Object> strayContribution = new LinkedHashMap<>();
             strayContribution.put(ExternalStats.MTIME_MILLIS_KEY, 0L); // matches the dataset key's mtime
@@ -2934,7 +2934,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String pathA = "s3://bucket/data/a.csv";
             String pathB = "s3://bucket/data/b.csv";
-            SchemaCacheKey key = datasetKey();
+            DatasetAggregateKey key = datasetKey();
             service.registerPendingDatasetAggregate(
                 key,
                 Map.of(pathA, 1000L, pathB, 2000L),
@@ -2975,7 +2975,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 pathB,
                 "fp"
             );
-            SchemaCacheKey key = datasetKey();
+            DatasetAggregateKey key = datasetKey();
             service.registerPendingDatasetAggregate(
                 key,
                 Map.of(pathA, mtime, pathB, mtime),
@@ -3011,7 +3011,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             String pathA = "file:///data/a.ndjson";
             String pathB = "file:///data/b.ndjson";
             long mtime = 1000L;
-            SchemaCacheKey key = datasetKey();
+            DatasetAggregateKey key = datasetKey();
             service.registerPendingDatasetAggregate(
                 key,
                 Map.of(pathA, mtime, pathB, mtime),
@@ -3044,7 +3044,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String pathA = "s3://bucket/data/a.csv";
             String pathB = "s3://bucket/data/b.csv";
-            SchemaCacheKey key = datasetKey();
+            DatasetAggregateKey key = datasetKey();
             service.registerPendingDatasetAggregate(
                 key,
                 Map.of(pathA, 1000L, pathB, 2000L),
@@ -3071,7 +3071,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String pathA = "s3://bucket/data/a.csv";
             String pathB = "s3://bucket/data/b.csv";
-            SchemaCacheKey key = datasetKey();
+            DatasetAggregateKey key = datasetKey();
             service.registerPendingDatasetAggregate(
                 key,
                 Map.of(pathA, 1000L, pathB, 2000L),
@@ -3094,7 +3094,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String pathA = "s3://bucket/data/a.csv";
             String pathB = "s3://bucket/data/b.csv";
-            SchemaCacheKey key = datasetKey();
+            DatasetAggregateKey key = datasetKey();
             service.registerPendingDatasetAggregate(
                 key,
                 Map.of(pathA, 1000L, pathB, 2000L),
@@ -3119,7 +3119,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String pathA = "s3://bucket/data/a.csv";
             String pathB = "s3://bucket/data/b.csv";
-            SchemaCacheKey key = datasetKey();
+            DatasetAggregateKey key = datasetKey();
             service.registerPendingDatasetAggregate(
                 key,
                 Map.of(pathA, 1000L, pathB, 2000L),
@@ -3143,14 +3143,14 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             String pathA = "s3://bucket/data/a.csv";
             String pathB = "s3://bucket/data/b.csv";
             Map<String, Long> paths = Map.of(pathA, 1000L, pathB, 2000L);
-            SchemaCacheKey oldest = SchemaCacheKey.forDatasetAggregate(
+            DatasetAggregateKey oldest = DatasetAggregateKey.of(
                 "g0",
                 new FileSetFingerprint(0, 0),
                 TestDatasetIdentities.identity("csv", "", Map.of())
             );
             service.registerPendingDatasetAggregate(oldest, paths, 2, "fp", Map.of(), "csv", "g0");
             for (int i = 1; i <= 64; i++) {
-                SchemaCacheKey k = SchemaCacheKey.forDatasetAggregate(
+                DatasetAggregateKey k = DatasetAggregateKey.of(
                     "g" + i,
                     new FileSetFingerprint(i, i),
                     TestDatasetIdentities.identity("csv", "", Map.of())
@@ -3163,7 +3163,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             );
 
             assertNull("evicted oldest promise must not materialize", service.getDatasetAggregate(oldest));
-            SchemaCacheKey newest = SchemaCacheKey.forDatasetAggregate(
+            DatasetAggregateKey newest = DatasetAggregateKey.of(
                 "g64",
                 new FileSetFingerprint(64, 64),
                 TestDatasetIdentities.identity("csv", "", Map.of())
@@ -3179,7 +3179,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         // dataset), so a one-path promise is refused at registration.
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String pathA = "s3://bucket/data/a.csv";
-            SchemaCacheKey key = datasetKey();
+            DatasetAggregateKey key = datasetKey();
             service.registerPendingDatasetAggregate(key, Map.of(pathA, 1000L), 1, "fp", Map.of(), "csv", "s3://bucket/data/*.csv");
             service.reconcileSourceStatsFromContributions(Map.of(pathA, List.of(wholeFileStats(1000L, "fp", 100L))));
             assertNull(service.getDatasetAggregate(key));
@@ -3194,7 +3194,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String pathA = "s3://bucket/data/a.csv";
             String pathB = "s3://bucket/data/b.csv";
-            SchemaCacheKey key = datasetKey();
+            DatasetAggregateKey key = datasetKey();
             // 3 listed files (b.csv listed twice) but only 2 unique paths.
             service.registerPendingDatasetAggregate(key, Map.of(pathA, 1000L, pathB, 2000L), 3, "fp", Map.of(), "csv", "dup-glob");
 
@@ -3214,7 +3214,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String pathA = "s3://bucket/data/a.csv";
             String pathB = "s3://bucket/data/b.csv";
-            SchemaCacheKey key = datasetKey();
+            DatasetAggregateKey key = datasetKey();
             service.registerPendingDatasetAggregate(key, Map.of(pathA, 1000L, pathB, 2000L), 2, "fp", Map.of(), "csv", "slow-scan-glob");
 
             Thread.sleep(200); // stand in for a multi-minute cold scan between register and fulfill

@@ -18,7 +18,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.ColumnStatTypeSupport;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
@@ -75,7 +74,7 @@ public class ExternalSourceCacheService implements Closeable {
      * per-file churn evict it and the warm dataset {@code COUNT} decayed mid-use. No time expiry — the
      * fingerprint is a correct-or-miss identity key; only weight/LRU reclaims it.
      */
-    private final Cache<SchemaCacheKey, SchemaCacheEntry> datasetAggregateCache;
+    private final Cache<DatasetAggregateKey, DatasetAggregate> datasetAggregateCache;
     private final Cache<FileMetadataCacheKey, FileMetadata> fileMetadataCache;
     private final Cache<ListingCacheKey, FileList> listingCache;
     private final long maxTotalBytes;
@@ -86,6 +85,13 @@ public class ExternalSourceCacheService implements Closeable {
      * {@link #schemaBudget}. Entries heavier than this are returned to callers but not retained.
      */
     private final long schemaMaxEntryBytes;
+    /**
+     * The retained size of one {@link DatasetAggregate} plus its key: an object header and a {@code long} for
+     * the value, and a header with two references and a fingerprint for the key. A constant because neither
+     * side holds a variable-length field - the pattern string is shared with the listing that resolved it.
+     */
+    static final long DATASET_AGGREGATE_BYTES = 128L;
+
     /** Per-entry admission ceiling for {@link #datasetAggregateCache}: {@link #perEntryCeiling(long)}. */
     private final long datasetAggregateMaxEntryBytes;
     private volatile boolean enabled;
@@ -115,7 +121,7 @@ public class ExternalSourceCacheService implements Closeable {
      * unfulfilled: correct-or-miss, exactly like the per-file rail.
      */
     private record PendingDatasetAggregate(
-        SchemaCacheKey datasetKey,
+        DatasetAggregateKey datasetKey,
         Map<String, Long> pathToMtimeMillis,
         String configFingerprint,
         Map<String, String> pathToReadConfig,
@@ -150,7 +156,7 @@ public class ExternalSourceCacheService implements Closeable {
      * appears.
      */
     private static final int FILE_METADATA_CACHE_MAX_ENTRIES = 100_000;
-    private final LinkedHashMap<SchemaCacheKey, PendingDatasetAggregate> pendingDatasetAggregates = new LinkedHashMap<>();
+    private final LinkedHashMap<DatasetAggregateKey, PendingDatasetAggregate> pendingDatasetAggregates = new LinkedHashMap<>();
 
     /**
      * Pending-descriptor expiry horizon: a FIXED constant, long enough to comfortably outlive the longest
@@ -216,9 +222,12 @@ public class ExternalSourceCacheService implements Closeable {
             .weigher((key, value) -> value.estimatedBytes())
             .build();
 
-        this.datasetAggregateCache = CacheBuilder.<SchemaCacheKey, SchemaCacheEntry>builder()
+        this.datasetAggregateCache = CacheBuilder.<DatasetAggregateKey, DatasetAggregate>builder()
             .setMaximumWeight(datasetAggregateBudget)
-            .weigher((key, value) -> value.estimatedBytes())
+            // Constant: the value is one long behind a header, so this store's weight is its count times
+            // DATASET_AGGREGATE_BYTES. Nothing is recomputed per promote, which the shared Cache does twice
+            // for every hit that is not already at the LRU head.
+            .weigher((key, value) -> DATASET_AGGREGATE_BYTES)
             .build();
 
         // Freshness-discovery, like listing: this holds a file's CURRENT {length, mtime} (the version token
@@ -383,7 +392,7 @@ public class ExternalSourceCacheService implements Closeable {
 
     /**
      * Returns the dataset-level aggregate stats stored under {@code key} (see
-     * {@link SchemaCacheKey#forDatasetAggregate}), or {@code null} on a miss. The map carries only
+     * {@link DatasetAggregateKey}), or {@code null} on a miss. The map carries only
      * dataset-INDEPENDENT-of-declaration keys — today just {@code _stats.row_count} — never per-column
      * stats, so serving it can never leak a wrongly-normalized MIN/MAX (those keep re-scanning until the
      * per-file rail serves them). It lives in the dedicated {@link #datasetAggregateCache}, so per-file churn
@@ -391,45 +400,33 @@ public class ExternalSourceCacheService implements Closeable {
      * decision (see {@link #recordDatasetAggregateHit} / {@link #recordDatasetAggregateMiss}).
      */
     @Nullable
-    public Map<String, Object> getDatasetAggregate(SchemaCacheKey key) {
+    public Map<String, Object> getDatasetAggregate(DatasetAggregateKey key) {
         if (enabled == false || key == null) {
             return null;
         }
         // Cache.get() already promotes the entry to the LRU head, so a hot dataset stays resident; no re-put
         // is needed (there is no expireAfterWrite clock to refresh — the dataset cache has no TTL).
-        SchemaCacheEntry entry = datasetAggregateCache.get(key);
-        if (entry == null || entry.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT) instanceof Number == false) {
-            return null;
-        }
-        return entry.safeMetadata();
+        DatasetAggregate aggregate = datasetAggregateCache.get(key);
+        return aggregate == null ? null : aggregate.asStatistics();
     }
 
     /**
      * Stores the dataset-level row-count aggregate for one resolved file set into the dedicated
-     * {@link #datasetAggregateCache}. The entry is a synthetic {@link SchemaCacheEntry} (no columns;
-     * {@code safeMetadata} = the row count) so the common cache plumbing — weigher, enable/disable,
-     * clearAll, usage stats — applies unchanged; only the store (and its budget, no-TTL policy) differs.
+     * {@link #datasetAggregateCache}. The value is a {@link DatasetAggregate} — one {@code long} — so this
+     * store's weight is its entry count times a constant, and nothing a per-file contribution carries can
+     * be represented in it.
      */
-    public void putDatasetAggregate(SchemaCacheKey key, long rowCount, String sourceType, String location) {
+    public void putDatasetAggregate(DatasetAggregateKey key, long rowCount) {
         if (enabled == false || key == null || rowCount < 0) {
             return;
         }
-        SchemaCacheEntry entry = new SchemaCacheEntry(
-            new String[0],
-            new DataType[0],
-            new Nullability[0],
-            new boolean[0],
-            sourceType,
-            location,
-            Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, rowCount),
-            Map.of(),
-            List.of()
-        );
-        if (entry.estimatedBytes() > datasetAggregateMaxEntryBytes) {
+        if (DATASET_AGGREGATE_BYTES > datasetAggregateMaxEntryBytes) {
+            // The ceiling is below one aggregate: refuse, and drop any entry already at this address so a
+            // tightened budget cannot leave a resident value the ceiling now forbids.
             datasetAggregateCache.invalidate(key);
             return;
         }
-        datasetAggregateCache.put(key, entry);
+        datasetAggregateCache.put(key, new DatasetAggregate(rowCount));
     }
 
     /**
@@ -447,7 +444,7 @@ public class ExternalSourceCacheService implements Closeable {
      * registration is refused — the dataset stays on the re-scan path (correct-or-miss).
      */
     public void registerPendingDatasetAggregate(
-        SchemaCacheKey datasetKey,
+        DatasetAggregateKey datasetKey,
         Map<String, Long> pathToMtimeMillis,
         int expectedFileCount,
         String configFingerprint,
@@ -669,7 +666,7 @@ public class ExternalSourceCacheService implements Closeable {
         for (PendingDatasetAggregate pending : candidates) {
             Long sum = sumIfFullyCovered(pending, completedWholeFile);
             if (sum != null) {
-                putDatasetAggregate(pending.datasetKey(), sum, pending.sourceType(), pending.location());
+                putDatasetAggregate(pending.datasetKey(), sum);
                 synchronized (pendingDatasetAggregates) {
                     pendingDatasetAggregates.remove(pending.datasetKey());
                 }
@@ -987,11 +984,14 @@ public class ExternalSourceCacheService implements Closeable {
 
     /**
      * True when the entry is for {@code path}, observed at the contribution's mtime, under the same format
-     * config. Dataset-aggregate entries ({@link SchemaCacheKey#isDatasetAggregate()}) are excluded
-     * explicitly: their canonicalPath is a multi-file glob pattern and their mtime is 0, so a per-file
-     * contribution can never match one structurally, but a per-file enrichment landing on a dataset entry
-     * would corrupt its row-count-only contract — enforce it rather than rely on the structural accident.
-     * (Declared-strict per-file entries, which carry the {@code declaredStrict} component, MUST remain matchable.)
+     * config.
+     * <p>
+     * A dataset aggregate cannot be matched here at all any more: it is a {@link DatasetAggregate} under a
+     * {@link DatasetAggregateKey}, in its own store, so a per-file contribution has no way to reach one. This
+     * used to need an explicit {@code isDatasetAggregate()} exclusion on every consumer, because the two kinds
+     * of fact shared a key type and a store and a per-file enrichment landing on an aggregate would have
+     * corrupted its row-count-only contract. Declared-strict per-file entries are a per-file record and MUST
+     * remain matchable.
      * <p>
      * <b>It does not compare the key's identity or its definition version</b>, because a contribution carries
      * neither. On its own that makes every entry for this path at this mtime under this format config a match,
@@ -1005,8 +1005,7 @@ public class ExternalSourceCacheService implements Closeable {
         long mtimeMillis,
         Object fingerprint
     ) {
-        return key.isDatasetAggregate() == false
-            && path.equals(key.canonicalPath())
+        return path.equals(key.canonicalPath())
             && key.lastModifiedEpochMillis() == mtimeMillis
             && Objects.equals(entry.safeMetadata().get(ExternalStats.CONFIG_FINGERPRINT_KEY), fingerprint);
     }
@@ -1840,7 +1839,7 @@ public class ExternalSourceCacheService implements Closeable {
     }
 
     // Visible for testing
-    Cache<SchemaCacheKey, SchemaCacheEntry> datasetAggregateCache() {
+    Cache<DatasetAggregateKey, DatasetAggregate> datasetAggregateCache() {
         return datasetAggregateCache;
     }
 

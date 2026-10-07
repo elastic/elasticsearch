@@ -44,8 +44,9 @@ public final class ExternalSourceCacheTestAccess {
     public static int enrichedPerFileEntries(ExternalSourceCacheService service, String pathSubstring) {
         int[] enriched = { 0 };
         service.schemaCache().forEach((key, entry) -> {
-            if (key.isDatasetAggregate() == false
-                && key.canonicalPath().contains(pathSubstring)
+            // No aggregate filter: the schema store holds per-file records only now, since a dataset fold is a
+            // DatasetAggregate under a DatasetAggregateKey in its own store.
+            if (key.canonicalPath().contains(pathSubstring)
                 && entry.safeMetadata().containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)) {
                 enriched[0]++;
             }
@@ -64,9 +65,9 @@ public final class ExternalSourceCacheTestAccess {
     }
 
     /**
-     * Invalidates every per-file schema-cache entry whose canonical path contains {@code pathSubstring},
-     * leaving dataset-aggregate entries, which carry a file-set fingerprint, in place — the surgical arms of the
-     * warm-fold regression tests must remove FILE entries, never the dataset aggregate under test.
+     * Invalidates every per-file schema-cache entry whose canonical path contains {@code pathSubstring}.
+     * The dataset aggregate under test is untouched because it is not in this store: the surgical arms of the
+     * warm-fold regression tests must remove FILE entries, and now they structurally cannot reach the fold.
      * Returns the number of entries invalidated.
      */
     public static int invalidatePerFileSchemaEntries(ExternalSourceCacheService service, String pathSubstring) {
@@ -83,7 +84,7 @@ public final class ExternalSourceCacheTestAccess {
     public static int invalidatePerFileSchemaEntries(ExternalSourceCacheService service, String pathSubstring, int maxEntries) {
         List<SchemaCacheKey> victims = new ArrayList<>();
         service.schemaCache().forEach((key, entry) -> {
-            if (victims.size() < maxEntries && key.canonicalPath().contains(pathSubstring) && key.isDatasetAggregate() == false) {
+            if (victims.size() < maxEntries && key.canonicalPath().contains(pathSubstring)) {
                 victims.add(key);
             }
         });

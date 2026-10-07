@@ -20,6 +20,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -485,6 +486,143 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
         ) {
             assertThat(getValuesList(response).stream().map(r -> r.get(1)).toList(), everyItem(equalTo("view_langs_name_beside_it")));
         }
+    }
+
+    public void testNestedViewInnerBodyClassAndNameOuterWins() {
+        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
+        assumeTrue("requires VIEWS_WITH_NO_BRANCHING", Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
+        createView("view_langs_inner_class_it", "FROM languages METADATA _class, _name");
+        createView("view_langs_outer_class_it", "FROM view_langs_inner_class_it");
+
+        try (var response = run("FROM view_langs_outer_class_it | KEEP language_code, _class, _name | SORT language_code")) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(4));
+            assertThat(rows.stream().map(r -> r.get(1)).toList(), everyItem(equalTo("index")));
+            assertThat(rows.stream().map(r -> r.get(2)).toList(), everyItem(equalTo("languages")));
+        }
+        try (
+            var response = run(
+                "FROM view_langs_outer_class_it METADATA _class, _name | KEEP language_code, _class, _name | SORT language_code"
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(4));
+            assertThat(rows.stream().map(r -> r.get(1)).toList(), everyItem(equalTo("view")));
+            assertThat(rows.stream().map(r -> r.get(2)).toList(), everyItem(equalTo("view_langs_outer_class_it")));
+        }
+    }
+
+    public void testViewBodyDeclaresClassAndName() {
+        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
+        assumeTrue("requires VIEWS_WITH_NO_BRANCHING", Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
+        createView("view_langs_body_meta_it", "FROM languages METADATA _class, _name");
+
+        assertThat(countsByClassAndName("FROM view_langs_body_meta_it"), equalTo(List.of(row(4L, "index", "languages"))));
+        assertThat(
+            countsByClassAndName("FROM view_langs_body_meta_it METADATA _class, _name"),
+            equalTo(List.of(row(4L, "view", "view_langs_body_meta_it")))
+        );
+    }
+
+    public void testViewAndSubqueryBodiesDeclareClassAndNameOuterWins() {
+        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
+        assumeTrue("requires VIEWS_WITH_BRANCHING", Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        createView("view_langs_both_bodies_it", "FROM languages METADATA _class, _name");
+
+        assertThat(
+            countsByClassAndName(
+                "FROM view_langs_both_bodies_it, (FROM languages METADATA _class, _name | WHERE language_code <= 2) METADATA _class, _name"
+            ),
+            equalTo(List.of(row(2L, "subquery", null), row(4L, "view", "view_langs_both_bodies_it")))
+        );
+    }
+
+    public void testViewWithBranchingBodyAndTrailingEvalAnswersTheView() {
+        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
+        assumeTrue("requires VIEWS_WITH_BRANCHING", Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        createView(
+            "view_langs_union_eval_it",
+            "FROM languages, (FROM languages | WHERE language_code <= 2) | EVAL doubled = language_code * 2"
+        );
+
+        assertThat(
+            countsByClassAndName("FROM view_langs_union_eval_it METADATA _class, _name"),
+            equalTo(List.of(row(6L, "view", "view_langs_union_eval_it")))
+        );
+    }
+
+    public void testViewWithBareUnionBodyAnswersTheViewWhenFlattened() {
+        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
+        assumeTrue("requires VIEWS_WITH_BRANCHING", Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        createView("view_langs_union_it", "FROM languages, (FROM languages | WHERE language_code <= 2)");
+
+        assertThat(
+            countsByClassAndName("FROM view_langs_union_it METADATA _class, _name"),
+            equalTo(List.of(row(6L, "view", "view_langs_union_it")))
+        );
+        assertThat(
+            countsByClassAndName("FROM view_langs_union_it, languages METADATA _class, _name"),
+            equalTo(List.of(row(4L, "index", "languages"), row(6L, "view", "view_langs_union_it")))
+        );
+    }
+
+    public void testViewOfViewsAnswersTheOuterView() {
+        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
+        assumeTrue("requires VIEWS_WITH_BRANCHING", Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        createView("view_langs_low_it", "FROM languages | WHERE language_code <= 2");
+        createView("view_langs_high_it", "FROM languages | WHERE language_code > 2");
+        createView("view_langs_of_views_it", "FROM view_langs_low_it, view_langs_high_it");
+
+        assertThat(
+            countsByClassAndName("FROM view_langs_of_views_it METADATA _class, _name"),
+            equalTo(List.of(row(4L, "view", "view_langs_of_views_it")))
+        );
+        assertThat(
+            countsByClassAndName("FROM view_langs_of_views_it, languages METADATA _class, _name"),
+            equalTo(List.of(row(4L, "index", "languages"), row(4L, "view", "view_langs_of_views_it")))
+        );
+    }
+
+    public void testSubqueryAroundViewsAnswersSubquery() {
+        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
+        assumeTrue("requires VIEWS_WITH_BRANCHING", Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        createView("view_langs_low_it", "FROM languages | WHERE language_code <= 2");
+        createView("view_langs_high_it", "FROM languages | WHERE language_code > 2");
+
+        assertThat(
+            countsByClassAndName("FROM (FROM view_langs_low_it) METADATA _class, _name"),
+            equalTo(List.of(row(2L, "subquery", null)))
+        );
+        assertThat(
+            countsByClassAndName("FROM languages, (FROM view_langs_low_it) METADATA _class, _name"),
+            equalTo(List.of(row(4L, "index", "languages"), row(2L, "subquery", null)))
+        );
+        assertThat(
+            countsByClassAndName("FROM languages, (FROM view_langs_low_it, view_langs_high_it) METADATA _class, _name"),
+            equalTo(List.of(row(4L, "index", "languages"), row(4L, "subquery", null)))
+        );
+    }
+
+    public void testViewBodyAsksClassAndNameOfItsUnionBodyView() {
+        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
+        assumeTrue("requires VIEWS_WITH_BRANCHING", Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        createView("view_langs_union_it", "FROM languages, (FROM languages | WHERE language_code <= 2)");
+        createView("view_langs_asks_it", "FROM view_langs_union_it, languages METADATA _class, _name");
+
+        assertThat(
+            countsByClassAndName("FROM view_langs_asks_it"),
+            equalTo(List.of(row(4L, "index", "languages"), row(6L, "view", "view_langs_union_it")))
+        );
+    }
+
+    private List<List<Object>> countsByClassAndName(String from) {
+        try (var response = run(from + " | STATS n = COUNT(*) BY _class, _name | SORT _class, _name")) {
+            return getValuesList(response);
+        }
+    }
+
+    private static List<Object> row(Object... values) {
+        return Arrays.asList(values);
     }
 
     private static PutViewAction.Request putViewRequest(String name, String query) {

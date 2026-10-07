@@ -245,3 +245,82 @@ language_code:integer | language_name:keyword | _index:keyword
 3                     | Spanish               | null
 4                     | German                | null
 ;
+
+subqueryBodyDeclaresClassAndName
+required_capability: subquery_in_from_command
+required_capability: metadata_class_and_name
+
+FROM (FROM languages METADATA _class, _name)
+| SORT language_code
+;
+
+language_code:integer | language_name:keyword | _class:keyword | _name:keyword
+1                     | English               | index          | languages
+2                     | French                | index          | languages
+3                     | Spanish               | index          | languages
+4                     | German                | index          | languages
+;
+
+subqueryBodyAndOuterDeclareClassAndNameOuterWins
+required_capability: subquery_in_from_command
+required_capability: metadata_class_and_name
+
+FROM (FROM languages METADATA _class, _name) METADATA _class, _name
+| SORT language_code
+;
+
+language_code:integer | language_name:keyword | _class:keyword | _name:keyword
+1                     | English               | subquery       | null
+2                     | French                | subquery       | null
+3                     | Spanish               | subquery       | null
+4                     | German                | subquery       | null
+;
+
+viewAndSubqueryClassAndName
+required_capability: subquery_in_from_command
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: metadata_class_and_name
+
+FROM view_languages, (FROM languages | WHERE language_code <= 2) METADATA _class, _name
+| SORT language_code, _class
+;
+
+language_code:integer | language_name:keyword | _class:keyword | _name:keyword
+1                     | English               | subquery       | null
+1                     | English               | view           | view_languages
+2                     | French                | subquery       | null
+2                     | French                | view           | view_languages
+3                     | Spanish               | view           | view_languages
+4                     | German                | view           | view_languages
+;
+
+viewWithBareSubqueryBodyClassAndName
+required_capability: subquery_in_from_command
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: metadata_class_and_name
+
+FROM view_with_subquery METADATA _class, _name
+| STATS c = COUNT(*) BY _class, _name
+;
+
+c:long | _class:keyword | _name:keyword
+100    | view           | view_with_subquery
+;
+
+viewWithBareSubqueryBodyBesideIndexClassAndName
+required_capability: subquery_in_from_command
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: metadata_class_and_name
+
+FROM view_with_subquery, languages METADATA _class, _name
+| STATS c = COUNT(*) BY _class, _name
+| SORT _class
+;
+
+c:long | _class:keyword | _name:keyword
+4      | index          | languages
+100    | view           | view_with_subquery
+;

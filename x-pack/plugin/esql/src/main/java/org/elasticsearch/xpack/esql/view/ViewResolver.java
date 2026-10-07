@@ -240,6 +240,7 @@ public class ViewResolver {
             hasInSubquery,
             0,
             preserveViewBoundaries,
+            ViewCompaction.keepsBranchWrappers(plan),
             listener.delegateFailureAndWrap(
                 (l, rewritten) -> l.onResponse(new ViewResolutionResult(rewritten, viewQueries, hasInSubquery.get()))
             )
@@ -256,6 +257,7 @@ public class ViewResolver {
         Holder<Boolean> hasInSubquery,
         int depth,
         boolean preserveViewBoundaries,
+        boolean keepBranchWrappers,
         ActionListener<LogicalPlan> listener
     ) {
         LinkedHashSet<String> seenInner = new LinkedHashSet<>(seenViews);
@@ -289,6 +291,7 @@ public class ViewResolver {
                     hasInSubquery,
                     depth,
                     preserveViewBoundaries,
+                    keepBranchWrappers,
                     planListener.delegateFailureAndWrap((l, result) -> {
                         plan.forEachDown(resolvedPlans::add);
                         result.forEachDown(resolvedPlans::add);
@@ -314,6 +317,7 @@ public class ViewResolver {
                             hasInSubquery,
                             depth,
                             preserveViewBoundaries,
+                            keepBranchWrappers,
                             planListener.delegateFailureAndWrap((l, result) -> {
                                 result.forEachDown(resolvedPlans::add);
                                 l.onResponse(result);
@@ -340,6 +344,7 @@ public class ViewResolver {
                             hasInSubquery,
                             depth,
                             preserveViewBoundaries,
+                            keepBranchWrappers,
                             planListener.delegateFailureAndWrap((l, result) -> {
                                 result.forEachDown(resolvedPlans::add);
                                 l.onResponse(result);
@@ -366,6 +371,7 @@ public class ViewResolver {
                             hasInSubquery,
                             depth,
                             preserveViewBoundaries,
+                            keepBranchWrappers,
                             planListener.delegateFailureAndWrap((l, result) -> {
                                 result.forEachDown(resolvedPlans::add);
                                 l.onResponse(result);
@@ -383,6 +389,7 @@ public class ViewResolver {
                     hasInSubquery,
                     depth,
                     preserveViewBoundaries,
+                    keepBranchWrappers,
                     planListener.delegateFailureAndWrap((l, result) -> {
                         result.forEachDown(resolvedPlans::add);
                         l.onResponse(result);
@@ -422,6 +429,7 @@ public class ViewResolver {
         Holder<Boolean> hasInSubquery,
         int depth,
         boolean preserveViewBoundaries,
+        boolean keepBranchWrappers,
         ActionListener<LogicalPlan> listener
     ) {
         var currentSubplans = mergePlan.children();
@@ -440,8 +448,10 @@ public class ViewResolver {
                     hasInSubquery,
                     depth + 1,
                     preserveViewBoundaries,
+                    keepBranchWrappers,
                     l.delegateFailureAndWrap((subListener, newPlan) -> {
-                        if (newPlan instanceof Subquery sq && sq.child() instanceof NamedSubquery named) {
+                        // A subquery around a view answers _class and _name itself, so its wrapper stays when they are asked for.
+                        if (keepBranchWrappers == false && newPlan instanceof Subquery sq && sq.child() instanceof NamedSubquery named) {
                             newPlan = named;
                         }
                         if (newPlan.equals(subplan) == false) {
@@ -476,6 +486,7 @@ public class ViewResolver {
         Holder<Boolean> hasInSubquery,
         int depth,
         boolean preserveViewBoundaries,
+        boolean keepBranchWrappers,
         ActionListener<LogicalPlan> listener
     ) {
         LogicalPlan origLeft = subqueryJoin.left();
@@ -491,6 +502,7 @@ public class ViewResolver {
                 hasInSubquery,
                 depth + 1,
                 preserveViewBoundaries,
+                keepBranchWrappers,
                 l.delegateFailureAndWrap((sl, newLeft) -> {
                     if (newLeft instanceof Subquery sq && sq.child() instanceof NamedSubquery named) {
                         newLeft = named;
@@ -510,6 +522,7 @@ public class ViewResolver {
                 hasInSubquery,
                 depth + 1,
                 preserveViewBoundaries,
+                keepBranchWrappers,
                 l.delegateFailureAndWrap((sl, newRight) -> {
                     if (newRight instanceof Subquery sq && sq.child() instanceof NamedSubquery named) {
                         newRight = named;
@@ -661,8 +674,14 @@ public class ViewResolver {
                             }
                         }
                     }
+                    LogicalPlan body = resolve(
+                        view,
+                        parser,
+                        viewQueries,
+                        MetadataAttribute.requestsRelationColumn(unresolvedRelation.metadataFields())
+                    );
                     replaceViews(
-                        resolve(view, parser, viewQueries, MetadataAttribute.requestsRelationColumn(unresolvedRelation.metadataFields())),
+                        body,
                         projectRouting,
                         wildcardsMatchViews,
                         parser,
@@ -675,6 +694,8 @@ public class ViewResolver {
                         // implementation detail of this view. Keeping their wrappers would block compaction for no
                         // benefit, and nested wrappers are what produce unexecutable nested MergePlans.
                         false,
+                        // Only the body's own FROMs decide here: whatever the outer query lifts out of this body, it re-wraps.
+                        ViewCompaction.keepsBranchWrappers(body),
                         l2.delegateFailureAndWrap((l3, fullyResolved) -> {
                             ViewPlan viewPlan = new ViewPlan(view.name(), fullyResolved);
                             resolvedViews.put(view.name(), viewPlan);

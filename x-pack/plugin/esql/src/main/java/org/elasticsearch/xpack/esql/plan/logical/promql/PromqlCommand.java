@@ -422,6 +422,10 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             failures.add(
                 fail(p, "invalid expression type \"range vector\" for range query, must be scalar or instant vector", p.sourceText())
             );
+        } else if (p instanceof RangeSelector) {
+            // Prometheus answers an instant query over a range vector with a matrix of the raw samples in the window;
+            // nothing translates a range vector as such yet, so reject it here rather than fail in the optimizer.
+            failures.add(fail(p, "range vector results are not supported at this time [{}]", p.sourceText()));
         }
 
         // Validate entire plan

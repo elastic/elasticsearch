@@ -71,6 +71,11 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
     }
 
     @Override
+    public boolean singleValued() {
+        return singleValued;
+    }
+
+    @Override
     public BytesRef extreme(boolean max, BytesRef dst) throws IOException {
         return reader.extreme(iterator.rank(), max, dst);
     }
@@ -175,6 +180,11 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
     @Override
     public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
         iterator.intoBitSet(upTo, bitSet, offset);
+    }
+
+    @Override
+    public int docIDRunEnd() throws IOException {
+        return iterator.docIDRunEnd();
     }
 
     @Override

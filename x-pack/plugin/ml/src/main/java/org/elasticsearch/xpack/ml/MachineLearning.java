@@ -1522,13 +1522,9 @@ public class MachineLearning extends Plugin
             client,
             inferenceAuditor,
             telemetryProvider.getMeterRegistry(),
-            new NodeLoadDetector(memoryTracker),
             nlpEnabled,
             settings
         );
-        // Feed observed-memory data from the 10-second adaptive-allocations stats response back into
-        // TrainedModelAssignmentClusterService so its 60-second loop can skip those deployments.
-        adaptiveAllocationsScalerService.setStatsResponseConsumer(trainedModelAllocationClusterService.get()::processObservedMemoryStats);
 
         MlInitializationService mlInitializationService = new MlInitializationService(
             settings,
@@ -1537,7 +1533,6 @@ public class MachineLearning extends Plugin
             anomalyDetectionAuditor,
             client,
             adaptiveAllocationsScalerService,
-            trainedModelAllocationClusterService.get(),
             mlAssignmentNotifier,
             indexNameExpressionResolver,
             anomalyDetectionEnabled,

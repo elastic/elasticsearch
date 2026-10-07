@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -357,7 +358,8 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
             assertNotNull(ee.getCause());
             assertThat(ee.getCause(), instanceOf(RemoteTransportException.class));
             Throwable rootCause = ExceptionsHelper.unwrap(ee.getCause(), IllegalStateException.class);
-            assertThat(rootCause.getMessage(), containsString("index corrupted"));
+            assertNotNull(ExceptionsHelper.stackTrace(ee), rootCause);
+            assertThat(ExceptionsHelper.stackTrace(ee), rootCause.getMessage(), containsString("index corrupted"));
         } else {
             assertResponse(queryFuture, response -> {
                 assertNotNull(response);
@@ -409,7 +411,11 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
                 assertNull(remoteClusterSearchInfo.getTook());
                 assertFalse(remoteClusterSearchInfo.isTimedOut());
                 ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
-                assertThat(remoteShardSearchFailure.reason(), containsString("index corrupted"));
+                assertThat(
+                    failureReasonMessage(remoteClusterSearchInfo, remoteShardSearchFailure),
+                    remoteShardSearchFailure.reason(),
+                    containsString("index corrupted")
+                );
             });
         }
     }
@@ -596,7 +602,8 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
             ExecutionException ee = expectThrows(ExecutionException.class, queryFuture::get);
             assertNotNull(ee.getCause());
             Throwable rootCause = ExceptionsHelper.unwrap(ee, IllegalStateException.class);
-            assertThat(rootCause.getMessage(), containsString("index corrupted"));
+            assertNotNull(ExceptionsHelper.stackTrace(ee), rootCause);
+            assertThat(ExceptionsHelper.stackTrace(ee), rootCause.getMessage(), containsString("index corrupted"));
         } else {
             assertResponse(queryFuture, response -> {
                 assertNotNull(response);
@@ -627,7 +634,11 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
                 assertNull(remoteClusterSearchInfo.getTook());
                 assertFalse(remoteClusterSearchInfo.isTimedOut());
                 ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
-                assertThat(remoteShardSearchFailure.reason(), containsString("index corrupted"));
+                assertThat(
+                    failureReasonMessage(remoteClusterSearchInfo, remoteShardSearchFailure),
+                    remoteShardSearchFailure.reason(),
+                    containsString("index corrupted")
+                );
             });
         }
     }
@@ -910,7 +921,25 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
         assertThat(cluster.getFailures().size(), equalTo(1));
         assertThat(cluster.getTook().millis(), greaterThan(0L));
         ShardSearchFailure remoteShardSearchFailure = cluster.getFailures().get(0);
-        assertThat(remoteShardSearchFailure.reason(), containsString("index corrupted"));
+        assertThat(
+            failureReasonMessage(cluster, remoteShardSearchFailure),
+            remoteShardSearchFailure.reason(),
+            containsString("index corrupted")
+        );
+    }
+
+    /**
+     * Describes the failure being asserted and its siblings. {@link Cluster#getFailures()} is ordered by arrival, not
+     * by shard id, so the asserted entry is not necessarily shard 0.
+     */
+    private static String failureReasonMessage(Cluster cluster, ShardSearchFailure failure) {
+        return Strings.format(
+            "unexpected reason for failure on shard [%s] of cluster [%s]; all %d failure(s): %s",
+            failure.shard(),
+            cluster.getClusterAlias(),
+            cluster.getFailures().size(),
+            cluster.getFailures()
+        );
     }
 
 }

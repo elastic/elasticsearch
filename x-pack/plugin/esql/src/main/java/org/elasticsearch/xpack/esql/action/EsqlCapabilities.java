@@ -3115,6 +3115,13 @@ public class EsqlCapabilities {
         PARTITION_DETECTION_ON_READ_PATH,
 
         /**
+         * A concrete (non-glob) Hive or template path binds partition columns on the coordinator
+         * and injects them at read time. Coordinators that predate this skip detection on a single
+         * explicit key, so mixed-cluster schema width disagrees. Gates tests, not production.
+         */
+        PARTITION_DETECTION_ON_A_CONCRETE_FILE,
+
+        /**
          * {@code FROM <dataset>} resolved through the same pipeline as {@code FROM <index>} (Phase 1: dataset-only patterns).
          */
         DATASET_IN_FROM_COMMAND,
@@ -3844,6 +3851,15 @@ public class EsqlCapabilities {
         HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS,
 
         /**
+         * HIGHLIGHT tokenizes each mapped text field with its index analyzer, and each TO_TEXT column with its
+         * declared analyzer. Query leaf analyzers shape only their own query terms, while WITH overrides every field's
+         * values analyzer. When the queried indices disagree on an ON field's analyzer, HIGHLIGHT tokenizes each row
+         * with the analyzer of the index it came from. For rows with no single source index, like those STATS produces,
+         * HIGHLIGHT falls back to {@code standard} and emits a warning.
+         */
+        HIGHLIGHT_MAPPING_ANALYZER,
+
+        /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.
          */
         PROMQL_HISTOGRAM_QUANTILE,
@@ -3960,6 +3976,11 @@ public class EsqlCapabilities {
          * Support for the PromQL {@code limitk()} arbitrary-selection function.
          */
         PROMQL_LIMITK,
+
+        /**
+         * Support for the PromQL {@code limit_ratio()} streaming-sampled fraction function.
+         */
+        PROMQL_LIMIT_RATIO,
 
         /**
          * Support for PromQL {@code histogram_fraction()} on native histograms.

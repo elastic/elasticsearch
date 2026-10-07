@@ -1621,6 +1621,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         buffer.setSplitsTotal(sliceQueue.totalSlices());
         ProducerState state = new ProducerState(sliceQueue, null, null, buffer, driverContext, operatorReader, formatCounters);
         try {
+            // Initial submit is not force-execution: a saturated esql_worker can reject start-of-slice.
+            // Park resumes (executeProducer) are force-execution; T8 covers resume only.
             producerExecutor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
         } catch (Exception e) {
             completionListener.onFailure(e);
@@ -1653,6 +1655,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         ProducerState state = new ProducerState(null, fileList, projectedColumns, buffer, driverContext, operatorReader, formatCounters);
         state.schemaInfo = schemaMap;
         try {
+            // Initial submit is not force-execution. Park resumes are; T8 covers resume only.
             producerExecutor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
         } catch (Exception e) {
             completionListener.onFailure(e);
@@ -1713,6 +1716,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         final AtomicBoolean producerQueued = new AtomicBoolean();
         /** Set when a park/open hop arrives while a continuation is already queued or running. */
         final AtomicBoolean producerDirty = new AtomicBoolean();
+        /** Terminal onResponse/onFailure already fired; skip dirty resubmit. */
+        volatile boolean producerFinished;
 
         ProducerState(
             @Nullable ExternalSliceQueue queue,
@@ -1782,7 +1787,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 if (opened == false) {
                     state.buffer.commitInFlightBytes();
                     snapshotFormatReaderStatus(state);
-                    l.onResponse(null);
+                    completeProducer(state, l);
                     return;
                 }
                 // Unit opened (iterator built, segmentator admitted — not necessarily running yet). Drain
@@ -1791,12 +1796,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     executeProducer(state, l, () -> drainCurrentUnit(state, l));
                 } catch (Exception e) {
                     clearCurrentIterator(state);
-                    l.onFailure(e);
+                    failProducer(state, l, e);
                 }
             }));
         } catch (Exception e) {
             clearCurrentIterator(state);
-            completionListener.onFailure(e);
+            failProducer(state, completionListener, e);
         }
     }
 
@@ -1822,7 +1827,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     snapshotFormatReaderStatus(state);
                     state.buffer.finishInFlightBytes();
                     clearCurrentIterator(state);
-                    completionListener.onResponse(null);
+                    completeProducer(state, completionListener);
                 }
                 case EOF -> {
                     // Finished consuming this unit: capture deltas, count the split as processed,
@@ -1844,7 +1849,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         } catch (Exception e) {
             state.buffer.finishInFlightBytes();
             clearCurrentIterator(state);
-            completionListener.onFailure(e);
+            failProducer(state, completionListener, e);
         }
     }
 
@@ -1968,11 +1973,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 executeProducer(state, completionListener, () -> runProducerLoop(state, completionListener));
             } catch (Exception e) {
                 clearCurrentIterator(state);
-                completionListener.onFailure(e);
+                failProducer(state, completionListener, e);
             }
         }, e -> {
             clearCurrentIterator(state);
-            completionListener.onFailure(e);
+            failProducer(state, completionListener, e);
         }));
         return DrainResult.BLOCKED;
     }
@@ -2004,12 +2009,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     page.releaseBlocks();
                 }
                 clearCurrentIterator(state);
-                completionListener.onFailure(e);
+                failProducer(state, completionListener, e);
             }
         }, e -> {
             page.releaseBlocks();
             clearCurrentIterator(state);
-            completionListener.onFailure(e);
+            failProducer(state, completionListener, e);
         }));
         return DrainResult.BLOCKED;
     }
@@ -2020,6 +2025,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * is at capacity; the CAS prevents stacking forced tasks for the same producer.
      * Wrapping {@code producerExecutor} itself in a lambda would drop that flag;
      * {@link ExternalIoExecutors#preserving} already forwards it.
+     * Dirty resubmit runs only after {@code work.run()} returns without throwing, and only
+     * if the producer has not already completed.
      */
     private void executeProducer(ProducerState state, ActionListener<Void> completionListener, Runnable work) {
         if (state.producerQueued.compareAndSet(false, true) == false) {
@@ -2037,13 +2044,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
             @Override
             protected void doRun() {
-                try {
-                    work.run();
-                } finally {
-                    state.producerQueued.set(false);
-                    if (state.producerDirty.compareAndSet(true, false)) {
-                        executeProducer(state, completionListener, () -> runProducerLoop(state, completionListener));
-                    }
+                work.run();
+                state.producerQueued.set(false);
+                if (state.producerFinished == false && state.producerDirty.compareAndSet(true, false)) {
+                    executeProducer(state, completionListener, () -> runProducerLoop(state, completionListener));
                 }
             }
 
@@ -2053,7 +2057,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 state.producerDirty.set(false);
                 state.buffer.finishInFlightBytes();
                 clearCurrentIterator(state);
-                completionListener.onFailure(e);
+                failProducer(state, completionListener, e);
             }
         };
         try {
@@ -2063,6 +2067,16 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             state.producerDirty.set(false);
             throw e;
         }
+    }
+
+    private static void completeProducer(ProducerState state, ActionListener<Void> listener) {
+        state.producerFinished = true;
+        listener.onResponse(null);
+    }
+
+    private static void failProducer(ProducerState state, ActionListener<Void> listener, Exception e) {
+        state.producerFinished = true;
+        listener.onFailure(e);
     }
 
     private void deliverPage(Page page, ProducerState state) {

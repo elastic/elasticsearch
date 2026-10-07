@@ -116,10 +116,10 @@ import java.util.function.IntConsumer;
  * also be refused when the row group's chunks do not fit. {@link #fillPrefetchQueue} admits
  * unread queued groups under {@link #MAX_QUEUED_PREFETCH_BYTES} and the node-wide
  * {@link ParquetIoWatermark}; {@link #prefetchDepth} is a count wish, not the memory bound.
- * The first group of {@link #prefetchFirstRowGroup} may wait up to
- * {@link ParquetIoWatermark#DEFAULT_ADMIT_WAIT_MS} per coalesced read so the scan
- * cannot stall. Refills from {@link #triggerNextRowGroupPrefetch} are look-ahead and refuse
- * once {@code used + next} would exceed the cap — an empty queue there is the next group, not
+ * A required group (first group, empty queue, Phase 2) uses {@code admitAsync} ({@code GROUP_HOLD})
+ * and parks {@link #waitForReady} until the ticket grants. Look-ahead refill from
+ * {@link #triggerNextRowGroupPrefetch} uses {@code tryAdmit} and refuses once
+ * {@code used + next} would exceed the cap — an empty queue there is the next group, not
  * the current one.
  *
  * <p><b>Trivially-passes guard:</b> when late materialization is enabled and row-group
@@ -1777,7 +1777,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     // held for a possible fallback barrier.
                     prefetch.close();
                 } else if (useTwoPhase) {
-                    if (reticketCurrentGroup(prefetch)) {
+                    if (retryOrFailRequiredGroupMiss(prefetch)) {
                         return false;
                     }
                     // Local / non-async storage still uses breaker-accounted sync I/O.
@@ -1850,7 +1850,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     buildRowRanges = null;
                 }
                 if (syncFallback) {
-                    if (reticketCurrentGroup(prefetch)) {
+                    if (retryOrFailRequiredGroupMiss(prefetch)) {
                         return false;
                     }
                     // Delay the barrier until after the empty-range branch above. An empty
@@ -2529,6 +2529,30 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         initProjectionColumnReaders(state.survivorRowRanges());
     }
 
+    /**
+     * One re-ticket on a transient GET miss for async storage. A second miss fails like Phase 2
+     * instead of joining look-ahead and {@code fetchSync} on {@code esql_worker}. Local disk
+     * still falls through to {@code drainForFallback} + {@code fetchSync}.
+     *
+     * @return {@code true} when a retry GET is in flight (caller must {@code return false} from
+     *         {@code tryAdvance}); {@code false} when the caller should use sync I/O
+     */
+    private boolean retryOrFailRequiredGroupMiss(PendingPrefetchSelection prefetch) {
+        if (reticketCurrentGroup(prefetch)) {
+            return true;
+        }
+        if (prefetch.isTransientMiss() && storageObject != null && storageObject.supportsNativeAsync()) {
+            RuntimeException failure = prefetch.takeTransientFailure();
+            if (failure != null) {
+                throw failure;
+            }
+            throw new ElasticsearchException(
+                "async storage I/O failed for required row group [" + rowGroupOrdinal + "] in [" + fileLocation + "]"
+            );
+        }
+        return false;
+    }
+
     private boolean reticketCurrentGroup(PendingPrefetchSelection prefetch) {
         if (storageObject == null || storageObject.supportsNativeAsync() == false) {
             return false;
@@ -2814,8 +2838,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 }
                 if (isTransientPrefetchFailure(ex instanceof CompletionException || ex instanceof CancellationException ? ex : e)) {
                     RuntimeException asyncFailure = ParquetReadFailures.wrap(ex, failureContext);
-                    logger.debug(() -> Strings.format("%s; falling back to synchronous I/O", failureContext), asyncFailure);
+                    logger.debug(() -> Strings.format("%s; re-ticketing", failureContext), asyncFailure);
                     prefetchFailed();
+                    selection.markTransientMiss(asyncFailure);
                     return selection;
                 }
                 throw ex instanceof RuntimeException re ? re : new CompletionException(ex);
@@ -3985,6 +4010,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         private final ArrayDeque<PendingPrefetch> stagedPrefetches = new ArrayDeque<>();
         private NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks;
         private boolean closed;
+        private RuntimeException transientFailure;
 
         private void stage(PendingPrefetch pendingPrefetch) {
             assert closed == false;
@@ -4002,6 +4028,20 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
         private NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks() {
             return chunks;
+        }
+
+        private void markTransientMiss(RuntimeException failure) {
+            this.transientFailure = failure;
+        }
+
+        private boolean isTransientMiss() {
+            return transientFailure != null;
+        }
+
+        private RuntimeException takeTransientFailure() {
+            RuntimeException failure = transientFailure;
+            transientFailure = null;
+            return failure;
         }
 
         /**

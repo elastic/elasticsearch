@@ -162,11 +162,37 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         byte[] parquet = smallFile();
         FailFirstAsyncStorage storage = new FailFirstAsyncStorage(parquet, asyncIo, new IOException("injected prefetch miss"));
         try (CloseableIterator<Page> iter = open(storage, null)) {
-            assertTrue(iter.hasNext());
+            Page page = null;
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            while (page == null && System.nanoTime() < deadline) {
+                if (iter.waitForReady().isDone()) {
+                    page = iter.tryAdvance();
+                }
+            }
+            assertNotNull("re-ticket GET must complete without joining hasNext/awaitReady", page);
+            page.releaseBlocks();
             assertEquals(1, storage.failures.get());
             assertTrue(storage.successes.get() >= 1);
-            Page page = iter.next();
-            page.releaseBlocks();
+        }
+    }
+
+    public void testSecondPrefetchMissFailsWithoutSyncJoin() throws Exception {
+        byte[] parquet = smallFile();
+        AlwaysFailAsyncStorage storage = new AlwaysFailAsyncStorage(parquet, asyncIo, new IOException("injected persistent miss"));
+        try (CloseableIterator<Page> iter = open(storage, null)) {
+            Exception thrown = null;
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            while (thrown == null && System.nanoTime() < deadline) {
+                if (iter.waitForReady().isDone()) {
+                    try {
+                        iter.tryAdvance();
+                    } catch (RuntimeException e) {
+                        thrown = e;
+                    }
+                }
+            }
+            assertNotNull("second async miss must fail without fetchSync", thrown);
+            assertTrue("first miss plus re-ticket miss", storage.failures.get() >= 2);
         }
     }
 
@@ -502,6 +528,28 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
                     listener.onFailure(e);
                 }
             });
+        }
+    }
+
+    private static final class AlwaysFailAsyncStorage extends ImmediateAsyncStorage {
+        private final Exception failure;
+        private final AtomicInteger failures = new AtomicInteger();
+
+        private AlwaysFailAsyncStorage(byte[] data, ExecutorService asyncIo, Exception failure) {
+            super(data, asyncIo);
+            this.failure = failure;
+        }
+
+        @Override
+        public void readBytesAsync(
+            long position,
+            long length,
+            DirectBufferFactory factory,
+            Executor executor,
+            ActionListener<DirectReadBuffer> listener
+        ) {
+            failures.incrementAndGet();
+            super.asyncIo.execute(() -> listener.onFailure(failure));
         }
     }
 

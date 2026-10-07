@@ -15,7 +15,10 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -3914,21 +3917,21 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     /**
-     * T8: a full {@code esql_worker}-shaped queue still accepts the park resume because the
-     * continuation is {@link org.elasticsearch.common.util.concurrent.AbstractRunnable#isForceExecution()}.
+     * T8: park resume only. Saturate a 1-thread {@link EsThreadPoolExecutor} with queue capacity 0
+     * after the producer has parked; the force-execution resume still runs. Does not claim
+     * start-of-producer liveness — the initial submit is not force-execution.
      */
     public void testForcedResubmitRunsWhenProducerQueueIsFull() throws Exception {
         CountDownLatch allowPage = new CountDownLatch(1);
         ParkingReader reader = new ParkingReader(allowPage);
-        AtomicInteger forceSubmits = new AtomicInteger();
-        ExecutorService inner = Executors.newSingleThreadExecutor(EsExecutors.daemonThreadFactory("test", "force-inner"));
-        Executor producerExec = command -> {
-            if (command instanceof org.elasticsearch.common.util.concurrent.AbstractRunnable abstractRunnable
-                && abstractRunnable.isForceExecution()) {
-                forceSubmits.incrementAndGet();
-            }
-            inner.execute(command);
-        };
+        EsThreadPoolExecutor producerExec = EsExecutors.newFixed(
+            "test-t8",
+            1,
+            0,
+            EsExecutors.daemonThreadFactory("test", "t8"),
+            new ThreadContext(Settings.EMPTY),
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+        );
         ExternalSliceQueue sliceQueue = new ExternalSliceQueue(
             List.of(new FileSplit("test", StoragePath.of("s3://bucket/force.parquet"), 0, 100, "parquet", Map.of(), Map.of()))
         );
@@ -3937,6 +3940,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         doAnswer(inv -> null).when(driverContext).addAsyncAction();
         doAnswer(inv -> null).when(driverContext).removeAsyncAction();
         ExecutorService ioExec = Executors.newSingleThreadExecutor(EsExecutors.daemonThreadFactory("test", "force-io"));
+        CountDownLatch occupied = new CountDownLatch(1);
+        CountDownLatch releaseBlocker = new CountDownLatch(1);
         try {
             AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
                 new StubMultiFileStorageProvider(),
@@ -3956,7 +3961,27 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
             SourceOperator operator = factory.get(driverContext);
             assertBusy(() -> assertTrue(reader.parked.get()), 5, TimeUnit.SECONDS);
+
+            producerExec.execute(new AbstractRunnable() {
+                @Override
+                protected void doRun() throws Exception {
+                    occupied.countDown();
+                    if (releaseBlocker.await(15, TimeUnit.SECONDS) == false) {
+                        throw new AssertionError("blocker not released");
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    occupied.countDown();
+                }
+            });
+            assertTrue("producer thread must be occupied after park", occupied.await(5, TimeUnit.SECONDS));
+
             allowPage.countDown();
+            assertFalse("force resume must wait behind the occupied thread", operator.isFinished());
+
+            releaseBlocker.countDown();
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
             while (operator.isFinished() == false && System.nanoTime() < deadline) {
                 Page p = operator.getOutput();
@@ -3965,14 +3990,14 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 }
             }
             assertTrue(operator.isFinished());
-            assertTrue("park resume must force-execute", forceSubmits.get() > 0);
             operator.close();
         } finally {
             allowPage.countDown();
+            releaseBlocker.countDown();
             ioExec.shutdownNow();
-            inner.shutdownNow();
+            producerExec.shutdownNow();
             assertTrue(ioExec.awaitTermination(5, TimeUnit.SECONDS));
-            assertTrue(inner.awaitTermination(5, TimeUnit.SECONDS));
+            assertTrue(producerExec.awaitTermination(5, TimeUnit.SECONDS));
         }
     }
 

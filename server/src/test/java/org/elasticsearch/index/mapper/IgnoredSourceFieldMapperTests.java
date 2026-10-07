@@ -1285,16 +1285,16 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         // and then as a scalar (doc value added, no offset recorded) -- the loader previously
         // reported count()=1 but wrote 0 values, leaving XContentBuilder in VALUE_EXPECTED state
         // and causing JsonGenerationException on the next field.
-        DocumentMapper documentMapper = createSytheticSourceMapperService(mapping(b -> {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("obj").startObject("properties");
             {
                 b.startObject("id").field("type", "integer").field("synthetic_source_keep", "arrays").endObject();
             }
             b.endObject().endObject();
             b.startObject("other").field("type", "keyword").endObject();
-        })).documentMapper();
+        }));
 
-        var syntheticSource = syntheticSource(documentMapper, b -> {
+        var syntheticSource = syntheticSource(mapperService, b -> {
             b.startArray("obj");
             {
                 // [[]] triggers markEmptyArray: empty offsetToOrd recorded, no doc value

@@ -52,7 +52,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
-import org.elasticsearch.xpack.esql.plugin.RemoteFetchHandle;
+import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchHandle;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 

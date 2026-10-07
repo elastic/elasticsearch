@@ -13,6 +13,7 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
@@ -275,8 +276,8 @@ public class XContentMapValues {
      */
     public static Function<Map<String, Object>, Map<String, Object>> filter(String[] includes, String[] excludes) {
         CharacterRunAutomaton matchAllAutomaton = new CharacterRunAutomaton(Automata.makeAnyString());
-        CharacterRunAutomaton include = compileAutomaton(includes, matchAllAutomaton);
-        CharacterRunAutomaton exclude = compileAutomaton(excludes, new CharacterRunAutomaton(Automata.makeEmpty()));
+        CharacterRunAutomaton include = compileAutomaton(includes, matchAllAutomaton, "include field");
+        CharacterRunAutomaton exclude = compileAutomaton(excludes, new CharacterRunAutomaton(Automata.makeEmpty()), "exclude field");
 
         // NOTE: We cannot use Operations.minus because of the special case that
         // we want all sub properties to match as soon as an object matches
@@ -285,11 +286,23 @@ public class XContentMapValues {
     }
 
     public static CharacterRunAutomaton compileAutomaton(String[] patterns, CharacterRunAutomaton defaultValue) {
+        return compileAutomaton(patterns, defaultValue, "field");
+    }
+
+    public static CharacterRunAutomaton compileAutomaton(String[] patterns, CharacterRunAutomaton defaultValue, String kind) {
         if (patterns == null || patterns.length == 0) {
             return defaultValue;
         }
-        var aut = Regex.simpleMatchToAutomaton(patterns);
-        aut = Operations.determinize(makeMatchDotsInFieldNames(aut), MAX_DETERMINIZED_STATES);
+        // Determinize after appending the tail so this method's limit applies.
+        var aut = Regex.simpleMatchToNonDeterminizedAutomaton(patterns);
+        try {
+            aut = Operations.determinize(makeMatchDotsInFieldNames(aut), MAX_DETERMINIZED_STATES);
+        } catch (TooComplexToDeterminizeException e) {
+            throw new IllegalArgumentException(
+                "[" + patterns.length + "] " + kind + " patterns are too complex to compile into an automaton",
+                e
+            );
+        }
         return new CharacterRunAutomaton(aut);
     }
 

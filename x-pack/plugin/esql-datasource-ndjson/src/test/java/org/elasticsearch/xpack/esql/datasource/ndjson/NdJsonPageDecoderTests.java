@@ -28,7 +28,9 @@ import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.datasources.CountingBreaker;
 import org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorExcerpts;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.hamcrest.Matchers;
@@ -162,6 +164,63 @@ public class NdJsonPageDecoderTests extends ESTestCase {
                 capacityAfter >= 3 * longValue.length()
             );
         }
+    }
+
+    /**
+     * Interior streaming chunks must not warn for a declared column that is merely absent from this
+     * chunk. Gzip/zstd clamp-to-compressed-size fills often decode only the first record of a sparse
+     * overlay; the column appears later.
+     */
+    public void testAbsentDeclaredColumnWarningSkippedWhenNotFileFinal() throws IOException {
+        String ndjson = "{\"id\":1}\n";
+        List<String> warnings = new ArrayList<>();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("id", DataType.LONG), attribute("spin_id", DataType.KEYWORD)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.STRICT,
+                "test://overlay-chunk",
+                new NdJsonReaderCounters(),
+                warnings::add
+            )
+        ) {
+            decoder.setReportAbsentDeclaredColumns(false);
+            try (Page page = decoder.decodePage()) {
+                assertEquals(1, page.getPositionCount());
+            }
+        }
+        assertTrue(warnings.isEmpty());
+    }
+
+    /**
+     * File-final (and whole-file) decoders still warn when a declared column never appears.
+     */
+    public void testAbsentDeclaredColumnWarningFiresWhenFileFinal() throws IOException {
+        String ndjson = "{\"id\":1}\n";
+        List<String> warnings = new ArrayList<>();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("id", DataType.LONG), attribute("spin_id", DataType.KEYWORD)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.STRICT,
+                "test://overlay-file",
+                new NdJsonReaderCounters(),
+                warnings::add
+            )
+        ) {
+            try (Page page = decoder.decodePage()) {
+                assertEquals(1, page.getPositionCount());
+            }
+        }
+        assertEquals(List.of(SkipWarnings.absentDeclaredColumnMessage("spin_id")), warnings);
     }
 
     /**
@@ -1048,8 +1107,8 @@ public class NdJsonPageDecoderTests extends ESTestCase {
 
     /**
      * Under STRICT, every shape of the repeat fails the query: a plain name, a dotted name spelled flat, and a
-     * name repeated inside a nested object. The message names the row and the phase, and carries Jackson's own
-     * "Duplicate field" text. The kind is "Ambiguous" rather than "Malformed" because the JSON parses.
+     * name repeated inside a nested object. The message names the row and the kind, "duplicate field name" rather
+     * than "malformed JSON" because the JSON parses; Jackson's own "Duplicate field" text stays on the cause only.
      */
     public void testRepeatedLiteralKeyIsRejected() {
         assertRepeatedKeyRejectedUnderStrict("{\"b\":1,\"b\":2,\"id\":10}\n", "b", List.of(attribute("b", DataType.LONG)));
@@ -1063,9 +1122,12 @@ public class NdJsonPageDecoderTests extends ESTestCase {
                 assertNull("unreachable: the repeat must fail before a page is returned", page);
             }
         });
-        assertThat(e.getMessage(), Matchers.containsString("Ambiguous NDJSON at logical row [1] (decodeObject)"));
-        assertThat(e.getMessage(), Matchers.containsString("Duplicate field '" + repeatedName + "'"));
-        assertThat(e.getMessage(), Matchers.containsString("set error_mode=skip_row (or null_field)"));
+        assertThat(
+            e.getMessage(),
+            Matchers.containsString("row [1]: duplicate field name; set [error_mode] to [skip_row] to skip the row instead")
+        );
+        assertThat(e.getMessage(), Matchers.not(Matchers.containsString("Duplicate field")));
+        assertThat(e.getCause().getMessage(), Matchers.containsString("Duplicate field '" + repeatedName + "'"));
         assertEquals(RestStatus.BAD_REQUEST, e.status());
     }
 
@@ -1105,8 +1167,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             }
             // SkipWarnings.add() emits a one-time summary header on the first call, then the detail.
             assertEquals(policy + ": one summary + one detail warning", 2, warnings.size());
-            assertThat(warnings.get(1), Matchers.containsString("Ambiguous NDJSON at logical row [2] (decodeObject)"));
-            assertThat(warnings.get(1), Matchers.containsString("Duplicate field 'v'"));
+            assertEquals("row [2]: duplicate field name", warnings.get(1));
             assertEquals(policy + ": the dropped line is charged exactly once", 1L, counters.snapshot().parseErrors());
         }
     }
@@ -1559,12 +1620,21 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         }
     }
 
-    /** Fractional and scientific tokens truncate toward zero, matching ::unsigned_long and the CSV reader. */
-    public void testDeclaredUnsignedLongTruncatesTowardZero() throws IOException {
-        try (Page page = decodeOneColumn("{\"v\":42.9}\n{\"v\":\"1e3\"}\n", DataType.UNSIGNED_LONG, ErrorPolicy.STRICT)) {
+    /**
+     * Exact wholes (including scientific) succeed; a non-whole fraction is refused under STRICT and nulls under
+     * PERMISSIVE — deliberately unlike {@code ::unsigned_long}, which truncates toward zero.
+     */
+    public void testDeclaredUnsignedLongRequiresExactWholeNumber() throws IOException {
+        try (Page page = decodeOneColumn("{\"v\":42.0}\n{\"v\":\"1e3\"}\n", DataType.UNSIGNED_LONG, ErrorPolicy.STRICT)) {
             LongBlock block = page.getBlock(0);
             assertEquals(encoded("42"), block.getLong(0));
             assertEquals(encoded("1000"), block.getLong(1));
+        }
+        expectThrows(Exception.class, () -> decodeOneColumn("{\"v\":42.9}\n", DataType.UNSIGNED_LONG, ErrorPolicy.STRICT).close());
+        try (Page page = decodeOneColumn("{\"v\":42.9}\n{\"v\":5}\n", DataType.UNSIGNED_LONG, ErrorPolicy.PERMISSIVE)) {
+            LongBlock block = page.getBlock(0);
+            assertTrue("non-whole fraction must null the cell", block.isNull(0));
+            assertEquals(encoded("5"), block.getLong(1));
         }
     }
 
@@ -1594,9 +1664,8 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
-     * "1e999999999" makes BigDecimal.toBigInteger() throw ArithmeticException -- not an IllegalArgumentException, so
-     * an unhandled one escapes the per-cell catch and hard-fails the read on every error_mode. It must be an
-     * ordinary out-of-range cell instead.
+     * Exotic exponents must stay ordinary per-cell failures. {@code 1e999999999} is out of range (unmaterializable
+     * whole); never an escaped {@link ArithmeticException}.
      */
     public void testDeclaredUnsignedLongExoticExponentIsAPerCellFailure() throws IOException {
         String ndjson = "{\"v\":\"1e999999999\"}\n{\"v\":1e999999999}\n{\"v\":5}\n";
@@ -1793,6 +1862,61 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         assertThat(warnings.get(1), Matchers.containsString("not_a_number"));
     }
 
+    /**
+     * A multi-megabyte value that does not coerce to its column's type must not reach the client whole: the same
+     * message is the {@code Warning} detail under the lenient modes and the error under {@code fail_fast}. The value
+     * is cut to {@link ErrorExcerpts#MAX_EXCERPT_CHARS}; the frame -- column and target type -- stays.
+     */
+    public void testLongUnparseableValueIsTruncatedInWarningAndException() throws IOException {
+        int length = 2_000_000;
+        String big = "Z".repeat(length);
+        // The frame around the value is well under 64 chars; the fail-fast hint and ParsingException's
+        // position prefix add under 96 more. A value embedded twice, or whole, overshoots either bound.
+        int warningBound = ErrorExcerpts.MAX_EXCERPT_CHARS + 64;
+        int exceptionBound = warningBound + 96;
+        for (String bad : List.of("\"" + big + "\"", "[1,\"" + big + "\"]")) {
+            String ndjson = "{\"id\":1,\"v\":\"a\"}\n{\"id\":" + bad + ",\"v\":\"b\"}\n";
+            for (ErrorPolicy lenient : List.of(ErrorPolicy.PERMISSIVE, ErrorPolicy.LENIENT)) {
+                List<String> warnings = new ArrayList<>();
+                try (Page page = decodeIdAndV(ndjson, lenient, warnings)) {
+                    assertNotNull(page);
+                }
+                String detail = warnings.stream().filter(w -> w.contains("cannot read [")).findFirst().orElseThrow();
+                assertThat("warning carried the whole value", detail.length(), Matchers.lessThan(warningBound));
+                assertThat(detail, Matchers.containsString("column [id]"));
+                assertThat(detail, Matchers.containsString("] as [long]"));
+                assertThat(detail, Matchers.containsString("(truncated, " + length + " chars total)"));
+            }
+
+            ParsingException e = expectThrows(ParsingException.class, () -> decodeIdAndV(ndjson, ErrorPolicy.STRICT, new ArrayList<>()));
+            String message = e.getMessage();
+            assertThat("exception carried the whole value", message.length(), Matchers.lessThan(exceptionBound));
+            assertThat(message, Matchers.containsString("column [id]: cannot read ["));
+            assertThat(message, Matchers.containsString("] as [long]"));
+            assertThat(message, Matchers.containsString("(truncated, " + length + " chars total)"));
+            assertThat(message, Matchers.containsString("set [error_mode] to [null_field]"));
+        }
+    }
+
+    private Page decodeIdAndV(String ndjson, ErrorPolicy policy, List<String> warnings) throws IOException {
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("id", DataType.LONG), attribute("v", DataType.KEYWORD)),
+                null,
+                10,
+                blockFactory,
+                policy,
+                "test://long-bad-value",
+                new NdJsonReaderCounters(),
+                warnings::add
+            )
+        ) {
+            return decoder.decodePage();
+        }
+    }
+
     // ---------------------------------------------------------------------------------------------
     // StreamReadConstraints violations. Jackson enforces its read limits in the TOKEN SCANNER, so
     // these never reach a decode arm or the per-cell coercionFailure sink — they belong to the
@@ -1818,17 +1942,18 @@ public class NdJsonPageDecoderTests extends ESTestCase {
 
     /**
      * fail_fast: an oversized number token aborts the read through the whole-line contract every other
-     * whole-line failure uses, carrying Jackson's own limit text. Without the constraint arm the raw
+     * whole-line failure uses, with Jackson's own limit text on the cause only. Without the constraint arm the raw
      * {@code StreamConstraintsException} escapes {@code decodePage} and is typed by
      * {@code ExternalFailures.surface}, leaving {@code error_mode} no say on any mode. The
-     * {@code Over-limit} label distinguishes a record that is well-formed but past a parser limit from
+     * {@code JSON over a parser limit} kind distinguishes a record that is well-formed but past a parser limit from
      * one that is genuinely malformed.
      */
     public void testOversizedNumberTokenFailsFastUnderStrict() {
         String ndjson = "{\"v\":1}\n" + oversizedNumberRecord() + "\n{\"v\":3}\n";
         ParsingException e = expectThrows(ParsingException.class, () -> decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.STRICT));
-        assertThat(e.getMessage(), Matchers.containsString("Over-limit NDJSON"));
-        assertThat(e.getMessage(), Matchers.containsString("Number value length"));
+        assertThat(e.getMessage(), Matchers.containsString("row [2]: JSON over a parser limit"));
+        assertThat(e.getMessage(), Matchers.not(Matchers.containsString("Number value length")));
+        assertThat(e.getCause().getMessage(), Matchers.containsString("Number value length"));
     }
 
     /** null_field: the offending line is dropped (not null-filled) and both good lines survive. */
@@ -1858,8 +1983,9 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     public void testExcessiveNestingFailsFastUnderStrict() {
         String ndjson = "{\"v\":1}\n" + excessiveNestingRecord() + "\n";
         ParsingException e = expectThrows(ParsingException.class, () -> decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.STRICT));
-        assertThat(e.getMessage(), Matchers.containsString("Over-limit NDJSON"));
-        assertThat(e.getMessage(), Matchers.containsString("Document nesting depth"));
+        assertThat(e.getMessage(), Matchers.containsString("row [2]: JSON over a parser limit"));
+        assertThat(e.getMessage(), Matchers.not(Matchers.containsString("Document nesting depth")));
+        assertThat(e.getCause().getMessage(), Matchers.containsString("Document nesting depth"));
     }
 
     /**
@@ -1997,7 +2123,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             assertEquals(1L, block.getLong(0));
             assertEquals(3L, block.getLong(1));
         }
-        assertThat(warnings.get(1), Matchers.containsString("Number value length"));
+        assertEquals("row [2]: JSON over a parser limit", warnings.get(1));
     }
 
     /**
@@ -2025,7 +2151,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         String ndjson = "{\"v\":1}\n" + oversizedNumberRecord() + "\n{\"v\":3}\n";
         ErrorPolicy noBudget = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 0, 0.0, false);
         ParsingException e = expectThrows(ParsingException.class, () -> decodeOneColumn(ndjson, DataType.LONG, noBudget));
-        assertThat(e.getMessage(), Matchers.containsString("NDJSON error budget exceeded"));
+        assertThat(e.getMessage(), Matchers.containsString("[1] errors in [2] rows of [test://ul]; over [max_errors] of [0]"));
     }
 
     /**
@@ -2064,14 +2190,14 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * The fail-fast loop guards two call sites: the {@code nextToken} that opens a record, and {@code
      * decodeObject}. Every other strict test here lands on the second. A bare oversized token on its own line —
      * no enclosing object — is scanned by the record-opening {@code nextToken}, so this is the only test that
-     * exercises the first. The {@code [nextToken]} phase label in the message is what proves which site ran; a
-     * violation routed through {@code decodeObject} would read {@code [decodeObject]} instead.
+     * exercises the first. The message no longer names the phase, so this pins the row it reports and the
+     * whole-line kind, and that the throw comes through the strict whole-line contract at all.
      */
     public void testConstraintViolationOnRecordOpeningTokenFailsFastUnderStrict() {
         String ndjson = "{\"v\":1}\n" + "1".repeat(1200) + "\n";
         ParsingException e = expectThrows(ParsingException.class, () -> decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.STRICT));
-        assertThat(e.getMessage(), Matchers.containsString("Over-limit NDJSON at logical row [2] (nextToken)"));
-        assertThat(e.getMessage(), Matchers.containsString("Number value length"));
+        assertThat(e.getMessage(), Matchers.containsString("row [2]: JSON over a parser limit; set [error_mode] to [skip_row]"));
+        assertThat(e.getCause().getMessage(), Matchers.containsString("Number value length"));
         assertEquals(RestStatus.BAD_REQUEST, e.status());
     }
 
@@ -2630,18 +2756,11 @@ public class NdJsonPageDecoderTests extends ESTestCase {
 
     /**
      * Shared body for the non-strict cases: one good line, the offending line, one good line. The offending
-     * line is dropped, both good lines decode, and the client sees SkipWarnings' summary plus a detail
-     * carrying Jackson's own limit text (the same passthrough {@code CsvFormatReader} does for its own
-     * constraint violation).
+     * line is dropped, both good lines decode, and the client sees SkipWarnings' summary plus a detail naming
+     * the row and the kind only. {@code jacksonLimitText} is the name of the limit in Jackson's own message,
+     * which names Jackson's classes and so must not reach the client.
      */
-    /**
-     * {@code expectedDetail} names the limit but deliberately omits the numbers Jackson interpolates into its
-     * message. Jackson formats them with the default locale, so under a locale with non-Western digits (the
-     * randomized runner picks one often enough — {@code -Dtests.locale=fa-IR} reproduces it) "1200" arrives as
-     * "\u06F1\u06F2\u06F0\u06F0" and a digit-bearing assertion fails for no real reason. The limit name alone still proves the
-     * passthrough this is checking.
-     */
-    private void assertConstraintViolationDropsLine(String badRecord, ErrorPolicy policy, String expectedDetail) throws IOException {
+    private void assertConstraintViolationDropsLine(String badRecord, ErrorPolicy policy, String jacksonLimitText) throws IOException {
         String ndjson = "{\"v\":1}\n" + badRecord + "\n{\"v\":3}\n";
         List<String> warnings = new ArrayList<>();
         NdJsonReaderCounters counters = new NdJsonReaderCounters();
@@ -2670,8 +2789,8 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         }
         // SkipWarnings.add() emits a one-time summary header on the first call, then the detail.
         assertEquals("one summary + one detail warning for the dropped line", 2, warnings.size());
-        assertThat(warnings.get(1), Matchers.containsString("Over-limit NDJSON"));
-        assertThat(warnings.get(1), Matchers.containsString(expectedDetail));
+        assertEquals("row [2]: JSON over a parser limit", warnings.get(1));
+        assertThat(warnings.get(1), Matchers.not(Matchers.containsString(jacksonLimitText)));
         assertEquals("the dropped line is charged exactly once", 1L, counters.snapshot().parseErrors());
     }
 

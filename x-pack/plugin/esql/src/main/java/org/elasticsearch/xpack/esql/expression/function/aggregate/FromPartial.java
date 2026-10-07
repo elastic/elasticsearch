@@ -161,9 +161,8 @@ public class FromPartial extends AggregateFunction implements ToAggregator {
                 return new Aggregator.Factory() {
                     @Override
                     public Aggregator apply(DriverContext driverContext) {
-                        // use groupingAggregator since we can receive intermediate output from a grouping aggregate
-                        final var groupingAggregator = supplier.groupingAggregator(driverContext, intermediateChannels);
-                        return new Aggregator(new FromPartialAggregatorFunction(driverContext, groupingAggregator, inputChannel), mode);
+                        final AggregatorFunction aggregator = supplier.aggregator(driverContext, intermediateChannels);
+                        return new Aggregator(new FromPartialAggregatorFunction(aggregator, inputChannel), mode);
                     }
 
                     @Override

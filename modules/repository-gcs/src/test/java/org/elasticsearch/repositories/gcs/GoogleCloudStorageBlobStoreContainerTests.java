@@ -165,11 +165,10 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
                     .writeBlobAtomic(randomPurpose(), blobName, blobSize, provider, false, Runnable::run)
             );
 
-            if (stage == 0 || stage == 2) {
-                assertEquals("Concurrent multipart operation failed", e.getMessage());
-            }
-            if (stage == 2) {
-                assertSame(providerException, e.getCause());
+            if (stage == 0) {
+                assertEquals("upload part failed", e.getMessage());
+            } else if (stage == 2) {
+                assertSame(providerException, e);
             }
 
             verify(meteredStorage, times(1)).meteredCreateMultipartUpload(any(), any());

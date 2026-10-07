@@ -53,7 +53,7 @@ import org.elasticsearch.xpack.stateless.cache.reader.ObjectStoreCacheBlobReader
 import org.elasticsearch.xpack.stateless.cache.reader.ObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.cache.reader.SwitchingCacheBlobReader;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.junit.After;
 import org.junit.Before;
@@ -80,10 +80,12 @@ import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomChecksumBytes;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.pageAligned;
+import static org.elasticsearch.xpack.stateless.TestUtils.NOOP_TIME_PROVIDER;
 import static org.elasticsearch.xpack.stateless.TestUtils.newCacheService;
 import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.createBlobFileRanges;
 import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheFile;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -181,7 +183,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
 
                 @Override
                 public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
-                    if (blobName.contains(StatelessCompoundCommit.PREFIX)) {
+                    if (blobName.contains(BatchedCompoundCommit.PREFIX)) {
                         assert ThreadPool.assertCurrentThreadPool(StatelessPlugin.SHARD_READ_THREAD_POOL);
                     }
                     return super.readBlob(purpose, blobName);
@@ -189,7 +191,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
 
                 @Override
                 public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
-                    if (blobName.contains(StatelessCompoundCommit.PREFIX)) {
+                    if (blobName.contains(BatchedCompoundCommit.PREFIX)) {
                         assert ThreadPool.assertCurrentThreadPool(StatelessPlugin.SHARD_READ_THREAD_POOL);
                     }
                     return super.readBlob(purpose, blobName, position, length);
@@ -466,7 +468,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
             final long primaryTerm = randomNonNegativeLong();
             final long generation = randomNonNegativeLong();
-            final String blobName = StatelessCompoundCommit.blobNameFromGeneration(generation);
+            final String blobName = BatchedCompoundCommit.blobNameFromGeneration(generation);
             // Create a blob with data span from 2 to 4 regions
             final int numberRegions = between(2, 4);
             final byte[] data = randomByteArrayOfLength(numberRegions * (int) regionSize.getBytes());
@@ -1099,7 +1101,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                     new FileCacheKey(shardId, primaryTerm, fileName),
                     input.length,
                     SharedBlobCacheService.CacheMissHandler.NOOP,
-                    randomRegionTimestampMillis()
+                    System.currentTimeMillis() - TimeUnit.HOURS.toMillis(2)
                 )
             );
             doThrow(new AlreadyClosedException("evicted")).doCallRealMethod()
@@ -1155,6 +1157,17 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                 .mapToLong(Measurement::getLong)
                 .sum(),
             equalTo(expectedBypasses)
+        );
+        // Bypass never records ages; cache-path reads/misses on this timestamped file do.
+        final int expectedReadAgeSamples = expectedBypasses > 0 ? 0 : (int) expectedReads;
+        final int expectedMissAgeSamples = expectedBypasses > 0 ? 0 : (int) expectedMisses;
+        assertThat(
+            recordingMeterRegistry.getRecorder().getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, BlobCacheMetrics.BLOB_CACHE_READ_AGE),
+            hasSize(expectedReadAgeSamples)
+        );
+        assertThat(
+            recordingMeterRegistry.getRecorder().getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, BlobCacheMetrics.BLOB_CACHE_MISS_AGE),
+            hasSize(expectedMissAgeSamples)
         );
     }
 
@@ -1510,7 +1523,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         );
 
         final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        final BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+        final BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER);
         final CacheFileReader cacheFileReader = new CacheFileReader(
             cacheFile,
             cacheBlobReader,
@@ -1571,7 +1584,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         }).when(cacheFile).populate(any(), any(), any(), any(), anyString(), any(ActionListener.class));
 
         final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        final BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+        final BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER);
         final CacheFileReader cacheFileReader = new CacheFileReader(
             cacheFile,
             cacheBlobReader,
@@ -1621,7 +1634,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         }).when(cacheFile).populate(any(), any(), any(), any(), anyString(), any(ActionListener.class));
 
         final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        final BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+        final BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER);
         final CacheFileReader cacheFileReader = new CacheFileReader(
             cacheFile,
             cacheBlobReader,
@@ -1661,7 +1674,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         when(cacheFile.getLength()).thenReturn(fileLength);
 
         final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        final BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+        final BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER);
         final CacheFileReader cacheFileReader = new CacheFileReader(
             cacheFile,
             cacheBlobReader,

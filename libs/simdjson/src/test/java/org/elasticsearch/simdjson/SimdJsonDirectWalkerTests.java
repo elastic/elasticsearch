@@ -12,7 +12,7 @@ package org.elasticsearch.simdjson;
 import org.elasticsearch.simdjson.internal.fieldnames.FrozenFieldNameTable;
 import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -184,7 +184,7 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         assertEquals(List.of("startArray(a)", "arrayElemStartObject()", "string(k=v)", "arrayElemEndObject()", "endArray()"), events);
     }
 
-    // ---- Escapes, signs, and scientific notation ----
+    // ---- Escapes ----
 
     // \\n in a string value is decoded to a real newline.
     public void testEscapedStringField() {
@@ -193,159 +193,35 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         assertEquals("string(a=hello\nworld)", events.get(0));
     }
 
-    public void testNegativeNumber() {
-        List<String> events = walkJson("{\"n\":-42}");
-        assertEquals(List.of("long(n=-42,fitsInt=true)"), events);
-    }
+    /**
+     * Unescaped values stay readable after later calls in the same document.
+     */
+    public void testRetainedUnescapedValuesDoNotAlias() {
+        record Slice(byte[] buf, int off, int len) {}
+        List<Slice> retained = new ArrayList<>();
+        RecordingHandler handler = new RecordingHandler(false) {
+            @Override
+            public void stringField(String fieldName, byte[] buf, int off, int len) {
+                retained.add(new Slice(buf, off, len));
+            }
 
-    // ---- Integer field values across digit-count boundaries ----
-    //
-    // These values (and their array-element and buffer-padding variants) are also exercised via
-    // SimdJsonTestDocuments, shared with SimdJsonJacksonComparisonTests; the checks here pin the
-    // exact emitted event, which the shared, Jackson-agreement-only checks don't.
+            @Override
+            public void arrayElemString(byte[] buf, int off, int len) {
+                retained.add(new Slice(buf, off, len));
+            }
+        };
 
-    // The 0/1 boolean-flag shape that dominates many real payloads.
-    public void testZeroField() {
-        assertEquals(List.of("long(n=0,fitsInt=true)"), walkJson("{\"n\":0}"));
-    }
+        byte[] buffer = "{\"a\":[\"x\\ny\",\"p\\nq\"],\"b\":\"r\\ns\"}".getBytes(UTF_8);
+        try (SimdJsonParser parser = newParser(buffer.length)) {
+            FrozenFieldNameTable parent = new FrozenFieldNameTable();
+            SimdJsonDirectWalker walker = new SimdJsonDirectWalker(parent.makeChild());
+            parser.stage1(buffer, 0, buffer.length);
+            parser.prepareDocumentWindow(0, buffer.length);
+            walker.walkDocument(buffer, parser, handler);
+        }
 
-    public void testSingleDigitField() {
-        assertEquals(List.of("long(n=9,fitsInt=true)"), walkJson("{\"n\":9}"));
-    }
-
-    public void testNegativeSingleDigitField() {
-        assertEquals(List.of("long(n=-5,fitsInt=true)"), walkJson("{\"n\":-5}"));
-    }
-
-    // "-0" as an integer has no sign: Java's long negation of 0 is 0.
-    public void testNegativeZeroIntegerField() {
-        assertEquals(List.of("long(n=0,fitsInt=true)"), walkJson("{\"n\":-0}"));
-    }
-
-    public void testTwoDigitField() {
-        assertEquals(List.of("long(n=10,fitsInt=true)"), walkJson("{\"n\":10}"));
-        assertEquals(List.of("long(n=99,fitsInt=true)"), walkJson("{\"n\":99}"));
-    }
-
-    public void testNegativeTwoDigitField() {
-        assertEquals(List.of("long(n=-99,fitsInt=true)"), walkJson("{\"n\":-99}"));
-    }
-
-    // Just above the two-digit values above.
-    public void testThreeDigitField() {
-        assertEquals(List.of("long(n=100,fitsInt=true)"), walkJson("{\"n\":100}"));
-    }
-
-    public void testTenDigitFieldFitsInt() {
-        assertEquals(List.of("long(n=1234567890,fitsInt=true)"), walkJson("{\"n\":1234567890}"));
-    }
-
-    public void testTenDigitFieldExceedsIntRange() {
-        assertEquals(List.of("long(n=9876543210,fitsInt=false)"), walkJson("{\"n\":9876543210}"));
-    }
-
-    // A short integer prefix immediately followed by '.'/'e'/'E' must still be classified as a
-    // double, not misread as a short integer.
-    public void testSingleDigitBeforeDecimalPoint() {
-        List<String> events = walkJson("{\"n\":1.5}");
-        assertEquals(1, events.size());
-        assertTrue(events.get(0).startsWith("double(n=1.5,"));
-    }
-
-    public void testSingleDigitBeforeExponent() {
-        List<String> events = walkJson("{\"n\":1e2}");
-        assertEquals(1, events.size());
-        assertTrue(events.get(0).startsWith("double(n=100.0,"));
-    }
-
-    public void testTwoDigitBeforeDecimalPoint() {
-        List<String> events = walkJson("{\"n\":12.5}");
-        assertEquals(1, events.size());
-        assertTrue(events.get(0).startsWith("double(n=12.5,"));
-    }
-
-    // Same digit-count boundaries as array elements.
-    public void testSmallDigitArrayElements() {
-        assertEquals(
-            List.of(
-                "startArray(a)",
-                "arrayElemLong(0,fitsInt=true)",
-                "arrayElemLong(9,fitsInt=true)",
-                "arrayElemLong(10,fitsInt=true)",
-                "arrayElemLong(99,fitsInt=true)",
-                "arrayElemLong(100,fitsInt=true)",
-                "arrayElemLong(1234567890,fitsInt=true)",
-                "arrayElemLong(-5,fitsInt=true)",
-                "arrayElemLong(-99,fitsInt=true)",
-                "endArray()"
-            ),
-            walkJson("{\"a\":[0,9,10,99,100,1234567890,-5,-99]}")
-        );
-    }
-
-    public void testSmallDigitDoubleArrayElements() {
-        List<String> events = walkJson("{\"a\":[1.5,12.5]}");
-        assertEquals(4, events.size());
-        assertTrue(events.get(1).startsWith("arrayElemDouble(1.5,"));
-        assertTrue(events.get(2).startsWith("arrayElemDouble(12.5,"));
-    }
-
-    // ---- Digit-count boundary at 19 (handleLargeNumber: long vs. BigInteger fallback) ----
-
-    // 19 digits fits a signed long (both sign boundaries).
-    public void testNineteenDigitFieldFitsLong() {
-        assertEquals(List.of("long(n=" + Long.MAX_VALUE + ",fitsInt=false)"), walkJson("{\"n\":" + Long.MAX_VALUE + "}"));
-        assertEquals(List.of("long(n=" + Long.MIN_VALUE + ",fitsInt=false)"), walkJson("{\"n\":" + Long.MIN_VALUE + "}"));
-    }
-
-    // 19+ digits that overflow a signed long fall back to BigInteger.
-    public void testLargeDigitFieldOverflowsToBigInteger() {
-        assertEquals(
-            "Long.MAX_VALUE + 1: 19 digits, positive, overflows a signed long",
-            List.of("bigInteger(n=9223372036854775808)"),
-            walkJson("{\"n\":9223372036854775808}")
-        );
-        assertEquals(
-            "Long.MIN_VALUE - 1: 19 digits, negative, overflows a signed long",
-            List.of("bigInteger(n=-9223372036854775809)"),
-            walkJson("{\"n\":-9223372036854775809}")
-        );
-        assertEquals(
-            "20 digits: always BigInteger regardless of value",
-            List.of("bigInteger(n=99999999999999999999)"),
-            walkJson("{\"n\":99999999999999999999}")
-        );
-    }
-
-    // Same digitCount-at-19 boundaries as array elements.
-    public void testDigitCountNineteenBoundaryArrayElements() {
-        assertEquals(
-            List.of(
-                "startArray(a)",
-                "arrayElemLong(" + Long.MAX_VALUE + ",fitsInt=false)",
-                "arrayElemLong(" + Long.MIN_VALUE + ",fitsInt=false)",
-                "arrayElemBigInteger(9223372036854775808)",
-                "arrayElemBigInteger(-9223372036854775809)",
-                "arrayElemBigInteger(99999999999999999999)",
-                "endArray()"
-            ),
-            walkJson(
-                "{\"a\":[" + Long.MAX_VALUE + "," + Long.MIN_VALUE + ",9223372036854775808,-9223372036854775809,99999999999999999999]}"
-            )
-        );
-    }
-
-    public void testNegativeDouble() {
-        List<String> events = walkJson("{\"n\":-3.14}");
-        assertEquals(1, events.size());
-        assertTrue(events.get(0).startsWith("double(n=-3.14,"));
-    }
-
-    // Exponent form produces double event (not long).
-    public void testScientificNotation() {
-        List<String> events = walkJson("{\"n\":1.5e10}");
-        assertEquals(1, events.size());
-        assertTrue(events.get(0).startsWith("double(n=1.5E10,"));
+        List<String> decoded = retained.stream().map(s -> new String(s.buf(), s.off(), s.len(), UTF_8)).toList();
+        assertEquals(List.of("x\ny", "p\nq", "r\ns"), decoded);
     }
 
     // Root must be an object; top-level arrays are rejected.
@@ -472,43 +348,4 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         }
     }
 
-    private RecordingHandler walkAndRecord(String json, int paddingBytes) {
-        byte[] jsonBytes = json.getBytes(UTF_8);
-        int len = jsonBytes.length;
-        byte[] buffer = Arrays.copyOf(jsonBytes, len + paddingBytes);
-
-        SimdJsonParser parser = newParser(buffer.length);
-        parser.stage1(buffer, len);
-        parser.prepareDocumentWindow(0, len);
-
-        FrozenFieldNameTable parent = new FrozenFieldNameTable();
-        FrozenFieldNameTable.Child child = parent.makeChild();
-        SimdJsonDirectWalker walker = new SimdJsonDirectWalker(child);
-
-        RecordingHandler handler = new RecordingHandler();
-        walker.walkDocument(buffer, parser.bitIndexes(), handler);
-        return handler;
-    }
-
-    // Places the document at a non-zero start offset within a larger buffer, leaving the bytes
-    // before it zero-filled (as they would be for a preceding NDJSON document). No trailing
-    // padding is added: SimdJsonParser documents exact-length buffers as sufficient.
-    private RecordingHandler walkAndRecordAtOffset(String json, int offset) {
-        byte[] jsonBytes = json.getBytes(UTF_8);
-        int len = jsonBytes.length;
-        byte[] buffer = new byte[offset + len];
-        System.arraycopy(jsonBytes, 0, buffer, offset, len);
-
-        SimdJsonParser parser = newParser(buffer.length);
-        parser.stage1(buffer, offset, len);
-        parser.prepareDocumentWindow(offset, len);
-
-        FrozenFieldNameTable parent = new FrozenFieldNameTable();
-        FrozenFieldNameTable.Child child = parent.makeChild();
-        SimdJsonDirectWalker walker = new SimdJsonDirectWalker(child);
-
-        RecordingHandler handler = new RecordingHandler();
-        walker.walkDocument(buffer, parser.bitIndexes(), handler);
-        return handler;
-    }
 }

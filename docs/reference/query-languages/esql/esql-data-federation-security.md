@@ -51,6 +51,7 @@ Dataset operations are authorized by the standard {{es}} [index privileges](../.
 | Read a data source definition | `global.data_source` `read_metadata` / `cluster.manage` | Global (fine-grained) / Cluster |
 | Delete a data source | `global.data_source` `delete` / `cluster.manage` | Global (fine-grained) / Cluster |
 | Reference a data source from a dataset | `global.data_source` `read` / `cluster.manage` | Global (fine-grained) / Cluster |
+| Test a data source connection | `cluster.manage` | Cluster |
 | All data source operations | `global.data_source` `manage` / `cluster.manage` | Global (fine-grained) / Cluster |
 
 Creating a dataset that references a data source also requires the `read` data source privilege for that data source. The two are authorized independently.

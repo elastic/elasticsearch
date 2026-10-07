@@ -23,9 +23,7 @@ dependencies {
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'simdjson'
   }
-  testImplementation(testFixtures(project(':libs:simdvec'))) {
-    exclude group: 'org.elasticsearch', module: 'simdjson'
-  }
+  testImplementation project(':libs:foreign-library:testing')
 
   // SimdJsonParserBenchmark measures simdjson through the EscfEncoder pipeline, so the benchmark
   // source set needs :server for the escf, sourcebatch and bytes classes.
@@ -86,14 +84,15 @@ nativeLibraryBuild {
   modeEnvironmentVariable = 'SIMDJSON_NATIVE_BUILD'
   sourceDir = layout.projectDirectory.dir('native')
   sources = ['src/**', 'Makefile']
-  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:6'
+  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:8'
   forwardedEnvironment = ['CLANG_CXX']
 
   dockerCommand = ['make', 'all']
   collect = [
-    'build/libs/simdjson/shared/aarch64/libsimdjson.dylib': 'darwin-aarch64/libsimdjson.dylib',
-    'build/libs/simdjson/shared/aarch64/libsimdjson.so'   : 'linux-aarch64/libsimdjson.so',
-    'build/libs/simdjson/shared/amd64/libsimdjson.so'     : 'linux-x64/libsimdjson.so',
+    'build/libs/simdjson/shared/aarch64/libsimdjson.dylib' : 'darwin-aarch64/libsimdjson.dylib',
+    'build/libs/simdjson/shared/aarch64/libsimdjson.so'    : 'linux-aarch64/libsimdjson.so',
+    'build/libs/simdjson/shared/amd64/libsimdjson.so'      : 'linux-x64/libsimdjson.so',
+    'build/libs/simdjson/shared/windows-x64/simdjson.dll'  : 'windows-x64/simdjson.dll',
   ]
 
   hostCommand { outputDir -> ['make', 'local-install', "DEST=${outputDir.asFile}"] }

@@ -24,9 +24,7 @@ dependencies {
   implementation project(':libs:logging')
   implementation "org.apache.lucene:lucene-core:${versions.lucene}"
 
-  // PosixGuardPageAllocator (test fixture) reaches into PosixCLibrary from libs:native.
-  testFixturesImplementation project(':libs:native')
-
+  testImplementation project(':libs:foreign-library:testing')
   testImplementation(testArtifact(project(':x-pack:plugin:searchable-snapshots')))
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'native'
@@ -116,14 +114,15 @@ nativeLibraryBuild {
   modeEnvironmentVariable = 'VEC_NATIVE_BUILD'
   sourceDir = layout.projectDirectory.dir('native')
   sources = ['src/vec/**', 'Makefile']
-  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:6'
+  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:8'
   forwardedEnvironment = ['CLANG_CXX']
 
   dockerCommand = ['make', 'all']
   collect = [
-    'build/libs/vec/shared/aarch64/libvec.dylib': 'darwin-aarch64/libvec.dylib',
-    'build/libs/vec/shared/aarch64/libvec.so'   : 'linux-aarch64/libvec.so',
-    'build/libs/vec/shared/amd64/libvec.so'     : 'linux-x64/libvec.so',
+    'build/libs/vec/shared/aarch64/libvec.dylib' : 'darwin-aarch64/libvec.dylib',
+    'build/libs/vec/shared/aarch64/libvec.so'    : 'linux-aarch64/libvec.so',
+    'build/libs/vec/shared/amd64/libvec.so'      : 'linux-x64/libvec.so',
+    'build/libs/vec/shared/windows-x64/vec.dll'  : 'windows-x64/vec.dll',
   ]
 
   hostCommand { outputDir -> ['make', 'local-install', "DEST=${outputDir.asFile}"] }

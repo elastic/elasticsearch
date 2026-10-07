@@ -21,13 +21,14 @@ import java.io.IOException;
 
 /**
  * Virtual column for external data sources (file metadata, partition columns).
- * Behaves like a regular column for resolution and filtering but is excluded
- * from wildcard ({@code *}) expansion — users must name it explicitly.
+ * Behaves like a regular column for resolution, filtering, and wildcard
+ * ({@code *}) expansion. Binding on {@code FROM <dataset>} still requires the
+ * name in a {@code METADATA} clause.
  * <p>
  * Mirrors {@link MetadataAttribute}'s shape but extends {@link TypedAttribute}
  * directly because {@code MetadataAttribute} is {@code final}. Implements the
  * {@link VirtualAttribute} marker so format-level pushdown rules (filter and aggregate)
- * reject it - values are materialized by {@code VirtualColumnIterator} on the
+ * reject it: values are materialized by {@code VirtualColumnIterator} on the
  * producer thread and have no presence in the underlying file's schema.
  */
 public class ExternalMetadataAttribute extends TypedAttribute implements VirtualAttribute {

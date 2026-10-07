@@ -28,13 +28,21 @@ public class SecurityFeatures implements FeatureSpecification {
      */
     public static final NodeFeature USER_MANAGED_SERVICE_ACCOUNTS = new NodeFeature("user_managed_service_accounts");
 
+    /**
+     * Gates recording who created or last changed a user-managed service account and when. The security index
+     * mapping is strict and gains the fields only once every node is on a version that declares them, so a write
+     * that carried them earlier would be rejected.
+     */
+    public static final NodeFeature USER_MANAGED_SERVICE_ACCOUNT_ATTRIBUTION = new NodeFeature("user_managed_service_account_attribution");
+
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(
             QUERYABLE_BUILT_IN_ROLES_FEATURE,
             CERTIFICATE_IDENTITY_FIELD_FEATURE,
             SECURITY_STATS_ENDPOINT,
-            USER_MANAGED_SERVICE_ACCOUNTS
+            USER_MANAGED_SERVICE_ACCOUNTS,
+            USER_MANAGED_SERVICE_ACCOUNT_ATTRIBUTION
         );
     }
 }

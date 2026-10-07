@@ -9,6 +9,7 @@
 
 package org.elasticsearch.painless.phase;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.painless.AllocationMetrics;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.PainlessError;
@@ -371,6 +372,9 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
      * }
      *
      */
+    @SuppressForbidden(
+        reason = "injectSandboxExceptions generates IR catch nodes for StackOverflowError to sandbox it within Painless scripts"
+    )
     protected static void injectSandboxExceptions(FunctionNode irFunctionNode) {
         try {
             Location internalLocation = new Location("$internal$ScriptInjectionPhase$injectSandboxExceptions", 0);

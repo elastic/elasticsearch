@@ -212,11 +212,14 @@ public class ServiceAccountService {
      * Creates the account, or replaces an existing one of the same name wholesale. Creating an account of a name that
      * still has leftover tokens is refused: those tokens would otherwise start authenticating again. Replacing an
      * account that is already present is allowed even when tokens exist, because those tokens already belong to it.
+     * The write is attributed to the effective subject of {@code authentication}.
      */
     public void putUserManagedAccount(
         ServiceAccountId accountId,
         List<String> roles,
         boolean enabled,
+        @Nullable String description,
+        Authentication authentication,
         WriteRequest.RefreshPolicy refreshPolicy,
         ActionListener<UserManagedServiceAccountStore.PutResult> listener
     ) {
@@ -226,7 +229,7 @@ public class ServiceAccountService {
         }
         userManagedServiceAccountStore.getByPrincipal(accountId.asPrincipal(), listener.delegateFailureAndWrap((delegate, account) -> {
             if (account != null) {
-                userManagedServiceAccountStore.putAccount(accountId, roles, enabled, refreshPolicy, delegate);
+                userManagedServiceAccountStore.putAccount(accountId, roles, enabled, description, authentication, refreshPolicy, delegate);
                 return;
             }
             indexServiceAccountTokenStore.hasTokensFor(accountId, delegate.delegateFailureAndWrap((inner, hasTokens) -> {
@@ -239,7 +242,7 @@ public class ServiceAccountService {
                         )
                     );
                 } else {
-                    userManagedServiceAccountStore.putAccount(accountId, roles, enabled, refreshPolicy, inner);
+                    userManagedServiceAccountStore.putAccount(accountId, roles, enabled, description, authentication, refreshPolicy, inner);
                 }
             }));
         }));
@@ -291,7 +294,16 @@ public class ServiceAccountService {
     }
 
     private static ServiceAccountInfo toServiceAccountInfo(UserManagedServiceAccount account) {
-        return new ServiceAccountInfo.UserManaged(account.id().asPrincipal(), account.roles(), account.enabled());
+        return new ServiceAccountInfo.UserManaged(
+            account.id().asPrincipal(),
+            account.roles(),
+            account.enabled(),
+            account.description(),
+            account.createdBy(),
+            account.createdAt(),
+            account.updatedBy(),
+            account.updatedAt()
+        );
     }
 
     /**

@@ -1,0 +1,1 @@
+FROM heavy_a, heavy_b | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)

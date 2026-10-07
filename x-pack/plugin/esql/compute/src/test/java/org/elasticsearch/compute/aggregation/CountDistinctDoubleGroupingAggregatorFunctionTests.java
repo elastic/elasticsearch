@@ -49,8 +49,9 @@ public class CountDistinctDoubleGroupingAggregatorFunctionTests extends Grouping
         long count = ((LongBlock) result).getLong(position);
         // HLL is an approximation algorithm and precision depends on the number of values computed and the precision_threshold param
         // https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-cardinality-aggregation.html
-        // For a number of values close to 10k and precision_threshold=1000, precision should be less than 10%
-        assertThat((double) count, closeTo(distinct, distinct * 0.1));
+        // Below precision_threshold, linear counting merges distinct values whose hashes share a 25-bit prefix, so even
+        // tiny groups can be off by one.
+        assertThat((double) count, closeTo(distinct, Math.max(1, distinct * 0.1)));
     }
 
     @Override

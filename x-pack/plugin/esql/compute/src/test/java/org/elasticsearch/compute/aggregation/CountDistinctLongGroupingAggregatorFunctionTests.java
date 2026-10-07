@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.operator.blocksource.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 
@@ -48,8 +49,21 @@ public class CountDistinctLongGroupingAggregatorFunctionTests extends Partitione
         long count = ((LongBlock) result).getLong(position);
         // HLL is an approximation algorithm and precision depends on the number of values computed and the precision_threshold param
         // https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-cardinality-aggregation.html
-        // For a number of values close to 10k and precision_threshold=1000, precision should be less than 10%
-        assertThat((double) count, closeTo(expected, expected * 0.1));
+        // Below precision_threshold, linear counting merges distinct values whose hashes share a 25-bit prefix, so even
+        // tiny groups can be off by one.
+        assertThat((double) count, closeTo(expected, Math.max(1, expected * 0.1)));
+    }
+
+    /**
+     * {@code 21685} and {@code 76695} share the top 25 bits of their hash, so linear counting stores them as one entry
+     * and counts this group as 1. The tolerance in {@link #assertSimpleGroup} must accept that.
+     */
+    public void testHashCollisionInSmallGroup() {
+        var runner = new TestDriverRunner().builder(driverContext()).collectDeepCopy();
+        runner.input(
+            new TupleLongLongBlockSourceOperator(runner.blockFactory(), List.of(Tuple.tuple(0L, 21685L), Tuple.tuple(0L, 76695L)))
+        );
+        assertSimpleOutput(runner.deepCopy(), runner.run(simple()));
     }
 
     @Override

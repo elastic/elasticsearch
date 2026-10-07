@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -280,7 +279,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             "node does not contain the awareness attribute [%s]; required attributes cluster setting [%s=%s]",
             awarenessAttribute,
             CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(),
-            Strings.collectionToCommaDelimitedString(awarenessAttributes)
+            awarenessAttributes
         );
     }
 

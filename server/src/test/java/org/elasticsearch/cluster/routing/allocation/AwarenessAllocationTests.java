@@ -1139,7 +1139,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                 equalTo(
                     "node does not contain the awareness attribute [zone]; required attributes cluster setting ["
                         + AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey()
-                        + "=zone]"
+                        + "=[zone]]"
                 )
             )
         );

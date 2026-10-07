@@ -8,17 +8,18 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
-import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
@@ -178,7 +179,8 @@ public final class SplitDiscoveryPhase {
         long cpuNanos,
         // What discovery has to tell the query's author, gathered from every relation it resolved. The caller
         // raises these on the request's own thread context; nothing here can.
-        List<String> warnings
+        List<String> warnings,
+        int splitDiscoveryProbes
     ) {
         /** Backwards-compatible constructor without cpuNanos (defaults to 0). */
         public Result(PhysicalPlan plan, int filesScanned, int splitsScanned, long bytesScanned) {
@@ -186,7 +188,11 @@ public final class SplitDiscoveryPhase {
         }
 
         public Result(PhysicalPlan plan, int filesScanned, int splitsScanned, long bytesScanned, long cpuNanos) {
-            this(plan, filesScanned, splitsScanned, bytesScanned, cpuNanos, List.of());
+            this(plan, filesScanned, splitsScanned, bytesScanned, cpuNanos, List.of(), 0);
+        }
+
+        public Result(PhysicalPlan plan, int filesScanned, int splitsScanned, long bytesScanned, long cpuNanos, List<String> warnings) {
+            this(plan, filesScanned, splitsScanned, bytesScanned, cpuNanos, warnings, 0);
         }
     }
 
@@ -197,6 +203,7 @@ public final class SplitDiscoveryPhase {
         private int splitsScanned;
         private long bytesScanned;
         private long cpuNanos;
+        private int splitDiscoveryProbes;
     }
 
     public static PhysicalPlan resolveExternalSplits(PhysicalPlan plan, Map<String, ExternalSourceFactory> sourceFactories) {
@@ -290,8 +297,31 @@ public final class SplitDiscoveryPhase {
         int seedRowLimit,
         PlanningMemory listingMemory
     ) {
+        return resolveExternalSplitsWithStats(
+            plan,
+            sourceFactories,
+            maxRecordBytes,
+            isCancelled,
+            seedFilters,
+            seedRowLimit,
+            listingMemory,
+            0
+        );
+    }
+
+    /** As above, carrying {@code task_concurrency} so discovery sizes LIMIT cuts to the planner's drivers. */
+    public static Result resolveExternalSplitsWithStats(
+        PhysicalPlan plan,
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled,
+        List<Expression> seedFilters,
+        int seedRowLimit,
+        PlanningMemory listingMemory,
+        int taskConcurrency
+    ) {
         ScanStats stats = new ScanStats();
-        Traversal traversal = new Traversal(sourceFactories, maxRecordBytes, stats, isCancelled, listingMemory);
+        Traversal traversal = new Traversal(sourceFactories, maxRecordBytes, stats, isCancelled, listingMemory, taskConcurrency);
         ExternalPlanningIo planningIo = ExternalPlanningIo.current();
         PhysicalPlan resolved;
         try (Releasable ignored = ExternalPlanningIo.activate(planningIo)) {
@@ -303,7 +333,8 @@ public final class SplitDiscoveryPhase {
             stats.splitsScanned,
             stats.bytesScanned,
             stats.cpuNanos,
-            List.copyOf(stats.warnings)
+            List.copyOf(stats.warnings),
+            stats.splitDiscoveryProbes
         );
     }
 
@@ -346,6 +377,33 @@ public final class SplitDiscoveryPhase {
         Executor executor,
         ActionListener<Result> listener
     ) {
+        resolveExternalSplitsWithStatsAsync(
+            plan,
+            sourceFactories,
+            maxRecordBytes,
+            isCancelled,
+            seedFilters,
+            seedRowLimit,
+            listingMemory,
+            0,
+            executor,
+            listener
+        );
+    }
+
+    /** As above, carrying {@code task_concurrency} so discovery sizes LIMIT cuts to the planner's drivers. */
+    public static void resolveExternalSplitsWithStatsAsync(
+        PhysicalPlan plan,
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled,
+        List<Expression> seedFilters,
+        int seedRowLimit,
+        PlanningMemory listingMemory,
+        int taskConcurrency,
+        Executor executor,
+        ActionListener<Result> listener
+    ) {
         ActionListener.run(listener, l -> {
             ScanStats stats = new ScanStats();
             ExternalPlanningIo planningIo = ExternalPlanningIo.current();
@@ -353,7 +411,7 @@ public final class SplitDiscoveryPhase {
                 plan,
                 seedFilters,
                 seedRowLimit,
-                new Traversal(sourceFactories, maxRecordBytes, stats, isCancelled, listingMemory),
+                new Traversal(sourceFactories, maxRecordBytes, stats, isCancelled, listingMemory, taskConcurrency),
                 wrapPlanningIo(executor, planningIo),
                 l.map(
                     resolved -> new Result(
@@ -362,7 +420,8 @@ public final class SplitDiscoveryPhase {
                         stats.splitsScanned,
                         stats.bytesScanned,
                         stats.cpuNanos,
-                        List.copyOf(stats.warnings)
+                        List.copyOf(stats.warnings),
+                        stats.splitDiscoveryProbes
                     )
                 )
             );
@@ -395,7 +454,8 @@ public final class SplitDiscoveryPhase {
         int maxRecordBytes,
         ScanStats stats,
         BooleanSupplier isCancelled,
-        PlanningMemory listingMemory
+        PlanningMemory listingMemory,
+        int taskConcurrency
     ) {}
 
     private static void resolveRecursiveAsync(
@@ -568,7 +628,8 @@ public final class SplitDiscoveryPhase {
             metadataColumnNames,
             PartitionValueLayout.retainedKeys(querySchema, partitionInfo, metadataColumnNames),
             rowLimit,
-            traversal.listingMemory()
+            traversal.listingMemory(),
+            traversal.taskConcurrency()
         );
 
         SplitDiscoveryResult result;
@@ -622,7 +683,8 @@ public final class SplitDiscoveryPhase {
             metadataColumnNames,
             PartitionValueLayout.retainedKeys(querySchema, partitionInfo, metadataColumnNames),
             rowLimit,
-            traversal.listingMemory()
+            traversal.listingMemory(),
+            traversal.taskConcurrency()
         );
 
         splitProvider.discoverSplitsAsync(context, executor, ActionListener.wrap(result -> {
@@ -639,27 +701,25 @@ public final class SplitDiscoveryPhase {
      * discovery failure is detached from storage-client causes, whose messages name the bucket and key.
      */
     private static RuntimeException wrapDiscoveryFailure(ExternalSourceExec exec, Exception e) {
-        if (e instanceof ExternalException ee) {
-            return ExternalFailures.detach(ee);
+        if (ExceptionsHelper.unwrap(e, TaskCancelledException.class) instanceof TaskCancelledException cancelled) {
+            return ExternalFailures.detach(cancelled);
         }
         if (e instanceof ElasticsearchException ee) {
-            return ee;
+            return ExternalFailures.detach(ee);
         }
         String context = "failed to discover splits for external source [" + sourceLabel(exec) + "] of type [" + exec.sourceType() + "]";
         if (e instanceof IllegalArgumentException) {
-            LOGGER.debug("Split discovery failed (cause logged, not forwarded)", e);
-            String message = e.getMessage();
-            return new IllegalArgumentException(
-                message != null && ExternalFailures.safeForUserMessage(message) ? context + ": " + message : context
-            );
+            String forwardable = ExternalFailures.forwardableDetail(e);
+            ExternalFailures.logClientFailure(e);
+            return new IllegalArgumentException(forwardable != null ? context + ": " + forwardable : context);
         }
         RuntimeException surfaced = ExternalFailures.surface(e, context);
         if (surfaced != e) {
             return surfaced;
         }
         LOGGER.warn("Split discovery failed (cause logged, not forwarded)", e);
-        String message = e.getMessage();
-        String detail = message != null && ExternalFailures.safeForUserMessage(message) ? message : e.getClass().getSimpleName();
+        String forwardable = ExternalFailures.forwardableDetail(e);
+        String detail = forwardable != null ? forwardable : ExternalFailures.rootCause(e).getClass().getSimpleName();
         return new ElasticsearchException("{}: {}", context, detail);
     }
 
@@ -726,6 +786,7 @@ public final class SplitDiscoveryPhase {
         stats.filesScanned += result.filesScanned();
         stats.splitsScanned += splits.size();
         stats.cpuNanos += result.cpuNanos();
+        stats.splitDiscoveryProbes += result.splitDiscoveryProbes();
         for (ExternalSplit split : splits) {
             long sizeInBytes = split.estimatedSizeInBytes();
             if (sizeInBytes > 0) {

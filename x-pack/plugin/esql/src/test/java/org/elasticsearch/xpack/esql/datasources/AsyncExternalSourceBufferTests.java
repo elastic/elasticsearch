@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -268,6 +269,35 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
     }
 
     /**
+     * {@code addPage} consumes the page on entry. A throw from {@code notifyNotEmpty} (a
+     * {@code waitForReading} listener) must not return ownership: the page stays pollable with
+     * live blocks.
+     */
+    public void testAddPageThrowAfterEnqueueLeavesPagePollable() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+        Page page = createTestPage(2, 5);
+        IntBlock block = page.getBlock(0);
+        IsBlockedResult blocked = buffer.waitForReading();
+        assertFalse(blocked.listener().isDone());
+        blocked.listener().addListener(new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                throw new RuntimeException("notifyNotEmpty");
+            }
+
+            @Override
+            public void onFailure(Exception e) {}
+        });
+        expectThrows(AssertionError.class, () -> buffer.addPage(page));
+        Page polled = buffer.pollPage();
+        assertSame(page, polled);
+        assertFalse("blocks must stay live after addPage throws", block.isReleased());
+        assertEquals(5, polled.getPositionCount());
+        polled.releaseBlocks();
+        buffer.finish(true);
+    }
+
+    /**
      * Companion to {@link #testFinishAfterFailureStillDiscardsQueuedPages} for the non-failure case: a
      * prior {@code finish(false)} (natural producer EOF, called before the driver drained every page)
      * must not prevent a later {@code finish(true)} — e.g. from {@code AsyncExternalSourceOperator#close()}
@@ -305,6 +335,24 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
 
         assertSame(first, buffer.failure());
         assertArrayEquals(new Throwable[] { late }, first.getSuppressed());
+    }
+
+    /**
+     * A later failure that already suppresses the first one (because both are shared with another split that attached
+     * them in the opposite order) must not be suppressed back onto it. The first failure is still the one surfaced, so
+     * the operator classifies it by its own type.
+     */
+    public void testSecondFailureDoesNotCreateACycle() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        CircuitBreakingException a = new CircuitBreakingException("[parquet reader]", CircuitBreaker.Durability.TRANSIENT);
+        CircuitBreakingException b = new CircuitBreakingException("[parquet sliding window]", CircuitBreaker.Durability.TRANSIENT);
+        b.addSuppressed(a);
+
+        buffer.onFailure(a);
+        buffer.onFailure(b);
+
+        assertSame(a, buffer.failure());
+        assertArrayEquals("b already reaches a, so suppressing it onto a would loop", new Throwable[0], a.getSuppressed());
     }
 
     /**

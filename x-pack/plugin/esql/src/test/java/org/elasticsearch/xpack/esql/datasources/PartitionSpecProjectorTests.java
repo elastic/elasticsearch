@@ -74,7 +74,7 @@ public class PartitionSpecProjectorTests extends ESTestCase {
     }
 
     public void testOverlapsExpressionsDatetimeLongIsNotScaledAsSeconds() {
-        PartitionSpec spec = PartitionSpec.parse("year(ts, second), month(ts, second)");
+        PartitionSpec spec = PartitionSpec.parse("year(ts, epoch_second), month(ts, epoch_second)");
         Expression filter = new GreaterThan(SRC, datetimeField("ts"), datetimeLiteral(MARCH_15_2024.toEpochMilli()));
         assertTrue("datetime millis must not be scaled as unix seconds", spec.overlapsExpressions(folder(2024, 3, null), List.of(filter)));
         assertFalse("2023 is entirely before March 2024", spec.overlapsExpressions(folder(2023, 3, null), List.of(filter)));

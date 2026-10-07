@@ -3908,8 +3908,8 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     public void testPinnedSchemaBindsByNameWhenAByteOrderMarkAndAHeaderLongerThanTheReaderBufferPrecedeTheRows() throws IOException {
-        // The first split reads the header on a stream of its own, so a header longer than the reader's buffer, behind a
-        // byte-order mark, must still leave every row of the data stream intact.
+        // The first split reads the header with a reader of its own on the data stream, so a header longer than the
+        // reader's buffer, behind a byte-order mark, must still leave every row after it intact.
         String longName = "c".repeat(20_000);
         byte[] bom = new byte[] { (byte) 0xEF, (byte) 0xBB, (byte) 0xBF };
         byte[] body = (longName + ",id,name\nx,1,bob\ny,2,eve\n").getBytes(StandardCharsets.UTF_8);
@@ -7973,11 +7973,10 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * The first split reads the file's columns on a second stream, aborted once the header is found, and reads its rows
-     * from the first: it buffers nothing however long the run of comments before the header, and the data stream is not
-     * drained by the header read.
+     * The first split reads the file's columns from the stream it reads its rows from, in the pass that steps over the
+     * header: it opens no second stream, and buffers nothing however long the run of comments before the header.
      */
-    public void testFirstSplitReadsItsHeaderOnASecondStreamThatIsAborted() throws Exception {
+    public void testFirstSplitReadsItsHeaderFromItsRowStream() throws Exception {
         TrackingStorageObject object = new TrackingStorageObject("# note\n".repeat(50_000) + "id,name\n1,alice\n2,bob\n");
         List<Attribute> readSchema = List.of(
             new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD),
@@ -8000,8 +7999,43 @@ public class CsvFormatReaderTests extends ESTestCase {
             }
         }
         assertEquals(List.of(1L, 2L), ids);
-        assertEquals("one stream for the columns, one for the rows", 2, object.opened);
-        assertEquals("only the header stream is aborted", 1, object.aborted);
+        assertEquals("only the row stream is opened", 1, object.opened);
+        assertEquals(0, object.aborted);
+    }
+
+    /**
+     * Under an escaping dialect, a header holding an escaped quote before its line break ends where the header columns
+     * are read, not where an escape-aware reader would end it: the first split steps over the header the way it names
+     * the columns, so its rows are read as rows and bound by those names.
+     */
+    public void testFirstSplitStepsOverAHeaderWhereItsColumnsAreRead() throws Exception {
+        String content = "id,name,\"x\\\"\n1,alice,a\n2,bob,b\n";
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("trim_spaces", false));
+        List<String> columns = reader.fileHeaderColumns(new TrackingStorageObject(content));
+        assertEquals("the header ends at the line break", 3, columns.size());
+        assertEquals(List.of("id", "name"), columns.subList(0, 2));
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD)
+        );
+        List<String> rows = new ArrayList<>();
+        try (
+            CloseableIterator<Page> it = reader.read(
+                new TrackingStorageObject(content),
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        ) {
+            while (it.hasNext()) {
+                Page page = it.next();
+                LongBlock ids = page.getBlock(0);
+                BytesRefBlock names = page.getBlock(1);
+                for (int p = 0; p < page.getPositionCount(); p++) {
+                    rows.add(ids.getLong(p) + ":" + (names.isNull(p) ? "null" : names.getBytesRef(p, new BytesRef()).utf8ToString()));
+                }
+                page.releaseBlocks();
+            }
+        }
+        assertEquals(List.of("1:alice", "2:bob"), rows);
     }
 
     /**
@@ -8057,8 +8091,8 @@ public class CsvFormatReaderTests extends ESTestCase {
         );
 
         assertThat(e.getMessage(), containsString("duplicate column name"));
-        assertEquals("one stream for the header, one for the rows", 2, object.opened);
-        assertEquals("both are aborted, none closed", 2, object.aborted);
+        assertEquals(1, object.opened);
+        assertEquals("aborted, not closed", 1, object.aborted);
     }
 
     /**

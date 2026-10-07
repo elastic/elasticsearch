@@ -2069,23 +2069,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 streamAfterBom = pb;
             }
         }
-        // The read that owns a headered file's start uses the columns it was handed, as every later split does. Handed
-        // none, it reads them the way fileHeaderColumns reads them for later splits, so every split binds the same names and
-        // bounds rows by the same width. It does so on a stream of its own, aborted as soon as the header is found: nothing
-        // is buffered however many comment or skipped lines come first. A headerless file's names are positions and need
-        // no header read.
-        List<String> leadingColumns = null;
-        if (context.firstSplit() && context.readSchema() != null && options.headerRow()) {
-            leadingColumns = context.fileHeaderColumns();
-            if (leadingColumns == null) {
-                try {
-                    leadingColumns = fileHeaderColumns(object);
-                } catch (Exception e) {
-                    abortRead(object, rawStream, e);
-                    throw e;
-                }
-            }
-        }
+        // A headerless file's names are positions and need no header read.
+        boolean readsLeadingRecordsHere = context.firstSplit() && context.readSchema() != null && options.headerRow();
         InputStream capped = (useRecordReaderPath || useDirectBlock)
             ? streamAfterBom
             : new CsvRecordCappingInputStream(streamAfterBom, context.maxRecordBytes());
@@ -2109,8 +2094,27 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 options.encoding(),
                 options.quoting()
             );
-        if (bomBytesConsumed > 0) {
-            recordReader.setInitialByteOffset(bomBytesConsumed);
+        // The read that owns a headered file's start steps over its skip_rows and header with the reader fileHeaderColumns
+        // uses for every later split, and names the columns from that same pass. The two cannot then disagree on where the
+        // header ends, which an escape-aware data reader would (an escaped quote before a line break), and every split binds
+        // the same names. That reader reads one character at a time, so the data reader below resumes exactly after the
+        // header, and nothing is buffered however many comment or skipped lines come first.
+        List<String> leadingColumns = null;
+        long leadingBytes = bomBytesConsumed;
+        if (readsLeadingRecordsHere) {
+            try {
+                CsvLogicalRecordReader leading = leadingRecordReader(reader);
+                leading.setInitialByteOffset(bomBytesConsumed);
+                skipLeadingContentRows(leading, options.skipRows(), options.commentPrefix());
+                leadingColumns = leadingColumns(leading);
+                leadingBytes = leading.bytesRead();
+            } catch (Exception e) {
+                abortRead(object, rawStream, e);
+                throw e;
+            }
+        }
+        if (leadingBytes > 0) {
+            recordReader.setInitialByteOffset(leadingBytes);
         }
         // Bulk read-ahead is safe when this reader owns the stream end to end: the direct-to-block
         // path, and the house per-record path (useRecordReaderPath). The Jackson bulk path skips the
@@ -2144,7 +2148,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 context.projectedColumns() == null ? "null" : context.projectedColumns().size()
             );
         }
-        if (context.firstSplit() && options.skipRows() > 0) {
+        if (context.firstSplit() && options.skipRows() > 0 && readsLeadingRecordsHere == false) {
             try {
                 skipLeadingContentRows(recordReader, options.skipRows(), options.commentPrefix());
             } catch (Exception e) {
@@ -2163,10 +2167,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     skipLeadingPartialRecord(recordReader, effective);
                 }
                 if (options.headerRow()) {
-                    if (context.firstSplit()) {
-                        // The header columns were read above; the data path still has to step over the header line.
-                        consumeHeaderLine(recordReader);
-                    }
                     headerBinding = bindHeaderedColumns(
                         context.firstSplit() ? leadingColumns : context.fileHeaderColumns(),
                         context,
@@ -2491,14 +2491,25 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * is capped at {@link SegmentableFormatReader#DEFAULT_MAX_RECORD_BYTES}.
      * <p>
      * The data path of a read is not the same reader: for a quoting and escaping dialect it is escape-aware, and it caps
-     * records at the query's {@code maxRecordBytes}. The two differ only for a header holding an escaped quote followed by
-     * a line break, or one longer than a lowered cap. That is deliberate: the names must be those inference resolved the
-     * schema from, whatever the data path makes of the same bytes.
+     * records at the query's {@code maxRecordBytes}. So the read that owns a headered file's start steps over these
+     * records with {@link #leadingRecordReader} too, and only then hands the stream to its data reader: the names must be
+     * those inference resolved the schema from, and the header must end where those names were read.
      */
     private CsvLogicalRecordReader openLeadingRecords(InputStream stream) throws IOException {
         BufferedReader reader = new BufferedReader(new InputStreamReader(stream, options.encoding()), READER_BUFFER_SIZE);
         stripLeadingBomFromReader(reader);
-        CsvLogicalRecordReader recordReader = new CsvLogicalRecordReader(
+        CsvLogicalRecordReader recordReader = leadingRecordReader(reader);
+        skipLeadingContentRows(recordReader, options.skipRows(), options.commentPrefix());
+        return recordReader;
+    }
+
+    /**
+     * The reader of a file's leading records: never escape-aware, records capped at
+     * {@link SegmentableFormatReader#DEFAULT_MAX_RECORD_BYTES}, and without read-ahead, so a caller sharing {@code reader}
+     * resumes exactly after the last record it returned.
+     */
+    private CsvLogicalRecordReader leadingRecordReader(BufferedReader reader) {
+        return new CsvLogicalRecordReader(
             reader,
             options.quoteChar(),
             options.delimiter(),
@@ -2506,8 +2517,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
             options.encoding(),
             options.quoting()
         );
-        skipLeadingContentRows(recordReader, options.skipRows(), options.commentPrefix());
-        return recordReader;
     }
 
     /**

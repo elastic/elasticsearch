@@ -228,6 +228,27 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
     }
 
     /**
+     * A run of comments longer than segment 0 puts the header in a later segment, which would read it as a data row: only
+     * segment 0 steps over the leading rows. The coordinator finds no header in segment 0 and reads the file single-shot.
+     */
+    public void testParallelLeaderSplitWithTheHeaderPastSegmentZeroReadsTheHeaderOnce() throws Exception {
+        long minSegment = new CsvFormatReader(blockFactory).minimumSegmentSize();
+        StringBuilder csv = new StringBuilder();
+        while (csv.length() < 2 * minSegment) {
+            csv.append("# a comment line long enough to fill a segment\n");
+        }
+        csv.append("emp_no,first_name,salary\n");
+        int rows = appendRows(csv, 0, 4 * minSegment);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true, "comment", "#"));
+        StorageObject object = new BytesObject(csv.toString().getBytes(StandardCharsets.UTF_8));
+
+        long[] counted = readParallel(reader, object, true, salaryThenName(), null);
+
+        assertEquals("every data row and no header row", rows, counted[0]);
+        assertEquals((long) (rows - 1) * rows, counted[1]);
+    }
+
+    /**
      * A macro-split that does not start at the file's first byte sees no header at all. Handed the file's header columns
      * it binds every segment by name; without them it fails rather than binding by position.
      */

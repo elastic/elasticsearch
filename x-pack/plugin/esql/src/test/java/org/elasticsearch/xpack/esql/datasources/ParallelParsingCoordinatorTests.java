@@ -2326,30 +2326,37 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * A header read from the leader segment is only an answer if the reader stopped before the segment did. A reader that
-     * ran off the segment's end may have been cut mid-record, so the coordinator reads the whole file for the header and
-     * hands every segment that one.
+     * A header read that ran to the end of the leader segment may have been cut mid-record: the header may end past
+     * segment 0. Only segment 0 steps over the leading rows and the header, so a later segment would emit them as data.
+     * The coordinator reads the file single-shot instead, and that read takes its own header.
      */
-    public void testALeaderHeaderThatRanToTheEndOfTheSegmentIsReadAgainFromTheWholeFile() throws Exception {
-        byte[] content = lines(200);
-        InMemoryStorageObject obj = new InMemoryStorageObject(content);
-        HeaderReadingLineReader reader = new HeaderReadingLineReader(blockFactory(), true);
+    public void testALeaderHeaderThatRanToTheEndOfTheSegmentReadsTheFileSingleShot() throws Exception {
+        assertLeaderProbeFallsBackToASingleShotRead(new HeaderReadingLineReader(blockFactory(), HeaderAnswer.READ_TO_END));
+    }
 
-        readAllWithHeader(reader, obj);
+    /** The same when the leader segment held no header at all: a skip_rows or comment run longer than the segment. */
+    public void testALeaderSegmentWithoutAHeaderReadsTheFileSingleShot() throws Exception {
+        assertLeaderProbeFallsBackToASingleShotRead(new HeaderReadingLineReader(blockFactory(), HeaderAnswer.NONE));
+    }
 
-        assertEquals("the leader range, then the whole file", 2, reader.headerReadsOf.size());
+    private void assertLeaderProbeFallsBackToASingleShotRead(HeaderReadingLineReader reader) throws Exception {
+        InMemoryStorageObject obj = new InMemoryStorageObject(lines(200));
+
+        int rows = readAllWithHeader(reader, obj);
+
+        assertEquals("only the leader range is probed", 1, reader.headerReadsOf.size());
         assertThat(reader.headerReadsOf.get(0), Matchers.instanceOf(HeaderPrefixProbe.class));
-        assertSame("the fallback reads the file itself, not a range of it", obj, reader.headerReadsOf.get(1));
-        assertThat(reader.contexts.size(), Matchers.greaterThan(1));
-        for (FormatReadContext ctx : reader.contexts) {
-            assertEquals(List.of("bytes=" + content.length), ctx.fileHeaderColumns());
-        }
+        assertEquals("one read, not one per segment", 1, reader.contexts.size());
+        FormatReadContext ctx = reader.contexts.get(0);
+        assertTrue("the single read owns the file's start", ctx.firstSplit());
+        assertNull("and reads its own header", ctx.fileHeaderColumns());
+        assertEquals(200, rows);
     }
 
     /** A header found before the end of the leader segment is the answer: the whole file is not read for it. */
     public void testALeaderHeaderFoundBeforeTheEndOfTheSegmentIsNotReadAgain() throws Exception {
         byte[] content = lines(200);
-        HeaderReadingLineReader reader = new HeaderReadingLineReader(blockFactory(), false);
+        HeaderReadingLineReader reader = new HeaderReadingLineReader(blockFactory(), HeaderAnswer.FIRST_LINE);
 
         readAllWithHeader(reader, new InMemoryStorageObject(content));
 
@@ -2363,7 +2370,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
     /** Columns the caller already read are handed to every segment, the leader's included, and read no further. */
     public void testHandedHeaderColumnsReachEverySegmentAndAreNotReadAgain() throws Exception {
-        HeaderReadingLineReader reader = new HeaderReadingLineReader(blockFactory(), false);
+        HeaderReadingLineReader reader = new HeaderReadingLineReader(blockFactory(), HeaderAnswer.FIRST_LINE);
 
         readAllWithHeader(reader, new InMemoryStorageObject(lines(200)), List.of("handed"));
 
@@ -2382,11 +2389,12 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         return sb.toString().getBytes(StandardCharsets.UTF_8);
     }
 
-    private static void readAllWithHeader(HeaderReadingLineReader reader, StorageObject obj) throws Exception {
-        readAllWithHeader(reader, obj, null);
+    private static int readAllWithHeader(HeaderReadingLineReader reader, StorageObject obj) throws Exception {
+        return readAllWithHeader(reader, obj, null);
     }
 
-    private static void readAllWithHeader(HeaderReadingLineReader reader, StorageObject obj, List<String> handedColumns) throws Exception {
+    private static int readAllWithHeader(HeaderReadingLineReader reader, StorageObject obj, List<String> handedColumns) throws Exception {
+        int rows = 0;
         ExecutorService exec = Executors.newFixedThreadPool(4);
         try (
             CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
@@ -2416,25 +2424,37 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             )
         ) {
             while (iter.hasNext()) {
-                iter.next().releaseBlocks();
+                Page page = iter.next();
+                rows += page.getPositionCount();
+                page.releaseBlocks();
             }
         } finally {
             exec.shutdown();
         }
+        return rows;
+    }
+
+    /** What {@link HeaderReadingLineReader} makes of a header read. */
+    private enum HeaderAnswer {
+        /** Reads the first line and stops: a header found inside the range. */
+        FIRST_LINE,
+        /** Drains the stream, as a reader cut off by the end of a range does. */
+        READ_TO_END,
+        /** Finds no header line. */
+        NONE
     }
 
     /**
-     * A line reader that also reads a header line: it records each object it was asked for the file's columns, and names
-     * them after what it read. With {@code readToEnd} it drains the stream, as a reader does that is cut off by the end
-     * of a range; otherwise it stops after the first line. The columns it returns tell the tests which read produced them.
+     * A line reader that also reads a header line: it records each object it was asked for the file's columns, and
+     * answers as its {@link HeaderAnswer} says.
      */
     private static class HeaderReadingLineReader extends ContextCapturingLineReader {
         final List<StorageObject> headerReadsOf = Collections.synchronizedList(new ArrayList<>());
-        private final boolean readToEnd;
+        private final HeaderAnswer answer;
 
-        HeaderReadingLineReader(BlockFactory blockFactory, boolean readToEnd) {
+        HeaderReadingLineReader(BlockFactory blockFactory, HeaderAnswer answer) {
             super(blockFactory);
-            this.readToEnd = readToEnd;
+            this.answer = answer;
         }
 
         @Override
@@ -2447,12 +2467,15 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             headerReadsOf.add(file);
             InputStream stream = file.newStream();
             try {
-                if (readToEnd) {
-                    return List.of("bytes=" + stream.readAllBytes().length);
-                }
-                byte[] first = new byte[9];
-                assertEquals(first.length, stream.readNBytes(first, 0, first.length));
-                return List.of(new String(first, StandardCharsets.UTF_8));
+                return switch (answer) {
+                    case READ_TO_END -> List.of("bytes=" + stream.readAllBytes().length);
+                    case FIRST_LINE -> {
+                        byte[] first = new byte[9];
+                        assertEquals(first.length, stream.readNBytes(first, 0, first.length));
+                        yield List.of(new String(first, StandardCharsets.UTF_8));
+                    }
+                    case NONE -> List.of();
+                };
             } finally {
                 file.abortStream(stream);
             }

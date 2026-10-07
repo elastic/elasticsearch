@@ -214,6 +214,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/160960
 - class: org.elasticsearch.xpack.search.AsyncSearchActionIT
   issue: https://github.com/elastic/elasticsearch/issues/161084
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {yaml=migrate/10_reindex/Test Reindex With Nonexistent Data Stream}
+  issue: https://github.com/elastic/elasticsearch/issues/161199
 
 # Examples:
 #

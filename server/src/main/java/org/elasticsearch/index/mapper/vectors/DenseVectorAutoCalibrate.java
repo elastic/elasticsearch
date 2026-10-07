@@ -54,7 +54,7 @@ public record DenseVectorAutoCalibrate(@Nullable Object originalValue, IvfAutoCa
         if (Booleans.isBoolean(value)) {
             profile = Booleans.parseBoolean(value) ? defaultEnabledProfile(indexVersion) : IvfAutoCalibrationProfile.DISABLED;
         } else if (clusterSupportsFeature.test(AUTO_CALIBRATE_PROFILES) == false) {
-            throw new IllegalArgumentException("'" + NAME + "' must be a boolean, got [" + node + "] for field [" + fieldName + "]");
+            throw new IllegalArgumentException("'" + NAME + "' must be a boolean for field [" + fieldName + "]");
         } else {
             profile = IvfAutoCalibrationProfile.fromString(value)
                 .orElseThrow(
@@ -63,9 +63,7 @@ public record DenseVectorAutoCalibrate(@Nullable Object originalValue, IvfAutoCa
                             + NAME
                             + "' must be a boolean or one of "
                             + Arrays.toString(IvfAutoCalibrationProfile.values())
-                            + ", got ["
-                            + node
-                            + "] for field ["
+                            + " for field ["
                             + fieldName
                             + "]"
                     )

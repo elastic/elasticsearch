@@ -96,7 +96,7 @@ public class DenseVectorAutoCalibrateTests extends ESTestCase {
                     versionMessage(version),
                     () -> DenseVectorAutoCalibrate.parse(name, version, FEATURE_OFF, FIELD)
                 );
-                assertEquals(versionMessage(version), booleanOnlyMessage(name), e.getMessage());
+                assertEquals(versionMessage(version), booleanOnlyMessage(), e.getMessage());
             }
         }
     }
@@ -113,9 +113,7 @@ public class DenseVectorAutoCalibrateTests extends ESTestCase {
                     versionMessage(version),
                     "'auto_calibrate' must be a boolean or one of "
                         + Arrays.toString(IvfAutoCalibrationProfile.values())
-                        + ", got ["
-                        + node
-                        + "] for field [field]",
+                        + " for field [field]",
                     e.getMessage()
                 );
 
@@ -124,7 +122,7 @@ public class DenseVectorAutoCalibrateTests extends ESTestCase {
                     versionMessage(version),
                     () -> DenseVectorAutoCalibrate.parse(node, version, FEATURE_OFF, FIELD)
                 );
-                assertEquals(versionMessage(version), booleanOnlyMessage(node), e.getMessage());
+                assertEquals(versionMessage(version), booleanOnlyMessage(), e.getMessage());
             }
         }
     }
@@ -159,7 +157,7 @@ public class DenseVectorAutoCalibrateTests extends ESTestCase {
         return "index version [" + version + "]";
     }
 
-    private static String booleanOnlyMessage(Object node) {
-        return "'auto_calibrate' must be a boolean, got [" + node + "] for field [field]";
+    private static String booleanOnlyMessage() {
+        return "'auto_calibrate' must be a boolean for field [field]";
     }
 }

@@ -1105,7 +1105,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             MapperService mapperService = createMapperService.get();
             XContentBuilder mapping = autoCalibrateMapping("quality");
             Exception e = expectThrows(MapperParsingException.class, () -> merge(mapperService, mapping));
-            assertThat(e.getMessage(), containsString("'auto_calibrate' must be a boolean, got [quality]"));
+            assertThat(e.getMessage(), containsString("'auto_calibrate' must be a boolean for field [field]"));
 
             // Recovery assumes all features are supported, so existing mappings that use profile names still load
             merge(mapperService, MapperService.MergeReason.MAPPING_RECOVERY, mapping);

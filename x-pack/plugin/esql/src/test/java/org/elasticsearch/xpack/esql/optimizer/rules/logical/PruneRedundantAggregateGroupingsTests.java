@@ -56,7 +56,8 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
     /**
      * Aliases in the deep-definition tests, each defined about as deep as a query may spell out. Expanding the last one without
      * a bound recurses around fifty thousand levels, which needs many times {@link #SMALL_STACK_BYTES} however the JIT has
-     * compiled the recursion, so those tests fail reliably on an unbounded expansion.
+     * compiled the recursion, so on HotSpot, which honors a thread's requested stack size, those tests fail reliably on an
+     * unbounded expansion.
      */
     private static final int DEEP_ALIASES = 200;
 
@@ -343,7 +344,9 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
 
         LogicalPlan result = applyOnSmallStack(analyzedExternalPlan(query.toString()));
 
-        assertThat(groupingNames(result), hasItem("i" + (fields - 1)));
+        List<String> groupings = groupingNames(result);
+        assertThat(groupings, not(hasItem("i0")));
+        assertThat(groupings, hasItem("i" + (fields - 1)));
     }
 
     /** Over an index, like {@code HeapAttackIT#testGroupOnManyLongs}, but with the depth in the definitions, not the alias count. */
@@ -500,6 +503,8 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
                 failure.set(t);
             }
         }, "prune-groupings-small-stack", SMALL_STACK_BYTES);
+        // A rule still running at the timeout must not also fail the suite as a leaked thread.
+        thread.setDaemon(true);
         thread.start();
         // Longer than safeJoin's timeout: the rule visits millions of nodes for the long chains, which takes a while interpreted.
         try {

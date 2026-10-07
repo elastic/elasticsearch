@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -16,9 +15,11 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
@@ -66,15 +67,14 @@ public class RestResolveIndexActionTests extends ESTestCase {
         executeRequest(randomBoolean() ? new BytesArray("{}") : new BytesArray(""), randomBoolean());
     }
 
-    public void testResolveIndexWithInvalidBody() {
-        // Invalid request body.
-        ElasticsearchException error = assertThrows(ElasticsearchException.class, () -> executeRequest(new BytesArray("""
+    public void testResolveIndexWithInvalidBody() throws Exception {
+        ParsingException error = assertThrows(ParsingException.class, () -> executeRequest(new BytesArray("""
             {
               "foo": "bar"
             }
             """), randomBoolean()));
-        assertThat(error.getMessage(), equalTo("Couldn't parse request body"));
-        assertThat(error.getCause().toString(), Matchers.containsString("request does not support [foo]"));
+        assertThat(error.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(error.getMessage(), Matchers.containsString("request does not support [foo]"));
     }
 
     public void testResolveIndexWithProjectRoutingForCps() throws Exception {
@@ -86,14 +86,14 @@ public class RestResolveIndexActionTests extends ESTestCase {
             """), true);
     }
 
-    public void testResolveIndexWithProjectRoutingForNonCps() {
+    public void testResolveIndexWithProjectRoutingForNonCps() throws Exception {
         // Project routing is disallowed when CPS is turned off and is treated as an invalid request body.
-        ElasticsearchException error = assertThrows(ElasticsearchException.class, () -> executeRequest(new BytesArray("""
+        ParsingException error = assertThrows(ParsingException.class, () -> executeRequest(new BytesArray("""
             {
               "project_routing": "_alias:_origin"
             }
             """), false));
-        assertThat(error.getMessage(), equalTo("Couldn't parse request body"));
-        assertThat(error.getCause().toString(), Matchers.containsString("request does not support [project_routing]"));
+        assertThat(error.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(error.getMessage(), Matchers.containsString("request does not support [project_routing]"));
     }
 }

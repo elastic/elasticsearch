@@ -9,7 +9,6 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -68,13 +67,9 @@ public class RestResolveIndexAction extends BaseRestHandler {
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, ResolveIndexAction.Request.DEFAULT_INDICES_OPTIONS);
 
         request.withContentOrSourceParamParserOrNull(parser -> {
-            try {
-                // If parser is null, there's no request body. projectRouting will then yield `null`.
-                if (parser != null) {
-                    parseXContent(crossProjectEnabled, parser, projectRouting);
-                }
-            } catch (Exception e) {
-                throw new ElasticsearchException("Couldn't parse request body", e);
+            // If parser is null, there's no request body. projectRouting will then yield `null`.
+            if (parser != null) {
+                parseXContent(crossProjectEnabled, parser, projectRouting);
             }
         });
 

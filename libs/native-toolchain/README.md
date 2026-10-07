@@ -1,7 +1,12 @@
-# Building the native libraries
+# Native library cross-compilation toolchain
 
-All three targets — `darwin-aarch64`, `linux-aarch64`, `linux-x64` — are cross-compiled inside a
-single toolchain image.
+Every native library under `libs/` (libvec in `libs/simdvec`, libsimdjson in `libs/simdjson`, ...) is
+built with the toolchain in this directory. Each library keeps its own `Makefile` and publish script
+in `libs/<library>/native/`.
+
+All four targets — `darwin-aarch64`, `linux-aarch64`, `linux-x64`, `windows-x64` — are
+cross-compiled inside a single toolchain image. Windows uses llvm-mingw (clang, mingw-w64 and UCRT),
+installed into the image from its pinned release.
 
 For the Linux targets everything comes from Debian packages: clang plus the
 `libstdc++-*-dev-{arm64,amd64}-cross` sysroots, installed straight into the image. Darwin has no
@@ -10,8 +15,10 @@ distributions (Libc, xnu, Libm, libpthread, libplatform, libmalloc) plus upstrea
 That assembly is why most of this document is about Darwin; the Linux targets need nothing beyond
 the `--target=` flag.
 
-This document explains the workflow for building a library for all three targets.
+This document explains the workflow for building a library for all four targets.
 Details and the reasoning behind each piece is in the comments of the files themselves.
+Paths such as `./build_cross_toolchain_image.sh` are relative to this directory; Gradle commands
+run from the repository root.
 
 | File | Role                                                                                                        |
 |---|-------------------------------------------------------------------------------------------------------------|
@@ -20,8 +27,8 @@ Details and the reasoning behind each piece is in the comments of the files them
 | `darwin-sysroot/versions.env` | Pinned Apple component tags and libc++ version.                                                             |
 | `darwin-sysroot/assemble.sh` | Assembles the Darwin sysroot. Runs during the image build only.                                             |
 | `darwin-sysroot/probe.cpp` | Declares which system headers the sysroot must support.                                                     |
-| `Makefile` | Compile and link rules for one library.                                                                     |
-| `publish_vec_binaries.sh` | Runs `make all` in the image and uploads the result. Holds the library `VERSION`.                           |
+| `libs/<library>/native/Makefile` | Compile and link rules for one library.                                                    |
+| `libs/<library>/native/publish_<library>_binaries.sh` | Runs `make all` in the image and uploads the result. Holds the library `VERSION`. |
 
 `probe.cpp` is the one to know about: `assemble.sh` compiles it to decide which xnu headers to
 keep, so the sysroot contains exactly the system headers reachable from the includes listed
@@ -29,31 +36,43 @@ there.
 
 ## Build and test a library
 
-Fast iteration, using the host compiler and (on a Mac) the Xcode SDK:
+Each library has an environment variable (`VEC_NATIVE_BUILD` for libvec, `SIMDJSON_NATIVE_BUILD` for
+libsimdjson, ...) that makes Gradle build it from source instead of using the published artifact;
+tests then run against what was just built. The examples below use libvec.
+
+Fast iteration, using the host compiler and (on a Mac) the Xcode SDK, for the host platform only:
 
 ```sh
-cd libs/simdvec/native
-make install                    # builds for the host platform and copies into place
-cd ../../.. && LOCAL_VEC_BINARY_OS=darwin ./gradlew :libs:simdvec:test
+VEC_NATIVE_BUILD=host ./gradlew --no-daemon :libs:simdvec:test
 ```
 
-The real cross build, using the toolchain image and the assembled sysroot, but still keeping everything local. This is akin to what CI and `publish` produce, and it exercises the Darwin sysroot:
+The real cross build of all four targets, using the toolchain image and the assembled sysroot.
+This is what CI and `publish` produce:
 
 ```sh
-cd libs/simdvec/native
-./build_cross_toolchain_image.sh --local          # tags es-native-cross-toolchain:local
-rm -rf build/obj build/libs/vec/shared            # publish does not clean; stale objects are reused
-./publish_vec_binaries.sh --local                 # all three targets + a local zip
-
-cp build/libs/vec/shared/aarch64/libvec.dylib \
-   ../../native/libraries/build/platform/darwin-aarch64/
-cd ../../.. && LOCAL_VEC_BINARY_OS=darwin ./gradlew :libs:simdvec:test
+VEC_NATIVE_BUILD=docker ./gradlew --no-daemon :libs:simdvec:test
 ```
 
-Omit `--local` on either script to use the published image and upload to Artifactory. Publishing
-needs `ARTIFACTORY_API_KEY`, and refuses to overwrite an existing version.
+To try a toolchain image you built locally, point the build at it with `NATIVE_TOOLCHAIN_IMAGE`:
 
-Useful checks on a Darwin build:
+```sh
+libs/native-toolchain/build_cross_toolchain_image.sh --local  # tags es-native-cross-toolchain:local
+rm -rf libs/simdvec/native/build                              # make does not see an image change
+NATIVE_TOOLCHAIN_IMAGE=es-native-cross-toolchain:local VEC_NATIVE_BUILD=docker \
+  ./gradlew --no-daemon :libs:simdvec:test
+```
+
+`make` only rebuilds what is out of date relative to the sources, so delete the library's
+`native/build` whenever the outputs must be rebuilt for another reason, such as a new image.
+`--no-daemon` avoids a reused Gradle daemon whose environment cannot start `docker` ("A problem
+occurred starting process 'command 'docker''").
+
+To publish, run the library's `publish_<library>_binaries.sh` from its `native/` directory (see
+*Publish a library*). With `--local` it builds with `es-native-cross-toolchain:local` and only
+writes a local zip. Publishing needs `ARTIFACTORY_API_KEY`, and refuses to overwrite an existing
+version.
+
+Useful checks on a Darwin build (libvec, from `libs/simdvec/native`):
 
 ```sh
 # imports; must all exist on the target OS, as the Darwin link resolves them at load time
@@ -74,10 +93,12 @@ To fix it, you will need to add the missing system header(s) to the Darwin sysro
 
 1. Add the include to `darwin-sysroot/probe.cpp`, in the matching group.
 2. Rebuild and verify: `./build_cross_toolchain_image.sh --local`. `assemble.sh` fails the build
-   if the header is missing from the sysroot or carries no open-source licence.
+   if the header is missing from the sysroot or carries no open-source licence. Then build the
+   library against it with `NATIVE_TOOLCHAIN_IMAGE=es-native-cross-toolchain:local` (see
+   *Build and test a library*).
 3. Bump `VERSION` in `build_cross_toolchain_image.sh`, then
    `./build_cross_toolchain_image.sh` to push it.
-4. Point every `publish_*_binaries.sh` at the new `TOOLCHAIN_IMAGE` tag.
+4. Point every reference at the new tag (`git grep es-native-cross-toolchain:` finds them all).
 
 Steps 3 and 4 are needed because the sysroot is baked into the image.
 
@@ -98,10 +119,15 @@ Steps 3 and 4 are needed because the sysroot is baked into the image.
                   -Wl,-undefined,dynamic_lookup
    ```
 
-3. Build it. If a system header is missing, follow *Add a system header* above.
-4. Declare the artifact in `libs/native/libraries/build.gradle`: add a version variable, add the
-   module to the repository `filter`, and add the `libs` dependency behind a
-   `LOCAL_<LIBRARY>_BINARY` env check.
+3. Wire the build into Gradle: apply `elasticsearch.native-library-build` in
+   `libs/<library>/build.gradle` and declare a `nativeLibraryBuild {}` block (mode variable, sources,
+   toolchain image, docker and host commands, and where each platform's output is collected from),
+   modelled on `libs/simdvec/build.gradle`.
+4. Build it with `<LIBRARY>_NATIVE_BUILD=docker`. If a system header is missing, follow
+   *Add a system header* above.
+5. Declare the artifact in `libs/native/libraries/build.gradle`: a version variable, an entry in
+   `nativeLibraries {}` (`modeEnvironmentVariable`, `publishedModule` and `builtBy`, as for `vec`),
+   and an `includeModule` in the repository `filter`.
 
 ## Bump the sysroot components
 

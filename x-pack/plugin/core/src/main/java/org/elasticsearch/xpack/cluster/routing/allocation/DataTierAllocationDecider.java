@@ -97,17 +97,17 @@ public final class DataTierAllocationDecider extends AllocationDecider {
             String tierName = tier.get();
             assert Strings.hasText(tierName) : "tierName must be not null and non-empty, but was [" + tierName + "]";
             if (node.hasRole(DiscoveryNodeRole.DATA_ROLE.roleName())) {
-                return debugYesAllowed(allocation, tierPreference, DiscoveryNodeRole.DATA_ROLE.roleName());
+                return createYesDecision(allocation, tierPreference, DiscoveryNodeRole.DATA_ROLE.roleName());
             }
             if (node.hasRole(tierName)) {
-                return debugYesAllowed(allocation, tierPreference, tierName);
+                return createYesDecision(allocation, tierPreference, tierName);
             }
-            return debugNoRequirementsNotMet(allocation, tierPreference, tierName);
+            return createRequirementsNotMetNoDecision(allocation, tierPreference, tierName);
         }
-        return debugNoNoNodesAvailable(allocation, tierPreference);
+        return createNoNodesAvailableNoDecision(allocation, tierPreference);
     }
 
-    private static Decision debugNoNoNodesAvailable(RoutingAllocation allocation, List<String> tierPreference) {
+    private static Decision createNoNodesAvailableNoDecision(RoutingAllocation allocation, List<String> tierPreference) {
         return allocation.decision(
             Decision.NO,
             NAME,
@@ -116,7 +116,7 @@ public final class DataTierAllocationDecider extends AllocationDecider {
         );
     }
 
-    private static Decision debugNoRequirementsNotMet(RoutingAllocation allocation, List<String> tierPreference, String tierName) {
+    private static Decision createRequirementsNotMetNoDecision(RoutingAllocation allocation, List<String> tierPreference, String tierName) {
         return allocation.decision(
             Decision.NO,
             NAME,
@@ -126,7 +126,7 @@ public final class DataTierAllocationDecider extends AllocationDecider {
         );
     }
 
-    private static Decision debugYesAllowed(RoutingAllocation allocation, List<String> tierPreference, String tierName) {
+    private static Decision createYesDecision(RoutingAllocation allocation, List<String> tierPreference, String tierName) {
         return allocation.decision(
             Decision.YES,
             NAME,

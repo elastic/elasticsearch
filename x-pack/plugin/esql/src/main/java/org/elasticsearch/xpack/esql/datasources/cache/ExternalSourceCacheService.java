@@ -907,8 +907,8 @@ public class ExternalSourceCacheService implements Closeable {
         // commit's put() prunes the LRU tail under weight pressure.
         Map<String, List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>>> byPath = new HashMap<>();
         schemaStore.forEach((key, entry) -> {
-            if (paths.contains(key.canonicalPath())) {
-                byPath.computeIfAbsent(key.canonicalPath(), p -> new ArrayList<>()).add(Map.entry(key, entry));
+            if (paths.contains(key.location())) {
+                byPath.computeIfAbsent(key.location(), p -> new ArrayList<>()).add(Map.entry(key, entry));
             }
         });
         return byPath;
@@ -1060,7 +1060,7 @@ public class ExternalSourceCacheService implements Closeable {
         long mtimeMillis,
         Object fingerprint
     ) {
-        return path.equals(key.canonicalPath())
+        return path.equals(key.location())
             && key.lastModifiedEpochMillis() == mtimeMillis
             && Objects.equals(entry.safeMetadata().get(ExternalStats.CONFIG_FINGERPRINT_KEY), fingerprint);
     }

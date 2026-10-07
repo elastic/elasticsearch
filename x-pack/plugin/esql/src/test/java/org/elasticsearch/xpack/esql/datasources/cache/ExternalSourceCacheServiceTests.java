@@ -3916,7 +3916,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 (int) stats.get("schema_cache.count")
             );
             for (SchemaCacheKey key : seeded) {
-                assertNotNull("evicted: " + key.canonicalPath(), service.getSchemaIfPresent(key));
+                assertNotNull("evicted: " + key.location(), service.getSchemaIfPresent(key));
             }
         }
     }

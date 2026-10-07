@@ -19,4 +19,4 @@ package org.elasticsearch.xpack.esql.datasources.cache;
  *                        settings name the same object twice. Two literals chosen here would name nothing for a
  *                        provider addressed by an account rather than an endpoint.
  */
-public record FileMetadataCacheKey(String canonicalPath, String storageIdentity) {}
+public record FileMetadataCacheKey(String location, String storageIdentity) {}

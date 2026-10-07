@@ -48,7 +48,7 @@ public final class ExternalSourceCacheTestAccess {
         // not express.
         int[] enriched = { 0 };
         service.statisticsCache().forEach((key, record) -> {
-            if (key.file().canonicalPath().contains(pathSubstring)
+            if (key.file().location().contains(pathSubstring)
                 && record.measurements().containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)) {
                 enriched[0]++;
             }
@@ -97,7 +97,7 @@ public final class ExternalSourceCacheTestAccess {
     public static int invalidatePerFileSchemaEntries(ExternalSourceCacheService service, String pathSubstring, int maxEntries) {
         List<SchemaCacheKey> victims = new ArrayList<>();
         service.schemaCache().forEach((key, entry) -> {
-            if (victims.size() < maxEntries && key.canonicalPath().contains(pathSubstring)) {
+            if (victims.size() < maxEntries && key.location().contains(pathSubstring)) {
                 victims.add(key);
             }
         });

@@ -32,15 +32,15 @@ package org.elasticsearch.xpack.esql.datasources.cache;
  * {@code FileSourceFactory#COORDINATOR_KEYS} and deliberately not inert, so an explicit format separates
  * the addresses there, and an implied one is separated by the path's own extension.
  */
-public record SchemaCacheKey(DatasetIdentity dataset, String canonicalPath, long lastModifiedEpochMillis, boolean declaredStrict) {
+public record SchemaCacheKey(DatasetIdentity dataset, String location, long lastModifiedEpochMillis, boolean declaredStrict) {
     /**
      * Key for a per-file record.
      *
      * @param declaredStrict true for the strict-declared warm rail, whose record is a different answer about the
      *                       same file than the inferred one and must not share its address
      */
-    public static SchemaCacheKey build(String canonicalPath, long mtime, DatasetIdentity dataset, boolean declaredStrict) {
-        return new SchemaCacheKey(dataset, canonicalPath, mtime, declaredStrict);
+    public static SchemaCacheKey build(String location, long mtime, DatasetIdentity dataset, boolean declaredStrict) {
+        return new SchemaCacheKey(dataset, location, mtime, declaredStrict);
     }
 
 }

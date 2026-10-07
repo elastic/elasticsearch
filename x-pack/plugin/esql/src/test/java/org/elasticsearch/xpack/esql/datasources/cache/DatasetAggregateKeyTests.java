@@ -129,7 +129,7 @@ public class DatasetAggregateKeyTests extends ESTestCase {
 
     public void testDatasetAggregateKeyDistinctFromPerFileKeys() {
         // A per-file key cannot equal a dataset key: the file-set fingerprint rides its own component, which
-        // every per-file key leaves null. canonicalPath stays the plain glob pattern, for diagnostics.
+        // every per-file key leaves null. location stays the plain glob pattern, for diagnostics.
         DatasetAggregateKey dataset = DatasetAggregateKey.of(
             PATTERN,
             new FileSetFingerprint(11, 22),

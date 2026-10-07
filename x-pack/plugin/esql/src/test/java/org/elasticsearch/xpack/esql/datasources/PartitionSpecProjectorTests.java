@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.Ope
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -123,20 +124,13 @@ public class PartitionSpecProjectorTests extends ESTestCase {
         Instant end = Instant.parse("2026-01-01T00:00:00Z");
         List<PartitionFilterHint> hints = List.of(hint("ts", Operator.GREATER_THAN_OR_EQUAL, start), hint("ts", Operator.LESS_THAN, end));
 
-        assertEquals(
-            List.of(
-                hint("ts", Operator.GREATER_THAN_OR_EQUAL, start),
-                hint("ts", Operator.LESS_THAN, end),
-                hint("year", Operator.IN, 2024, 2025)
-            ),
-            spec.projectListingHints(hints)
-        );
+        assertEquals(List.of(hint("year", Operator.IN, 2024, 2025)), spec.projectListingHints(hints));
     }
 
     public void testUnboundedRangeDoesNotEmitInfiniteYearIn() {
         PartitionSpec spec = PartitionSpec.parse("year(ts)");
         List<PartitionFilterHint> hints = List.of(hint("ts", Operator.GREATER_THAN, MARCH_15_2024));
-        assertEquals(hints, spec.projectListingHints(hints));
+        assertEquals(List.of(), spec.projectListingHints(hints));
     }
 
     public void testMonthOnlySpecDoesNotInventYearIn() {
@@ -144,7 +138,7 @@ public class PartitionSpecProjectorTests extends ESTestCase {
         Instant start = Instant.parse("2024-03-15T00:00:00Z");
         Instant end = Instant.parse("2026-01-01T00:00:00Z");
         List<PartitionFilterHint> hints = List.of(hint("ts", Operator.GREATER_THAN_OR_EQUAL, start), hint("ts", Operator.LESS_THAN, end));
-        assertEquals(hints, spec.projectListingHints(hints));
+        assertEquals(List.of(), spec.projectListingHints(hints));
     }
 
     public void testIdentityRemapRewritesHintColumn() {
@@ -165,15 +159,7 @@ public class PartitionSpecProjectorTests extends ESTestCase {
             hint("ts", Operator.GREATER_THAN_OR_EQUAL, start),
             hint("ts", Operator.LESS_THAN, end)
         );
-        assertEquals(
-            List.of(
-                hint("year", Operator.EQUALS, 2024),
-                hint("ts", Operator.GREATER_THAN_OR_EQUAL, start),
-                hint("ts", Operator.LESS_THAN, end),
-                hint("year", Operator.IN, 2024, 2025)
-            ),
-            spec.projectListingHints(hints)
-        );
+        assertEquals(List.of(hint("year", Operator.EQUALS, 2024), hint("year", Operator.IN, 2024, 2025)), spec.projectListingHints(hints));
     }
 
     public void testEmptySpecIsIdentity() {
@@ -200,11 +186,8 @@ public class PartitionSpecProjectorTests extends ESTestCase {
         Instant end = Instant.parse("2025-01-01T00:00:00Z");
         List<PartitionFilterHint> hints = List.of(hint("ts", Operator.GREATER_THAN_OR_EQUAL, start), hint("ts", Operator.LESS_THAN, end));
 
-        assertEquals(hints, spec.projectListingHints(hints, Set.of("year")));
-        assertEquals(
-            List.of(hint("ts", Operator.GREATER_THAN_OR_EQUAL, start), hint("ts", Operator.LESS_THAN, end), hint("yyy", Operator.IN, 2024)),
-            spec.projectListingHints(hints, Set.of("yyy"))
-        );
+        assertEquals(List.of(), spec.projectListingHints(hints, Set.of("year")));
+        assertEquals(List.of(hint("yyy", Operator.IN, 2024)), spec.projectListingHints(hints, Set.of("yyy")));
 
         List<String> notices = new ArrayList<>();
         spec.emitListingNotices(Set.of("year"), hints, notices::add);
@@ -239,7 +222,7 @@ public class PartitionSpecProjectorTests extends ESTestCase {
         PartitionSpec spec = PartitionSpec.parse("year(start), month(start)");
         List<PartitionFilterHint> hints = List.of(hint("start", Operator.LESS_THAN, 1_710_000_000L));
         assertTrue("wrong-unit < must not empty the 2024 folder", spec.overlaps(folder(2024, 6, null), hints));
-        assertEquals(hints, spec.projectListingHints(hints));
+        assertEquals(List.of(), spec.projectListingHints(hints));
     }
 
     public void testWrongUnitDoesNotWarnForDatetimeLiteral() {
@@ -316,14 +299,7 @@ public class PartitionSpecProjectorTests extends ESTestCase {
             start,
             end
         );
-        assertEquals(
-            List.of(
-                hint("@timestamp", Operator.GREATER_THAN_OR_EQUAL, start),
-                hint("@timestamp", Operator.LESS_THAN_OR_EQUAL, end),
-                hint("year", Operator.IN, 2024, 2025)
-            ),
-            spec.projectListingHints(hints.get("s3://logs/**"))
-        );
+        assertEquals(List.of(hint("year", Operator.IN, 2024, 2025)), spec.projectListingHints(hints.get("s3://logs/**")));
         assertTrue(
             PartitionSpec.addTimestampBounds(
                 Map.of(),
@@ -344,14 +320,31 @@ public class PartitionSpecProjectorTests extends ESTestCase {
             start,
             end
         );
-        assertEquals(
-            List.of(
-                hint("@timestamp", Operator.GREATER_THAN_OR_EQUAL, start),
-                hint("@timestamp", Operator.LESS_THAN_OR_EQUAL, end),
-                hint("year", Operator.IN, 2024, 2025, 2026)
-            ),
-            spec.projectListingHints(hints.get("s3://logs/**"))
-        );
+        assertEquals(List.of(hint("year", Operator.IN, 2024, 2025, 2026)), spec.projectListingHints(hints.get("s3://logs/**")));
+    }
+
+    public void testDateNanosExclusiveGreaterThanKeepsContainingMillisecondFolder() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts)");
+        Instant bound = Instant.parse("2024-06-15T23:59:59.999000001Z");
+        List<PartitionFilterHint> hints = List.of(hint("ts", Operator.GREATER_THAN, bound));
+        assertTrue("June 15 still has (bound, midnight)", spec.overlaps(folder(2024, 6, 15), hints));
+        assertFalse("June 14 is entirely before the bound", spec.overlaps(folder(2024, 6, 14), hints));
+        long nanos = bound.getEpochSecond() * 1_000_000_000L + bound.getNano();
+        Expression filter = new GreaterThan(SRC, dateNanosField("ts"), new Literal(SRC, nanos, DataType.DATE_NANOS));
+        assertTrue(spec.overlapsExpressions(folder(2024, 6, 15), List.of(filter)));
+        assertFalse(spec.overlapsExpressions(folder(2024, 6, 14), List.of(filter)));
+    }
+
+    public void testDateNanosExclusiveLessThanKeepsContainingMillisecondFolder() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts)");
+        Instant bound = Instant.parse("2024-06-16T00:00:00.000000001Z");
+        List<PartitionFilterHint> hints = List.of(hint("ts", Operator.LESS_THAN, bound));
+        assertTrue("June 16 still has [midnight, bound)", spec.overlaps(folder(2024, 6, 16), hints));
+        assertFalse("June 17 is entirely after the bound", spec.overlaps(folder(2024, 6, 17), hints));
+        long nanos = bound.getEpochSecond() * 1_000_000_000L + bound.getNano();
+        Expression filter = new LessThan(SRC, dateNanosField("ts"), new Literal(SRC, nanos, DataType.DATE_NANOS));
+        assertTrue(spec.overlapsExpressions(folder(2024, 6, 16), List.of(filter)));
+        assertFalse(spec.overlapsExpressions(folder(2024, 6, 17), List.of(filter)));
     }
 
     public void testAliasIdentityValuesDoesNotOverwriteExistingColumn() {

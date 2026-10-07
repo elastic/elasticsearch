@@ -684,7 +684,9 @@ public final class PartitionSpec {
     /**
      * Identity remaps rewrite the hint column to the path key. Temporal binds
      * on a source column emit a finite {@code year IN (...)} for the coarsest
-     * year-key only — never an independent month IN list.
+     * year-key only — never an independent month IN list. Source-column hints
+     * ({@code @timestamp}, {@code ts}) are then dropped so they cannot join
+     * listing-cache identity once the glob stays walkable ({@code year=2024/**}).
      */
     public List<PartitionFilterHint> projectListingHints(List<PartitionFilterHint> hints) {
         return projectListingHints(hints, null);
@@ -723,7 +725,27 @@ public final class PartitionSpec {
             values.addAll(years);
             projected.add(new PartitionFilterHint(yearBind.key(), Operator.IN, values));
         }
-        return List.copyOf(projected);
+        return List.copyOf(dropTemporalSourceHints(projected));
+    }
+
+    /**
+     * Listing keys are path columns ({@code year}, remapped {@code aws-region}). A
+     * temporal source is not one, unless that source is itself the path key.
+     */
+    private List<PartitionFilterHint> dropTemporalSourceHints(List<PartitionFilterHint> projected) {
+        Set<String> temporalSources = temporalGroups().keySet();
+        Set<String> keys = new LinkedHashSet<>();
+        for (Field field : fields) {
+            keys.add(field.key());
+        }
+        List<PartitionFilterHint> kept = new ArrayList<>(projected.size());
+        for (PartitionFilterHint hint : projected) {
+            if (temporalSources.contains(hint.columnName()) && keys.contains(hint.columnName()) == false) {
+                continue;
+            }
+            kept.add(hint);
+        }
+        return kept;
     }
 
     /**
@@ -1022,9 +1044,9 @@ public final class PartitionSpec {
                     }
                 }
                 case GREATER_THAN -> {
-                    Long millis = toUtcMillisForProjection(hint.values().get(0), unit);
+                    Long millis = exclusiveLowerStartMillis(hint.values().get(0), unit);
                     if (millis != null) {
-                        range = range.intersect(new InstantRange(increment(millis), null));
+                        range = range.intersect(new InstantRange(millis, null));
                     }
                 }
                 case GREATER_THAN_OR_EQUAL -> {
@@ -1034,7 +1056,7 @@ public final class PartitionSpec {
                     }
                 }
                 case LESS_THAN -> {
-                    Long millis = toUtcMillisForProjection(hint.values().get(0), unit);
+                    Long millis = exclusiveUpperEndMillis(hint.values().get(0), unit);
                     if (millis != null) {
                         range = range.intersect(new InstantRange(null, millis));
                     }
@@ -1314,6 +1336,37 @@ public final class PartitionSpec {
 
     static int utcYear(long millis) {
         return Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).get(ChronoField.YEAR);
+    }
+
+    /**
+     * Exclusive {@code >} as an inclusive start. {@link Instant#toEpochMilli()} floors,
+     * so a DATE_NANOS bound inside a millisecond would otherwise skip the rest of that
+     * millisecond and drop a folder that still matches.
+     */
+    @Nullable
+    private static Long exclusiveLowerStartMillis(Object raw, Unit unit) {
+        Long millis = toUtcMillisForProjection(raw, unit);
+        if (millis == null) {
+            return null;
+        }
+        return hasSubMilliNanos(raw) ? millis : increment(millis);
+    }
+
+    /**
+     * Exclusive {@code <} as an exclusive end. Sub-milli DATE_NANOS widens to the
+     * containing millisecond so the boundary folder is kept.
+     */
+    @Nullable
+    private static Long exclusiveUpperEndMillis(Object raw, Unit unit) {
+        Long millis = toUtcMillisForProjection(raw, unit);
+        if (millis == null) {
+            return null;
+        }
+        return hasSubMilliNanos(raw) ? increment(millis) : millis;
+    }
+
+    private static boolean hasSubMilliNanos(Object raw) {
+        return raw instanceof Instant instant && instant.getNano() % 1_000_000 != 0;
     }
 
     private static long increment(long millis) {

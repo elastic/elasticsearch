@@ -280,8 +280,8 @@ public final class RandomMappingGenerator {
                 optionalSet(s, 1, "norms", randomBoolean());
                 boolean indexed = Boolean.FALSE.equals(s.get("index")) == false;
                 Object indexOpts = s.get("index_options");
-                // omitted index_options defaults to "positions" in standard index modes (strictly columnar modes default to
-                // "freqs"); see TextParams.textIndexOptions and TextFieldMapper.Builder
+                // omitted index_options defaults to "positions" in standard index modes (non-search-optimized strictly columnar
+                // modes default to "docs"); see TextParams.textIndexOptions and TextFieldMapper.Builder
 
                 boolean positionsEnabled = indexed && (indexOpts == null || "positions".equals(indexOpts) || "offsets".equals(indexOpts));
                 if (positionsEnabled) {

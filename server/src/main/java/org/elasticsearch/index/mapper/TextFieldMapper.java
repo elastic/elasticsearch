@@ -346,18 +346,30 @@ public final class TextFieldMapper extends FieldMapper {
                 indexSettings.getMode().isStrictColumnar()
             );
             this.index = Parameter.indexParam(m -> ((TextFieldMapper) m).index, true);
-            // Strictly columnar indices default index_options to "freqs" since positions are not needed there; others keep "positions".
-            // index_phrases requires positions, so when it is set without an explicit index_options we upgrade this default in build().
-            this.indexOptions = TextParams.textIndexOptions(
-                m -> ((TextFieldMapper) m).indexOptions,
-                indexSettings.getMode().isStrictColumnar() ? "freqs" : "positions"
-            );
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
                 m -> ((TextFieldMapper) m).indexAnalyzer,
                 m -> (((TextFieldMapper) m).positionIncrementGap),
                 indexSettings.getIndexVersionCreated()
             );
+            // Strictly columnar indices default index_options to "docs": positions and freqs are not needed since values are read from
+            // doc values and norms are off by default, so there is nothing for freqs to feed. The default is resolved lazily because it
+            // depends on index_phrases and position_increment_gap, whose values are only known once parsing has finished:
+            // - gated on the index version so existing columnar indices, whose segments may already carry positions, keep "positions"
+            // on upgrade;
+            // - search-optimized columnar modes (e.g. vectordb_columnar) are excluded because relevance search is their main access
+            // pattern, so they keep "positions";
+            // - index_phrases and position_increment_gap require positions, so when either is set without an explicit index_options we
+            // keep the "positions" default (mirroring standard mode, where they work out of the box).
+            this.indexOptions = TextParams.textIndexOptions(m -> ((TextFieldMapper) m).indexOptions, () -> {
+                boolean docsByDefault = indexSettings.getIndexVersionCreated()
+                    .onOrAfter(IndexVersions.TEXT_INDEX_OPTIONS_DOCS_BY_DEFAULT_IN_COLUMNAR)
+                    && indexSettings.getMode().isStrictColumnar()
+                    && indexSettings.getMode().isSearchOptimizedColumnar() == false
+                    && indexPhrases.getValue() == false
+                    && analyzers.positionIncrementGap.isConfigured() == false;
+                return docsByDefault ? "docs" : "positions";
+            });
 
             IndexMode indexMode = indexSettings.getMode();
             this.norms = Parameter.normsParam(m -> ((TextFieldMapper) m).norms, () -> {
@@ -572,13 +584,6 @@ public final class TextFieldMapper extends FieldMapper {
 
         @Override
         public TextFieldMapper build(MapperBuilderContext context) {
-            // index_phrases needs positions. In strictly columnar mode index_options defaults to "freqs", so if the user enabled
-            // index_phrases without explicitly choosing index_options, upgrade the default to "positions" (mirroring standard mode,
-            // where index_phrases works out of the box because positions is the default). An explicit lower setting still errors in
-            // buildPhraseInfo, matching standard-mode behavior.
-            if (indexPhrases.getValue() && indexOptions.isSet() == false && indexOptions.getValue().equals("freqs")) {
-                indexOptions.setValue("positions");
-            }
             this.offsetsFieldName = FieldArrayContext.getOffsetsFieldName(
                 context,
                 indexSettings.getMode().isStrictColumnar(),

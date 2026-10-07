@@ -436,6 +436,7 @@ toc:
           - file: esql/esql-data-federation-datasets.md
             children:
               - file: esql/esql-data-federation-patterns.md
+              - file: esql/esql-data-federation-partition-spec.md
           - file: esql/esql-data-federation-querying.md
           - file: esql/esql-data-federation-security.md
           - file: esql/esql-data-federation-cluster-settings.md
@@ -475,6 +476,7 @@ toc:
           - file: promql/functions/math.md
           - file: promql/functions/date-time.md
           - file: promql/functions/conversion.md
+          - file: promql/functions/metadata.md
       - file: promql/operators.md
         children:
           - file: promql/operators/arithmetic.md

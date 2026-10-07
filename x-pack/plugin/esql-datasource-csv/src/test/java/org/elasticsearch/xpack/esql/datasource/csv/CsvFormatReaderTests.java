@@ -7223,6 +7223,64 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertTrue("expected fault bytes in excerpt, got: " + msg, msg.contains("\"unterminated_field_here_"));
     }
 
+    /**
+     * A multi-megabyte value that does not parse as its column's type must not reach the client whole: the same
+     * message is the {@code Warning} detail under the lenient modes and the error under {@code fail_fast}. Unlike the
+     * {@link CsvErrorMessages} tests above, this reads a file, so it covers the cap's application on every walker.
+     */
+    public void testLongUnparseableValueIsTruncatedInWarningAndException() throws Exception {
+        int length = 2_000_000;
+        StorageObject object = createStorageObject("id:long,tag:keyword\n1,ok\n" + "Z".repeat(length) + ",bad\n2,ok\n");
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "tag", DataType.KEYWORD)
+        );
+        // The frame around the value is well under 64 chars. Under fail_fast the row excerpt (itself capped) and
+        // the hint come on top. A value embedded whole overshoots either bound.
+        int warningBound = ErrorExcerpts.MAX_EXCERPT_CHARS + 64;
+        int exceptionBound = 2 * ErrorExcerpts.MAX_EXCERPT_CHARS + 160;
+        for (String mvSyntax : List.of("NONE", "brackets")) {
+            for (boolean directBlock : List.of(false, true)) {
+                for (String lenient : List.of("null_field", "skip_row")) {
+                    String desc = "multi_value_syntax=" + mvSyntax + " directBlock=" + directBlock + " error_mode=" + lenient;
+                    Map<String, Object> config = Map.of(
+                        "header_row",
+                        true,
+                        "multi_value_syntax",
+                        mvSyntax,
+                        "error_mode",
+                        lenient,
+                        "max_errors",
+                        100
+                    );
+                    int rows = readRowCount(declaredReader(false, directBlock, config), object, schema, null);
+                    assertEquals(desc, lenient.equals("null_field") ? 3 : 2, rows);
+                    String detail = drainWarnings().stream().filter(w -> w.contains("cannot read [")).findFirst().orElseThrow();
+                    assertThat(desc + " warning carried the whole value", detail.length(), Matchers.lessThan(warningBound));
+                    assertThat(desc, detail, containsString("] as [long]"));
+                    assertThat(desc, detail, containsString("(truncated, " + length + " chars total)"));
+                    if (lenient.equals("null_field")) {
+                        assertThat(desc, detail, containsString("column [id]"));
+                    }
+                }
+
+                String desc = "multi_value_syntax=" + mvSyntax + " directBlock=" + directBlock + " error_mode=fail_fast";
+                Map<String, Object> config = Map.of("header_row", true, "multi_value_syntax", mvSyntax, "error_mode", "fail_fast");
+                ExternalClientException e = expectThrows(
+                    ExternalClientException.class,
+                    () -> readRowCount(declaredReader(false, directBlock, config), object, schema, null)
+                );
+                String message = e.getMessage();
+                assertThat(desc + " exception carried the whole value", message.length(), Matchers.lessThan(exceptionBound));
+                assertThat(desc, message, containsString("cannot read ["));
+                assertThat(desc, message, containsString("] as [long]"));
+                assertThat(desc, message, containsString("(truncated, " + length + " chars total)"));
+                assertThat(desc, message, containsString("set [error_mode] to [null_field]"));
+                drainWarnings();
+            }
+        }
+    }
+
     // --- declared `path` binding under a pinned (declared) schema: esql-planning#1307 ---
 
     /**

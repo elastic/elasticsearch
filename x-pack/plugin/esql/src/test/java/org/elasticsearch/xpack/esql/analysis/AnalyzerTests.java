@@ -7413,6 +7413,35 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     /**
+     * A {@code RENAME} or {@code EVAL} copy of {@code _index} in KEY BY still groups each row by its index, below or above
+     * FORK, so the key passes through FUSE. A column that is only named {@code _index}, or that one branch overwrites or
+     * fills with nulls, can merge documents from several indices, so HIGHLIGHT gets no key and fails.
+     */
+    public void testHighlightAfterFuseKeyByCopyOfIndex() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        String fork = " | FORK (WHERE MATCH(title, \"ring\") | LIMIT 10) (WHERE MATCH(title, \"return\") | LIMIT 10)";
+        String highlight = " | HIGHLIGHT \"ring\" ON title";
+        for (String query : List.of(
+            "FROM books* METADATA _id, _index, _score | EVAL new_id = _id, new_index = _index" + fork + " | FUSE KEY BY new_id, new_index",
+            "FROM books* METADATA _id, _index, _score" + fork + " | RENAME _index AS idx | FUSE KEY BY _id, idx",
+            "FROM books* METADATA _id, _index, _score | RENAME _index AS idx" + fork + " | EVAL i = idx | FUSE KEY BY _id, i"
+        )) {
+            LogicalPlan plan = booksWithConflictingTitleAnalyzer().query(query + highlight);
+            assertNotNull(query, soleHighlight(plan).indexKey());
+            assertThat(query, fieldNames(plan.output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
+            assertWarnings();
+        }
+
+        for (String query : List.of(
+            "FROM books* METADATA _id, _score | EVAL _index = book_no" + fork + " | FUSE",
+            "FROM books* METADATA _id, _index, _score | FORK (WHERE book_no == \"1\") (EVAL _index = book_no) | FUSE",
+            "FROM books* METADATA _id, _index, _score | FORK (WHERE book_no == \"1\") (DROP _index) | FUSE"
+        )) {
+            booksWithConflictingTitleAnalyzer().error(query + highlight, containsString(analyzerConflictError("title")));
+        }
+    }
+
+    /**
      * When one branch computes the column and another maps it, no single analyzer fits every row, so HIGHLIGHT rejects the
      * query. A STATS branch agrees on the mapping but has no source index per row, so HIGHLIGHT gets no key and fails
      * because the indices disagree.

@@ -2269,6 +2269,29 @@ book_no:keyword | highlight_title:keyword
 ;
 
 
+# FUSE KEY BY a copy of _index still groups by each row's index, so HIGHLIGHT uses that index's analyzer.
+# The books_english row matches "Rings", and the books row does not.
+highlightPerIndexAnalyzerAfterFuseKeyByIndexCopy
+required_capability: highlight_mapping_analyzer
+required_capability: fork_v9
+required_capability: fuse_v6
+
+FROM books,books_english METADATA _id, _index, _score
+| EVAL new_id = _id, new_index = _index
+| FORK (WHERE book_no == "2714" | LIMIT 10)
+       (WHERE book_no == "2714" | LIMIT 10)
+| FUSE KEY BY new_id, new_index
+| HIGHLIGHT "ring" ON title
+| KEEP new_index, title, highlight_title
+| SORT new_index
+;
+
+new_index:keyword | title:keyword                                                    | highlight_title:keyword
+books             | Return of the King Being the Third Part of The Lord of the Rings | null
+books_english     | Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+;
+
+
 # FUSE GROUP BY an aliased fork column still reads title through FIRST, so english stems "Rings" and "ring" matches it.
 highlightMappingAnalyzerAfterFuseGroupByAlias
 required_capability: highlight_mapping_analyzer

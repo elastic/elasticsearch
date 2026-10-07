@@ -256,7 +256,8 @@ analyzer of the index it comes from.
 
 * Queried indices map the field with different analyzers and `HIGHLIGHT` cannot
   determine which index supplied the value (for example, after `STATS`, `DEDUP`,
-  or a `FUSE` whose `KEY BY` omits `_index`, or across a `LOOKUP JOIN`).
+  or a `FUSE` whose `KEY BY` includes neither `_index` nor a copy of it, or
+  across a `LOOKUP JOIN`).
 * Branches of `FORK`, or subqueries in `FROM`, define conflicting analyzers for
   the same column (for example, when one branch reads the field from an index and
   another computes the column with a different analyzer).

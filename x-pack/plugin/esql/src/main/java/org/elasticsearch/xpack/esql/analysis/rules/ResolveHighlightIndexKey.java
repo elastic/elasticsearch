@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
@@ -56,7 +57,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
  * <p>
  * STATS and ROW rows have no single source index, and DEDUP would group by the key. Those plans get no key, so
  * indices that disagree fail the query: see {@link HighlightAnalyzers#analyzerMismatch}. FUSE keeps the key when it
- * groups by {@code _index}.
+ * groups by {@code _index} or a copy of it.
  */
 public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
@@ -143,6 +144,24 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
         return source != null && source.outputSet().contains(read) ? source : null;
     }
 
+    /**
+     * Whether {@code column} holds each row's {@code _index}, directly or through {@code RENAME} and {@code EVAL} copies.
+     * A merged column must hold it in every branch, so a branch that overwrites the column or fills it with nulls does not.
+     */
+    private static boolean holdsIndex(LogicalPlan plan, Attribute column) {
+        Expression read = aliases(plan).resolve(column, column);
+        LogicalPlan source = rowSourceOf(plan, read);
+        if (source instanceof MergePlan merge) {
+            return merge.children().stream().allMatch(branch -> {
+                Attribute branchColumn = firstNamed(branch.output(), Expressions.name(read), a -> true);
+                return branchColumn != null
+                    && Fork.producesOnlyNull(branch).test(branchColumn) == false
+                    && holdsIndex(branch, branchColumn);
+            });
+        }
+        return source instanceof EsRelation && read instanceof MetadataAttribute index && index.name().equals(MetadataAttribute.INDEX);
+    }
+
     /** Returns {@code plan} with the key in its output, or {@code null} when its rows have no single source index. */
     private static LogicalPlan withIndexKey(LogicalPlan plan) {
         // Reuse the key of an earlier HIGHLIGHT. A second alias of the same name would shadow it in Eval's output.
@@ -181,7 +200,7 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
             }
             // FUSE merges the rows of one document. Grouped by _index, they all come from one index, so any row's key fits.
             case Aggregate fuse when fuse.child() instanceof FuseScoreEval
-                && fuse.groupings().stream().anyMatch(g -> Expressions.name(g).equals(MetadataAttribute.INDEX)) -> {
+                && fuse.groupings().stream().anyMatch(g -> g instanceof Attribute key && holdsIndex(fuse.child(), key)) -> {
                 LogicalPlan child = withIndexKey(fuse.child());
                 if (child == null) {
                     yield null;

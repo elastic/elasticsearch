@@ -127,6 +127,62 @@ public class PartitionSpecProjectorTests extends ESTestCase {
         assertEquals(List.of(hint("year", Operator.IN, 2024, 2025)), spec.projectListingHints(hints));
     }
 
+    public void testFifteenMinuteWindowEmitsOneValuePerGrain() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
+        Instant start = Instant.parse("2026-10-13T10:00:00Z");
+        Instant end = Instant.parse("2026-10-13T10:15:00Z");
+        List<PartitionFilterHint> hints = List.of(hint("ts", Operator.GREATER_THAN_OR_EQUAL, start), hint("ts", Operator.LESS_THAN, end));
+        assertEquals(
+            List.of(
+                hint("ts", Operator.GREATER_THAN_OR_EQUAL, start),
+                hint("ts", Operator.LESS_THAN, end),
+                hint("year", Operator.IN, 2026),
+                hint("month", Operator.IN, 10),
+                hint("day", Operator.IN, 13),
+                hint("hour", Operator.IN, 10)
+            ),
+            spec.projectListingHints(hints)
+        );
+    }
+
+    public void testThreeDayWindowSkipsCompleteHourIn() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
+        Instant start = Instant.parse("2026-07-13T00:00:00Z");
+        Instant end = Instant.parse("2026-07-16T00:00:00Z");
+        List<PartitionFilterHint> hints = List.of(hint("ts", Operator.GREATER_THAN_OR_EQUAL, start), hint("ts", Operator.LESS_THAN, end));
+        List<PartitionFilterHint> projected = spec.projectListingHints(hints);
+        assertEquals(List.of(2026), inValues(projected, "year"));
+        assertEquals(List.of(7), inValues(projected, "month"));
+        assertEquals(List.of(13, 14, 15), inValues(projected, "day"));
+        assertNull("72 hour folders but 24 unique hours of day is complete", inValues(projected, "hour"));
+    }
+
+    public void testLagKeepsNextHourAndDayInListing() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts), lag(ts, 15m)");
+        Instant start = Instant.parse("2024-06-15T23:50:00Z");
+        Instant end = Instant.parse("2024-06-15T23:55:00Z");
+        List<PartitionFilterHint> hints = List.of(hint("ts", Operator.GREATER_THAN_OR_EQUAL, start), hint("ts", Operator.LESS_THAN, end));
+        List<PartitionFilterHint> projected = spec.projectListingHints(hints);
+        assertEquals(List.of(2024), inValues(projected, "year"));
+        assertEquals(List.of(6), inValues(projected, "month"));
+        assertEquals(List.of(15, 16), inValues(projected, "day"));
+        assertEquals(List.of(23, 0), inValues(projected, "hour"));
+        PartitionSpec noLag = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
+        assertEquals(List.of(15), inValues(noLag.projectListingHints(hints), "day"));
+        assertEquals(List.of(23), inValues(noLag.projectListingHints(hints), "hour"));
+    }
+
+    public void testLagDoesNotInventExtraYear() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts), lag(ts, 15m)");
+        Instant start = Instant.parse("2024-06-15T10:00:00Z");
+        Instant end = Instant.parse("2024-06-15T10:15:00Z");
+        List<PartitionFilterHint> hints = List.of(hint("ts", Operator.GREATER_THAN_OR_EQUAL, start), hint("ts", Operator.LESS_THAN, end));
+        assertEquals(List.of(2024), inValues(spec.projectListingHints(hints), "year"));
+        assertEquals(List.of(6), inValues(spec.projectListingHints(hints), "month"));
+        assertEquals(List.of(15), inValues(spec.projectListingHints(hints), "day"));
+        assertEquals(List.of(10), inValues(spec.projectListingHints(hints), "hour"));
+    }
+
     public void testUnboundedRangeDoesNotEmitInfiniteYearIn() {
         PartitionSpec spec = PartitionSpec.parse("year(ts)");
         List<PartitionFilterHint> hints = List.of(hint("ts", Operator.GREATER_THAN, MARCH_15_2024));
@@ -303,7 +359,9 @@ public class PartitionSpecProjectorTests extends ESTestCase {
             start,
             end
         );
-        assertEquals(List.of(hint("year", Operator.IN, 2024, 2025)), spec.projectListingHints(hints.get("s3://logs/**")));
+        List<PartitionFilterHint> projected = spec.projectListingHints(hints.get("s3://logs/**"));
+        assertEquals(List.of(2024, 2025), inValues(projected, "year"));
+        assertEquals(List.of(6, 7, 8, 9, 10, 11, 12, 1), inValues(projected, "month"));
         assertTrue(
             PartitionSpec.addTimestampBounds(
                 Map.of(),
@@ -324,7 +382,7 @@ public class PartitionSpecProjectorTests extends ESTestCase {
             start,
             end
         );
-        assertEquals(List.of(hint("year", Operator.IN, 2024, 2025, 2026)), spec.projectListingHints(hints.get("s3://logs/**")));
+        assertEquals(List.of(2024, 2025, 2026), inValues(spec.projectListingHints(hints.get("s3://logs/**")), "year"));
     }
 
     public void testDateNanosExclusiveGreaterThanKeepsContainingMillisecondFolder() {
@@ -420,23 +478,16 @@ public class PartitionSpecProjectorTests extends ESTestCase {
         Instant start = Instant.parse("2024-12-31T23:50:00Z");
         Instant end = Instant.parse("2024-12-31T23:51:00Z");
         List<PartitionFilterHint> hints = List.of(hint("ts", Operator.GREATER_THAN_OR_EQUAL, start), hint("ts", Operator.LESS_THAN, end));
-        assertEquals(
-            List.of(
-                hint("ts", Operator.GREATER_THAN_OR_EQUAL, start),
-                hint("ts", Operator.LESS_THAN, end),
-                hint("year", Operator.IN, 2024, 2025)
-            ),
-            spec.projectListingHints(hints)
-        );
+        List<PartitionFilterHint> projected = spec.projectListingHints(hints);
+        assertEquals(List.of(2024, 2025), inValues(projected, "year"));
+        assertEquals(List.of(12, 1), inValues(projected, "month"));
+        assertEquals(List.of(31, 1), inValues(projected, "day"));
+        assertEquals(List.of(23, 0), inValues(projected, "hour"));
         PartitionSpec noLag = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
-        assertEquals(
-            List.of(
-                hint("ts", Operator.GREATER_THAN_OR_EQUAL, start),
-                hint("ts", Operator.LESS_THAN, end),
-                hint("year", Operator.IN, 2024)
-            ),
-            noLag.projectListingHints(hints)
-        );
+        assertEquals(List.of(2024), inValues(noLag.projectListingHints(hints), "year"));
+        assertEquals(List.of(12), inValues(noLag.projectListingHints(hints), "month"));
+        assertEquals(List.of(31), inValues(noLag.projectListingHints(hints), "day"));
+        assertEquals(List.of(23), inValues(noLag.projectListingHints(hints), "hour"));
     }
 
     public void testPointEqualsWithLeadWidensPreviousFolder() {
@@ -532,6 +583,15 @@ public class PartitionSpecProjectorTests extends ESTestCase {
 
     private static Literal datetimeLiteral(long millis) {
         return new Literal(SRC, millis, DataType.DATETIME);
+    }
+
+    private static List<Object> inValues(List<PartitionFilterHint> hints, String key) {
+        for (PartitionFilterHint hint : hints) {
+            if (key.equals(hint.columnName()) && hint.operator() == Operator.IN) {
+                return hint.values();
+            }
+        }
+        return null;
     }
 
     private static Map<String, Object> hourFolder(int hour) {

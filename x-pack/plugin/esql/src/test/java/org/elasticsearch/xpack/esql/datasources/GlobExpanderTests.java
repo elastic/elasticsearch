@@ -3675,6 +3675,25 @@ public class GlobExpanderTests extends ESTestCase {
         return entries;
     }
 
+    /** Same calendar coverage as {@link #hourlyHiveYear} with template segments {@code yyyy/MM/dd/HH}. */
+    static List<StorageEntry> hourlyTemplateYear(int year, String fileName) {
+        List<StorageEntry> entries = new ArrayList<>(366 * 24);
+        LocalDate end = LocalDate.of(year, 12, 31);
+        for (LocalDate day = LocalDate.of(year, 1, 1); day.isAfter(end) == false; day = day.plusDays(1)) {
+            String month = String.format(Locale.ROOT, "%02d", day.getMonthValue());
+            String dayOfMonth = String.format(Locale.ROOT, "%02d", day.getDayOfMonth());
+            for (int hour = 0; hour < 24; hour++) {
+                entries.add(
+                    entry(
+                        String.format(Locale.ROOT, "s3://bucket/data/%d/%s/%s/%02d/%s", year, month, dayOfMonth, hour, fileName),
+                        100
+                    )
+                );
+            }
+        }
+        return entries;
+    }
+
     private static List<PartitionFilterHintExtractor.PartitionFilterHint> vpcYearMonthDayHints(int year, int month, int day) {
         return List.of(
             hint("year", PartitionFilterHintExtractor.Operator.EQUALS, (long) year),
@@ -3742,6 +3761,57 @@ public class GlobExpanderTests extends ESTestCase {
         assertThat(listingPlanningCharge(unnarrowed), greaterThan(5_000_000L));
         assertThat(listingPlanningCharge(walked), lessThan(2_000_000L));
         assertThat(listingPlanningCharge(walked) * 50, lessThan(listingPlanningCharge(unnarrowed)));
+    }
+
+    /**
+     * A 15-minute window on a full-year hourly hive used to list 365 × 24 files
+     * (year IN only) and trip {@code max_discovered_files=100}. Finer grain IN
+     * lists the one hour folder. Template slot rewrite does the same.
+     */
+    public void testHourlyYearListingCapPassesWithFinerGrainIn() throws IOException {
+        List<StorageEntry> hiveFiles = hourlyHiveYear(2026, "f.ext");
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
+        Instant start = Instant.parse("2026-10-13T10:00:00Z");
+        Instant end = Instant.parse("2026-10-13T10:15:00Z");
+        var tsHints = List.of(
+            hint("ts", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, start),
+            hint("ts", PartitionFilterHintExtractor.Operator.LESS_THAN, end)
+        );
+        String hiveGlob = "s3://bucket/data/year=*/month=*/day=*/hour=*/*.ext";
+        IllegalArgumentException thrown = expectThrows(
+            IllegalArgumentException.class,
+            () -> GlobExpander.expand(
+                hiveGlob,
+                new TreeStubProvider(hiveFiles),
+                PartitionSpec.parse("year(ts)").projectListingHints(tsHints),
+                HIVE_ON,
+                100,
+                MAX
+            )
+        );
+        assertThat(thrown.getMessage(), containsString("max_discovered_files"));
+
+        var hints = spec.projectListingHints(tsHints);
+        TreeStubProvider hive = new TreeStubProvider(hiveFiles);
+        FileList hiveListed = GlobExpander.expand(hiveGlob, hive, hints, HIVE_ON, 100, MAX);
+        assertEquals(1, hiveListed.fileCount());
+        assertEquals(List.of("s3://bucket/data/year=2026/month=10/day=13/hour=10/f.ext"), paths(hiveListed));
+        assertFalse("must not flat-list the year root", hive.listedPrefixes.contains("s3://bucket/data/"));
+        assertThat(hive.listedPrefixes, hasItem(containsString("year=2026/month=10/day=13/hour=10/")));
+
+        List<StorageEntry> templateFiles = hourlyTemplateYear(2026, "f.ext");
+        Map<String, Object> template = Map.of(
+            PartitionConfig.CONFIG_PARTITIONING_DETECTION,
+            "template",
+            PartitionConfig.CONFIG_PARTITIONING_PATH,
+            "{year}/{month}/{day}/{hour}"
+        );
+        TreeStubProvider templateProvider = new TreeStubProvider(templateFiles);
+        FileList templateListed = GlobExpander.expand("s3://bucket/data/*/*/*/*/*.ext", templateProvider, hints, template, 100, MAX);
+        assertEquals(1, templateListed.fileCount());
+        assertEquals(List.of("s3://bucket/data/2026/10/13/10/f.ext"), paths(templateListed));
+        assertFalse(templateProvider.listedPrefixes.contains("s3://bucket/data/"));
+        assertThat(templateProvider.listedPrefixes, hasItem(containsString("2026/10/13/10/")));
     }
 
     /** The paths a listing returned, for asserting what was — and was not — enumerated. */

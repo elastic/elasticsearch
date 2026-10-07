@@ -2247,11 +2247,12 @@ public class EsqlSession {
     }
 
     /**
-     * Remaps identity hints and emits a finite {@code year IN} through each
-     * path's {@code partition_spec}. Source-column bounds such as {@code @timestamp}
-     * GTE/LTE from {@link PartitionSpec#addTimestampBounds} are dropped after that
-     * {@code IN} is built so they cannot fragment listing-cache identity.
-     * Identity-only specs leave the extractor hints unchanged.
+     * Remaps identity hints and emits finite {@code year}/{@code month}/{@code day}/{@code hour}
+     * {@code IN} lists through each path's {@code partition_spec}. Source-column bounds such as
+     * {@code @timestamp} GTE/LTE from {@link PartitionSpec#addTimestampBounds} are dropped after
+     * those {@code IN}s are built so they cannot fragment listing-cache identity. Hour IN
+     * changes listing-cache identity each hour; a Kibana refresh within the
+     * hour still hits. Identity-only specs leave the extractor hints unchanged.
      */
     static Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> projectPartitionSpecs(
         Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,

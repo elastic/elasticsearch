@@ -27,6 +27,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoField;
+import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -73,6 +74,8 @@ public final class PartitionSpec {
 
     static final int WRONG_UNIT_YEAR_MIN = 1971;
     static final int WRONG_UNIT_YEAR_MAX = 2100;
+    /** Skip a grain IN list bigger than this; listing a superset is safe, a missing folder is not. */
+    static final int LISTING_IN_CAP = 64;
 
     public enum Transform {
         IDENTITY,
@@ -898,11 +901,14 @@ public final class PartitionSpec {
 
     /**
      * Identity remaps rewrite the hint column to the path key. Temporal binds
-     * on a source column emit a finite {@code year IN (...)} for the coarsest
-     * year-key only — never an independent month IN list. Source-column hints
+     * on a source column emit a finite {@code year}/{@code month}/{@code day}/{@code hour}
+     * {@code IN} for each grain the spec actually binds. A grain is omitted when
+     * its calendar-part set is complete (all 12 months, 31 days, or 24 hours),
+     * empty, or larger than {@link #LISTING_IN_CAP}. Independent IN lists are a
+     * cross-product superset of the true folder set. Source-column hints
      * ({@code @timestamp}, {@code ts}) are then dropped so they cannot join
      * listing-cache identity once the glob stays walkable ({@code year=2024/**}).
-     * They stay when no year IN is emitted, so a numeric bound that lands
+     * They stay when no grain IN is emitted, so a numeric bound that lands
      * outside 1971–2100 still reaches {@link #emitListingNotices}.
      */
     public List<PartitionFilterHint> projectListingHints(List<PartitionFilterHint> hints) {
@@ -925,24 +931,37 @@ public final class PartitionSpec {
                 }
             }
         }
-        Map<String, LinkedHashSet<Object>> yearInByKey = new LinkedHashMap<>();
+        Map<String, LinkedHashSet<Object>> inByKey = new LinkedHashMap<>();
         for (Map.Entry<String, List<Field>> group : temporalGroups().entrySet()) {
             List<Field> binds = usable(group.getValue(), detectedKeys);
             if (binds.isEmpty()) {
                 continue;
             }
+            SourceBounds bounds = sourceBounds(hints, group.getKey(), binds.get(0).unit());
             Field yearBind = coarsestYearBind(binds);
-            if (yearBind == null) {
-                continue;
+            if (yearBind != null) {
+                List<Integer> years = overlappingYears(bounds);
+                if (years.isEmpty() == false) {
+                    intersectIn(inByKey, yearBind.key(), years);
+                }
             }
-            SourceBounds bounds = sourceBounds(hints, group.getKey(), yearBind.unit());
-            List<Integer> years = overlappingYears(bounds);
-            if (years.isEmpty()) {
-                continue;
-            }
-            intersectIn(yearInByKey, yearBind.key(), years);
+            addIncompleteGrain(
+                inByKey,
+                bindOf(binds, Transform.MONTH),
+                overlappingParts(bounds, ChronoField.MONTH_OF_YEAR, ChronoUnit.MONTHS, 12)
+            );
+            addIncompleteGrain(
+                inByKey,
+                bindOf(binds, Transform.DAY),
+                overlappingParts(bounds, ChronoField.DAY_OF_MONTH, ChronoUnit.DAYS, 31)
+            );
+            addIncompleteGrain(
+                inByKey,
+                bindOf(binds, Transform.HOUR),
+                overlappingParts(bounds, ChronoField.HOUR_OF_DAY, ChronoUnit.HOURS, 24)
+            );
         }
-        for (Map.Entry<String, LinkedHashSet<Object>> entry : yearInByKey.entrySet()) {
+        for (Map.Entry<String, LinkedHashSet<Object>> entry : inByKey.entrySet()) {
             if (entry.getValue().isEmpty()) {
                 continue;
             }
@@ -970,6 +989,13 @@ public final class PartitionSpec {
             kept.add(hint);
         }
         return kept;
+    }
+
+    private static void addIncompleteGrain(Map<String, LinkedHashSet<Object>> inByKey, Field bind, List<Integer> values) {
+        if (bind == null || values.isEmpty()) {
+            return;
+        }
+        intersectIn(inByKey, bind.key(), values);
     }
 
     /** Same listing key from two source columns: keep the intersection (a superset of neither, still a superset of the AND). */
@@ -1286,6 +1312,16 @@ public final class PartitionSpec {
     }
 
     @Nullable
+    private static Field bindOf(List<Field> binds, Transform transform) {
+        for (Field field : binds) {
+            if (field.transform() == transform) {
+                return field;
+            }
+        }
+        return null;
+    }
+
+    @Nullable
     private static Field finestBind(List<Field> binds, Map<String, Object> partitionValues) {
         Field finest = null;
         int finestRank = -1;
@@ -1488,6 +1524,69 @@ public final class PartitionSpec {
             years.add(year);
         }
         return years;
+    }
+
+    /**
+     * Unique calendar parts of {@code bounds} for one grain. Empty when the
+     * range is unbounded, the part set is complete (every month/day/hour), or
+     * larger than {@link #LISTING_IN_CAP}. Completeness skips an IN that would
+     * not narrow (a 3-day window hits all 24 hours).
+     */
+    private static List<Integer> overlappingParts(SourceBounds bounds, ChronoField field, ChronoUnit step, int completeSize) {
+        if (bounds.points != null) {
+            if (bounds.points.isEmpty()) {
+                return List.of();
+            }
+            LinkedHashSet<Integer> parts = new LinkedHashSet<>();
+            for (Long point : bounds.points) {
+                parts.add(utcField(point, field));
+                if (parts.size() >= completeSize) {
+                    return List.of();
+                }
+            }
+            return parts.size() > LISTING_IN_CAP ? List.of() : List.copyOf(parts);
+        }
+        if (bounds.range.isBounded() == false) {
+            return List.of();
+        }
+        long startMillis = bounds.range.startInclusiveMillis;
+        long lastMillis = bounds.range.endExclusiveMillis - 1;
+        if (lastMillis < startMillis) {
+            return List.of();
+        }
+        OffsetDateTime start = Instant.ofEpochMilli(startMillis).atOffset(ZoneOffset.UTC);
+        OffsetDateTime last = Instant.ofEpochMilli(lastMillis).atOffset(ZoneOffset.UTC);
+        OffsetDateTime cursor = truncateToStep(start, step);
+        OffsetDateTime end = truncateToStep(last, step);
+        LinkedHashSet<Integer> parts = new LinkedHashSet<>();
+        while (cursor.compareTo(end) <= 0) {
+            parts.add(cursor.get(field));
+            if (parts.size() >= completeSize) {
+                return List.of();
+            }
+            OffsetDateTime next = cursor.plus(1, step);
+            if (next.compareTo(cursor) <= 0) {
+                break;
+            }
+            cursor = next;
+        }
+        if (parts.isEmpty() || parts.size() > LISTING_IN_CAP) {
+            return List.of();
+        }
+        return List.copyOf(parts);
+    }
+
+    private static OffsetDateTime truncateToStep(OffsetDateTime time, ChronoUnit step) {
+        return switch (step) {
+            case HOURS -> time.truncatedTo(ChronoUnit.HOURS);
+            case DAYS -> time.truncatedTo(ChronoUnit.DAYS);
+            case MONTHS -> time.withDayOfMonth(1).truncatedTo(ChronoUnit.DAYS);
+            default -> throw new AssertionError("unexpected listing grain step [" + step + "]");
+        };
+    }
+
+    private static int utcField(long millis, ChronoField field) {
+        return Instant.ofEpochMilli(millis).atOffset(ZoneOffset.UTC).get(field);
     }
 
     @Nullable

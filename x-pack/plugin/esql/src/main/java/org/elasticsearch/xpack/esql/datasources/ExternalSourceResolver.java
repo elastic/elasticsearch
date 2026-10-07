@@ -4767,6 +4767,13 @@ public class ExternalSourceResolver {
             DataType declaredType = DeclaredSchemaResolver.declaredTypeAsRead(e.getValue().type());
             boolean coercible = coercing ? DeclaredTypeCoercions.supports(inferredType, declaredType) : declaredType == inferredType;
             if (coercible == false) {
+                if (fileName != null) {
+                    // An IllegalArgumentException, not the readers' InvalidArgumentException: resolution reports only
+                    // the former as a client error.
+                    throw new IllegalArgumentException(
+                        DeclaredTypeCoercions.uncoercibleColumnFailure(physical, fileName, inferredType, declaredType)
+                    );
+                }
                 throw new IllegalArgumentException(
                     "declared type ["
                         + e.getValue().type()
@@ -4774,14 +4781,10 @@ public class ExternalSourceResolver {
                         + e.getKey()
                         + "] cannot be read from the file's type ["
                         + inferredType.typeName().toLowerCase(Locale.ROOT)
-                        + "]"
-                        + (fileName != null ? " in [" + fileName + "]" : "")
-                        + " — ["
+                        + "] — ["
                         + sourceType
                         + "] columns carry their own type and no read-time conversion exists for this pair;"
-                        + (fileName != null
-                            ? " set [error_mode] to [null_field] to return null for this file instead"
-                            : " declare the file's type and cast in the query if needed")
+                        + " declare the file's type and cast in the query if needed"
                 );
             }
             if (e.getValue().format() != null && isStringType(inferredType) == false && isNumericType(inferredType) == false) {

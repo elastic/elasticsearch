@@ -1967,8 +1967,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * Under union_by_name a declared column one file stores under a type it cannot be read as (here integer for a
-     * declared boolean, while the unified keyword is readable) is rejected at resolution under fail_fast, naming the
-     * file. Under null_field or skip_row resolution leaves it to the readers, which apply the policy to that file.
+     * declared boolean, while the unified keyword is readable) is rejected at resolution under fail_fast, with the
+     * message a data node reading that file reports. Under null_field or skip_row resolution leaves it to the readers,
+     * which apply the policy to that file.
      */
     public void testNonStrictOverlayPerFileDriftFollowsErrorMode() throws Exception {
         String readablePath = "s3://bucket/data/a.parquet";
@@ -1990,10 +1991,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
             PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
             resolver.resolve(List.of(GLOB), Map.of(GLOB, config), null, Map.of(GLOB, mapping), Set.of(), future);
             if (errorMode.equals("fail_fast")) {
-                Exception e = expectThrows(Exception.class, future::actionGet);
-                assertThat(e.getMessage(), containsString("[x]"));
-                assertThat(e.getMessage(), containsString("b.parquet"));
-                assertThat(e.getMessage(), containsString("[error_mode]"));
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+                assertEquals(
+                    DeclaredTypeCoercions.uncoercibleColumnFailure("x", "b.parquet", DataType.INTEGER, DataType.BOOLEAN),
+                    e.getMessage()
+                );
             } else {
                 ExternalSourceResolution.ResolvedSource resolved = future.actionGet().resolvedSource(GLOB);
                 assertEquals(DataType.BOOLEAN, resolved.metadata().schema().get(0).dataType());

@@ -491,20 +491,25 @@ public final class DeclaredTypeCoercions {
         @Nullable SkipWarnings warnings
     ) {
         if (warnings == null) {
-            throw new InvalidArgumentException(
-                "{}",
-                "column ["
-                    + columnName
-                    + "] in ["
-                    + fileLocation
-                    + "] is ["
-                    + fileType.typeName()
-                    + "] in the file and cannot be read as its declared type ["
-                    + queryType.typeName()
-                    + "]; set [error_mode] to [null_field] to return null instead"
-            );
+            throw new InvalidArgumentException("{}", uncoercibleColumnFailure(columnName, fileLocation, fileType, queryType));
         }
         warnings.addOnce(uncoercibleColumnDetail(columnName, fileType, queryType));
+    }
+
+    /**
+     * The {@code fail_fast} message of {@link #onUncoercibleColumn}. Resolution raises it too, for the files whose types
+     * it already knows, so a query fails with the same text wherever the drift is caught.
+     */
+    public static String uncoercibleColumnFailure(String columnName, String fileLocation, DataType fileType, DataType queryType) {
+        return "column ["
+            + columnName
+            + "] in ["
+            + fileLocation
+            + "] is ["
+            + fileType.typeName()
+            + "] in the file and cannot be read as its declared type ["
+            + queryType.typeName()
+            + "]; set [error_mode] to [null_field] to return null instead";
     }
 
     /**

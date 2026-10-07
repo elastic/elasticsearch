@@ -470,9 +470,25 @@ public final class PartitionSpec {
                 continue;
             }
             Field field = parseField(trimmed);
-            if (keys.add(field.key()) == false) {
+            if (field.transform() == Transform.IDENTITY) {
+                if (keys.add(field.key()) == false) {
+                    throw new IllegalArgumentException(
+                        "["
+                            + CONFIG_PARTITION_SPEC
+                            + "] names identity key ["
+                            + field.key()
+                            + "] more than once; each identity key must appear once"
+                    );
+                }
+            } else if (keys.add(field.key() + "\0" + field.column()) == false) {
                 throw new IllegalArgumentException(
-                    "[" + CONFIG_PARTITION_SPEC + "] names key [" + field.key() + "] more than once; each partition key must appear once"
+                    "["
+                        + CONFIG_PARTITION_SPEC
+                        + "] names key ["
+                        + field.key()
+                        + "] more than once on column ["
+                        + field.column()
+                        + "]; each partition key must appear once per column"
                 );
             }
             parsed.add(field);
@@ -909,6 +925,7 @@ public final class PartitionSpec {
                 }
             }
         }
+        Map<String, LinkedHashSet<Object>> yearInByKey = new LinkedHashMap<>();
         for (Map.Entry<String, List<Field>> group : temporalGroups().entrySet()) {
             List<Field> binds = usable(group.getValue(), detectedKeys);
             if (binds.isEmpty()) {
@@ -923,9 +940,13 @@ public final class PartitionSpec {
             if (years.isEmpty()) {
                 continue;
             }
-            List<Object> values = new ArrayList<>(years.size());
-            values.addAll(years);
-            projected.add(new PartitionFilterHint(yearBind.key(), Operator.IN, values));
+            intersectIn(yearInByKey, yearBind.key(), years);
+        }
+        for (Map.Entry<String, LinkedHashSet<Object>> entry : yearInByKey.entrySet()) {
+            if (entry.getValue().isEmpty()) {
+                continue;
+            }
+            projected.add(new PartitionFilterHint(entry.getKey(), Operator.IN, List.copyOf(entry.getValue())));
             emittedYearIn = true;
         }
         return List.copyOf(emittedYearIn ? dropTemporalSourceHints(projected) : projected);
@@ -949,6 +970,17 @@ public final class PartitionSpec {
             kept.add(hint);
         }
         return kept;
+    }
+
+    /** Same listing key from two source columns: keep the intersection (a superset of neither, still a superset of the AND). */
+    private static void intersectIn(Map<String, LinkedHashSet<Object>> byKey, String key, List<?> values) {
+        LinkedHashSet<Object> next = new LinkedHashSet<>(values);
+        LinkedHashSet<Object> existing = byKey.get(key);
+        if (existing == null) {
+            byKey.put(key, next);
+        } else {
+            existing.retainAll(next);
+        }
     }
 
     /**

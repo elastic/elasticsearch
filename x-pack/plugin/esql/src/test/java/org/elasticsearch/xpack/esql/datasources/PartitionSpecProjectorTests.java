@@ -450,6 +450,52 @@ public class PartitionSpecProjectorTests extends ESTestCase {
         assertFalse(none.overlaps(prevHour, hints));
     }
 
+    public void testTwoColumnsYearInIntersects() {
+        PartitionSpec spec = PartitionSpec.parse("year(start), year(end)");
+        Instant startLo = Instant.parse("2024-01-01T00:00:00Z");
+        Instant startHi = Instant.parse("2026-01-01T00:00:00Z");
+        Instant endLo = Instant.parse("2025-01-01T00:00:00Z");
+        Instant endHi = Instant.parse("2027-01-01T00:00:00Z");
+        List<PartitionFilterHint> hints = List.of(
+            hint("start", Operator.GREATER_THAN_OR_EQUAL, startLo),
+            hint("start", Operator.LESS_THAN, startHi),
+            hint("end", Operator.GREATER_THAN_OR_EQUAL, endLo),
+            hint("end", Operator.LESS_THAN, endHi)
+        );
+        List<PartitionFilterHint> projected = spec.projectListingHints(hints);
+        PartitionFilterHint yearIn = projected.stream()
+            .filter(h -> "year".equals(h.columnName()) && h.operator() == Operator.IN)
+            .findFirst()
+            .orElseThrow();
+        assertEquals(List.of(2025), yearIn.values());
+    }
+
+    public void testPerColumnLagIsIndependent() {
+        PartitionSpec spec = PartitionSpec.parse(
+            "year(start), month(start), day(start), hour(start), year(end), month(end), day(end), hour(end), lag(start, 20m), lag(end, 10m)"
+        );
+        Instant ten = Instant.parse("2024-06-15T10:00:00Z");
+        Instant eleven = Instant.parse("2024-06-15T11:00:00Z");
+        List<PartitionFilterHint> startHour = List.of(
+            hint("start", Operator.GREATER_THAN_OR_EQUAL, ten),
+            hint("start", Operator.LESS_THAN, eleven)
+        );
+        assertTrue("start lag 20m keeps hour 11", spec.overlaps(hourFolder(11), startHour));
+        List<PartitionFilterHint> endHour = List.of(
+            hint("end", Operator.GREATER_THAN_OR_EQUAL, ten),
+            hint("end", Operator.LESS_THAN, eleven)
+        );
+        assertTrue("end lag 10m keeps hour 11", spec.overlaps(hourFolder(11), endHour));
+        Map<String, Object> hour12 = Map.of("year", 2024, "month", 6, "day", 15, "hour", 12);
+        assertFalse("end lag 10m from 11:00 does not reach hour 12", spec.overlaps(hour12, endHour));
+        List<PartitionFilterHint> startTight = List.of(
+            hint("start", Operator.GREATER_THAN_OR_EQUAL, Instant.parse("2024-06-15T10:50:00Z")),
+            hint("start", Operator.LESS_THAN, eleven)
+        );
+        assertTrue("start lag 20m from 11:00 keeps hour 11", spec.overlaps(hourFolder(11), startTight));
+        assertFalse("start lag 20m from 11:00 does not reach hour 12", spec.overlaps(hour12, startTight));
+    }
+
     public void testLagWithEpochSecondAndDatetimeNanosHints() {
         PartitionSpec seconds = PartitionSpec.parse("year(start, epoch_second), month(start, epoch_second), lag(start, 15m)");
         // 2024-06-15T10:50:00Z as epoch seconds.

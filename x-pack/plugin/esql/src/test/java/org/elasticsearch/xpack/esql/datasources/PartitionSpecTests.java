@@ -368,11 +368,33 @@ public class PartitionSpecTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("non-empty string"));
     }
 
-    public void testRejectDuplicateKey() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PartitionSpec.parse("year(ts), year(event_time)"));
+    public void testAcceptSameKeyOnDifferentColumns() {
+        PartitionSpec spec = PartitionSpec.parse(
+            "year(start, epoch_second), month(start, epoch_second), day(start, epoch_second), hour(start, epoch_second), "
+                + "year(end, epoch_second), month(end, epoch_second), day(end, epoch_second), hour(end, epoch_second), "
+                + "lag(start, 20m), lag(end, 10m)"
+        );
+        assertEquals(8, spec.fields().size());
+        assertEquals(TimeValue.timeValueMinutes(20), spec.windows().get("start").lag());
+        assertEquals(TimeValue.timeValueMinutes(10), spec.windows().get("end").lag());
+    }
+
+    public void testRejectDuplicateKeyOnSameColumn() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PartitionSpec.parse("year(start), year(start)"));
         assertThat(e.getMessage(), containsString(CONFIG_PARTITION_SPEC));
         assertThat(e.getMessage(), containsString("year"));
-        assertThat(e.getMessage(), containsString("more than once"));
+        assertThat(e.getMessage(), containsString("start"));
+        assertThat(e.getMessage(), containsString("once per column"));
+    }
+
+    public void testRejectDuplicateIdentityKey() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PartitionSpec.parse("aws-region=region, aws-region=az")
+        );
+        assertThat(e.getMessage(), containsString(CONFIG_PARTITION_SPEC));
+        assertThat(e.getMessage(), containsString("identity key"));
+        assertThat(e.getMessage(), containsString("aws-region"));
     }
 
     public void testParseLagAndLead() {

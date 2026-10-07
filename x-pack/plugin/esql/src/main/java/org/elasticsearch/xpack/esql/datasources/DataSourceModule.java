@@ -16,6 +16,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
+import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -77,6 +79,9 @@ public final class DataSourceModule implements Closeable {
     private final DataSourceCapabilities capabilities;
     private final ExternalSourceMetrics externalSourceMetrics;
     private final DecompressionCodecRegistry codecRegistry;
+    @Nullable
+    private final AdmissionStallWatchdog admissionWatchdog;
+    private final NodeByteBudget nodeByteBudget;
 
     public DataSourceModule(
         List<DataSourcePlugin> dataSourcePlugins,
@@ -237,12 +242,20 @@ public final class DataSourceModule implements Closeable {
         // Runnable::run; scheduling onto that would run tryAcquire on [scheduler]. Preload parks
         // esql_external_io on timed actionGet; same-pool retry queues until that wait expires.
         RetryScheduler retryScheduler = retryStartScheduler(threadPool, splitDiscoveryExecutor);
+        AdmissionStallWatchdog watchdog = null;
+        AdmissionTracker admissionTracker = AdmissionTracker.NOOP;
+        if (threadPool != null) {
+            watchdog = new AdmissionStallWatchdog(threadPool, meterRegistry != null ? meterRegistry : MeterRegistry.NOOP);
+            admissionTracker = watchdog;
+        }
+        this.admissionWatchdog = watchdog;
         this.storageProviderRegistry = new StorageProviderRegistry(
             settings,
             credentials,
             managedIdentityEnabled,
             retryScheduler,
-            effectiveLocalFileAccess
+            effectiveLocalFileAccess,
+            admissionTracker
         );
 
         this.codecRegistry = new DecompressionCodecRegistry();
@@ -251,7 +264,9 @@ public final class DataSourceModule implements Closeable {
                 this.codecRegistry.register(codec);
             }
         }
-        this.formatReaderRegistry = new FormatReaderRegistry(this.codecRegistry);
+        this.nodeByteBudget = NodeByteBudgetService.forHeap();
+        this.formatReaderRegistry = new FormatReaderRegistry(this.codecRegistry, this.nodeByteBudget);
+        this.formatReaderRegistry.setAdmissionTracker(admissionTracker);
 
         Map<String, ExternalSourceFactory> sourceFactoryMap = new LinkedHashMap<>();
         Map<String, SourceOperatorFactoryProvider> operatorFactoryProviders = new HashMap<>();
@@ -396,7 +411,8 @@ public final class DataSourceModule implements Closeable {
             blockFactory,
             effectiveLocalFileAccess,
             externalSourceMetrics,
-            listingService
+            listingService,
+            admissionTracker
         );
         sourceFactoryMap.put("file", fileFallback);
         // Also register under each format name so OperatorFactoryRegistry can look up
@@ -459,6 +475,9 @@ public final class DataSourceModule implements Closeable {
     @Override
     public void close() throws IOException {
         List<Closeable> all = new ArrayList<>();
+        if (admissionWatchdog != null) {
+            all.add(admissionWatchdog);
+        }
         all.add(storageProviderRegistry);
         all.addAll(managedCloseables);
         IOUtils.close(all);
@@ -483,6 +502,12 @@ public final class DataSourceModule implements Closeable {
     /** The node-level external-source telemetry holder. Always a live instance backed by a real {@link DataSourceUsageAccumulator}. */
     public ExternalSourceMetrics externalSourceMetrics() {
         return externalSourceMetrics;
+    }
+
+    /** Null when this module was built without a {@link ThreadPool} (unit-test constructors). */
+    @Nullable
+    AdmissionStallWatchdog admissionWatchdog() {
+        return admissionWatchdog;
     }
 
     public DecompressionCodecRegistry codecRegistry() {

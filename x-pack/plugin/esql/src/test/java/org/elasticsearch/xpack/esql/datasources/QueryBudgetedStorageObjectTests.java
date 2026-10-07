@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -30,11 +31,13 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -345,5 +348,32 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
             closeThread.join();
             assertEquals("abort+close must not over-grant the budget", 0, budget.inFlight());
         }
+    }
+
+    public void testCancelAfterGrantFailsListenerWithoutDelegate() throws Exception {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 60_000L, null);
+        budget.acquire();
+        StorageObject delegate = mock(StorageObject.class);
+        QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
+        AtomicReference<Runnable> deferred = new AtomicReference<>();
+        CountDownLatch failed = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        Releasable cancel = obj.startReadBytesAsync(0, 4, FACTORY, r -> {
+            if (deferred.compareAndSet(null, r) == false) {
+                r.run();
+            }
+        }, ActionListener.wrap(buf -> fail("cancelled grant must not succeed"), e -> {
+            error.set(e);
+            failed.countDown();
+        }));
+        assertBusy(() -> assertEquals(1, budget.waiterCount()));
+        budget.release();
+        assertNotNull(deferred.get());
+        cancel.close();
+        deferred.get().run();
+        assertTrue(failed.await(5, TimeUnit.SECONDS));
+        assertThat(error.get(), instanceOf(TaskCancelledException.class));
+        assertEquals(0, budget.inFlight());
+        verify(delegate, never()).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any());
     }
 }

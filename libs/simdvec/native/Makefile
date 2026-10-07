@@ -16,7 +16,7 @@
 # use the baseline -march for each architecture.
 #
 # Intended to be run inside the cross-compilation toolchain container
-# (es-native-cross-toolchain:7 — clang-21 plus GCC 8 libstdc++ cross libs and llvm-mingw;
+# (es-native-cross-toolchain:8 — clang-21 plus GCC 8 libstdc++ cross libs and llvm-mingw;
 # the open-source Darwin sysroot baked in). See publish_vec_binaries.sh.
 
 HEADERS    = -I src/vec/headers/

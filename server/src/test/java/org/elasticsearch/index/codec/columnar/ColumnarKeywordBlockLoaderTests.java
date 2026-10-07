@@ -340,7 +340,18 @@ public class ColumnarKeywordBlockLoaderTests extends ESTestCase {
         public void appendOrdinals(int[] ordinals, int valueCount, int[] valueCounts, int docCount, BytesRef[] dict, int dictSize) {}
 
         @Override
-        public void appendValues(BytesRef[] values, int valueCount, int[] valueCounts, int docCount) {}
+        public Values values(int valueCount, int[] valueCounts, int docCount) {
+            return new Values() {
+                @Override
+                public void append(BytesRef value) {}
+
+                @Override
+                public void finish() {}
+
+                @Override
+                public void close() {}
+            };
+        }
     };
 
     private static BytesRef encode(String[] slots) {

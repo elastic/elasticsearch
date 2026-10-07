@@ -41,7 +41,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class ExternalSourceDrainUtilsTests extends ESTestCase {
 
     private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("none"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     private ExecutorService exec;

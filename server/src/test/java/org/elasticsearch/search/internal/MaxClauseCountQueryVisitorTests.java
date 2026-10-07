@@ -779,10 +779,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
     }
 
     public void testNoopCircuitBreakerNeverTrips() {
-        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(
-            IndexSearcher.getMaxClauseCount(),
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST)
-        );
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), NoopCircuitBreaker.INSTANCE);
         new AccountableTestQuery(Long.MAX_VALUE / 2).visit(visitor);
         assertEquals(Long.MAX_VALUE / 2, visitor.getEstimatedBytes());
     }

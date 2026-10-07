@@ -89,7 +89,7 @@ import java.util.zip.GZIPOutputStream;
 public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
     private static final BlockFactory TEST_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("test"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     public void testBasicStreamingParallelParse() throws Exception {
@@ -139,7 +139,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                     StripeColumnScope.PROJECTED,
                     StreamingParallelParsingCoordinator.WarningSinks.NONE,
                     StreamingSegmentatorAdmission.unbounded(),
-                    new NoopCircuitBreaker("test"),
+                    NoopCircuitBreaker.INSTANCE,
                     ExternalReadCounters.NOOP,
                     null,
                     stop::get
@@ -1394,7 +1394,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                         StripeColumnScope.PROJECTED,
                         StreamingParallelParsingCoordinator.WarningSinks.NONE,
                         admission,
-                        new org.elasticsearch.common.breaker.NoopCircuitBreaker("test"),
+                        NoopCircuitBreaker.INSTANCE,
                         ExternalReadCounters.NOOP,
                         null
                     )
@@ -1479,7 +1479,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 StripeColumnScope.PROJECTED,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 admission,
-                new NoopCircuitBreaker("test"),
+                NoopCircuitBreaker.INSTANCE,
                 ExternalReadCounters.NOOP,
                 null
             );
@@ -1520,7 +1520,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 StripeColumnScope.PROJECTED,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 admission,
-                new NoopCircuitBreaker("test"),
+                NoopCircuitBreaker.INSTANCE,
                 ExternalReadCounters.NOOP,
                 null
             );
@@ -1561,7 +1561,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 StripeColumnScope.PROJECTED,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 admission,
-                new NoopCircuitBreaker("test"),
+                NoopCircuitBreaker.INSTANCE,
                 ExternalReadCounters.NOOP,
                 null
             );
@@ -1618,7 +1618,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 StripeColumnScope.PROJECTED,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 admission,
-                new NoopCircuitBreaker("test"),
+                NoopCircuitBreaker.INSTANCE,
                 ExternalReadCounters.NOOP,
                 null
             );
@@ -1715,7 +1715,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 StripeColumnScope.PROJECTED,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 admission,
-                new NoopCircuitBreaker("test"),
+                NoopCircuitBreaker.INSTANCE,
                 ExternalReadCounters.NOOP,
                 null
             );
@@ -1760,7 +1760,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 StripeColumnScope.PROJECTED,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 admission,
-                new NoopCircuitBreaker("test"),
+                NoopCircuitBreaker.INSTANCE,
                 ExternalReadCounters.NOOP,
                 null
             );
@@ -1805,7 +1805,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 StripeColumnScope.PROJECTED,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 new StreamingSegmentatorAdmission(1),
-                new NoopCircuitBreaker("test"),
+                NoopCircuitBreaker.INSTANCE,
                 ExternalReadCounters.NOOP,
                 null
             );
@@ -1853,7 +1853,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 StripeColumnScope.PROJECTED,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 new StreamingSegmentatorAdmission(1),
-                new NoopCircuitBreaker("test"),
+                NoopCircuitBreaker.INSTANCE,
                 ExternalReadCounters.NOOP,
                 null
             );
@@ -3293,7 +3293,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 StripeColumnScope.PROJECTED,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 StreamingSegmentatorAdmission.unbounded(),
-                new NoopCircuitBreaker("streaming-parse-test"),
+                NoopCircuitBreaker.INSTANCE,
                 ExternalReadCounters.NOOP,
                 null,
                 null
@@ -3443,7 +3443,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             StripeColumnScope.PROJECTED,
             StreamingParallelParsingCoordinator.WarningSinks.NONE,
             admission,
-            new NoopCircuitBreaker("streaming-parse-test"),
+            NoopCircuitBreaker.INSTANCE,
             ExternalReadCounters.NOOP,
             null
         );

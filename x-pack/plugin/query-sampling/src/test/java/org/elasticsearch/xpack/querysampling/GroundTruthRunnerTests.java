@@ -98,6 +98,24 @@ public class GroundTruthRunnerTests extends ESTestCase {
         assertThat(run(runner, List.of(query)), equalTo(new GroundTruthRunner.Result(1, 0)));
     }
 
+    public void testItemsOfAnyKindCanBeProcessed() {
+        // what is looked at is the query of an item and what happens to the answer is up to the caller
+        List<CapturedQuery> items = List.of(sampled(1).search().query(), sampled(2).search().query());
+        List<String> stored = new ArrayList<>();
+        GroundTruthRunner runner = new GroundTruthRunner(answering(request -> "doc" + request.source().size()));
+        AtomicReference<GroundTruthRunner.Result> result = new AtomicReference<>();
+
+        runner.run(
+            items,
+            item -> item,
+            (item, groundTruth) -> stored.add(item.k() + ":" + groundTruth.neighbors().get(0).id()),
+            ActionListener.wrap(result::set, e -> fail(e))
+        );
+
+        assertThat(result.get(), equalTo(new GroundTruthRunner.Result(2, 0)));
+        assertThat(stored, equalTo(List.of("1:doc1", "2:doc2")));
+    }
+
     public void testNothingToDo() {
         AtomicInteger searches = new AtomicInteger();
         GroundTruthRunner runner = new GroundTruthRunner((request, listener) -> searches.incrementAndGet());

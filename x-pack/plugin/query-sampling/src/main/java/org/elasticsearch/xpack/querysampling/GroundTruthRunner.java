@@ -12,6 +12,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.groundtruth.ExactSearch;
 import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
 import org.elasticsearch.xpack.querysampling.storage.SampledQuery;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.querysampling.storage.SampledQuery;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 /**
  * Computes the ground truth of sampled queries by running their exact search. Each exact search scans the
@@ -45,15 +47,38 @@ public final class GroundTruthRunner {
     }
 
     public void run(List<SampledQuery> queries, ActionListener<Result> listener) {
-        next(queries, 0, 0, 0, listener);
+        run(queries, query -> query.search().query(), (query, groundTruth) -> query.groundTruth(groundTruth), listener);
     }
 
-    private void next(List<SampledQuery> queries, int index, int computed, int failed, ActionListener<Result> listener) {
+    /**
+     * Computes the ground truth of whatever holds a query, so that the samples are not tied to where they live.
+     *
+     * @param query how to get the query of an item
+     * @param store what to do with the ground truth of an item, called once for each one that was computed
+     */
+    public <T> void run(
+        List<T> items,
+        Function<T, CapturedQuery> query,
+        BiConsumer<T, GroundTruth> store,
+        ActionListener<Result> listener
+    ) {
+        next(items, query, store, 0, 0, 0, listener);
+    }
+
+    private <T> void next(
+        List<T> queries,
+        Function<T, CapturedQuery> queryOf,
+        BiConsumer<T, GroundTruth> store,
+        int index,
+        int computed,
+        int failed,
+        ActionListener<Result> listener
+    ) {
         if (index == queries.size()) {
             listener.onResponse(new Result(computed, failed));
             return;
         }
-        SampledQuery query = queries.get(index);
+        T query = queries.get(index);
         ActionListener<SearchResponse> exactSearchListener = new ActionListener<>() {
             // a search function may complete the listener and then still throw, only the first outcome counts
             private final AtomicBoolean completed = new AtomicBoolean();
@@ -70,8 +95,8 @@ public final class GroundTruthRunner {
                 if (completed.compareAndSet(false, true) == false) {
                     return;
                 }
-                query.groundTruth(groundTruth);
-                next(queries, index + 1, computed + 1, failed, listener);
+                store.accept(query, groundTruth);
+                next(queries, queryOf, store, index + 1, computed + 1, failed, listener);
             }
 
             @Override
@@ -80,11 +105,11 @@ public final class GroundTruthRunner {
                     return;
                 }
                 logger.debug("failed to compute the ground truth of a sampled kNN search", e);
-                next(queries, index + 1, computed, failed + 1, listener);
+                next(queries, queryOf, store, index + 1, computed, failed + 1, listener);
             }
         };
         try {
-            search.accept(ExactSearch.request(query.search().query()), exactSearchListener);
+            search.accept(ExactSearch.request(queryOf.apply(query)), exactSearchListener);
         } catch (Exception e) {
             exactSearchListener.onFailure(e);
         }

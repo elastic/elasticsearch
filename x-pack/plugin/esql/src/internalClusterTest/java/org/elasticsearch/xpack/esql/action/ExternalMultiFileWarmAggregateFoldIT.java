@@ -47,9 +47,14 @@ import static org.hamcrest.Matchers.equalTo;
  * scan both {@code COUNT(*)} AND {@code MIN(col)}/{@code MAX(col)} short-circuit on the warm pass
  * ({@code documentsFound == 0}). COUNT(*) is run first (cold + warm) so its row-count-only per-file cache
  * entries are in place before MIN/MAX, reproducing the production ordering where COUNT short-circuits and
- * MIN/MAX must still serve from the merged dataset-wide column min/max. A small stripe grid forces each
- * file through the per-stripe fold so the per-file whole-file map is produced by the same path as
- * production, then merged across files. Run for CSV and NDJSON.
+ * MIN/MAX must still serve from the merged dataset-wide column min/max. Run for CSV and NDJSON.
+ * <p>
+ * <b>Every harvest here is whole-file.</b> The settings below ask for a small stripe grid and a parallel
+ * parse, but the contributions this suite actually produces classify as {@code WholeFile} and never as
+ * {@code StripeFragment}, so {@code applyStripeDelta} matches nothing and the cross-file merge is fed by
+ * the whole-file path alone. The per-stripe rail is covered by
+ * {@code ExternalMultiChunkPerStripeWarmFoldIT}; a divergent file read in chunk mode is covered by neither
+ * and is a gap, not a claim this suite makes.
  * <p>
  * The precise pre-fix-fail / post-fix-pass regression for the cross-file column-stat merge defect lives in
  * {@code MergedSplitStatsTests#testColumnMinMaxUsesChildValueWhenNullCountUnknownButMinMaxPresent}: a
@@ -71,17 +76,18 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            // Tiny stripe grid so each file spans several canonical stripes -> the per-stripe emit + the
-            // coordinator's 0..K + EOF fold runs per file, producing each file's whole-file column stats.
+            // A tiny stripe grid, kept so the geometry here matches production rather than the default. It
+            // does NOT make this suite exercise the per-stripe rail: the harvests it produces are whole-file
+            // (see the class comment). ExternalMultiChunkPerStripeWarmFoldIT covers the per-stripe fold.
             .put("esql.external.cache.stripe.size", "64kb")
             .build();
     }
 
     @Override
     protected QueryPragmas getPragmas() {
-        // external_parsing_parallelism > 1 selects the parallel-parse path so each file is read in multiple chunks,
-        // emitting per-stripe fragments the coordinator must interval-cover and fold — the production shape
-        // at the 1rg-per-file ClickBench layout, where the cross-file column-stat merge bug surfaces.
+        // external_parsing_parallelism > 1 selects the parallel-parse path, which is the production shape at
+        // the 1rg-per-file ClickBench layout where the cross-file column-stat merge bug surfaces. It does not
+        // make the harvests per-stripe here: they arrive whole-file (see the class comment).
         return new QueryPragmas(Settings.builder().put("external_parsing_parallelism", 4).build());
     }
 

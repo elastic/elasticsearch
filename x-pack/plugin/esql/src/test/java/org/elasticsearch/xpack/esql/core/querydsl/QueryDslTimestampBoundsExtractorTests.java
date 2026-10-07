@@ -7,16 +7,36 @@
 
 package org.elasticsearch.xpack.esql.core.querydsl;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.BoundSemantics;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.dsltranslate.QueryDslTranslator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -224,6 +244,78 @@ public class QueryDslTimestampBoundsExtractorTests extends ESTestCase {
 
         // Without a nowSupplier, date math with "now" returns null
         assertThat(QueryDslTimestampBoundsExtractor.extractTimestampBounds(filter), nullValue());
+    }
+
+    /**
+     * RANGE_QUERY listing bounds contain the translator's closed {@code MV_IN_RANGE} interval, or the extractor
+     * returns null when the translator drops the clause. Listing may be slightly wider (exclusive DSL is injected
+     * as closed GTE/LTE); it must never be tighter.
+     */
+    public void testRangeQueryBoundsContainTranslatorOrNullWhenDropped() {
+        Instant now = Instant.parse("2020-06-15T12:00:00Z");
+        LongSupplier nowSupplier = now::toEpochMilli;
+        Configuration config = new ConfigurationBuilder(EsqlTestUtils.TEST_CFG).now(now).build();
+        Function<String, Expression> binder = name -> "@timestamp".equals(name)
+            ? new ReferenceAttribute(Source.EMPTY, "@timestamp", DataType.DATETIME)
+            : Literal.NULL;
+        Set<String> fields = Set.of("@timestamp");
+
+        record Case(String name, QueryBuilder filter) {}
+        List<Case> cases = List.of(
+            new Case("coarse round", new RangeQueryBuilder("@timestamp").gte("2020-06-15").lte("2020-06-16")),
+            new Case("now", new RangeQueryBuilder("@timestamp").gte("now-15m").lte("now")),
+            new Case("exclusive", new RangeQueryBuilder("@timestamp").gt("2020-06-15T00:00:00.000Z").lt("2020-06-15T01:00:00.000Z")),
+            new Case(
+                "format",
+                new RangeQueryBuilder("@timestamp").format("strict_date_optional_time")
+                    .gte("2024-06-15T00:00:00Z")
+                    .lte("2024-06-15T01:00:00Z")
+            ),
+            new Case(
+                "time_zone",
+                new RangeQueryBuilder("@timestamp").timeZone("+02:00").gte("2025-01-01T00:00:00").lt("2025-01-02T00:00:00")
+            ),
+            new Case("epoch_second", new RangeQueryBuilder("@timestamp").format("epoch_second").gte(1_718_409_600L).lte(1_718_496_000L))
+        );
+        for (Case c : cases) {
+            TimestampBounds listing = QueryDslTimestampBoundsExtractor.extractTimestampBounds(
+                c.filter(),
+                nowSupplier,
+                BoundSemantics.RANGE_QUERY
+            );
+            QueryDslTranslator.TranslationResult translated = new QueryDslTranslator(binder, fields, config, TransportVersion.current())
+                .translate(c.filter());
+            if (translated.isComplete() == false) {
+                assertThat(c.name(), listing, nullValue());
+                continue;
+            }
+            assertThat(c.name(), translated.applied(), instanceOf(MvInRange.class));
+            MvInRange range = (MvInRange) translated.applied();
+            long lo = (Long) ((Literal) range.lower()).value();
+            long hi = (Long) ((Literal) range.upper()).value();
+            assertThat(c.name(), listing, notNullValue());
+            assertThat(c.name() + " lo", listing.start().toEpochMilli(), lessThanOrEqualTo(lo));
+            assertThat(c.name() + " hi", listing.end().toEpochMilli(), greaterThanOrEqualTo(hi));
+        }
+    }
+
+    public void testRangeQueryNumericEpochSecondIs2024Not1970() {
+        var filter = new RangeQueryBuilder("@timestamp").format("epoch_second").gte(1_718_409_600L).lte(1_718_496_000L);
+        TimestampBounds bounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(filter, null, BoundSemantics.RANGE_QUERY);
+        assertThat(bounds, notNullValue());
+        assertThat(bounds.start(), equalTo(Instant.parse("2024-06-15T00:00:00Z")));
+        // lte rounds up through the last nano of that second — 1718496000 as millis would be 1970-01-20.
+        assertThat(bounds.end(), equalTo(Instant.parse("2024-06-16T00:00:00.999999999Z")));
+    }
+
+    public void testRangeQueryCoarseLteRoundsUpUnlikeLegacy() {
+        var filter = new RangeQueryBuilder("@timestamp").gte("2020-06-15").lte("2020-06-15");
+        TimestampBounds legacy = QueryDslTimestampBoundsExtractor.extractTimestampBounds(filter);
+        TimestampBounds listing = QueryDslTimestampBoundsExtractor.extractTimestampBounds(filter, null, BoundSemantics.RANGE_QUERY);
+        assertThat(legacy.start(), equalTo(Instant.parse("2020-06-15T00:00:00Z")));
+        assertThat(legacy.end(), equalTo(Instant.parse("2020-06-15T00:00:00Z")));
+        assertThat(listing.start(), equalTo(Instant.parse("2020-06-15T00:00:00Z")));
+        assertThat(listing.end(), equalTo(Instant.parse("2020-06-15T23:59:59.999999999Z")));
     }
 
 }

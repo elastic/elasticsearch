@@ -926,6 +926,19 @@ public class QueryDslTranslatorTests extends ESTestCase {
     }
 
     /**
+     * A numeric bound with {@code format: epoch_second} is seconds, matching {@code DateFieldMapper} — not millis.
+     * {@code 1718409600} as millis is 1970-01-20; as epoch_second it is 2024-06-15.
+     */
+    public void testNumericEpochSecondFormatIsNotMillis() {
+        Expression e = translate(QueryBuilders.rangeQuery("@timestamp").format("epoch_second").gte(1_718_409_600L).lte(1_718_496_000L));
+        assertThat(e, instanceOf(MvInRange.class));
+        MvInRange r = (MvInRange) e;
+        assertEquals(millis("2024-06-15T00:00:00Z"), ((Literal) r.lower()).value());
+        // lte rounds up through the last milli of that second (DateMathParser round-up of epoch_second).
+        assertEquals(millis("2024-06-16T00:00:00.999Z"), ((Literal) r.upper()).value());
+    }
+
+    /**
      * adjust_pure_negative=false makes a bool of only must_not clauses match NOTHING on the index; we model the default
      * (match everything not excluded), so a pure-negative bool with the flag off is collected, not silently over-matching.
      */

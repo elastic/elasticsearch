@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
@@ -610,8 +611,9 @@ public final class QueryDslTranslator {
         }
         // A time zone shifts what the bounds mean; we parse them zone-naively, so honoring it is not something we can
         // fake. Reject rather than answer a differently-scoped question.
-        if (range.timeZone() != null) {
-            throw new TranslationUnsupportedException("range[time_zone]");
+        String unsupported = unsupportedRangeReason(range);
+        if (unsupported != null) {
+            throw new TranslationUnsupportedException(unsupported);
         }
         Expression field = fieldBinder.apply(range.fieldName());
         DataType type = field.dataType();
@@ -804,9 +806,24 @@ public final class QueryDslTranslator {
     }
 
     /**
-     * Parse one date bound to the field type's internal long. A numeric value is epoch <em>millis</em> on both date
-     * types — matching the index field's {@code epoch_millis} parse — so it is converted to the type's resolution
-     * (identity for {@code date}, ×10⁶ for {@code date_nanos}), never read as a raw nanos count. A string goes through a
+     * Why this range cannot be rewritten as a row filter, or {@code null} if it can. Listing extraction with
+     * {@code RANGE_QUERY} semantics returns no bounds from a clause this rejects, so listing is never tighter than
+     * the applied row filter. Keep this list in one place: every new drop reason must feed both paths.
+     */
+    @Nullable
+    public static String unsupportedRangeReason(RangeQueryBuilder range) {
+        if (range.timeZone() != null) {
+            return "range[time_zone]";
+        }
+        return null;
+    }
+
+    /**
+     * Parse one date bound to the field type's internal long. A numeric value with no format (or {@code epoch_millis})
+     * is epoch <em>millis</em> on both date types — matching the index field's default numeric parse — so it is
+     * converted to the type's resolution (identity for {@code date}, ×10⁶ for {@code date_nanos}), never read as a raw
+     * nanos count. A numeric value with any other format (for example {@code epoch_second}) is stringified and parsed
+     * through that formatter, matching {@code DateFieldMapper} when {@code format} is set. A string goes through a
      * {@link org.elasticsearch.common.time.DateMathParser} anchored at the query's {@code now}, with {@code roundUp}
      * choosing the edge of the value's rounding unit. The default formatters mirror the index field defaults exactly
      * ({@code strict_date_optional_time||epoch_millis}), which means a string and a number are deliberately <em>not</em>
@@ -821,6 +838,10 @@ public final class QueryDslTranslator {
             : DateFieldMapper.Resolution.MILLISECONDS;
         try {
             if (value instanceof Number n) {
+                if (formatter != null && "epoch_millis".equals(formatter.pattern()) == false) {
+                    Instant instant = formatter.toDateMathParser().parse(String.valueOf(value), () -> nowInMillis, roundUp, null);
+                    return resolution.convert(instant);
+                }
                 // The numeric bound is epoch-MILLIS (matching the index's epoch_millis parse). resolution.convert lands
                 // on the FIRST nanosecond of that milli; when rounding up, a date_nanos bound must reach the LAST nano
                 // (the index's epoch_millis round-up parser defaults NANOS_OF_MILLI to 999_999) or an upper bound would

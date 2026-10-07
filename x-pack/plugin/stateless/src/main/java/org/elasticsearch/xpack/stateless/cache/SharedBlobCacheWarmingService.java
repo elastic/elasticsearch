@@ -399,17 +399,6 @@ public class SharedBlobCacheWarmingService {
         Setting.Property.Dynamic
     );
 
-    /**
-     * When true, drain-path search recovery warming timeouts may use per-shard warm volumes fetched from the
-     * shutting-down source node.
-     */
-    public static final Setting<Boolean> SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING = Setting.boolSetting(
-        SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".warm_volumes.enabled",
-        true,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
     public static final Setting<ByteSizeValue> UPLOAD_PREWARM_MAX_SIZE_SETTING = Setting.byteSizeSetting(
         "stateless.blob_cache_warming.upload_prewarm_max_size",
         ByteSizeValue.ofMb(16),

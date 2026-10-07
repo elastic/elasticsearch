@@ -45,7 +45,7 @@ public class ShardWarmVolumes implements ClusterStateListener {
 
     public ShardWarmVolumes(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(
-            SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING,
+            SearchRecoveryTimeoutCalculationService.SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING,
             v -> this.enabled = v
         );
     }

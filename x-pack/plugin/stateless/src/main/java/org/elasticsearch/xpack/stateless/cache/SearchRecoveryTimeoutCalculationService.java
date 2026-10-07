@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -25,6 +26,17 @@ import java.util.Map;
 /// Computes how long search shard recovery should await offline warming (internal replicated-files path only), see
 /// [#searchRecoveryTimeout].
 public class SearchRecoveryTimeoutCalculationService {
+
+    /**
+     * When true, drain-path search recovery warming timeouts may use per-shard warm volumes fetched from the
+     * shutting-down source node.
+     */
+    public static final Setting<Boolean> SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING = Setting.boolSetting(
+        SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".warm_volumes.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     private final StatelessSharedBlobCacheService cacheService;
     private final ThreadPool threadPool;

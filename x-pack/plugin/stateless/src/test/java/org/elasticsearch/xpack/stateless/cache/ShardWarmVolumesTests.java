@@ -233,9 +233,9 @@ public class ShardWarmVolumesTests extends ESTestCase {
         return new ShardWarmVolumes(
             new ClusterSettings(
                 Settings.builder()
-                    .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING.getKey(), enabled)
+                    .put(SearchRecoveryTimeoutCalculationService.SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING.getKey(), enabled)
                     .build(),
-                Set.of(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING)
+                Set.of(SearchRecoveryTimeoutCalculationService.SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING)
             )
         );
     }
